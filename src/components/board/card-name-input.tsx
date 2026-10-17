@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { getChooseableCardNames } from "@convex/cards/catalogue";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { useCompiledIndex } from "~/hooks/useCompiledIndex";
 
 /** Autocomplete name input for a `name-card` pending choice (CR 202.3 — "chooses
  *  a card name", Petra Sphinx). The chooser types a card name; the field
@@ -18,18 +19,25 @@ export default function CardNameInput({
     onSubmit: (cardName: string) => void;
 }) {
     const [value, setValue] = useState("");
-    // On a game route that holds only its game's Sets (issue #5615) this
-    // prompt needs NO definition: the candidate list and the submit gate read
-    // the Definition Index, and the name's legality (`isLegalNamedCard`,
-    // which does read a definition for a twin name, a name restriction or an
-    // as-enters filter) is checked on the SERVER, where every Set is resident.
+    // On a game route that holds only its game's shards (issues #5615,
+    // #5616) this prompt needs NO definition: the candidate list and the
+    // submit gate read the Definition Index — the compiled section loaded on
+    // demand, here, as a names asset that never pulls a shard — and the
+    // name's legality (`isLegalNamedCard`, which does read a definition for a
+    // twin name, a name restriction or an as-enters filter) is checked on the
+    // SERVER, where every definition is resident.
     // The whole implemented registry is the candidate set (CR 202.3 — name ANY
     // card; here, any card we model), PLUS every inset spell's alternative name
     // (CR 715.5 — "if … the player wants to choose an adventurer card's
     // alternative name, the player may do so"). `getChooseableCardNames` is the
     // choice DOMAIN and is deliberately wider than the enumerated populations
-    // deck legality and the card index read (CR 715.2c). Computed once.
-    const allNames = useMemo(() => getChooseableCardNames(), []);
+    // deck legality and the card index read (CR 715.2c). Computed once the
+    // compiled names are in.
+    const names = useCompiledIndex();
+    const allNames = useMemo(
+        () => (names.ready ? getChooseableCardNames() : []),
+        [names.ready]
+    );
     // Case-insensitive registry membership — gates the submit and disambiguates
     // casing (the server normalizes to canonical casing on submit).
     const canonicalByLower = useMemo(() => {
@@ -74,8 +82,10 @@ export default function CardNameInput({
                 type="text"
                 autoFocus
                 value={value}
-                disabled={disabled}
-                placeholder="Type a card name…"
+                disabled={disabled || !names.ready}
+                placeholder={
+                    names.ready ? "Type a card name…" : "Loading card names…"
+                }
                 aria-label="Card name"
                 className="h-auto px-2.5 py-1.5 text-xs"
                 onChange={(e) => setValue(e.target.value)}
@@ -111,7 +121,22 @@ export default function CardNameInput({
             >
                 Name it
             </Button>
-            {trimmed.length > 0 && !isValid && (
+            {names.error !== null && (
+                <div className="flex flex-col items-center gap-1">
+                    <p className="text-[11px] text-text-disabled text-center">
+                        Card names failed to load: {names.error.message}
+                    </p>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={names.retry}
+                    >
+                        Retry
+                    </Button>
+                </div>
+            )}
+            {names.ready && trimmed.length > 0 && !isValid && (
                 <p className="text-[11px] text-text-disabled text-center">
                     No implemented card by that name
                 </p>

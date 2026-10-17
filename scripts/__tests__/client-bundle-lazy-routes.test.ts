@@ -16,6 +16,7 @@ import {
     lightSurfaceViolations,
     reachableChunks,
     setChunkViolations,
+    compiledAssetViolations,
 } from "../lib/asset-graph";
 
 /**
@@ -139,6 +140,30 @@ describe("asset graph — light surfaces", () => {
             expect.objectContaining({
                 surface: "match-setup",
                 chunk: "match-setup.route-HHHH8888.js",
+            })
+        );
+    });
+
+    it.each([
+        ["a compiled shard", "/assets/compiled-shard-lea-dd14ab094a1d.json"],
+        [
+            "the compiled names index",
+            "/assets/compiled-index-0123456789ab.json",
+        ],
+        [
+            "the shard dictionary",
+            "/assets/compiled-dictionary-ba9876543210.json",
+        ],
+    ])("reds when a light chunk names %s (issue #5616)", (_what, url) => {
+        const dist = fakeDist(ENTRY, {
+            ...LIGHT,
+            "match-setup.route-HHHH8888.js": `const u={lea:\`${url}\`};`,
+        });
+        expect(lightSurfaceViolations(dist)).toContainEqual(
+            expect.objectContaining({
+                surface: "match-setup",
+                chunk: "match-setup.route-HHHH8888.js",
+                reason: expect.stringMatching(/compiled catalogue asset/),
             })
         );
     });
@@ -323,5 +348,31 @@ describe("source seams that keep the entry graph light", () => {
         ]) {
             expect(read(leaf), leaf).not.toMatch(/^import\s+(?!type\b)/m);
         }
+    });
+});
+
+describe("compiledAssetViolations — shards, never the whole corpus (issue #5616)", () => {
+    const SHARD = "compiled-shard-lea-dd14ab094a1d.json";
+
+    it("passes a build that ships shards and no whole corpus", () => {
+        const dist = fakeDist(ENTRY, { [SHARD]: "{}" });
+        expect(compiledAssetViolations(dist)).toEqual([]);
+    });
+
+    it("reds a build that still emits the packed corpus", () => {
+        const dist = fakeDist(ENTRY, {
+            [SHARD]: "{}",
+            "packed-corpus-YygP3Rut.json": "{}",
+        });
+        expect(compiledAssetViolations(dist)).toEqual([
+            expect.objectContaining({ asset: "packed-corpus-YygP3Rut.json" }),
+        ]);
+    });
+
+    it("reds a build with no compiled shard at all — the check cannot go vacuous", () => {
+        const dist = fakeDist(ENTRY, {});
+        expect(compiledAssetViolations(dist)).toEqual([
+            expect.objectContaining({ asset: "compiled-shard-*.json" }),
+        ]);
     });
 });

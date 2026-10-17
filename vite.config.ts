@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { buildDefine } from "./scripts/lib/build-define";
 import { cardSetsDevBundle } from "./scripts/lib/vite-card-sets-dev-bundle";
+import { compiledShards } from "./scripts/lib/vite-compiled-shards";
 import {
     cardSetChunkName,
     setChunkName,
@@ -162,7 +163,21 @@ export default defineConfig({
             },
         },
     },
+    // The Brain worker is its own build, and `plugins` are not shared with it
+    // (`resolve` is): it reads the compiled shards' URLs through the same
+    // virtual module as the page, so the plugin is listed for it too. Both
+    // builds emit the same bytes under the same content-hashed name.
+    worker: {
+        plugins: () => [compiledShards()],
+    },
     plugins: [
+        // Issue #5616 (PRD #5602, ADR 0113 Amendment VI) — the COMPILED half
+        // of the per-game delivery: the packed corpus is cut into one
+        // content-addressed asset per first-printing Set at build time (no
+        // second copy committed), plus the shard dictionary and the compiled
+        // index; `virtual:compiled-shards` hands their URLs to the client's
+        // loader. The dev server serves the same bytes from a middleware.
+        compiledShards(),
         // Dev server only (issue #5597): the 1070 Set modules the catalogue
         // imports are served as ONE pre-bundled module instead of 1070
         // revalidated requests per graph — page and Brain worker alike. The

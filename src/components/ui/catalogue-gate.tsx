@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
     hydrateCatalogue,
-    hydrateCompiledCorpus,
+    hydrateGameCatalogue,
     isCatalogueHydrated,
-    isCompiledCorpusHydrated,
+    isGameCatalogueHydrated,
 } from "@/lib/catalogueArtifact";
 import LoadingScreen from "@/components/ui/loading-screen";
 import CatalogueLoadError from "@/components/ui/catalogue-load-error";
@@ -12,10 +12,12 @@ import type { CatalogueGateMode } from "@/lib/catalogueGateMode";
 /**
  * The loading gate for the card catalogue (ADR 0113 §3, issue #3053).
  *
- * The compiled card definitions are not in the bundle: they are one
- * immutable packed asset the client FETCHES (`src/lib/catalogueArtifact.ts`)
- * and decodes a block at a time on first request (issue #4861); the
- * hand-written ones are one lazily imported chunk per Set (issue #5615).
+ * The compiled card definitions are not in the bundle: they are immutable
+ * per-Set shard assets the client FETCHES (`src/lib/catalogueArtifact.ts`,
+ * issue #5616) and decodes a block at a time on first request (issue #4861);
+ * the hand-written ones are one lazily imported chunk per Set (issue #5615).
+ * In `game` mode this gate awaits only the shard dictionary: the game's
+ * shards follow its Definition Manifest (`DefinitionManifestGate`).
  * `getDefinition`/`tryGetDefinition` stay synchronous (ADR 0113 §1), which is
  * only true if that data is RESIDENT before any consumer runs — so nothing
  * that reads it may render first. This gate is what makes that a structural
@@ -46,18 +48,18 @@ export default function CatalogueGate({
     // must not let a whole-mode surface render over a partial catalogue.
     const [readyFor, setReadyFor] = useState<CatalogueGateMode | null>(null);
     const [attempt, setAttempt] = useState(0);
-    // Already resident (the Setup flow prefetches the corpus, issue #5584):
+    // Already resident (the Setup flow prefetches the dictionary, issue #5584):
     // no loading frame at all. The whole catalogue resident satisfies either
     // mode.
     const ready =
         readyFor === mode ||
         isCatalogueHydrated() ||
-        (mode === "game" && isCompiledCorpusHydrated());
+        (mode === "game" && isGameCatalogueHydrated());
 
     useEffect(() => {
         let cancelled = false;
         const hydrate =
-            mode === "game" ? hydrateCompiledCorpus : hydrateCatalogue;
+            mode === "game" ? hydrateGameCatalogue : hydrateCatalogue;
         hydrate().then(
             () => {
                 if (!cancelled) setReadyFor(mode);

@@ -44,15 +44,16 @@ import type { CardDefinition } from "../../convex/cards/types";
 import {
     decodeBase64,
     inflateBlock,
+    type PackedBlocks,
     type PackedCorpus,
 } from "../../convex/cards/packedCorpus";
 import { buildIndexLookups } from "../../convex/cards/definitionIndex";
 import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
 
 /** Where the packed rendering lives: inside `data/catalogue/` beside the
- *  source hash. The server bundles it; the client fetches it as an asset
- *  (`src/lib/catalogueArtifact.ts`, issue #4861). */
-export const PACKED_CORPUS_PATH = "data/catalogue/packed-corpus.json";
+ *  source hash. The server bundles it; the client gets it cut into per-Set
+ *  shards (issue #5616). Declared in a leaf the Vite plugin can read. */
+export { PACKED_CORPUS_PATH } from "./compiled-asset-inputs";
 
 /**
  * Rows per deflate block — the trade between bundle bytes (bigger blocks
@@ -78,7 +79,7 @@ const DICTIONARY_SAMPLE_ROWS = 96;
 
 export { inflateBlock, type PackedCorpus };
 
-const toBase64 = (bytes: Uint8Array): string =>
+export const toBase64 = (bytes: Uint8Array): string =>
     Buffer.from(bytes).toString("base64");
 
 /**
@@ -100,14 +101,15 @@ export function sampleDictionary(rows: readonly CardDefinition[]): Uint8Array {
     return bytes.slice(Math.max(0, bytes.length - PACKED_DICTIONARY_BYTES));
 }
 
-/** Pack the server rows. `rows` must already be sorted by id — they are
- *  `merge.serverRows`, which is. */
-export function packCorpus(
+/** `rows` in {@link PACKED_BLOCK_ROWS}-row blocks, each raw-deflated against
+ *  `dictionary` and base64-encoded — the ONE block encoder, shared by the
+ *  server corpus and the client shards (`./compiled-shards`, issue #5616).
+ *  `rows` must already be sorted by id. */
+export function packBlocks(
     rows: readonly CardDefinition[],
-    sourceHash: string,
+    dictionary: Uint8Array,
     blockRows: number = PACKED_BLOCK_ROWS
-): PackedCorpus {
-    const dictionary = sampleDictionary(rows);
+): PackedBlocks {
     const encoder = new TextEncoder();
     const encoded: string[] = [];
     const blockOffsets: number[] = [0];
@@ -126,11 +128,33 @@ export function packCorpus(
         blockOffsets.push(offset);
     }
     return {
+        blockRows,
+        rowCount: rows.length,
+        blocks: encoded.join(""),
+        blockOffsets,
+        firstIds,
+    };
+}
+
+/** Pack the server rows. `rows` must already be sorted by id — they are
+ *  `merge.serverRows`, which is. */
+export function packCorpus(
+    rows: readonly CardDefinition[],
+    sourceHash: string,
+    blockRows: number = PACKED_BLOCK_ROWS
+): PackedCorpus {
+    const dictionary = sampleDictionary(rows);
+    const { blocks, blockOffsets, firstIds } = packBlocks(
+        rows,
+        dictionary,
+        blockRows
+    );
+    return {
         sourceHash,
         blockRows,
         rowCount: rows.length,
         dictionary: toBase64(dictionary),
-        blocks: encoded.join(""),
+        blocks,
         blockOffsets,
         firstIds,
         names: rows.map((r) => r.name),

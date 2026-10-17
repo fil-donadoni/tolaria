@@ -17,14 +17,14 @@ const becameResident = () => {
     for (const l of listeners) l();
 };
 vi.mock("~/lib/catalogue/definitionShards", () => ({
-    installSets,
+    installShards: installSets,
     residencyVersion: () => version,
     subscribeResidency: (l: () => void) => {
         listeners.add(l);
         return () => listeners.delete(l);
     },
     // `<set>:<n>` ids; a `tok:` id needs no Set.
-    setsNeededFor: (ids: Iterable<string>) => {
+    shardsNeededFor: (ids: Iterable<string>) => {
         const out = new Set<string>();
         for (const id of ids) {
             const set = setBySuffix(id);

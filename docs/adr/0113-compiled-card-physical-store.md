@@ -886,6 +886,65 @@ bytes before and after) are in the PR of issue #5615.
   that bundle, so dev and build run the same gate code over different Set
   sources.
 
+## Amendment VI (issue #5616, 2026-10-17) — a game downloads only its own compiled definitions
+
+Amendment V shipped the hand-written half of PRD #5602 and left the compiled
+corpus one 788 KB asset fetched at the game route's gate. This amendment ships
+the compiled half.
+
+### Decision
+
+- **The client gets the compiled corpus as one SHARD per first-printing Set**
+  (`CardDefinition.setCode`, the key the Definition Manifest already carries
+  for every compiled card), plus a **shard dictionary** and the **compiled
+  index** alone. A shard is the server corpus's block format over one Set's
+  rows, with that Set's slice of the compiled Definition Index beside them
+  (`convex/cards/compiledShard.ts`). The server keeps the bundled monolith
+  (`./compiledPool`): no server cost changes.
+- **Cut at `vite build`, never committed.** A plugin
+  (`scripts/lib/vite-compiled-shards.ts`) cuts the shards from the server's own
+  `data/catalogue/packed-corpus.json` and emits each as an asset named by its
+  content hash; `virtual:compiled-shards` hands the client its URLs. The
+  corpus keeps one committed copy. The dev server and vitest serve the same
+  bytes from the plugin's middleware.
+- **A FROZEN dictionary keeps shard URLs stable across releases.** The server
+  corpus's dictionary is resampled from every row at every regeneration; were
+  the shards deflated against it, every release would re-point every shard.
+  The shards share `data/catalogue/shard-dictionary.json`, written once by
+  `bun run catalogue:shard-dictionary` and never by `catalogue:pack`: a shard's
+  bytes depend on its own rows only, so a release that changes one Set's
+  compiled cards changes that Set's URL only. Its quality barely depends on
+  what it samples (every shard's blocks came to 619 KB gzip against a
+  dictionary sampled from every row, 613 KB from the first thousand, 1,048 KB
+  with none, at 5,560 rows); refreshing it is for a change in the row format.
+- **The game path holds no catalogue-wide index.** The game route's gate
+  awaits the dictionary; the Definition Manifest gate installs the
+  Manifest's shards (a compiled entry's `setCode` is its shard key). A
+  compiled card outside every installed shard — a debug placement before the
+  widened Manifest, a card from outside the game, a stale hint — is LOCATED by
+  the board's hold through the compiled index, which then names its shard;
+  never by fetching every shard.
+- **Name lists read the compiled index, on demand, never the shards:** the
+  name-a-card prompt (`useCompiledIndex`), the debug card-name fields, the
+  Setup flow's strict Import deck — which then installs the pasted deck's own
+  shards to validate it.
+- **Arrival order is not catalogue order.** A client installs compiled
+  sections a shard at a time, so the catalogue's compiled precedences are
+  order-free: a printed name beats a twin's, between two twins the lower row
+  id wins, a back-face trigger's first declarer is the lowest id — each the
+  answer the server's id-ordered corpus gives — and every enumeration reads
+  the compiled ids in id order. The server runs the same rule: where a
+  compiled printed name would collide with a LOWER row's twin name, the
+  printed name now wins (first-write-wins gave it to the twin). No such
+  collision exists in the corpus today, so no lookup changed.
+- **Whole-catalogue mode loads every shard** (deck builder, Draft Lab, admin,
+  and the Brain worker until its own slice).
+
+### What stays open
+
+- The Brain worker on a per-game Manifest (PRD #5602's worker slice): today
+  it loads every shard, as it loaded the whole corpus.
+
 ## Open, deliberately not decided here
 
 - Whether retiring a hand-written card in favour of its proven-equal compiled

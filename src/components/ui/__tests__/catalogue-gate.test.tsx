@@ -9,13 +9,13 @@ import {
 
 const hydrateCatalogue = vi.fn<() => Promise<number>>();
 const isCatalogueHydrated = vi.fn<() => boolean>(() => false);
-const hydrateCompiledCorpus = vi.fn<() => Promise<number>>();
-const isCompiledCorpusHydrated = vi.fn<() => boolean>(() => false);
+const hydrateGameCatalogue = vi.fn<() => Promise<void>>();
+const isGameCatalogueHydrated = vi.fn<() => boolean>(() => false);
 vi.mock("@/lib/catalogueArtifact", () => ({
     hydrateCatalogue,
     isCatalogueHydrated,
-    hydrateCompiledCorpus,
-    isCompiledCorpusHydrated,
+    hydrateGameCatalogue,
+    isGameCatalogueHydrated,
 }));
 
 const { default: CatalogueGate } = await import("../catalogue-gate");
@@ -34,7 +34,7 @@ afterEach(() => {
     cleanup();
     vi.clearAllMocks();
     isCatalogueHydrated.mockReturnValue(false);
-    isCompiledCorpusHydrated.mockReturnValue(false);
+    isGameCatalogueHydrated.mockReturnValue(false);
 });
 
 const CHILD = <p>catalogue consumer</p>;
@@ -89,26 +89,26 @@ describe("CatalogueGate", () => {
 });
 
 describe("CatalogueGate in game mode (issue #5615)", () => {
-    it("awaits the packed corpus only — the game route loads its own Sets", async () => {
-        hydrateCompiledCorpus.mockResolvedValue(5000);
+    it("awaits the shard dictionary only — the game route loads its own shards", async () => {
+        hydrateGameCatalogue.mockResolvedValue(undefined);
         render(<CatalogueGate mode="game">{CHILD}</CatalogueGate>);
         expect(screen.queryByText("catalogue consumer")).toBeNull();
         await waitFor(() =>
             expect(screen.getByText("catalogue consumer")).toBeTruthy()
         );
-        expect(hydrateCompiledCorpus).toHaveBeenCalledTimes(1);
+        expect(hydrateGameCatalogue).toHaveBeenCalledTimes(1);
         expect(hydrateCatalogue).not.toHaveBeenCalled();
     });
 
-    it("renders on the first frame when the corpus is already resident (the Setup flow's prefetch)", () => {
-        isCompiledCorpusHydrated.mockReturnValue(true);
-        hydrateCompiledCorpus.mockResolvedValue(5000);
+    it("renders on the first frame when the dictionary is already resident (the Setup flow's prefetch)", () => {
+        isGameCatalogueHydrated.mockReturnValue(true);
+        hydrateGameCatalogue.mockResolvedValue(undefined);
         render(<CatalogueGate mode="game">{CHILD}</CatalogueGate>);
         expect(screen.getByText("catalogue consumer")).toBeTruthy();
     });
 
-    it("whole mode does not render on a corpus-only residency", () => {
-        isCompiledCorpusHydrated.mockReturnValue(true);
+    it("whole mode does not render on a dictionary-only residency", () => {
+        isGameCatalogueHydrated.mockReturnValue(true);
         hydrateCatalogue.mockReturnValue(new Promise(() => {}));
         render(<CatalogueGate>{CHILD}</CatalogueGate>);
         expect(screen.queryByText("catalogue consumer")).toBeNull();
@@ -118,7 +118,7 @@ describe("CatalogueGate in game mode (issue #5615)", () => {
 
 describe("CatalogueGate across a mode change (issue #5615)", () => {
     it("a readiness earned in game mode does not let a whole-mode surface render", async () => {
-        hydrateCompiledCorpus.mockResolvedValue(5000);
+        hydrateGameCatalogue.mockResolvedValue(undefined);
         hydrateCatalogue.mockReturnValue(new Promise(() => {}));
         const view = render(<CatalogueGate mode="game">{CHILD}</CatalogueGate>);
         await waitFor(() =>

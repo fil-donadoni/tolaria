@@ -26,15 +26,25 @@ import {
     blockFor,
     decodeBase64,
     inflateBlock,
-    type PackedCorpus,
 } from "@convex/cards/packedCorpus";
 import type { CardDefinition } from "@convex/cards/types";
 import {
-    catalogueArtifactUrl,
     hydrateCatalogue,
     isCatalogueHydrated,
     resetCatalogueHydrationForTests,
 } from "../catalogueArtifact";
+import {
+    compiledIndexUrl,
+    compiledShardKeys,
+    compiledShardUrl,
+    shardDictionaryUrl,
+} from "../catalogue/compiled-shards";
+import {
+    PACKED,
+    compiledShards,
+    fetchedUrls,
+    serveCompiledAssets,
+} from "../catalogue/__tests__/compiledShardFixtures";
 
 // THE CLIENT GRAPH. `vite.config.ts` aliases `./compiledPool` to the browser
 // stub in the app and the worker builds; vitest does not, so this file asks
@@ -54,22 +64,19 @@ vi.mock(
 
 /**
  * The client's catalogue on the shared Definition Source (issue #4861, ADR
- * 0113 Amendment IV).
+ * 0113 Amendment IV), its compiled half fetched as per-Set shards (issue
+ * #5616, Amendment VI).
  *
  * `getDefinition` is synchronous and hundreds of call sites rely on it, so the
- * design rests on the packed corpus being RESIDENT before any consumer runs —
- * and on nothing more than the asked-for cards ever being decoded. Both are
- * asserted through the real registry seam, in the order a page lives them:
- * failed fetches first, then the one hydration, then a game, then the whole
- * index proven equal to the eager hydration it replaces.
+ * design rests on the shards being RESIDENT before any consumer runs — and on
+ * nothing more than the asked-for cards ever being decoded. Both are asserted
+ * through the real registry seam, in the order a page lives them: failed
+ * fetches first, then the one WHOLE hydration, then a game, then the whole
+ * index proven equal to the eager hydration it replaces — through the shards,
+ * against the server's packed corpus.
  */
 
 const REPO = resolve(__dirname, "../../..");
-const PACKED_TEXT = readFileSync(
-    resolve(REPO, "data/catalogue/packed-corpus.json"),
-    "utf8"
-);
-const PACKED = JSON.parse(PACKED_TEXT) as PackedCorpus;
 const HAND_INDEX = JSON.parse(
     readFileSync(resolve(REPO, "data/catalogue/definition-index.json"), "utf8")
 ) as HandWrittenDefinitionIndex;
@@ -107,23 +114,27 @@ const bySource = (def: CardDefinition): string =>
         typeof value === "function" ? `fn:${String(value)}` : value
     );
 
-/** A fresh parse per call: the catalogue keeps what it is handed. */
-const servePacked = () => respondWith(JSON.parse(PACKED_TEXT));
-
 afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe("catalogue artifact URL", () => {
-    it("is the packed corpus — the file the server bundles", () => {
-        expect(catalogueArtifactUrl()).toMatch(/packed-corpus.*\.json$/);
+describe("compiled asset URLs", () => {
+    it("one shard per first-printing Set of the corpus, a dictionary and an index — never the packed corpus", () => {
+        expect(compiledShardKeys).toEqual([...new Set(PACKED.setCodes)].sort());
+        const urls = [
+            shardDictionaryUrl,
+            compiledIndexUrl,
+            ...compiledShardKeys.map((k) => compiledShardUrl(k)!),
+        ];
+        expect(new Set(urls).size).toBe(urls.length);
+        for (const url of urls) expect(url).not.toMatch(/packed-corpus/);
     });
 });
 
 describe("hydrateCatalogue — failures reject, and are retried", () => {
     afterEach(() => resetCatalogueHydrationForTests());
 
-    it("starts with no compiled card: they arrive only with the corpus", () => {
+    it("starts with no compiled card: they arrive only with their shards", () => {
         expect(tryGetDefinition(PACKED.ids[0]!)).toBeNull();
         expect(getAllCardNames()).not.toContain(PACKED.names[0]);
     });
@@ -145,11 +156,45 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
         await expect(hydrateCatalogue()).rejects.toThrow(/HTTP 404/);
     });
 
-    it("refuses a body that is not a packed corpus", async () => {
-        vi.stubGlobal("fetch", respondWith([{ id: "x", name: "Row" }]));
-        await expect(hydrateCatalogue()).rejects.toThrow(
-            /is not a packed corpus/
+    // Before any test that loads the real dictionary: it is decoded once per
+    // graph, and kept.
+    it("refuses a dictionary body that holds no dictionary", async () => {
+        vi.stubGlobal("fetch", respondWith({ rows: [] }));
+        await expect(hydrateCatalogue()).rejects.toThrow(/holds no dictionary/);
+    });
+
+    it("refuses a body that is not the shard it asked for", async () => {
+        const real = serveCompiledAssets();
+        const foreign = respondWith([{ id: "x", name: "Row" }]);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((url: string) =>
+                url === shardDictionaryUrl ? real(url) : foreign()
+            )
         );
+        await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
+    });
+
+    it("refuses a well-formed shard of ANOTHER Set at a shard's URL", async () => {
+        const real = serveCompiledAssets();
+        // Every shard URL answers with a shard of a DIFFERENT Set — so none
+        // is installed, and the whole hydration below starts clean.
+        const [first, second] = compiledShardKeys.map(
+            (k) => compiledShardUrl(k)!
+        );
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((url: string) =>
+                real(
+                    url === shardDictionaryUrl
+                        ? url
+                        : url === first
+                          ? second!
+                          : first!
+                )
+            )
+        );
+        await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
     });
 
     it("bounds a stalled fetch, so the gate and the Worker see a rejection", async () => {
@@ -195,9 +240,9 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
     });
 });
 
-describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () => {
-    it("installs every compiled card of the index, decoding none of them", async () => {
-        const fetchMock = servePacked();
+describe("hydrateCatalogue — every shard is resident, nothing is decoded", () => {
+    it("installs every compiled card from every shard, decoding none of them", async () => {
+        const fetchMock = serveCompiledAssets();
         vi.stubGlobal("fetch", fetchMock);
 
         expect(isCatalogueHydrated()).toBe(false);
@@ -209,8 +254,14 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
             expect(tryGetDefinition(id)?.id, name).toBe(id);
         }
 
+        // Every shard once — and not the names index: the shards carry their
+        // own slices of it. (The dictionary was decoded by an earlier test in
+        // this graph, and is kept.)
+        expect(fetchedUrls(fetchMock).sort()).toEqual(
+            compiledShardKeys.map((k) => compiledShardUrl(k)!).sort()
+        );
         expect(fetchMock).toHaveBeenCalledWith(
-            catalogueArtifactUrl(),
+            compiledShardUrl(compiledShardKeys[0]!),
             expect.objectContaining({ signal: expect.anything() })
         );
         // The names are the index's, so the deck builder and the name inputs
@@ -228,7 +279,7 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
     });
 
     it("fetches once — a later call reuses the promise, not the network", async () => {
-        const fetchMock = servePacked();
+        const fetchMock = serveCompiledAssets();
         vi.stubGlobal("fetch", fetchMock);
         await Promise.all([hydrateCatalogue(), hydrateCatalogue()]);
         expect(fetchMock).not.toHaveBeenCalled();
@@ -251,9 +302,22 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
         const game = PACKED.ids.filter((_, i) => i % stride === 0).slice(0, 60);
         for (const id of game) expect(getDefinition(id).id).toBe(id);
 
-        const blocks = new Set(game.map((id) => blockFor(PACKED, id)));
+        // One block of one shard per distinct (shard, block) the game hits.
+        const shardOf = new Map(
+            compiledShards().flatMap((s) => s.ids.map((id) => [id, s]))
+        );
+        const blocks = new Set(
+            game.map((id) => {
+                const shard = shardOf.get(id)!;
+                return `${shard.key}#${blockFor(shard, id)}`;
+            })
+        );
         expect(packedCorpusInflations()).toBe(blocks.size);
-        expect(blocks.size).toBeLessThan(PACKED.firstIds.length / 2);
+        const total = compiledShards().reduce(
+            (n, s) => n + s.firstIds.length,
+            0
+        );
+        expect(blocks.size).toBeLessThan(total / 2);
     });
 });
 
@@ -261,9 +325,9 @@ describe("equivalence with the eager hydration it replaces", () => {
     it("every Card ID of the Definition Index decodes to the definition the eager hydration produced", () => {
         // The eager client fetched `catalogue-<hash>.json` (retired by issue
         // #5124), dropped its relocated hand-written rows and registered the
-        // rest — the rows `eagerRows` inflates whole; `getDefinition` then
-        // expanded them. Same rows, same expansion — against what the packed
-        // source decodes on demand.
+        // rest — the rows `eagerRows` inflates whole from the server's packed
+        // corpus; `getDefinition` then expanded them. Same rows, same
+        // expansion — against what the SHARDS decode on demand (issue #5616).
         const handWritten = new Set(getAllRawCards().map((c) => c.id));
         const eager = eagerRows();
 
@@ -280,8 +344,9 @@ describe("equivalence with the eager hydration it replaces", () => {
     it("the name lists and lookups are the ones the eager hydration derived", () => {
         // `registerCompiledDefinitions` derived these from each fetched row
         // (`twinNameEntriesOf`, `chooseableNamesOf`), first write winning, in
-        // the artifact's order after the hand-written index. The packed
-        // source reads them from the index instead: same lists, same winners.
+        // the artifact's order after the hand-written index. The shards carry
+        // them in per-Set slices, installed in whatever order they arrive:
+        // same lists, in id order, and the same winners (issue #5616).
         const eager = eagerRows();
         const lookups = HAND_INDEX.lookups;
         expect(getAllCardNames()).toEqual([

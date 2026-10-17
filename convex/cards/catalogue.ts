@@ -30,10 +30,12 @@ import {
 // `bun run catalogue:pack` (`scripts/lib/definition-index.ts`). Bundled on
 // both sides: every hand-written definition is in both graphs.
 import definitionIndexJson from "../../data/catalogue/definition-index.json";
-// The packed corpus's decoder (issue #4165). The server reaches it through
-// `./compiledPool`; the CLIENT through `registerPackedCorpus` below, with the
-// corpus it fetched (issue #4861).
-import { createPackedLookup, type PackedCorpus } from "./packedCorpus";
+// The packed decoder (issue #4165). The server reaches it through
+// `./compiledPool`; the CLIENT through `registerCompiledShard` below, with the
+// shards it fetched (issue #5616).
+import { createBlockLookup, type PackedLookup } from "./packedCorpus";
+import { shardIndexOf, type CompiledShard } from "./compiledShard";
+import { parentIdOfTwin } from "./twinId";
 // The packed corpus as a BUNDLED module. On the SERVER this is
 // `data/catalogue/packed-corpus.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty stub and the packed
@@ -78,12 +80,12 @@ const handWrittenIndex: HandWrittenDefinitionIndex = (() => {
     };
 })();
 
-/** A packed corpus's COMPILED section of the Definition Index, read as
- *  defensively as the hand-written one. */
+/** A COMPILED section of the Definition Index — the server's packed corpus,
+ *  or the client's fetched index — read as defensively as the hand-written
+ *  one. */
 function readCompiledIndex(
-    packed: PackedCorpus | null
+    raw: Partial<CompiledDefinitionIndex> | null
 ): CompiledDefinitionIndex | null {
-    const raw = packed as Partial<CompiledDefinitionIndex> | null;
     if (raw === null) return null;
     return {
         ids: raw.ids ?? [],
@@ -146,25 +148,39 @@ function handWrittenDefinition(id: string): CardDefinition | null {
 export const handWrittenSetCodeOf = (id: string): string | undefined =>
     handWrittenEntryById.get(id)?.[2];
 
-/** Where a compiled row is read from, given its id and its row in the
- *  compiled index. Installed ONCE per module graph by
- *  {@link installCompiledSection}: at load on the server, from the corpus it
- *  fetched on the client. */
-type CompiledRowSource = (id: string, row: number) => CardDefinition | null;
+/** One installed piece of the compiled section of the Definition Index, and
+ *  the packed rows behind it if it carries any:
+ *  - the SERVER's bundled corpus, the whole index and every row, at load;
+ *  - a CLIENT shard (issue #5616): one first-printing Set's index slice and
+ *    rows, fetched when a game or a whole-catalogue surface needs it;
+ *  - the CLIENT's compiled index alone (`lookup: null`), fetched on demand by
+ *    a surface that lists or resolves NAMES (the name-a-card prompt, the
+ *    strict Import deck, the debug name fields) without any definition. */
+interface CompiledSection {
+    readonly index: CompiledDefinitionIndex;
+    readonly lookup: PackedLookup | null;
+}
 
-const compiledRow = new Map<string, number>();
-let compiledRowSource: CompiledRowSource | null = null;
-/** The packed lookup serving the compiled rows: the server's bundled one,
- *  the client's once it has fetched its corpus. */
-let activePackedLookup = packedCorpusLookup;
+const compiledSections: CompiledSection[] = [];
 
-/** The compiled definition for `id`, from the packed corpus's row — the
- *  server's bundled one (issue #4168), the client's fetched one (issue
- *  #4861). An id the index does not hold inflates nothing. */
+/** A compiled id's place: `section * SECTION_ROW_SPAN + row`, ONE number per
+ *  id rather than an object — at 35k cards a per-id object is ~1 MiB of
+ *  client heap (issue #4861). A section holds fewer rows than the span. */
+const SECTION_ROW_SPAN = 2 ** 20;
+const compiledAt = new Map<string, number>();
+
+const sectionOf = (at: number): CompiledSection =>
+    compiledSections[Math.floor(at / SECTION_ROW_SPAN)]!;
+
+/** The compiled definition for `id`, from the packed row of the section that
+ *  placed it — the server's bundled corpus (issue #4168), a client shard
+ *  (issue #5616). An id no installed section holds, or one only the
+ *  client's rowless index knows (its shard is not resident), inflates
+ *  nothing: `null`, the answer a non-resident hand-written card gets. */
 function compiledDefinition(id: string): CardDefinition | null {
-    const row = compiledRow.get(id);
-    if (row === undefined || compiledRowSource === null) return null;
-    return compiledRowSource(id, row);
+    const at = compiledAt.get(id);
+    if (at === undefined) return null;
+    return sectionOf(at).lookup?.lookup(id) ?? null;
 }
 
 /** A catalogue card's definition exactly as declared, unexpanded: the Set
@@ -181,8 +197,9 @@ function compiledDefinition(id: string): CardDefinition | null {
 const rawCatalogueDefinition = (id: string): CardDefinition | null =>
     handWrittenDefinition(id) ?? compiledDefinition(id);
 
-/** The compiled population, in catalogue order, from the compiled index:
- *  installed at load on the server, at hydration on the client. Stated
+/** The compiled population, from the compiled index: installed at load on
+ *  the server, a section at a time on the client. Read through
+ *  {@link orderedCompiledIds}, in catalogue order. Stated
  *  POSITIVELY, never inferred from the registry, which is a LIVE map that
  *  grows during play — `maybeSynthesizeToken` and `registerTokenDefinition`
  *  write synthesized token definitions (CR 111.1) into it, and a consumer
@@ -190,17 +207,31 @@ const rawCatalogueDefinition = (id: string): CardDefinition | null =>
  *  search index did, offering `token:Soldier|Creature|…` in the deck
  *  builder). */
 const compiledIds: string[] = [];
+let compiledIdsSorted = true;
 
-/** The installed compiled section, whose `names` and `setCodes` a compiled
- *  card's row indexes into. Read through {@link compiledRow} rather than
- *  copied into per-id maps: on the client the index is the resident cost of
- *  the whole catalogue, and at 35k cards every per-id map is ~1 MiB of heap
- *  (issue #4861). */
-let compiledSection: CompiledDefinitionIndex | null = null;
+/** {@link compiledIds} in CATALOGUE ORDER — code-point id order, the order
+ *  the server's corpus holds its rows in. A client installs its sections a
+ *  shard at a time, in whatever order a game asks for them (issue #5616), so
+ *  the order is restored on read, once per batch of arrivals, and every
+ *  enumeration (`getAllCardNames`, `getAllCatalogueCards`, the registry's
+ *  catalogue walk) sees the same sequence whatever the arrival order was. */
+function orderedCompiledIds(): readonly string[] {
+    if (!compiledIdsSorted) {
+        compiledIds.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        compiledIdsSorted = true;
+    }
+    return compiledIds;
+}
 
+/** A compiled card's name and Set are read off its section's index row
+ *  ({@link compiledAt}) rather than copied into per-id maps: on the client
+ *  the index is the resident cost of the catalogue, and at 35k cards every
+ *  per-id map is ~1 MiB of heap (issue #4861). */
 const compiledNameOf = (id: string): string | undefined => {
-    const row = compiledRow.get(id);
-    return row === undefined ? undefined : compiledSection?.names[row];
+    const at = compiledAt.get(id);
+    return at === undefined
+        ? undefined
+        : sectionOf(at).index.names[at % SECTION_ROW_SPAN];
 };
 
 /** HAND-WRITTEN definitionId → home Set code (its module). A compiled
@@ -210,20 +241,27 @@ const definitionSetCode = new Map<string, string>();
 const setCodeOf = (id: string): string | undefined => {
     const own = definitionSetCode.get(id);
     if (own !== undefined) return own;
-    const row = compiledRow.get(id);
-    const code = row === undefined ? undefined : compiledSection?.setCodes[row];
+    const at = compiledAt.get(id);
+    const code =
+        at === undefined
+            ? undefined
+            : sectionOf(at).index.setCodes[at % SECTION_ROW_SPAN];
     return code ? code : undefined;
 };
 
 /** Lowercase name → the id of the definition it names. The definition
  *  itself is resolved on lookup (`resolveNamed`).
  *
- *  Precedence is first-write-wins, in the order the eager catalogue wrote:
- *  hand-written printed names, then hand-written twin names, then each
- *  compiled row's printed name followed by its own twin names. So a printed
- *  name always wins its key over a twin's, and a hand-written card over a
- *  compiled one (ADR 0108). Among compiled rows first-write-wins is only safe
- *  because compiled names are unique, which
+ *  Precedence: a hand-written card over a compiled one (ADR 0108) — the
+ *  hand-written section is written at load, first, and a compiled name never
+ *  displaces it; among hand-written keys first-write-wins, printed names
+ *  before twin names. Among COMPILED keys the rule cannot be arrival order,
+ *  because a client installs the compiled section a shard at a time, in
+ *  whatever order its game asks for them (issue #5616): a printed name wins
+ *  its key over a twin's, and between two twins the lower parent id wins —
+ *  the id order the server's one corpus writes in, so every arrival order
+ *  ends in the server's lookup ({@link addCompiledName}). Two printed names
+ *  never meet: compiled names are unique, which
  *  `scripts/__tests__/catalogue-artifact.test.ts` asserts rather than
  *  assumes; hand-written names are unique by the generator's own refusal
  *  (`scripts/lib/definition-index.ts`).
@@ -253,12 +291,45 @@ function addName([key, id]: NameEntry): void {
     if (!nameIndex.has(key)) nameIndex.set(key, id);
 }
 
+/** The id a definition's lookups are ordered by: a twin sorts at its
+ *  parent, as the server's corpus (rows in id order, each row's twin keys
+ *  right after its printed name) writes it. */
+const rowIdOf = (id: string): string => parentIdOfTwin(id) ?? id;
+
+/** A COMPILED name key joins the lookup, whatever order the shards arrive
+ *  in. Who holds a key is read off the holder's id — a twin's id is a twin
+ *  id, a hand-written card's row is in the hand-written index — rather than
+ *  kept in a map beside the lookup. */
+function addCompiledName([key, id]: NameEntry): void {
+    const held = nameIndex.get(key);
+    if (held !== undefined) {
+        const heldRow = rowIdOf(held);
+        // Hand-written, printed or twin (ADR 0108); or a compiled printed
+        // name, which only another printed name could claim — and compiled
+        // printed names are unique.
+        if (handWrittenIds.has(heldRow) || !isTwinDefinitionId(held)) return;
+        // A compiled twin holds it: a printed name takes it, a twin of a
+        // lower row does.
+        if (isTwinDefinitionId(id) && rowIdOf(id) >= heldRow) return;
+    }
+    nameIndex.set(key, id);
+}
+
 function addChooseable(id: string, names: readonly string[]): void {
     if (!chooseableById.has(id)) chooseableById.set(id, names);
 }
 
+/** First declaring card wins — in id order among COMPILED declarers, so a
+ *  shard's arrival order cannot change the answer (issue #5616); a
+ *  hand-written declarer, written at load, is never displaced. */
 function addBackFaceOwner(tokenId: string, id: string): void {
-    if (!backFaceOwner.has(tokenId)) backFaceOwner.set(tokenId, id);
+    const held = backFaceOwner.get(tokenId);
+    if (
+        held === undefined ||
+        (!handWrittenIds.has(held) && !handWrittenIds.has(id) && id < held)
+    ) {
+        backFaceOwner.set(tokenId, id);
+    }
 }
 
 function addLookups(lookups: DefinitionIndexLookups): void {
@@ -272,19 +343,29 @@ function addLookups(lookups: DefinitionIndexLookups): void {
 
 /** One compiled card joins the populations. A compiled row for a hand-written
  *  card never does (ADR 0108 — the same rule `excludeHandWritten` states); a
- *  module-declared card wins its Set and its name; a row already registered
- *  is not registered twice. */
+ *  module-declared card wins its Set and its name. A card already known is
+ *  not registered twice — but a section that carries its ROW takes over from
+ *  one that only indexed it (the client's names index, then the card's
+ *  shard): the name, the Set and the lookups are the same rows' either way. */
 function addCompiled(
     id: string,
-    row: number,
+    at: number,
     name: string,
     twinNames: readonly NameEntry[]
 ): void {
-    if (handWrittenIds.has(id) || compiledRow.has(id)) return;
+    if (handWrittenIds.has(id)) return;
+    const known = compiledAt.get(id);
+    if (known !== undefined) {
+        if (sectionOf(known).lookup === null && sectionOf(at).lookup !== null)
+            compiledAt.set(id, at);
+        return;
+    }
+    if (compiledIds.length > 0 && compiledIds[compiledIds.length - 1]! > id)
+        compiledIdsSorted = false;
     compiledIds.push(id);
-    compiledRow.set(id, row);
-    addName([name.toLowerCase(), id]);
-    for (const entry of twinNames) addName(entry);
+    compiledAt.set(id, at);
+    addCompiledName([name.toLowerCase(), id]);
+    for (const entry of twinNames) addCompiledName(entry);
 }
 
 for (const [id, name, setCode] of handWrittenIndex.entries) {
@@ -301,21 +382,22 @@ addLookups(handWrittenIndex.lookups);
 
 let expandedCatalogueCards: CardDefinition[] | null = null;
 
-/** The compiled section joins the populations — its index read, no row
- *  touched — and `source` starts serving its rows. Once per module graph: a
- *  second section would leave the name lookup's first-write-wins precedence
- *  depending on arrival order. */
+/** A compiled section joins the populations — its index read, no row
+ *  touched — and `lookup`, when it has one, starts serving its rows.
+ *  Returns how many compiled cards the catalogue did not know before. The
+ *  precedences are arrival-order free ({@link addCompiledName},
+ *  {@link addBackFaceOwner}), so sections may arrive in any order. */
 function installCompiledSection(
     index: CompiledDefinitionIndex,
-    source: CompiledRowSource
+    lookup: PackedLookup | null
 ): number {
-    if (compiledRowSource !== null) return 0;
-    compiledRowSource = source;
-    compiledSection = index;
+    const section = compiledSections.length;
+    compiledSections.push({ index, lookup });
+    const before = compiledIds.length;
     index.ids.forEach((id, row) =>
         addCompiled(
             id,
-            row,
+            section * SECTION_ROW_SPAN + row,
             index.names[row]!,
             ownEntries(index.lookups.twinNames, id) ?? []
         )
@@ -324,24 +406,23 @@ function installCompiledSection(
     // On the client this runs after module load, so a population memo taken
     // earlier would be missing every compiled row.
     expandedCatalogueCards = null;
-    return compiledIds.length;
+    return compiledIds.length - before;
 }
 
 // The SERVER's compiled section, at load: the packed corpus's index, its rows
 // read from the packed blocks on first request (issue #4168 retired the
 // literal pool this used to fall back to). A client graph has no bundled
-// corpus (`./compiledPool` is aliased to a stub) and installs its section in
-// `registerPackedCorpus`.
+// corpus (`./compiledPool` is aliased to a stub) and installs its sections
+// from what it fetches: `registerCompiledShard`, `registerCompiledIndex`.
 const bundledIndex = readCompiledIndex(packedServerCorpus);
-const bundledLookup = packedCorpusLookup;
-if (bundledIndex !== null && bundledLookup !== null) {
-    installCompiledSection(bundledIndex, (id) => bundledLookup.lookup(id));
+if (bundledIndex !== null && packedCorpusLookup !== null) {
+    installCompiledSection(bundledIndex, packedCorpusLookup);
 }
 
 /** Every Card ID the catalogue serves, in catalogue order. */
 function* catalogueIds(): Generator<string> {
     for (const [id] of handWrittenIndex.entries) yield id;
-    yield* compiledIds;
+    yield* orderedCompiledIds();
 }
 
 // The lazy source (issue #4165, widened by issue #4856): a registry miss asks
@@ -352,29 +433,81 @@ function* catalogueIds(): Generator<string> {
 setLazyDefinitionSource(rawCatalogueDefinition, catalogueIds);
 setPrintedBackFaceIndex((tokenId) => backFaceOwner.get(tokenId));
 
+const installedShards = new Set<string>();
+let compiledIndexInstalled = bundledIndex !== null;
+
 /**
- * The CLIENT's compiled section (issue #4861, ADR 0113 Amendment IV): the
- * packed corpus the main thread and the Bot worker each FETCHED
- * (`src/lib/catalogueArtifact.ts`) — the same file the server bundles. Its
- * index joins the populations, as the server's does at load; its rows are
- * decoded a block at a time on first request, never hydrated as a whole.
+ * One CLIENT shard of the compiled corpus (issue #5616, ADR 0113 Amendment
+ * VI): a first-printing Set's rows and its slice of the compiled index,
+ * FETCHED by the main thread or the Bot worker
+ * (`src/lib/catalogue/compiled-shards.ts`). Its index joins the populations,
+ * as the server's whole section does at load; its rows are decoded a block at
+ * a time on first request, against the dictionary every shard shares.
  *
- * `getDefinition` stays synchronous (ADR 0113 §1): the loading gate and the
- * worker both await this before anything reads the registry, so there is no
- * "not yet arrived" state.
+ * `getDefinition` stays synchronous (ADR 0113 §1): a compiled card whose
+ * shard is not resident answers `null`, as a hand-written card whose Set is
+ * not; the gate and the board's hold install the shards a snapshot needs
+ * before anything reads it.
  *
- * Returns how many compiled cards joined, so a caller can assert the fetch
- * was not a no-op; `0` when a section is already installed (a second call, or
- * the server's own).
+ * Returns how many compiled cards the catalogue did not know before; `0` for
+ * a shard already installed, and on the server (its bundled section holds
+ * every row already).
  */
-export function registerPackedCorpus(packed: PackedCorpus): number {
-    if (compiledRowSource !== null) return 0;
-    const lookup = createPackedLookup(packed);
-    activePackedLookup = lookup;
-    return installCompiledSection(readCompiledIndex(packed)!, (id) =>
-        lookup.lookup(id)
+export function registerCompiledShard(
+    shard: CompiledShard,
+    dictionaryOf: () => Uint8Array
+): number {
+    if (packedCorpusLookup !== null || installedShards.has(shard.key)) return 0;
+    const added = installCompiledSection(
+        shardIndexOf(shard),
+        createBlockLookup(shard, dictionaryOf)
     );
+    // Only once it is in: a throw above leaves the shard retryable.
+    installedShards.add(shard.key);
+    return added;
 }
+
+/**
+ * The CLIENT's compiled Definition Index on its own, no row (issue #5616):
+ * every compiled card's id, name, Set and lookups — what a surface that lists
+ * or resolves NAMES reads (the name-a-card prompt's list, the strict Import
+ * deck, the debug name fields), fetched only when one opens. A card it names
+ * still answers `null` until its shard is resident, and its Set code says
+ * which shard that is ({@link compiledShardKeyOf}).
+ *
+ * Once per graph; returns how many compiled cards joined.
+ */
+export function registerCompiledIndex(index: CompiledDefinitionIndex): number {
+    if (compiledIndexInstalled) return 0;
+    compiledIndexInstalled = true;
+    return installCompiledSection(readCompiledIndex(index)!, null);
+}
+
+/** Whether every compiled card's name and Set are known in this graph: the
+ *  server's bundled section, or the client's fetched index. */
+export const isCompiledIndexInstalled = (): boolean => compiledIndexInstalled;
+
+/** Whether the rows of client shard `key` are resident in this graph: it
+ *  was installed, or this graph bundles every row (the server). */
+export const isCompiledShardInstalled = (key: string): boolean =>
+    packedCorpusLookup !== null || installedShards.has(key);
+
+/** The client shard a COMPILED card's row lives in — its first-printing Set
+ *  code, read off whichever installed section knows the card — or
+ *  `undefined` for a card no installed section knows (a hand-written card, a
+ *  token, a derived face, or a compiled card while neither its shard nor the
+ *  compiled index is resident). */
+export function compiledShardKeyOf(id: string): string | undefined {
+    if (handWrittenIds.has(id) || !compiledAt.has(id)) return undefined;
+    return setCodeOf(id);
+}
+
+/** Whether a compiled card's row can be decoded now: some installed section
+ *  that knows it carries its row. */
+export const isCompiledRowResident = (id: string): boolean => {
+    const at = compiledAt.get(id);
+    return at !== undefined && sectionOf(at).lookup !== null;
+};
 
 /** Every hand-written definition, walked from the Set modules' exports at
  *  CALL time — never at load. A `defineCard` factory is built by the walk
@@ -411,7 +544,10 @@ export function walkHandWrittenDefinitions(): HandWrittenExport[] {
 /** How many packed blocks this module graph has inflated: the observable a test bounds a request (issue #4165)
  *  or a client game load (issue #4861) by. */
 export const packedCorpusInflations = (): number =>
-    activePackedLookup?.inflations() ?? 0;
+    compiledSections.reduce(
+        (sum, { lookup }) => sum + (lookup?.inflations() ?? 0),
+        0
+    );
 
 /** What a name key resolves to: a TWIN through the registry (it is minted
  *  by `preloadDefinitions` when its parent is resolved, and expanded like any
@@ -446,7 +582,7 @@ export const tryGetCardByName = (name: string): CardDefinition | null => {
 // built to read them (issue #4856).
 export const getAllCardNames = (): string[] => [
     ...handWrittenIndex.entries.map(([, name]) => name),
-    ...compiledIds.map((id) => compiledNameOf(id)!),
+    ...orderedCompiledIds().map((id) => compiledNameOf(id)!),
 ];
 
 /** What the Definition Index alone says about a NAME (issue #4166):
@@ -575,7 +711,7 @@ export const getChooseableCardNames = (): string[] => {
     // client) means both sides build this same list from the compiled
     // population once hydrated, so the submit gate and the button's
     // candidate list still agree.
-    for (const id of compiledIds)
+    for (const id of orderedCompiledIds())
         names.push(...(chooseableById.get(id) ?? [compiledNameOf(id)!]));
     return names;
 };
@@ -620,7 +756,7 @@ export const getAllCatalogueCards = (): CardDefinition[] => {
     if (!expandedCatalogueCards)
         expandedCatalogueCards = [
             ...getAllCards(),
-            ...compiledIds.map((id) => getDefinition(id)),
+            ...orderedCompiledIds().map((id) => getDefinition(id)),
         ];
     return expandedCatalogueCards;
 };
@@ -659,7 +795,7 @@ export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
 export const getAllSetCodes = (): string[] => {
     const codes = new Set<string>();
     for (const code of definitionSetCode.values()) codes.add(code);
-    for (const id of compiledIds) {
+    for (const id of orderedCompiledIds()) {
         const code = setCodeOf(id);
         if (code) codes.add(code);
     }

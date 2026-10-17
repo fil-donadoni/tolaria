@@ -65,8 +65,9 @@ export default function ImportDeckDialog({
     const fetchEarliest = useEarliestPrintFetcher();
     const format = importFormat(matchFormat, chosen);
 
-    // Opening the dialog loads the parser and the catalogue; a failed load is
-    // retried by reopening it (`hydrateCatalogue` does not memoise a failure).
+    // Opening the dialog loads the parser and the catalogue's names (issue
+    // #5616); a failed load is retried by reopening it (neither memoises a
+    // failure).
     useEffect(() => {
         if (!open || importer !== null) return;
         let cancelled = false;

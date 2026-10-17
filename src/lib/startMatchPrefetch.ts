@@ -1,14 +1,15 @@
 // What Start match needs, warmed while the player sets up (issue #5584).
 //
 // The Setup flow is a light surface: it renders without the card catalogue.
-// The board is not — its catalogue gate holds it until the packed corpus is
-// resident (`hydrateCompiledCorpus()`), and then until the Sets of the game's
-// Definition Manifest are (issue #5615). The corpus needs no Manifest, so that
-// same memoised fetch starts here, at idle, and the gate usually finds it
-// done. The Sets DO need the Manifest, which exists only once the game is
-// built, so they load at Start match — a warm-up here would download the
-// whole catalogue the per-game delivery exists to avoid. The gate's own lazy
-// chunk and the game route's lazy chunks are preloaded the same way.
+// The board is not — its catalogue gate holds it until the shard dictionary
+// is resident (`hydrateGameCatalogue()`), and then until the shards of the
+// game's Definition Manifest are (issues #5615, #5616). The dictionary needs
+// no Manifest, so that same memoised fetch starts here, at idle, and the gate
+// usually finds it done. The shards DO need the Manifest, which exists only
+// once the game is built, so they load at Start match — a warm-up here would
+// download the whole catalogue the per-game delivery exists to avoid. The
+// gate's own lazy chunk and the game route's lazy chunks are preloaded the
+// same way.
 //
 // Best effort, never a step's dependency: every part may fail on its own and
 // is ignored here — the gate retries the catalogue, and the router loads the
@@ -30,13 +31,13 @@ export function whenIdle(task: () => void): () => void {
     return () => window.clearTimeout(handle);
 }
 
-/** Start the packed corpus fetch and the game route's preload; settles when
- *  both have, whatever their outcome. */
+/** Start the shard dictionary fetch and the game route's preload; settles
+ *  when both have, whatever their outcome. */
 export async function prefetchStartMatch(
     preloadGameRoute: () => Promise<unknown>
 ): Promise<void> {
     await Promise.allSettled([
-        import("./catalogueArtifact").then((m) => m.hydrateCompiledCorpus()),
+        import("./catalogueArtifact").then((m) => m.hydrateGameCatalogue()),
         prefetchCatalogueGate(),
         preloadGameRoute(),
     ]);

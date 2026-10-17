@@ -9,13 +9,15 @@ import definitionIndexJson from "../../../../data/catalogue/definition-index.jso
 import { setModuleSource as browserSets } from "../set-modules.browser";
 import {
     allSetCodes,
-    installAllSets,
-    installSets,
+    installShards,
     isKnownSetCode,
     isSetResident,
-    setNeededBy,
-    setsNeededFor,
+    shardNeededBy,
+    shardsNeededFor,
 } from "../definitionShards";
+
+/** Every hand-written Set resident. */
+const installAllSets = () => installShards(allSetCodes());
 
 /**
  * Issue #5615 (PRD #5602, ADR 0113 Amendment V) — the per-Set path yields
@@ -29,7 +31,8 @@ import {
  * not equality: a copy would be a second `defineCard` factory for one card.
  *
  * The loader's bookkeeping (which Sets a board needs, twins through their
- * parent, an unknown code refused) is pinned beside it.
+ * parent, an unknown code refused) is pinned beside it. Its compiled half
+ * (issue #5616) is pinned in a client graph: `compiledShards.test.ts`.
  */
 
 const index = definitionIndexJson as unknown as HandWrittenDefinitionIndex;
@@ -69,27 +72,27 @@ describe("the browser seam against the server's Set list", () => {
     });
 
     it("rejects a code no Set directory carries, and leaves nothing resident for it", async () => {
-        await expect(installSets(["nope"])).rejects.toThrow(
+        await expect(installShards(["nope"])).rejects.toThrow(
             /Unknown Set module: nope/
         );
         expect(isSetResident("nope")).toBe(false);
     });
 });
 
-describe("which Sets a set of definition ids needs", () => {
+describe("which shards a set of definition ids needs", () => {
     const [handWritten, , handWrittenSet] = index.entries[0]!;
 
-    it("a hand-written id needs its home Set; a compiled row, a token or a sentinel needs none", () => {
-        expect(setNeededBy(handWritten)).toBe(handWrittenSet);
-        expect(setNeededBy(handWritten)).toBe(
+    it("a hand-written id needs its home Set; a token or a sentinel needs none", () => {
+        expect(shardNeededBy(handWritten)).toBe(handWrittenSet);
+        expect(shardNeededBy(handWritten)).toBe(
             handWrittenSetCodeOf(handWritten)
         );
-        expect(setNeededBy("face-down:2-2-vanilla")).toBeUndefined();
-        expect(setNeededBy("not-a-card")).toBeUndefined();
+        expect(shardNeededBy("face-down:2-2-vanilla")).toBeUndefined();
+        expect(shardNeededBy("not-a-card")).toBeUndefined();
     });
 
     it("a twin needs its parent's Set", () => {
-        expect(setNeededBy(twinDefinitionId(handWritten, "adventure"))).toBe(
+        expect(shardNeededBy(twinDefinitionId(handWritten, "adventure"))).toBe(
             handWrittenSet
         );
     });
@@ -98,9 +101,9 @@ describe("which Sets a set of definition ids needs", () => {
         // Every Set is resident after the equivalence test above ran in this
         // graph — so nothing is needed, whatever the ids.
         await installAllSets();
-        expect(setsNeededFor([handWritten, handWritten, "not-a-card"])).toEqual(
-            []
-        );
+        expect(
+            shardsNeededFor([handWritten, handWritten, "not-a-card"])
+        ).toEqual([]);
         // The catalogue answers a resident hand-written card.
         expect(tryGetDefinition(handWritten)?.id).toBe(handWritten);
     });
