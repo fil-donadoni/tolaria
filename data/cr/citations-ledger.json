@@ -10843,6 +10843,7 @@
         {"id":"207.2c","line":"/** Revolt, an ability word (CR 207.2c) — a permanent each seat controlled","sites":1,"status":"baseline"},
         {"id":"207.2c","line":"/** Revolt, an ability word (CR 207.2c) — a permanent this seat controlled","sites":1,"status":"baseline"},
         {"id":"207.2c","line":"/** Revolt, an ability word (CR 207.2c): true when a permanent the","sites":1,"status":"baseline"},
+        {"id":"207.2c","line":"/** Threshold's goal — \"seven or more cards in your graveyard\" (CR 207.2c","sites":1,"status":"confirmed","ruleHash":"dff7fca2804dd90a"},
         {"id":"207.2c","line":"// \"Flurry\" is an italicized CR 207.2c ABILITY WORD (Scryfall lists it under","sites":1,"status":"baseline"},
         {"id":"207.2c","line":"// \"Venom Blast\" is an ABILITY WORD (CR 207.2c): italic flavour that ties","sites":1,"status":"baseline"},
         {"id":"207.2c","line":"// (CR 207.2c preamble — \"channel\" is in the official ability-word glossary,","sites":1,"status":"baseline"},
