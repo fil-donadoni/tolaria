@@ -2045,8 +2045,9 @@ function deckOutDelta(
 // records it.
 //
 // Deliberately CONSERVATIVE (it under-reports rather than over-fires):
-//   * blocked attackers contribute nothing, so trample damage through a chump
-//     is not counted — same simplification `declaredBlockDelta` already makes;
+//   * a blocked attacker contributes nothing unless it has trample, and then
+//     only its overflow past lethal to each live blocker (CR 702.19b, issue
+//     #5785 — `playerDamageOf`, shared with `declaredBlockDelta`);
 //   * an attacker directed at a planeswalker (CR 508.1a) never touches the
 //     player's life, so it is excluded;
 //   * it fires only once blockers are CONFIRMED — at declare-attackers time
@@ -2144,16 +2145,20 @@ function declaredFaceDamage(
         // CR 508.1a — an attacker aimed at a planeswalker never reaches the
         // player's life (issue #1220).
         if (combat.attackTargets?.[atkId] !== undefined) continue;
+        const atk = attacker.battlefield.find((c) => c.id === atkId);
+        if (!atk) continue;
         // CR 509.1h — "blocked" is combat STATE, not the live blocker count.
         // `blockedAttackerIds` is the engine's authority (written at every
         // blocker confirmation, read by the damage step itself, phases.ts):
         // an attacker that became blocked stays blocked and deals NOTHING to
-        // the player even after every blocker has left the battlefield.
-        // Reading `blockerAssignments` alone would count its full power.
-        if (combat.blockedAttackerIds?.includes(atkId)) continue;
-        if ((byAttacker.get(atkId) ?? []).length > 0) continue;
-        const atk = attacker.battlefield.find((c) => c.id === atkId);
-        if (!atk) continue;
+        // the player even after every blocker has left the battlefield —
+        // unless it has trample, in which case only its overflow past lethal
+        // to each live blocker reaches the player (`playerDamageOf`).
+        const blockers = byAttacker.get(atkId) ?? [];
+        const blocked =
+            combat.blockedAttackerIds?.includes(atkId) || blockers.length > 0;
+        const toPlayer = playerDamageOf(state, atk, blocked, blockers, pass);
+        if (toPlayer <= 0) continue;
         // CR 615.12 — this attacker's combat damage can't be prevented
         // (Questing Beast), so every shield below is a no-op against it.
         // Mirrors `applyOneCombatDamage`'s own per-source computation.
@@ -2187,9 +2192,45 @@ function declaredFaceDamage(
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.
         if (!unpreventable && isCombatDamageImmune(state, atk.id)) continue;
-        damage += Math.max(0, getEffectivePT(state, atk, { pass }).power);
+        damage += toPlayer;
     }
     return { defender, attacker, damage };
+}
+
+/** The combat damage ONE declared attacker sends at the player it attacks,
+ *  given its live blockers. Unblocked → its full power. Blocked without
+ *  trample → nothing (CR 509.1h). Blocked with trample → whatever is left after
+ *  lethal damage is assigned to every live blocker (CR 702.19b), all of it when
+ *  no blocker is left (CR 702.19d). "Lethal" is `lethalDamageThreshold`, the
+ *  same arithmetic the engine's default assignment uses (`phases.ts`), so
+ *  damage marked and deathtouch (CR 702.2c) count. Shared by
+ *  `declaredFaceDamage` and `declaredBlockDelta` (issue #5785) so the two can
+ *  never disagree about overflow. Pure. */
+function playerDamageOf(
+    state: GameState,
+    atk: CardInstanceState,
+    blocked: boolean,
+    blockers: readonly CardInstanceState[],
+    pass: Layer7Pass
+): number {
+    const power = Math.max(0, getEffectivePT(state, atk, { pass }).power);
+    if (!blocked) return power;
+    if (!atk.staticAbilities.includes("trample")) return 0;
+    const atkDeathtouch = atk.staticAbilities.includes("deathtouch");
+    const owed = blockers.reduce(
+        (sum, b) =>
+            sum +
+            lethalDamageThreshold({
+                effectiveToughness: Math.max(
+                    0,
+                    getEffectivePT(state, b, { pass }).toughness
+                ),
+                damageMarked: b.damageMarked,
+                sourceHasDeathtouch: atkDeathtouch,
+            }),
+        0
+    );
+    return Math.max(0, power - owed);
 }
 
 /**
@@ -2513,6 +2554,13 @@ export function declaredBlockDelta(
                 deadBlockers.push(b);
                 remaining -= bLethal;
             }
+        }
+        // CR 702.19b (issue #5785) — a trampler's power past lethal to EVERY
+        // blocker reaches the player. Not `remaining` above: that walk skips a
+        // blocker it cannot kill, but trample owes lethal to all of them
+        // first. An attacker aimed at a planeswalker (CR 508.1a) is excluded.
+        if (combat.attackTargets?.[atkId] === undefined) {
+            faceDamage += playerDamageOf(state, atk, true, blockers, pass);
         }
     }
 
