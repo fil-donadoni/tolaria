@@ -31,6 +31,8 @@ export interface FakeStatus {
 }
 
 interface State {
+    /** The base history, newest first; absent: `git rev-list` in the cwd. */
+    commits?: string[];
     /** Statuses per sha, newest first. */
     statuses: Record<string, FakeStatus[]>;
     /** Commit comments per sha, oldest first. */
@@ -40,10 +42,13 @@ interface State {
 const REPO = "owner/name";
 
 export interface FakeGh {
-    /** Env to merge into a spawn: the fake first on PATH, the repo named. */
+    /** Env to merge into a spawn: the fake first on PATH, the repo named.
+     *  `FAKE_GH_BIN` is the directory alone, for a harness that owns PATH. */
     env: Record<string, string>;
     /** Put a status on `sha`, newest. `created_at` defaults to now. */
     seed(sha: string, s: Omit<FakeStatus, "created_at"> & { created_at?: string }): void;
+    /** Name the base history (newest first) when the cwd is no repository. */
+    setHistory(shas: string[]): void;
     statuses(sha: string): FakeStatus[];
     comments(sha: string): string[];
     /** The same fake as a `GhRunner`, for the store functions that take one. */
@@ -68,6 +73,7 @@ export function fakeGh(dir: string): FakeGh {
         PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`,
         GH_REPO: REPO,
         FAKE_GH_STATE: state,
+        FAKE_GH_BIN: join(dir, "bin"),
     };
     return {
         env,
@@ -89,6 +95,9 @@ export function fakeGh(dir: string): FakeGh {
                 ...(st.statuses[sha] ?? []),
             ];
             writeFileSync(state, JSON.stringify(st));
+        },
+        setHistory(shas) {
+            writeFileSync(state, JSON.stringify({ ...readState(state), commits: shas }));
         },
         statuses: (sha) => readState(state).statuses[sha] ?? [],
         comments: (sha) =>
@@ -122,7 +131,8 @@ function main(argv: string[]): number {
         if (rev.status !== 0)
             rev = log(ref.replace("refs/heads/", "refs/remotes/origin/"));
         const commits =
-            rev.status === 0 ? rev.stdout.split("\n").filter(Boolean) : [];
+            st.commits ??
+            (rev.status === 0 ? rev.stdout.split("\n").filter(Boolean) : []);
         const nodes = commits.map((oid) => {
             const s = (st.statuses[oid] ?? []).find((x) => x.context === ctx);
             return {

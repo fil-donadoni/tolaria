@@ -256,9 +256,10 @@ export const planBranch = (number = 101, model = "sonnet"): string =>
         // the REAL bun even in stubs that otherwise answer one script and fail
         // everything else, or the read comes back empty and the run stops.
         `if [ "$1" = "-e" ] && [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
-        // The health verdict (issue #5462) is the REAL reader over the run's
-        // directory: the file backend, unless a test selects another.
-        `if [ "$1" = "run" ] && [ "$3" = "health:status" ] && [ -x "${REAL_BUN}" ]; then shift 3; exec "${REAL_BUN}" "${HEALTH_MAIN}" --status "$@"; fi`,
+        // The health verdict (issue #5462) is the REAL reader over the verdict
+        // store: with no fake `gh` (`fake-gh.ts`, `FAKE_GH_BIN`) it reads as
+        // unreadable, which the driver treats as no RED.
+        `if [ "$1" = "run" ] && [ "$3" = "health:status" ] && [ -x "${REAL_BUN}" ]; then shift 3; PATH="\${FAKE_GH_BIN:+\$FAKE_GH_BIN:}\$PATH" exec "${REAL_BUN}" "${HEALTH_MAIN}" --status "$@"; fi`,
     ].join("\n");
 
 /** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the
@@ -345,11 +346,6 @@ export const run = (opts: RunOpts = {}) =>
             // reads the AMBIENT value and stays green with the fix deleted,
             // precisely when the suite runs inside an AFK pass.
             CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "",
-            // Pass leases go to the scratch dir, never to the machine's
-            // registry the real reaper sweeps (issue #5470); and no pass
-            // inherits the lease of the run this suite runs under.
-            TOLARIA_LEASE_DIR: path.join(tmp, "leases"),
-            TOLARIA_OWNER: "",
             // Hermetic: a stop that notifies the owner (a RED, issue #5589)
             // must never reach the desktop of the machine running the suite.
             TOLARIA_NOTIFY_CMD: "true",

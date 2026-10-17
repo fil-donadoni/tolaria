@@ -11,6 +11,7 @@ import {
     writeStub,
     stubBunDefaultBody,
 } from "./loop-drain-harness";
+import { fakeGh, type FakeGh } from "./fake-gh";
 
 installLoopDrainHarness();
 
@@ -21,18 +22,31 @@ installLoopDrainHarness();
  * stops + notifies on `stuck` or a plan that says stop.
  *
  * `health:fix` is stubbed here — its decision is `health-fix-headless.test.ts`'s
- * — and the verdict is the REAL reader over a file-backend RED.
+ * — and the verdict is the REAL reader over a RED commit status on a fake `gh`.
  */
 const SHA = "deadbeef".repeat(5);
 const healthDir = (): string =>
     path.join(tmp, ".claude", "telemetry", "health");
 
+let gh: FakeGh;
+
+/** The fake's env WITHOUT its PATH: the harness owns PATH (its own `gh`
+ *  stub counts the queue), and its `health:status` branch puts the fake first
+ *  for that one call (`FAKE_GH_BIN`). */
+const ghEnv = (): Record<string, string> => {
+    const { PATH: _path, ...rest } = gh.env;
+    return rest;
+};
+
 const writeRed = (): void => {
+    gh = fakeGh(path.join(tmp, "fake-gh"));
+    gh.setHistory([SHA]);
+    gh.seed(SHA, {
+        state: "failure",
+        context: "health",
+        description: "RED · test · MacBook",
+    });
     fs.mkdirSync(healthDir(), { recursive: true });
-    fs.writeFileSync(
-        path.join(healthDir(), "RED"),
-        `staging @ ${SHA} red at test\n`
-    );
     fs.writeFileSync(
         path.join(healthDir(), "last.json"),
         JSON.stringify({ sha: SHA, status: "red", failedStep: "test" })
@@ -61,7 +75,9 @@ const stubHealthFix = (plan: string, fix: string): string => {
     return fixlog;
 };
 
-const clearRed = (): string => `rm -f "${path.join(healthDir(), "RED")}"`;
+/** Shell: health answers GREEN on the tip, through the fake `gh` on PATH. */
+const clearRed = (): string =>
+    `"$FAKE_GH_BIN/gh" api -X POST repos/owner/name/statuses/${SHA} -f state=success -f context=health -f description="GREEN · test · MacBook" >/dev/null`;
 
 describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () => {
     it("attempt → headless fix lands → the loop resumes and runs the pass", () => {
@@ -72,7 +88,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         const fixlog = stubHealthFix(`echo attempt`, `${clearRed()}; exit 0`);
         const r = run({
             args: ["--max-passes", "1", "--claude-args", "--permission-mode x"],
-            env: { TOLARIA_VERDICT_STORE: "file" },
+            env: ghEnv(),
         });
         const calls = fs.readFileSync(fixlog, "utf8").trim().split("\n");
         expect(calls[0]).toBe(
@@ -97,7 +113,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         const r = run({
             args: ["--claude-args", "x"],
             env: {
-                TOLARIA_VERDICT_STORE: "file",
+                ...ghEnv(),
                 TOLARIA_NOTIFY_CMD: `printf '%s' "$1" > "${notified}"`,
             },
         });
@@ -120,7 +136,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         );
         const r = run({
             args: ["--claude-args", "x"],
-            env: { TOLARIA_VERDICT_STORE: "file" },
+            env: ghEnv(),
         });
         expect(r.stdout).toMatch(/reason=health-red/);
         expect(r.stderr).toMatch(
@@ -142,7 +158,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         const r = run({
             args: ["--max-passes", "1", "--claude-args", "x"],
             env: {
-                TOLARIA_VERDICT_STORE: "file",
+                ...ghEnv(),
                 TOLARIA_LOOP_FIX_WAIT_SECS: "0",
             },
         });
@@ -161,7 +177,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         stubHealthFix("true", "exit 0");
         const r = run({
             args: ["--claude-args", "x"],
-            env: { TOLARIA_VERDICT_STORE: "file" },
+            env: ghEnv(),
         });
         expect(r.stdout).toMatch(/reason=health-red/);
         expect(r.stderr).toMatch(
