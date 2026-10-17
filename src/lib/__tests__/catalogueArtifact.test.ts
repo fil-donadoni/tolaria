@@ -175,6 +175,18 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
         await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
     });
 
+    it("refuses a well-formed shard of ANOTHER Set at a shard's URL", async () => {
+        const real = serveCompiledAssets();
+        const other = compiledShardUrl(compiledShardKeys[0]!)!;
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((url: string) =>
+                real(url === shardDictionaryUrl ? url : other)
+            )
+        );
+        await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
+    });
+
     it("bounds a stalled fetch, so the gate and the Worker see a rejection", async () => {
         // The failure this guards is a `fetch` that never settles: a pending
         // promise reaches neither the gate's error branch nor the Worker's
