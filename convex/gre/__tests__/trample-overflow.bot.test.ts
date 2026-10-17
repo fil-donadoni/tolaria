@@ -107,7 +107,7 @@ describe("lethalUnblockedDelta — trample overflow (CR 702.19b, issue #5785)", 
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
     });
 
-    it("excludes a trampler aimed at a planeswalker (CR 508.1a)", () => {
+    it("excludes a trampler aimed at a planeswalker (CR 508.1b)", () => {
         const state = blockState(trampler(), pair(), 2);
         state.combat!.attackTargets = { atk: "pw1" };
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);

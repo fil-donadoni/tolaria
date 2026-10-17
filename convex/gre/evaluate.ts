@@ -2558,7 +2558,7 @@ export function declaredBlockDelta(
         // CR 702.19b (issue #5785) — a trampler's power past lethal to EVERY
         // blocker reaches the player. Not `remaining` above: that walk skips a
         // blocker it cannot kill, but trample owes lethal to all of them
-        // first. An attacker aimed at a planeswalker (CR 508.1a) is excluded.
+        // first. An attacker aimed at a planeswalker (CR 508.1b) is excluded.
         if (combat.attackTargets?.[atkId] === undefined) {
             faceDamage += playerDamageOf(state, atk, true, blockers, pass);
         }
