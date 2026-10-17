@@ -3,12 +3,13 @@
 // `convex/gre/rng.ts`'s `makeRng(seed)`, reused rather than re-invented so
 // the draft engine, Bot Drafter, and this generator all share one seeded-PRNG
 // convention — samples one pack: pick a weighted booster variant, then draw
-// each variant slot's card count from its named sheet via weighted sampling
-// (with replacement — a real booster can legally contain two copies of the
-// same common). No I/O, no game state: `generateBooster` is a plain function
+// each variant slot's card count from its named sheet via weighted sampling.
+// A sheet is duplicate-free unless it carries `allowDuplicates: true` (the
+// MTGJSON rule): a duplicate-free sheet is drawn WITHOUT replacement within
+// one pack, an `allowDuplicates` sheet WITH replacement. No I/O, no game state: `generateBooster` is a plain function
 // of its two inputs, so the same `(config, rng-stream-from-seed)` pair always
 // produces the same pack, and a driver (event mutation, test) owns the seed.
-import type { BoosterConfig } from "./boosterTypes";
+import type { BoosterConfig, BoosterSheet } from "./boosterTypes";
 
 /** One drawn card, tagged with the sheet it came from. Sheets are NOT
  *  guaranteed disjoint by Scryfall id — e.g. LEA's two Alpha basic-land art
@@ -70,18 +71,44 @@ export function generateBooster(
                 `generateBooster: booster variant references unknown sheet "${sheetName}"`
             );
         }
-        const sheetEntries = Object.entries(sheet.cards) as (readonly [
-            string,
-            number,
-        ])[];
-        for (let i = 0; i < count; i++) {
-            const scryfallId = weightedPick(
-                sheetEntries,
-                sheet.totalWeight,
-                rng
-            );
+        for (const scryfallId of drawFromSheet(sheet, count, rng)) {
             pack.push({ scryfallId, sheet: sheetName });
         }
     }
     return pack;
+}
+
+/** Draws `count` Scryfall ids from one sheet for one pack. A duplicate-free
+ *  sheet (no `allowDuplicates`) excludes each id once drawn, renormalising
+ *  over the remaining entries; asked for more cards than it holds distinct
+ *  ids, the overflow falls back to the with-replacement draw rather than
+ *  throwing. The exclusion lives only inside this call — per sheet, per pack:
+ *  the same id on another sheet, or in the next pack, is drawn afresh. One
+ *  `rng()` per card either way. */
+function drawFromSheet(
+    sheet: BoosterSheet,
+    count: number,
+    rng: () => number
+): string[] {
+    const sheetEntries = Object.entries(sheet.cards) as (readonly [
+        string,
+        number,
+    ])[];
+    const drawn: string[] = [];
+    let remaining = sheet.allowDuplicates ? [] : sheetEntries;
+    let remainingWeight = sheet.totalWeight;
+    for (let i = 0; i < count; i++) {
+        if (remaining.length === 0) {
+            drawn.push(weightedPick(sheetEntries, sheet.totalWeight, rng));
+            continue;
+        }
+        const scryfallId = weightedPick(remaining, remainingWeight, rng);
+        drawn.push(scryfallId);
+        remaining = remaining.filter(([id, weight]) => {
+            if (id !== scryfallId) return true;
+            remainingWeight -= weight;
+            return false;
+        });
+    }
+    return drawn;
 }

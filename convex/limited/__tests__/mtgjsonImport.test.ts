@@ -109,6 +109,28 @@ describe("buildBoosterConfig (ADR 0056)", () => {
         expect(config.boostersTotalWeight).toBe(2);
     });
 
+    it("carries MTGJSON's allowDuplicates onto the sheet, through the exclusion strip, and omits it when unset", () => {
+        const base = fixtureSet();
+        const section = base.booster!.default;
+        const raw = fixtureSet({
+            booster: {
+                default: {
+                    ...section,
+                    sheets: {
+                        ...section.sheets,
+                        rare: { ...section.sheets.rare, allowDuplicates: true },
+                    },
+                },
+            },
+        });
+        const config = buildBoosterConfig(raw, {
+            boosterType: "default",
+            excludedScryfallIds: new Set(["sf-excluded"]),
+        });
+        expect(config.sheets.rare.allowDuplicates).toBe(true);
+        expect(config.sheets.common).not.toHaveProperty("allowDuplicates");
+    });
+
     it("throws when a sheet card has no identifiers.scryfallId", () => {
         const raw = fixtureSet({
             cards: [

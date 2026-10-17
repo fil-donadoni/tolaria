@@ -18,7 +18,8 @@ export interface FilteredSheet {
 /** Drops every Scryfall id in `sheet.cards` for which `shouldDrop` returns
  *  true and recomputes `totalWeight` from the survivors. Pure — no I/O, no
  *  registry access — the caller owns the predicate (an ADR-0010 exclusion
- *  set, or a live `tryGetDefinition` lookup). A sheet with every card
+ *  set, or a live `tryGetDefinition` lookup); the sheet's `allowDuplicates`
+ *  flag rides along unchanged. A sheet with every card
  *  dropped comes back with an empty `cards` — the caller decides whether
  *  that's an error (the importer does; the runtime dropper doesn't need to,
  *  since the ≥80% Draftability gate already refuses a set that would empty
@@ -38,5 +39,12 @@ export function dropFromSheet(
         cards[scryfallId] = weight;
         totalWeight += weight;
     }
-    return { sheet: { cards, totalWeight }, droppedIds };
+    return {
+        sheet: {
+            cards,
+            totalWeight,
+            ...(sheet.allowDuplicates ? { allowDuplicates: true } : {}),
+        },
+        droppedIds,
+    };
 }

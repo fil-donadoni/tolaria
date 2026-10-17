@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
 import iceConfigJson from "../../../data/boosters/ice.json";
+import plsConfigJson from "../../../data/boosters/pls.json";
 import { makeRng } from "../../gre/rng";
 import { generateBooster } from "../boosterGenerator";
 import { dropUnimplementedCards } from "../draftable";
@@ -16,6 +17,7 @@ import type { BoosterConfig } from "../boosterTypes";
 
 const leaConfig = leaConfigJson as BoosterConfig;
 const iceConfig = iceConfigJson as BoosterConfig;
+const plsConfig = plsConfigJson as BoosterConfig;
 
 describe("generateBooster (ADR 0055/0056)", () => {
     it("draws the exact slot counts declared by the chosen variant (LEA: 11 common + 3 uncommon + 1 rare)", () => {
@@ -84,6 +86,96 @@ describe("generateBooster (ADR 0055/0056)", () => {
         expect(() => generateBooster(bad, makeRng(1))).toThrow(
             /unknown sheet "ghost"/
         );
+    });
+
+    describe("sheet duplicate rule (MTGJSON allowDuplicates, issue #5474)", () => {
+        /** One sheet drawn `count` times; `allowDuplicates` as given. */
+        function singleSheetConfig(
+            cards: Record<string, number>,
+            count: number,
+            allowDuplicates?: true
+        ): BoosterConfig {
+            const totalWeight = Object.values(cards).reduce((a, b) => a + b, 0);
+            return {
+                setCode: "tst",
+                boostersTotalWeight: 1,
+                boosters: [{ contents: { sheet: count }, weight: 1 }],
+                sheets: {
+                    sheet: {
+                        cards,
+                        totalWeight,
+                        ...(allowDuplicates ? { allowDuplicates } : {}),
+                    },
+                },
+            };
+        }
+
+        it("a duplicate-free sheet never yields the same Scryfall id twice in one pack (Planeshift, 500 seeded packs)", () => {
+            // 11 commons from a 55-card sheet: with replacement, ~1 duplicate
+            // pair per pack — 500 packs cannot all come out clean by chance.
+            const rng = makeRng(5474);
+            let sameSheetDuplicates = 0;
+            for (let i = 0; i < 500; i++) {
+                const seen = new Set<string>();
+                for (const card of generateBooster(plsConfig, rng)) {
+                    const key = `${card.sheet}\u0000${card.scryfallId}`;
+                    if (seen.has(key)) sameSheetDuplicates++;
+                    seen.add(key);
+                }
+            }
+            expect(sameSheetDuplicates).toBe(0);
+        });
+
+        it("a sheet with allowDuplicates: true still yields the same id twice in one pack", () => {
+            // Two distinct ids, three draws: pigeonhole forces a repeat.
+            const config = singleSheetConfig({ A: 1, B: 1 }, 3, true);
+            const pack = generateBooster(config, makeRng(3));
+            expect(pack).toHaveLength(3);
+            expect(new Set(pack.map((c) => c.scryfallId)).size).toBeLessThan(3);
+        });
+
+        it("two different sheets sharing an id can both yield it in one pack", () => {
+            const config: BoosterConfig = {
+                setCode: "tst",
+                boostersTotalWeight: 1,
+                boosters: [{ contents: { a: 1, b: 1 }, weight: 1 }],
+                sheets: {
+                    a: { cards: { shared: 1 }, totalWeight: 1 },
+                    b: { cards: { shared: 1 }, totalWeight: 1 },
+                },
+            };
+            expect(generateBooster(config, makeRng(1))).toEqual([
+                { scryfallId: "shared", sheet: "a" },
+                { scryfallId: "shared", sheet: "b" },
+            ]);
+        });
+
+        it("a duplicate-free sheet drawn past its distinct ids falls back to with-replacement for the overflow", () => {
+            const config = singleSheetConfig({ A: 1, B: 1 }, 3);
+            const pack = generateBooster(config, makeRng(11));
+            expect(pack).toHaveLength(3);
+            // The first two draws exhaust the sheet without repeating.
+            expect(new Set([pack[0].scryfallId, pack[1].scryfallId])).toEqual(
+                new Set(["A", "B"])
+            );
+        });
+
+        it("renormalises over the remaining entries: the second draw from a two-card sheet is always the other card", () => {
+            const config = singleSheetConfig({ A: 1, B: 99 }, 2);
+            const rng = makeRng(77);
+            for (let i = 0; i < 200; i++) {
+                const ids = generateBooster(config, rng).map(
+                    (c) => c.scryfallId
+                );
+                expect(ids.sort()).toEqual(["A", "B"]);
+            }
+        });
+
+        it("is deterministic: the same (config, seed) produces the same Planeshift pack", () => {
+            expect(generateBooster(plsConfig, makeRng(9))).toEqual(
+                generateBooster(plsConfig, makeRng(9))
+            );
+        });
     });
 
     describe("reduced config (ADR 0059, PRD #1242 — drop-missing at runtime)", () => {
