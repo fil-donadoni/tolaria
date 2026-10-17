@@ -69,6 +69,10 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   SHA: ${{ steps.verdict.outputs.sha }}
+              # The re-gate first: it is what holds the queue. The ladder's
+              # dispatch fails until a release carries health.yml to the default
+              # branch — the next scheduled run climbs the standing RED then.
               run: |
-                  gh workflow run health.yml --ref staging -f job=ladder -f sha="$SHA"
                   gh workflow run pr-gate.yml --ref staging
+                  gh workflow run health.yml --ref staging -f job=ladder -f sha="$SHA" ||
+                      echo "::warning::the ladder could not be dispatched — health.yml's next run climbs this RED"

@@ -235,3 +235,48 @@ export function culpritLine(input: {
     const who = pr !== null ? `PR #${pr}` : "a direct commit";
     return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)`;
 }
+
+/** `bun run test`'s chain, in order (`lib/health-retry.ts`). */
+const TEST_CHAIN = ["test:app", "test:bot", "test:blade"] as const;
+
+/** The chain tier a test file runs in: the blade's specs, the Bot's suite,
+ *  or the app's. */
+function tierOf(file: string): number {
+    if (BLADE_SPEC.test(file)) return 2;
+    if (/\.bot\.test\.[cm]?[jt]sx?$/.test(file)) return 1;
+    return 0;
+}
+
+/**
+ * The gates the RED's run never reached — health stops at its first failed
+ * step, and `test`'s chain at its first red tier. A fresh run that passes the
+ * failing files proves only them: the RED may close as GREEN only once these
+ * pass too. `offline` is the run's offline steps in order (`worktree:init`,
+ * the probe's own bootstrap, is left out).
+ */
+export function remainingGates(
+    plan: Exclude<FreshRun, { kind: "none" }>,
+    offline: readonly string[]
+): string[] {
+    const steps = offline.filter((s) => s !== "worktree:init");
+    const at = steps.indexOf(plan.step);
+    const after = at === -1 ? [] : steps.slice(at + 1);
+    if (plan.kind !== "tests" || plan.step !== "test") return after;
+    const tier = Math.max(...plan.files.map(tierOf));
+    return [...TEST_CHAIN.slice(tier + 1), ...after];
+}
+
+/** The evidence line every confirmed RED gets, culprit or not — the mark
+ *  that its ladder ran, so a later run does not climb it twice (one email). */
+export const LADDER_MARK = "- **culprit:** ";
+
+/** Whether a published evidence body says its ladder already ran. */
+export function laddered(body: string | null): boolean {
+    return (body ?? "").split("\n").some((l) => l.startsWith(LADDER_MARK));
+}
+
+/** The worktree directory names a probe makes, and the pid that made it. */
+export function bisectWorktreePid(path: string): number | null {
+    const m = /(?:^|\/)tolaria-bisect-(\d+)-\d+$/.exec(path);
+    return m ? Number(m[1]) : null;
+}

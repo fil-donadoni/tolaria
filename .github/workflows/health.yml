@@ -2,10 +2,11 @@
 # issue #5645): every two hours `health-main` gates the base tip on a `lane`
 # runner (`--scheduled`: the offline gate, one re-run of a failed vitest
 # project, INFRA classification, the evidence), and writes the verdict as the
-# `health` commit status. A RED goes up the ladder in the same job: a fresh
-# run of its failing files at the same sha — not reproduced, the RED closes
-# as GREEN and the flaky test is filed; reproduced, the bisect names the
-# culprit PR in the evidence (scripts/health-bisect.ts).
+# `health` commit status. A RED standing on the store goes up the ladder in
+# the same job: a fresh run of its failing files at the same sha, then of
+# every gate its run never reached — all green, the RED closes as GREEN and
+# the flaky test is filed; reproduced, the bisect names the culprit PR in the
+# evidence (scripts/health-bisect.ts). A RED is climbed once.
 #
 # `job: ladder` is the same ladder for a RED someone else found:
 # health-early.yml (a GitHub-hosted run after a batch of merges) dispatches
@@ -55,9 +56,12 @@ jobs:
               id: health
               continue-on-error: true
               run: bun run health --scheduled --retry-infra
+            # Always: the RED standing on the store may be another run's whose
+            # ladder never ran (a lost dispatch). A RED already climbed is not
+            # climbed again — one email per RED.
             - name: RED ladder (flake check, bisect)
               id: ladder
-              if: ${{ steps.health.outcome == 'failure' }}
+              if: always()
               continue-on-error: true
               run: bun run health:bisect ladder
             - name: Re-gate the queue
@@ -65,7 +69,7 @@ jobs:
               continue-on-error: true
               run: gh workflow run pr-gate.yml --ref staging
             - name: Verdict
-              if: ${{ steps.health.outcome == 'failure' && steps.ladder.outcome != 'success' }}
+              if: ${{ steps.ladder.outcome != 'success' }}
               run: |
                   echo "::error::health is RED or INFRA on the base tip — bun run health:status"
                   exit 1

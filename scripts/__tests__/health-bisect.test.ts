@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
     baseStepName,
     bisectFirstRed,
+    bisectWorktreePid,
+    LADDER_MARK,
+    laddered,
+    remainingGates,
     culpritLine,
     flakeVerdict,
     flakyIssueTitle,
@@ -22,7 +26,7 @@ import {
     evidenceSummary,
     withEvidenceLine,
 } from "../lib/health-evidence";
-import { HEALTH_SCRIPTS } from "../lib/health-step";
+import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
 import type { Verdict } from "../lib/health-verdict-store";
 
 /**
@@ -275,5 +279,58 @@ describe("the bisect on a seeded broken commit", () => {
             subject: git(["log", "-1", "--format=%s", result.culprit!]),
         });
         expect(line).toContain("PR #5003");
+    });
+});
+
+describe("remainingGates — a flake closes GREEN only once its run's unreached gates pass", () => {
+    const offline = splitHealthGates(HEALTH_SCRIPTS).offline;
+    it("owes the later tiers of test's chain after a test:app file", () => {
+        const plan = {
+            kind: "tests" as const,
+            step: "test",
+            files: ["scripts/__tests__/x.test.ts"],
+        };
+        expect(remainingGates(plan, offline)).toEqual([
+            "test:bot",
+            "test:blade",
+        ]);
+    });
+    it("owes the blade after a Bot file, nothing after a blade spec", () => {
+        const bot = {
+            kind: "tests" as const,
+            step: "test",
+            files: ["convex/gre/ai/__tests__/a.bot.test.ts"],
+        };
+        expect(remainingGates(bot, offline)).toEqual(["test:blade"]);
+        const blade = {
+            kind: "tests" as const,
+            step: "test",
+            files: ["convex/gre/ai/blade/__tests__/m.spec.ts"],
+        };
+        expect(remainingGates(blade, offline)).toEqual([]);
+    });
+    it("owes every later step after a failed guard step", () => {
+        expect(
+            remainingGates({ kind: "step", step: "check:all" }, offline)
+        ).toEqual([
+            "check:gaps",
+            "check:targets",
+            "check:test-hygiene",
+            "test",
+        ]);
+    });
+});
+
+describe("a RED is climbed once", () => {
+    it("reads the culprit line as the mark its ladder ran", () => {
+        expect(laddered(`head\n${LADDER_MARK}PR #1 · x\n\n### Failures`)).toBe(
+            true
+        );
+        expect(laddered("head\n- **files:** `a`")).toBe(false);
+        expect(laddered(null)).toBe(false);
+    });
+    it("knows a probe worktree and the pid that made it", () => {
+        expect(bisectWorktreePid("/code/mtg/tolaria-bisect-4242-3")).toBe(4242);
+        expect(bisectWorktreePid("/code/mtg/tolaria-issue-4242")).toBeNull();
     });
 });

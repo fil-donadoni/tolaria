@@ -30,8 +30,12 @@ import {
     flakyIssueBody,
     flakyIssueTitle,
     flakySubjects,
+    bisectWorktreePid,
     freshRunPlan,
+    LADDER_MARK,
+    laddered,
     lastGreenOf,
+    remainingGates,
     vitestCommands,
     type FreshRun,
     type ProbeOutcome,
@@ -41,12 +45,15 @@ import {
     healthGateEnv,
     healthStepArgs,
     HEALTH_SCRIPTS,
+    splitHealthGates,
 } from "./lib/health-step";
 import {
     evidenceStore,
     HEALTH_DIR_REL,
     HISTORY_DEPTH,
+    lineageBlocks,
     machineName,
+    readVerdictLineage,
     verdictStore,
     type Verdict,
 } from "./lib/health-verdict-store";
@@ -155,14 +162,69 @@ function probeTests(
     return "green";
 }
 
-function freshRun(ctx: Ctx, plan: Plan): ProbeOutcome {
-    return inWorktree(ctx, ctx.sha, (wt) =>
-        plan.kind === "tests"
-            ? probeTests(ctx, wt, plan.files)
-            : run(ctx, wt, "bun", healthStepArgs(plan.step), {}) === 0
-              ? "green"
-              : "red"
-    );
+/** The fresh run's outcome; `elsewhere` names the gate the RED's run never
+ *  reached that failed once the failing files passed. */
+interface Fresh {
+    outcome: ProbeOutcome;
+    elsewhere?: string;
+}
+
+/** The RED's failure re-run at its sha — then, when it passes, every gate
+ *  its run never reached (`remainingGates`): only all of them green close
+ *  the RED as GREEN. */
+function freshRun(ctx: Ctx, plan: Plan): Fresh {
+    let elsewhere: string | undefined;
+    const outcome = inWorktree(ctx, ctx.sha, (wt) => {
+        const first =
+            plan.kind === "tests"
+                ? probeTests(ctx, wt, plan.files)
+                : run(ctx, wt, "bun", healthStepArgs(plan.step), {}) === 0
+                  ? "green"
+                  : "red";
+        if (first !== "green") return first;
+        const rest = remainingGates(
+            plan,
+            splitHealthGates(HEALTH_SCRIPTS).offline
+        );
+        if (rest.length > 0)
+            note(
+                ctx,
+                `the failing part passed — the gates its run never reached: ${rest.join(", ")}`
+            );
+        for (const step of rest)
+            if (run(ctx, wt, "bun", healthStepArgs(step), {}) !== 0) {
+                elsewhere = step;
+                return "red";
+            }
+        return "green";
+    });
+    return { outcome, elsewhere };
+}
+
+/** Drops the probe worktrees a killed ladder left beside the primary. */
+function sweepStaleWorktrees(root: string): void {
+    spawnSync("git", ["worktree", "prune"], { cwd: root });
+    const out = spawnSync("git", ["worktree", "list", "--porcelain"], {
+        cwd: root,
+        encoding: "utf8",
+    });
+    for (const line of (out.stdout ?? "").split("\n")) {
+        if (!line.startsWith("worktree ")) continue;
+        const path = line.slice("worktree ".length);
+        const pid = bisectWorktreePid(path);
+        if (pid === null || pid === process.pid) continue;
+        let alive = false;
+        try {
+            process.kill(pid, 0);
+            alive = true;
+        } catch {
+            alive = false;
+        }
+        if (!alive)
+            spawnSync("git", ["worktree", "remove", "--force", path], {
+                cwd: root,
+            });
+    }
 }
 
 function runUrl(): string | undefined {
@@ -357,6 +419,13 @@ function ladder(ctx: Ctx): number {
         return 1;
     }
     const evidence = readEvidence(ctx.root, ctx.sha);
+    if (verdict?.status === "red" && laddered(evidence)) {
+        note(
+            ctx,
+            `${ctx.sha.slice(0, 8)}: the ladder already confirmed this RED — reported once`
+        );
+        return 0;
+    }
     const plan = freshRunPlan(
         verdict,
         evidence ? evidenceFiles(evidence) : [],
@@ -364,13 +433,15 @@ function ladder(ctx: Ctx): number {
     );
     if (plan.kind === "none") {
         note(ctx, `${ctx.sha.slice(0, 8)}: ${plan.reason}`);
-        return verdict?.status === "red" ? 1 : 0;
+        // Only a GREEN on the store means nothing stands: a missing verdict
+        // (a store write that failed) or an INFRA is not one.
+        return verdict?.status === "green" ? 0 : 1;
     }
     note(
         ctx,
         `fresh run of ${ctx.sha.slice(0, 8)}: ${plan.kind === "tests" ? plan.files.join(", ") : `bun run ${plan.step}`}`
     );
-    const outcome = freshRun(ctx, plan);
+    const { outcome, elsewhere } = freshRun(ctx, plan);
     if (outcome === "infra") {
         note(ctx, "the fresh run could not run — the RED stands, unconfirmed");
         return 1;
@@ -397,12 +468,22 @@ function ladder(ctx: Ctx): number {
         fileFlake(ctx, plan, verdict?.log);
         return 0;
     }
-    note(ctx, "reproduced — the RED stands");
-    if (plan.kind === "tests") {
-        const line = bisect(ctx, plan.files);
-        note(ctx, line);
-        publishCulprit(ctx, line);
-    } else note(ctx, `a failed ${plan.step} names no test file — not bisected`);
+    let line: string;
+    if (elsewhere !== undefined) {
+        note(
+            ctx,
+            `the failing part passed, ${elsewhere} failed — the RED stands`
+        );
+        line = `${LADDER_MARK}not bisected — the fresh run passed the failing part, but \`${elsewhere}\` (never reached by the RED's run) failed`;
+    } else {
+        note(ctx, "reproduced — the RED stands");
+        line =
+            plan.kind === "tests"
+                ? bisect(ctx, plan.files)
+                : `${LADDER_MARK}not bisected — a failed \`${plan.step}\` names no test file`;
+    }
+    note(ctx, line);
+    publishCulprit(ctx, line);
     return 1;
 }
 
@@ -425,21 +506,31 @@ function main(): number {
         "origin",
         BASE_BRANCH,
     ]);
+    // No sha: the RED standing on the store's lineage — whoever found it,
+    // so a ladder dispatch that was lost is climbed by the next run — else
+    // this machine's last run, when the store never took its RED.
     if (sha === undefined && cmd === "ladder") {
         const last = lastRunSha(root);
-        if (last === null || last.status === "green") {
+        if (last?.status === "infra") {
             console.log(
-                "health-bisect: the last health run on this machine left no RED — nothing to do"
-            );
-            return 0;
-        }
-        if (last.status !== "red") {
-            console.log(
-                `health-bisect: the last health run was ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} — nothing to confirm`
+                `health-bisect: the last health run was INFRA @ ${last.sha.slice(0, 8)} — nothing to confirm`
             );
             return 1;
         }
-        sha = last.sha;
+        const lineage = readVerdictLineage(() => verdictStore(root));
+        if (lineage.error) {
+            console.error(
+                `health-bisect: the verdict store could not be read — ${lineage.error}`
+            );
+            return 1;
+        }
+        if (lineageBlocks(lineage.kind) && lineage.verdict)
+            sha = lineage.verdict.sha;
+        else if (last?.status === "red") sha = last.sha;
+        else {
+            console.log("health-bisect: no RED stands — nothing to do");
+            return 0;
+        }
     }
     if (sha === undefined || !SHA.test(sha)) {
         console.error(
@@ -455,6 +546,7 @@ function main(): number {
         log: join(dir, `${sha.slice(0, 12)}.ladder.log`),
         dryRun,
     };
+    sweepStaleWorktrees(root);
     if (cmd === "ladder") return ladder(ctx);
     const files =
         arg("--files")?.split(",").filter(Boolean) ??
