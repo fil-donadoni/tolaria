@@ -16,7 +16,10 @@
  *
  * Only when that conflicts does it act: it restores OURS byte-for-byte (during
  * a rebase, "ours" is the branch being rebased ONTO — the same side the manual
- * procedure resolved to) and appends the path to a marker in the git dir. It
+ * procedure resolved to) and appends the path to a marker in the git dir.
+ * One exception to byte-for-byte: on the compiler's lockfile the Bot-play
+ * verdicts the commit changed are laid over OURS (issue #5814), because the
+ * regeneration CARRIES verdicts from the tree and would otherwise drop them. It
  * does NOT regenerate here: the driver runs once per replayed commit, mid-merge,
  * on a tree that is not yet the tree the artifact must be derived from, and the
  * compile it would have to run reads 34,890 corpus rows. Regeneration happens
@@ -28,11 +31,23 @@
  * resolver refuses to let a side-taken artifact reach `check:lane` unresolved.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import {
+    appendFileSync,
+    copyFileSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 import { writeStderrSync } from "./lib/merge-driver-io";
+import type { Lockfile } from "./lib/oracle-lockfile";
+import {
+    BOT_VERDICT_OVERLAY_PATH,
+    overlayBranchVerdicts,
+} from "./lib/oracle-verdict-overlay";
 
 // git invokes a merge driver with cwd at the top of the working tree and
 // substitutes %O (base), %A (ours — and the file to write), %B (theirs),
@@ -59,6 +74,46 @@ function done(code: number): never {
     process.exit(code);
 }
 
+/**
+ * The compiler's lockfile only: keep the Bot-play verdicts THEIRS changed on
+ * top of the side taken, so the resolver's `--carry-bot` carries them rather
+ * than the base's (issue #5814, `lib/oracle-verdict-overlay.ts`). It never
+ * throws: any failure — a side that is not a lockfile, a write that dies
+ * midway — restores plain OURS, so the marker below is still appended and the
+ * driver still exits 0; the verdicts are then only as stale as before.
+ */
+function overlayVerdicts(): void {
+    if (path !== BOT_VERDICT_OVERLAY_PATH) return;
+    try {
+        const parse = (file: string): Lockfile | null => {
+            try {
+                const lock = JSON.parse(readFileSync(file, "utf8")) as Lockfile;
+                return Array.isArray(lock?.cards) ? lock : null;
+            } catch {
+                return null;
+            }
+        };
+        const oursLock = parse(ours!);
+        const theirsLock = parse(theirs!);
+        if (oursLock === null || theirsLock === null) return;
+        const { lock, carried } = overlayBranchVerdicts(
+            parse(base!),
+            oursLock,
+            theirsLock
+        );
+        if (carried === 0) return;
+        writeFileSync(ours!, `${JSON.stringify(lock)}\n`);
+        writeStderrSync(
+            `merge-driver-regenerated: ${label} keeps ${carried} Bot-play verdict(s) the commit changed (issue #5814)\n`
+        );
+    } catch (error) {
+        copyFileSync(oursBackup, ours!);
+        writeStderrSync(
+            `merge-driver-regenerated: ${label} — verdict overlay skipped (${String(error)})\n`
+        );
+    }
+}
+
 copyFileSync(ours, oursBackup);
 
 const attempt = spawnSync(
@@ -83,6 +138,7 @@ if (attempt.status === 0) {
 }
 
 copyFileSync(oursBackup, ours);
+overlayVerdicts();
 
 const markerPath = spawnSync(
     "git",
