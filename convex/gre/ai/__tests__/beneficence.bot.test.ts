@@ -359,6 +359,29 @@ describe("targetSlotBeneficence — per announced slot (issue #1888)", () => {
             "neutral"
         );
     });
+    it("reads a source-scoped shield as an attack on its source: Restrain's attacker (CR 615.1a, issue #5815)", () => {
+        // "Prevent all combat damage that would be dealt by target attacking
+        // creature this turn." — `preventDamage` `"all-from-source"` with
+        // `source: { target: 0 }`: the slot is the creature whose damage is
+        // erased, so its controller is the one the spell works against.
+        expect(
+            targetSlotBeneficence(
+                getDefinition("f6b5c765-619c-4db9-b509-91892fb65e8f"),
+                undefined,
+                0
+            )
+        ).toBe("harmful");
+        // The recipient-scoped mirror shields the object it names.
+        expect(
+            opBeneficence({
+                op: "preventDamage",
+                mode: "next-n",
+                to: { target: 0 },
+                amount: 3,
+                duration: { phase: "end-of-turn" },
+            })
+        ).toBe("beneficial");
+    });
 });
 
 describe("misdirectedTargetCount — the sign against the real board (issue #1888)", () => {
