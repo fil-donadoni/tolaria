@@ -51,7 +51,12 @@ import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { isLand, PLACEHOLDER_CARD_ID } from "../constants";
-import { effectiveMaxHandSize } from "../phases";
+import {
+    effectiveMaxHandSize,
+    PHASE_ORDER,
+    untapStepHoldsTapped,
+} from "../phases";
+import type { Phase } from "../types";
 import type { EvalWeights } from "./evalWeights";
 import type {
     EachPlayerSide,
@@ -346,17 +351,15 @@ export function makeLatentBoardLens(
             // Issue #5574 — the source a step gate is asked about, built once
             // for both sides: the permanent itself on the board face, the card
             // entered under its caster on the hand face (the board it would
-            // stand on once it resolved, CR 608.3a). UNTAPPED on both: the
-            // engine is a recurrence over future steps, and its controller's
-            // untap step untaps it (CR 502.3) — a Howling Mine tapped on this
-            // leaf still feeds the table next turn, and the two faces stay
-            // one number.
+            // stand on once it resolved, CR 608.3a — untapped). Issue #5578 —
+            // as it stands: a gate declaring a tapped-state intervening-if
+            // projects it onto each side's step (`stepGateOf`).
             let stepMemo: StepSource | undefined;
             const stepSource = (): StepSource => {
                 if (stepMemo === undefined) {
                     stepMemo =
                         card.zone === "battlefield"
-                            ? { state, perm: { ...card, isTapped: false } }
+                            ? { state, perm: card }
                             : withCardEntered(state, casterId, card);
                 }
                 return stepMemo;
@@ -417,6 +420,44 @@ export function makeLatentBoardLens(
 /** Issue #5574 — the source permanent and the board a step gate is asked
  *  against (`EachPlayerSide.stepGateHolds`). */
 type StepSource = { state: GameState; perm: CardInstanceState };
+
+/** Issue #5578 — whether `perm` will be tapped at the beginning of
+ *  `playerId`'s NEXT `step`, the firing a standing each-step engine's
+ *  tapped-state intervening-if (CR 603.4, `sourceTapCondition`) is read
+ *  against. Untapped now stays untapped (no future tap is predicted). Tapped
+ *  now untaps only in its controller's untap step (CR 502.3), and only if no
+ *  lock holds it there (`untapStepHoldsTapped`): it reads untapped on
+ *  `playerId`'s step when that untap step comes first. A `step` of the
+ *  current turn is still to come only before its beginning (at a stable
+ *  point IN the step, its trigger has already fired). Turn order is
+ *  `state.players`' order. */
+export function tappedOnNextStepOf(
+    state: GameState,
+    perm: CardInstanceState,
+    playerId: string,
+    step: Phase
+): boolean {
+    if (perm.isTapped !== true) return false;
+    const order = state.players.map((p) => p.id);
+    const active = state.activePlayerId;
+    const now =
+        state.phase === "MULLIGAN" ? -1 : PHASE_ORDER.indexOf(state.phase);
+    // Turns from now: 0 = the current one, n = the n-th player after it.
+    const turnsUntil = (id: string, stillToCome: boolean) =>
+        id === active && !stillToCome
+            ? order.length
+            : (order.indexOf(id) - order.indexOf(active) + order.length) %
+              order.length;
+    const stepTurn = turnsUntil(playerId, now < PHASE_ORDER.indexOf(step));
+    const untapTurn = turnsUntil(
+        perm.controllerId,
+        now <= PHASE_ORDER.indexOf("UNTAP")
+    );
+    // Same turn: the untap step comes before every step that fires a
+    // trigger at its beginning.
+    if (untapTurn > stepTurn) return true;
+    return untapStepHoldsTapped(state, perm);
+}
 
 /** Issue #5162 — `player`'s side of a Differential Reading, with the flag
  *  `eachPlayerDifferential` reads to know the side was answered. */

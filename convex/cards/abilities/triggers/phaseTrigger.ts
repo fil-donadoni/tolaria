@@ -25,6 +25,7 @@ import type {
     GameEvent,
     PermanentView,
     PhaseBeginEvent,
+    SourceTapCondition,
     SpellContext,
     TargetRequirement,
     TriggerStateView,
@@ -86,6 +87,10 @@ export interface PhaseTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** Issue #5578 — `interveningIf` restated as data when it reads only
+     *  the source's tapped state; stamped onto the ability verbatim. See
+     *  `TriggeredAbility.sourceTapCondition`. */
+    sourceTapCondition?: SourceTapCondition;
     /** Per-card resolution body. Receives a fresh `SpellContext`, the typed
      *  `PhaseBeginEvent` that fired the trigger, and `scopedPlayerId` — the
      *  active player on whose step the trigger fired (or, for
@@ -141,6 +146,10 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
             oracleText: args.oracleText,
             event: "PHASE_BEGIN",
             phaseScope: args.scope,
+            phaseStep: args.phase,
+            ...(args.sourceTapCondition
+                ? { sourceTapCondition: args.sourceTapCondition }
+                : {}),
             ...(args.zone ? { zone: args.zone } : {}),
             ...(args.targetRequirement
                 ? { targetRequirement: args.targetRequirement }
