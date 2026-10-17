@@ -131,7 +131,14 @@ describe("fastForward", () => {
         git(["commit", "-qm", "c"], join(dir, "pusher"));
         git(["push", "-q", "origin", BASE_BRANCH], join(dir, "pusher"));
     });
-    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("moves the base branch onto the pushed tip", () => {
         const primary = join(dir, "primary");
