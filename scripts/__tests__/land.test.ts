@@ -24,8 +24,7 @@ import {
     primaryBranchFastForwardStep,
     issueOfBranch,
     landingTarget,
-    recordLandingStep,
-    healthDetachStep,
+    markAmberStep,
     telemetryIngestStep,
     botAuditSuggestionStep,
     lockedEnv,
@@ -222,7 +221,7 @@ describe("land.ts — refusal matrix", () => {
         // tore it down before crashing), so the only checkout left to invoke
         // it from is the primary, on the base branch. Refusing there made
         // #4159's recovery unreachable in exactly the case it was written
-        // for, silently: the ref cleanup and the health cadence never ran.
+        // for, silently: the ref cleanup and the seed never ran.
         it("no longer refuses from the base branch, nor on a head-branch mismatch", () => {
             expect(
                 refusalReason({ ...merged, branch: BASE_BRANCH })
@@ -555,40 +554,43 @@ describe("land.ts — the locked command", () => {
         expect(cmd).not.toContain("health-main.ts");
     });
 
-    it("records how a landing under RED declared itself — repair or red-ok (issue #4964)", () => {
-        expect(recordLandingStep("/repo")).not.toContain("--kind=");
-        expect(recordLandingStep("/repo", "repair")).toContain(
-            'record --sha="$(git rev-parse ' + ORIGIN_BASE + ')" --kind=repair'
+    it("marks the lineage AMBER only for a proved repair — never a plain landing, never red-ok (issue #5462)", () => {
+        const red = "e".repeat(40);
+        expect(markAmberStep("/repo")).toBe("");
+        expect(markAmberStep("/repo", "red-ok", red)).toBe("");
+        expect(markAmberStep("/repo", "repair")).toBe("");
+        expect(markAmberStep("/repo", "repair", red)).toContain(
+            `amber --sha="$(git rev-parse ${ORIGIN_BASE})" --repair-of=${red}`
         );
-        const cmd = buildLockedCommand({ ...base, landingKind: "red-ok" });
-        expect(cmd).toContain(recordLandingStep("/repo", "red-ok"));
+        // No repair proof, no step in the command.
+        expect(
+            buildLockedCommand({ ...base, landingKind: "red-ok" })
+        ).not.toContain("health-fix.ts");
     });
 
-    it("counts the landing in the batch-health ledger, past the merged-tip verification (ADR 0136 §6, issue #3780)", () => {
-        // The full gate runs after the 10th landing since the last GREEN, or
-        // 4 h after the first — so something must COUNT them, and the only
-        // process that knows a landing happened is the one that merged it.
-        const cmd = buildLockedCommand(base);
-        const step = recordLandingStep("/repo");
+    it("writes the AMBER record past the merged-tip verification, in the primary checkout, without gating (issue #5462)", () => {
+        const red = "e".repeat(40);
+        const cmd = buildLockedCommand({
+            ...base,
+            landingKind: "repair",
+            repairProof: { tests: ["a/b.test.ts"], redSha: red },
+        });
+        const step = markAmberStep("/repo", "repair", red);
         expect(cmd).toContain(step);
         // Relative, so it resolves in the PRIMARY checkout the `cd` entered —
         // never into the worktree this command is about to tear down.
-        expect(step).toContain("bun 'scripts/health-cadence.ts' record --sha=");
+        expect(step).toContain("bun 'scripts/health-fix.ts' amber --sha=");
         expect(step).not.toContain("/repo-issue-2517");
         // The tip recorded is the one the squash produced: read AFTER the
-        // post-merge re-fetch and past the verification, never the tip the
-        // remote held when `land` started.
-        expect(step).toContain(`$(git rev-parse ${ORIGIN_BASE})`);
+        // post-merge re-fetch and past the verification.
         expect(cmd.indexOf(step)).toBeGreaterThan(
             cmd.indexOf(`git rev-list "$OLD_TIP..${ORIGIN_BASE}"`)
         );
-        // In the PRIMARY checkout, where `.claude/telemetry/health/` lives.
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
-        // Non-gating, like the rest of the post-merge housekeeping.
         expect(step.endsWith("; true)")).toBe(true);
     });
 
-    it("ingests the telemetry after every merge, from the primary checkout, before the health decision (issue #4968)", () => {
+    it("ingests the telemetry after every merge, from the primary checkout (issue #4968)", () => {
         const cmd = buildLockedCommand(base);
         const step = telemetryIngestStep("/repo");
         expect(cmd).toContain(step);
@@ -601,62 +603,27 @@ describe("land.ts — the locked command", () => {
         // command removes; the DB everyone reads is the primary checkout's.
         expect(step).toContain("CLAUDE_PROJECT_DIR='/repo' ");
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
-        // A fired decision prints KPIs that count this landing.
-        expect(cmd.indexOf(step)).toBeLessThan(
-            cmd.indexOf(healthDetachStep("/repo"))
-        );
         expect(cmd.indexOf(step)).toBeLessThan(cmd.indexOf("worktree remove"));
         // Non-gating: the PR is already merged.
         expect(step.endsWith("; true)")).toBe(true);
     });
 
-    it("starts the batch-health decision LAST, through `spawn` and never by backgrounding it", () => {
+    it("starts no health run: the full gate is health.yml's, not a landing's (ADR 0156 §4)", () => {
         const cmd = buildLockedCommand(base);
-        const step = healthDetachStep("/repo");
-        expect(cmd).toContain(step);
-        expect(step).toContain("health-cadence.ts' spawn");
-        // NOT `nohup … &`, and this is the whole point (issue #3780 review,
-        // finding 1). `gate.ts` runs this locked command `detached`, so the
-        // `sh` around it leads its own process group, and EVERY teardown path
-        // — the ordinary exit handler after a clean child exit included —
-        // SIGKILLs that group (issue #3821). `nohup` does not leave the
-        // process group and neither does `&`, so a decision backgrounded here
-        // dies milliseconds later while `land` reports a green landing: a
-        // feature that looks installed and does nothing. `spawn` re-launches
-        // it through `setsid(2)`, into a session no group signal can reach.
-        // The topology itself is proven in `health-cadence-spawn.test.ts`.
-        expect(step).not.toContain("nohup");
-        expect(step).not.toContain("&)");
-        // BEFORE the teardown, which removes the worktree this command runs
-        // from. `land` invoked the driver by an ABSOLUTE path into that
-        // worktree and ran the step AFTER `worktree remove`, so the first real
-        // landing printed `Module not found …/tolaria-issue-3780/scripts/health-cadence.ts`
-        // and started nothing. Both halves are asserted: the path is relative
-        // to the primary checkout (the `cd` above puts us there), and the step
-        // runs while the worktree still exists.
-        expect(step).toContain("bun 'scripts/health-cadence.ts' spawn");
-        expect(step).not.toContain("/repo-issue-2517");
-        expect(cmd.indexOf(step)).toBeLessThan(cmd.indexOf("worktree remove"));
-        // Non-gating: the PR is already merged.
-        expect(step.endsWith("; true)")).toBe(true);
-        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
+        expect(cmd).not.toContain("health-cadence");
+        expect(cmd).not.toContain("health-main.ts");
+        expect(cmd).not.toContain("spawn");
     });
 
-    it("--keep still counts and still starts the decision — the batch is about the BASE branch, not the worktree", () => {
-        const cmd = buildLockedCommand({ ...base, teardown: false });
-        expect(cmd).toContain(recordLandingStep("/repo"));
-        expect(cmd).toContain(healthDetachStep("/repo"));
-    });
-
-    it("--no-merge gates and pushes but omits the merge and the health detach", () => {
+    it("--no-merge gates and pushes but omits the merge and the post-merge steps", () => {
         const cmd = buildLockedCommand({ ...base, merge: false });
         expect(cmd).toContain("bun run check:lane");
         expect(cmd).toContain("git push --force-with-lease");
         expect(cmd).not.toContain("pr-merge.ts");
         expect(cmd).not.toContain("worktree remove");
         expect(cmd).not.toContain("merge --ff-only");
-        // Nothing landed, so nothing to count and nothing to gate.
-        expect(cmd).not.toContain("health-cadence.ts");
+        // Nothing landed, so nothing to mark.
+        expect(cmd).not.toContain("health-fix.ts");
     });
 
     it("--keep merges but skips worktree teardown", () => {
@@ -910,22 +877,20 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
 
     /**
      * ADR 0154 §5, issue #5457 — the post-merge list is what nobody in the
-     * session can do without, and only that: the landing record, the primary
-     * fast-forward, the scenario seed, telemetry ingest, the health detach
-     * (then the teardown). The GitHub-bound steps live in the hourly
+     * session can do without, and only that: the primary fast-forward, the
+     * scenario seed, telemetry ingest (then the teardown); a proved repair
+     * adds its AMBER mark. The GitHub-bound steps live in the hourly
      * `housekeeping` cron (`scripts/housekeeping.ts`).
      */
-    it("pins the post-merge list at SIX steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
+    it("pins the post-merge list at FOUR steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
         const steps = postMergeHousekeepingSteps({
             ...housekeeping,
             teardown: false,
         });
         expect(steps).toEqual([
-            recordLandingStep("/repo"),
             primaryBranchFastForwardStep("/repo"),
             seedScenarioStep("/repo", 4159),
             telemetryIngestStep("/repo"),
-            healthDetachStep("/repo"),
             botAuditSuggestionStep("/repo"),
         ]);
         for (const cmd of [
@@ -953,14 +918,12 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
     });
 
     it("fetches the base branch first — every step below reads the MERGED tip", () => {
-        // `recordLandingStep` does `git rev-parse origin/<base>` and the
-        // fast-forward merges `origin/<base>`: nothing has fetched since the
-        // API merge landed, so without this they would both read the
-        // pre-merge tip and the ledger would record the wrong sha.
+        // The fast-forward merges `origin/<base>`: nothing has fetched since
+        // the API merge landed, so without this it would read the pre-merge
+        // tip.
         const cmd = buildHousekeepingCommand(housekeeping);
         const fetchIdx = cmd.indexOf(`git fetch origin ${BASE_BRANCH}`);
         expect(fetchIdx).toBeGreaterThan(-1);
-        expect(cmd.indexOf("rev-parse")).toBeGreaterThan(fetchIdx);
         expect(cmd.indexOf("merge --ff-only")).toBeGreaterThan(fetchIdx);
     });
 
@@ -974,11 +937,9 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
 
     it("carries every housekeeping step the land path has — named, so a reader sees what the recovery runs", () => {
         const cmd = buildHousekeepingCommand(housekeeping);
-        expect(cmd).toContain("health-cadence.ts' record"); // the landing ledger
         expect(cmd).toContain("merge --ff-only"); // primary checkout catches up
         expect(cmd).toContain(seedScenarioStep("/repo", 4159)); // ADR 0044
         expect(cmd).toContain("telemetry-ingest.ts"); // issue #4968
-        expect(cmd).toContain("health-cadence.ts' spawn"); // the batch decision
         expect(cmd).toContain("worktree remove --force"); // teardown
     });
 
@@ -2089,10 +2050,8 @@ describe("land.ts — housekeeping steps against a MISSING worktree", () => {
         // a branch naming no issue — and even there everything but the
         // worktree removal is still in the command.
         const cmd = buildHousekeepingCommand({ ...merged, worktree: null });
-        expect(cmd).toContain("health-cadence.ts' record");
         expect(cmd).toContain("seed-scenario.ts");
         expect(cmd).toContain("telemetry-ingest.ts");
-        expect(cmd).toContain("health-cadence.ts' spawn");
         expect(cmd).not.toContain("worktree remove");
     });
 
@@ -2338,7 +2297,7 @@ describe("bot audit suggestion line (issue #4924)", () => {
         ).toBeNull();
     });
 
-    it("runs after the landing record, last of the shared list, and cannot fail the shell", () => {
+    it("runs last of the shared list and cannot fail the shell", () => {
         const steps = postMergeHousekeepingSteps({
             branch: "feat/issue-4924",
             pr: 4924,
@@ -2346,9 +2305,7 @@ describe("bot audit suggestion line (issue #4924)", () => {
             worktree: null,
             teardown: false,
         });
-        expect(steps.indexOf(botAuditSuggestionStep("/repo"))).toBeGreaterThan(
-            steps.indexOf(recordLandingStep("/repo"))
-        );
+        expect(steps.at(-1)).toBe(botAuditSuggestionStep("/repo"));
         expect(botAuditSuggestionStep("/repo")).toMatch(/; true\)$/);
     });
 
