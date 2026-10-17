@@ -10568,6 +10568,124 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'CR 614.9 recipient-keyed redirection (issue #3810). A redirect conserves the stake, so its per-OP beneficence sign is genuinely `"neutral"` and its two announced slots carry OPPOSITE signs — carried per FIELD by `SPLIT_SIGN_OPS` (`gre/ai/beneficence.ts`), which `misdirectedTargetCount` reads to rank sibling target tuples. Proof-of-failure: dropping the `redirectDamage` row from `SPLIT_SIGN_OPS` reds this at EVERY seed — the bot shields the opponent and redirects the damage onto its own face, the Wild Growth gift in a new costume.',
     },
     {
+        // SOURCE-SCOPED SHIELD orientation (CR 615.1a, issue #5815). The
+        // active player swings a lone Hill Giant, the bot declares no block
+        // and holds Falling Timber with its {2}{G} open in the priority round
+        // after blocks — the last window before combat damage. "Prevent all
+        // combat damage target creature would deal this turn" names the
+        // creature whose damage is ERASED, so the only sane target is the
+        // attacker; aimed at the bot's own idle Mons's Goblin Raiders it does
+        // nothing at all.
+        label: "source shield: never aims Falling Timber at its own creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Falling Timber", owner: "opp", zone: "hand" },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 3 },
+                // A creature that COULD block, so the engine opens the block
+                // window, and the misdirected target the entry forbids.
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers" },
+            { kind: "declare-blockers" },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like the redirection entry above: the claim is the
+        // ORIENTATION of the announced slot, not a preference between boards,
+        // so it lowers to no Verdict. Casting at the attacker and passing are
+        // both admitted.
+        expect: {
+            predicate: (move, state) => {
+                if (!move || move.kind !== "cast-spell") return true;
+                const bot = seatPlayerId(state, "opp");
+                const own = state.players.find((p) => p.id === bot)!;
+                return !(move.targets ?? []).some((t) =>
+                    own.battlefield.some((c) => c.id === t.id)
+                );
+            },
+            describe:
+                "never casts Falling Timber at a creature of its own (pass or the attacker)",
+        },
+        note: 'CR 615.1a source-scoped prevention (issue #5815). `preventDamage` `"all-from-source"` names the SOURCE whose damage is erased, so `opBeneficence` signs its slot `"harmful"`; every other mode names the recipient it shields and stays `"beneficial"`. Proof-of-failure: with the flat `preventDamage: "beneficial"` row restored in `OP_BENEFICENCE` (and the parametrized case removed), the bot casts Falling Timber at its OWN Mons\'s Goblin Raiders on 3 of these 5 seeds — `misdirectedTargetCount` ranked the attacker as the misdirected sibling.',
+    },
+    {
+        // Bot reachability for a "target attacking creature" damage shield
+        // (issue #5815, Bot Gap `never-chosen › Instant target:Creature ›
+        // draw+preventDamage`). Same combat as the entry above, the bot at 3
+        // life against a 3/3: Restrain on the attacker is the ONLY move that
+        // does not lose the game (CR 510.1b / 704.5a).
+        label: "source shield: Restrain the lethal attacker after blocks",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Restrain", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 3 },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        setup: [
+            { kind: "declare-attackers" },
+            { kind: "declare-blockers" },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE for the same reason as above: the claim is that the
+        // cast is reachable and aimed at the attacker, not a board preference.
+        expect: {
+            predicate: (move, state) => {
+                if (!move || move.kind !== "cast-spell") return false;
+                const restrain = instanceIdsForName(state, "Restrain");
+                const attacker = instanceIdsForName(state, "Hill Giant");
+                return (
+                    restrain.has(move.cardInstanceId) &&
+                    (move.targets ?? []).some((t) => attacker.has(t.id))
+                );
+            },
+            describe: "casts Restrain at the attacking Hill Giant",
+        },
+        note: "Bot reachability for Restrain (issue #5815). The Bot-play sweep posed it as a boon on the holder's OWN blocked attacker — the shape `targetPose` gives a slot signed `beneficial` — where preventing its damage only loses the combat, so the Bot rightly passed and the card read `never-chosen`. With the slot signed `harmful` the sweep poses the opponent's attack instead. This entry pins the cast in the real window: the last priority round before combat damage.",
+    },
+    {
         // SACRIFICE-OUTLET reachability (CR 701.21a, issue #4261). The bot's
         // postcombat main (below), a Grizzly Bears on each side, Nantuko Husk
         // in hand and five untapped Swamps for its {2}{B}: a 2/2 body that can
