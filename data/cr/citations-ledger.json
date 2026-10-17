@@ -15503,6 +15503,7 @@
         {"id":"502.3","line":"* gives about `mana`: a tapped source untaps (CR 502.3), and what this term","sites":1,"status":"baseline"},
         {"id":"502.3","line":"* it untaps in its controller's next untap step (CR 502.3), so tapping one","sites":1,"status":"baseline"},
         {"id":"502.3","line":"* tapped under a hard untap lock (CR 502.3, Meekstone). Below 1 at the","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
+        {"id":"502.3","line":"* that keeps every player's mana sources from untapping (CR 502.3, issue","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
         {"id":"502.3","line":"* turn-based action of CR 502.3 (\"effects can keep one or more of a","sites":1,"status":"baseline"},
         {"id":"502.3","line":"* until its controller's untap step (CR 502.3), after the animation has","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
         {"id":"502.3","line":"/** CR 502.3 — \"doesn't untap during your untap step\". */","sites":1,"status":"baseline"},
