@@ -5,7 +5,7 @@
  *
  * A symmetric untap lock is worth what it takes from the OPPONENT's mana
  * minus what it takes from the holder's (`manaLockSourceWorth`,
- * `ai/restrictionPricing.ts`). On the empty opposing board of the generated
+ * `ai/restrictionPricing.ts`). With no opposing lands in the generated
  * position it takes nothing from the opponent and the holder's own lands, just
  * tapped to pay for it, are locked dead: passing is right, and the card read
  * `never-chosen` — a limit of the harness, not a fact about the Bot. The board
