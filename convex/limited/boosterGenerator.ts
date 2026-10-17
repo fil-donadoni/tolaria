@@ -6,9 +6,10 @@
 // each variant slot's card count from its named sheet via weighted sampling.
 // A sheet is duplicate-free unless it carries `allowDuplicates: true` (the
 // MTGJSON rule): a duplicate-free sheet is drawn WITHOUT replacement within
-// one pack, an `allowDuplicates` sheet WITH replacement. No I/O, no game state: `generateBooster` is a plain function
-// of its two inputs, so the same `(config, rng-stream-from-seed)` pair always
-// produces the same pack, and a driver (event mutation, test) owns the seed.
+// one pack, an `allowDuplicates` sheet WITH replacement. No I/O, no game
+// state: `generateBooster` is a plain function of its two inputs, so the same
+// `(config, rng-stream-from-seed)` pair always produces the same pack, and a
+// driver (event mutation, test) owns the seed.
 import type { BoosterConfig, BoosterSheet } from "./boosterTypes";
 
 /** One drawn card, tagged with the sheet it came from. Sheets are NOT

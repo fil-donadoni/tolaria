@@ -163,6 +163,8 @@ describe("generateBooster (ADR 0055/0056)", () => {
             expect(new Set([pack[0].scryfallId, pack[1].scryfallId])).toEqual(
                 new Set(["A", "B"])
             );
+            // The overflow draw is a real sheet id, not a dropped pick.
+            expect(["A", "B"]).toContain(pack[2].scryfallId);
         });
 
         it("renormalises over the remaining entries: the second draw from a two-card sheet is always the other card", () => {
