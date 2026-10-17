@@ -1,0 +1,89 @@
+# health-fix — the RED ladder's last rungs (ADR 0156 Amendment I § A RED base
+# is repaired by a bounded ladder, issue #5646). `health.yml` dispatches it,
+# with the host of the `lane` runner that saw the RED, once its flake check
+# and bisect have run; each run takes ONE rung, decided from the pivot by
+# `ladderRung` (scripts/lib/health-ladder.ts):
+#
+#   fix    — the headless fixer (`/health-fix --headless`) on that machine,
+#            at most two attempts of three hours per RED episode; its PR is
+#            the RED's declared repair, the only PR the queue admits
+#   revert — both attempts stuck, or a second RED after a repair: a revert
+#            PR of the culprit's commit, queued as the repair; the culprit's
+#            issue reopens with the evidence (scripts/health-revert.ts)
+#   stop   — a revert that cannot be made or land, a RED that outlives it,
+#            no culprit: one `ready-for-human` issue, this run fails (the one
+#            email); later runs hold quietly. The RED holds the queue and the
+#            dispatcher.
+#
+# A rung that ended without settling the RED dispatches the next run; a
+# repair in the queue, or a merged one awaiting health, waits for health's
+# next dispatch. The fixer's transcript stays on the machine (`--claude-args`
+# from `HEALTH_FIX_CLAUDE_ARGS`; the log gets one line).
+#
+# A dispatch needs this file on the DEFAULT branch: the ladder starts once a
+# release carries it. `--ref staging` names the base by literal, as
+# post-merge's `branches:` (docs/guides/github-pipeline.md § health-fix).
+name: health-fix
+run-name: health-fix ${{ inputs.sha }} ${{ inputs.host }}
+
+on:
+    workflow_dispatch:
+        inputs:
+            sha:
+                description: "the RED's sha, for the run name — the job reads the standing RED off the pivot"
+                required: false
+                default: ""
+            host:
+                description: "the machine that saw the RED (its runner's `host:` label); empty = any pass runner"
+                required: false
+                default: ""
+
+permissions:
+    contents: read
+
+jobs:
+    ladder:
+        name: RED ladder — fix, revert, stop
+        runs-on:
+            [
+                self-hosted,
+                pass,
+                "${{ inputs.host && format('host:{0}', inputs.host) || 'pass' }}",
+            ]
+        # One fixer attempt (3 h) plus the job setup and the revert.
+        timeout-minutes: 210
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: health:fix ladder
+              id: ladder
+              continue-on-error: true
+              env:
+                  FIXER_ARGS: ${{ vars.HEALTH_FIX_CLAUDE_ARGS || '--dangerously-skip-permissions' }}
+              run: bun run health:fix ladder "--claude-args=$FIXER_ARGS"
+            - name: Next rung
+              if: ${{ steps.ladder.outputs.redispatch == 'true' }}
+              continue-on-error: true
+              env:
+                  SHA: ${{ inputs.sha }}
+                  HOST: ${{ inputs.host }}
+              run: gh workflow run health-fix.yml --ref staging -f sha="$SHA" -f host="$HOST"
+            - name: Re-gate the queue
+              if: always()
+              continue-on-error: true
+              run: gh workflow run pr-gate.yml --ref staging
+            - name: Verdict
+              if: ${{ steps.ladder.outcome != 'success' }}
+              run: |
+                  echo "::error::the RED ladder stopped — the ready-for-human issue holds the evidence"
+                  exit 1
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

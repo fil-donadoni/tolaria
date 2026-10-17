@@ -1,0 +1,266 @@
+#!/usr/bin/env bun
+/**
+ * The RED ladder's revert rung (issue #5646, ADR 0156 Amendment I rung 5,
+ * owner's decision of 2026-10-14): the culprit the bisect named is reverted
+ * on a branch off the base tip, and the revert goes through the queue as the
+ * standing RED's declared repair.
+ *
+ *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--why <text>] [--dry-run]
+ *
+ * In order: the attempt is recorded on the pivot (`health-fix-attempt`,
+ * rung `revert`) before anything else, so a second ladder run waits; the
+ * revert is made in a throwaway worktree beside the primary checkout — a
+ * conflict (a later PR depends on the culprit) records the rung `stuck` and
+ * exits 3, which the next ladder run turns into the stop; then a repair
+ * issue is filed and recorded on the pivot (`health-fix`, what `base-health`
+ * admits a repair by), the branch pushed, the PR opened and labelled
+ * `ready-to-land`, and the culprit PR's closing issues reopened with the
+ * evidence and `ready-for-agent` for a fresh pass. `--dry-run` makes the
+ * revert to prove it applies, and pushes, files and records nothing.
+ *
+ * Invoked by `health:fix ladder` (`scripts/health-fix.ts`); the decisions
+ * and every text it writes are `lib/health-ladder.ts`'s. Exit 0: the revert
+ * PR is queued (or the dry run applied); 1: a step failed after the revert
+ * applied; 2: usage; 3: the revert does not apply.
+ * docs/guides/github-pipeline.md § health-fix.
+ */
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
+import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
+import { prOfSubject } from "./lib/health-bisect";
+import { fixAttemptStore, type FixAttempt } from "./lib/health-fix-attempts";
+import {
+    reopenComment,
+    revertBranch,
+    revertIssueBody,
+    revertIssueTitle,
+    revertPrBody,
+    type Culprit,
+} from "./lib/health-ladder";
+import { recordPivotRepairIssue } from "./lib/health-pivot";
+import { evidenceStore, machineName } from "./lib/health-verdict-store";
+import { READY_LABEL } from "./lib/land-labels";
+import { primaryCheckout } from "./lib/primary-checkout";
+
+const SHA = /^[0-9a-f]{40}$/;
+
+function arg(name: string): string | undefined {
+    const i = process.argv.indexOf(name);
+    return i === -1 ? undefined : process.argv[i + 1];
+}
+
+function run(
+    cmd: string,
+    args: string[],
+    cwd: string
+): { ok: boolean; out: string; err: string } {
+    const r = spawnSync(cmd, args, { cwd, encoding: "utf8" });
+    return {
+        ok: r.status === 0,
+        out: (r.stdout ?? "").trim(),
+        err: (r.stderr ?? "").trim(),
+    };
+}
+
+function must(cmd: string, args: string[], cwd: string): string {
+    const r = run(cmd, args, cwd);
+    if (!r.ok) throw new Error(`${cmd} ${args.join(" ")} failed: ${r.err}`);
+    return r.out;
+}
+
+/** The PR number a `gh pr create` URL ends with, or null. */
+export function prNumberOfUrl(url: string): number | null {
+    const m = /\/pull\/(\d+)\s*$/.exec(url.trim());
+    return m ? Number(m[1]) : null;
+}
+
+function main(): number {
+    const red = arg("--sha");
+    const culpritArg = arg("--culprit");
+    const why = arg("--why") ?? "the RED ladder's last resort";
+    const dryRun = process.argv.includes("--dry-run");
+    if (red === undefined || !SHA.test(red) || culpritArg === undefined) {
+        console.error(
+            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--why <text>] [--dry-run]"
+        );
+        return 2;
+    }
+    const root = primaryCheckout(process.cwd());
+    const say = (line: string) => console.log(`health-revert: ${line}`);
+    must("git", ["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], root);
+    const full = must(
+        "git",
+        ["rev-parse", "--verify", `${culpritArg}^{commit}`],
+        root
+    );
+    const subject = must("git", ["log", "-1", "--format=%s", full], root);
+    const culprit: Culprit = {
+        sha: full.slice(0, 12),
+        pr: prOfSubject(subject),
+    };
+
+    const attempts = fixAttemptStore(root);
+    const record = (
+        outcome: FixAttempt["outcome"],
+        extra: { pr?: number; note?: string } = {}
+    ) => {
+        if (dryRun) return;
+        attempts.write({
+            sha: red,
+            outcome,
+            rung: "revert",
+            attempt: 1,
+            machine: machineName(),
+            at: new Date().toISOString(),
+            ...extra,
+        });
+    };
+    // Before anything is made: a second ladder run must see the rung taken.
+    record("attempting", { note: `revert ${culprit.sha}` });
+
+    const branch = revertBranch(full);
+    const wt = join(root, "..", `tolaria-revert-${process.pid}`);
+    try {
+        // A killed run's worktree would hold `branch` checked out.
+        run("git", ["worktree", "prune"], root);
+        must("git", ["worktree", "add", "-B", branch, wt, ORIGIN_BASE], root);
+        const reverted = run("git", ["revert", "--no-edit", full], wt);
+        if (!reverted.ok) {
+            run("git", ["revert", "--abort"], wt);
+            const note = `the revert of ${culprit.sha} does not apply on ${BASE_BRANCH} — a later commit depends on it`;
+            say(note);
+            record("stuck", { note });
+            return 3;
+        }
+        say(`reverted ${culprit.sha} (${subject}) on ${branch}`);
+        if (dryRun) {
+            say("(dry run) the revert applies — nothing pushed or filed");
+            return 0;
+        }
+
+        let evidence: string | null = null;
+        try {
+            evidence = evidenceStore(root).read(red);
+        } catch {
+            evidence = null;
+        }
+        const issueUrl = must(
+            "gh",
+            [
+                "issue",
+                "create",
+                "--title",
+                revertIssueTitle(culprit, subject),
+                "--body",
+                revertIssueBody({ red, culprit, why, evidence }),
+                "--label",
+                "bug",
+                "--label",
+                "area:workflow",
+            ],
+            root
+        );
+        const issue = Number(/\/issues\/(\d+)\s*$/.exec(issueUrl)?.[1]);
+        if (!Number.isInteger(issue))
+            throw new Error(`no issue number in ${JSON.stringify(issueUrl)}`);
+        // What `base-health` admits the revert PR by: the repair issue,
+        // recorded against the standing RED.
+        say(
+            recordPivotRepairIssue(root, issue) ??
+                `issue #${issue} could NOT be recorded as the repair — the queue will hold the PR`
+        );
+
+        const culpritIssues =
+            culprit.pr === null
+                ? []
+                : must(
+                      "gh",
+                      [
+                          "pr",
+                          "view",
+                          String(culprit.pr),
+                          "--json",
+                          "closingIssuesReferences",
+                          "--jq",
+                          ".closingIssuesReferences[].number",
+                      ],
+                      root
+                  )
+                      .split("\n")
+                      .filter(Boolean)
+                      .map(Number);
+
+        must("git", ["push", "--force", "-u", "origin", branch], wt);
+        const prUrl = must(
+            "gh",
+            [
+                "pr",
+                "create",
+                "--base",
+                BASE_BRANCH,
+                "--head",
+                branch,
+                "--title",
+                `${revertIssueTitle(culprit, subject)} (issue #${issue})`,
+                "--body",
+                revertPrBody({ issue, red, culprit, culpritIssues }),
+            ],
+            wt
+        );
+        const pr = prNumberOfUrl(prUrl);
+        if (pr === null)
+            throw new Error(`no PR number in ${JSON.stringify(prUrl)}`);
+        must(
+            "gh",
+            ["pr", "edit", String(pr), "--add-label", READY_LABEL],
+            root
+        );
+        record("attempting", { pr, note: `revert ${culprit.sha}` });
+        say(`PR #${pr} queued as the repair of ${red.slice(0, 8)}`);
+
+        for (const n of culpritIssues) {
+            const reopened = run(
+                "gh",
+                [
+                    "issue",
+                    "reopen",
+                    String(n),
+                    "--comment",
+                    reopenComment({ red, culprit, revertPr: pr, evidence }),
+                ],
+                root
+            );
+            // A fresh pass picks it once health is GREEN again; the old
+            // claim's labels would hide it from the picker.
+            // One call per label: a label the issue does not carry fails
+            // its own call only.
+            for (const edit of [
+                ["--add-label", "ready-for-agent"],
+                ["--remove-label", CLAIM_LABEL],
+                ["--remove-label", PR_OPEN_LABEL],
+            ])
+                run("gh", ["issue", "edit", String(n), ...edit], root);
+            say(
+                reopened.ok
+                    ? `issue #${n} reopened for a fresh pass`
+                    : `issue #${n} could not be reopened — ${reopened.err}`
+            );
+        }
+        return 0;
+    } catch (e) {
+        const note = (e as Error).message;
+        console.error(`health-revert: ${note}`);
+        try {
+            record("stuck", { note: note.slice(0, 100) });
+        } catch {
+            // The record is advisory once the revert is out: the next run
+            // reads a stale `attempting` as a stop.
+        }
+        return 1;
+    } finally {
+        spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
+    }
+}
+
+if (import.meta.main) process.exit(main());

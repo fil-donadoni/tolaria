@@ -52,21 +52,55 @@
 //
 // `release`'s loop around this (issue #3201) and the skill itself (issue
 // #3200) import what is defined here.
+//
+// `ladder` (issue #5646) is the RED ladder's last rungs as a job
+// (`health-fix.yml`): it reads the standing RED's facts off the pivot, asks
+// `ladderRung` (`lib/health-ladder.ts`) for the next rung, and acts on it —
+// a headless fixer attempt, the revert (`health-revert.ts`), or the stop's
+// one `ready-for-human` issue. Exit 1 only when it stops (the one email).
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+    appendFileSync,
+    closeSync,
+    existsSync,
+    mkdirSync,
+    openSync,
+    readFileSync,
+    rmSync,
+} from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { laddered } from "./lib/health-bisect";
 import type { HealthStatus } from "./lib/health-verdict";
 import { OVER_CAP_ENV } from "./lib/machine-admission";
 import {
     fixAttemptStore,
     LOOP_FIX_ATTEMPTS,
     loopFixDecision,
+    type FixAttempt,
     type FixAttemptStore,
+    type FixRung,
     type LoopFixDecision,
 } from "./lib/health-fix-attempts";
 import {
+    ESCALATION_LABEL,
+    escalationBody,
+    escalationTitle,
+    FIX_ATTEMPT_TIMEOUT_MS,
+    hostOfRunnerName,
+    ladderRung,
+    parseCulprit,
+    type EpisodeRed,
+    type LadderFacts,
+    type RevertPr,
+} from "./lib/health-ladder";
+import { FAILED_LABEL } from "./lib/land-labels";
+import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    evidenceStore,
+    HISTORY_DEPTH,
     lineageBlocks,
     machineName,
     readVerdictLineage,
@@ -78,8 +112,9 @@ import {
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
 /** The fixer's return channel, beside `last.json` and the `RED` marker. */
 export const VERDICT_FILE = "fix-verdict.json";
-/** How long a headless fixer may run before it is killed (issue #5589). */
-export const HEADLESS_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+/** How long a headless fixer may run before it is killed (issue #5589) —
+ *  the RED ladder's bound on one attempt (issue #5646). */
+export const HEADLESS_TIMEOUT_MS = FIX_ATTEMPT_TIMEOUT_MS;
 /** What to type when there is no terminal to spawn into. */
 export const MANUAL_COMMAND = "bun run health:fix";
 
@@ -335,6 +370,13 @@ function main(): void {
     const cwd = process.cwd();
     const argv = process.argv.slice(2);
     const own = argv;
+    if (own[0] === "ladder") process.exit(ladderMain(own.slice(1)));
+    // `host`: this runner's machine, for a dispatch that must come back to
+    // it (`health.yml` → `health-fix.yml`); empty off a runner.
+    if (own[0] === "host") {
+        console.log(hostOfRunnerName(process.env.RUNNER_NAME) ?? "");
+        return;
+    }
     if (own.includes("--plan")) {
         const sha = flagValue(own, "--plan");
         const attempts = Number(flagValue(own, "--attempts") ?? "0");
@@ -380,8 +422,53 @@ function main(): void {
         process.exit(decision.nothingToFix ? 0 : 1);
     }
 
+    const verdict = runFixer({
+        cwd,
+        sha: decision.sha,
+        failedStep: decision.failedStep,
+        headless,
+        extra: extraClaudeArgs(argv),
+    });
+    if (verdict === null || verdict.outcome !== "landed") process.exit(1);
+}
+
+/** Where a job's quiet fixer writes its transcript: `run-quiet.sh`'s
+ *  directory, so the public log never carries it (ADR 0156 Amendment I §
+ *  Public logs). Exported for tests. */
+export function quietLogPath(
+    env: NodeJS.ProcessEnv,
+    name: string,
+    home = homedir()
+): string {
+    const dir =
+        env.TOLARIA_JOB_LOG_DIR ?? join(home, ".cache", "tolaria", "jobs");
+    return join(
+        dir,
+        `${env.GITHUB_RUN_ID ?? "local"}-${env.GITHUB_RUN_ATTEMPT ?? "0"}`,
+        `${name}.log`
+    );
+}
+
+/**
+ * One fixer session on `sha`, recorded on the pivot before and after: the
+ * spawn, the verdict file read back fail-closed, the outcome printed. Null
+ * when the attempt could not be recorded unattended (a second fixer
+ * elsewhere is the failure that prevents) — nothing was spawned.
+ */
+function runFixer(input: {
+    cwd: string;
+    sha: string;
+    failedStep?: string;
+    headless: boolean;
+    extra: readonly string[];
+    /** The ladder's rung and attempt; a hand or loop run names none. */
+    rung?: { rung: FixRung; attempt: number };
+    /** A job's fixer: its transcript goes to `quietLogPath`, not stdout. */
+    quiet?: boolean;
+}): FixVerdict | null {
+    const { cwd, sha, headless } = input;
     console.log(
-        `health:fix: spawning a fixer session for ${decision.sha.slice(0, 8)}${decision.failedStep ? ` (red at ${decision.failedStep})` : ""}`
+        `health:fix: spawning a fixer session for ${sha.slice(0, 8)}${input.failedStep ? ` (red at ${input.failedStep})` : ""}${input.rung ? ` — ladder attempt ${input.rung.attempt}` : ""}`
     );
     // A verdict left by an EARLIER round about this same sha would otherwise
     // be read as this round's answer.
@@ -398,8 +485,9 @@ function main(): void {
     ): string | null => {
         try {
             attempts.write({
-                sha: decision.sha,
+                sha,
                 outcome,
+                ...(input.rung ?? {}),
                 machine: machineName(),
                 at: new Date().toISOString(),
                 ...extra,
@@ -416,9 +504,17 @@ function main(): void {
         console.error(
             `health:fix: the fix attempt could not be recorded on the pivot — ${unrecorded}`
         );
-        if (headless) process.exit(1);
+        if (headless) return null;
     }
 
+    const quietLog = input.quiet
+        ? quietLogPath(process.env, `health-fix-${input.rung?.attempt ?? 1}`)
+        : null;
+    let fd: number | null = null;
+    if (quietLog !== null) {
+        mkdirSync(join(quietLog, ".."), { recursive: true });
+        fd = openSync(quietLog, "a");
+    }
     // stdio inherited: the session is genuinely interactive, which is the
     // whole point of the TTY refusal above.
     // The fixer is admitted past the session cap (issue #4966): a RED tip is
@@ -427,9 +523,14 @@ function main(): void {
     // announces and logs the override like any other.
     const spawned = spawnSync(
         "claude",
-        claudeArgs(decision.sha, { headless, extra: extraClaudeArgs(argv) }),
+        claudeArgs(sha, { headless, extra: input.extra }),
         {
-            stdio: headless ? ["ignore", "inherit", "inherit"] : "inherit",
+            stdio:
+                fd !== null
+                    ? ["ignore", fd, fd]
+                    : headless
+                      ? ["ignore", "inherit", "inherit"]
+                      : "inherit",
             // Unattended, a hung session must not hold the loop forever: past
             // the bound it is killed, writes no verdict, and reads `stuck`.
             ...(headless ? { timeout: HEADLESS_TIMEOUT_MS } : {}),
@@ -445,8 +546,14 @@ function main(): void {
             },
         }
     );
+    if (fd !== null) {
+        closeSync(fd);
+        console.log(
+            `health:fix: the fixer exited ${spawned.status ?? spawned.signal} — its output is kept at ${quietLog}, not in this log`
+        );
+    }
 
-    let verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
+    let verdict = parseVerdict(readVerdictFile(cwd), sha);
     if (verdict.outcome === "stuck" && spawned.error)
         verdict = {
             ...verdict,
@@ -464,12 +571,231 @@ function main(): void {
         console.log(
             `health:fix: LANDED @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
         );
-        return;
+        return verdict;
     }
     console.error(
         `health:fix: STUCK @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""} — ${verdict.note}`
     );
-    process.exit(1);
+    return verdict;
+}
+
+function gh(args: string[], cwd: string): { ok: boolean; out: string } {
+    const r = spawnSync("gh", args, { cwd, encoding: "utf8" });
+    return {
+        ok: r.status === 0,
+        out: r.status === 0 ? (r.stdout ?? "") : (r.stderr ?? "").trim(),
+    };
+}
+
+/** The open escalation issue for `red`, by exact title, or null. */
+function escalationIssue(cwd: string, red: string): number | null {
+    const title = escalationTitle(red);
+    const r = gh(
+        [
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--label",
+            ESCALATION_LABEL,
+            "--search",
+            `"${title}" in:title`,
+            "--json",
+            "number,title",
+            "--limit",
+            "20",
+        ],
+        cwd
+    );
+    if (!r.ok) throw new Error(`gh issue list failed: ${r.out}`);
+    const list = JSON.parse(r.out || "[]") as {
+        number: number;
+        title: string;
+    }[];
+    return list.find((i) => i.title === title)?.number ?? null;
+}
+
+function revertPrState(cwd: string, pr: number): RevertPr {
+    const r = gh(["pr", "view", String(pr), "--json", "state,labels"], cwd);
+    if (!r.ok) throw new Error(`gh pr view ${pr} failed: ${r.out}`);
+    const doc = JSON.parse(r.out) as {
+        state: string;
+        labels: { name: string }[];
+    };
+    const state = doc.state.toLowerCase();
+    return {
+        number: pr,
+        state: state === "merged" || state === "closed" ? state : "open",
+        landFailed: doc.labels.some((l) => l.name === FAILED_LABEL),
+    };
+}
+
+/**
+ * The facts `ladderRung` decides on, read off the pivot. Every read that
+ * fails lands in `error`, which waits: an outage never files an escalation.
+ * Exported for the job's `--dry-run` and for direct testing of the shape.
+ */
+export function readLadderFacts(cwd: string, tip: string): LadderFacts {
+    const now = Date.now();
+    const empty: LadderFacts = {
+        red: null,
+        secondRed: false,
+        tip,
+        laddered: false,
+        episode: [],
+        revertPr: null,
+        escalated: null,
+        now,
+    };
+    const lineage = readVerdictLineage(() => verdictStore(cwd));
+    if (lineage.error) return { ...empty, error: lineage.error };
+    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return empty;
+    const red = lineage.verdict.sha;
+    try {
+        const verdicts = verdictStore(cwd);
+        const evidence = evidenceStore(cwd);
+        const attempts = fixAttemptStore(cwd);
+        const ancestors = git(
+            ["rev-list", "--first-parent", `--max-count=${HISTORY_DEPTH}`, red],
+            cwd
+        )
+            .split("\n")
+            .filter(Boolean);
+        const episode: EpisodeRed[] = [];
+        let standingEvidence: string | null = null;
+        for (const sha of ancestors) {
+            const v = sha === red ? lineage.verdict : verdicts.read(sha);
+            if (v?.status === "green") break;
+            if (v?.status !== "red") continue;
+            const body = evidence.read(sha);
+            if (sha === red) standingEvidence = body;
+            episode.push({
+                sha,
+                attempt: attempts.read(sha),
+                culprit: parseCulprit(body),
+            });
+        }
+        const revert = episode
+            .map((r) => r.attempt)
+            .find((a): a is FixAttempt => a !== null && a.rung === "revert");
+        return {
+            ...empty,
+            red,
+            secondRed: lineage.kind === "second-red",
+            laddered: laddered(standingEvidence),
+            episode,
+            revertPr:
+                revert?.pr !== undefined ? revertPrState(cwd, revert.pr) : null,
+            escalated: escalationIssue(cwd, red),
+        };
+    } catch (e) {
+        return { ...empty, red, error: (e as Error).message };
+    }
+}
+
+function runUrl(): string | undefined {
+    const {
+        GITHUB_SERVER_URL: s,
+        GITHUB_REPOSITORY: r,
+        GITHUB_RUN_ID: id,
+    } = process.env;
+    return s && r && id ? `${s}/${r}/actions/runs/${id}` : undefined;
+}
+
+/** Tells the job to dispatch the ladder again: the rung just tried is over
+ *  and the next one is the next run's to decide. */
+function redispatch(): void {
+    const out = process.env.GITHUB_OUTPUT;
+    if (out) appendFileSync(out, "redispatch=true\n");
+    console.log("health:fix ladder: the next rung is the next run's");
+}
+
+/**
+ * `health:fix ladder [--dry-run] [--claude-args="…"]` — one rung of the RED
+ * ladder (issue #5646). Exit 0 for every rung but the stop (1); usage 2.
+ */
+function ladderMain(argv: readonly string[]): number {
+    const cwd = primaryCheckout(process.cwd());
+    const dryRun = argv.includes("--dry-run");
+    git(["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], cwd);
+    const tip = git(["rev-parse", ORIGIN_BASE], cwd);
+    const facts = readLadderFacts(cwd, tip);
+    const rung = ladderRung(facts);
+    const label =
+        rung.kind === "fix" ? `fix (attempt ${rung.attempt})` : rung.kind;
+    console.log(`health:fix ladder: ${label} — ${rung.why}`);
+    // `health.yml` asks with `--dry-run` whether a ladder run is owed.
+    if (process.env.GITHUB_OUTPUT)
+        appendFileSync(process.env.GITHUB_OUTPUT, `rung=${rung.kind}\n`);
+    if (rung.kind === "none" || rung.kind === "wait" || rung.kind === "hold")
+        return 0;
+    if (dryRun) {
+        console.log("health:fix ladder: (dry run) nothing acted on");
+        return 0;
+    }
+    const red = facts.red as string;
+    if (rung.kind === "fix") {
+        const verdict = runFixer({
+            cwd,
+            sha: red,
+            headless: true,
+            extra: extraClaudeArgs(argv),
+            rung: { rung: "fix", attempt: rung.attempt },
+            quiet: process.env.GITHUB_ACTIONS === "true",
+        });
+        // A landed repair waits for health on its tip; anything else is the
+        // next rung's to decide.
+        if (verdict?.outcome !== "landed") redispatch();
+        return 0;
+    }
+    if (rung.kind === "revert") {
+        const r = spawnSync(
+            "bun",
+            [
+                join(import.meta.dir, "health-revert.ts"),
+                "--sha",
+                red,
+                "--culprit",
+                rung.culprit.sha,
+                "--why",
+                rung.why,
+            ],
+            { cwd, stdio: "inherit", env: process.env }
+        );
+        if (r.status !== 0) redispatch();
+        return 0;
+    }
+    // stop — one `ready-for-human` issue, one failed run.
+    const title = escalationTitle(red);
+    let evidence: string | null = null;
+    try {
+        evidence = evidenceStore(cwd).read(red);
+    } catch {
+        evidence = null;
+    }
+    const filed = gh(
+        [
+            "issue",
+            "create",
+            "--title",
+            title,
+            "--body",
+            escalationBody({ red, why: rung.why, evidence, runUrl: runUrl() }),
+            "--label",
+            ESCALATION_LABEL,
+            "--label",
+            "bug",
+            "--label",
+            "area:workflow",
+        ],
+        cwd
+    );
+    console.error(
+        filed.ok
+            ? `health:fix ladder: STOPPED — filed ${filed.out.trim()}`
+            : `health:fix ladder: STOPPED — the escalation issue could not be filed: ${filed.out}`
+    );
+    return 1;
 }
 
 if (import.meta.main) {
