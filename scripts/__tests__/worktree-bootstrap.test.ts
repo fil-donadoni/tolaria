@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    beforeAll,
+    beforeEach,
+    afterAll,
+    afterEach,
+} from "vitest";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -556,7 +564,7 @@ describe("copies from the primary checkout (issue #5786)", () => {
         fs.mkdirSync(cwd);
     });
 
-    afterAll(() => {
+    afterEach(() => {
         fs.rmSync(tmp, {
             recursive: true,
             force: true,
