@@ -1465,7 +1465,13 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
         // total membership (2 cards) is unchanged.
         expect(payload.sideboard).toEqual([
             { cardId: chosenPrintId, cardName: "Mountain" },
-            { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+            // A reprint opened as `b1` is minted per ADR 0140 §5 (issue
+            // #5473): `cardId` = the opened print, `definitionId` = canonical.
+            {
+                cardId: "b1",
+                cardName: "Lightning Bolt",
+                definitionId: BOLT_ID,
+            },
         ]);
     });
 });

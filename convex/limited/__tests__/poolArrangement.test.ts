@@ -10,6 +10,7 @@ import {
     findMovablePoolIndex,
     mvColumnFromPins,
     assignPoolCopies,
+    openedPrintId,
     pinsByPoolIndex,
     poolCopyPinKey,
     readEntryPins,
@@ -153,6 +154,9 @@ describe("assignPoolCopies (issue #1626, review B1)", () => {
         expect(out.cards[0]).toEqual({
             cardId: "bolt",
             cardName: "Bolt",
+            // The Pool copy was opened as `s-bolt`, a print of its own
+            // (issue #5473): the entry shows that face.
+            printId: "s-bolt",
             poolIndex: 0,
         });
         expect(JSON.stringify(zones)).toBe(snapshot);
@@ -413,7 +417,12 @@ describe("resolvePoolPlacements / splitPoolByArrangement (ADR 0060, issue #1247)
         expect(split.sideboard).toEqual([
             // The Pool's own index rides along (issue #1626): it is the only
             // stable per-copy identity a zone entry has.
-            { cardId: "bolt", cardName: "Lightning Bolt", poolIndex: 0 },
+            {
+                cardId: "bolt",
+                cardName: "Lightning Bolt",
+                printId: "s-bolt",
+                poolIndex: 0,
+            },
         ]);
     });
 
@@ -778,5 +787,88 @@ describe("legacy and new shapes resolve to the SAME placement (issue #1621: noth
         // An untouched card has no Pins at all, not a partially-filled map.
         expect(placements[1].pins).toEqual({});
         expect(placements[1].columnOverride).toBeUndefined();
+    });
+});
+
+// Issue #5473: the printing a booster contained rides on the Pool entry's
+// `scryfallId`; the zone entry keeps the canonical `cardId` (every registry
+// lookup reads it) and carries the opened print as `printId`.
+describe("openedPrintId (issue #5473)", () => {
+    const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // a Basic
+
+    it("is the scryfallId when the card was opened as a print of its own", () => {
+        expect(openedPrintId({ scryfallId: "tmp-bolt", cardId: BOLT })).toBe(
+            "tmp-bolt"
+        );
+    });
+
+    it("is absent when the id is its own identity (a scryfallId the table could not resolve)", () => {
+        expect(
+            openedPrintId({ scryfallId: "unknown", cardId: "unknown" })
+        ).toBeUndefined();
+    });
+
+    it("is absent for a Basic: it keeps the drafted-set printing / art-picker behaviour", () => {
+        expect(
+            openedPrintId({ scryfallId: "other-mountain", cardId: MOUNTAIN })
+        ).toBeUndefined();
+    });
+});
+
+describe("assignPoolCopies — print-keyed saved entries (issue #5473, ADR 0140 §5)", () => {
+    it("re-attaches a saved entry (cardId = print, definitionId = canonical) to its Pool copy, pins surviving, and shows the COPY's print", () => {
+        const pool: LimitedPoolCard[] = [
+            { scryfallId: "print-a", cardId: "bolt", cardName: "Bolt" },
+            { scryfallId: "print-b", cardId: "bolt", cardName: "Bolt" },
+        ];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 1, pins: { mv: makeColumnId("mv", "6") } },
+        ];
+        const saved = (printId: string) => ({
+            cardId: printId,
+            cardName: "Bolt",
+            definitionId: "bolt",
+        });
+        const out = assignPoolCopies(pool, arrangement, {
+            cards: [saved("print-a")],
+            sideboard: [saved("print-b")],
+        });
+        // The pinned copy (poolIndex 1) goes to the Maindeck first, so the
+        // recorded Pin is still visible; the entry shows THAT copy's print.
+        expect(out.cards).toEqual([
+            {
+                cardId: "bolt",
+                cardName: "Bolt",
+                printId: "print-b",
+                poolIndex: 1,
+            },
+        ]);
+        expect(out.sideboard).toEqual([
+            {
+                cardId: "bolt",
+                cardName: "Bolt",
+                printId: "print-a",
+                poolIndex: 0,
+            },
+        ]);
+    });
+
+    it("heals a deck saved before the slice (canonical cardId, no definitionId): the face comes from the Pool copy", () => {
+        const pool: LimitedPoolCard[] = [
+            { scryfallId: "print-a", cardId: "bolt", cardName: "Bolt" },
+        ];
+        const out = assignPoolCopies(pool, [], {
+            cards: [{ cardId: "bolt", cardName: "Bolt" }],
+            sideboard: [],
+        });
+        expect(out.cards).toEqual([
+            {
+                cardId: "bolt",
+                cardName: "Bolt",
+                printId: "print-a",
+                poolIndex: 0,
+            },
+        ]);
     });
 });

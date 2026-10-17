@@ -5,6 +5,7 @@
 // self-contained and doesn't depend on the real card registry.
 import { describe, it, expect } from "vitest";
 import type { DeckCardMeta } from "../../cards";
+import { indexPrintRows, makeResolveCardFromRows } from "../../cards/printRows";
 import type { ResolveCard } from "../../formats";
 import type { LimitedPoolCard } from "../eventTypes";
 import {
@@ -202,6 +203,54 @@ describe("resolveLimitedDeckLegality", () => {
             seatPool,
             resolve
         );
+        expect(isLegal).toBe(false);
+        expect(reasons.some((r) => r.code === "pool-not-granted")).toBe(true);
+    });
+});
+
+// Issue #5473, ADR 0140 §5: a Limited deck entry's `cardId` is the opened
+// PRINT (`definitionId` = the canonical Card ID). Pool membership resolves the
+// deck side through the table rows — the registry alone cannot resolve a Print
+// ID — exactly as `userDecks.listMine` and the game-start gate build it.
+describe("resolveLimitedDeckLegality — print-keyed deck entries (issue #5473)", () => {
+    const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
+    const TMP_BOLT_PRINT = "11111111-2222-4333-8444-555555555555";
+    const seatPool = Array.from({ length: 40 }, () => ({
+        scryfallId: TMP_BOLT_PRINT,
+        cardId: BOLT,
+        cardName: "Lightning Bolt",
+    }));
+    const deck = {
+        cards: Array.from({ length: 40 }, () => ({
+            cardId: TMP_BOLT_PRINT,
+            cardName: "Lightning Bolt",
+            definitionId: BOLT,
+        })),
+        sideboard: [],
+    };
+
+    it("is legal when the deck side resolves through the print rows", () => {
+        const rows = makeResolveCardFromRows(
+            indexPrintRows([
+                {
+                    printId: TMP_BOLT_PRINT,
+                    cardId: BOLT,
+                    set: "tmp",
+                    rarity: "common",
+                },
+            ])
+        );
+        const { isLegal, reasons } = resolveLimitedDeckLegality(
+            deck,
+            seatPool,
+            rows
+        );
+        expect(reasons).toEqual([]);
+        expect(isLegal).toBe(true);
+    });
+
+    it("the registry alone cannot resolve the print: every entry reads as not granted", () => {
+        const { isLegal, reasons } = resolveLimitedDeckLegality(deck, seatPool);
         expect(isLegal).toBe(false);
         expect(reasons.some((r) => r.code === "pool-not-granted")).toBe(true);
     });

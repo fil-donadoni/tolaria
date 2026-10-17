@@ -342,7 +342,7 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
         );
         const tile = getByRole("button");
         const ring = getByTestId("selection-ring");
-        const art = getByAltText("Lightning Bolt");
+        const art = getByAltText("s1");
 
         // The ring carries the shared INSET card-ring recipe (#2724) at the
         // pack card's own 4px weight...
@@ -360,6 +360,38 @@ describe("LimitedDraftPackCard visuals (regime-independent)", () => {
         expect(
             art.compareDocumentPosition(ring) & Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy();
+    });
+
+    // Issue #5473: the pack card shows the printing the booster contained
+    // (its `scryfallId`), never its canonical Card ID's home printing; a card
+    // whose id is its own identity (an unresolved `scryfallId`) and a Basic
+    // render as they always did.
+    it("draws the opened print, not the canonical Card ID's printing", () => {
+        const { container } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                isDefault={false}
+                onSelect={vi.fn()}
+                pending={false}
+            />
+        );
+        const src = container.querySelector("img")!.src;
+        expect(src).toContain("/s1.");
+        expect(src).not.toContain(BOLT_ID);
+    });
+
+    it("falls back to the card's own id when its scryfallId is its identity", () => {
+        const { container } = render(
+            <LimitedDraftPackCard
+                card={{ ...card, scryfallId: BOLT_ID }}
+                selected={false}
+                isDefault={false}
+                onSelect={vi.fn()}
+                pending={false}
+            />
+        );
+        expect(container.querySelector("img")!.src).toContain(BOLT_ID);
     });
 
     it("renders no selection-ring overlay when not selected", () => {
