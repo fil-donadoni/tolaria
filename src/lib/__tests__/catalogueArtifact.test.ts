@@ -177,11 +177,21 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
 
     it("refuses a well-formed shard of ANOTHER Set at a shard's URL", async () => {
         const real = serveCompiledAssets();
-        const other = compiledShardUrl(compiledShardKeys[0]!)!;
+        // Every shard URL answers with a shard of a DIFFERENT Set — so none
+        // is installed, and the whole hydration below starts clean.
+        const [first, second] = compiledShardKeys.map(
+            (k) => compiledShardUrl(k)!
+        );
         vi.stubGlobal(
             "fetch",
             vi.fn((url: string) =>
-                real(url === shardDictionaryUrl ? url : other)
+                real(
+                    url === shardDictionaryUrl
+                        ? url
+                        : url === first
+                          ? second!
+                          : first!
+                )
             )
         );
         await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
