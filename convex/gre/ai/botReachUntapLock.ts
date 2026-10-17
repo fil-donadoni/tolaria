@@ -17,6 +17,7 @@
  * hash (`scripts/lib/oracle-bot-reach.ts`).
  */
 
+import { tryGetDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { ScenarioCard } from "../../debugScenarioSpec";
 
@@ -29,7 +30,10 @@ const OPPOSING_LANDS = 4;
 function locksLandUntap(def: CardDefinition): boolean {
     if (def.types.includes("Creature") || def.types.includes("Land"))
         return false;
-    return (def.staticEffects ?? []).some((effect) => {
+    // A compiled definition carries its statics as descriptors; the registry
+    // expands them (ADR 0054), so read the registered form.
+    const live = tryGetDefinition(def.id) ?? def;
+    return (live.staticEffects ?? []).some((effect) => {
         if (effect.kind !== "untap-restriction") return false;
         if (effect.appliesToHost || effect.appliesToSelf) return false;
         const types = effect.filter.types;

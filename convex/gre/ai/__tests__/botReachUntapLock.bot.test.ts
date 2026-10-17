@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
+import { withTemporaryDefinition } from "../../../cards/registry";
 import { playBotReach } from "../botReach";
 import { untapLockPose } from "../botReachUntapLock";
 
@@ -16,6 +17,27 @@ describe("untapLockPose", () => {
             owner: "opp",
             zone: "battlefield",
             tapped: true,
+        });
+    });
+
+    it("reads the statics of a COMPILED definition, as the oracle sweep plays it", () => {
+        const printed = getCardByName("Stasis")!;
+        const compiled = {
+            ...printed,
+            id: "compiled-stasis-5747",
+            staticEffects: undefined,
+            compiledStaticEffects: [
+                {
+                    kind: "untap-restriction" as const,
+                    id: "stasis-untap-lock",
+                    oracleText: "Players skip their untap steps.",
+                    filter: { types: ["Land" as const] },
+                    maxUntap: 0,
+                },
+            ],
+        };
+        withTemporaryDefinition(compiled, () => {
+            expect(untapLockPose(compiled)).toHaveLength(1);
         });
     });
 
