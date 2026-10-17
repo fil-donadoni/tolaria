@@ -2276,6 +2276,7 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)": null,
     "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
         "cards": [
             {
