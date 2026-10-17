@@ -108,16 +108,33 @@ jobs:
 const JOB_SETUP = readFileSync(join(REPO, JOB_SETUP_FILE), "utf8");
 
 const MERGIFY = `
+merge_queue:
+  max_parallel_checks: 2
 queue_rules:
   - name: default
     queue_conditions:
+      - label=queue:shadow
       - label=ready-to-land
+      - -label=land-failed
       - check-success=trusted-author
       - check-success=base-health
       - -files~=^\\.github/
       - -files=.mergify.yml
     merge_conditions:
-      - check-success=lane
+      - check-success=queue-lane
+    batch_size: 1
+pull_request_rules:
+  - name: dequeued
+    conditions:
+      - or:
+          - queue-dequeue-reason=checks-failed
+          - queue-dequeue-reason=checks-timeout
+    actions:
+      label:
+        add: [land-failed]
+        remove: [ready-to-land]
+      comment:
+        message: "dequeued — https://example.test/run"
 `;
 
 interface Over {
@@ -478,7 +495,9 @@ describe("workflow structure guard", () => {
 
     it("refuses a queue rule that does not gate entry", () => {
         for (const line of [
+            "      - label=queue:shadow\n",
             "      - label=ready-to-land\n",
+            "      - -label=land-failed\n",
             "      - check-success=trusted-author\n",
             "      - check-success=base-health\n",
             "      - -files~=^\\.github/\n",
@@ -487,9 +506,49 @@ describe("workflow structure guard", () => {
             const mergify = edit(MERGIFY, line, "");
             expect(rules(fixture({ mergify })), line).toEqual(["queue-entry"]);
         }
-        expect(rules(fixture({ mergify: "pull_request_rules: []\n" }))).toEqual(
-            ["queue-entry"]
-        );
+        expect(
+            rules(fixture({ mergify: "pull_request_rules: []\n" }))
+        ).toContain("queue-entry");
+    });
+
+    it("requires the queue lane, and nothing else, to merge (issue #5642)", () => {
+        for (const [from, to] of [
+            ["      - check-success=queue-lane\n", ""],
+            ["check-success=queue-lane", "check-success=lane"],
+            [
+                "      - check-success=queue-lane\n",
+                "      - check-success=queue-lane\n      - check-success=trusted-author\n",
+            ],
+        ] as const) {
+            const mergify = edit(MERGIFY, from, to);
+            expect(rules(fixture({ mergify })), to).toEqual(["queue-merge"]);
+        }
+    });
+
+    it("requires two parallel checks and no batches (issue #5642)", () => {
+        for (const [from, to] of [
+            ["max_parallel_checks: 2", "max_parallel_checks: 3"],
+            ["merge_queue:\n  max_parallel_checks: 2\n", ""],
+            ["batch_size: 1", "batch_size: 2"],
+        ] as const) {
+            const mergify = edit(MERGIFY, from, to);
+            expect(rules(fixture({ mergify })), to).toEqual(["queue-shape"]);
+        }
+    });
+
+    it("requires a red dequeue to relabel the PR land-failed with a link (issue #5642)", () => {
+        for (const [from, to] of [
+            ["          - queue-dequeue-reason=checks-timeout\n", ""],
+            ["add: [land-failed]", "add: [dequeued]"],
+            ["remove: [ready-to-land]", "remove: []"],
+            ["https://example.test/run", "see the queue"],
+            ["      - or:\n", "      - not:\n"],
+        ] as const) {
+            const mergify = edit(MERGIFY, from, to);
+            expect(rules(fixture({ mergify })), from).toEqual([
+                "queue-dequeue",
+            ]);
+        }
     });
 
     it("reports a file it cannot parse", () => {

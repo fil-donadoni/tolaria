@@ -77,6 +77,7 @@ import {
     pinLandRunnerPlatform,
     planTick,
     READY_LABEL,
+    SHADOW_LABEL,
     RUNNER_ENV,
     runsHere,
     worktreeOfBranch,
@@ -147,12 +148,16 @@ function listQueued(): QueuedPr[] {
             "list",
             "--label",
             READY_LABEL,
+            // A merged shadow PR keeps `ready-to-land`; left in, they would
+            // fill the 50 rows. `planTick` skips any that slip through.
+            "--search",
+            `-label:"${SHADOW_LABEL}"`,
             "--state",
             "all",
             "--limit",
             "50",
             "--json",
-            "number,state,headRefName,createdAt,body",
+            "number,state,headRefName,createdAt,body,labels",
         ])
     ) as QueuedPr[];
 }
@@ -461,6 +466,8 @@ function tick(opts: {
         if (!dryRun) tryGh(labelArgs.unqueue(s.pr), log);
     }
     for (const h of plan.held) log(`PR #${h.pr}: held — ${h.reason}`);
+    for (const s of plan.shadowed)
+        if (dryRun) log(`PR #${s.pr}: skipped — ${s.reason}`);
     const pr = plan.next;
     if (pr === null) return false;
     if (dryRun) {
