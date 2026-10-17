@@ -513,26 +513,28 @@ export function buildPreviewBody(
     // player a Moon'd Urza's Saga still has its chapters and its own granted
     // "{T}: Add {C}" — neither of which the engine will honour.
     const abilitiesStripped = !!cardInstance?.abilitiesSuppressedBy?.length;
+    const showOracleText =
+        shouldShowOracleText(def, types, subtypes) && !abilitiesStripped;
     // CR 709.4 (issue #5490) — a split card's printed text is two halves, each
     // under its own cost; the split-half sections carry it, so the combined
-    // face prints no merged paragraph list of its own.
-    const showOracleText =
-        shouldShowOracleText(def, types, subtypes) &&
-        !abilitiesStripped &&
-        !isSplitCard(def ?? undefined);
-    const oracleParagraphs = showOracleText
-        ? resolveChosenName(
-              resolveChosenMode(
-                  resolveChosenSubtypes(
-                      def!.oracleText!.split("\n").filter((p) => p.length > 0),
-                      cardInstance?.chosenSubtypes
+    // face prints no merged paragraph list of its own. `showOracleText` stays
+    // unchanged for the ability block below, whose native rows it still hides.
+    const oracleParagraphs =
+        showOracleText && !isSplitCard(def ?? undefined)
+            ? resolveChosenName(
+                  resolveChosenMode(
+                      resolveChosenSubtypes(
+                          def!
+                              .oracleText!.split("\n")
+                              .filter((p) => p.length > 0),
+                          cardInstance?.chosenSubtypes
+                      ),
+                      def ?? undefined,
+                      cardInstance?.chosenModeId
                   ),
-                  def ?? undefined,
-                  cardInstance?.chosenModeId
-              ),
-              cardInstance?.chosenName
-          )
-        : null;
+                  cardInstance?.chosenName
+              )
+            : null;
     const basePower = def?.power;
     const baseToughness = def?.toughness;
     // Effective P/T (CR 611, 613 — layer 7c static buffs + counters) only
