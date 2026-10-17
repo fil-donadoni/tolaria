@@ -1343,7 +1343,7 @@ export type EffectSentenceIR =
            * costing L life. Folded by `assembleSentences` from the
            * `optional-draw-additional`, `choose-drawn-this-turn` and
            * `pay-life-or-topdeck` roles; any one alone is refused. The fold
-           * is wrapped in an `optional` (the draw is a "may", CR 603.2).
+           * is wrapped in an `optional` (the draw is a "may", CR 603.5).
            */
           readonly kind: "draw-then-ranged-topdeck";
           readonly count: number;
@@ -1920,7 +1920,7 @@ export type SentenceIR =
      */
     | { readonly role: "optional-hand-exile"; readonly text: string }
     /**
-     * CR 121.1 + CR 603.2 — "You may draw N additional cards.", the first
+     * CR 121.1 + CR 603.5 — "You may draw N additional cards.", the first
      * sentence of a `draw-then-ranged-topdeck`; the `choose-drawn-this-turn`
      * and `pay-life-or-topdeck` after it are the other two.
      */
@@ -2058,6 +2058,13 @@ export function assembleSentences(
                     return {
                         ok: false,
                         reason: '"You may draw additional cards" is not followed by "If you do, choose … cards in your hand drawn this turn"',
+                    };
+                // Only the printed form has a fixture: the pick is as wide as
+                // the draw (a wider pool is a different card).
+                if (sentence.max !== drawTopdeck.count)
+                    return {
+                        ok: false,
+                        reason: "the pick among the cards drawn this turn is not as wide as the draw",
                     };
                 drawTopdeck = {
                     clause: drawTopdeck.clause,
@@ -3111,12 +3118,12 @@ export function optionalSentenceRule(
                 role: "optional-hand-exile" as const,
                 text: capitalise(clause),
             });
-        // CR 121.1 + CR 603.2 — "you may draw N additional cards" is the
+        // CR 121.1 + CR 603.5 — "you may draw N additional cards" is the
         // first of the three sentences of a `draw-then-ranged-topdeck`.
         const additional = clause.match(DRAW_ADDITIONAL_CARDS);
         if (additional !== null) {
             const count = readNumberWord(additional[1]!);
-            if (count === null)
+            if (count === null || count < 1)
                 return fail(`"${additional[1]}" is not a count`, span);
             return ok({
                 role: "optional-draw-additional" as const,
@@ -4278,14 +4285,14 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         const chooseDrawn = span.match(CHOOSE_DRAWN_THIS_TURN);
         if (chooseDrawn !== null) {
             const max = readNumberWord(chooseDrawn[1]!);
-            if (max === null)
+            if (max === null || max < 1)
                 return fail(`"${chooseDrawn[1]}" is not a count`, span);
             return ok({ role: "choose-drawn-this-turn" as const, max });
         }
         const payOrTopdeck = span.match(PAY_LIFE_OR_TOPDECK);
         if (payOrTopdeck !== null) {
             const costPerKept = readNumberWord(payOrTopdeck[1]!);
-            if (costPerKept === null)
+            if (costPerKept === null || costPerKept < 1)
                 return fail(`"${payOrTopdeck[1]}" is not an amount`, span);
             return ok({ role: "pay-life-or-topdeck" as const, costPerKept });
         }

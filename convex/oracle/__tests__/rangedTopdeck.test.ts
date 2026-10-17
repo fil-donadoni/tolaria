@@ -80,6 +80,16 @@ describe("ranged topdeck grammar (CR 121.1, CR 119.4, CR 401.4)", () => {
         expect(outcome.opsUsed).toContain("rangedTopdeck");
     });
 
+    it("reads the capitalised 'You may' of a second sentence", () => {
+        expect(
+            compileCard(
+                enchantment(
+                    `${HEAD} you gain 1 life. You may draw two additional cards. ${CHOOSE} ${PAY}`
+                )
+            ).state
+        ).not.toBe("unparsed");
+    });
+
     it.each([
         ["the draw with no pick", `${HEAD} ${MAY}`],
         ["the draw and the pick with no price", `${HEAD} ${MAY} ${CHOOSE}`],
@@ -91,6 +101,18 @@ describe("ranged topdeck grammar (CR 121.1, CR 119.4, CR 401.4)", () => {
         [
             "a pick left unpriced after another effect",
             `${HEAD} you gain 1 life. You may draw two additional cards. ${CHOOSE}`,
+        ],
+        [
+            "a pick wider than the draw",
+            `${HEAD} ${MAY} If you do, choose three cards in your hand drawn this turn. ${PAY}`,
+        ],
+        [
+            "a free price",
+            `${HEAD} ${MAY} ${CHOOSE} For each of those cards, pay 0 life or put the card on top of your library.`,
+        ],
+        [
+            "a zero draw",
+            `${HEAD} you may draw 0 additional cards. If you do, choose 0 cards in your hand drawn this turn. ${PAY}`,
         ],
         ["a pick with no draw", `${HEAD} ${CHOOSE} ${PAY}`],
         ["a price with no draw", `${HEAD} ${PAY}`],
