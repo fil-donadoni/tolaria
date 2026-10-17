@@ -138,7 +138,7 @@ type BattlefieldsView = ReadonlyArray<{
  *  `payManaCostForSpell` / `spendablePoolForSpell` — so no illegal cast can
  *  ever actually commit; this is a castability-AFFORDANCE overcount, not a
  *  legality hole). tracked-by: #1733 */
-export function getProducibleManaUnits(
+function producibleManaUnitsWithDebt(
     card: CardInstanceState,
     /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
      *  controller's id + a REAL, BOTH-PLAYERS `battlefields` view (built by
@@ -166,7 +166,7 @@ export function getProducibleManaUnits(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>
-): Set<Color>[] {
+): { units: Set<Color>[]; debt: number } {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
     // real auto-tap planner) uses. Board view is identical between the two
@@ -218,12 +218,19 @@ export function getProducibleManaUnits(
     // (Nomadic Elf's `{X:1,G:1}`) is excluded upstream by
     // `isAutoPayableManaAbilityCost` (constants.ts) and never reaches
     // `detailed` at all, so it needs no clamp here.
+    // CR 605.1a (issue #5444) — a COSTED TAP option (a filter land's "{1}, {T}:
+    // Add {W}{U}") yields its FULL output and consumes its `{N}` from ANOTHER
+    // source, so it is NOT trimmed here: `debt` carries the `N`, and
+    // `netFundingDebts` settles it against the rest of the board. The option
+    // that carries the least debt wins (a free alternative has none).
+    const optionDebts: number[] = [];
     const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
         for (const c of MANA_COLORS) {
             const amount = opt.mana[c] ?? 0;
             for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
         }
+        let optionDebt = 0;
         if (opt.source.kind === "activated") {
             const abilityId = opt.source.abilityId;
             const ability = getEffectiveActivatedAbilities(card).find(
@@ -250,11 +257,28 @@ export function getProducibleManaUnits(
                 ? pureGenericManaSubCost(ability.cost.mana)
                 : null;
             if (generic !== null && generic > 0) {
-                units.splice(Math.max(0, units.length - generic));
+                if (ability?.cost.tap && units.length >= generic) {
+                    optionDebt = generic;
+                } else {
+                    units.splice(Math.max(0, units.length - generic));
+                }
             }
         }
+        optionDebts.push(units.length > 0 ? optionDebt : -1);
         return units;
     });
+    // A free option beside a costed one (Shimmering Grotto's "{T}: Add {C}" and
+    // "{1},{T}: Add one mana of any color"): the costed colours must not merge
+    // into the free option's slot, or they would be spent without the funder.
+    const hasFree = optionDebts.some((d) => d === 0);
+    if (hasFree) {
+        optionDebts.forEach((d, i) => {
+            if (d > 0) perOptionUnits[i] = [];
+        });
+    }
+    const debt = hasFree
+        ? 0
+        : optionDebts.reduce((m, d) => (d > 0 ? Math.min(m, d) : m), Infinity);
 
     const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
     const best: Set<Color>[] = [];
@@ -265,7 +289,65 @@ export function getProducibleManaUnits(
         }
         best.push(colors);
     }
-    return best;
+    return { units: best, debt: Number.isFinite(debt) ? debt : 0 };
+}
+
+/** True when the permanent makes mana with no funding leg of its own — the
+ *  Improvise gate: a costed tap (Mana Cylix) is netted by the census, so it
+ *  does not count as the artifact's own mana unit. */
+export function producesUncostedMana(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: BattlefieldsView
+): boolean {
+    const { units, debt } = producibleManaUnitsWithDebt(
+        card,
+        controllerId,
+        battlefields
+    );
+    return units.length > 0 && debt === 0;
+}
+
+/** The unit census of one permanent's mana abilities (CR 605.1a), with a costed
+ *  tap's `{N}` NOT yet netted out — see {@link producibleManaUnitsWithDebt}.
+ *  Callers that fold a whole board go through {@link boardManaCensus}. */
+export function getProducibleManaUnits(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: BattlefieldsView
+): Set<Color>[] {
+    return producibleManaUnitsWithDebt(card, controllerId, battlefields).units;
+}
+
+/** One permanent's contribution to a census: its unit rows and the `{N}` it
+ *  consumes from other sources (a costed tap's generic leg, issue #5444). */
+type ManaSegment = { rows: Set<Color>[]; debt: number };
+
+/** CR 605.1a / 601.2g (issue #5444) — settle every costed tap's `{N}` against
+ *  the OTHER permanents' units and flatten the segments into the unit list.
+ *
+ *  A filter land ("{1}, {T}: Add {W}{U}") keeps its full yield and takes `N`
+ *  units out of the plain sources, the LEAST flexible first — the unit a player
+ *  would spend on the `{1}`, which leaves the board as much colour as the real
+ *  payment does. Only a plain source funds (a costed permanent's units are its
+ *  own output, not a spare), and a debt no plain source can cover removes that
+ *  land's yield entirely: it cannot fund itself. */
+function netFundingDebts(segments: readonly ManaSegment[]): Set<Color>[] {
+    const funders = segments
+        .filter((seg) => seg.debt === 0)
+        .flatMap((seg) => seg.rows.map((row) => ({ row, spent: false })));
+    const out: Set<Color>[] = [];
+    for (const seg of segments) {
+        if (seg.debt === 0) continue;
+        const free = funders
+            .filter((f) => !f.spent)
+            .sort((x, y) => x.row.size - y.row.size);
+        if (free.length < seg.debt) continue;
+        for (let i = 0; i < seg.debt; i++) free[i].spent = true;
+        for (const row of seg.rows) out.push(row);
+    }
+    for (const f of funders) if (!f.spent) out.push(f.row);
+    return out;
 }
 
 /** Both mana censuses of one battlefield, from ONE walk (issue #3531).
@@ -319,8 +401,8 @@ export function boardManaCensus(
 ): { now: Set<Color>[]; base: Set<Color>[] } {
     const converters = opts.converters;
     const wantBase = opts.wantBase ?? true;
-    const now: Set<Color>[] = [];
-    const base: Set<Color>[] = [];
+    const now: ManaSegment[] = [];
+    const base: ManaSegment[] = [];
     for (const perm of battlefield) {
         const widen = converters?.get(perm.id);
         // CR 302.1 — a summoning-sick permanent can't pay {T}. It CAN still be
@@ -331,11 +413,11 @@ export function boardManaCensus(
             !perm.isTapped && !isTapLockedBySummoningSickness(perm);
         if (!spendableNow && !wantBase) {
             if (!perm.isTapped && widen && widen.size > 0) {
-                now.push(new Set(widen));
+                now.push({ rows: [new Set(widen)], debt: 0 });
             }
             continue;
         }
-        const units = getProducibleManaUnits(
+        const { units, debt } = producibleManaUnitsWithDebt(
             perm,
             opts.controllerId,
             opts.battlefields
@@ -360,14 +442,16 @@ export function boardManaCensus(
                 row.push(unit);
             }
         }
-        if (wantBase) for (const unit of row) base.push(new Set(unit));
+        if (wantBase) {
+            base.push({ rows: row.map((unit) => new Set(unit)), debt });
+        }
         if (spendableNow) {
-            for (const unit of row) now.push(unit);
+            now.push({ rows: row, debt });
         } else if (!perm.isTapped && widen && widen.size > 0) {
-            now.push(new Set(widen));
+            now.push({ rows: [new Set(widen)], debt: 0 });
         }
     }
-    return { now, base };
+    return { now: netFundingDebts(now), base: netFundingDebts(base) };
 }
 
 /** The `now` half of {@link boardManaCensus} — what this battlefield can pay
