@@ -196,6 +196,24 @@ describe("Devotion (CR 700.5) — uncapped, per named colour", () => {
         expect(formatAbilityWordCounter(counter)).toBe("2");
     });
 
+    it("gives each colour its own chip; Domain's word and phrase share one", () => {
+        const state = stateWith({});
+        const devotion = counterFor(
+            state,
+            "your devotion to blue is greater than your devotion to red"
+        )!;
+        expect(devotion.get("devotion to blue")!.chipId).not.toBe(
+            devotion.get("devotion to red")!.chipId
+        );
+        const domain = counterFor(
+            state,
+            "Domain — X is the number of basic land types among lands you control."
+        )!;
+        expect(domain.get("Domain")!.chipId).toBe(
+            domain.get("basic land types among lands you control")!.chipId
+        );
+    });
+
     it("refuses the two-colour form the engine does not count", () => {
         const state = stateWith({});
         expect(counterFor(state, "your devotion to blue and red")).toBeNull();
