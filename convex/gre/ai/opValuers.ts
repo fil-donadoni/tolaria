@@ -3206,7 +3206,6 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // the Class itself, i.e. its controller, so a redirect reader that lands on
     // this Op is looking at a gift.
     setLevel: "beneficial",
-    preventDamage: "beneficial",
     // CR 614.9 (issue #3810) — the sign is genuinely neutral AT THIS
     // AXIS, and not for want of a decision: a redirect conserves the
     // stake. It takes exactly as much off the recipient it shields as it
@@ -3602,6 +3601,7 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "choice",
     "grantAbility",
     "restrictCombat",
+    "preventDamage",
 ]);
 
 /** Issue #5161 (ADR 0151) — the `neutral` rows of the "Binds a value; the
@@ -3737,6 +3737,17 @@ export function opBeneficence(
             // parametrized Op (this `switch`) and a static row for the SAME Op
             // would leave the row dead (the switch always wins).
             return op.restriction === "cant-attack-all" ? "neutral" : "harmful";
+        case "preventDamage":
+            // CR 615.1a (issue #5815) — the object a shield names is the
+            // RECIPIENT it protects in every mode but one: `"all-from-source"`
+            // names the SOURCE whose damage is erased ("prevent all combat
+            // damage target attacking creature would deal" — Restrain,
+            // Warning, Falling Timber). Erasing what a creature deals is an
+            // attack on its controller, so pointing that slot at the bot's
+            // OWN attacker is the misdirected cast. Every other mode keeps
+            // the flat "beneficial" sign this Op carried in `OP_BENEFICENCE`
+            // before this case existed.
+            return op.mode === "all-from-source" ? "harmful" : "beneficial";
         default:
             return OP_BENEFICENCE[op.op] ?? "neutral";
     }
