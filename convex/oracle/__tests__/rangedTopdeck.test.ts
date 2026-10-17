@@ -84,6 +84,14 @@ describe("ranged topdeck grammar (CR 121.1, CR 119.4, CR 401.4)", () => {
         ["the draw with no pick", `${HEAD} ${MAY}`],
         ["the draw and the pick with no price", `${HEAD} ${MAY} ${CHOOSE}`],
         ["the draw with a price but no pick", `${HEAD} ${MAY} ${PAY}`],
+        [
+            "a draw left unfinished after another effect",
+            `${HEAD} you gain 1 life. You may draw two additional cards.`,
+        ],
+        [
+            "a pick left unpriced after another effect",
+            `${HEAD} you gain 1 life. You may draw two additional cards. ${CHOOSE}`,
+        ],
         ["a pick with no draw", `${HEAD} ${CHOOSE} ${PAY}`],
         ["a price with no draw", `${HEAD} ${PAY}`],
         ["the pick and price out of order", `${HEAD} ${MAY} ${PAY} ${CHOOSE}`],
