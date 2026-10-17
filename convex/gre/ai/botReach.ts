@@ -87,6 +87,7 @@ import { stackPose, type StackPose } from "./botReachStack";
 import { manaSinkPose } from "./botReachMana";
 import { handPutPose } from "./botReachHandPut";
 import { subtypeSweepPose } from "./botReachSubtypeSweep";
+import { untapLockPose } from "./botReachUntapLock";
 import { landTapPose } from "./botReachLandTap";
 import { nonbasicBurnPose } from "./botReachNonbasicBurn";
 import { graveyardExilePose } from "./botReachGraveyardExile";
@@ -1001,6 +1002,7 @@ export function botReachSpec(
         ...handPutPose(def, landCount),
         ...subtypeSweepPose(def),
         ...landTapPose(def),
+        ...untapLockPose(def),
         ...nonbasicBurnPose(def),
         ...graveyardExilePose(def),
         ...graveyardReturnPose(def),
