@@ -39,8 +39,20 @@ vi.mock("~/hooks/useResilientQuery", () => ({
 const installSets = vi.fn<(codes: Iterable<string>) => Promise<void>>();
 const known = new Set(["lea", "leb", "arn"]);
 vi.mock("~/lib/catalogue/definitionShards", () => ({
-    installSets,
+    installShards: installSets,
     isKnownSetCode: (code: string) => known.has(code),
+    compiledShardKey: (code: string) => `compiled:${code}`,
+}));
+// The real `manifestShardKeys` over a client whose hand-written index holds
+// `<code>-card` in Set `<code>` and which serves no compiled shard: every
+// entry below is a hand-written card (the compiled keying is pinned in
+// `manifestShardKeys.test.ts`).
+vi.mock("@convex/cards/catalogue", () => ({
+    handWrittenSetCodeOf: (id: string) =>
+        id.endsWith("-card") ? id.slice(0, -"-card".length) : undefined,
+}));
+vi.mock("~/lib/catalogue/compiled-shards", () => ({
+    isKnownCompiledShard: () => false,
 }));
 
 const hydrateCatalogue = vi.fn<() => Promise<number>>();

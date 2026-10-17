@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Issue #5584: the Setup flow warms what Start match needs, at idle, best
 // effort — a part that fails never blocks the rest nor surfaces.
 
-const hydrateCompiledCorpus = vi.fn<() => Promise<number>>();
-vi.mock("../catalogueArtifact", () => ({ hydrateCompiledCorpus }));
+const hydrateGameCatalogue = vi.fn<() => Promise<void>>();
+vi.mock("../catalogueArtifact", () => ({ hydrateGameCatalogue }));
 const prefetchCatalogueGate = vi.fn<() => Promise<void>>();
 vi.mock("../catalogueGateLoader", () => ({ prefetchCatalogueGate }));
 
@@ -18,17 +18,17 @@ afterEach(() => {
 
 describe("prefetchStartMatch", () => {
     it("starts the catalogue, the gate and the game route together", async () => {
-        hydrateCompiledCorpus.mockResolvedValue(1);
+        hydrateGameCatalogue.mockResolvedValue(undefined);
         prefetchCatalogueGate.mockResolvedValue();
         const preload = vi.fn(async () => {});
         await prefetchStartMatch(preload);
-        expect(hydrateCompiledCorpus).toHaveBeenCalledTimes(1);
+        expect(hydrateGameCatalogue).toHaveBeenCalledTimes(1);
         expect(prefetchCatalogueGate).toHaveBeenCalledTimes(1);
         expect(preload).toHaveBeenCalledTimes(1);
     });
 
     it("settles, never rejects, when every part fails", async () => {
-        hydrateCompiledCorpus.mockRejectedValue(new Error("offline"));
+        hydrateGameCatalogue.mockRejectedValue(new Error("offline"));
         prefetchCatalogueGate.mockRejectedValue(new Error("offline"));
         await expect(
             prefetchStartMatch(() => Promise.reject(new Error("offline")))

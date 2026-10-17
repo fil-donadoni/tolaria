@@ -484,9 +484,10 @@ export function registerCompiledIndex(index: CompiledDefinitionIndex): number {
  *  server's bundled section, or the client's fetched index. */
 export const isCompiledIndexInstalled = (): boolean => compiledIndexInstalled;
 
-/** Whether the client shard `key` is installed in this graph. */
+/** Whether the rows of client shard `key` are resident in this graph: it
+ *  was installed, or this graph bundles every row (the server). */
 export const isCompiledShardInstalled = (key: string): boolean =>
-    installedShards.has(key);
+    packedCorpusLookup !== null || installedShards.has(key);
 
 /** The client shard a COMPILED card's row lives in — its first-printing Set
  *  code, read off whichever installed section knows the card — or
