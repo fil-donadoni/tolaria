@@ -32,6 +32,9 @@ export interface MtgjsonSheet {
     cards: Record<string, number>;
     totalWeight: number;
     foil?: boolean;
+    /** Absent on a duplicate-free sheet (every `draft`/`default` sheet of the
+     *  imported sets); `true` only on MTGJSON's `*WithDuplicates` sheets. */
+    allowDuplicates?: boolean;
 }
 
 export interface MtgjsonBoosterVariant {
@@ -196,7 +199,13 @@ function buildSheet(
         rawTotalWeight += weight;
     }
     const { sheet: filtered } = dropFromSheet(
-        { cards: rawCards, totalWeight: rawTotalWeight },
+        {
+            cards: rawCards,
+            totalWeight: rawTotalWeight,
+            ...(sheet.allowDuplicates === true
+                ? { allowDuplicates: true }
+                : {}),
+        },
         (scryfallId) => excluded.has(scryfallId)
     );
     if (Object.keys(filtered.cards).length === 0) {

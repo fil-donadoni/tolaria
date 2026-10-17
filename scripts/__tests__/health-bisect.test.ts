@@ -227,7 +227,13 @@ describe("the culprit in the evidence", () => {
 describe("the bisect on a seeded broken commit", () => {
     let dir: string | null = null;
     afterEach(() => {
-        if (dir) rmSync(dir, { recursive: true, force: true });
+        if (dir)
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         dir = null;
     });
 

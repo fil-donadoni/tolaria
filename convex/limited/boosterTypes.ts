@@ -16,6 +16,11 @@
 export interface BoosterSheet {
     cards: Record<string, number>;
     totalWeight: number;
+    /** MTGJSON's sheet flag: `true` lets one pack hold the same card twice
+     *  from this sheet (a with-replacement draw). Absent means duplicate-free
+     *  — `generateBooster` excludes an id once drawn into the pack. Carried
+     *  by the importer only when MTGJSON sets it. */
+    allowDuplicates?: true;
 }
 
 /** One weighted "recipe" for assembling a pack: `contents` maps a sheet name
