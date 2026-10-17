@@ -526,11 +526,18 @@ in `scripts/lib/health-bisect.ts`) runs on a `lane` runner:
    at the RED sha in a throwaway worktree (`worktree:init`, then
    `bunx vitest run <files>`; the blade's specs under
    `vitest.blade.config.ts`). A RED naming no file re-runs its failed step
-   (`bun run check:all`, …). **Not reproduced**: the RED closes as GREEN on
-   the same sha (`flake: <step> passed on a fresh run` — last writer wins)
-   and each flaky file is filed as `Flaky test: <file>` (`bug`,
-   `area:workflow`, `needs-triage`; an open issue of that title gets a
-   comment instead).
+   (`bun run check:all`, …). Health stops at its first failed step (and
+   `test`'s chain at its first red tier), so when that part passes the
+   ladder runs **every gate the RED's run never reached** in the same
+   worktree (`remainingGates`: after a `test:app` file, `test:bot` and
+   `test:blade`; after `check:all`, the guards and `test`). **Not
+   reproduced** — all of it green: the RED closes as GREEN on the same sha
+   (`flake: <step> passed on a fresh run` — last writer wins) and each flaky
+   file is filed as `Flaky test: <file>` (`bug`, `area:workflow`,
+   `needs-triage`; an open issue of that title gets a comment instead — the
+   search index can lag, so two ladders at once may file it twice). A gate
+   the RED's run never reached failing instead keeps the RED standing, not
+   bisected.
 2. **[Bisect](#g-bisect)** when it reproduced: the base's first-parent
    commits after the last GREEN (the newest ancestor the store holds a GREEN
    for, at most 60 back), binary-searched on the failing files — a commit
@@ -539,6 +546,15 @@ in `scripts/lib/health-bisect.ts`) runs on a `lane` runner:
    to the RED's published evidence as a `- **culprit:**` line, which
    `bun run health:status --evidence` prints. A probe that could not run ends
    the search with no culprit rather than a guess.
+
+Every RED the ladder confirms gets that `- **culprit:**` line, named or not
+— the mark that it was climbed: a later ladder on the same RED stops at once
+and exits 0, so a standing RED emails once. With no `--sha` the ladder takes
+the RED standing on the store's lineage, whoever found it — so the gate
+job, which runs the ladder every time, climbs an early RED whose `ladder`
+dispatch was lost — else this machine's last run, when the store never took
+its RED. Probe worktrees (`tolaria-bisect-<pid>-<n>`) a killed job left are
+removed at the next ladder's start.
 
 The fixer (`/health-fix`, issue #5646) and the revert of the culprit are the
 ladder's next rungs, not this workflow's.
@@ -567,7 +583,9 @@ Orders that hold:
 - **Schedules and dispatch need the default branch.** The two-hourly run,
   and the `ladder` dispatch `health-early` sends, start once a release
   carries `health.yml` to it; until then the early run's RED holds the queue
-  with no ladder behind it (the Huawei's health runner still gates).
+  with no ladder behind it (the Huawei's health runner still gates). The
+  early job dispatches `pr-gate` first, so a failed `ladder` dispatch never
+  costs the hold.
 - **The old runner is not retired yet.** The Huawei's `health:runner`
   timer still fires; both dedup by sha on the store (a tip GREEN on the
   store is skipped), so a doubled run costs a runner, not a wrong verdict.
