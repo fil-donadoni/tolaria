@@ -113,6 +113,19 @@ describe("lethalUnblockedDelta — trample overflow (CR 702.19b, issue #5785)", 
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
     });
 
+    it("is zero when a first-striking blocker kills the trampler first (CR 510.4)", () => {
+        const striker = creature("bfs", DEFENDER, 3, 3, ["first strike"]);
+        const state = blockState(trampler(), [striker], 1);
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        // Control: the same 3/3 without first strike lets 1 trample over.
+        const plain = blockState(
+            trampler(),
+            [creature("b33", DEFENDER, 3, 3)],
+            1
+        );
+        expect(lethalUnblockedDelta(plain, DEFENDER)).toBe(-WIN_SCORE);
+    });
+
     it("declines under an unspent player prevention shield (CR 615.1)", () => {
         const state = blockState(trampler(), pair(), 2);
         state.playerDamagePrevention = [

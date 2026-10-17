@@ -2213,9 +2213,33 @@ function playerDamageOf(
     blockers: readonly CardInstanceState[],
     pass: Layer7Pass
 ): number {
-    const power = Math.max(0, getEffectivePT(state, atk, { pass }).power);
+    const atkPT = getEffectivePT(state, atk, { pass });
+    const power = Math.max(0, atkPT.power);
     if (!blocked) return power;
     if (!atk.staticAbilities.includes("trample")) return 0;
+    // CR 510.4 — an attacker without first or double strike that a first-
+    // striking blocker kills in the first combat damage step deals no damage
+    // in the second, overflow included. Counting it would over-fire
+    // `lethalUnblockedDelta` against a block that wins the game.
+    if (!strikesFirst(atk)) {
+        const early = blockers.filter(strikesFirst);
+        const earlyPower = early.reduce(
+            (sum, b) =>
+                sum + Math.max(0, getEffectivePT(state, b, { pass }).power),
+            0
+        );
+        const killedEarly =
+            earlyPower > 0 &&
+            earlyPower >=
+                lethalDamageThreshold({
+                    effectiveToughness: Math.max(0, atkPT.toughness),
+                    damageMarked: atk.damageMarked,
+                    sourceHasDeathtouch: early.some((b) =>
+                        b.staticAbilities.includes("deathtouch")
+                    ),
+                });
+        if (killedEarly) return 0;
+    }
     const atkDeathtouch = atk.staticAbilities.includes("deathtouch");
     const owed = blockers.reduce(
         (sum, b) =>
@@ -2231,6 +2255,14 @@ function playerDamageOf(
         0
     );
     return Math.max(0, power - owed);
+}
+
+/** CR 510.4 — deals damage in the first combat damage step. */
+function strikesFirst(c: CardInstanceState): boolean {
+    return (
+        c.staticAbilities.includes("first strike") ||
+        c.staticAbilities.includes("double strike")
+    );
 }
 
 /**

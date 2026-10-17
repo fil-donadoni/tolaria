@@ -8032,11 +8032,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // includes the 3/3 owes at least 3 and lets at most 2 through.
         //
         // At 3 life the 3 overflow is lethal (CR 704.5a); at 5 it is not, and
-        // the cheap double block is the right trade. The two entries differ
-        // ONLY in `life.opp`, so a bot that always spends the 3/3 fails the
-        // control and a trample-blind one (the pre-fix leaf: a blocked
+        // the cheap double block is an acceptable trade. The two entries
+        // differ ONLY in `life.opp`: a trample-blind leaf (pre-fix, a blocked
         // attacker dealt the player nothing in both `lethalUnblockedDelta`
-        // and `declaredBlockDelta`) fails the must.
+        // and `declaredBlockDelta`) fails the must; one that over-reads
+        // lethal and throws every body in fails the control.
         //
         // BITE PROOF: red before the fix — the bot declared the 2/1 + 1/1
         // double block on all five seeds at 3 life and died. Green on all
@@ -8095,12 +8095,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // LIFE-DEPENDENT NEGATIVE CONTROL (issue #5785) — the SAME board as the
-        // entry above at 5 life. The 2/1 + 1/1 double block still kills the
-        // 5/3 and its 3 overflow leaves the bot at 2: the cheapest bodies for
-        // the attacker, and no reason to throw the 3/3 in. A fix that read
-        // every trampler as lethal, or always reached for the biggest
-        // blocker, picks a Hill Giant block here.
-        label: "trample overflow: the cheap double block stays the pick when its overflow is survivable (issue #5785)",
+        // entry above at 5 life, where every block survives and no block
+        // (5 damage) does not. The 2/1 + 1/1 double block stays acceptable:
+        // it kills the 5/3 and its 3 overflow leaves the bot at 2. What is
+        // ruled out is the triple block: the 5/3 owes 3 + 1 + 1 and kills all
+        // three bodies (CR 702.19b), so it spends the Lions on top of the
+        // Giant + Raiders block to save a single life point. Measured: the
+        // bot picks the double block on all five seeds, before and after.
+        label: "trample overflow: survivable overflow does not buy a three-body block (issue #5785)",
         classification: {
             kind: "conditional",
             discriminant: { kind: "life", detail: "the bot at 3 life" },
@@ -8144,7 +8146,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            forbidden: [{ kind: "declare-blockers", card: "Hill Giant" }],
+            forbidden: [
+                {
+                    kind: "declare-blockers",
+                    cards: [
+                        "Hill Giant",
+                        "Savannah Lions",
+                        "Mons's Goblin Raiders",
+                    ],
+                },
+            ],
         },
     },
 
