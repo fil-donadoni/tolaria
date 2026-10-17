@@ -55,7 +55,7 @@ import {
     buildCompiledShards,
     type ShardDictionaryFile,
 } from "./compiled-shards";
-import { compiledShardsModuleSource } from "./vite-compiled-shards";
+import { compiledShardsModuleSource } from "./vite-compiled-shard-urls";
 import {
     buildIndexLookups,
     type CompiledDefinitionIndex,

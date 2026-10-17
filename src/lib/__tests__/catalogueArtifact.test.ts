@@ -232,16 +232,14 @@ describe("hydrateCatalogue — every shard is resident, nothing is decoded", () 
             expect(tryGetDefinition(id)?.id, name).toBe(id);
         }
 
-        // Every shard once, the dictionary once — and not the names index:
-        // the shards carry their own slices of it.
+        // Every shard once — and not the names index: the shards carry their
+        // own slices of it. (The dictionary was decoded by an earlier test in
+        // this graph, and is kept.)
         expect(fetchedUrls(fetchMock).sort()).toEqual(
-            [
-                shardDictionaryUrl,
-                ...compiledShardKeys.map((k) => compiledShardUrl(k)!),
-            ].sort()
+            compiledShardKeys.map((k) => compiledShardUrl(k)!).sort()
         );
         expect(fetchMock).toHaveBeenCalledWith(
-            shardDictionaryUrl,
+            compiledShardUrl(compiledShardKeys[0]!),
             expect.objectContaining({ signal: expect.anything() })
         );
         // The names are the index's, so the deck builder and the name inputs

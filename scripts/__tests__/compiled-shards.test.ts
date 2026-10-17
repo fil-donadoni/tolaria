@@ -39,7 +39,7 @@ import {
 import {
     SHARD_ASSET_NAME,
     contentAddressedName,
-} from "../lib/vite-compiled-shards";
+} from "../lib/vite-compiled-shard-urls";
 
 const ROOT = resolve(__dirname, "..", "..");
 const PACKED_TEXT = readFileSync(join(ROOT, PACKED_CORPUS_PATH), "utf8");
