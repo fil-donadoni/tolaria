@@ -14,8 +14,7 @@
  *   mutex wait     — p50 / p90 of the heavy mutex wait (`gate-lock.jsonl`)
  *
  * Each is compared against its ceiling in `tolaria.config.json` § `workflow`;
- * `bun run workflow:kpi` exits non-zero on any breach, and `health-cadence`
- * prints the same lines when it fires.
+ * `bun run workflow:kpi` exits non-zero on any breach.
  *
  * PURE so it runs under the `node` vitest project — `bun:sqlite` lives in the
  * CLI (`scripts/workflow-kpi.ts`), the same split `telemetry-latency` uses.
@@ -323,6 +322,8 @@ export function parseDetachLine(line: string): DetachEvent | null {
             ? null
             : { kind: "step", step: step[1], exit: step[2], secs };
     }
+    // The retired cadence's line (issue #5655): kept so the logs it wrote
+    // still ingest; nothing writes it any more.
     const fire = /^health-cadence: firing on (\S+) — (.+)$/.exec(line);
     if (fire) return { kind: "fire", trigger: fire[1], reason: fire[2] };
     const verdict = /^health-main: (GREEN|RED) @ ([0-9a-f]+)/.exec(line);

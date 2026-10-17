@@ -11,8 +11,8 @@
  *   - `health-main` writes a REQUEST (`writePickRequest`) when the batch can
  *     have moved the Bot (the same trigger as the blade audit: Bot hash
  *     inputs changed) — the mode, nothing else;
- *   - `health-cadence` spawns `health-pick-agreement-audit.ts` detached once
- *     the verdict is GREEN or RED, at the `yield` admission class;
+ *   - `health-nightly` runs `health-pick-agreement-audit.ts` once the verdict
+ *     is GREEN or RED, at the `yield` admission class;
  *   - the audit claims the request, runs, and leaves ONE record
  *     (`PICK_RECORD_FILE`) that `health:status` shows.
  *

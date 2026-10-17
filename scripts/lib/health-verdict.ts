@@ -2,8 +2,8 @@
  * The health gate's verdict vocabulary, and the one verdict the TREE is not
  * responsible for (issue #4938).
  *
- * `last.json` is written by `health-main.ts` and read by `health-cadence`,
- * `health-fix` and `release`; they share `HealthStatus` so a new verdict
+ * `last.json` is written by `health-main.ts` and read by `health-fix`
+ * and `release`; they share `HealthStatus` so a new verdict
  * cannot be invisible to one of them.
  *
  * `infra` is a failed step during which the machine entered system sleep. A

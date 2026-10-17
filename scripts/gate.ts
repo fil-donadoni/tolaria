@@ -216,7 +216,7 @@ const OWNER_FILE = join(LOCK_DIR, "owner.json");
  *  it, by every waiter, on every poll. */
 const WAITERS_DIR = join(LOCK_ROOT, GATE_WAITERS_DIR);
 /** What this caller is, for the admission order. `land` sets it in
- *  `lockedEnv`, the batch health gate in `health-cadence.ts`; everything else
+ *  `lockedEnv`, a caller holding `yield`; everything else
  *  is "". */
 const ROLE = process.env.TOLARIA_GATE_ROLE ?? "";
 /** Queued time per class of ageing — `AGE_STEP_MS` in `lib/gate-liveness.ts`

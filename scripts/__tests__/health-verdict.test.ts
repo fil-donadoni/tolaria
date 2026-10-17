@@ -28,7 +28,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
  * ~900 s — the length of the clamshell sleep `pmset` logged. The tip passed
  * untouched in a repro worktree. These pin the classifier that tells the two
  * apart; the downstream half (no fixer, no release) is in
- * `health-cadence.test.ts` and `release.test.ts`.
+ * `release.test.ts`.
  */
 const STEP_START = Date.parse("2026-10-01T11:13:16.000Z");
 
