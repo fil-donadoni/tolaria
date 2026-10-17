@@ -96,8 +96,9 @@
  * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
  * (their records, for `--status`), `lib/test-headroom.ts` (builtins), and
  * through `lib/health-verdict.ts` the
- * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
- * bootstrap-worktree.
+ * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`),
+ * `lib/health-verdict-job.ts` and `lib/corpus-exclusion.ts` (builtins) — same
+ * constraint as bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
