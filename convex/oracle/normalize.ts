@@ -138,17 +138,19 @@ export function shortNameOf(name: string, typeLine: string): string | null {
  * its neighbours. Each shape is one the corpus prints:
  *
  * - a determiner or `non-` before it makes it a subtype ("a Lukka
- *   planeswalker", "each Garruk you control", "non-Gideon creatures");
+ *   planeswalker", "each Garruk you control", "non-Gideon creatures"), and
+ *   `named` / `called` makes it a name searched for, not this object;
  * - a type noun after it, likewise ("a green Lizard creature");
- * - a capitalised word after it, or `, ` and one, makes it part of ANOTHER
- *   name ("create Stangg Twin", "meld them into Mishra, Lost to Phyrexia");
+ * - a capitalised word after it — directly, after `, `, or after `of` /
+ *   `the` / `and` — makes it part of ANOTHER name ("create Stangg Twin",
+ *   "meld them into Mishra, Lost to Phyrexia");
  * - an em dash after it makes it a flavour-word heading, not a reference
  *   ("• Typhoid Mary — Draw a card.");
  * - alone on its line, or opening one before a comma, it reads as a keyword.
  */
 function isForeignOccurrence(before: string, after: string): boolean {
     return (
-        /(?:^|\s)(?:a|an|another|each|target|other|all|any|no|non-)\s*$/i.test(
+        /(?:^|\s)(?:a|an|another|each|target|other|all|any|no|non-|that|this|the|different|chosen|your|than|named|called)\s*$/i.test(
             before
         ) ||
         /-$/.test(before) ||
@@ -156,7 +158,7 @@ function isForeignOccurrence(before: string, after: string): boolean {
         /^ (?:creature|planeswalker|card|permanent|spell|token)s?\b/.test(
             after
         ) ||
-        /^ [A-Z]/.test(after) ||
+        /^ (?:(?:of|the|and) ){0,2}[A-Z]/.test(after) ||
         /^, (?:the\b|[A-Z])/.test(after) ||
         /^ —/.test(after) ||
         (/(?:^|\n)$/.test(before) && /^(?:$|\n|,)/.test(after))

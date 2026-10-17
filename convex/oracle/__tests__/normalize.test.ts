@@ -68,6 +68,18 @@ describe("self reference (CR 201.5)", () => {
             ]);
     });
 
+    it("substitutes a short name opening a line before its verb", () => {
+        expect(
+            substituteShortName(
+                "Atraxa deals 1 damage.\nGain control of Atraxa.",
+                "Atraxa, Grand Unifier",
+                "Legendary Creature"
+            )
+        ).toBe(
+            `${SELF_MARKER} deals 1 damage.\nGain control of ${SELF_MARKER}.`
+        );
+    });
+
     it("never shortens a non-legendary comma name, nor a name with no comma", () => {
         expect(
             substituteShortName(
@@ -121,6 +133,14 @@ describe("self reference (CR 201.5)", () => {
             "Whenever Typhoid Mary attacks, choose one.\n• Typhoid Mary — Draw a card.",
         ],
         ["Storm, Test Case", "Storm\nWhen Storm enters, draw a card."],
+        // a name searched for, a different object of the subtype, a
+        // lowercase connector into another name
+        [
+            "Jace, Test Case",
+            "Search for a card named Jace. Jace deals 1 damage.",
+        ],
+        ["Jace, Test Case", "Exile the chosen Jace. Draw a card."],
+        ["Jace, Test Case", "Return Jace of the Veil. Jace deals 1 damage."],
     ])("refuses every occurrence when one is foreign: %s", (name, text) => {
         expect(substituteShortName(text, name, "Legendary Creature")).toBe(
             text
