@@ -223,7 +223,7 @@ function producibleManaUnitsWithDebt(
     // source, so it is NOT trimmed here: `debt` carries the `N`, and
     // `netFundingDebts` settles it against the rest of the board. The option
     // that carries the least debt wins (a free alternative has none).
-    let debt = Infinity;
+    const optionDebts: number[] = [];
     const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
         const units: Set<Color>[] = [];
         for (const c of MANA_COLORS) {
@@ -264,9 +264,21 @@ function producibleManaUnitsWithDebt(
                 }
             }
         }
-        debt = Math.min(debt, units.length > 0 ? optionDebt : Infinity);
+        optionDebts.push(units.length > 0 ? optionDebt : -1);
         return units;
     });
+    // A free option beside a costed one (Shimmering Grotto's "{T}: Add {C}" and
+    // "{1},{T}: Add one mana of any color"): the costed colours must not merge
+    // into the free option's slot, or they would be spent without the funder.
+    const hasFree = optionDebts.some((d) => d === 0);
+    if (hasFree) {
+        optionDebts.forEach((d, i) => {
+            if (d > 0) perOptionUnits[i] = [];
+        });
+    }
+    const debt = hasFree
+        ? 0
+        : optionDebts.reduce((m, d) => (d > 0 ? Math.min(m, d) : m), Infinity);
 
     const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
     const best: Set<Color>[] = [];
@@ -278,6 +290,22 @@ function producibleManaUnitsWithDebt(
         best.push(colors);
     }
     return { units: best, debt: Number.isFinite(debt) ? debt : 0 };
+}
+
+/** True when the permanent makes mana with no funding leg of its own — the
+ *  Improvise gate: a costed tap (Mana Cylix) is netted by the census, so it
+ *  does not count as the artifact's own mana unit. */
+export function producesUncostedMana(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: BattlefieldsView
+): boolean {
+    const { units, debt } = producibleManaUnitsWithDebt(
+        card,
+        controllerId,
+        battlefields
+    );
+    return units.length > 0 && debt === 0;
 }
 
 /** The unit census of one permanent's mana abilities (CR 605.1a), with a costed

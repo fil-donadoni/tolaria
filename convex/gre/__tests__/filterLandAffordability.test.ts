@@ -131,3 +131,37 @@ describe("filter land affordability (issue #5444, CR 605.1a)", () => {
         expect(solveAutoTap({}, { U: 1 }, [], sources)).toBeNull();
     });
 });
+
+describe("filter land census — review regressions (issue #5444)", () => {
+    it("a free {T} option beside a costed one does not merge the costed colours", () => {
+        registerTokenDefinition({
+            id: "test:grotto-like",
+            rarity: "common",
+            name: "Grotto-like (test probe)",
+            types: ["Land"],
+            activatedAbilities: [
+                {
+                    id: "grotto-c",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    effect: (ctx) => ctx.addMana({ C: 1 }),
+                    manaProduced: { C: 1 },
+                },
+                {
+                    id: "grotto-any",
+                    oracleText: "{1}, {T}: Add one mana of any color.",
+                    cost: { tap: true, mana: { X: 1 } },
+                    useStack: false,
+                    manaChoices: [{ W: 1 }, { U: 1 }],
+                },
+            ],
+        });
+        const { player } = stateWith([
+            onBattlefield("test:grotto-like", "grotto"),
+            onBattlefield(plains().id, "plains"),
+        ]);
+        const units = boardManaUnits(player.battlefield);
+        expect(units.some((u) => u.has("U"))).toBe(false);
+    });
+});

@@ -58,7 +58,7 @@ import {
 // module's header for why "the mana belongs to the permanent that gets
 // tapped" is the exact model rather than "the converter is a mana source".
 import { manaConverterColors } from "./manaConverters";
-import { boardManaUnits, getProducibleManaUnits } from "./manaAvailability";
+import { boardManaUnits, producesUncostedMana } from "./manaAvailability";
 import type { ManaTapOption } from "./constants";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -2229,11 +2229,11 @@ export function buildManaSourceUnits(
             if (!cantSpendMana && converterColors.has(perm.id)) continue;
             const producesMana =
                 !isTapLockedBySummoningSickness(perm) &&
-                getProducibleManaUnits(
+                producesUncostedMana(
                     perm,
                     boardControllerId,
                     boardBattlefields
-                ).length > 0;
+                );
             if (producesMana) continue;
             sources.push(new Set<Color>());
         }
