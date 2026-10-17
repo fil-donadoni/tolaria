@@ -255,8 +255,8 @@ export default function PoolDeckBuilderForm({
             const colors = computeDeckColors(pending.cards);
             // The per-copy `pinKey` is a WORKING-STATE identity, not deck data
             // (issue #1626): the Pins themselves live on the seat's Pool
-            // Arrangement, and `userDecks`' card validator declares exactly
-            // `{ cardId, cardName }` — Convex rejects any argument a validator
+            // Arrangement, and `userDecks`' card validator declares only
+            // `{ cardId, cardName, definitionId? }` — Convex rejects any argument a validator
             // doesn't declare, so an unstripped entry would fail the save at
             // runtime with a fully green suite.
             const cards = pending.cards.map(strippedCard);
