@@ -76,16 +76,6 @@
 #                               (default 3600)
 #   TOLARIA_GATE_RUN_KILL_GRACE seconds between TERM and KILL (default 10)
 #
-# PROCESS LEASE (issue #5470). Every run registers a lease
-# (`scripts/lib/process-lease.ts`): its runner is the anchor and the leader of
-# its process group, and everything it starts carries `TOLARIA_OWNER=<lease>`.
-# The lease's deadline is the reap rule above (older than REAP_SECS AND
-# unattended for IDLE_SECS), a re-attach renews it and opens a grace window,
-# and the runner clears it with the verdict. The ACTIVE reaper
-# (`bun run reaper`, every 2 minutes) then needs nobody to call this script to
-# take a run whose cwd is gone or whose lease lapsed — nor whatever such a run
-# left behind outside its group.
-#
 # Exit codes: the gate's own on completion; 75 = still running, call again;
 # 2 = usage; 70 = the detached runner vanished without writing an exit code;
 # 76 = refused, a live run of this script from this cwd exists under another
@@ -131,7 +121,6 @@ KILL_GRACE="${TOLARIA_GATE_RUN_KILL_GRACE:-10}"
 # written in it) the moment it merges, and a run's log is most wanted exactly
 # when the pass that produced it is gone.
 RUN_ROOT="${TOLARIA_GATE_RUN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/tolaria/gate-runs}"
-LEASE_CLI="$(cd "$(dirname "$0")" && pwd)/lib/process-lease.ts"
 
 for _v in "wait-secs:$WAIT_SECS" "poll-secs:$POLL_SECS" "tail:$TAIL_LINES" \
     "keep-days:$KEEP_DAYS" "reap-secs:$REAP_SECS" "idle-secs:$IDLE_SECS" \
@@ -153,13 +142,6 @@ if [ "$KEEP_DAYS" -gt 0 ] && [ -d "$RUN_ROOT" ]; then
     find "$RUN_ROOT" -maxdepth 1 -mindepth 1 -type d -mtime "+$KEEP_DAYS" \
         -exec rm -rf {} + 2>/dev/null || true
 fi
-
-# A lease write never fails a gate: a failed one is reported on stderr and
-# otherwise ignored (the CLI exits 1 so a caller CAN branch on it — the runner
-# below does, before it hands its tag down).
-lease() {
-    bun "$LEASE_CLI" "$@" >/dev/null || true
-}
 
 is_alive() {
     [ -n "${1:-}" ] || return 1
@@ -288,8 +270,6 @@ reap_run() {
         return 1
     fi
     rm -f "$_dir/pid" "$_dir/pidstart"
-    _lid=$(cat "$_dir/lease" 2>/dev/null || echo "")
-    [ -z "$_lid" ] || lease clear "$_lid"
     _line="$(date '+%Y-%m-%dT%H:%M:%S') reaped pgid $_rp ($(cat "$_dir/command" 2>/dev/null || echo '?'), cwd $(cat "$_dir/cwd" 2>/dev/null || echo '?')): $_why"
     printf '%s\n' "$_line" >"$_dir/reaped"
     printf '%s\n' "$_line" >>"$RUN_ROOT/reaped.log" 2>/dev/null || true
@@ -403,7 +383,6 @@ CMD_F="$RUN_DIR/command"
 GREEN_F="$RUN_DIR/green"
 STARTF="$RUN_DIR/started"
 LOCK="$RUN_DIR/.lock"
-LEASE_F="$RUN_DIR/lease"
 
 CWD_F="$RUN_DIR/cwd"
 SCRIPT_F="$RUN_DIR/script"
@@ -508,15 +487,6 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     # reads as a green run of the new tree.
     git_base >"$BASE_F"
     printf '%s\n' "$*" >"$CMD_F"
-    LEASE_ID="gate-run-$_safe-$_key-$(date +%s)"
-    printf '%s\n' "$LEASE_ID" >"$LEASE_F"
-    # The deadline IS the reap rule: a fresh run is owed max(REAP, IDLE).
-    _ttl=$REAP_SECS
-    [ "$IDLE_SECS" -le "$_ttl" ] || _ttl=$IDLE_SECS
-    case " $SELF_REMOVING_SCRIPTS " in
-        *" $1 "*) _vanish=--cwd-may-vanish ;;
-        *) _vanish= ;;
-    esac
     # `set -m` puts the background job in its OWN process group, so a
     # group-directed signal aimed at the dying pass does not reach the gate;
     # `trap '' HUP` covers the hangup that reaches it anyway. Together they are
@@ -539,20 +509,6 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # land N` turned the keyless-default test red inside `land`'s own gate
         # (PR #3707).
         unset TOLARIA_GATE_RUN_KEY
-        # Everything the gate starts belongs to THIS run's lease — not to the
-        # pass that started it, which this run is built to outlive. The lease
-        # is written HERE, before the tag exists, and the tag is exported
-        # only once the lease is: a tag naming no registered lease is reaped.
-        # The runner's own pid: the parent of a process it execs. It leads
-        # its group (`set -m`), so it is also the pgid.
-        _self=$(exec sh -c 'echo $PPID')
-        # shellcheck disable=SC2086  # $_vanish is one optional flag, or nothing
-        if bun "$LEASE_CLI" put "$LEASE_ID" gate-run "$_self" "$_ttl" \
-            --pgid "$_self" --cwd "$(pwd)" --command "$*" $_vanish \
-            >/dev/null 2>"$RUN_DIR/lease.err"; then
-            TOLARIA_OWNER="$LEASE_ID"
-            export TOLARIA_OWNER
-        fi
         bun run "$@" >"$LOG" 2>&1
         _rc=$?
         # `green` outlives the `rc` file on purpose: `rc` is cleared the moment
@@ -566,9 +522,6 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # of the record, so a half-written record never reads as green.
         git_head >"$END_HEAD_F"
         [ "$_rc" -ne 0 ] || : >"$GREEN_F"
-        # Cleared BEFORE the verdict is visible: a caller that read `rc` never
-        # finds the lease of a run that is over.
-        lease clear "$LEASE_ID"
         echo "$_rc" >"$RC"
     ) </dev/null >/dev/null 2>&1 &
     _pid=$!
@@ -577,10 +530,7 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     pid_ident "$_pid" >"$PIDSTART"
     echo "gate-run: started \`bun run $*\` detached (pid $_pid, log: $LOG)." >&2
 elif [ "$attached" -eq 1 ]; then
-    # A legitimate re-attach: the run is wanted for another IDLE_SECS, and the
-    # reaper keeps its hands off it for this call's whole wait.
-    _lid=$(cat "$LEASE_F" 2>/dev/null || echo "")
-    [ -z "$_lid" ] || lease renew "$_lid" "$IDLE_SECS" --grace "$((WAIT_SECS + 120))"
+    # A legitimate re-attach.
     [ "$REPLACE" -eq 0 ] ||
         echo "gate-run: --replace ignored — the live run IS this key's run; re-attaching to it. Replace it from another key, or let it finish." >&2
     echo "gate-run: re-attached to the running \`bun run $*\` (pid $_pid, log: $LOG)." >&2
@@ -618,13 +568,7 @@ if [ -f "$RC" ]; then
     esac
     # Report AND CLEAR: the verdict has now been read, so the next invocation
     # of the same command must gate the tree again rather than re-print it.
-    _lid=$(cat "$LEASE_F" 2>/dev/null || echo "")
     rm -f "$RC" "$PIDF" "$PIDSTART"
-    # …and the lease with it. The runner cleared it, but a re-attach's
-    # `renew` reads the lease, then writes it: one that read it just before
-    # the clear writes it back, and a lease outliving its run is left to the
-    # reaper (issue #5686). Idempotent — clearing a cleared lease is a no-op.
-    [ -z "$_lid" ] || lease clear "$_lid"
     echo "gate-run: \`bun run $*\` — exit=$rc after ${_elapsed}s (log: $LOG)"
     # `|| true` is not decoration: `tail` is the last command of this OR-list,
     # so under `set -e` an unreadable log would abort the script BEFORE
@@ -637,8 +581,6 @@ if ! is_alive "$_pid"; then
     echo "gate-run: \`bun run $*\` — the detached runner (pid $_pid) is gone and wrote no exit code after ${_elapsed}s. Log: $LOG" >&2
     tail -n 20 "$LOG" >&2 || true
     rm -f "$PIDF" "$PIDSTART"
-    _lid=$(cat "$LEASE_F" 2>/dev/null || echo "")
-    [ -z "$_lid" ] || lease clear "$_lid"
     exit 70
 fi
 

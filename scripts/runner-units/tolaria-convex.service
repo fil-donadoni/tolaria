@@ -26,7 +26,6 @@ RestartSec=10
 TimeoutStopSec=30
 # The cgroup kill: the backend binary `convex dev` forks dies with the unit.
 KillMode=control-group
-Environment=TOLARIA_OWNER=unit:tolaria-convex.service
 
 [Install]
 WantedBy=default.target

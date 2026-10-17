@@ -193,7 +193,6 @@ import {
 } from "./lib/gate-liveness";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { holdLease } from "./lib/process-lease";
 import {
     MACHINE_SATURATED_EXIT,
     probeInjected,
@@ -301,9 +300,6 @@ const NCPU = cpus().length;
 const HEAVY_WORKERS_CAP = Number(process.env.TOLARIA_HEAVY_WORKERS_CAP ?? 4);
 /** Heavy-tier worker count — one core left for the OS, then RAM-capped. */
 const HEAVY_WORKERS = Math.max(2, Math.min(NCPU - 1, HEAVY_WORKERS_CAP));
-/** A gate's process lease is renewed every third of this; a renewal delayed
- *  by a busy event loop must never read as an abandoned gate. */
-const LEASE_TTL_MS = 30 * 60 * 1000;
 
 const [, , tier, ...rest] = process.argv;
 const command = rest.join(" ");
@@ -1272,11 +1268,6 @@ function restampOwner() {
 }
 
 async function main() {
-    // Before the queue wait and before any spawn: the lease's tag reaches the
-    // command through `process.env`, and a holder SIGKILLed mid-wait leaves a
-    // lease with a dead anchor that tells the reaper to take its tree
-    // (issue #5470).
-    holdLease({ kind: "gate", ttlMs: LEASE_TTL_MS });
     const nested = process.env.TOLARIA_GATE_HELD === "1";
     const heavy = isHeavyTier(tier);
     const holdsLock = heavy && !nested;

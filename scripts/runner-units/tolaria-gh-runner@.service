@@ -20,8 +20,6 @@ TimeoutStopSec=60
 # The cgroup kill: a job's whole tree dies with the unit.
 KillMode=control-group
 Environment=PATH=__PATH__
-# A unit's tree is the unit's to end: the reaper never reaps on a `unit:` tag.
-Environment=TOLARIA_OWNER=unit:%n
 # The primary checkout every job's worktree is cut from (scripts/ci/job-worktree.sh).
 Environment=TOLARIA_PRIMARY_CHECKOUT=__REPO__
 

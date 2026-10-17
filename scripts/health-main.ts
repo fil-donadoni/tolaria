@@ -186,7 +186,6 @@ import {
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { holdLease } from "./lib/process-lease";
 import {
     DURATIONS_ENV,
     headroomLine,
@@ -1005,10 +1004,6 @@ async function main(): Promise<void> {
         }
     } else if (!process.argv.includes("--status"))
         refuseCorpusExclusion("health");
-    // Every step runs synchronously, which blocks the renewal timer for the
-    // whole step: the lease lives by its anchor, the TTL only bounds a hang
-    // (issue #5470).
-    holdLease({ kind: "health-main", ttlMs: 6 * 60 * 60 * 1000 });
     const cwd = process.cwd();
     // A status read outside a checkout reads `cwd` (the loop driver's tests
     // run it in a bare directory); everything else needs the repository.
