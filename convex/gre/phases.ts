@@ -112,7 +112,7 @@ import {
 } from "./banding";
 
 /** Ordered sequence of all phases/steps in a turn. */
-const PHASE_ORDER: Phase[] = [
+export const PHASE_ORDER: readonly Phase[] = [
     "UNTAP",
     "UPKEEP",
     "DRAW",

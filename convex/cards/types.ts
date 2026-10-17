@@ -12053,11 +12053,18 @@ export interface TriggeredAbility {
      *  tapped state ("if this artifact is untapped", Howling Mine), restated
      *  for non-engine readers beside the `interveningIf` closure, exactly as
      *  `gate` restates `condition`. The Bot decides it per player's step
-     *  against the tapped state the source will have THEN (its controller's
-     *  untap step comes between, CR 502.3). Stamped by `phaseTrigger`; never
-     *  consulted by the engine (`interveningIf` is the authority —
-     *  `sourceTapCondition.bot.test.ts` pins the two agree). */
+     *  against the tapped state the source will have on that player's next
+     *  `phaseStep` (its controller's untap step may come between, CR 502.3).
+     *  Stamped by `phaseTrigger`; never consulted by the engine
+     *  (`interveningIf` is the authority — `eachStepTapGate.bot.test.ts`
+     *  pins the two agree). */
     sourceTapCondition?: SourceTapCondition;
+    /** Issue #5578 — the step whose beginning fires a `phaseTrigger`,
+     *  restated for non-engine readers beside `phaseScope`: the step
+     *  `sourceTapCondition` is projected onto. Stamped by
+     *  `phaseTrigger`; never consulted by the engine (`matches` is the
+     *  authority). */
+    phaseStep?: Phase;
     /** Which event kind(s) can fire this ability — used to index-filter before
      *  `matches()`. A scalar for the common single-event case; an ARRAY when a
      *  single Oracle sentence spans several engine events (CR 603.2), e.g.

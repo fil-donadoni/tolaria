@@ -56,6 +56,8 @@ import {
     valueEffectScript,
 } from "./opValuers";
 import { withTypedRepresentativeVictim } from "./representativeVictim";
+import { tappedOnNextStepOf } from "./latentBoard";
+import type { CardInstanceState } from "../state";
 import type { OpValue, ValueTag } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
@@ -571,6 +573,7 @@ function abilityScriptOpValue(
         event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         phaseScope?: TriggeredAbility["phaseScope"];
+        phaseStep?: TriggeredAbility["phaseStep"];
         interveningIf?: TriggeredAbility["interveningIf"];
         sourceTapCondition?: TriggeredAbility["sourceTapCondition"];
         activateFromGraveyard?: boolean;
@@ -1087,35 +1090,52 @@ export function dslStandingAbilityScriptValue(
  *  intervening-if passes ONE predicate as both (`resolveCompiledTrigger`,
  *  CR 603.4 checks it twice), so its `interveningIf` decides it.
  *
- *  Issue #5578 — an intervening-if declared as data on the source's tapped
- *  state (`sourceTapCondition`) is read off the declaration, never the
- *  closure: the side's source carries the tapped state it will have on that
- *  player's step (`EachPlayerSide.stepGateHolds`). */
+ *  Issue #5578 — a source's tapped state is a FUTURE one on another
+ *  player's step. An intervening-if declared as data on it
+ *  (`sourceTapCondition`) is read off the declaration, against the tapped
+ *  state the source will have at the beginning of that player's next
+ *  `phaseStep` (`tappedOnNextStepOf`): a Howling Mine tapped on its
+ *  controller's turn misses the opponent's next draw step. Every other gate
+ *  reads the source UNTAPPED, as issue #5164 did: the engine is a recurrence,
+ *  and its controller's untap step untaps it (CR 502.3). */
 function stepGateOf(ability: {
     gate?: TriggeredAbility["gate"];
     interveningIf?: TriggeredAbility["interveningIf"];
     sourceTapCondition?: TriggeredAbility["sourceTapCondition"];
+    phaseStep?: TriggeredAbility["phaseStep"];
 }): StepGate | typeof UNDECIDABLE_STEP_GATE | undefined {
     const onSelf =
         ability.gate && "onSelf" in ability.gate
             ? ability.gate.onSelf
             : undefined;
+    const untapped = (self: PermanentView): PermanentView => ({
+        ...self,
+        isTapped: false,
+    });
     const tap = ability.sourceTapCondition;
     if (tap !== undefined) {
-        return (_activePlayerId, self) =>
-            (onSelf === undefined || onSelf(self)) &&
-            (self.isTapped === true) === (tap === "tapped");
+        const step = ability.phaseStep;
+        if (step === undefined) return UNDECIDABLE_STEP_GATE;
+        return (activePlayerId, self, state) =>
+            (onSelf === undefined || onSelf(untapped(self))) &&
+            tappedOnNextStepOf(
+                state,
+                self as unknown as CardInstanceState,
+                activePlayerId,
+                step
+            ) ===
+                (tap === "tapped");
     }
     const predicate = ability.interveningIf;
     if (!predicate) {
-        if (onSelf) return (_activePlayerId, self) => onSelf(self);
+        if (onSelf) return (_activePlayerId, self) => onSelf(untapped(self));
         return ability.gate ? UNDECIDABLE_STEP_GATE : undefined;
     }
     return (activePlayerId, self, state) =>
-        (onSelf === undefined || onSelf(self)) &&
+        (onSelf === undefined || onSelf(untapped(self))) &&
         predicate(
             { type: "PHASE_BEGIN", phase: state.phase, activePlayerId },
-            self,
+            untapped(self),
             state as unknown as TriggerStateView
         );
 }

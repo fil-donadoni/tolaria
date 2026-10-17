@@ -21,6 +21,7 @@ import {
 import { permanentRealisedValue } from "../../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { tappedOnNextStepOf } from "../latentBoard";
+import { untapStep, untapStepHoldsTapped } from "../../phases";
 import { getAllCards } from "../../../cards";
 import { howlingMine } from "../../../cards/sets/lea/colorless.cards";
 import { stasis } from "../../../cards/sets/lea/blue.cards";
@@ -136,42 +137,92 @@ describe("a tapped each-step engine misses the steps before it untaps (issue #55
     });
 });
 
-describe("tappedOnNextStepOf — CR 502.3 / 504.1 turn timeline", () => {
+describe("tappedOnNextStepOf — CR 502.3 turn timeline", () => {
     const mineOf = (s: GameState) => s.players[0].battlefield[0];
+    const at = (b: Omit<MineBoard, "ownHand" | "oppHand">) =>
+        board({ ownHand: 0, oppHand: 0, ...b });
+    const next = (s: GameState, pid: string, step: Phase = "DRAW") =>
+        tappedOnNextStepOf(s, mineOf(s), pid, step);
+
     it("an untapped source stays untapped on every side", () => {
-        const s = board({ ownHand: 0, oppHand: 0 });
-        expect(tappedOnNextStepOf(s, mineOf(s), "p1")).toBe(false);
-        expect(tappedOnNextStepOf(s, mineOf(s), "p2")).toBe(false);
+        const s = at({});
+        expect(next(s, "p1")).toBe(false);
+        expect(next(s, "p2")).toBe(false);
     });
 
-    it("tapped in its controller's upkeep, it misses this turn's draw step", () => {
-        const s = board({
-            ownHand: 0,
-            oppHand: 0,
-            tapped: true,
-            phase: "UPKEEP",
-        });
-        expect(tappedOnNextStepOf(s, mineOf(s), "p1")).toBe(true);
-        expect(tappedOnNextStepOf(s, mineOf(s), "p2")).toBe(true);
+    it("tapped in its controller's upkeep, it misses this turn's draw step and the opponent's", () => {
+        const s = at({ tapped: true, phase: "UPKEEP" });
+        expect(next(s, "p1")).toBe(true);
+        expect(next(s, "p2")).toBe(true);
+    });
+
+    it("tapped in its controller's draw step, this turn's draw has fired: its controller's next one follows an untap step", () => {
+        const s = at({ tapped: true, phase: "DRAW" });
+        expect(next(s, "p1")).toBe(false);
+        expect(next(s, "p2")).toBe(true);
+    });
+
+    it("tapped in its controller's cleanup, it still misses the opponent's next draw step", () => {
+        const s = at({ tapped: true, phase: "CLEANUP" });
+        expect(next(s, "p1")).toBe(false);
+        expect(next(s, "p2")).toBe(true);
+    });
+
+    it("tapped while its controller's untap step is still to come, it untaps before this turn's draw step", () => {
+        const s = at({ tapped: true, phase: "UNTAP" });
+        expect(next(s, "p1")).toBe(false);
     });
 
     it("tapped in the opponent's upkeep, it misses the opponent's draw step this turn only", () => {
-        const s = board({
-            ownHand: 0,
-            oppHand: 0,
-            tapped: true,
-            active: "p2",
-            phase: "UPKEEP",
-        });
-        expect(tappedOnNextStepOf(s, mineOf(s), "p2")).toBe(true);
-        expect(tappedOnNextStepOf(s, mineOf(s), "p1")).toBe(false);
+        const s = at({ tapped: true, active: "p2", phase: "UPKEEP" });
+        expect(next(s, "p2")).toBe(true);
+        expect(next(s, "p1")).toBe(false);
+    });
+
+    it("projects onto the declared step: tapped in its controller's upkeep, its next UPKEEP follows an untap step", () => {
+        const s = at({ tapped: true, phase: "UPKEEP" });
+        expect(next(s, "p1", "UPKEEP")).toBe(false);
+        expect(next(s, "p2", "UPKEEP")).toBe(true);
     });
 
     it("a source-held lock keeps it tapped on its controller's step too", () => {
-        const s = board({ ownHand: 0, oppHand: 0, tapped: true });
+        const s = at({ tapped: true });
         mineOf(s).untapLockedBy = ["lock-source"];
-        expect(tappedOnNextStepOf(s, mineOf(s), "p1")).toBe(true);
+        expect(next(s, "p1")).toBe(true);
     });
+});
+
+describe("untapStepHoldsTapped agrees with untapStep (CR 502.3, issue #5578)", () => {
+    const holds: [string, (c: CardInstanceState) => void, boolean?][] = [
+        ["no lock", () => {}],
+        ["does-not-untap", (c) => c.staticAbilities.push("does-not-untap")],
+        ["a source-held lock", (c) => (c.untapLockedBy = ["lock-source"])],
+        ["a one-shot skip", (c) => (c.skipNextUntap = true)],
+        [
+            "a depletion counter on a depletion land",
+            (c) => {
+                c.staticAbilities.push("does-not-untap-with-depletion-counter");
+                c.counters = { depletion: 1 };
+            },
+        ],
+        ["a Stasis hard skip", () => {}, true],
+    ];
+    for (const [label, lock, withStasis] of holds) {
+        it(label, () => {
+            const s = board({
+                ownHand: 0,
+                oppHand: 0,
+                tapped: true,
+                stasis: withStasis,
+                phase: "UNTAP",
+            });
+            const mine = s.players[0].battlefield[0];
+            lock(mine);
+            const predicted = untapStepHoldsTapped(s, mine);
+            untapStep(s);
+            expect(predicted).toBe(mine.isTapped === true);
+        });
+    }
 });
 
 describe("sourceTapCondition restates the interveningIf closure (issue #5578)", () => {
@@ -183,6 +234,10 @@ describe("sourceTapCondition restates the interveningIf closure (issue #5578)", 
         );
         // Howling Mine is the census (each-step, tapped-state intervening-if).
         expect(declaring.length).toBeGreaterThan(0);
+        // What the declaration is projected onto.
+        for (const ability of declaring) {
+            expect(ability.phaseStep, ability.id).toBeDefined();
+        }
         const event: PhaseBeginEvent = {
             type: "PHASE_BEGIN",
             phase: "DRAW",

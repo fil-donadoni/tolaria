@@ -146,6 +146,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
             oracleText: args.oracleText,
             event: "PHASE_BEGIN",
             phaseScope: args.scope,
+            phaseStep: args.phase,
             ...(args.sourceTapCondition
                 ? { sourceTapCondition: args.sourceTapCondition }
                 : {}),
