@@ -653,6 +653,8 @@ export const howlingMine = defineCard(() => ({
             // resolve. If the artifact is tapped between trigger and
             // resolve (Icy Manipulator response), the trigger fizzles.
             interveningIf: (_event, self) => !self.isTapped,
+            // Issue #5578 — the same check, restated as data for the Bot.
+            sourceTapCondition: "untapped",
             // Migrated resolve()→effects[] (ADR 0045, closes #1264/#1250):
             // `scope: "each"` reads the scoped (drawing) player via the
             // censused `{ ref: "$event.activePlayerId" }` event-field selector

@@ -572,6 +572,7 @@ function abilityScriptOpValue(
         zone?: TriggeredAbility["zone"];
         phaseScope?: TriggeredAbility["phaseScope"];
         interveningIf?: TriggeredAbility["interveningIf"];
+        sourceTapCondition?: TriggeredAbility["sourceTapCondition"];
         activateFromGraveyard?: boolean;
         activateFromHand?: boolean;
         etbAbility?: boolean;
@@ -1084,16 +1085,28 @@ export function dslStandingAbilityScriptValue(
  *  `condition` (`{ undecidable }`) with no `interveningIf` beside it is a
  *  predicate no reader can ask: `UNDECIDABLE_STEP_GATE`. A compiled
  *  intervening-if passes ONE predicate as both (`resolveCompiledTrigger`,
- *  CR 603.4 checks it twice), so its `interveningIf` decides it. */
+ *  CR 603.4 checks it twice), so its `interveningIf` decides it.
+ *
+ *  Issue #5578 — an intervening-if declared as data on the source's tapped
+ *  state (`sourceTapCondition`) is read off the declaration, never the
+ *  closure: the side's source carries the tapped state it will have on that
+ *  player's step (`EachPlayerSide.stepGateHolds`). */
 function stepGateOf(ability: {
     gate?: TriggeredAbility["gate"];
     interveningIf?: TriggeredAbility["interveningIf"];
+    sourceTapCondition?: TriggeredAbility["sourceTapCondition"];
 }): StepGate | typeof UNDECIDABLE_STEP_GATE | undefined {
-    const predicate = ability.interveningIf;
     const onSelf =
         ability.gate && "onSelf" in ability.gate
             ? ability.gate.onSelf
             : undefined;
+    const tap = ability.sourceTapCondition;
+    if (tap !== undefined) {
+        return (_activePlayerId, self) =>
+            (onSelf === undefined || onSelf(self)) &&
+            (self.isTapped === true) === (tap === "tapped");
+    }
+    const predicate = ability.interveningIf;
     if (!predicate) {
         if (onSelf) return (_activePlayerId, self) => onSelf(self);
         return ability.gate ? UNDECIDABLE_STEP_GATE : undefined;

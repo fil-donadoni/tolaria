@@ -326,6 +326,40 @@ export function computeHardSkipFilters(state: GameState) {
         .map((r) => r.restriction.filter);
 }
 
+/** Issue #5578 — CR 502.3: true when its controller's next untap step keeps
+ *  `card` tapped against that player's will — the hold branches of
+ *  `untapStep`, read without running them: a printed or granted
+ *  `does-not-untap`, a source-held lock (`untapLockedBy`), a one-shot
+ *  `skipNextUntap`, a depletion counter on a depletion land, a wind counter
+ *  under Freyalise's Winds, or a hard-skip restriction (`maxUntap: 0`,
+ *  Stasis) whose filter matches it. A cap-style restriction (Winter Orb) and
+ *  "you may choose not to untap" leave the choice to the player and do not
+ *  hold. A reader for the Bot (`latentBoard.ts`); `untapStep` stays the
+ *  authority. */
+export function untapStepHoldsTapped(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    if (card.staticAbilities.includes("does-not-untap")) return true;
+    if (card.untapLockedBy?.length) return true;
+    if (card.skipNextUntap) return true;
+    if (
+        card.staticAbilities.includes(
+            "does-not-untap-with-depletion-counter"
+        ) &&
+        (card.counters?.["depletion"] ?? 0) > 0
+    ) {
+        return true;
+    }
+    if ((card.counters?.["wind"] ?? 0) > 0 && hasFreyalisesWindsInPlay(state)) {
+        return true;
+    }
+    const view = effectivePermanentView(state, card);
+    return computeHardSkipFilters(state).some((f) =>
+        matchesPermanentFilter(view, f)
+    );
+}
+
 /** Commits an `untap-pick` `PendingChoice` (CR 502.1): untaps the chosen
  *  ids on the chooser's battlefield, pops the choice off the queue, and
  *  resumes the untap dispatcher (`untapStep`). If the dispatcher enqueues
