@@ -7,6 +7,7 @@ import CardPreviewAbilities from "./card-preview-abilities";
 import CardPreviewBackFace from "./card-preview-back-face";
 import CardPreviewCounters from "./card-preview-counters";
 import CardPreviewEngineView from "./card-preview-engine-view";
+import CardPreviewHalfSection from "./card-preview-half-section";
 import CardPreviewNotedMana from "./card-preview-noted-mana";
 import OracleParagraph from "./oracle-paragraph";
 import type { PreviewBodyContent } from "~/lib/preview-body";
@@ -74,6 +75,7 @@ export default function CardPreviewFace({
     engineReportGameId,
     insetHalf,
     backFaceHalf,
+    splitHalves,
     size,
     onImageLoaded,
     imageLoaded = true,
@@ -202,45 +204,20 @@ export default function CardPreviewFace({
                     </div>
                 )}
                 {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
-                {/* CR 715.2 / 722.2 — the other half of a two-part card frame,
-                    mirroring the printed inset: its own name, cost, type line
-                    and text, visually subordinate to the block above and inside
-                    the SAME text column, so the `split` layout's scroll
-                    container carries it rather than dropping it below the row.
-                    Labelled (`Adventure` / `Adventurer card`, off
-                    `INSET_SPELL_KINDS`) so it can never read as a live
-                    characteristic of the half this face is actually about. */}
+                {/* CR 715.2 / 722.2 — the other half of a two-part card frame
+                    (`Adventure` / `Adventurer card`, off `INSET_SPELL_KINDS`);
+                    CR 709 (issue #5490) — a split card's halves, each under its
+                    own cost, never one merged paragraph list. */}
                 {insetHalf && (
-                    <div className="border-t border-border-subtle pt-2">
-                        <div className="border border-border-subtle rounded-md p-2 space-y-1 bg-surface-raised/40">
-                            <div
-                                className={`${sectionSize} font-semibold uppercase tracking-wide text-text-muted`}
-                            >
-                                {insetHalf.label}
-                            </div>
-                            <div className="flex items-baseline justify-between gap-2">
-                                <span className="font-semibold truncate">
-                                    {insetHalf.name}
-                                </span>
-                                {insetHalf.manaCost && (
-                                    <span
-                                        className={`shrink-0 ${manaSize} leading-none`}
-                                    >
-                                        {formatOracleText(insetHalf.manaCost)}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-text-muted">
-                                {insetHalf.typeLine}
-                            </div>
-                            {insetHalf.oracleParagraphs.map((p, i) => (
-                                <div key={`inset-oracle-${i}`}>
-                                    <OracleParagraph text={p} counters={null} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <CardPreviewHalfSection half={insetHalf} size={size} />
                 )}
+                {splitHalves?.map((half) => (
+                    <CardPreviewHalfSection
+                        key={half.label}
+                        half={half}
+                        size={size}
+                    />
+                ))}
                 {backFaceHalf && (
                     <CardPreviewBackFace half={backFaceHalf} size={size} />
                 )}

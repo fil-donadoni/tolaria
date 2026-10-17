@@ -7,6 +7,8 @@ import {
     isModalDoubleFaced,
     modalBackFaceDefinitionId,
 } from "@convex/cards/modalDfc";
+import { isSplitCard, splitSideOfDefinitionId } from "@convex/cards/splitCard";
+import { parentIdOfTwin } from "@convex/cards/twinId";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
@@ -42,6 +44,7 @@ import type {
     CardBackFace,
     EmblemInstance,
     ManaCost,
+    SplitHalf,
 } from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
@@ -158,6 +161,32 @@ export function combatRestrictionLines(
 
 export const BACK_FACE_HALF_LABEL = "Back face";
 
+/** CR 709.1 / 709.4 (issue #5490) — one half of a SPLIT card, rendered as a
+ *  labelled subordinate section of the face.
+ *
+ *  Previewing the split card itself, the face's header keeps the CR 709.4
+ *  COMBINED name, cost and type line (the card's real characteristics in every
+ *  zone but the stack), and the oracle body is these two sections — never one
+ *  merged paragraph list, which reads the right half's text as part of the
+ *  left half's cost. Previewing a half on the stack (its CR 709.3b twin), the
+ *  face is that half alone and the one section is the OTHER half, labelled so
+ *  it never reads as a live characteristic — the discipline
+ *  {@link PreviewInsetHalf} keeps. */
+export type PreviewSplitHalf = {
+    /** Which half this is, relative to the face rendering it. */
+    label: string;
+    name: string;
+    manaCost: string | null;
+    typeLine: string;
+    oracleParagraphs: string[];
+};
+
+export const SPLIT_HALF_LABELS = {
+    left: "Left half",
+    right: "Right half",
+    other: "Other half",
+} as const;
+
 export type PreviewBodyContent = {
     cardName: string;
     displayName: string;
@@ -273,6 +302,11 @@ export type PreviewBodyContent = {
      *  front, or null. Optional (not merely nullable) so hand-built
      *  `PreviewBodyContent` fixtures predating the field keep compiling. */
     backFaceHalf?: PreviewBackFaceHalf | null;
+    /** CR 709 (issue #5490) — a split card's halves as labelled sections (both
+     *  for the card, the other one for a half on the stack), or null for every
+     *  other card. Optional (not merely nullable) so hand-built
+     *  `PreviewBodyContent` fixtures predating the field keep compiling. */
+    splitHalves?: PreviewSplitHalf[] | null;
 };
 
 /** The characteristics a back-face section prints — the subset a
@@ -329,6 +363,38 @@ function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
             : null,
         printedImageId: imageId ? { id: imageId, face: "back" } : null,
     };
+}
+
+function toPreviewSplitHalf(label: string, half: SplitHalf): PreviewSplitHalf {
+    return {
+        label,
+        name: half.name,
+        manaCost: manaCostToString(half.manaCost),
+        typeLine: formatTypeLine(half.types, half.subtypes, undefined),
+        oracleParagraphs: half.oracleText
+            .split("\n")
+            .filter((p) => p.length > 0),
+    };
+}
+
+/** Builds the split-half sections for `defId` (see {@link PreviewSplitHalf}),
+ *  in whichever of the two directions applies: both halves for the split card
+ *  (CR 709.4), the other half for a half's twin on the stack (CR 709.3b).
+ *  Null for every other card, and for a twin whose parent is not registered. */
+function buildSplitHalves(defId: string): PreviewSplitHalf[] | null {
+    const def = tryGetDefinition(defId);
+    if (def?.splitHalves) {
+        return [
+            toPreviewSplitHalf(SPLIT_HALF_LABELS.left, def.splitHalves[0]),
+            toPreviewSplitHalf(SPLIT_HALF_LABELS.right, def.splitHalves[1]),
+        ];
+    }
+    const side = splitSideOfDefinitionId(defId);
+    const parentId = side ? parentIdOfTwin(defId) : undefined;
+    const parent = parentId ? tryGetDefinition(parentId) : undefined;
+    if (!side || !parent?.splitHalves) return null;
+    const other = parent.splitHalves[side === "left" ? 1 : 0];
+    return [toPreviewSplitHalf(SPLIT_HALF_LABELS.other, other)];
 }
 
 /** Builds the subordinate half-section for `defId` (see {@link
@@ -447,8 +513,13 @@ export function buildPreviewBody(
     // player a Moon'd Urza's Saga still has its chapters and its own granted
     // "{T}: Add {C}" — neither of which the engine will honour.
     const abilitiesStripped = !!cardInstance?.abilitiesSuppressedBy?.length;
+    // CR 709.4 (issue #5490) — a split card's printed text is two halves, each
+    // under its own cost; the split-half sections carry it, so the combined
+    // face prints no merged paragraph list of its own.
     const showOracleText =
-        shouldShowOracleText(def, types, subtypes) && !abilitiesStripped;
+        shouldShowOracleText(def, types, subtypes) &&
+        !abilitiesStripped &&
+        !isSplitCard(def);
     const oracleParagraphs = showOracleText
         ? resolveChosenName(
               resolveChosenMode(
@@ -586,6 +657,7 @@ export function buildPreviewBody(
         isManualGame: !!gameCtx?.isManualGame,
         insetHalf: buildInsetHalf(defId),
         backFaceHalf: buildBackFaceHalf(defId),
+        splitHalves: buildSplitHalves(defId),
         engineView: def ? computeEngineViewBadge(def) : null,
         engineTree: def ? buildEngineViewTree(def) : null,
         engineReportGameId: gameCtx?.gameId ?? null,
