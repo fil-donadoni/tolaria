@@ -2266,6 +2266,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ant-Man, Scott Lang",
+        "scryfallId": "2c468103-dc1c-4798-bd13-8661ff53f7c4",
+        "oracleId": "1e4cf4a4-50a4-4856-bf7e-20899e8affd1",
+        "firstSet": "msc",
+        "firstPrintId": "2c468103-dc1c-4798-bd13-8661ff53f7c4",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ant-Man's Air Force",
         "scryfallId": "a94723d0-2137-41f6-87a1-6a33e1d50d1b",
         "oracleId": "5d7eea87-b60f-4ab9-b485-30aadda0cd79",
@@ -5454,6 +5464,16 @@
         "firstSet": "fdn",
         "firstPrintId": "9b1d5b76-b07e-45c6-800d-4cfce085164f",
         "firstPrintSet": "fdn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bilbo Baggins, Burglar // Take a Glance",
+        "scryfallId": "6a109b3e-9f5b-4625-abb7-6b992c10530b",
+        "oracleId": "fa85f9e6-69ff-4669-b70a-440aa7b16c97",
+        "firstSet": "hob",
+        "firstPrintId": "6a109b3e-9f5b-4625-abb7-6b992c10530b",
+        "firstPrintSet": "hob",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16096,6 +16116,16 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Donatello, Turtle Techie",
+        "scryfallId": "683cfef0-f164-4db8-b83f-79eb804e50ae",
+        "oracleId": "f84850bc-6348-449e-bd82-bb39e2119bec",
+        "firstSet": "tmt",
+        "firstPrintId": "683cfef0-f164-4db8-b83f-79eb804e50ae",
+        "firstPrintSet": "tmt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Doom Blade",
         "scryfallId": "6e19acff-f3dd-417a-a9ab-ea3e36c1ba61",
         "oracleId": "59e7f2ae-4535-4191-98be-3e65b6b2befa",
@@ -18533,6 +18563,16 @@
         "firstPrintId": "0636cd47-d2a3-4320-97bf-40db805fca51",
         "firstPrintSet": "xln",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Emmara, Soul of the Accord",
+        "scryfallId": "41b930ee-e16b-4612-87de-c03ecc6ff6db",
+        "oracleId": "c65ba242-3369-48a9-864f-1b1f85238f67",
+        "firstSet": "grn",
+        "firstPrintId": "41b930ee-e16b-4612-87de-c03ecc6ff6db",
+        "firstPrintSet": "grn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -31806,6 +31846,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jaya Ballard, Task Mage",
+        "scryfallId": "a1f85b2a-7836-4058-87a5-859c4311a7e4",
+        "oracleId": "cbbad3da-695e-4527-9678-0942f3751287",
+        "firstSet": "tsp",
+        "firstPrintId": "a1f85b2a-7836-4058-87a5-859c4311a7e4",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Jaya's Firenado",
         "scryfallId": "4b78eaab-819c-4f06-b3b1-a25c17ab2235",
         "oracleId": "250f804f-b5d5-414c-bb25-476d1fe1f85a",
@@ -31854,6 +31904,26 @@
         "source": "compiled"
     },
     {
+        "name": "Jenara, Asura of War",
+        "scryfallId": "d643c335-e3a7-461d-a024-095795ab6770",
+        "oracleId": "d06cd670-7ffc-4295-97d1-0eff042fb6d5",
+        "firstSet": "arb",
+        "firstPrintId": "d643c335-e3a7-461d-a024-095795ab6770",
+        "firstPrintSet": "arb",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Jenny, Generated Anomaly",
+        "scryfallId": "abedc7b1-b6a4-48ab-a336-c0b8edb426a2",
+        "oracleId": "fbddb6a4-f817-4f3d-bf75-63a98e71954b",
+        "firstSet": "who",
+        "firstPrintId": "abedc7b1-b6a4-48ab-a336-c0b8edb426a2",
+        "firstPrintSet": "who",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Jeong Jeong's Deserters",
         "scryfallId": "060966f9-5e56-4512-9ef3-2b216daf093c",
         "oracleId": "6a06d281-3ca2-498f-91d0-e13e7b0869f9",
@@ -31870,6 +31940,16 @@
         "firstSet": "leg",
         "firstPrintId": "7f841918-813b-4784-ab57-907185b0a355",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Jeska, Warrior Adept",
+        "scryfallId": "1cf96a59-8b7d-4a5b-adfd-17eeedd95db5",
+        "oracleId": "3186fddd-23fd-440c-ad61-b4130e00f765",
+        "firstSet": "jud",
+        "firstPrintId": "1cf96a59-8b7d-4a5b-adfd-17eeedd95db5",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Jeskai Banner",
@@ -32472,6 +32552,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kamahl, Pit Fighter",
+        "scryfallId": "ee88c776-85f1-4beb-a814-f706f5c4f341",
+        "oracleId": "153bb46f-ee8a-4da3-aab4-ae884f6ff403",
+        "firstSet": "ody",
+        "firstPrintId": "ee88c776-85f1-4beb-a814-f706f5c4f341",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kami of Ancient Law",
         "scryfallId": "b7cb7fdc-fa47-4485-b268-7c2ddff28568",
         "oracleId": "e937e0f5-ca35-4dce-9f05-8f2075731628",
@@ -32828,6 +32918,16 @@
         "firstSet": "leg",
         "firstPrintId": "6a4a524a-fdc7-432d-994b-953808528349",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Keiga, the Tide Star",
+        "scryfallId": "ea83eaeb-cf82-406b-977f-2bac41925739",
+        "oracleId": "521b1598-58c6-47a0-a7b3-021d70bf2b05",
+        "firstSet": "chk",
+        "firstPrintId": "ea83eaeb-cf82-406b-977f-2bac41925739",
+        "firstPrintSet": "chk",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Keldon Arsonist",
@@ -33988,6 +34088,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kuro, Pitlord",
+        "scryfallId": "b7d23ff5-849d-4032-9c70-8e9effcbac81",
+        "oracleId": "c80a7d22-076a-4fd7-bcf4-4769143647f0",
+        "firstSet": "chk",
+        "firstPrintId": "b7d23ff5-849d-4032-9c70-8e9effcbac81",
+        "firstPrintSet": "chk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kyoshi Village",
         "scryfallId": "8d5f3008-2af8-4e81-8847-1c91f524e747",
         "oracleId": "da81b78b-89fd-4fc1-9395-b5b01b96be70",
@@ -34289,6 +34399,16 @@
         "firstPrintId": "33998799-f31b-4522-93b2-0c34c570ebf7",
         "firstPrintSet": "aer",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Latulla, Keldon Overseer",
+        "scryfallId": "fd3c7b0c-98bd-4c63-bbb0-80484a5ab26f",
+        "oracleId": "86b2879b-6c54-4d96-ab81-a3f2c87d42d9",
+        "firstSet": "pcy",
+        "firstPrintId": "fd3c7b0c-98bd-4c63-bbb0-80484a5ab26f",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -41640,6 +41760,16 @@
         "firstPrintSet": "war"
     },
     {
+        "name": "Niv-Mizzet, Dracogenius",
+        "scryfallId": "c345e475-8095-41b5-90b4-771fcf80b939",
+        "oracleId": "899d58dc-60b2-4013-9f91-c1888c585d66",
+        "firstSet": "rtr",
+        "firstPrintId": "c345e475-8095-41b5-90b4-771fcf80b939",
+        "firstPrintSet": "rtr",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Nivix Barrier",
         "scryfallId": "0b9b968d-b0cc-411d-9366-8358be28aef2",
         "oracleId": "aa4cb5fb-e81c-410f-8986-645671b0a1d3",
@@ -41741,6 +41871,16 @@
         "firstPrintId": "307329cd-a69b-4acf-bcba-83d8306fe7ee",
         "firstPrintSet": "emn",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Nori, Teller of Tales",
+        "scryfallId": "b05adb48-980c-49a0-9ce6-7c7f3f20715d",
+        "oracleId": "03253076-9add-4efb-9227-b0a062c86534",
+        "firstSet": "hob",
+        "firstPrintId": "b05adb48-980c-49a0-9ce6-7c7f3f20715d",
+        "firstPrintSet": "hob",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -42185,6 +42325,16 @@
         "firstPrintId": "0cd5486b-c6f4-4cfc-9590-8ffc78b48b0a",
         "firstPrintSet": "fut",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Oboro, Palace in the Clouds",
+        "scryfallId": "ffc2d68e-6543-43ec-b67a-afff1325a32f",
+        "oracleId": "645fb11b-d684-4bec-8532-8fa97e8f7b28",
+        "firstSet": "sok",
+        "firstPrintId": "ffc2d68e-6543-43ec-b67a-afff1325a32f",
+        "firstPrintSet": "sok",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -44042,6 +44192,16 @@
         "firstSet": "roe",
         "firstPrintId": "8e732593-0bdc-4dd4-9b07-9aa1a780e6e8",
         "firstPrintSet": "roe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Pelia, Immortal Innovator",
+        "scryfallId": "4f7ef05c-e9a9-4431-8cd5-4cd41c64de67",
+        "oracleId": "4c0be0d0-766b-4c50-b1ca-cce527196666",
+        "firstSet": "trc",
+        "firstPrintId": "4f7ef05c-e9a9-4431-8cd5-4cd41c64de67",
+        "firstPrintSet": "trc",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -46334,6 +46494,16 @@
         "source": "compiled"
     },
     {
+        "name": "Professor Zei, Anthropologist",
+        "scryfallId": "27baccc0-7e25-4f39-be0d-31cd98ca0dc5",
+        "oracleId": "59a10335-72df-44a5-a514-5bac392cd282",
+        "firstSet": "tla",
+        "firstPrintId": "27baccc0-7e25-4f39-be0d-31cd98ca0dc5",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Professor's Warning",
         "scryfallId": "862fded6-e474-4b20-86d8-fd9af5f25b1a",
         "oracleId": "e3c8e552-d315-486d-a176-813b3a300174",
@@ -47221,6 +47391,16 @@
         "firstPrintId": "2a11bdb2-a269-4038-85f3-69fbd02982e9",
         "firstPrintSet": "snc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Radha, Heir to Keld",
+        "scryfallId": "7fc23b2e-9124-4f88-b93e-8bfe90e6eb41",
+        "oracleId": "61d94fe7-b559-4bd4-94a7-f4ed4c853b4b",
+        "firstSet": "plc",
+        "firstPrintId": "7fc23b2e-9124-4f88-b93e-8bfe90e6eb41",
+        "firstPrintSet": "plc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -51156,6 +51336,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ryusei, the Falling Star",
+        "scryfallId": "ded41d44-8233-4fc5-b2c7-e9f263512c1c",
+        "oracleId": "5e99ba3b-dc2b-4c3c-84ce-228d4772cfee",
+        "firstSet": "pchk",
+        "firstPrintId": "ded41d44-8233-4fc5-b2c7-e9f263512c1c",
+        "firstPrintSet": "pchk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "S.H.I.E.L.D. Deployment Drone",
         "scryfallId": "c3d0f02f-dfaf-47b6-8053-514417f4dfe2",
         "oracleId": "c1669020-8f81-471a-9083-7e9ce3e8f387",
@@ -53376,6 +53566,16 @@
         "source": "compiled"
     },
     {
+        "name": "Selenia, Dark Angel",
+        "scryfallId": "9c1624f7-8275-46d3-ab7e-7b162e27593f",
+        "oracleId": "3db1ac09-e35a-4f50-97c4-f65dbc28daef",
+        "firstSet": "tmp",
+        "firstPrintId": "9c1624f7-8275-46d3-ab7e-7b162e27593f",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Selesnya Cluestone",
         "scryfallId": "34ad5631-439a-43e2-b00a-04f78d66b8e6",
         "oracleId": "792d4afd-b3de-4be2-b68a-03a5be7b9627",
@@ -55494,6 +55694,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silvos, Rogue Elemental",
+        "scryfallId": "3e48715c-6ff7-4b0c-aa7e-a2c901215426",
+        "oracleId": "665b8bbf-c30b-4875-a5c2-fc3b9767ecac",
+        "firstSet": "ons",
+        "firstPrintId": "3e48715c-6ff7-4b0c-aa7e-a2c901215426",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Simian Brawler",
         "scryfallId": "df2ed9f3-50b1-493b-9c14-0f8ddb4d8c57",
         "oracleId": "2497cfe2-a85c-47ea-af7a-9a745d84f8b4",
@@ -55853,6 +56063,16 @@
         "firstPrintId": "274976b0-2bb5-46e6-b62e-b50d80a77e28",
         "firstPrintSet": "dka",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skithiryx, the Blight Dragon",
+        "scryfallId": "c930c9cc-1b64-4f36-afe2-6bf120a74ce2",
+        "oracleId": "daf6c421-e7f7-4fc6-967c-65f4ab96fcfd",
+        "firstSet": "som",
+        "firstPrintId": "c930c9cc-1b64-4f36-afe2-6bf120a74ce2",
+        "firstPrintSet": "som",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -57270,6 +57490,16 @@
         "source": "compiled"
     },
     {
+        "name": "Songbird, Sonic Screamer",
+        "scryfallId": "2b327925-8a50-4fd7-9010-673f9a3e97ce",
+        "oracleId": "46f78ae1-fa51-4ef9-9ffa-8a3ed71a39e4",
+        "firstSet": "msc",
+        "firstPrintId": "2b327925-8a50-4fd7-9010-673f9a3e97ce",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Songs of the Damned",
         "scryfallId": "6cff3547-8c72-439a-91fe-ebe729dab748",
         "oracleId": "39419d29-47e7-4d71-953b-96a2e14ae964",
@@ -57931,6 +58161,36 @@
         "firstPrintId": "a290648a-63c3-400b-98d3-5a5aa5505027",
         "firstPrintSet": "m12",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider-Byte, Web Warden",
+        "scryfallId": "210ae606-12a4-453b-bfb4-73ca9c22b8b5",
+        "oracleId": "845472ca-3fcb-4bcd-953c-96eb8d914af9",
+        "firstSet": "spm",
+        "firstPrintId": "210ae606-12a4-453b-bfb4-73ca9c22b8b5",
+        "firstPrintSet": "spm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider-Man, Hometown Hero",
+        "scryfallId": "76c448c7-58e3-480d-bbbb-7aa336fe7c9c",
+        "oracleId": "ef40224a-5b49-48b0-ad29-c6ce391548f5",
+        "firstSet": "msc",
+        "firstPrintId": "76c448c7-58e3-480d-bbbb-7aa336fe7c9c",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider-Man, Web-Spinner",
+        "scryfallId": "acf20da5-e460-4191-ad68-eae398bb7c5d",
+        "oracleId": "d586ef58-ca9e-4c6d-94d6-3b8d782b11e1",
+        "firstSet": "msc",
+        "firstPrintId": "acf20da5-e460-4191-ad68-eae398bb7c5d",
+        "firstPrintSet": "msc",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -59814,6 +60074,16 @@
         "firstSet": "ice",
         "firstPrintId": "7a383a5f-4814-4b92-aa80-2a6440a719bc",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Storm, Shaker of Skies",
+        "scryfallId": "9eadf356-105e-4a17-ab06-075ca662e963",
+        "oracleId": "5d936655-8e46-4e30-8f9c-4fa1a4d34a17",
+        "firstSet": "msc",
+        "firstPrintId": "9eadf356-105e-4a17-ab06-075ca662e963",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Stormbind",
@@ -62706,6 +62976,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thanos, Death's Consort",
+        "scryfallId": "4842d520-8bce-4b95-bcb6-bd9eb9374f90",
+        "oracleId": "3c067370-1e3d-4262-b7d6-f2bb2656b1d8",
+        "firstSet": "msc",
+        "firstPrintId": "4842d520-8bce-4b95-bcb6-bd9eb9374f90",
+        "firstPrintSet": "msc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Thassa's Bounty",
         "scryfallId": "3ac987ac-3f81-4704-b42c-651f44670641",
         "oracleId": "c43425c1-ad01-4088-a061-f691fa2f6c20",
@@ -64293,6 +64573,16 @@
         "firstPrintId": "8bd55a11-8658-4b92-9151-d6173a11991a",
         "firstPrintSet": "fut",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Tombstone, Career Criminal",
+        "scryfallId": "313189ef-fe6e-4511-9386-920a88a49a88",
+        "oracleId": "6ad2cbb6-2291-420c-bfc8-ed3f079b59bf",
+        "firstSet": "spm",
+        "firstPrintId": "313189ef-fe6e-4511-9386-920a88a49a88",
+        "firstPrintSet": "spm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -69612,6 +69902,16 @@
         "source": "compiled"
     },
     {
+        "name": "War Machine, James Rhodes",
+        "scryfallId": "78bb5ed6-bb29-49a9-be0d-d9934f00dddd",
+        "oracleId": "0a512e55-793e-4936-bd27-80d749f4657e",
+        "firstSet": "msc",
+        "firstPrintId": "78bb5ed6-bb29-49a9-be0d-d9934f00dddd",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "War Mammoth",
         "scryfallId": "c8d6081e-f686-4263-a0a2-21c0d9af5fdb",
         "oracleId": "b2a8fcf9-2ec2-40a9-9955-90f8605b11a3",
@@ -71260,6 +71560,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Winter Soldier, Bucky Barnes",
+        "scryfallId": "539be75b-3c86-449c-adaa-68a7af612ea5",
+        "oracleId": "874bbeb2-aa15-41e8-afad-122ab9b555fd",
+        "firstSet": "msc",
+        "firstPrintId": "539be75b-3c86-449c-adaa-68a7af612ea5",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Winter's Chill",
         "scryfallId": "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
         "oracleId": "ae78d498-11c7-427f-9d13-3f1b7096f803",
@@ -71542,6 +71852,16 @@
         "firstSet": "emn",
         "firstPrintId": "748f263e-efef-4033-8950-c58fd024a87f",
         "firstPrintSet": "emn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wolfsbane, Highland Hero",
+        "scryfallId": "81c604fd-9e3e-4527-9ed8-2fdeaabf0870",
+        "oracleId": "23d3ff11-bf19-4315-b53b-3e4f20c6a89b",
+        "firstSet": "msc",
+        "firstPrintId": "81c604fd-9e3e-4527-9ed8-2fdeaabf0870",
+        "firstPrintSet": "msc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -71930,6 +72250,16 @@
         "firstSet": "gpt",
         "firstPrintId": "661580bc-b5e5-48ce-b855-c177f1c61742",
         "firstPrintSet": "gpt",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Wydwen, the Biting Gale",
+        "scryfallId": "ff6b558b-74a5-497d-8be4-474c375d7ca7",
+        "oracleId": "7891ec87-8d1c-42fc-b00a-4c64ee5edbff",
+        "firstSet": "lrw",
+        "firstPrintId": "ff6b558b-74a5-497d-8be4-474c375d7ca7",
+        "firstPrintSet": "lrw",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -72437,6 +72767,16 @@
         "firstPrintId": "e03f41f3-7304-4b45-bc16-fa1ddcc5eff0",
         "firstPrintSet": "dom",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Zhang Liao, Hero of Hefei",
+        "scryfallId": "8f42a953-3073-4e74-9bb8-c8c5a45d1dfa",
+        "oracleId": "244541f6-cbfc-4e89-9156-64e412f745a7",
+        "firstSet": "ptk",
+        "firstPrintId": "8f42a953-3073-4e74-9bb8-c8c5a45d1dfa",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
