@@ -128,11 +128,6 @@
             "issue": 5178
         },
         {
-            "key": "(op) › rangedTopdeck",
-            "op": "rangedTopdeck",
-            "issue": 5166
-        },
-        {
             "key": "(op) › recallCapturedBinding",
             "op": "recallCapturedBinding",
             "issue": 5186

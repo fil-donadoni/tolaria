@@ -251,7 +251,7 @@ import {
 //
 // Lowered 1329 -> 1327 by issue #4565 (characteristic-setting statics);
 // Opalescence and Water Wurm round-trip.
-const BASELINE_CEILING = 1281;
+const BASELINE_CEILING = 1280;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
