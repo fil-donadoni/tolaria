@@ -116,8 +116,7 @@ deletes its directory. Changing a registered runner's
   (`pkill -f 'convex dev'`) and the agent takes over within 10 s. Log:
   `~/.cache/tolaria/convex/agent.log`.
 - Every plist carries `node` on its `PATH` (the render refuses one without,
-  issue #5598) and a `TOLARIA_OWNER=unit:…` tag that keeps the reaper off the
-  job trees.
+  issue #5598).
 
 Check one: `launchctl print "gui/$(id -u)/com.tolaria.gh-runner.<name>" | grep -E 'state|last exit'`.
 
@@ -317,8 +316,8 @@ the same refusal. Those functions keep their tests; the wiring is pinned by
 | `robustness-baseline` | the body closes the owner issue of a `ROBUSTNESS_BASELINE` row the tree still lists                             | `robustnessBaselineRefusal`                            |
 | `repair-proof`        | the PR repairs the standing RED and the verdict's failing test files still fail on it                           | `repairProofOf`, as `land`'s `repairProofStep`         |
 
-`repair-proof` reads the health lineage through `verdictStore` (the `github`
-backend needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`
+`repair-proof` reads the health lineage through the verdict store (the commit status
+needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`
 when the store cannot be read, or when every failing test the verdict names
 was moved or deleted by the repair — it cannot decide, and `land` stays the
 authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
@@ -487,11 +486,11 @@ Orders that hold:
 
 ### health
 
-Batch health moves from the Huawei's health runner to two workflows (issue
-#5645). Both run `health-main` — kept whole: one re-run of a failed vitest
+Batch health runs as two workflows (issue #5645; the Huawei's health runner
+was deleted by issue #5655). Both run `health-main` — kept whole: one re-run of a failed vitest
 project (issue #5461), the [INFRA](#g-infra) classification, the evidence on
 the pivot — and write the verdict where it always went: the `health` commit
-status on the gated sha (`health.verdictStore: github`), which
+status on the gated sha (the only verdict store), which
 [`base-health`](#g-base-health) reads.
 
 | Job                        | When                                           | Runner                       | Runs                                                                                                  |
@@ -590,12 +589,9 @@ Orders that hold:
 - **Schedules and dispatch need the default branch.** The two-hourly run,
   and the `ladder` dispatch `health-early` sends, start once a release
   carries `health.yml` to it; until then the early run's RED holds the queue
-  with no ladder behind it (the Huawei's health runner still gates). The
+  with no ladder behind it. The
   early job dispatches `pr-gate` first, so a failed `ladder` dispatch never
   costs the hold.
-- **The old runner is not retired yet.** The Huawei's `health:runner`
-  timer still fires; both dedup by sha on the store (a tip GREEN on the
-  store is skipped), so a doubled run costs a runner, not a wrong verdict.
 - **`--ref staging`** names the base by literal, as `post-merge`'s
   `branches:` does.
 
@@ -646,7 +642,7 @@ to `~/.cache/tolaria/jobs/<run id>-<attempt>/health-fix-<n>.log` on the
 machine — never the public log ([§ Public logs](#public-logs)). Its flags
 are the repository variable `HEALTH_FIX_CLAUDE_ARGS` (default
 `--dangerously-skip-permissions`, as `loop:afk`'s). Its repair issue is
-recorded on the pivot (`health:cadence repair-issue`), so its PR is the one
+recorded on the pivot (`health:fix repair-issue --issue=<N>`), so its PR is the one
 PR [`base-health`](#g-base-health) admits, and `repair-proof` proves it.
 
 **The revert** (owner's decision 2026-10-14, the amendment of CLAUDE.md's

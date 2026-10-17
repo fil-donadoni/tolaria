@@ -11,7 +11,7 @@ paid a few thousand times; a token here is paid when someone asks why.
 
 **Freeze (ADR 0156, PRD #5620).** The home-built orchestration this file
 describes — `land` and the land-runner, `loop:afk`, the gate mutex, machine
-and session admission, batch health and its cadence, `release` — is being
+and session admission, batch health, `release` — is being
 replaced by the GitHub-native pipeline (`docs/guides/github-pipeline.md`). It
 stays the authority on what runs until the phase that retires each piece
 lands, and it gets **no new feature outside PRD #5620**: a repair that keeps
@@ -126,7 +126,7 @@ that hold a related file, plus `tsc`, diff-scoped prettier/eslint, `cr:lint`,
 the cached drift guards (`check:index`, `check:stubs`, `check:oracle`),
 `check:convex-bundle` and the cheap guards (≤ 10 s, issue #4963). A test the
 diff cannot reach is health's job; the full suite stays in batch health as
-the safety net, every 20 landings or 8 h (§ The batch cadence). `cards` keeps
+the safety net, on a schedule (`health.yml`, § The batch cadence). `cards` keeps
 its fixed subsets — `node[cards]` and `bot[cards]` — because every catalogue
 test imports the set barrel, and the drift guards stay its data-side net.
 `full` is `check:pr` verbatim.
@@ -682,9 +682,9 @@ have and was removed by issue #4614. `vitest-fs-cache-invalidation.test.ts` pins
 the four cases against a warm cache, in a child vitest: an edit to a directly
 imported lib, to a module reached only transitively (setup → mid → deep, as
 setup → catalogue → constants), to the test file itself, and a new commit.
-The one red seen (C, load 61), `health-cadence-spawn.test.ts` CONTROL, is a
-process-group timing race, green 3/3 re-run with the cache on — it transforms
-nothing.
+The one red seen (C, load 61), a CONTROL test of the since-deleted health
+cadence spawn, was a process-group timing race, green 3/3 re-run with the
+cache on — it transforms nothing.
 
 What would reopen it: a stable gate-worktree path — `health` reusing one
 directory per checkout, with the concurrency that implies — plus a pruning
@@ -725,7 +725,7 @@ from `.claude/telemetry/health/detach.log` over the 14 days to 2026-10-02:
 | `check:targets`      | ~1 s                    | 0               |
 
 19 of 40 RED tips were violations a 3-second check would have refused at
-`land`. Post-merge each became a RED marker, a stopped queue, a `/health-fix`
+`land`. Post-merge each became a standing RED, a stopped queue, a `/health-fix`
 session and a full health run per further landing.
 
 `check:lane` now runs the three as `CHEAP_GUARDS` (`scripts/check-lane.ts`),
@@ -876,12 +876,12 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                 | Runs                                                                     | Where (ADR 0154)                          | Mutex                      |
-| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------- | -------------------------- |
-| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base | MacBook, by the land-runner (issue #5469) | ≤ 3 min budget (6.8 meas.) |
-| batch health         | `health` on the CURRENT `origin/<base>` tip, per 20 landings / 8 h       | Huawei (systemd timer)                    | its own machine's          |
-| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward    | MacBook                                   | ~13 min + walk, once       |
-| `bun run health`     | the same full gate, by hand, on the base tip                             | either                                    | ~13 min                    |
+| Step                 | Runs                                                                      | Where (ADR 0154)                          | Mutex                      |
+| -------------------- | ------------------------------------------------------------------------- | ----------------------------------------- | -------------------------- |
+| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base  | MacBook, by the land-runner (issue #5469) | ≤ 3 min budget (6.8 meas.) |
+| batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | Huawei (`lane` runner)                    | its own machine's          |
+| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward     | MacBook                                   | ~13 min + walk, once       |
+| `bun run health`     | the same full gate, by hand, on the base tip                              | either                                    | ~13 min                    |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
@@ -898,31 +898,18 @@ release time (⌈log₂ N⌉ health runs for N landings) pays for the diagnosis,
 for the exposure.
 
 So the full gate keeps its home at `release` and gains a CADENCE between
-releases. `land` appends the merged tip to
-`.claude/telemetry/health/cadence.json` and detaches `health-cadence.ts
-detach`; the decision is pure (`scripts/lib/health-cadence.ts`,
-`health-cadence.test.ts`) over four inputs — the landing count, the age of the
-first un-healthed landing, the last GREEN sha, the current tip:
+releases: `land` appended the merged tip to a landings ledger and detached a
+pure decision (fire on the Nth landing since the last GREEN, or an age after
+the first un-healthed one; dedup by sha; gate the tip current at its start; the
+counter not reset on RED, so the fix-forward was gated at once).
 
-- fires on the **20th landing since the last GREEN**, or **8 h after the first**
-  un-healthed one (ADR 0154 §6, issue #5458; the constants are
-  `LANDINGS_PER_BATCH` / `MAX_BATCH_AGE_MS` in `scripts/lib/health-cadence.ts`
-  — read them, not this line, for what fires today);
-- **dedups by sha** twice — a tip already GREEN, and a tip already fired for —
-  so five quick landings cost ONE run, which is the ADR 0116 property that had
-  to survive;
-- gates the tip **current at its start**, so one run covers everything that
-  landed while it waited — and the ledger reconciles against the sha the
-  health RECORD names (`reconcileHealthRun`), never the sha the trigger
-  snapshotted: yielding to queued lands is precisely what advances the tip
-  between the two, so an equality check there would reject the verdict of the
-  run it started and re-fire a full gate on every later landing;
-- **GREEN** prunes every landing up to the gated tip and rewrites `green-sha`;
-  **RED** writes the same durable marker as always, which refuses the next
-  PICK in `queue:plan` and never the next LAND, and hands the tip to
-  `health-fix.ts` unchanged. The counter is deliberately not reset on RED, so
-  the landing carrying the fix-forward is gated at once rather than waiting out
-  another batch.
+**Replaced by a schedule (ADR 0156 §4, issue #5655).** The ledger
+(`cadence.json`), the cadence script and its pure module,
+`LANDINGS_PER_BATCH` / `MAX_BATCH_AGE_MS`, the health runner and the stale-verdict fallback were
+deleted. The batch gate is `.github/workflows/health.yml` (`bun run health
+--scheduled --retry-infra`), and `land` records no landing and detaches
+nothing. The measurements below are the record of why the thresholds were
+what they were.
 
 Amortised: ~10 min of full gate per 10 landings, against the ~17 min per landing
 ADR 0136 measured before it, and an exposure window of ≤ 10 landings or 4 h
@@ -942,8 +929,8 @@ issue #5458).** Measured over the 14 days to 2026-10-11 (`health_detach`,
 `check:convex-heap` alone was 9–17 min of each run. At the target of 10
 landings/h, 20 / 8 h is one full suite per ~2 h; and the run no longer holds
 the MacBook's mutex at all under topology B': the Huawei's systemd timer
-polls `origin/<base>`, applies the same pure cadence plan
-(`health-cadence.ts`) and runs health against its own self-hosted Convex
+polled `origin/<base>`, applied the same pure cadence plan
+and ran health against its own self-hosted Convex
 deployment (issues #5467, #5468). The bot refresh steps (`bot:reach`,
 `seed:bot-findings`, `gaps:sync`) leave health for a nightly cron and the
 robustness / pick-agreement audits run weekly, on the same machine. A failed
@@ -983,28 +970,28 @@ verdict is about. Neither can red a tip. The cron wiring is the Huawei's
 (issues #5467, #5468).
 
 **The verdict is shared state (issue #5462).** A health verdict on one machine
-was a local file (`.claude/telemetry/health/last.json`, the `RED` marker), so
+was a local file (`last.json`, a `RED` marker), so
 the other machine's `queue:plan` kept picking from a tip it could not know was
 red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
-goes through a store with two backends — the local file, and a GitHub commit
+goes through a store — a GitHub commit
 status on the gated sha (`context=health`; `context=ui-walk` for the Linux
 walk while it is advisory, issue #5465). On Linux `ui-walk.gating` (`tolaria.config.json`, default false) keeps the walk out of the health verdict: the offline half stands as GREEN (`ui: advisory`), the walk's own verdict goes under `ui-walk` with the machine named. Promote the flag once `bun run ui:calibrate <macbook-receipt> <linux-receipt>` of one tip exits 0; a divergent cell goes to `UNWALKED_SURFACES` with an issue. `queue:plan`, `land`'s RED gate,
-`loop-drain`'s stop and `health:fix` read through the store on both machines;
-the backend is `tolaria.config.json`. Last writer per sha wins; `infra` never
+`loop-drain`'s stop and `health:fix` read through the store on both machines.
+Last writer per sha wins; `infra` never
 overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the
 final authority (ADR 0116 unchanged). RED on tip T blocks NEW picks on both
 machines and refuses non-repair landings (`--red-ok`, issue #4964) while
 in-flight PRs land; a second RED on the same lineage stops the loop and
-notifies the owner; a stale verdict (no verdict on any tip gated within
-`MAX_PENDING_MS`) makes the MacBook run one local health and notify.
+notifies the owner. (The stale-verdict fallback, a local health run when the
+Huawei's runner went silent, was deleted with the runner, issue #5655.)
 
-The backend is `tolaria.config.json` → `health.verdictStore`: `file`
-(default — the `RED` / `AMBER` markers beside `last.json`) or `github`
-(commit status `context=health`: success / failure / error / pending for
+The store is ONLY the commit status `context=health` (issue #5655 deleted the
+local-file backend, the `health.verdictStore` key, the verdict-store env override and
+the local `RED` / `AMBER` marker files; `last.json` stays as `health-main`'s own
+run record): success / failure / error / pending for
 GREEN / RED / infra / AMBER; description `STATUS · step · machine` plus the
 failing test files while they fit 140 characters; target URL the log when it
-is one). `scripts/lib/health-verdict-store.ts` is the only reader of the key;
-`TOLARIA_VERDICT_STORE=file|github` overrides it for one process. `bun run
+is one). `scripts/lib/health-verdict-store.ts` is the only reader. `bun run
 health:status --json` prints the lineage as one line — what `loop-drain`
 reads. **AMBER**: a repair landing (`--repair`, or a PR closing the
 `/health-fix` issue) runs, after its lane, the failing test files the RED
@@ -1243,11 +1230,11 @@ marker that stops the queue, while the walk (4–60 min) held the `--under-lock`
 block every queued `land` waits on. Three rules:
 
 1. **Two phases.** A gate that holds the mutex for the offline gates
-   (`health-cadence detach`: `health-main --phase=offline` under its
+   (`health-main --phase=offline` under its
    `gate.ts yield`) releases it before any walk, and `health-main
 --phase=walk` holds only the `check:ui` lane; `release` passes no hold and
    the walk scrubs one — so `gate:who` during the walk shows the heavy mutex
-   free. Since issue #5378 the cadence's walk phase finds none owed. The verdict is still
+   free. Since issue #5378 a batch's walk phase finds none owed. The verdict is still
    ONE `last.json` record per tip: offline green + walk green = `GREEN`, and
    it names the two halves (`offline`, `ui`), which `health:status` prints.
 2. **An environment failure is `infra`, never `RED`.** `check:ui` exit 2 (a
@@ -1399,7 +1386,7 @@ gate:who` reads — because worktrees are separate directories and an in-repo
 lock would not be shared between them.
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
-`fix/issue-N` → exit 1): it is owed on the base tip, by the batch health and by
+`fix/issue-N` → exit 1): it is owed on the base tip, by the scheduled health and by
 `release` (§ The batch cadence), not on a branch tree.
 `TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch `land` alone uses.
 
@@ -1720,8 +1707,8 @@ ids included) and re-prices rows left at 0 on the next run, so
 prints a counted warning naming it. Acceptance: mutex p50 ≤ 3 min and ≥ 4 PR/h
 after Phase 0; ≥ 5 PR/h per machine over 24 h after Phase 1.
 
-**The RED refusal.** The durable release-health marker
-(`.claude/telemetry/health/RED`, left by `health-main.ts`) means the full gate
+**The RED refusal.** A standing RED on the health commit status (left by
+`health-main.ts`) means the full gate
 found the base tip broken. `queue:plan` refuses the next pick and prints the
 sha, the failing step and `bun run health:fix`, so no new worktree branches
 from a tip known red and the idle time has an exit. `--no-cap` does not wave
@@ -1758,7 +1745,7 @@ machine, and it makes two decisions over one set of probes.
 they wait, printing `machine busy — load L, swap S` with the reason, bounded by
 `machine.waitMaxS`; past the bound nothing runs and the run exits **77**
 (`MACHINE_SATURATED_EXIT`). That exit is `infra` with cause `machine-saturated`
-in `health-verdict.ts` — never a `RED` marker — and `land` prints that the PR
+in `health-verdict.ts` — never a RED — and `land` prints that the PR
 is untouched: not landed, not failed, re-issue. The heavy gate waits UNDER the
 mutex, so the queue's order holds and no second gate starts on the machine the
 first one is waiting for, restamping its owner record on every poll so a long
@@ -1824,7 +1811,7 @@ simply not read, and memory pressure is the signal that still stops a start.
 
 On the batch path the gate that never starts is `gate.ts yield`, and
 `health-main` — the only writer of `last.json` — never runs under it. So
-`health-cadence` writes the `infra` record in its place (`preflight:machine`);
+the scheduled caller writes the `infra` record in its place (`preflight:machine`);
 otherwise `health:status` would go on showing the previous verdict for a tip
 nothing gated.
 
@@ -2015,33 +2002,14 @@ instead of the real one: a suite run on a saturated machine neither waits on
 it nor passes because of it. A run under an injected probe writes no `run`
 row.
 
-### Process leases and the active reaper (issue #5470)
+### Process leases and the active reaper (issue #5470, deleted by issue #5655)
 
-Admission decides what may START; nothing above ended what should have
-stopped. Reaping was passive — `gate-run.sh` reaped a run only when somebody
-invoked it, `gate.ts` reclaimed a holder that stopped burning CPU — and
-vitest workers, Chromium, Vite, `convex-local-backend` and `claude -p` passes
-had no owner once their session or worktree was gone. The phantom pids that
-saturated the CPU went unnoticed because nothing was looking: the first
-dry-run sweep found four vitest workers orphaned for two hours from a worktree
-removed long before.
-
-So every spawner (`gate-run.sh`, `gate.ts`, `check:ui`, `health-main`, the
-health decision `land` detaches, the AFK driver's passes) registers a
-**process lease** (`scripts/lib/process-lease.ts`) and tags its whole tree
-with `TOLARIA_OWNER=<lease>`, and `bun run reaper` — a `launchd` agent and a
-`systemd` timer, every 2 minutes — ends every tree whose lease is dead.
-Ownership is by **tag, not by command pattern** (the owner's requirement on
-issue #5470): the tag survives re-parenting to pid 1, which is exactly where
-the process tree loses an orphan, and it is read whatever the binary is. The
-pattern net stays only for untagged strays, and only for orphans, so a dev
-server with a live terminal parent is never matched. On macOS a few platform
-binaries hide their environment from `ps -E` (`/bin/sleep` measured); the
-lease's process group and the anchor's tree catch those. Bun's `spawnSync`
-and `Bun.spawn` with no `env` hand down the environment the process started
-with, not `process.env` (Bun 1.3.9, measured): a spawner passes
-`env: process.env` there. Install, check, proof:
-`docs/guides/huawei-runner.md`.
+Process leases (owner tags in the environment of every spawned tree) and the
+active reaper (a `launchd` agent and a `systemd` timer) ended
+the trees nobody owned any more: orphaned vitest workers, Chromium, Vite and
+`claude -p` passes left by a removed worktree. They were deleted with the
+health runner (ADR 0156, issue #5655); `gate-run.sh` and `loop-drain.sh`
+register no lease, and a stray tree is now ended by hand.
 
 ## Worktree isolation, and the documentation lane
 
@@ -2450,7 +2418,7 @@ at, fetched from GitHub the way `issue_meta` fetches issue state — 60 PRs per
 ingest, capped the same way), `gate_runs` (a durable mirror of `gate-run.sh`'s
 cache dir, read before its own `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it),
 and `health_runs` (every `health-main.ts` per-sha log parsed for a non-zero
-step exit — the live `RED` marker only ever names the LATEST red sha, so this
+step exit — the live RED only ever names the LATEST red sha, so this
 is the only way to recover history). `spans.is_error` is a new column, fed by
 `.claude/hooks/timing-log.sh` capturing `tool_response.is_error`; it did not
 exist before this issue, so no span ingested before it ships carries a value.
