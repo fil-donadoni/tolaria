@@ -6,7 +6,9 @@
 # the same job: a fresh run of its failing files at the same sha, then of
 # every gate its run never reached — all green, the RED closes as GREEN and
 # the flaky test is filed; reproduced, the bisect names the culprit PR in the
-# evidence (scripts/health-bisect.ts). A RED is climbed once.
+# evidence (scripts/health-bisect.ts). A RED is climbed once. Its next
+# rungs — fix forward, revert the culprit, stop — are health-fix.yml's,
+# dispatched to this machine whenever one is owed (issue #5646).
 #
 # `job: ladder` is the same ladder for a RED someone else found:
 # health-early.yml (a GitHub-hosted run after a batch of merges) dispatches
@@ -64,6 +66,18 @@ jobs:
               if: always()
               continue-on-error: true
               run: bun run health:bisect ladder
+            # The ladder's next rungs (issue #5646): fix forward, revert,
+            # stop — on this machine, which saw the RED. Asked every run, so
+            # a lost dispatch is re-sent; a rung in flight waits.
+            - name: Next rung (fix, revert, stop)
+              id: rung
+              if: always()
+              continue-on-error: true
+              run: bun run health:fix ladder --dry-run
+            - name: Dispatch health-fix
+              if: ${{ always() && contains(fromJSON('["fix","revert","stop"]'), steps.rung.outputs.rung) }}
+              continue-on-error: true
+              run: gh workflow run health-fix.yml --ref staging -f host="$(bun run --silent health:fix host)"
             - name: Re-gate the queue
               if: always()
               continue-on-error: true
@@ -98,6 +112,17 @@ jobs:
               env:
                   SHA: ${{ inputs.sha }}
               run: bun run health:bisect ladder --sha "$SHA"
+            - name: Next rung (fix, revert, stop)
+              id: rung
+              if: always()
+              continue-on-error: true
+              run: bun run health:fix ladder --dry-run
+            - name: Dispatch health-fix
+              if: ${{ always() && contains(fromJSON('["fix","revert","stop"]'), steps.rung.outputs.rung) }}
+              continue-on-error: true
+              env:
+                  SHA: ${{ inputs.sha }}
+              run: gh workflow run health-fix.yml --ref staging -f sha="$SHA" -f host="$(bun run --silent health:fix host)"
             - name: Re-gate the queue
               if: always()
               continue-on-error: true

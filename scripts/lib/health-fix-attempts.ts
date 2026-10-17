@@ -3,10 +3,14 @@
  * verdict (issue #5589), so the machine that did not run the fixer still
  * sees it and never re-attempts what the other one tried.
  *
- * One record per RED sha: on the github backend a commit status on that sha
- * under `context=health-fix` (pending = attempting, success = landed,
+ * One record per RED sha — the LATEST rung tried on it, numbered: on the
+ * github backend a commit status on that sha under
+ * `context=health-fix-attempt` (pending = attempting, success = landed,
  * failure = stuck); on the file backend `fix-attempts.json` under the health
- * telemetry directory. `health:fix` writes `attempting` before it spawns the
+ * telemetry directory. Its own context, never `health-fix`: that one holds
+ * the sha's repair ISSUES (`lib/health-pivot.ts`), and a combined status
+ * keeps one status per context — an outcome written there erased the issues
+ * the queue admits the fixer's PR by (issue #5646). `health:fix` writes `attempting` before it spawns the
  * fixer and the parsed verdict after (`parseVerdict`, fail-closed), and
  * `loop-drain.sh` asks `loopFixDecision` what to do about a standing RED.
  */
@@ -23,16 +27,25 @@ import {
 } from "./health-verdict-store";
 
 /** The commit-status context a fix attempt is recorded under. */
-export const FIX_CONTEXT = "health-fix";
+export const FIX_CONTEXT = "health-fix-attempt";
 
 export const FIX_ATTEMPTS_FILE = "fix-attempts.json";
 
 export type FixOutcome = "attempting" | "landed" | "stuck";
 
+/** Which rung of the RED ladder the record is about (issue #5646): the
+ *  headless fixer, the revert of the culprit, or the stop's marker (written
+ *  before its issue, so it emails once). Absent reads `fix`. */
+export type FixRung = "fix" | "revert" | "stop";
+
 export interface FixAttempt {
     /** The RED sha the fixer was asked about. */
     sha: string;
     outcome: FixOutcome;
+    /** Absent: `fix` (records written before the ladder). */
+    rung?: FixRung;
+    /** 1-based attempt of `rung` on this RED episode; absent reads 1. */
+    attempt?: number;
     machine?: string;
     /** ISO time the record was written. */
     at?: string;
@@ -61,9 +74,13 @@ const OUTCOME_OF: Record<string, FixOutcome> = {
 
 const SEP = " · ";
 
-/** `LANDED · machine · PR #N · note`, cut to the 140-character cap. */
+const RUNG_SEGMENT = /^(fix|revert|stop) (\d+)$/;
+
+/** `LANDED · machine · fix 2 · PR #N · note`, cut to the 140-character cap.
+ *  The rung segment is written only when the record names one. */
 export function encodeFixDescription(a: FixAttempt): string {
     const parts = [a.outcome.toUpperCase(), a.machine ?? "-"];
+    if (a.rung !== undefined) parts.push(`${a.rung} ${a.attempt ?? 1}`);
     if (a.pr !== undefined) parts.push(`PR #${a.pr}`);
     if (a.note) parts.push(a.note.replace(/\s+/g, " "));
     const out = parts.join(SEP);
@@ -84,6 +101,12 @@ export function decodeFixStatus(input: {
     const a: FixAttempt = { sha: input.sha, outcome };
     if (machine && machine !== "-") a.machine = machine;
     if (input.createdAt) a.at = input.createdAt;
+    const rung = rest.length > 0 ? RUNG_SEGMENT.exec(rest[0]) : null;
+    if (rung) {
+        a.rung = rung[1] as FixRung;
+        a.attempt = Number(rung[2]);
+        rest.shift();
+    }
     const pr = rest.length > 0 ? /^PR #(\d+)$/.exec(rest[0]) : null;
     if (pr) {
         a.pr = Number(pr[1]);

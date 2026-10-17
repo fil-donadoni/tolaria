@@ -171,7 +171,7 @@ describe("the fix-attempt record — on the pivot", () => {
         ).toBe(140);
     });
 
-    it("github: writes and reads `context=health-fix` on the red sha", () => {
+    it("github: writes and reads `context=health-fix-attempt` on the red sha", () => {
         const statuses: Array<Record<string, string>> = [];
         const run: GhRunner = (args) => {
             if (args.includes("POST")) {

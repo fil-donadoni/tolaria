@@ -122,6 +122,9 @@ export const JOB_SETUP = "./.github/actions/job-setup";
  *  concurrency group (rule `dispatcher-serialised`, issue #5649). */
 export const SERIALISED_DISPATCHERS: ReadonlySet<string> = new Set([
     ".github/workflows/afk-dispatch.yml",
+    // The RED ladder (issue #5646): two runs at once would both read "no
+    // attempt yet" and spawn two fixers, or file the stop's issue twice.
+    ".github/workflows/health-fix.yml",
 ]);
 
 /** `{ group: <non-empty>, cancel-in-progress: false }` — serialises without

@@ -294,8 +294,9 @@ decision). Red landing: `/next-ticket`'s `land-failures.md`.
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
 base tip.** `land` proves the lane, batch health the rest, `release` re-proves
 the exact tip. Failure leaves durable `RED` marker (`bun run health:status`):
-fix-forward FIRST (`bun run health:fix`); never stack work on a red tip, never
-silence a test; "not my test" is no exemption.
+fix-forward FIRST (`bun run health:fix`), the ladder's revert after (ADR 0156);
+never stack work on a red tip, never silence a test; "not my test" is no
+exemption.
 
 ## Rules Implementation Process
 

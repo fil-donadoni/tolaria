@@ -257,6 +257,7 @@ at a time ([§ afk-dispatch](#afk-dispatch)).
 | [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand            | `[self-hosted, lane]`                 | regenerates a stale generated artefact and pushes it                                   |
 | [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)           | `[self-hosted, lane]`                 | the base tip's `health` verdict; a RED's flake check and bisect                        |
 | [`health-early`](#health)                 | push to the base branch, one run at a time                       | GitHub-hosted `ubuntu-24.04`          | the offline gate after a merge batch — its RED only                                    |
+| [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself               | `[self-hosted, pass, host:<machine>]` | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop    |
 
 ### pr-check
 
@@ -556,8 +557,13 @@ dispatch was lost — else this machine's last run, when the store never took
 its RED. Probe worktrees (`tolaria-bisect-<pid>-<n>`) a killed job left are
 removed at the next ladder's start.
 
-The fixer (`/health-fix`, issue #5646) and the revert of the culprit are the
-ladder's next rungs, not this workflow's.
+Its next rungs — the fixer, the revert of the culprit, the stop — are
+[`health-fix`](#health-fix)'s. Each `health` job ends by asking
+`bun run health:fix ladder --dry-run` whether one is owed (`rung=fix`,
+`revert` or `stop`) and, when it is, dispatches `health-fix.yml` to its own
+machine (`host` = its runner's `host:` label, `bun run health:fix host`):
+the machine that reproduced the RED. Asked on every run, so a lost dispatch
+is re-sent by the next one; a rung already in flight reads `wait`.
 
 **What the owner sees.** A RED is a red `health` status on the tip and holds
 the queue: each job re-dispatches [`pr-gate`](#pr-gate) when it ends (the
@@ -591,6 +597,91 @@ Orders that hold:
   store is skipped), so a doubled run costs a runner, not a wrong verdict.
 - **`--ref staging`** names the base by literal, as `post-merge`'s
   `branches:` does.
+
+### health-fix
+
+`.github/workflows/health-fix.yml` is the RED ladder's last three rungs
+(ADR 0156 Amendment I, issue #5646). Each run takes ONE rung, decided by
+`ladderRung` (`scripts/lib/health-ladder.ts`, a pure function with its
+tests in `scripts/__tests__/health-ladder.test.ts`) from facts read off the
+pivot: the standing RED (`lineageBlocks`), its evidence, the
+`health-fix-attempt` records of every RED since the last GREEN (the
+**episode**), the revert PR's state, and an open escalation issue. The job
+runs `bun run health:fix ladder` on a [`pass`](#g-pass) runner of the
+machine `health` named (`host` input; empty = any `pass` runner).
+
+| Rung     | When                                                                                                 | Does                                                                                                               |
+| -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `none`   | no RED stands                                                                                        | nothing                                                                                                            |
+| `wait`   | a fact is unreadable; the tip has no verdict yet; no flake check/bisect yet; an attempt is in flight | nothing — a later dispatch decides                                                                                 |
+| `fix`    | fewer than **2** fixer attempts used in the episode                                                  | `/health-fix <sha> --headless`, killed after **3 h**; its PR is the RED's declared repair                          |
+| `revert` | both attempts stuck, or a second RED after a repair landed (or after an AMBER), and a culprit named  | `scripts/health-revert.ts`: a revert PR of the culprit's commit, queued as the repair; the culprit's issue reopens |
+| `stop`   | the revert does not apply or cannot land, the RED outlives the merged revert, or no culprit is named | one `ready-for-human` issue `RED ladder stopped @ <sha8>`, the run fails                                           |
+| `hold`   | that issue is open, or the stop's marker stands                                                      | nothing, quietly                                                                                                   |
+
+**Bounds.** Two fixer attempts per RED episode, three hours each (the
+job's `timeout-minutes` is 210); an `attempting` record older than 3 h 30
+was killed with its job, and a `landed` one that has not moved the tip in
+8 h, count as used attempts. One revert per episode: a RED that survives
+it, or a revert the queue dequeues (`land-failed`), someone closes, or that
+waits in the queue past 12 h, stops the ladder — never a second revert. A
+revert try that failed for any reason but the revert itself (an API error,
+a refused push) is retried up to three times, reusing its issue and PR. A
+rung that ended without settling the RED (a stuck attempt, a failed try)
+dispatches the next run itself (`Next rung`, `hop` + 1, at most 8 runs per
+chain); a rung that could not even record itself dispatches nothing — the
+next `health` run asks again. A repair in the queue or merged waits for
+health's next verdict, and health's dispatch. Runs are serialised across
+both machines (`concurrency: health-fix`, the structure guard's
+`dispatcher-serialised`), so two never read "no attempt yet" at once. Exit 1
+is the stop alone: a run that fails before its rung (a fetch, an unreadable
+store) logs it and exits 0 — an outage never emails.
+
+**The fixer** is `health:fix --headless`'s session (issue #5589), with the
+ladder's rung and attempt on its pivot record (`fix 2`). An attempt that
+ends stuck closes every open PR closing one of the RED's declared repair
+issues, so the next rung never lands beside a half-done repair. Its transcript goes
+to `~/.cache/tolaria/jobs/<run id>-<attempt>/health-fix-<n>.log` on the
+machine — never the public log ([§ Public logs](#public-logs)). Its flags
+are the repository variable `HEALTH_FIX_CLAUDE_ARGS` (default
+`--dangerously-skip-permissions`, as `loop:afk`'s). Its repair issue is
+recorded on the pivot (`health:cadence repair-issue`), so its PR is the one
+PR [`base-health`](#g-base-health) admits, and `repair-proof` proves it.
+
+**The revert** (owner's decision 2026-10-14, the amendment of CLAUDE.md's
+"fix-forward FIRST": fix-forward stays first) reads the culprit off the
+RED's `- **culprit:**` evidence line. In order: the `revert` rung is
+recorded `attempting`; `git revert` of the culprit on `revert/<sha12>` off
+the base tip, in a throwaway worktree — a conflict (a later PR depends on
+the culprit) records it `stuck` and exits 3, and the next run stops; a
+repair issue is filed and recorded on the pivot; the branch is pushed, the
+PR opened (`Closes #<repair issue>`, `## Preset scenario` none owed, a
+`check:ui` no-walk line) and labelled `ready-to-land`; the culprit PR's
+closing issues reopen with the evidence and `ready-for-agent` (the claim's
+`in-progress`/`pr-open` removed), natively **blocked by** the repair issue
+the revert PR closes — a revert that never lands never sends the culprit's
+issue to a pass. A failed `blocked_by`, reopen or label edit is named in the
+log. A revert of a DOM-reaching PR may still be refused by
+`ui-receipt`: that is a revert that cannot land, so the ladder stops.
+
+**The stop** is the one email: the run that stops writes a `stop` marker
+on the RED's `health-fix-attempt` record, files the escalation issue, and
+fails; every later run finds the marker (or the open issue) and holds — a
+filing that failed still emails once. The RED itself keeps the
+queue held ([`base-health`](#g-base-health)) and the
+[dispatcher](#afk-dispatch) idle (`red`). The issue carries the reason and
+the evidence; close it once health reads GREEN.
+
+By hand, on a machine with the owner's `gh` login:
+
+```bash
+bun run health:fix ladder --dry-run   # the rung the next run would take, nothing acted on
+bun run health:revert --sha <red> --culprit <sha> --dry-run   # does the revert apply?
+```
+
+Orders that hold: the dispatch needs `health-fix.yml` on the default
+branch, like `health`'s schedule; until a release carries it, `health`'s
+dispatch fails (`continue-on-error`) and the ladder ends at the bisect.
 
 ### lane-timing
 
@@ -901,7 +992,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                             |
 | `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                      |
 | `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the dispatcher's job-level group below                                                                                                                |
-| `dispatcher-serialised`        | a job of `afk-dispatch.yml` lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice                                                                                    |
+| `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml` lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, or spawn two fixers                                           |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                           |
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                             |
 | `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                 |
@@ -1122,9 +1213,10 @@ tests. Only its RED reaches the store.
 ### <a id="g-red-ladder"></a>RED ladder
 
 What a RED goes through before it reaches the owner (PRD #5620 story 57):
-the [flake check](#g-flake-check), the [bisect](#g-bisect), the fixer
-(issue #5646), the revert of the culprit, then one email.
-`scripts/health-bisect.ts` is its first two rungs.
+the [flake check](#g-flake-check), the [bisect](#g-bisect), at most two
+fixer attempts, the revert of the culprit, then one email and one
+`ready-for-human` issue. `scripts/health-bisect.ts` is its first two rungs,
+[`health-fix`](#health-fix) the rest.
 
 ### <a id="g-flake-check"></a>Flake check
 

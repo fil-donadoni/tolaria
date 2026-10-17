@@ -24,7 +24,7 @@ closes the class of the failure**, and a verdict file saying which.
 
 1. **Never revert.** RED means fix-forward. No `git revert`, no re-opening a
    merged PR, in any mode. If the repair is not clear the outcome is `stuck`
-   and the marker stays standing.
+   and the marker stays standing. Reverting is the RED ladder's rung.
 2. **Never invoke `bun run release`.** The loop belongs to the caller. A fixer
    that re-entered release would escape the bound on rounds.
 3. **Grill on ambiguity, one question per turn** (headless: `stuck`). Not
