@@ -44,7 +44,7 @@ const CONTENT: PreviewBodyContent = {
     colorName: null,
     ownerName: null,
     attachedToName: null,
-    milestones: null,
+    abilityWordCounters: null,
     isManualGame: false,
 };
 

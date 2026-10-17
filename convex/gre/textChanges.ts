@@ -49,7 +49,7 @@ function assertNever(x: never): never {
 // word ⇄ color-code maps below bridge the two representations a color can take:
 // the *word* inside a string field and the *code* on a structured colorFilter.
 
-const COLOR_WORD_TO_CODE: Record<string, Color> = {
+export const COLOR_WORD_TO_CODE: Record<string, Color> = {
     white: "W",
     blue: "U",
     black: "B",

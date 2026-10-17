@@ -1,6 +1,11 @@
 // mh2 — red cards (ADR 0043 colour split).
 import type { PermanentView, StaticEffectStateView } from "../../types";
-import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    countGraveyardCardTypes,
+    defineCard,
+    DELIRIUM_CARD_TYPES,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { dashTrigger } from "../../abilities/dash";
@@ -305,8 +310,6 @@ export const ragavanNimblePilferer = defineCard(() => ({
 //     `condition` field (issue #1533): a RECOMPUTED kind evaluated at every
 //     `mustAttack` read (`convex/gre/combat.ts`), so a 1/1 that doesn't fly
 //     and is NOT forced to attack while delirium is off.
-const DELIRIUM_CARD_TYPES = 4;
-
 /** "Four or more card types among cards in your graveyard" (CR 207.2c /
  *  CR 205.3). Reads the SOURCE's controller's graveyard through
  *  `StaticEffectStateView` — the same wire-projection-safe shape Barrowgoyf's
@@ -320,11 +323,7 @@ function hasDelirium(
 ): boolean {
     const controller = state.players.find((p) => p.id === source.controllerId);
     if (!controller) return false;
-    const cardTypes = new Set<string>();
-    for (const card of controller.graveyard) {
-        for (const type of card.types) cardTypes.add(type);
-    }
-    return cardTypes.size >= DELIRIUM_CARD_TYPES;
+    return countGraveyardCardTypes(controller.graveyard) >= DELIRIUM_CARD_TYPES;
 }
 
 export const dragonsRageChanneler = defineCard(() => ({

@@ -107,6 +107,7 @@ import type {
 } from "../../cards/types";
 import type { DamageSourceFilter } from "../../cards/filters";
 import {
+    countGraveyardCardTypes,
     isChoiceCountRange,
     legalTargetSlots,
     tallyMostCommonColors,
@@ -1749,13 +1750,7 @@ function countZoneForPlayer(
         : cards;
     // Delirium (CR 702.D): count distinct card types instead of total cards
     // ("there are four or more card types among cards in your graveyard").
-    if (spec.countTypes) {
-        const typeSet = new Set<string>();
-        for (const c of filtered) {
-            for (const t of c.types) typeSet.add(t);
-        }
-        return typeSet.size;
-    }
+    if (spec.countTypes) return countGraveyardCardTypes(filtered);
     return filtered.length;
 }
 

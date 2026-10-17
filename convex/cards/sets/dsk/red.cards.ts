@@ -3,24 +3,22 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard, type TriggerStateView } from "../../types";
+import {
+    countGraveyardCardTypes,
+    defineCard,
+    DELIRIUM_CARD_TYPES,
+    type TriggerStateView,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
-/** Delirium's threshold — "four or more card types among cards in your
- *  graveyard". Delirium is an ability word (CR 207.2c): pure flavour framing,
- *  no rules meaning of its own and no Mechanics Registry row. */
-const DELIRIUM_CARD_TYPES = 4;
-
-/** True when `controllerId`'s graveyard holds four or more distinct card types.
+/** True when `controllerId`'s graveyard holds four or more distinct card types
+ *  (Delirium, a CR 207.2c ability word — no rules meaning of its own).
  *
- *  The DSL twin of this read is the `count` reader's `countTypes: true` branch
- *  (Unholy Heat, `sets/mh2/red.ts`) — but an intervening-if (CR 603.4) is a
- *  TypeScript predicate the engine re-runs at resolution, and no Effect Script
- *  can be one, so this is the catalogue's FIRST TS-side delirium read. Kept
- *  local per the closure-on-card-#1 convention; a second TS-predicate delirium
- *  card is what extracts it into a shared helper.
+ *  An intervening-if (CR 603.4) is a TypeScript predicate the engine re-runs
+ *  at resolution, and no Effect Script can be one; the count itself is the
+ *  shared `countGraveyardCardTypes` the DSL's `countTypes: true` branch uses.
  *
  *  FAIL-CLOSED: a view carrying no graveyard for this player reads zero
  *  distinct types, so a missing field can only fail to fire the ability, never
@@ -29,11 +27,7 @@ const DELIRIUM_CARD_TYPES = 4;
 function hasDelirium(controllerId: string, state?: TriggerStateView): boolean {
     const player = state?.players.find((p) => p.id === controllerId);
     if (!player?.graveyard) return false;
-    const cardTypes = new Set<string>();
-    for (const card of player.graveyard) {
-        for (const type of card.types) cardTypes.add(type);
-    }
-    return cardTypes.size >= DELIRIUM_CARD_TYPES;
+    return countGraveyardCardTypes(player.graveyard) >= DELIRIUM_CARD_TYPES;
 }
 
 // Fear of Missing Out — {1}{R} Enchantment Creature — Nightmare, 2/3.

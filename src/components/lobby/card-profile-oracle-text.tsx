@@ -14,8 +14,8 @@ import CardPreviewAbilities from "~/components/cards/card-preview-abilities";
  *  the card preview panel already uses, reusing its components rather than
  *  re-rendering rules text a second way.
  *
- *  `milestones` is deliberately `null`: the in-game graveyard progress chips
- *  (Delirium/Threshold counts) need a live game, and there is none here. */
+ *  `counters` is deliberately `null`: the in-game ability-word count chips
+ *  (Domain, Delirium, …) need a live game, and there is none here. */
 export default function CardProfileOracleText({ cardId }: { cardId: string }) {
     const def = tryGetDefinition(cardId);
     const printed = def?.oracleText;
@@ -28,7 +28,7 @@ export default function CardProfileOracleText({ cardId }: { cardId: string }) {
                     .filter((line) => line.trim() !== "")
                     .map((line, index) => (
                         <p key={index}>
-                            <OracleParagraph text={line} milestones={null} />
+                            <OracleParagraph text={line} counters={null} />
                         </p>
                     ))}
             </div>
