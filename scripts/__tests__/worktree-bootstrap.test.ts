@@ -592,7 +592,11 @@ describe("copies from the primary checkout (issue #5786)", () => {
     });
 
     it("keeps `convex/_generated` required in CI", () => {
-        fs.rmSync(path.join(primary, "convex"), { recursive: true });
+        fs.rmSync(path.join(primary, "convex"), {
+            recursive: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
 
         const r = copyFromPrimary({ primary, cwd, ci: true });
 
