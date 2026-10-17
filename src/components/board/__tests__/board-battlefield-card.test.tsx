@@ -759,6 +759,17 @@ describe("BoardBattlefieldCard exile-held pile is inert to the host (issue #5515
         });
     }
 
+    it("mounts the pile OUTSIDE the host's interactive box", () => {
+        const { container } = renderHostWithHeldPile({ withAbilities: true });
+        const [sliver] = screen.getAllByRole("button", {
+            name: "2 attached — open pile",
+        });
+        expect(sliver.closest("[data-arrow-anchor-permanent]")).toBeNull();
+        expect(
+            container.querySelector('[data-arrow-anchor-permanent="host"]')
+        ).toBeTruthy();
+    });
+
     it("the ×N badge opens the pile and fires nothing on the host", () => {
         const { onClick } = renderHostWithHeldPile({ withAbilities: true });
         const badge = screen.getByText("×2");

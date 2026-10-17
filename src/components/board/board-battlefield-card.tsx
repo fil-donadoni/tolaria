@@ -557,19 +557,35 @@ export default function BoardBattlefieldCard({
     // the rotated art on a tapped Ice Cauldron / Banishing Light. See
     // `board-battlefield-card.test.tsx`'s "peek-stack placement" and "issue
     // #5515" describe blocks for the regression guards.
+    //
+    // Being a sibling, the cluster no longer inherits the host box's combat
+    // lift or phased / unlit dimming — its own layer re-applies the same
+    // values so the pile still moves and dims with its host.
     return (
         <div className="relative w-full h-full">
-            <AttachedCardsCluster
-                cards={associatedExiled}
-                renderMember={(exiled) => <CardImage card={exiled} />}
-                interactiveMembers={false}
-                pileTitle="Held in exile"
-                renderPileAction={(exiled, onClose) =>
-                    exiled.castableFromExileBy === playerId ? (
-                        <ExileCastButton card={exiled} onCommitted={onClose} />
-                    ) : null
-                }
-            />
+            <div
+                className={`absolute inset-0 ${combatOffsetClassName} transition duration-250`}
+                style={{
+                    translate: compactLiftTranslate,
+                    opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
+                    filter: phased ? "grayscale(0.85)" : undefined,
+                }}
+            >
+                <AttachedCardsCluster
+                    cards={associatedExiled}
+                    renderMember={(exiled) => <CardImage card={exiled} />}
+                    interactiveMembers={false}
+                    pileTitle="Held in exile"
+                    renderPileAction={(exiled, onClose) =>
+                        exiled.castableFromExileBy === playerId ? (
+                            <ExileCastButton
+                                card={exiled}
+                                onCommitted={onClose}
+                            />
+                        ) : null
+                    }
+                />
+            </div>
             {/* Host paints above the peek-stack (which is z-0). */}
             <div className="relative z-10 w-full h-full">{host}</div>
         </div>
