@@ -22,6 +22,7 @@ const HOTKEYS: HotkeyRow[] = [
         keys: [<CornerDownLeft className="w-3.5 h-3.5" aria-label="Enter" />],
         label: "Pass turn",
     },
+    { keys: ["P"], label: "Pass until opponent acts" },
     { keys: ["U"], label: "Undo / cancel cast" },
     { keys: [modKey, "click"], label: "Keep priority after casting" },
     { keys: ["Esc"], label: "Concede" },

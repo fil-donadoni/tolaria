@@ -1334,6 +1334,8 @@ export function buildStateFromScenario(
     state.autoPassPlayers = undefined;
     state.singleShotAutoPass = undefined;
     state.queuedEndTurn = undefined;
+    state.passUntilAction = undefined;
+    state.queuedPassUntilAction = undefined;
 
     // Pin the PRNG so the next random draw is deterministic (CR 705 /
     // ADR 0023) — e.g. force a Bottle of Suleiman coin flip to WIN/LOSE.
@@ -4241,6 +4243,8 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "autoPassPlayers",
     "singleShotAutoPass",
     "queuedEndTurn",
+    "passUntilAction",
+    "queuedPassUntilAction",
     // Rebuild bookkeeping — internal id/seq allocators and derived caches
     // `buildStateFromScenario`/`saveGameState` always regenerate fresh from
     // the rebuilt board; their absolute value on the LIVE state carries no
@@ -5269,7 +5273,9 @@ export function specFromState(
         (state.extraTurns && state.extraTurns.length > 0) ||
         (state.autoPassPlayers && state.autoPassPlayers.length > 0) ||
         state.singleShotAutoPass ||
-        (state.queuedEndTurn && state.queuedEndTurn.length > 0)
+        (state.queuedEndTurn && state.queuedEndTurn.length > 0) ||
+        (state.passUntilAction && state.passUntilAction.length > 0) ||
+        (state.queuedPassUntilAction && state.queuedPassUntilAction.length > 0)
     ) {
         dropped.push(
             `turn-scheduling state (extra turns / auto-pass intents) — not lowered`

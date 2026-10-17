@@ -66,6 +66,12 @@ import { resetControlContinuity } from "./controlContinuity";
 import { effectivePermanentView } from "./permanentView";
 import { advanceSagasAtPrecombatMain } from "./sagas";
 import { seededShuffle } from "./rng";
+import {
+    consumePassUntilActionStop,
+    isPassingUntilAction,
+    promoteQueuedPassUntilAction,
+    prunePassUntilActionBaselines,
+} from "./passUntilAction";
 import { describeDamageSource } from "./replacements";
 import {
     beginLayer7Pass,
@@ -3568,6 +3574,7 @@ function advanceTurn(state: GameState): void {
     const newActive = getPlayer(state, state.activePlayerId);
     newActive.turnsTaken = (newActive.turnsTaken ?? 0) + 1;
     state.autoPassPlayers = undefined;
+    state.passUntilAction = undefined;
     state.singleShotAutoPass = undefined;
     // CR 500.8 — an extra phase is added to the turn it was created in, so an
     // entry unconsumed when that turn ends is dead: discard the whole queue at
@@ -4060,6 +4067,11 @@ export function drainAutoPasses(state: GameState): void {
             );
             state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
         }
+        // Same promotion for a queued Pass Until Action (issue #5782); its
+        // press-time stack baseline travels with it, pruned first to the
+        // baseline objects still on the stack (stack ids are reused).
+        prunePassUntilActionBaselines(state);
+        promoteQueuedPassUntilAction(state, state.priorityPlayerId);
 
         // ADR 0047 (issue #3229 review) — a player who OWES INPUT is not a
         // player who can pass. The two guards further down catch a choice/target
@@ -4091,9 +4103,33 @@ export function drainAutoPasses(state: GameState): void {
             (state.pendingChoices?.length ?? 0) > 0;
         if (owesInput) return;
 
+        // Pass Until Action stop (issue #5782): priority has reached a seat
+        // whose soft pass was waiting for the opponent to act, and a new
+        // opponent-controlled object (CR 113.8 — a spell, an activated
+        // ability, or a trigger the opponent controls) is on the stack. The
+        // intent is consumed and the seat keeps priority: a real response
+        // window, nothing resolved or confirmed on its behalf.
+        if (consumePassUntilActionStop(state, state.priorityPlayerId)) {
+            if (
+                !(state.autoPassPlayers ?? []).includes(state.priorityPlayerId)
+            ) {
+                // A single-shot pass parked for this seat must not outlive
+                // the window it stopped in, or it would pass for them unasked
+                // the next time priority lands on them.
+                if (state.singleShotAutoPass === state.priorityPlayerId)
+                    state.singleShotAutoPass = undefined;
+                break;
+            }
+        }
+
         const autoPass = state.autoPassPlayers ?? [];
         const singleShot = state.singleShotAutoPass === state.priorityPlayerId;
-        if (!autoPass.includes(state.priorityPlayerId) && !singleShot) break;
+        if (
+            !autoPass.includes(state.priorityPlayerId) &&
+            !isPassingUntilAction(state, state.priorityPlayerId) &&
+            !singleShot
+        )
+            break;
         if (singleShot) state.singleShotAutoPass = undefined;
 
         // Auto-confirm attackers with current selection when auto-passing

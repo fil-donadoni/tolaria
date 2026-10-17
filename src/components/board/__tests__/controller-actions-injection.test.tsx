@@ -64,6 +64,8 @@ function stubState(): ControllerState {
         ],
         isAutoPass: false,
         isQueuedEndTurn: false,
+        isPassUntilAction: false,
+        isQueuedPassUntilAction: false,
         attackAllConfirm: {
             open: false,
             eligibleCount: 0,

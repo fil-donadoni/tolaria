@@ -1,4 +1,4 @@
-import { FastForward } from "lucide-react";
+import { FastForward, Hand } from "lucide-react";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
 import {
     CONTROLLER_PRIMARY_TONE,
@@ -38,7 +38,7 @@ export default function ControllerStripCommandStack({
 }: {
     slots: ControllerCommandSlots;
 }) {
-    const { primary, statusPill, secondary, passTurn } = slots;
+    const { primary, statusPill, secondary, passTurn, passUntilAction } = slots;
 
     return (
         <div
@@ -110,6 +110,19 @@ export default function ControllerStripCommandStack({
             >
                 <FastForward className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Pass Turn
+            </button>
+
+            {/* Pass Until Action (issue #5782): Pass Turn's soft sibling, same
+                quiet edge, always mounted so the stack never reflows. */}
+            <button
+                type="button"
+                aria-label="Pass Until Action"
+                onClick={passUntilAction?.onClick}
+                disabled={!passUntilAction || passUntilAction.disabled}
+                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border border-border-strong bg-surface-base/85 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text disabled:opacity-40"
+            >
+                <Hand className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Until Action
             </button>
         </div>
     );

@@ -687,6 +687,7 @@ export type {
     PendingCast,
     PendingChoice,
     PendingChoiceKind,
+    PassUntilActionIntent,
     PendingTarget,
     RevealNotification,
 } from "@convex/gre/state";

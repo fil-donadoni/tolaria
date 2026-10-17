@@ -7,6 +7,9 @@ import type { ControllerAction } from "~/hooks/useControllerActions";
 export type ControllerActionSplit = {
     pass: ControllerAction | undefined;
     passTurn: ControllerAction | undefined;
+    /** Pass Until Action (issue #5782): rendered beside Pass Turn, never in
+     *  the centre slot — it is a standing pass, not the step's call to action. */
+    passUntilAction: ControllerAction | undefined;
     /** Everything else, in the engine's display order. */
     contextual: ControllerAction[];
 };
@@ -25,8 +28,11 @@ export function splitControllerActions(
     const passTurn = actions.find(
         (a) => a.key === "pass-turn" || a.key.startsWith("pass-turn-")
     );
-    const contextual = actions.filter((a) => a !== pass && a !== passTurn);
-    return { pass, passTurn, contextual };
+    const passUntilAction = actions.find((a) => a.key === "pass-until-action");
+    const contextual = actions.filter(
+        (a) => a !== pass && a !== passTurn && a !== passUntilAction
+    );
+    return { pass, passTurn, passUntilAction, contextual };
 }
 
 /** The command row's fixed slots (variant D, #1759). Exactly ONE morphing

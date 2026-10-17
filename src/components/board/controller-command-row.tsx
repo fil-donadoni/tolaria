@@ -1,4 +1,4 @@
-import { FastForward } from "lucide-react";
+import { FastForward, Hand } from "lucide-react";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
 import {
     CONTROLLER_PRIMARY_TONE,
@@ -53,7 +53,7 @@ export default function ControllerCommandRow({
 }: {
     slots: ControllerCommandSlots;
 }) {
-    const { primary, statusPill, secondary, passTurn } = slots;
+    const { primary, statusPill, secondary, passTurn, passUntilAction } = slots;
 
     return (
         <div
@@ -124,6 +124,19 @@ export default function ControllerCommandRow({
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
                 >
                     <FastForward className="h-4 w-4" aria-hidden />
+                </button>
+
+                {/* Pass Until Action (issue #5782): Pass Turn's soft sibling,
+                    same geometry, always mounted so the row never reflows. */}
+                <button
+                    type="button"
+                    aria-label="Pass Until Action"
+                    title="Pass Until Action [P]"
+                    onClick={passUntilAction?.onClick}
+                    disabled={!passUntilAction || passUntilAction.disabled}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
+                >
+                    <Hand className="h-4 w-4" aria-hidden />
                 </button>
             </div>
         </div>

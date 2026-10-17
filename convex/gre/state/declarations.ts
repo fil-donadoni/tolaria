@@ -4013,6 +4013,14 @@ export interface AttackManaTaxPayment {
  *  reshape. */
 export type ExtraPhase = { kind: "combat" };
 
+/** One seat's "Pass Until Action" intent (issue #5782). `ignoredStackIds` is
+ *  the stack as it stood when the intent was ARMED (pressed): those objects
+ *  never stop the pass — only a new opponent-controlled object does. */
+export type PassUntilActionIntent = {
+    playerId: string;
+    ignoredStackIds: string[];
+};
+
 /** CR 707.2 — the copiable values of a permanent that has LEFT the
  *  battlefield, as `GameState.lastKnownCopiable` holds them (ADR 0086).
  *
@@ -4187,6 +4195,18 @@ export type GameState = {
      *  `autoPassPlayers` it survives the turn boundary so an intent that never
      *  got a priority window still fires on the player's next priority. */
     queuedEndTurn?: string[];
+    /** Armed "Pass Until Action" intents (issue #5782). While armed,
+     *  `drainAutoPasses` passes for the player exactly like Pass Turn, until
+     *  priority reaches them with a NEW opponent-controlled object on the stack
+     *  (a spell, an activated ability, or a triggered ability — its controller
+     *  per CR 113.8; a mana ability never uses the stack, CR 605.3b); the
+     *  drain then stops, the player holds priority, and the intent is
+     *  consumed. Cleared at turn advance. */
+    passUntilAction?: PassUntilActionIntent[];
+    /** "Pass Until Action" pressed while NOT holding priority: promoted into
+     *  `passUntilAction` the moment priority next lands on the player. Like
+     *  `queuedEndTurn` it survives the turn boundary. */
+    queuedPassUntilAction?: PassUntilActionIntent[];
     /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
     combat?: {
         attackerIds: string[];

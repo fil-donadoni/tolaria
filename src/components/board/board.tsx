@@ -365,6 +365,8 @@ export default function Board({
     );
     const autoPassPlayers = state.autoPassPlayers;
     const queuedEndTurn = state.queuedEndTurn;
+    const passUntilAction = state.passUntilAction;
+    const queuedPassUntilAction = state.queuedPassUntilAction;
     const combat = state.combat;
     const meleeCombat = state.meleeCombat;
     // CR 514.3a (issue #2472) — the cleanup step's one priority window. Read
@@ -434,6 +436,8 @@ export default function Board({
                 pendingTriggerBatch: state.pendingTriggerBatch,
                 autoPassPlayers,
                 queuedEndTurn,
+                passUntilAction,
+                queuedPassUntilAction,
                 combat,
                 meleeCombat,
                 pendingExtraCleanupStep,
