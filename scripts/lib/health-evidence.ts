@@ -294,3 +294,23 @@ export function evidenceSummary(body: string): string {
         .join("\n")
         .trim();
 }
+
+/** The failing files a published body names (its `- **files:**` line) — what
+ *  the RED ladder re-runs (`lib/health-bisect.ts`, issue #5645). The commit
+ *  status's description may have had no room for them; the body always has. */
+export function evidenceFiles(body: string): string[] {
+    const line = body.split("\n").find((l) => l.startsWith("- **files:** "));
+    if (line === undefined) return [];
+    return [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+}
+
+/** `body` with one more bullet in its header (the bisect's culprit line),
+ *  where `evidenceSummary` — and so `health:status` — prints it. Idempotent
+ *  per line: a re-run's same culprit is not added twice. */
+export function withEvidenceLine(body: string, line: string): string {
+    if (body.split("\n").includes(line)) return body;
+    const at = body.indexOf("\n\n### ");
+    return at === -1
+        ? `${body.trimEnd()}\n${line}\n`
+        : `${body.slice(0, at)}\n${line}${body.slice(at)}`;
+}

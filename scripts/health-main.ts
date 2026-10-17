@@ -74,6 +74,15 @@
  * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
  * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
+ * JOB RUNS (issue #5645, `lib/health-verdict-job.ts`). `--scheduled` is
+ * `health.yml`'s two-hourly run on a `lane` runner, from the job's worktree
+ * of the primary checkout (the one linked worktree health accepts); it
+ * re-gates an INFRA only with `--retry-infra` and never a tip the store holds
+ * a RED for. `--early` is `health-early.yml`'s run on a GitHub-hosted runner
+ * after a batch of merges: the same offline gate minus the committed-corpus
+ * tests, so only its RED reaches the store. A RED of either goes through the
+ * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
+ *
  * The MACHINE is asked before the gates start (issue #4966,
  * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
  * bounded, then ends `infra` at `preflight:machine` — and a suite step whose
@@ -183,7 +192,15 @@ import {
     readDurations,
     RUN_FILE,
 } from "./lib/test-headroom";
-import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
+import { corpusExcluded, refuseCorpusExclusion } from "./lib/corpus-exclusion";
+import {
+    earlyRunRefusal,
+    healthRunMode,
+    inJobWorktree,
+    storesVerdict,
+    unattendedSkip,
+    type HealthRunMode,
+} from "./lib/health-verdict-job";
 
 const HEALTH_DIR = ".claude/telemetry/health";
 const STALE_RUNNING_MS = 90 * 60 * 1000;
@@ -508,6 +525,9 @@ interface RunCtx {
     /** The projects the offline `test` step re-ran once (issue #5461), and
      *  what their first failure was (issue #5484). */
     retry?: RetryFields;
+    /** A job run (`lib/health-verdict-job.ts`, issue #5645): `early` writes
+     *  only its RED to the store. Absent: `default`. */
+    mode?: HealthRunMode;
 }
 
 /** The retry half of a record (issues #5461, #5484). */
@@ -573,6 +593,12 @@ function publishVerdict(
     ctx: RunCtx,
     verdict: Omit<Verdict, "machine" | "at">
 ): void {
+    if (!storesVerdict(ctx.mode ?? "default", verdict.status as HealthStatus)) {
+        console.log(
+            `health-main: early run — ${String(verdict.status).toUpperCase()} stays in this runner's record, never the store (it skipped the corpus tests)`
+        );
+        return;
+    }
     try {
         const out = verdictStore(ctx.root, { branch: ctx.branch }).write({
             ...verdict,
@@ -772,11 +798,13 @@ function finishGreen(ctx: RunCtx, ui: UiWalkState, retry?: RetryFields): void {
         ...(note ? { step: note } : {}),
         log: ctx.logPath,
     });
-    // The health gate IS the authoritative green record now (ADR 0110).
-    writeFileSync(
-        join(ctx.root, ".claude/telemetry/green-sha"),
-        `${ctx.tip}\n`
-    );
+    // The health gate IS the authoritative green record now (ADR 0110) —
+    // an early run's GREEN is none (it skipped the corpus tests).
+    if (ctx.mode !== "early")
+        writeFileSync(
+            join(ctx.root, ".claude/telemetry/green-sha"),
+            `${ctx.tip}\n`
+        );
     console.log(
         `health-main: GREEN @ ${ctx.tip.slice(0, 8)}${note ? ` (${note} — ${retry?.retryCause === "timeout" ? "a near-miss" : "a flake"}, see ${ctx.logPath})` : ""}`
     );
@@ -965,8 +993,17 @@ async function walkPhase(root: string, dir: string): Promise<void> {
 
 async function main(): Promise<void> {
     // A gating run never skips the committed-corpus tests (issue #5675) —
-    // refused before the lease; `--status` only reads.
-    if (!process.argv.includes("--status")) refuseCorpusExclusion("health");
+    // refused before the lease; `--status` only reads. The one exception is
+    // the hosted early run (issue #5645), which writes no GREEN.
+    const mode = healthRunMode(process.argv);
+    if (mode === "early") {
+        const refusal = earlyRunRefusal(process.env, corpusExcluded());
+        if (refusal !== null) {
+            console.error(`health-main: ${refusal}`);
+            process.exit(2);
+        }
+    } else if (!process.argv.includes("--status"))
+        refuseCorpusExclusion("health");
     // Every step runs synchronously, which blocks the renewal timer for the
     // whole step: the lease lives by its anchor, the TTL only bounds a hang
     // (issue #5470).
@@ -986,7 +1023,9 @@ async function main(): Promise<void> {
     const primary = primaryCheckout(cwd);
     const root = primary ?? cwd;
 
-    if (primary !== null) {
+    // A self-hosted job's worktree of the primary is the job itself (issue
+    // #5645): the records still go to the primary (`root`).
+    if (primary !== null && !inJobWorktree(cwd, process.env)) {
         console.error(
             "health-main: run from the primary checkout (release runs it there)"
         );
@@ -1013,7 +1052,8 @@ async function main(): Promise<void> {
     const last = readLast(dir);
     // `release` and an explicit `--ui-all` walk in full; nothing else walks
     // (issue #5378).
-    const forceAll = process.argv.includes("--ui-all");
+    // An early run never walks: a hosted runner has no deployment.
+    const forceAll = process.argv.includes("--ui-all") && mode !== "early";
     // A tip batch health already proved without a full walk (skipped, or
     // scoped before issue #5378) owes it: the offline half stands, only the
     // walk runs.
@@ -1049,14 +1089,20 @@ async function main(): Promise<void> {
     // tip unproven until the next landing.
     const retryInfra =
         process.argv.includes("--retry-infra") && last?.status === "infra";
-    const skip = gateSkipReason({
-        last,
-        tip,
-        stored: readStoredVerdict(root, tip),
-        now: Date.now(),
-        retryTerminal: !underLock || retryInfra,
-        staleMs: STALE_RUNNING_MS,
-    });
+    const stored = readStoredVerdict(root, tip);
+    // A job run is unattended (issue #5645): like the cadence's waiter it
+    // re-gates an INFRA only on `--retry-infra`, and never a stored RED.
+    const skip =
+        unattendedSkip(mode, tip, stored) ??
+        gateSkipReason({
+            last,
+            tip,
+            stored,
+            now: Date.now(),
+            retryTerminal:
+                mode === "default" ? !underLock || retryInfra : retryInfra,
+            staleMs: STALE_RUNNING_MS,
+        });
     if (skip !== null) {
         console.log(`health-main: ${skip}`);
         return;
@@ -1072,6 +1118,7 @@ async function main(): Promise<void> {
         logPath: join(dir, `${tip.slice(0, 12)}.log`),
         // Read before this run's `running` record overwrote it.
         previous: last,
+        mode,
     };
 
     writeLast(dir, {
@@ -1081,8 +1128,9 @@ async function main(): Promise<void> {
         branch,
         prior: priorOf(last),
     });
-    // The other machine's cadence reads this, not `last.json` (issue #5593).
-    publishRunMarker(root, tip);
+    // The other machine's cadence reads this, not `last.json` (issue #5593)
+    // — never for an early run, which proves no GREEN the cadence could wait on.
+    if (mode !== "early") publishRunMarker(root, tip);
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
     const logPath = ctx.logPath;

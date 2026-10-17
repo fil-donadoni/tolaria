@@ -1,0 +1,110 @@
+# health — batch health on the owner's machines (ADR 0156 Amendment I,
+# issue #5645): every two hours `health-main` gates the base tip on a `lane`
+# runner (`--scheduled`: the offline gate, one re-run of a failed vitest
+# project, INFRA classification, the evidence), and writes the verdict as the
+# `health` commit status. A RED goes up the ladder in the same job: a fresh
+# run of its failing files at the same sha — not reproduced, the RED closes
+# as GREEN and the flaky test is filed; reproduced, the bisect names the
+# culprit PR in the evidence (scripts/health-bisect.ts).
+#
+# `job: ladder` is the same ladder for a RED someone else found:
+# health-early.yml (a GitHub-hosted run after a batch of merges) dispatches
+# it with the RED's sha. Every job re-dispatches `pr-gate` when it is done, so
+# the queue's `base-health` follows the verdict. A RED left standing fails the
+# job: GitHub's failed-run email is the owner's notice.
+#
+# A schedule fires from the DEFAULT branch only, and a dispatch needs the file
+# there too: both start once a release carries this file (as post-merge's
+# schedules). `--ref staging` names the base by literal for the same reason
+# as post-merge's `branches:` (docs/guides/github-pipeline.md § health).
+name: health
+
+on:
+    schedule:
+        - cron: "50 */2 * * *"
+    workflow_dispatch:
+        inputs:
+            job:
+                description: "gate = health on the base tip; ladder = flake check + bisect of the RED at `sha`"
+                type: choice
+                options: [gate, ladder]
+                default: gate
+            sha:
+                description: "ladder only: the RED's full sha"
+                required: false
+                default: ""
+
+permissions:
+    contents: read
+
+jobs:
+    gate:
+        name: health (base tip)
+        if: ${{ github.event_name == 'schedule' || inputs.job == 'gate' }}
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 300
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: health-main (offline gate)
+              id: health
+              continue-on-error: true
+              run: bun run health --scheduled --retry-infra
+            - name: RED ladder (flake check, bisect)
+              id: ladder
+              if: ${{ steps.health.outcome == 'failure' }}
+              continue-on-error: true
+              run: bun run health:bisect ladder
+            - name: Re-gate the queue
+              if: always()
+              continue-on-error: true
+              run: gh workflow run pr-gate.yml --ref staging
+            - name: Verdict
+              if: ${{ steps.health.outcome == 'failure' && steps.ladder.outcome != 'success' }}
+              run: |
+                  echo "::error::health is RED or INFRA on the base tip — bun run health:status"
+                  exit 1
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    ladder:
+        name: RED ladder (${{ inputs.sha }})
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'ladder' }}
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 180
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: RED ladder (flake check, bisect)
+              id: ladder
+              continue-on-error: true
+              env:
+                  SHA: ${{ inputs.sha }}
+              run: bun run health:bisect ladder --sha "$SHA"
+            - name: Re-gate the queue
+              if: always()
+              continue-on-error: true
+              run: gh workflow run pr-gate.yml --ref staging
+            - name: Verdict
+              if: ${{ steps.ladder.outcome != 'success' }}
+              run: |
+                  echo "::error::the RED stands — bun run health:status --evidence"
+                  exit 1
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
