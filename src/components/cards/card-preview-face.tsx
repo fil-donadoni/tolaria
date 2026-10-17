@@ -67,7 +67,7 @@ export default function CardPreviewFace({
     isToken,
     attachedToName,
     skipNextUntap,
-    milestones,
+    abilityWordCounters,
     engineView,
     engineTree,
     engineReportGameId,
@@ -194,7 +194,7 @@ export default function CardPreviewFace({
                             <div key={`oracle-${i}`}>
                                 <OracleParagraph
                                     text={p}
-                                    milestones={milestones}
+                                    counters={abilityWordCounters}
                                 />
                             </div>
                         ))}
@@ -234,10 +234,7 @@ export default function CardPreviewFace({
                             </div>
                             {insetHalf.oracleParagraphs.map((p, i) => (
                                 <div key={`inset-oracle-${i}`}>
-                                    <OracleParagraph
-                                        text={p}
-                                        milestones={null}
-                                    />
+                                    <OracleParagraph text={p} counters={null} />
                                 </div>
                             ))}
                         </div>

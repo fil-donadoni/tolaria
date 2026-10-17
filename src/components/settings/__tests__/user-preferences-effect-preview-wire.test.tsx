@@ -60,7 +60,7 @@ const CONTENT: PreviewBodyContent = {
     colorName: "Red",
     ownerName: null,
     attachedToName: null,
-    milestones: null,
+    abilityWordCounters: null,
     isManualGame: false,
 };
 

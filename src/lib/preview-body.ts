@@ -33,10 +33,9 @@ import { getEffectiveColorDisplay } from "~/lib/color-override";
 import { getCounterDisplays, type CounterDisplay } from "~/lib/counters";
 import { attachmentHostName } from "~/lib/attachment";
 import {
-    computeGraveyardMilestones,
-    hasMilestoneWord,
-    type Milestone,
-} from "~/lib/graveyard-milestones";
+    computeAbilityWordCounters,
+    type AbilityWordCounter,
+} from "~/lib/ability-word-counters";
 import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Player } from "~/types/game";
 import type {
@@ -202,11 +201,11 @@ export type PreviewBodyContent = {
      *  designations) — that face states the COPIED card's identity, which is
      *  not itself a token. */
     isToken?: boolean;
-    /** Live graveyard-progress lookup for the controller of this card, keyed by
-     *  ability word (delirium / threshold — see graveyard-milestones.ts). Non-
-     *  null only in-game for a card whose oracle text carries such a word; the
-     *  preview splices a progress chip next to the word. */
-    milestones: Map<string, Milestone> | null;
+    /** Live count-based ability-word counters for the controller of this
+     *  card, keyed by the matched oracle text (see ability-word-counters.ts).
+     *  Non-null only in-game for a card whose oracle text names an active
+     *  row; the preview splices a count chip next to the word. */
+    abilityWordCounters: Map<string, AbilityWordCounter> | null;
     /** True only in a Manual Game (ADR 0080, issue #2346) — forwarded from
      *  `gameCtx.isManualGame`. A manual card is a bare `card: { id }` with no
      *  hydrated `CardDefinition`, so every computed field above (oracle text,
@@ -509,17 +508,19 @@ export function buildPreviewBody(
         ? getCounterDisplays(cardInstance)
         : [];
 
-    // Live delirium/threshold progress (CR 702.D / 702.T) for the controller of
-    // this card. Only in-game (needs a graveyard) and only for cards whose
-    // oracle text carries the ability word — the preview reads the CONTROLLER's
-    // graveyard so the conditional clause's on/off state is shown from the
-    // perspective of whoever would resolve it. The ORIGINAL face of a copy has
-    // no instance/context and thus no chips.
-    const milestones =
+    // Live ability-word counts (Domain, Devotion, Delirium, …; CR 207.2c) for
+    // the controller of this card. Only in-game and only for cards whose
+    // oracle text names an active counter row — the preview reads the
+    // CONTROLLER's board so the conditional clause's on/off state is shown
+    // from the perspective of whoever would resolve it. The ORIGINAL face of a
+    // copy has no instance/context and thus no chips.
+    const abilityWordCounters =
         oracleParagraphs && cardInstance && gameCtx
-            ? oracleParagraphs.some(hasMilestoneWord)
-                ? milestonesForController(cardInstance, gameCtx)
-                : null
+            ? abilityWordCountersForController(
+                  oracleParagraphs,
+                  cardInstance,
+                  gameCtx
+              )
             : null;
 
     return {
@@ -554,7 +555,7 @@ export function buildPreviewBody(
                 : null,
         skipNextUntap: !!cardInstance?.skipNextUntap,
         isToken: cardInstance?.isToken === true,
-        milestones,
+        abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,
         insetHalf: buildInsetHalf(defId),
         backFaceHalf: buildBackFaceHalf(defId),
@@ -623,7 +624,7 @@ export function buildFaceDownPreviewBody(
         printedImageId: null,
         manaCost: null,
         oracleParagraphs: null,
-        milestones: null,
+        abilityWordCounters: null,
         // The Engine View badge is a claim about how the engine reads a card's
         // effect; the sentinel's is not the hidden card's, so say nothing. The
         // TREE would leak strictly more (issue #2704): the hidden card's whole
@@ -691,7 +692,7 @@ export function buildEmblemPreviewBody(
         counterDisplays: [],
         colorName: null,
         ownerName: null,
-        milestones: null,
+        abilityWordCounters: null,
         // Emblems are GRE-only (CR 114 command zone) — a Manual Game has no
         // GRE state to emit one from, so this is never true in practice; kept
         // explicit rather than defaulted so the field's meaning stays uniform
@@ -735,7 +736,7 @@ export function buildDesignationPreviewBody(designation: {
         counterDisplays: [],
         colorName: null,
         ownerName: null,
-        milestones: null,
+        abilityWordCounters: null,
         // Designations (Monarch, City's Blessing) are GRE-only status the
         // Manual Board never tracks — see buildEmblemPreviewBody above.
         isManualGame: false,
@@ -866,17 +867,21 @@ function resolveChosenName(
     return paragraphs;
 }
 
-/** Graveyard milestones (delirium/threshold) read from the CONTROLLER's
- *  graveyard — falling back to owner, then the viewer, so a card in hand (no
- *  distinct controller yet) still reports its holder's progress. */
-function milestonesForController(
+/** Ability-word counters read for the card's CONTROLLER — falling back to
+ *  owner, then the viewer, so a card in hand (no distinct controller yet)
+ *  still reports its holder's count. */
+function abilityWordCountersForController(
+    paragraphs: string[],
     cardInstance: CardInstance,
     gameCtx: PreviewGameCtx
-): Map<string, Milestone> | null {
+): Map<string, AbilityWordCounter> | null {
     const perspectiveId =
         cardInstance.controllerId ?? cardInstance.ownerId ?? gameCtx.playerId;
-    const graveyard = gameCtx.allPlayers.find(
-        (p) => p.id === perspectiveId
-    )?.graveyard;
-    return graveyard ? computeGraveyardMilestones(graveyard) : null;
+    return computeAbilityWordCounters(
+        paragraphs,
+        gameCtx.allPlayers,
+        perspectiveId,
+        gameCtx.emblems,
+        gameCtx.continuousEffects
+    );
 }

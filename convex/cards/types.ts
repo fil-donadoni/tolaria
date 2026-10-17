@@ -10483,16 +10483,58 @@ export function hasMetalcraft(
     state: TriggerStateView,
     controllerId: string
 ): boolean {
+    return (
+        countArtifactsControlled(state, controllerId) >= METALCRAFT_ARTIFACTS
+    );
+}
+
+/** Metalcraft's threshold — "three or more artifacts" (CR 207.2c ability
+ *  word, no rules meaning of its own). */
+export const METALCRAFT_ARTIFACTS = 3;
+
+/** The artifact count behind `hasMetalcraft`, exposed so the card preview's
+ *  live ability-word counter (issue #5491) reads the SAME number the engine
+ *  gates on rather than re-deriving it. Structural minimum of both
+ *  `TriggerStateView` and `StaticEffectStateView`, so either view feeds it. */
+export function countArtifactsControlled(
+    state: {
+        players: ReadonlyArray<{
+            battlefield: ReadonlyArray<{
+                controllerId: string;
+                types: ReadonlyArray<string>;
+            }>;
+        }>;
+    },
+    controllerId: string
+): number {
     let count = 0;
     for (const player of state.players) {
         for (const permanent of player.battlefield) {
             if (permanent.controllerId !== controllerId) continue;
-            if (!permanent.types.includes("Artifact")) continue;
-            count++;
-            if (count >= 3) return true;
+            if (permanent.types.includes("Artifact")) count++;
         }
     }
-    return false;
+    return count;
+}
+
+/** Delirium's threshold — "four or more card types among cards in your
+ *  graveyard" (CR 207.2c ability word, no rules meaning of its own). */
+export const DELIRIUM_CARD_TYPES = 4;
+
+/** Distinct card TYPES among `cards` — the Delirium count (issue #5491).
+ *  ONE implementation shared by the count reader's `countTypes: true` branch
+ *  (`gre/effects/interpreter.ts`), every TS-side delirium predicate
+ *  (`sets/dsk`, `sets/mh2`) and the card preview's live counter, so the chip
+ *  can never disagree with the resolved outcome. A multi-type card counts
+ *  each of its types. */
+export function countGraveyardCardTypes(
+    cards: ReadonlyArray<{ readonly types: ReadonlyArray<string> }>
+): number {
+    const found = new Set<string>();
+    for (const card of cards) {
+        for (const type of card.types) found.add(type);
+    }
+    return found.size;
 }
 
 /** CR 702.151b — "Attaching an Equipment with reconfigure to another

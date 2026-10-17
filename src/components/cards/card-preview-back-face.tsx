@@ -92,7 +92,7 @@ export default function CardPreviewBackFace({
                 </div>
                 {half.oracleParagraphs.map((p, i) => (
                     <div key={`back-oracle-${i}`}>
-                        <OracleParagraph text={p} milestones={null} />
+                        <OracleParagraph text={p} counters={null} />
                     </div>
                 ))}
             </div>
