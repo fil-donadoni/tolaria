@@ -10,6 +10,14 @@ import {
 import { githubVerdictStore, type GhRunner } from "../lib/health-verdict-store";
 import {
     ATTEMPT_STALE_MS,
+    LANDED_WAIT_MS,
+    MAX_HOPS,
+    MAX_REVERT_TRIES,
+    mayRedispatch,
+    REVERT_QUEUE_MAX_MS,
+    revertRecordOf,
+    TRANSIENT_NOTE,
+    walkEpisode,
     escalationTitle,
     hostOfRunnerName,
     ladderRung,
@@ -21,7 +29,7 @@ import {
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
 import { closingIssueRefs } from "../lib/health-cadence";
-import { prNumberOfUrl } from "../health-revert";
+import { prNumberOfUrl, worktreeHolding } from "../health-revert";
 
 /**
  * The RED ladder's last rungs (issue #5646, ADR 0156 Amendment I): fix
@@ -472,5 +480,141 @@ describe("the ladder's facts and texts", () => {
     it("reads the PR number off `gh pr create`'s URL", () => {
         expect(prNumberOfUrl("https://github.com/o/r/pull/5901\n")).toBe(5901);
         expect(prNumberOfUrl("nope")).toBeNull();
+    });
+});
+
+describe("review fixes — the bounds no rung can escape", () => {
+    it("a stop marker holds, so a stop whose issue failed emails once", () => {
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({ rung: "stop", outcome: "stuck" }),
+                })
+            ).kind
+        ).toBe("hold");
+    });
+
+    it("a revert try that failed transiently is retried, then stops", () => {
+        const note = `${TRANSIENT_NOTE}gh 502`;
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({ rung: "revert", attempt: 1, note }),
+                })
+            )
+        ).toMatchObject({ kind: "revert", attempt: 2, culprit: CULPRIT });
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        rung: "revert",
+                        attempt: MAX_REVERT_TRIES,
+                        note,
+                    }),
+                })
+            ).kind
+        ).toBe("stop");
+    });
+
+    it("a `landed` that never moved the tip counts as used after the bound", () => {
+        const old = new Date(NOW - LANDED_WAIT_MS - 1).toISOString();
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        outcome: "landed",
+                        attempt: 1,
+                        at: old,
+                    }),
+                })
+            )
+        ).toMatchObject({ kind: "fix", attempt: 2 });
+    });
+
+    it("a revert PR held in the queue past the bound stops", () => {
+        const old = new Date(NOW - REVERT_QUEUE_MAX_MS - 1).toISOString();
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        rung: "revert",
+                        outcome: "attempting",
+                        pr: 5900,
+                        at: old,
+                    }),
+                    revertPr: {
+                        number: 5900,
+                        state: "open",
+                        landFailed: false,
+                    },
+                })
+            ).kind
+        ).toBe("stop");
+    });
+
+    it("a Next-rung chain is bounded", () => {
+        expect(mayRedispatch(0)).toBe(true);
+        expect(mayRedispatch(MAX_HOPS - 2)).toBe(true);
+        expect(mayRedispatch(MAX_HOPS - 1)).toBe(false);
+        expect(mayRedispatch(Number.NaN)).toBe(false);
+    });
+
+    it("finds the worktree that holds a branch", () => {
+        const porcelain = [
+            "worktree /p",
+            "HEAD 1",
+            "branch refs/heads/staging",
+            "",
+            "worktree /p/../tolaria-revert-9",
+            "HEAD 2",
+            "branch refs/heads/revert/cccccccccccc",
+        ].join("\n");
+        expect(worktreeHolding(porcelain, "revert/cccccccccccc")).toBe(
+            "/p/../tolaria-revert-9"
+        );
+        expect(worktreeHolding(porcelain, "revert/dddddddddddd")).toBeNull();
+    });
+});
+
+describe("walkEpisode — the REDs since the last GREEN", () => {
+    const line = culpritLine({
+        result: { culprit: "c".repeat(40), probes: [] },
+        good: null,
+        commits: 1,
+        subject: "x (#5700)",
+    });
+    const status: Record<string, string> = {
+        s5: "red",
+        s4: "amber",
+        s3: "infra",
+        s2: "red",
+        s1: "green",
+        s0: "red",
+    };
+    const read = {
+        status: (sha: string) => status[sha] ?? null,
+        attempt: (sha: string): FixAttempt | null =>
+            sha === "s2"
+                ? { sha, outcome: "attempting", rung: "revert", pr: 5900 }
+                : null,
+        evidence: (sha: string) =>
+            sha === "s5" ? `# RED\n${line}` : `ev ${sha}`,
+    };
+
+    it("newest first, past AMBER, INFRA and unverdicted commits, stopping at GREEN", () => {
+        const { episode, standingEvidence } = walkEpisode(
+            ["s5", "s4", "x", "s3", "s2", "s1", "s0"],
+            read
+        );
+        expect(episode.map((r) => r.sha)).toEqual(["s5", "s2"]);
+        expect(standingEvidence).toBe(`# RED\n${line}`);
+        expect(episode[0].culprit).toEqual(CULPRIT);
+        expect(revertRecordOf(episode)).toMatchObject({ pr: 5900 });
+    });
+
+    it("the standing RED's evidence only — never an older RED's", () => {
+        const { standingEvidence } = walkEpisode(["s2", "s1"], read);
+        expect(standingEvidence).toBe("ev s2");
+        expect(walkEpisode(["x", "s2"], read).standingEvidence).toBeNull();
     });
 });
