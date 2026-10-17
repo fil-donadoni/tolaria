@@ -60,13 +60,12 @@ export interface CopyOptions {
     force?: boolean;
     /** A CI run (`process.env.CI` set). */
     ci?: boolean;
-    entries?: readonly CopyEntry[];
 }
 
 export function copyFromPrimary(opts: CopyOptions): CopyReport {
     const { primary, cwd, force = false, ci = false } = opts;
     const report: CopyReport = { done: [], skipped: [], failed: [] };
-    for (const { from, to, optional, optionalInCi } of opts.entries ?? COPIES) {
+    for (const { from, to, optional, optionalInCi } of COPIES) {
         const src = join(primary, from);
         const dst = join(cwd, to);
         if (existsSync(dst) && !force) {
