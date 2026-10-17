@@ -369,8 +369,15 @@ describe("PoolDeckBuilderForm — the save sink strips the per-copy pinKey (revi
         // `toEqual` on the whole entry is the assertion that matters: an extra
         // key is exactly what Convex rejects, so a subset check would pass on
         // the very payload that fails at runtime.
+        // A Pool card opened as a reprint carries `definitionId` beside its
+        // print-keyed `cardId` (ADR 0140 §5, issue #5473) — the one other key
+        // `userDecks`' card validator declares.
         for (const entry of [...payload.cards, ...payload.sideboard]) {
-            expect(Object.keys(entry).sort()).toEqual(["cardId", "cardName"]);
+            expect(Object.keys(entry).sort()).toEqual(
+                "definitionId" in entry
+                    ? ["cardId", "cardName", "definitionId"]
+                    : ["cardId", "cardName"]
+            );
         }
         expect(payload.cards.length + payload.sideboard.length).toBe(
             POOL.length

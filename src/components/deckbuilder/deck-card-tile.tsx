@@ -26,8 +26,11 @@ import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
  *  `stackIndex` is always set and the tile is `absolute`-positioned at its
  *  staggered `top`. */
 export interface DeckCardTileProps {
-    /** Registry Card ID — the card face to render. */
+    /** Registry Card ID — the card the tile stands for. */
     cardId: string;
+    /** The printing to render when it is not `cardId`'s own (issue #5473):
+     *  a Limited Pool card shows the print its booster contained. */
+    printId?: string;
     /** dnd-kit draggable id (unique within the surface's DragDropProvider). */
     dragId: string;
     /** Drag payload the surface's `onDragEnd` reads to resolve the move. One
@@ -95,6 +98,7 @@ export interface DeckCardTileProps {
 
 export default function DeckCardTile({
     cardId,
+    printId,
     dragId,
     dragData,
     title,
@@ -242,7 +246,7 @@ export default function DeckCardTile({
                 Peek Panel to read the card in, so the hold-preview is the one
                 card-reading affordance and comes back on (issue #3167). */}
             <CardImage
-                card={{ id: cardId }}
+                card={{ id: printId ?? cardId }}
                 holdPreview={readOnly}
                 lazy={readOnly}
                 promoteLayer={!readOnly}

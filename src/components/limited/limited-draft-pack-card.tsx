@@ -3,6 +3,7 @@ import { useDraggable } from "@dnd-kit/react";
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cn } from "~/lib/utils";
 import CardImage from "~/components/cards/card-image";
+import { openedPrintId } from "@convex/limited/poolArrangement";
 import type { BoosterDragData } from "./limitedDraftDrag";
 import {
     DOUBLE_CLICK_INTERVAL_MS,
@@ -80,11 +81,15 @@ export default function LimitedDraftPackCard({
     onOpenContextMenu?: (pickId: string, x: number, y: number) => void;
     pending: boolean;
 }) {
+    // The printing this booster actually contained (issue #5473) — the face
+    // the tile, and the drag overlay lifted from it, show.
+    const printId = openedPrintId(card);
     const data: BoosterDragData = {
         kind: "booster",
         pickId: card.pickId,
         cardId: card.cardId,
         cardName: card.cardName,
+        printId,
     };
     const { ref, isDragging } = useDraggable({
         id: `booster-${card.pickId}`,
@@ -244,7 +249,7 @@ export default function LimitedDraftPackCard({
                 the DRAG (gesture model A), so the hold-preview is off — the
                 card is read through the Peek Panel's Inspect CTA instead. */}
             <CardImage
-                card={{ id: card.cardId }}
+                card={{ id: printId ?? card.cardId }}
                 lazy
                 sizes="180px"
                 holdPreview={false}

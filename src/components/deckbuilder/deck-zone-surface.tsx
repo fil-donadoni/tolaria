@@ -461,6 +461,7 @@ export default function DeckZoneSurface({
                                     zone,
                                     cardId: card.cardId,
                                     cardName: card.cardName,
+                                    printId: card.printId,
                                     pinKey,
                                     tileKey: key,
                                     columns:
@@ -471,6 +472,7 @@ export default function DeckZoneSurface({
                                 return {
                                     key,
                                     cardId: card.cardId,
+                                    printId: card.printId,
                                     dragId: `${zone}:${column.id}:${card.cardId}:${idx}`,
                                     dragData: {
                                         kind:
@@ -479,6 +481,7 @@ export default function DeckZoneSurface({
                                                 : "side",
                                         cardId: card.cardId,
                                         cardName: card.cardName,
+                                        printId: card.printId,
                                         // The COPY being dragged (issue #1626) —
                                         // carried on the payload so the drop
                                         // resolver never has to re-derive which of

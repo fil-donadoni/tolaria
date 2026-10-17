@@ -121,6 +121,29 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
         expect(queryByText(/cards? opened/)).toBeNull();
     });
 
+    // Issue #5473: the Pool shows the printing each booster contained (the
+    // entry's `scryfallId`), per COPY — two Bolts opened as different prints
+    // are two different faces. A Basic keeps the canonical printing.
+    it("draws every Pool card with the print its booster contained, not the canonical Card ID's home printing", () => {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+
+        const { container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+        const srcs = [...container.querySelectorAll("img")].map((i) => i.src);
+        expect(srcs.some((s) => s.includes("s-bolt-1"))).toBe(true);
+        expect(srcs.some((s) => s.includes("s-bolt-2"))).toBe(true);
+        expect(srcs.some((s) => s.includes(BOLT_ID))).toBe(false);
+        // The Basic keeps today's behaviour: the canonical printing.
+        expect(srcs.some((s) => s.includes("s-plains"))).toBe(false);
+        expect(srcs.some((s) => s.includes(PLAINS_ID))).toBe(true);
+    });
+
     it("with no Arrangement recorded, every card defaults to the Pool/Maindeck side — continuous draft→build, not the old all-Sideboard start", () => {
         const view = projectLimitedEvent(eventRow(undefined), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;

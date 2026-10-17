@@ -111,6 +111,7 @@ import {
     areOtherSeatsRevealed,
     projectLimitedEvent,
     type HumanDeckView,
+    type ReviewDeckCard,
     type LimitedEventSeatView,
     type LimitedEventView,
 } from "./limited/eventProjection";
@@ -878,6 +879,18 @@ interface EventViewWithAutoBuild extends Omit<LimitedEventView, "seats"> {
  *  of `update` — the client always avoids this via `pool-deck-builder.tsx`'s
  *  `existingDeck` lookup, but it isn't enforced), the most recently created
  *  row wins — a defensive tie-break, not an expected case. */
+function reviewDeckCard(card: {
+    cardId: string;
+    cardName: string;
+    definitionId?: string;
+}): ReviewDeckCard {
+    return {
+        cardId: card.cardId,
+        cardName: card.cardName,
+        definitionId: card.definitionId,
+    };
+}
+
 async function loadHumanDecksBySeat(
     ctx: QueryCtx,
     eventId: Id<"limitedEvents">
@@ -894,8 +907,11 @@ async function loadHumanDecksBySeat(
         const seatIndex = Number(row.limitedSeatId);
         if (!Number.isInteger(seatIndex) || bySeat.has(seatIndex)) continue;
         bySeat.set(seatIndex, {
-            cards: row.cards,
-            sideboard: row.sideboard ?? [],
+            // Each entry's `definitionId` rides along: a `limited` entry's
+            // `cardId` is the opened PRINT (ADR 0140 §5, issue #5473), and
+            // the review classifies the card by its definition.
+            cards: row.cards.map(reviewDeckCard),
+            sideboard: (row.sideboard ?? []).map(reviewDeckCard),
             colors: row.colors,
         });
     }

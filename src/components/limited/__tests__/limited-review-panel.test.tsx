@@ -220,3 +220,77 @@ describe("LimitedReviewPanel — a seat's Deck / Pick order tabs and zoom", () =
         expect(pool.querySelectorAll("li")).toHaveLength(4);
     });
 });
+
+// Issue #5473: a set-bound event's reprint is shown with the printing its
+// booster contained — the Pool entry's `scryfallId` — and a saved deck entry
+// (`cardId` = the opened print, `definitionId` = canonical, ADR 0140 §5) is
+// both drawn from its print and still classified by its definition.
+describe("LimitedReviewPanel — shows the opened print (issue #5473)", () => {
+    const OPENED_PRINT = "tmp-bolt-print";
+
+    function reprintEvent(): LimitedEventView {
+        const row: LimitedEventRow = {
+            _id: "event1",
+            createdBy: "admin1",
+            type: "draft",
+            status: "playing",
+            seatCount: 1,
+            packSlots: ["lea"],
+            sealedBoosterCount: 6,
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user1",
+                    nickname: "Alice",
+                    pool: [{ scryfallId: OPENED_PRINT, ...BEARS }],
+                },
+            ],
+            createdAt: 0,
+            updatedAt: 0,
+        };
+        const printed = {
+            cardId: OPENED_PRINT,
+            cardName: BEARS.cardName,
+            definitionId: BEARS.cardId,
+        };
+        return projectLimitedEvent(
+            row,
+            "user1",
+            true,
+            1,
+            new Map([
+                [0, { cards: [printed], sideboard: [printed], colors: ["R"] }],
+            ]) as never,
+            new Set([0])
+        ) as unknown as LimitedEventView;
+    }
+
+    const faces = (root: Element) =>
+        [...root.querySelectorAll<HTMLImageElement>("img")].map((i) => i.src);
+
+    it("Deck tab: draws the saved print and still files the card under Creatures", () => {
+        render(<LimitedReviewPanel event={reprintEvent()} />);
+        const deck = seatEl(0).querySelector("[data-slot=review-deck]")!;
+        expect(
+            deck.querySelector("[data-group=creatures] h4")!.textContent
+        ).toBe("Creatures · 1");
+        const srcs = faces(deck);
+        expect(srcs.length).toBeGreaterThan(0);
+        for (const src of srcs) {
+            expect(src).toContain(OPENED_PRINT);
+            expect(src).not.toContain(BEARS.cardId);
+        }
+    });
+
+    it("Pick order tab: draws the Pool entry's scryfallId, not its canonical Card ID", () => {
+        render(<LimitedReviewPanel event={reprintEvent()} />);
+        fireEvent.click(screen.getByRole("radio", { name: /Pick order/ }));
+        const order = seatEl(0).querySelector("[data-slot=review-pick-order]")!;
+        const srcs = faces(order);
+        expect(srcs.length).toBeGreaterThan(0);
+        for (const src of srcs) {
+            expect(src).toContain(OPENED_PRINT);
+            expect(src).not.toContain(BEARS.cardId);
+        }
+    });
+});

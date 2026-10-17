@@ -25,6 +25,8 @@ import type { DraftSnapController } from "./useDraftSnapStops";
 export interface DraftPileCard {
     key: string;
     cardId: string;
+    /** The printing to show when it is not `cardId`'s own (issue #5473). */
+    printId?: string;
     /** Parked in the Sideboard (rings the tile in the pile). */
     highlight?: boolean;
 }
@@ -55,7 +57,7 @@ export interface DraftPhonePanesProps {
     /** Cards left in the Booster; `0` = waiting for a pack. */
     packLeft: number;
     /** The Selected Card (`seat.selectedPickId`), or `null`. */
-    selected: { cardId: string; cardName: string } | null;
+    selected: { cardId: string; printId?: string; cardName: string } | null;
     /** `Pick` / `→ Side` / `Inspect` — the same set the Inspect Overlay gets. */
     actions: readonly EditingSurfaceAction[];
     /** A pack landed while the player was parked on the pool. */

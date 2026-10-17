@@ -32,7 +32,7 @@ export default function DraftCollapsedPackColumn({
     packPile: readonly DraftPileCard[];
     timer: React.ReactNode;
     status: React.ReactNode;
-    selected: { cardId: string; cardName: string } | null;
+    selected: { cardId: string; printId?: string; cardName: string } | null;
     actions: readonly EditingSurfaceAction[];
     pulsing: boolean;
     onOpenPack: () => void;
@@ -53,6 +53,7 @@ export default function DraftCollapsedPackColumn({
             {selected ? (
                 <DraftSelectionActions
                     cardId={selected.cardId}
+                    printId={selected.printId}
                     cardName={selected.cardName}
                     actions={actions}
                     axis="column"

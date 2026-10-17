@@ -26,6 +26,8 @@ export interface DeckZoneSelection {
     zone: DeckZone;
     cardId: string;
     cardName: string;
+    /** The printing the tile shows (issue #5473); absent = `cardId`'s own. */
+    printId?: string;
     /** The key this COPY's Card Pin is recorded under (issue #1626). */
     pinKey: string;
     /** The rendered tile's React key — what the surface compares against to

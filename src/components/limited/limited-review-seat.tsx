@@ -3,6 +3,8 @@ import type {
     LimitedEventSeatView,
     LimitedEventView,
 } from "~/hooks/useLimitedEvent";
+import type { LimitedPoolCard } from "@convex/limited/eventTypes";
+import { openedPrintId } from "@convex/limited/poolArrangement";
 import EmptyState from "~/components/ui/empty-state";
 import SegmentedControl from "~/components/ui/segmented-control";
 import {
@@ -25,6 +27,14 @@ const noCaption = (cards: readonly { cardId: string; cardName: string }[]) =>
             cardName: c.cardName,
         })
     );
+
+/** A Pool as the faces its boosters contained (issue #5473): each card's
+ *  `cardId` here is the image to render — its opened print, else its own. */
+const poolFaces = (pool: readonly LimitedPoolCard[]) =>
+    pool.map((c) => ({
+        cardId: openedPrintId(c) ?? c.cardId,
+        cardName: c.cardName,
+    }));
 
 /** One seat of "Review the table" (PRD #1107 story 26; reworked issue #5392):
  *  a collapsible with a large trigger, and inside two tabs — Deck (creatures /
@@ -68,7 +78,7 @@ export default function LimitedReviewSeat({
         [deck]
     );
     const poolCards = useMemo(() => {
-        const cards = seat.pool ?? [];
+        const cards = poolFaces(seat.pool ?? []);
         return isDraft ? pickOrderCards(cards, packCount) : noCaption(cards);
     }, [seat.pool, isDraft, packCount]);
 

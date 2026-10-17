@@ -41,7 +41,10 @@ import {
     type DraftDragData,
 } from "./limitedDraftDrag";
 import type { ColumnId } from "@convex/deckLayout";
-import { splitPoolByArrangement } from "@convex/limited/poolArrangement";
+import {
+    openedPrintId,
+    splitPoolByArrangement,
+} from "@convex/limited/poolArrangement";
 import DraftLandscapePanes from "./draft-room/draft-landscape-panes";
 import DraftPackDensityToggle from "./draft-room/draft-pack-density-toggle";
 import DraftPortraitPanes from "./draft-room/draft-portrait-panes";
@@ -859,15 +862,18 @@ export default function LimitedDraftTable({
         packPile: pack.map((card) => ({
             key: card.pickId,
             cardId: card.cardId,
+            printId: openedPrintId(card),
         })),
         pickPile: [
             ...poolSplit.cards.map((card) => ({
                 key: `pool-${card.poolIndex}`,
                 cardId: card.cardId,
+                printId: card.printId,
             })),
             ...poolSplit.sideboard.map((card) => ({
                 key: `pool-${card.poolIndex}`,
                 cardId: card.cardId,
+                printId: card.printId,
                 highlight: true,
             })),
         ],
@@ -890,6 +896,7 @@ export default function LimitedDraftTable({
             selectedCard && !poolSelection
                 ? {
                       cardId: selectedCard.cardId,
+                      printId: openedPrintId(selectedCard),
                       cardName: selectedCard.cardName,
                   }
                 : null,
@@ -1108,7 +1115,7 @@ export default function LimitedDraftTable({
                             }}
                         >
                             <CardImage
-                                card={{ id: d.cardId }}
+                                card={{ id: d.printId ?? d.cardId }}
                                 holdPreview={false}
                             />
                         </div>

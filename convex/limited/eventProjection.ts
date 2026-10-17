@@ -90,6 +90,10 @@ export interface LimitedEventRow {
 export interface ReviewDeckCard {
     cardId: string;
     cardName: string;
+    /** The Card Definition `cardId` prints, when a saved entry's `cardId` is
+     *  the opened PRINT (ADR 0140 §5, issue #5473) — the review classifies by
+     *  it and renders `cardId`. */
+    definitionId?: string;
 }
 
 /** A human seat's submitted `limited` Deck, projected for the review surface

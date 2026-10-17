@@ -15,6 +15,9 @@ export interface CardDragData {
      *  doesn't declare one — the drop resolver falls back to `cardId`, which
      *  is exactly the Constructed rule. */
     pinKey?: string;
+    /** The printing the dragged tile shows (issue #5473), so a drag overlay
+     *  renders the same face as the tile it lifts. Absent = `cardId`'s own. */
+    printId?: string;
 }
 
 export type DropZoneId = "main" | "side";

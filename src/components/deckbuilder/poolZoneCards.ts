@@ -21,9 +21,15 @@ import type { ZoneCard } from "~/types/game";
  *  review B1). A card the Pool doesn't hold — a Basic added from the bar — has
  *  no `poolIndex`, so it gets no key and simply can never be pinned. */
 export function toZoneCards(cards: readonly PlainPoolCard[]): ZoneCard[] {
-    return cards.map(({ cardId, cardName, poolIndex }) =>
-        poolIndex === undefined
-            ? { cardId, cardName }
-            : { cardId, cardName, pinKey: poolCopyPinKey(poolIndex) }
-    );
+    return cards.map(({ cardId, cardName, printId, poolIndex }) => ({
+        cardId,
+        cardName,
+        // The opened printing rides along only when it has one (issue #5473):
+        // an absent key, not `printId: undefined`, so an entry without a
+        // distinct printing is the same object it was before.
+        ...(printId === undefined ? {} : { printId }),
+        ...(poolIndex === undefined
+            ? {}
+            : { pinKey: poolCopyPinKey(poolIndex) }),
+    }));
 }
