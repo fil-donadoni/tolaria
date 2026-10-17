@@ -4,8 +4,10 @@ import {
     decodeFixStatus,
     encodeFixDescription,
     FIX_CONTEXT,
+    githubFixAttemptStore,
     type FixAttempt,
 } from "../lib/health-fix-attempts";
+import { githubVerdictStore, type GhRunner } from "../lib/health-verdict-store";
 import {
     ATTEMPT_STALE_MS,
     escalationTitle,
@@ -357,8 +359,67 @@ describe("the ladder's facts and texts", () => {
         expect(parseCulprit(null)).toBeNull();
     });
 
-    it("the attempt records keep their own context: an outcome must not erase the repair issues", () => {
-        expect(FIX_CONTEXT).not.toBe(REPAIR_ISSUES_CONTEXT);
+    it("a fixer's outcome never erases the repair issues the queue admits its PR by", () => {
+        // A fake commit-status API: every POST is newest first; the
+        // combined status keeps the latest per context, as GitHub's.
+        const statuses: Array<{
+            context: string;
+            state: string;
+            description: string;
+            created_at: string | null;
+            target_url: null;
+        }> = [];
+        const run: GhRunner = (args) => {
+            const field = (k: string) =>
+                args.find((a) => a.startsWith(`${k}=`))?.slice(k.length + 1) ??
+                "";
+            if (args.includes("POST")) {
+                statuses.unshift({
+                    context: field("context"),
+                    state: field("state"),
+                    description: field("description"),
+                    created_at: null,
+                    target_url: null,
+                });
+                return { status: 0, stdout: "{}", stderr: "" };
+            }
+            const latest = statuses.filter(
+                (s, i) =>
+                    statuses.findIndex((t) => t.context === s.context) === i
+            );
+            return {
+                status: 0,
+                stdout: JSON.stringify(
+                    args.some((a) => a.endsWith("/status")) ? latest : statuses
+                ),
+                stderr: "",
+            };
+        };
+        const issues = githubVerdictStore({
+            repo: "o/r",
+            run,
+            context: REPAIR_ISSUES_CONTEXT,
+        });
+        issues.write({
+            sha: RED,
+            status: "amber",
+            step: "repair",
+            issues: [6001],
+        });
+        githubFixAttemptStore({ repo: "o/r", run }).write({
+            sha: RED,
+            outcome: "stuck",
+            rung: "fix",
+            attempt: 1,
+        });
+        expect(statuses.map((s) => s.context)).toEqual([
+            FIX_CONTEXT,
+            REPAIR_ISSUES_CONTEXT,
+        ]);
+        expect(issues.read(RED)?.issues).toEqual([6001]);
+        expect(
+            githubFixAttemptStore({ repo: "o/r", run }).read(RED)
+        ).toMatchObject({ outcome: "stuck", attempt: 1 });
     });
 
     it("a record's rung and attempt round-trip through the commit status", () => {
