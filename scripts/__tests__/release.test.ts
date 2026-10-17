@@ -8,6 +8,7 @@ import {
     publishVerdict,
     pushRefusal,
     reconcileRecord,
+    recordRoot,
     releaseDecision,
     type HealthRecord,
     type LoopInputs,
@@ -450,5 +451,14 @@ describe("release.yml — dispatch under the release Environment (issue #5647)",
         expect(yml).toMatch(
             /if: \$\{\{ inputs\.dry_run \}\}\n\s+run: bun run release --no-fix --gate-only/
         );
+    });
+});
+
+describe("release — recordRoot (issue #5647)", () => {
+    it("is the primary checkout from a job worktree, cwd inside the primary", () => {
+        expect(recordRoot("/m/tolaria/.git", "/m/_work/job")).toBe(
+            "/m/tolaria"
+        );
+        expect(recordRoot(".git", "/m/tolaria")).toBe("/m/tolaria");
     });
 });

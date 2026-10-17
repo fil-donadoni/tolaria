@@ -41,7 +41,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
 import type { HealthStatus } from "./lib/health-verdict";
@@ -322,6 +322,15 @@ export function parseFixBound(argv: string[]): FixBound {
     return { max: n };
 }
 
+/**
+ * Where health-main keeps its records (issue #5647): the primary checkout.
+ * `--git-common-dir` is relative in the primary itself and absolute in a
+ * linked worktree — a release job's — whose own tree holds no `last.json`.
+ */
+export function recordRoot(common: string, cwd: string): string {
+    return common.startsWith("/") ? dirname(resolve(common)) : cwd;
+}
+
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
     if (r.status !== 0)
@@ -365,13 +374,13 @@ function runHealthGate(cwd: string): void {
  * channel is the verdict FILE, because an interactive `claude` exits 0
  * whatever happened inside it.
  */
-function runFixer(cwd: string, sha: string): FixVerdict {
+function runFixer(cwd: string, root: string, sha: string): FixVerdict {
     const r = spawnSync("bun", [HEALTH_FIX], {
         stdio: "inherit",
         cwd,
         env: netEnv(process.env),
     });
-    const verdict = parseVerdict(readVerdictFile(cwd), sha);
+    const verdict = parseVerdict(readVerdictFile(root), sha);
     // The exit status is NOT the verdict — that is the whole point of the
     // file. But a child that refused to spawn at all (its own TTY check, or a
     // tip that moved under it) leaves no verdict, and reporting that as a
@@ -442,7 +451,8 @@ function main(): void {
     let promote: string | null = null;
     let promoted: HealthRecord | null = null;
 
-    const store = () => verdictStore(cwd);
+    const root = recordRoot(common, cwd);
+    const store = () => verdictStore(root);
     for (let attempt = 1; promote === null; attempt++) {
         // A RED another machine wrote for this tip is the verdict: re-gating
         // it here would spend a heavy-mutex slot to learn nothing (issue
@@ -454,7 +464,7 @@ function main(): void {
             known.machine !== machineName();
         if (!foreignRed) runHealthGate(cwd);
         const stored = foreignRed ? known : readStored(store, sha);
-        const record = reconcileRecord(sha, readLast(cwd), stored);
+        const record = reconcileRecord(sha, readLast(root), stored);
         publishVerdict(store, record, stored);
         const decision = releaseDecision(sha, record);
         const step = loopDecision({
@@ -487,7 +497,7 @@ function main(): void {
         const after = loopDecision({
             tip: sha,
             decision,
-            verdict: runFixer(cwd, step.sha),
+            verdict: runFixer(cwd, root, step.sha),
             attempt,
             maxAttempts,
             interactive: true,
