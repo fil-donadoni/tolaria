@@ -48,7 +48,14 @@ beforeEach(() => {
         description: "RED · test:app · other-machine",
     });
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() =>
+    rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    })
+);
 
 const fix = (...args: string[]) =>
     spawnSync("bun", [HEALTH_FIX, ...args], {

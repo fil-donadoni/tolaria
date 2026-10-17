@@ -272,10 +272,6 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "a scratch telemetry dir the test creates; it censuses no repo corpus",
     "scripts/__tests__/gate-run.test.ts":
         "scratch run dirs the test creates; it censuses no repo corpus",
-    "scripts/__tests__/gate.test.ts":
-        "a scratch lock-lease dir; it censuses no repo corpus",
-    "scripts/__tests__/health-walk-calibrate.test.ts":
-        "a scratch output dir; it censuses no repo corpus",
     "scripts/__tests__/health-main-preflight.test.ts":
         "a scratch log dir; it censuses no repo corpus",
     "scripts/__tests__/health-main-headroom.test.ts":
