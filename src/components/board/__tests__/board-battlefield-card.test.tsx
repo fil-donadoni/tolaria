@@ -9,7 +9,13 @@
 //    projected `allPlayers` (wire-format: reads only public/full fields),
 //  - the legal-target highlight rides on `vs.ringClass`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import {
+    render,
+    cleanup,
+    fireEvent,
+    screen,
+    within,
+} from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import type { CardVisualState } from "../battlefield-card";
 import { GameContext } from "~/hooks/useGameContext";
@@ -649,5 +655,124 @@ describe("BoardBattlefieldCard peek-stack placement (#1994 round 4)", () => {
         // Must NOT be inside the rotated/inert layer — a tapped host would
         // otherwise make its own held-card peek unclickable.
         expect(exiledImage!.closest("[data-tap-visual]")).toBeNull();
+    });
+});
+
+// Issue #5515 — the "Held in exile" pile (CR 607.2a linked exile) must open
+// with NO side effect on its host, exactly like the Aura cluster. It used to be
+// mounted INSIDE the host's clickable box (and so inside
+// `ActivatableAbilityMenu`'s trigger): a sliver click, the ×N badge's outer
+// tile, and every click inside the pile dialog (React events bubble through the
+// portal) reached the host's tap/payment `onClick` and synthesized the ability
+// menu's `contextmenu` — the menu then stole the dialog.
+describe("BoardBattlefieldCard exile-held pile is inert to the host (issue #5515)", () => {
+    beforeEach(() => cleanup());
+
+    const ABILITY_TEXT = "{T}: Move a counter onto target creature.";
+
+    function renderHostWithHeldPile(opts: {
+        tapped?: boolean;
+        withAbilities?: boolean;
+    }) {
+        const host = makeCreature({ id: "host", isTapped: !!opts.tapped });
+        const held = ["held-1", "held-2"].map(
+            (id) =>
+                ({
+                    id,
+                    card: { id: "some-exiled-def" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "exile",
+                    exiledByPermanentId: "host",
+                }) as CardInstance
+        );
+        const me: Player = { ...makePlayer([host]), exile: held };
+        const value = {
+            gameId: "game-id" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            engineTurn: 1,
+            stackCount: 0,
+            stackItems: [],
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+        const onClick = vi.fn();
+        const onActivateAbility = vi.fn();
+        const utils = render(
+            <GameContext value={value}>
+                <BoardBattlefieldCard
+                    card={host}
+                    vs={{ ...NEUTRAL_VS, interactive: true, enabled: true }}
+                    onClick={onClick}
+                    activatableAbilities={
+                        opts.withAbilities
+                            ? [{ id: "a0", oracleText: ABILITY_TEXT }]
+                            : undefined
+                    }
+                    onActivateAbility={onActivateAbility}
+                />
+            </GameContext>
+        );
+        return { ...utils, onClick, onActivateAbility };
+    }
+
+    for (const variant of [
+        { name: "host without abilities", withAbilities: false },
+        { name: "host with abilities", withAbilities: true },
+        {
+            name: "tapped host with abilities",
+            withAbilities: true,
+            tapped: true,
+        },
+    ]) {
+        it(`a sliver click opens the pile and fires nothing on the ${variant.name}`, () => {
+            const { onClick, onActivateAbility } =
+                renderHostWithHeldPile(variant);
+            const [sliver] = screen.getAllByRole("button", {
+                name: "2 attached — open pile",
+            });
+            fireEvent.click(sliver);
+
+            const dialog = screen.getByRole("dialog");
+            expect(
+                within(dialog).getAllByText("Held in exile (2)").length
+            ).toBeGreaterThan(0);
+            for (const id of ["held-1", "held-2"]) {
+                expect(
+                    dialog.querySelector(`[data-card-id="${id}"]`)
+                ).toBeTruthy();
+            }
+            // A click inside the dialog bubbles through the portal in React's
+            // tree — it must not reach the host either.
+            fireEvent.click(dialog.querySelector('[data-card-id="held-1"]')!);
+
+            expect(onClick).not.toHaveBeenCalled();
+            expect(onActivateAbility).not.toHaveBeenCalled();
+            expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+            expect(screen.getByRole("dialog")).toBeTruthy();
+        });
+    }
+
+    it("the ×N badge opens the pile and fires nothing on the host", () => {
+        const { onClick } = renderHostWithHeldPile({ withAbilities: true });
+        const badge = screen.getByText("×2");
+        fireEvent.click(badge);
+        expect(screen.getByRole("dialog")).toBeTruthy();
+        expect(onClick).not.toHaveBeenCalled();
+        expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+    });
+
+    it("the host itself still opens its ability menu (control)", () => {
+        const { container } = renderHostWithHeldPile({ withAbilities: true });
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="host"]')!
+        );
+        expect(screen.getAllByRole("menuitem")).toHaveLength(1);
     });
 });
