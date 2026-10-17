@@ -114,7 +114,14 @@ describe("merge-driver-regenerated on the lockfile (real driver)", () => {
         dir = mkdtempSync(join(tmpdir(), "tolaria-overlay-"));
         spawnSync("git", ["init", "-q"], { cwd: dir });
     });
-    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     function runDriver(path: string, theirsText?: string): Lockfile {
         // Pretty-printed so the stasis line and the bolt line are the ones
