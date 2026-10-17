@@ -68,6 +68,7 @@ import { tryGetCardByName, tryGetDefinition } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { sweepPermanentFilter, UNREADABLE_SWEEP_FILTER } from "./latentBoard";
 import { castShape } from "./botReachForm";
+import { untapLockPose } from "./botReachUntapLock";
 import {
     projectBotReachTrace,
     usesCard,
@@ -1001,6 +1002,7 @@ export function botReachSpec(
         ...handPutPose(def, landCount),
         ...subtypeSweepPose(def),
         ...landTapPose(def),
+        ...untapLockPose(def),
         ...nonbasicBurnPose(def),
         ...graveyardExilePose(def),
         ...graveyardReturnPose(def),
