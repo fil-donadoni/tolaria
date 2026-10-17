@@ -1,0 +1,30 @@
+---
+title: A "combat-to-and-by" prevention slot is signed beneficial, so Maze of Ith on the opponent's attacker reads as misdirected
+discoveredBy: 5815
+status: draft
+confidence: medium
+---
+
+**What is wrong.** Issue #5815 made `opBeneficence` read `preventDamage`'s
+sign off its mode: `"all-from-source"` names the source whose damage is erased
+and signs `"harmful"`, every other mode stays `"beneficial"`. The
+`"combat-to-and-by"` mode stayed `"beneficial"`, but it is two-sided: it
+prevents the damage dealt TO the creature and the damage dealt BY it. Maze of
+Ith (`convex/cards/sets/drk/colorless.cards.ts`) and Foxfire
+(`convex/cards/sets/ice/green.cards.ts`) target ANY attacking creature, and
+their other Op (`tapUntap` untap) is beneficial as well. So
+`misdirectedTargetCount` ranks the opponent's attacker, which is the card's
+main defensive use, as the misdirected sibling of the bot's own attacker.
+
+**Evidence.** `convex/gre/ai/opValuers.ts`: the `preventDamage` case in
+`opBeneficence`, together with `collectScriptSigns` in
+`convex/gre/ai/beneficence.ts`. Elvish Scout and Ebony Horse carry
+`controller: "you"`, so the requirement already forces their orientation and
+the sign is harmless there.
+
+**Why it may not deserve its own issue.** Re-signing the mode `"harmful"`
+alone gives `mergeSign` a beneficial untap plus a harmful prevent, which comes
+out `"neutral"`. That drops the self-save line and still leaves the two
+targets unranked. The effect really is two-sided, so it needs a design (for
+example a per-field split like `SPLIT_SIGN_OPS`, or a board-aware read). It is
+not a flat sign flip, and no blade position has shown the blunder yet.
