@@ -167,6 +167,28 @@ describe("compiled shards — a release re-points only the shards whose cards ch
         expect(moved.map(([key]) => key)).toEqual([SHARDS[0]!.key]);
     });
 
+    it("a new Set of 200 cards: one new shard, every existing shard keeps its URL", () => {
+        // The shape of most releases. Enough rows to move every sampling
+        // stride of the server corpus's own dictionary — which is why the
+        // shards never use it.
+        const template = ROWS[0]!;
+        const fresh = Array.from({ length: 200 }, (_, i) => ({
+            ...template,
+            id: `eeeeeeee-eeee-4eee-8eee-${i.toString(16).padStart(12, "0")}`,
+            name: `New Set Card ${i}`,
+            setCode: "zzz",
+        }));
+        const after = urlsOf(
+            [...ROWS, ...fresh].sort((a, b) =>
+                a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+            )
+        );
+        for (const [key, url] of before) expect(after.get(key), key).toBe(url);
+        expect([...after.keys()].filter((k) => !before.has(k))).toEqual([
+            "zzz",
+        ]);
+    });
+
     it("a URL is its bytes: a different shard body is a different name", () => {
         expect(
             contentAddressedName("assets", "compiled-shard-x.json", "a")
