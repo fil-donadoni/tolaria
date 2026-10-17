@@ -15539,6 +15539,7 @@
         {"id":"502.3","line":"// controller's next untap step (CR 502.3), so tap state is TEMPO, not a","sites":1,"status":"baseline"},
         {"id":"502.3","line":"// controls.\" A bespoke marker-counter-driven untap lock (CR 502.3) with no","sites":1,"status":"baseline"},
         {"id":"502.3","line":"// for: that it comes back every untap step (CR 502.3, issue #3377). A locked","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
+        {"id":"502.3","line":"// from untapping (CR 502.3) is posed against an opponent who tapped out, so","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
         {"id":"502.3","line":"// hard skip, CR 502.3) is priced on each side by the mana axis of","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
         {"id":"502.3","line":"// mana ability doesn't untap …\", \"Players skip their untap steps\" (CR 502.3,","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
         {"id":"502.3","line":"// never comes back, a tap does at the next untap step, CR 502.3 /","sites":1,"status":"confirmed","ruleHash":"819b587a6f4443ae"},
