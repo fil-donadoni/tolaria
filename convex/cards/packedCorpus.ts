@@ -15,18 +15,13 @@ import { inflateSync } from "fflate";
 import type { CardDefinition } from "./types";
 import type { CompiledDefinitionIndex } from "./definitionIndex";
 
-/** The packed rows AND the compiled section of the Definition Index (issue
- *  #4856, `./definitionIndex`): `ids`, `names`, `setCodes` and `lookups` are
- *  the index the catalogue reads at load, so it learns every compiled card
- *  without inflating a block. */
-export interface PackedCorpus extends CompiledDefinitionIndex {
-    /** The ONE source hash — the same value `data/catalogue/source-hash.json`
-     *  holds and the client asset carries in its file name. */
-    readonly sourceHash: string;
+/** Rows deflated in fixed-size blocks, sorted by id, with what a lookup needs
+ *  to find a row's block — the part the server corpus and a client shard
+ *  (`./compiledShard`, issue #5616) share. The dictionary the blocks were
+ *  deflated against is the container's business. */
+export interface PackedBlocks {
     readonly blockRows: number;
     readonly rowCount: number;
-    /** base64 of the raw deflate dictionary. */
-    readonly dictionary: string;
     /** Every block's base64, concatenated. */
     readonly blocks: string;
     /** `blocks.slice(blockOffsets[k], blockOffsets[k + 1])` is block `k`;
@@ -34,6 +29,18 @@ export interface PackedCorpus extends CompiledDefinitionIndex {
     readonly blockOffsets: readonly number[];
     /** The first row's id of every block, ascending in code-point order. */
     readonly firstIds: readonly string[];
+}
+
+/** The packed rows AND the compiled section of the Definition Index (issue
+ *  #4856, `./definitionIndex`): `ids`, `names`, `setCodes` and `lookups` are
+ *  the index the catalogue reads at load, so it learns every compiled card
+ *  without inflating a block. */
+export interface PackedCorpus extends CompiledDefinitionIndex, PackedBlocks {
+    /** The ONE source hash — the same value `data/catalogue/source-hash.json`
+     *  holds. */
+    readonly sourceHash: string;
+    /** base64 of the raw deflate dictionary. */
+    readonly dictionary: string;
     /** Every row's name, in row order: row `i` lives in block
      *  `floor(i / blockRows)`. */
     readonly names: readonly string[];
@@ -46,11 +53,11 @@ export function decodeBase64(text: string): Uint8Array {
     return bytes;
 }
 
-/** Inflate ONE block — the unit a server lookup pays for. */
+/** Inflate ONE block — the unit a lookup pays for. */
 export function inflateBlock(
-    packed: PackedCorpus,
+    packed: PackedBlocks,
     block: number,
-    dictionary: Uint8Array = decodeBase64(packed.dictionary)
+    dictionary: Uint8Array
 ): CardDefinition[] {
     const text = packed.blocks.slice(
         packed.blockOffsets[block],
@@ -64,7 +71,7 @@ export function inflateBlock(
  *  is `<=` it, by binary search over `firstIds` (code-point order, which is
  *  the order the generator's structural guard pins). `-1` when `id` sorts
  *  before the first row. */
-export function blockFor(packed: PackedCorpus, id: string): number {
+export function blockFor(packed: PackedBlocks, id: string): number {
     let lo = 0;
     let hi = packed.firstIds.length - 1;
     let found = -1;
@@ -88,6 +95,10 @@ export function blockFor(packed: PackedCorpus, id: string): number {
 const PACKED_ROW_ID =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** Whether `id` has the shape of a compiled row's id — the only ids a packed
+ *  lookup (or a client shard, issue #5616) can ever hold. */
+export const isPackedRowId = (id: string): boolean => PACKED_ROW_ID.test(id);
+
 export interface PackedLookup {
     /** The packed row for `id`, or `null` — a non-UUID id inflates nothing,
      *  an absent UUID inflates the one block it would live in. */
@@ -108,13 +119,25 @@ export interface PackedLookup {
  * lifetime of the deployment.
  */
 export function createPackedLookup(packed: PackedCorpus): PackedLookup {
+    return createBlockLookup(packed, () => decodeBase64(packed.dictionary));
+}
+
+/**
+ * {@link createPackedLookup} over any {@link PackedBlocks}: a client shard
+ * (issue #5616) carries no dictionary of its own and is decoded against the
+ * one every shard shares. `dictionary` is called once, on the first inflate.
+ */
+export function createBlockLookup(
+    packed: PackedBlocks,
+    dictionaryOf: () => Uint8Array
+): PackedLookup {
     const blocks = new Map<number, ReadonlyMap<string, CardDefinition>>();
     let dictionary: Uint8Array | null = null;
     let inflated = 0;
     const rowsOf = (block: number): ReadonlyMap<string, CardDefinition> => {
         const memo = blocks.get(block);
         if (memo) return memo;
-        dictionary ??= decodeBase64(packed.dictionary);
+        dictionary ??= dictionaryOf();
         inflated++;
         const rows = new Map(
             inflateBlock(packed, block, dictionary).map((row) => [row.id, row])

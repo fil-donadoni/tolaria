@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getAllCardNames } from "@convex/cards/catalogue";
 import { getAllTokenKeys } from "@convex/cards/tokenCatalogue";
 import { hydrateCatalogue, isCatalogueHydrated } from "~/lib/catalogueArtifact";
+import { useCompiledIndex } from "~/hooks/useCompiledIndex";
 
 /** Controlled card-name autocomplete for the debug scenario builder. Unlike
  *  `CardNameInput` (which owns a submit button for a `name-card` choice), this
@@ -30,10 +31,12 @@ export default function DebugCardNameField({
     const [focused, setFocused] = useState(false);
     // The token catalogue is derived by walking EVERY hand-written
     // definition (`getAllCards`): a whole-catalogue read, on a game route
-    // that holds only its game's Sets (issue #5615). The card names are read
-    // off the Definition Index and need nothing; the token keys wait for the
-    // whole catalogue, which this field starts loading — admin tooling pays
-    // the catalogue, the game does not.
+    // that holds only its game's shards (issues #5615, #5616). The card
+    // names are read off the Definition Index, whose compiled section this
+    // field loads on demand (a names asset, never a shard); the token keys
+    // wait for the whole catalogue, which this field starts loading — admin
+    // tooling pays the catalogue, the game does not.
+    const names = useCompiledIndex(source === "cards");
     const [whole, setWhole] = useState(isCatalogueHydrated);
     useEffect(() => {
         if (source !== "tokens") return;
@@ -58,8 +61,10 @@ export default function DebugCardNameField({
                 ? whole
                     ? getAllTokenKeys()
                     : []
-                : getAllCardNames(),
-        [source, whole]
+                : names.ready
+                  ? getAllCardNames()
+                  : [],
+        [source, whole, names.ready]
     );
 
     const trimmed = value.trim();

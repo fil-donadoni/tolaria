@@ -83,6 +83,21 @@ function pickPrintingForFormat(
  *  the one the registry's own Set offers) until the caller has fetched it. */
 export type EarliestPrintRows = ReadonlyMap<string, PrintingRow>;
 
+/** The card NAMES a pasted decklist's card lines carry, in line order —
+ *  what a caller resolves through the Definition Index to make the deck's
+ *  definitions resident before {@link parseDecklist} reads them (issue
+ *  #5616). Headers, blank and malformed lines carry none. */
+export function decklistCardNames(text: string): string[] {
+    const names: string[] = [];
+    for (const raw of text.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (line === "" || isSectionHeader(line)) continue;
+        const match = CARD_LINE.exec(line);
+        if (match) names.push(match[2].trim());
+    }
+    return names;
+}
+
 /** Parse a pasted decklist into Maindeck and Sideboard piles.
  *
  * Format (MTGA / Scryfall style):

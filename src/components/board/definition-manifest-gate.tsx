@@ -5,13 +5,14 @@ import LoadingScreen from "~/components/ui/loading-screen";
 import CatalogueLoadError from "~/components/ui/catalogue-load-error";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { hydrateCatalogue } from "~/lib/catalogueArtifact";
-import { installSets } from "~/lib/catalogue/definitionShards";
-import { manifestSetCodes } from "~/lib/catalogue/manifestSetCodes";
+import { installShards } from "~/lib/catalogue/definitionShards";
+import { manifestShardKeys } from "~/lib/catalogue/manifestShardKeys";
 
 /**
  * The game route's catalogue gate (issue #5615, PRD #5602, ADR 0113
- * Amendment V): the board renders once the Sets of the game's Definition
- * Manifest are resident — both maindecks, both companions, the viewer's own
+ * Amendments V–VI): the board renders once the shards of the game's
+ * Definition Manifest are resident — the hand-written Sets and the compiled
+ * shards (issue #5616) of both maindecks, both companions, the viewer's own
  * sideboard — instead of the whole catalogue.
  *
  * ONE ROW PER SEAT THE VIEWER OWNS. `gameReads.getDefinitionManifest` is
@@ -30,14 +31,14 @@ import { manifestSetCodes } from "~/lib/catalogue/manifestSetCodes";
  * `null` takes the WHOLE-CATALOGUE fallback, never a gate that waits forever
  * — at worst a download the game did not need.
  *
- * HOLD ONCE. The board is held only until the FIRST Manifest's Sets are
+ * HOLD ONCE. The board is held only until the FIRST Manifest's shards are
  * resident. A later widening (a debug load, which widens every seat's row)
- * installs its Sets in the background: unmounting the board on every widen
+ * installs its shards in the background: unmounting the board on every widen
  * would drop its in-memory state (Yields, the driver's dedupe refs, an open
  * dialog) — and anything the widened state actually names is held by the
  * board itself (`useDefinitionsResident`), card by card. So this gate never
  * has to be right about everything, only about the common case: a game's
- * Sets, before its first frame.
+ * shards, before its first frame.
  */
 export default function DefinitionManifestGate({
     gameId,
@@ -46,7 +47,7 @@ export default function DefinitionManifestGate({
     children,
 }: {
     gameId: Id<"games">;
-    /** The viewer's seat: whose row decides between "its Sets" and the
+    /** The viewer's seat: whose row decides between "its shards" and the
      *  whole-catalogue fallback. */
     playerId: string;
     /** Every seat of the Game (`games.players[].id`). */
@@ -70,11 +71,11 @@ export default function DefinitionManifestGate({
     // before the first install, or the board mounts twice.
     const loading = firstRow === undefined || secondRow === undefined;
     const fallback = own === null;
-    const codes = useMemo(
-        () => manifestSetCodes([firstRow, secondRow]),
+    const keys = useMemo(
+        () => manifestShardKeys([firstRow, secondRow]),
         [firstRow, secondRow]
     );
-    const codesKey = codes.join(" ");
+    const keysKey = keys.join(" ");
     const queryError = first.error ?? second.error;
 
     const [resident, setResident] = useState(false);
@@ -86,7 +87,7 @@ export default function DefinitionManifestGate({
         let cancelled = false;
         const load = fallback
             ? hydrateCatalogue().then(() => undefined)
-            : installSets(codesKey === "" ? [] : codesKey.split(" "));
+            : installShards(keysKey === "" ? [] : keysKey.split(" "));
         load.then(
             () => {
                 if (!cancelled) setResident(true);
@@ -103,7 +104,7 @@ export default function DefinitionManifestGate({
         return () => {
             cancelled = true;
         };
-    }, [loading, queryError, fallback, codesKey, attempt]);
+    }, [loading, queryError, fallback, keysKey, attempt]);
 
     if (queryError) {
         return (

@@ -5,11 +5,19 @@
 // so the player fixes the list once rather than discovering a deck that is
 // not the one they pasted.
 //
-// PURE — no React, no Convex client. The server re-validates at game start
-// (ADR 0074); this is the client's pre-flight, never its authority.
+// No React, no Convex client; the one network it touches is the catalogue's
+// own loader, for the pasted deck's definitions. The server re-validates at
+// game start (ADR 0074); this is the client's pre-flight, never its
+// authority.
 import { FORMAT_RULES, validateDeck, type FormatId } from "@convex/formats";
+import { catalogueIdByName } from "@convex/cards/catalogue";
 import type { UserLobbyDeck } from "./deckTypes";
-import { parseDecklist, type EarliestPrintRows } from "./deckImport";
+import {
+    decklistCardNames,
+    parseDecklist,
+    type EarliestPrintRows,
+} from "./deckImport";
+import { installShards, shardsNeededFor } from "./catalogue/definitionShards";
 import { computeDeckColors } from "./deckColors";
 import type { DeckCard } from "~/types/game";
 
@@ -80,11 +88,26 @@ export type FetchEarliestPrints = (
 ) => Promise<EarliestPrintRows>;
 
 /**
- * The Import deck dialog's whole import: parse once for the Card IDs, fetch
- * the earliest legal printing of each when the Format restricts its Sets
- * (issue #5106), then import strictly. Here, not in the dialog, so the dialog
- * imports nothing that reads the catalogue: it loads this module on demand
- * (`./strictImportLoader`, issue #5584).
+ * Make the definitions of every card `text` names resident (issue #5616):
+ * the names resolve through the Definition Index — its compiled section is
+ * loaded with this module (`./strictImportLoader`) — and only the shards of
+ * THOSE cards are installed, never the catalogue. A name the index does not
+ * know stays unknown, and `parseDecklist` reports its line.
+ */
+export async function makeDecklistResident(text: string): Promise<void> {
+    const ids = decklistCardNames(text).flatMap(
+        (name) => catalogueIdByName(name) ?? []
+    );
+    await installShards(shardsNeededFor(ids));
+}
+
+/**
+ * The Import deck dialog's whole import: make the pasted cards' definitions
+ * resident, parse once for the Card IDs, fetch the earliest legal printing of
+ * each when the Format restricts its Sets (issue #5106), then import
+ * strictly. Here, not in the dialog, so the dialog imports nothing that reads
+ * the catalogue: it loads this module on demand (`./strictImportLoader`,
+ * issue #5584).
  */
 export async function strictImportWithPrintings(
     name: string,
@@ -92,6 +115,7 @@ export async function strictImportWithPrintings(
     format: FormatId,
     fetchEarliest: FetchEarliestPrints
 ): Promise<StrictImportResult> {
+    await makeDecklistResident(text);
     const allowedSets = FORMAT_RULES[format].allowedSets;
     const first = parseDecklist(text, format);
     const earliest = allowedSets

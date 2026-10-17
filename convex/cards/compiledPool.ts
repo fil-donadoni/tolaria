@@ -7,7 +7,8 @@
 // `./compiledPool` to `src/lib/catalogue/compiled-pool.browser.ts` (an empty
 // stub), so neither the `card-catalogue` chunk nor the `brain.worker` bundle
 // carries a byte of card definition data; the client FETCHES the same packed
-// corpus as an asset instead (`src/lib/catalogueArtifact.ts`, issue #4861).
+// rows instead, cut into per-Set shard assets at `vite build` (issue #5616,
+// `scripts/lib/vite-compiled-shards.ts`).
 // The alias matches a RELATIVE specifier, so this module must keep exactly
 // one importer — pinned by
 // `scripts/__tests__/compiled-pool-client-seam.test.ts`.
@@ -40,6 +41,6 @@ export const packedServerCorpus: PackedCorpus | null =
  *  then the packed row, then token synthesis — one block at a time, on first
  *  request; nothing is preloaded (issue #4856). Built HERE, behind the seam
  *  the client build aliases away; the client builds its own from the corpus
- *  it fetches (`registerPackedCorpus`, issue #4861). */
+ *  shards it fetches (`registerCompiledShard`, issue #5616). */
 export const packedCorpusLookup: PackedLookup | null =
     packedServerCorpus !== null ? createPackedLookup(packedServerCorpus) : null;
