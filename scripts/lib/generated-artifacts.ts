@@ -115,7 +115,9 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         // Bot-play verdicts CARRIED FORWARD, never played. A card whose
         // definition the merge changed is left unswept until the next
         // `oracle:compile` (issue #3830 — without this, `land` played all
-        // 3,400 cards under the machine mutex).
+        // 3,400 cards under the machine mutex). The verdicts a rebased
+        // commit replayed survive the conflict: the driver lays them over
+        // the side it takes (issue #5814, `oracle-verdict-overlay.ts`).
         args: ["--carry-bot"],
         wholeFileState:
             "header.compilerHash, header.registryHash, header.counts, formats[*]",
