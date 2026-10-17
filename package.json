@@ -63,6 +63,7 @@
         "runner": "bun scripts/github-runner.ts",
         "maintenance": "bun scripts/maintenance.ts",
         "health": "bun scripts/health-main.ts",
+        "health:bisect": "bun scripts/health-bisect.ts",
         "health:cadence": "bun scripts/health-cadence.ts",
         "health:fix": "bun scripts/health-fix.ts",
         "health:nightly": "bun scripts/health-nightly.ts",

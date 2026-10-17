@@ -22,7 +22,11 @@ the [`pr-fixup`](#pr-fixup) job for stale generated artefacts. Version 8
 (issue #5642) adds [the merge queue](#the-merge-queue) — `.mergify.yml` in
 [shadow](#g-shadow), acting only on PRs the owner labels `queue:shadow`.
 (issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
-machine, and the schedules that replaced the Huawei's two timers.
+machine, and the schedules that replaced the Huawei's two timers. Version 10
+(issue #5645) adds [`health`](#health): batch health every two hours on a
+[`lane`](#g-lane) runner, an [early run](#g-early-run) on a hosted runner
+after each merge batch, and the [RED ladder](#g-red-ladder)'s first rungs —
+the [flake check](#g-flake-check) and the [bisect](#g-bisect).
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -251,6 +255,8 @@ at a time ([§ afk-dispatch](#afk-dispatch)).
 | [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses |
 | [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                        | `[self-hosted, lane]`                 | the lane on the queue's rebased draft, one flaky re-run                                |
 | [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand            | `[self-hosted, lane]`                 | regenerates a stale generated artefact and pushes it                                   |
+| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)           | `[self-hosted, lane]`                 | the base tip's `health` verdict; a RED's flake check and bisect                        |
+| [`health-early`](#health)                 | push to the base branch, one run at a time                       | GitHub-hosted `ubuntu-24.04`          | the offline gate after a merge batch — its RED only                                    |
 
 ### pr-check
 
@@ -477,6 +483,115 @@ Orders that hold:
 `branches: [staging]` names the base by literal, as in
 [`pr-refresh`](#pr-refresh).
 
+### health
+
+Batch health moves from the Huawei's health runner to two workflows (issue
+#5645). Both run `health-main` — kept whole: one re-run of a failed vitest
+project (issue #5461), the [INFRA](#g-infra) classification, the evidence on
+the pivot — and write the verdict where it always went: the `health` commit
+status on the gated sha (`health.verdictStore: github`), which
+[`base-health`](#g-base-health) reads.
+
+| Job                        | When                                           | Runner                       | Runs                                                                                                  |
+| -------------------------- | ---------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `health.yml` `gate`        | every 2 h at `:50`, dispatch (`job: gate`)     | `[self-hosted, lane]`        | `bun run health --scheduled --retry-infra`, then the [RED ladder](#g-red-ladder) when it is not GREEN |
+| `health.yml` `ladder`      | dispatch (`job: ladder`, `sha`) — from `early` | `[self-hosted, lane]`        | `bun run health:bisect ladder --sha <sha>`                                                            |
+| `health-early.yml` `early` | a push to the base, one run at a time          | GitHub-hosted `ubuntu-24.04` | `bun run health --early`: the [early run](#g-early-run); a RED dispatches `ladder`                    |
+
+**The scheduled run** gates `origin/staging`'s tip from the job's
+[worktree](#g-job-worktree) — the one linked worktree `health-main` accepts;
+its records still go to the [primary checkout](#g-primary-checkout)'s
+`.claude/telemetry/health/`. Unattended, it re-gates an INFRA tip
+(`--retry-infra`) but never one the store holds a RED for: that tip is the
+ladder's, and a repair moves it. No browser walk (a batch owes none, issue
+#5378; `release` walks). A tip already GREEN on the store is skipped in
+seconds.
+
+**The early run** fills the two hours between: after a merge batch a free
+hosted runner runs the same offline gate on the new tip, so fewer PRs
+separate the last GREEN from a RED. A hosted runner holds no corpus reader
+key (issue #5675), so the run sets `TOLARIA_HOSTED_NO_VERDICT_CORPUS` and
+skips the committed-corpus tests — and a run that skipped tests proves no
+GREEN. **Only its RED reaches the store**; its GREEN and INFRA stay in the
+VM's record. The batch is a concurrency group without `cancel-in-progress`:
+one run at a time, and the pushes that land meanwhile collapse into one
+pending run of the newest tip (allowed because the workflow is hosted-only —
+[§ Serialising heavy work](#serialising-heavy-work)).
+
+**The [RED ladder](#g-red-ladder)** (`scripts/health-bisect.ts`, decisions
+in `scripts/lib/health-bisect.ts`) runs on a `lane` runner:
+
+1. **[Flake check](#g-flake-check).** The RED's failing test files — read
+   from its evidence, which always has room for them — re-run once, fresh,
+   at the RED sha in a throwaway worktree (`worktree:init`, then
+   `bunx vitest run <files>`; the blade's specs under
+   `vitest.blade.config.ts`). A RED naming no file re-runs its failed step
+   (`bun run check:all`, …). Health stops at its first failed step (and
+   `test`'s chain at its first red tier), so when that part passes the
+   ladder runs **every gate the RED's run never reached** in the same
+   worktree (`remainingGates`: after a `test:app` file, `test:bot` and
+   `test:blade`; after `check:all`, the guards and `test`). **Not
+   reproduced** — all of it green: the RED closes as GREEN on the same sha
+   (`flake: <step> passed on a fresh run` — last writer wins) and each flaky
+   file is filed as `Flaky test: <file>` (`bug`, `area:workflow`,
+   `needs-triage`; an open issue of that title gets a comment instead — the
+   search index can lag, so two ladders at once may file it twice). A gate
+   the RED's run never reached failing instead keeps the RED standing, not
+   bisected.
+2. **[Bisect](#g-bisect)** when it reproduced: the base's first-parent
+   commits after the last GREEN (the newest ancestor the store holds a GREEN
+   for, at most 60 back), binary-searched on the failing files — a commit
+   without a file yet counts green, so a test the culprit added names the
+   culprit. The first red commit's PR (` (#N)` in a squash subject) is added
+   to the RED's published evidence as a `- **culprit:**` line, which
+   `bun run health:status --evidence` prints. A probe that could not run ends
+   the search with no culprit rather than a guess.
+
+Every RED the ladder confirms gets that `- **culprit:**` line, named or not
+— the mark that it was climbed: a later ladder on the same RED stops at once
+and exits 0, so a standing RED emails once. With no `--sha` the ladder takes
+the RED standing on the store's lineage, whoever found it — so the gate
+job, which runs the ladder every time, climbs an early RED whose `ladder`
+dispatch was lost — else this machine's last run, when the store never took
+its RED. Probe worktrees (`tolaria-bisect-<pid>-<n>`) a killed job left are
+removed at the next ladder's start.
+
+The fixer (`/health-fix`, issue #5646) and the revert of the culprit are the
+ladder's next rungs, not this workflow's.
+
+**What the owner sees.** A RED is a red `health` status on the tip and holds
+the queue: each job re-dispatches [`pr-gate`](#pr-gate) when it ends (the
+hosted run's status is written with the job's token, which fires no
+`status` event), and `base-health` goes red on every queued PR that closes
+no declared repair. A RED the ladder leaves standing fails the job, so
+GitHub's failed-run email reaches the owner; a flake the ladder closed
+leaves a green job and a filed issue. An early RED's own job stays green —
+its ladder job is the one that fails.
+
+By hand, on a machine with the owner's `gh` login:
+
+```bash
+bun run health:bisect ladder --sha <sha> --dry-run   # the fresh run, no write
+bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] --dry-run
+```
+
+Each run's log: `.claude/telemetry/health/<sha12>.ladder.log` in the
+primary checkout.
+
+Orders that hold:
+
+- **Schedules and dispatch need the default branch.** The two-hourly run,
+  and the `ladder` dispatch `health-early` sends, start once a release
+  carries `health.yml` to it; until then the early run's RED holds the queue
+  with no ladder behind it (the Huawei's health runner still gates). The
+  early job dispatches `pr-gate` first, so a failed `ladder` dispatch never
+  costs the hold.
+- **The old runner is not retired yet.** The Huawei's `health:runner`
+  timer still fires; both dedup by sha on the store (a tip GREEN on the
+  store is skipped), so a doubled run costs a runner, not a wrong verdict.
+- **`--ref staging`** names the base by literal, as `post-merge`'s
+  `branches:` does.
+
 ### lane-timing
 
 `.github/workflows/lane-timing.yml`: the same `check:lane` on one machine's
@@ -642,8 +757,8 @@ trigger, which re-posts both statuses on every open PR labelled
 `ready-to-land`: a RED holds the queue, a GREEN or AMBER reopens it, a newly
 declared repair is admitted. Only a status written with a personal token
 fires it (the machines' `gh` login writes the verdicts; a status written
-with a job's `GITHUB_TOKEN` fires nothing — a future `health.yml` dispatches
-`pr-gate` explicitly). GitHub cannot filter `status` by context, so every
+with a job's `GITHUB_TOKEN` fires nothing — so the [`health`](#health)
+workflows dispatch `pr-gate` explicitly when they end). GitHub cannot filter `status` by context, so every
 OTHER status written with a personal token (`health-run`, `ui-walk`) shows
 as a **skipped** `pr-gate` run — expected, not a failure. A 15-minute
 `schedule` sweeps the same queue: it heals a `pending` left by an outage and
@@ -858,6 +973,8 @@ slices add: the queue's required checks and entry conditions (Phase 1).
 | `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                     |
 | `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                            |
 | `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                               |
+| `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                 |
+| an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                       |
 | jobs fail when the MacBook lid closes         | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                           |
 
 ## Glossary
@@ -988,3 +1105,34 @@ The commit status [`pr-gate`](#pr-gate) posts: green for a PR by a
 The commit status [`pr-gate`](#pr-gate) posts: green unless a RED stands on
 the base branch's health lineage and the PR closes none of that RED's
 declared repair issues.
+
+### <a id="g-infra"></a>INFRA
+
+A health verdict the tree is not responsible for — the machine slept, was
+saturated, or the deployment was down (`scripts/lib/health-verdict.ts`). It
+proves nothing, so it never replaces a GREEN or a RED on the store, and the
+next run re-gates the tip.
+
+### <a id="g-early-run"></a>Early run
+
+`health-main --early` on a GitHub-hosted runner after a merge batch
+([`health-early`](#health)): the offline gate minus the committed-corpus
+tests. Only its RED reaches the store.
+
+### <a id="g-red-ladder"></a>RED ladder
+
+What a RED goes through before it reaches the owner (PRD #5620 story 57):
+the [flake check](#g-flake-check), the [bisect](#g-bisect), the fixer
+(issue #5646), the revert of the culprit, then one email.
+`scripts/health-bisect.ts` is its first two rungs.
+
+### <a id="g-flake-check"></a>Flake check
+
+The ladder's first rung: the RED's failing files re-run fresh at the same
+sha. Not reproduced, the RED closes as GREEN and the flaky test is filed.
+
+### <a id="g-bisect"></a>Bisect
+
+The ladder's second rung: a binary search of the base's commits after the
+last GREEN on the RED's failing files; the first red commit's PR is the
+culprit, named in the RED's evidence.

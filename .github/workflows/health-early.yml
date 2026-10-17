@@ -1,0 +1,78 @@
+# health-early — early detection on a free GitHub-hosted runner (ADR 0156
+# Amendment I, issue #5645): after a merge batch, `health-main --early` runs
+# the offline health gate on the base tip, so fewer PRs separate the last
+# GREEN from a RED than the two-hourly health.yml alone would leave.
+#
+# A hosted runner holds no corpus reader key (issue #5675), so the run skips
+# the committed-corpus tests — and a run that skipped tests proves no GREEN:
+# only its RED reaches the `health` commit status (`storesVerdict`,
+# scripts/lib/health-verdict-job.ts). That RED holds the queue at once
+# (`base-health`, re-dispatched below — a status written with the job's
+# token fires no `status` event) and dispatches health.yml's ladder on a
+# `lane` runner, which re-runs it fresh, closes a flake GREEN, or bisects.
+#
+# The batch: one run at a time, and the pushes that land while it runs
+# collapse into ONE pending run of the newest tip (a concurrency group keeps
+# one pending run and cancels the older pending one — the batching wanted
+# here, never on a self-hosted job: docs/guides/github-pipeline.md
+# § Serialising heavy work). Hosted only, so the corpus exclusion may appear
+# here (the structure guard's `corpus-exclusion-gating`). No secret: the
+# job's own token.
+name: health-early
+
+on:
+    push:
+        branches: [staging]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: health-early
+    cancel-in-progress: false
+
+jobs:
+    early:
+        name: health (early, hosted)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 150
+        # `contents: write` for the RED's evidence (a commit comment),
+        # `statuses: write` for the verdict, `actions: write` to dispatch the
+        # ladder and the re-gate.
+        permissions:
+            contents: write
+            statuses: write
+            actions: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: health-main --early (offline gate, no corpus)
+              id: health
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
+              run: bun run health --early
+            - name: Read the run's record
+              id: verdict
+              if: always()
+              run: |
+                  f=.claude/telemetry/health/last.json
+                  if [ -f "$f" ]; then
+                      jq -r '"sha=\(.sha)", "status=\(.status)"' "$f" >> "$GITHUB_OUTPUT"
+                  fi
+            - name: RED → the ladder on a lane runner, and re-gate the queue
+              if: ${{ steps.verdict.outputs.status == 'red' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ steps.verdict.outputs.sha }}
+              # The re-gate first: it is what holds the queue. The ladder's
+              # dispatch fails until a release carries health.yml to the default
+              # branch — the next scheduled run climbs the standing RED then.
+              run: |
+                  gh workflow run pr-gate.yml --ref staging
+                  gh workflow run health.yml --ref staging -f job=ladder -f sha="$SHA" ||
+                      echo "::warning::the ladder could not be dispatched — health.yml's next run climbs this RED"
