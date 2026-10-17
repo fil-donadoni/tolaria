@@ -29,7 +29,7 @@ import {
     closingIssueRefs,
     redLandGate,
     type LandingKind,
-} from "./lib/health-cadence";
+} from "./lib/red-land-gate";
 import {
     lineageBlocks,
     verdictStore,

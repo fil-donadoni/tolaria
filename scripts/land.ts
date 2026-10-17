@@ -84,14 +84,10 @@
  * `land` itself writes after its own green lane) and prints `lane: ran` or
  * `lane: skipped (gated <sha> against <base>)`. Any mismatch runs the lane.
  *
- * BATCH HEALTH (ADR 0136 §6, issue #3780). A landing pays the LANE gate and
- * nothing else, but it is also what COUNTS toward the full gate: the locked
- * command records the merged tip in `.claude/telemetry/health/cadence.json`
- * and then detaches `health-cadence.ts detach`, which fires `health-main.ts`
- * after the 10th landing since the last GREEN or 4 h after the first
- * un-healthed one. Both steps are non-gating, and the detached run takes the
- * mutex through `gate.ts yield`, the lowest admission class, so any `land`
- * queued behind this one goes first.
+ * HEALTH. A landing pays the LANE gate and nothing else; the FULL gate is
+ * `health.yml`'s (ADR 0156 §4). The one health act left in the locked
+ * command is `markAmberStep`: a PROVED repair of a standing RED turns the
+ * lineage AMBER at the tip it created. Non-gating.
  *
  * Usage:
  *   bun run land <PR#>              fetch → rebase → gate → push → merge
@@ -155,10 +151,9 @@ export { rebaseStep, refreshGeneratedApiStep, resolveGeneratedArtifactsStep };
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import {
     closingIssueRefs,
-    parseCadence,
     redLandGate,
     type LandingKind,
-} from "./lib/health-cadence";
+} from "./lib/red-land-gate";
 import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 
 /**
@@ -355,19 +350,18 @@ export function safeRetirementRefusal(
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 /**
- * The batch-health driver, named RELATIVE to the primary checkout — both steps
- * that use it `cd` there first.
+ * The scripts the post-merge steps run, named RELATIVE to the primary checkout
+ * — every step that uses one `cd`s there first.
  *
- * NOT `resolve(__dirname, …)` like the constants around it, and that is the
+ * NOT `resolve(__dirname, …)` like the constants around them, and that is the
  * whole point. `__dirname` is the WORKTREE `land` runs from, and the worktree
- * is torn down by this very command; the detach step ran after that teardown
- * and died with `Module not found ".../tolaria-issue-3780/scripts/health-cadence.ts"`
- * on the first real landing. Its sibling constants are safe only because their
- * steps happen to run before the teardown — a property of step ORDER, not of
- * the path. The primary checkout is where the merged code lives and where the
- * detached decision must keep reading from long after this worktree is gone.
+ * is torn down by this very command: a step that ran after that teardown died
+ * with `Module not found` on the first real landing. Their sibling constants
+ * are safe only because their steps happen to run before the teardown — a
+ * property of step ORDER, not of the path. The primary checkout is where the
+ * merged code lives.
  */
-const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
+const HEALTH_FIX_REL = "scripts/health-fix.ts";
 const TELEMETRY_INGEST_REL = "scripts/telemetry-ingest.ts";
 const BOT_AUDIT_SUGGESTION_REL = "scripts/lib/bot-audit-suggestion.ts";
 /** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
@@ -948,67 +942,26 @@ export function landingTarget(
 }
 
 /**
- * Record the landing in the batch-health ledger (ADR 0136 §6, issue #3780).
+ * Turn the lineage AMBER after a PROVED repair (issue #5462): `repairOf` is the
+ * RED sha the repair proof ran against (`REPAIR_PROVED` is set by
+ * `repairProofStep` earlier in the same shell — only a proof that RAN and
+ * passed marks it). Empty off a repair, and non-gating like every other
+ * post-merge step: the PR is already merged.
  *
- * The FULL gate runs per BATCH — after the 10th landing since the last GREEN,
- * or 4 h after the first un-healthed one — so something has to COUNT the
- * landings, and the only process that knows one happened is the one that
- * merged it. Synchronous, tiny (one JSON file), and in the PRIMARY checkout
- * where the rest of `.claude/telemetry/health/` lives; non-gating like every
- * other post-merge step, because a ledger write that fails must never turn a
- * merged PR into a reported failure.
- *
- * The sha recorded is the base tip the squash produced, read after the
- * post-merge re-fetch and past `VERIFY_MERGED_TIP` — so it is the tip this
- * landing actually created, not whatever the remote held at `land`'s start.
+ * The sha is the base tip the squash produced, read after the post-merge
+ * re-fetch and past `VERIFY_MERGED_TIP`.
  */
-export function recordLandingStep(
+export function markAmberStep(
     primaryCheckout: string,
     kind?: LandingKind,
     repairOf?: string
 ): string {
-    // `REPAIR_PROVED` is set by `repairProofStep` earlier in the same shell:
-    // only a proof that RAN and passed turns the lineage AMBER (issue #5462).
-    const amber =
-        kind === "repair" && repairOf !== undefined && FULL_SHA.test(repairOf)
-            ? `\${REPAIR_PROVED:+ --amber-of=${repairOf}}`
-            : "";
+    if (kind !== "repair" || repairOf === undefined || !FULL_SHA.test(repairOf))
+        return "";
     return (
         `(cd ${shQuote(primaryCheckout)} && ` +
-        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})"${kind ? ` --kind=${kind}` : ""}${amber} || ` +
-        `echo "land: could not record the landing in the health ledger" >&2; true)`
-    );
-}
-
-/**
- * Start the batch-health DECISION (ADR 0136 §6). Conditional inside the
- * script, not in the shell: `health-cadence detach` re-reads the ledger and
- * the CURRENT tip and holds unless a threshold tripped, so this step is one
- * cheap spawn per landing and the trigger logic stays where it is tested
- * (`lib/health-cadence.ts`) instead of half-living in a shell string.
- *
- * SYNCHRONOUS, and `spawn` rather than `nohup … &` — this is load-bearing and
- * was got wrong once. `gate.ts` runs this locked command `detached`, so the
- * `sh` around it leads its own process GROUP, and every teardown path (the
- * ordinary `exit` handler after a CLEAN child exit included) SIGKILLs that
- * whole group — `killChildTree`, issue #3821. `nohup` ignores SIGHUP and
- * redirects output; it does not leave the process group, and neither does
- * `&`. A health run backgrounded here therefore dies milliseconds later, with
- * `land` reporting a green landing: measured, the marker a backgrounded
- * `sleep 4` should have written never appeared. The batch gate would have
- * looked installed and done nothing, silently, for ever.
- *
- * So `land` calls `health-cadence.ts spawn`, which re-launches the decision
- * through node's `spawn(…, { detached: true })` — i.e. `setsid(2)`, a new
- * SESSION no group signal to `land`'s tree can reach — and returns. ~60 ms,
- * inside the lock, once per landing.
- *
- * `; true` so it can never gate the landing: the PR is already merged.
- */
-export function healthDetachStep(primaryCheckout: string): string {
-    return (
-        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(HEALTH_CADENCE_REL)} spawn || ` +
-        `echo "land: could not start the batch health decision" >&2; true)`
+        `{ [ -z "\${REPAIR_PROVED:-}" ] || bun ${shQuote(HEALTH_FIX_REL)} amber --sha="$(git rev-parse ${ORIGIN_BASE})" --repair-of=${repairOf}; } || ` +
+        `echo "land: could not mark the lineage AMBER" >&2; true)`
     );
 }
 
@@ -1021,11 +974,10 @@ export function healthDetachStep(primaryCheckout: string): string {
  * read — so the DB is never more than one landing old.
  *
  * In the PRIMARY checkout, by a RELATIVE path, for the reason
- * `HEALTH_CADENCE_REL` gives; and with `CLAUDE_PROJECT_DIR` pinned to it,
+ * `HEALTH_FIX_REL` gives; and with `CLAUDE_PROJECT_DIR` pinned to it,
  * because the session's own value may name the worktree this command is
  * about to remove — its `.claude/telemetry/` is not the one anyone reads.
- * BEFORE the health detach, so a decision that fires prints KPIs that count
- * this landing. Non-gating like every post-merge step.
+ * Non-gating like every post-merge step.
  *
  * HARD-WALLED: `--budget-ms` is checked between spans slices only, and this
  * step runs holding the heavy mutex — a hung read or a stuck SQLite lock
@@ -1050,7 +1002,7 @@ export function telemetryIngestStep(primaryCheckout: string): string {
  * (the recovery path runs it unlocked: a base that moved since the merge
  * suggests from the wrong squash — a printed line only). From the PRIMARY
  * checkout, by a RELATIVE path, for the reason
- * `HEALTH_CADENCE_REL` gives.
+ * `HEALTH_FIX_REL` gives.
  */
 export function botAuditSuggestionStep(primaryCheckout: string): string {
     return (
@@ -1092,35 +1044,32 @@ export function seedScenarioStep(primaryCheckout: string, pr: number): string {
  *
  * RE-ENTRY IS SAFE, by construction rather than by hope — which is what lets
  * `land` run this list against an already-MERGED PR:
- *  - `recordLandingStep` → `recordLanding` is idempotent on the tip already at
- *    the tail of the ledger (`lib/health-cadence.ts`);
+ *  - `markAmberStep` writes the same AMBER record for the same tip (the
+ *    verdict store keeps the last writer per sha);
  *  - the fast-forward is `--ff-only` and guarded on the primary checkout being
  *    on the base branch;
  *  - the seed is upsert-by-label (`lib/seed-scenario-run.ts` constraint 2);
- *  - telemetry ingest and the health detach re-read their inputs;
+ *  - telemetry ingest re-reads its inputs;
  *  - the ref cleanup and the teardown are all `|| true` and already no-ops
  *    once they have run.
  *
  * ORDER IS LOAD-BEARING and is asserted by the step-order tests, not by this
  * comment: fast-forward BEFORE the seed (issue #3253 — the seed resolves card
  * names server-side against the bundle it pushes from the primary checkout's
- * DISK, so seeding a pre-merge tree can never resolve the PR's own new card),
- * and the health detach BEFORE the teardown that removes the worktree this
- * command runs from.
+ * DISK, so seeding a pre-merge tree can never resolve the PR's own new card).
  */
 export function postMergeHousekeepingSteps(
     opts: HousekeepingOptions
 ): string[] {
+    const amber = markAmberStep(
+        opts.primaryCheckout,
+        opts.landingKind,
+        opts.repairProof?.redSha
+    );
     const steps: string[] = [
-        // The landing counter the batch health gate reads (ADR 0136 §6). A
-        // landing still pays the LANE gate only; the FULL gate runs once per
-        // BATCH — five landings, or two hours — detached below, never inside
-        // the lock.
-        recordLandingStep(
-            opts.primaryCheckout,
-            opts.landingKind,
-            opts.repairProof?.redSha
-        ),
+        // A landing pays the LANE gate only; the FULL gate is `health.yml`'s.
+        // A proved repair marks the lineage AMBER (empty off a repair).
+        ...(amber === "" ? [] : [amber]),
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
@@ -1144,16 +1093,8 @@ export function postMergeHousekeepingSteps(
     // mutex cost the session a failed-looking landing. The hourly
     // `bun run housekeeping` (`scripts/housekeeping.ts`) walks the PRs merged
     // since its watermark and runs them there.
-    //
-    // BEFORE the teardown below, which removes the worktree this command
-    // runs from. `spawn` is synchronous and creates nothing but a process
-    // — the health worktree is created minutes later, by the detached
-    // decision, once it has the mutex — so there is nothing here to
-    // contend with the `worktree remove`, and everything to lose by
-    // running after it.
     steps.push(telemetryIngestStep(opts.primaryCheckout));
-    steps.push(healthDetachStep(opts.primaryCheckout));
-    // After the landing record, and last of the visible output: a suggestion
+    // Last of the visible output: a suggestion
     // the owner reads, never a gate (ADR 0149 §6).
     steps.push(botAuditSuggestionStep(opts.primaryCheckout));
     // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
@@ -1212,7 +1153,7 @@ export function postMergeHousekeepingSteps(
  * housekeeping, which never ran.
  *
  * `git fetch` first, because everything downstream reads the MERGED tip:
- * `recordLandingStep` does `git rev-parse origin/<base>` and the fast-forward
+ * `markAmberStep` does `git rev-parse origin/<base>` and the fast-forward
  * merges `origin/<base>` into the primary checkout. In the `land` path that
  * fetch is the post-merge re-fetch; here nothing has fetched at all since the
  * merge landed through the API. `-q`, and NOT wrapped in `|| true`: a fetch
@@ -1370,19 +1311,9 @@ function parseArgs(argv: string[]): {
 /** The `/health-fix` issues recorded against the standing RED — fail-soft,
  *  like every other read of the health ledger. */
 export function readRepairIssues(primary: string): number[] {
-    let local: number[] = [];
-    try {
-        local = parseCadence(
-            readFileSync(
-                join(primary, ".claude/telemetry/health/cadence.json"),
-                "utf8"
-            )
-        ).repairIssues;
-    } catch {
-        // No local ledger: the pivot may still hold the other machine's.
-    }
-    // A repair recorded by the other machine lives on the pivot (issue #5593).
-    return [...new Set([...local, ...pivotRepairIssues(primary)])];
+    // Recorded on the pivot by `health:fix repair-issue` (issue #5593), which
+    // both machines read.
+    return pivotRepairIssues(primary);
 }
 
 /** The lineage `land`'s RED gate reads (issue #5462) — total, like every

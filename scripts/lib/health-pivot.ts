@@ -24,7 +24,6 @@ import {
     lineageBlocks,
     machineName,
     originRepo,
-    selectedBackend,
     verdictStore,
     type GhRunner,
     type Verdict,
@@ -36,17 +35,14 @@ export const FIX_CONTEXT = "health-fix";
 
 export interface PivotOpts {
     run?: GhRunner;
-    /** Test seam: force a backend instead of the configured one. */
-    backend?: "file" | "github";
 }
 
-/** The status store for one pivot context, or null off the github backend. */
+/** The status store for one pivot context. */
 function pivotStore(
     root: string,
     context: string,
     opts: PivotOpts
-): VerdictStore | null {
-    if (selectedBackend(opts.backend) !== "github") return null;
+): VerdictStore {
     return githubVerdictStore({
         repo: originRepo(root),
         run: opts.run,
@@ -65,7 +61,7 @@ export function publishRunMarker(
     opts: PivotOpts = {}
 ): void {
     try {
-        pivotStore(root, RUN_CONTEXT, opts)?.write({
+        pivotStore(root, RUN_CONTEXT, opts).write({
             sha,
             status: "amber",
             step: "running",
@@ -90,7 +86,7 @@ export function pivotRunInFlight(
     } = {}
 ): string | null {
     try {
-        const marker = pivotStore(root, RUN_CONTEXT, opts)?.latest() ?? null;
+        const marker = pivotStore(root, RUN_CONTEXT, opts).latest();
         if (marker === null || marker.status !== "amber" || !marker.at)
             return null;
         // This machine's own run is judged by its pid probe (`last.json`):

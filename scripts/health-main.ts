@@ -172,11 +172,7 @@ import {
     runSaturated,
     waitForMachine,
 } from "./lib/machine-admission";
-import {
-    describeLastDecision,
-    gateSkipReason,
-    parseCadence,
-} from "./lib/health-cadence";
+import { gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
     existsSync,
@@ -453,11 +449,6 @@ function status(root: string): never {
         console.log(
             `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.retried ? `\n  retry: ${retryNote("test", last.retried, last.retryCause)} — ${retryOutcome(last)}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
-    // Why the last landing did or did not fire the batch gate (issue #4964).
-    const cadence = join(dir, "cadence.json");
-    console.log(
-        `  cadence: ${describeLastDecision(parseCadence(existsSync(cadence) ? readFileSync(cadence, "utf8") : null))}`
-    );
     // The two halves, each on its own (issue #4962): a walk the environment
     // cut short says so instead of hiding inside the run's single status.
     if (last)

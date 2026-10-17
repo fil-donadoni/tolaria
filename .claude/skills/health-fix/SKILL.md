@@ -113,11 +113,11 @@ carries `## Band` / `P1 — base tip RED` (a RED tip blocks every landing).
 
 ```bash
 gh issue create --title '…' --body '…' --label bug --label area:<area>
-bun run health:cadence repair-issue --issue=<N>
+bun run health:fix repair-issue --issue=<N>
 cd "$(bun run --silent wt:new <N> --fix)"
 ```
 
-`repair-issue` records `<N>` in the health ledger as the repair of the
+`repair-issue` records `<N>` on the pivot as the repair of the
 standing RED (issue #4964): under RED, `land` refuses every PR that is not a
 declared repair unless it is run with `--red-ok`, and the PR that closes `<N>`
 is how it recognises yours — with no flag — and fires the health gate on its
