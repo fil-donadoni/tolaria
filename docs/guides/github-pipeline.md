@@ -244,19 +244,20 @@ at a time ([§ afk-dispatch](#afk-dispatch)).
 
 ## Workflows
 
-| Workflow                                  | Trigger                                                          | Runner                                | What it proves                                                                         |
-| ----------------------------------------- | ---------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                      | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory                                |
-| [`pr-check`](#required-checks) `refusals` | same                                                             | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                              |
-| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch             | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                      |
-| [`pr-refresh`](#pr-refresh)               | push to the base branch                                          | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                              |
-| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                 | `lane` per machine, `seed`            | fast-forward, worktree cleanup, seed, housekeeping, nightly                            |
-| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                  | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                      |
-| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses |
-| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                        | `[self-hosted, lane]`                 | the lane on the queue's rebased draft, one flaky re-run                                |
-| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand            | `[self-hosted, lane]`                 | regenerates a stale generated artefact and pushes it                                   |
-| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)           | `[self-hosted, lane]`                 | the base tip's `health` verdict; a RED's flake check and bisect                        |
-| [`health-early`](#health)                 | push to the base branch, one run at a time                       | GitHub-hosted `ubuntu-24.04`          | the offline gate after a merge batch — its RED only                                    |
+| Workflow                                  | Trigger                                                          | Runner                                | What it proves                                                                            |
+| ----------------------------------------- | ---------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                      | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory                                   |
+| [`pr-check`](#required-checks) `refusals` | same                                                             | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                                 |
+| [`release`](#release)                     | dispatch (`dry_run`)                                             | `[self-hosted, lane]`                 | the full gate + walk on the base tip, then the release fast-forward, under an Environment |
+| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch             | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                         |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch                                          | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                                 |
+| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                 | `lane` per machine, `seed`            | fast-forward, worktree cleanup, seed, housekeeping, nightly                               |
+| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                  | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                         |
+| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses    |
+| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                        | `[self-hosted, lane]`                 | the lane on the queue's rebased draft, one flaky re-run                                   |
+| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand            | `[self-hosted, lane]`                 | regenerates a stale generated artefact and pushes it                                      |
+| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)           | `[self-hosted, lane]`                 | the base tip's `health` verdict; a RED's flake check and bisect                           |
+| [`health-early`](#health)                 | push to the base branch, one run at a time                       | GitHub-hosted `ubuntu-24.04`          | the offline gate after a merge batch — its RED only                                       |
 
 ### pr-check
 
@@ -591,6 +592,53 @@ Orders that hold:
   store is skipped), so a doubled run costs a runner, not a wrong verdict.
 - **`--ref staging`** names the base by literal, as `post-merge`'s
   `branches:` does.
+
+### release
+
+`.github/workflows/release.yml` (issue #5647): the release branch moves by a
+dispatch, no longer by `bun run release` typed on the MacBook (the script is
+the same, ADR 0116's green-at-release unchanged).
+
+| Job       | When                             | Runner                | Runs                                                                     |
+| --------- | -------------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `release` | dispatch (`dry_run`, default on) | `[self-hosted, lane]` | `bun run release --no-fix` (`--gate-only` on a dry run), under `release` |
+
+**What it does.** From the job's [worktree](#g-job-worktree) of the primary
+checkout (which holds the Convex deployment the walk needs), `release` gates
+`origin/staging`'s tip with `health-main --ui-all`: the full offline gate AND
+the full `check:ui` walk. Only a GREEN verdict about that exact sha lets it
+push `<sha>:refs/heads/<release>` — a plain refspec, so git itself refuses a
+non-fast-forward; nothing passes `--force`. `pushRefusal` re-asks of the
+record the push acts on, right before it. The verdict goes to the store like
+any health run's.
+
+**Dry run.** `dry_run: true` (the default) runs everything except the push
+(`--gate-only`): the gate, the verdict, the decision. It prints
+`--gate-only — <sha> is GREEN; <release> left where it is`, or the refusal.
+
+**No fixer.** The job has no terminal: a RED is a failed job (GitHub's
+failed-run email), `--no-fix` says so. The repair is
+[`health.yml`](#health)'s ladder and, by hand, `bun run health:fix`.
+
+**The Environment.** The job declares `environment: release`. Create it once
+(Settings → Environments): add the owner as a required reviewer, so a
+dispatch waits for an approval, and nobody else's dispatch reaches the
+runner. The push uses the owner's git identity (the runner runs as the owner),
+which is the release branch's bypass.
+
+```bash
+gh workflow run release.yml -f dry_run=true --ref staging    # the dry run
+gh workflow run release.yml -f dry_run=false --ref staging   # the release
+```
+
+Orders that hold:
+
+- **Dispatch needs the default branch.** `release.yml` starts only once a
+  release carries it there; until then `bun run release` is the way.
+- **The tip is the script's, not the job's.** `GITHUB_SHA` only names the
+  job's scripts; the script fetches the base and gates what it finds.
+- **A release the Huawei is gating.** Health dedups by sha on the store: a
+  tip already GREEN with a full walk is skipped in seconds.
 
 ### lane-timing
 
