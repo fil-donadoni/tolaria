@@ -1,0 +1,62 @@
+# release — promote the base tip to the release branch (ADR 0156 §4 and
+# Amendment I, issue #5647; ADR 0116's green-at-release holds unchanged).
+#
+# A dispatch runs `bun run release` on a `lane` runner, from the job's
+# worktree of the machine's primary checkout (the checkout holds the Convex
+# deployment the browser walk needs): `health-main --ui-all` — the full
+# offline gate AND the full `check:ui` walk — on `origin/<base>`'s tip, then,
+# only on a GREEN verdict about that exact sha, a fast-forward of the release
+# branch (a plain `<sha>:refs/heads/<release>` refspec, never `--force`). The
+# push uses the owner's git identity (the runner runs as the owner, the
+# release branch's bypass), and the job sits under the `release` GitHub
+# Environment: the owner's gate on who may dispatch it, and the history of
+# each release in the repository's Deployments.
+#
+# `dry_run` runs everything except the push (`--gate-only`): the gate, the
+# verdict on the store, the decision. `--no-fix`: a RED is a failed job (the
+# owner's failed-run email), never a fixer session — there is no terminal.
+#
+# A dispatch needs this file on the default branch; the base tip is named by
+# the script, not by GITHUB_SHA (docs/guides/github-pipeline.md § release).
+name: release
+
+on:
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Run the full gate and the decision, push nothing"
+                type: boolean
+                default: true
+
+permissions:
+    contents: read
+
+jobs:
+    release:
+        name: release (base tip → release branch)
+        runs-on: [self-hosted, lane]
+        environment: release
+        timeout-minutes: 480
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: Release (dry run)
+              if: ${{ inputs.dry_run }}
+              run: bun run release --no-fix --gate-only
+            - name: Release
+              if: ${{ !inputs.dry_run }}
+              run: bun run release --no-fix
+            - name: Re-gate the queue
+              if: always()
+              continue-on-error: true
+              run: gh workflow run pr-gate.yml --ref staging
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

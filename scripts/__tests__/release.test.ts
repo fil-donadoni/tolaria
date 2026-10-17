@@ -6,7 +6,9 @@ import {
     loopDecision,
     parseFixBound,
     publishVerdict,
+    pushRefusal,
     reconcileRecord,
+    recordRoot,
     releaseDecision,
     type HealthRecord,
     type LoopInputs,
@@ -405,5 +407,58 @@ describe("release — publishVerdict through the github backend (fake gh)", () =
         expect(posts[0].some((a) => a.startsWith("description=GREEN"))).toBe(
             true
         );
+    });
+});
+
+describe("release — pushRefusal, the last word before the push (issue #5647)", () => {
+    const tip = "a".repeat(40);
+
+    it("lets a GREEN record about the sha through", () => {
+        expect(pushRefusal(tip, { sha: tip, status: "green" })).toBeNull();
+    });
+
+    it.each(["red", "infra", "running"] as const)(
+        "refuses a %s record — the release branch moves only to a GREEN tip",
+        (status) => {
+            expect(pushRefusal(tip, { sha: tip, status })).toMatch(/health is/);
+        }
+    );
+
+    it("refuses a GREEN record about another sha, and no record at all", () => {
+        expect(
+            pushRefusal(tip, { sha: "b".repeat(40), status: "green" })
+        ).toMatch(/not the base tip/);
+        expect(pushRefusal(tip, null)).toMatch(/no health record/);
+    });
+});
+
+describe("release.yml — dispatch under the release Environment (issue #5647)", () => {
+    const yml = readFileSync(
+        join(__dirname, "..", "..", ".github", "workflows", "release.yml"),
+        "utf8"
+    );
+
+    it("runs only through `bun run release`, never a raw push, under the Environment", () => {
+        expect(yml).toMatch(/^\s+environment: release$/m);
+        expect(yml).toMatch(/bun run release --no-fix --gate-only/);
+        expect(yml).not.toMatch(/git push/);
+    });
+
+    it("the push step is skipped on a dry run", () => {
+        expect(yml).toMatch(
+            /if: \$\{\{ !inputs\.dry_run \}\}\n\s+run: bun run release --no-fix\n/
+        );
+        expect(yml).toMatch(
+            /if: \$\{\{ inputs\.dry_run \}\}\n\s+run: bun run release --no-fix --gate-only/
+        );
+    });
+});
+
+describe("release — recordRoot (issue #5647)", () => {
+    it("is the primary checkout from a job worktree, cwd inside the primary", () => {
+        expect(recordRoot("/m/tolaria/.git", "/m/_work/job")).toBe(
+            "/m/tolaria"
+        );
+        expect(recordRoot(".git", "/m/tolaria")).toBe("/m/tolaria");
     });
 });
