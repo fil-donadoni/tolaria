@@ -25,12 +25,19 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Plugin, ResolvedConfig } from "vite";
 import {
-    compiledClientAssets,
-    compiledShardKeys,
+    PACKED_CORPUS_PATH,
     SHARD_DICTIONARY_PATH,
-    type CompiledClientAssets,
-} from "./compiled-shards";
-import { PACKED_CORPUS_PATH } from "./packed-corpus";
+    compiledShardKeys,
+} from "./compiled-asset-inputs";
+// TYPE-only, on purpose. The encoder reaches `convex/cards/**`; loaded into
+// the server process vitest runs its tests through, it made every test that
+// loads the hand-written Sets ten times slower (a whole hydration 4 s → 40 s,
+// measured — `./compiled-asset-inputs`). So serving reads only the leaf
+// above, and the encoder is `import()`ed where bytes are cut: a build, and
+// the dev middleware's first request.
+import type { CompiledClientAssets } from "./compiled-shards";
+
+const encoder = () => import("./compiled-shards");
 
 export const COMPILED_SHARDS_MODULE = "virtual:compiled-shards";
 const RESOLVED_ID = `\0${COMPILED_SHARDS_MODULE}`;
@@ -102,8 +109,9 @@ function readInputs(root: string): { packed: string; dictionary: string } {
     };
 }
 
-function assetsOf(root: string): CompiledClientAssets {
+async function assetsOf(root: string): Promise<CompiledClientAssets> {
     const { packed, dictionary } = readInputs(root);
+    const { compiledClientAssets } = await encoder();
     const key = createHash("sha256")
         .update(packed)
         .update("\0")
@@ -122,68 +130,83 @@ export function compiledShards(): Plugin {
         configResolved(resolved) {
             config = resolved;
         },
-        resolveId(source) {
-            return source === COMPILED_SHARDS_MODULE ? RESOLVED_ID : null;
+        // Hook FILTERS, not an early return: an unfiltered JS hook is called
+        // for every module of the graph, and under vitest that made each of
+        // the 1,070 Set modules a round trip into this plugin — a whole
+        // hydration test went from 4 s to 40 s (measured).
+        resolveId: {
+            filter: { id: new RegExp(`^${COMPILED_SHARDS_MODULE}$`) },
+            handler(source) {
+                return source === COMPILED_SHARDS_MODULE ? RESOLVED_ID : null;
+            },
         },
-        load(id) {
-            if (id !== RESOLVED_ID) return null;
-            const root = config.root;
-            if (config.command === "build") {
-                const assets = assetsOf(root);
-                const emit = (name: string, source: string) => {
-                    const fileName = contentAddressedName(
-                        config.build.assetsDir,
-                        name,
-                        source
+        load: {
+            filter: { id: new RegExp(`^${RESOLVED_ID}$`) },
+            async handler(id) {
+                if (id !== RESOLVED_ID) return null;
+                const root = config.root;
+                if (config.command === "build") {
+                    const assets = await assetsOf(root);
+                    const emit = (name: string, source: string) => {
+                        const fileName = contentAddressedName(
+                            config.build.assetsDir,
+                            name,
+                            source
+                        );
+                        this.emitFile({ type: "asset", fileName, source });
+                        return JSON.stringify(`${config.base}${fileName}`);
+                    };
+                    return compiledShardsModuleSource(
+                        emit(DICTIONARY_ASSET_NAME, assets.dictionary),
+                        emit(INDEX_ASSET_NAME, assets.index),
+                        [...assets.shards].map(
+                            ([key, json]) =>
+                                [
+                                    key,
+                                    emit(SHARD_ASSET_NAME(key), json),
+                                ] as const
+                        )
                     );
-                    this.emitFile({ type: "asset", fileName, source });
-                    return JSON.stringify(`${config.base}${fileName}`);
-                };
+                }
+                const url = (p: string) => JSON.stringify(`${config.base}${p}`);
+                const { packed } = readInputs(root);
                 return compiledShardsModuleSource(
-                    emit(DICTIONARY_ASSET_NAME, assets.dictionary),
-                    emit(INDEX_ASSET_NAME, assets.index),
-                    [...assets.shards].map(
-                        ([key, json]) =>
-                            [key, emit(SHARD_ASSET_NAME(key), json)] as const
+                    url(DEV_DICTIONARY_PATH),
+                    url(DEV_INDEX_PATH),
+                    compiledShardKeys(packed).map(
+                        (key) => [key, url(devShardPath(key))] as const
                     )
                 );
-            }
-            const base = config.base;
-            const url = (p: string) => JSON.stringify(`${base}${p}`);
-            const { packed } = readInputs(root);
-            return compiledShardsModuleSource(
-                url(DEV_DICTIONARY_PATH),
-                url(DEV_INDEX_PATH),
-                compiledShardKeys(packed).map(
-                    (key) => [key, url(devShardPath(key))] as const
-                )
-            );
+            },
         },
         configureServer(server) {
             const prefix = `${server.config.base}${DEV_PATH}`;
-            server.middlewares.use((req, res, next) => {
-                const url = req.url?.split("?")[0];
-                if (url === undefined || !url.startsWith(prefix)) return next();
-                const assets = assetsOf(server.config.root);
+            const bodyAt = async (url: string) => {
+                const assets = await assetsOf(server.config.root);
                 const rest = url.slice(server.config.base.length);
                 const shard = /^@compiled-shards\/shard\/([^/]+)\.json$/.exec(
                     rest
                 );
-                const body =
-                    rest === DEV_DICTIONARY_PATH
-                        ? assets.dictionary
-                        : rest === DEV_INDEX_PATH
-                          ? assets.index
-                          : shard
-                            ? assets.shards.get(shard[1]!)
-                            : undefined;
-                if (body === undefined) {
-                    res.statusCode = 404;
-                    res.end();
-                    return;
-                }
-                res.setHeader("Content-Type", "application/json");
-                res.end(body);
+                return rest === DEV_DICTIONARY_PATH
+                    ? assets.dictionary
+                    : rest === DEV_INDEX_PATH
+                      ? assets.index
+                      : shard
+                        ? assets.shards.get(shard[1]!)
+                        : undefined;
+            };
+            server.middlewares.use((req, res, next) => {
+                const url = req.url?.split("?")[0];
+                if (url === undefined || !url.startsWith(prefix)) return next();
+                bodyAt(url).then((body) => {
+                    if (body === undefined) {
+                        res.statusCode = 404;
+                        res.end();
+                        return;
+                    }
+                    res.setHeader("Content-Type", "application/json");
+                    res.end(body);
+                }, next);
             });
         },
     };

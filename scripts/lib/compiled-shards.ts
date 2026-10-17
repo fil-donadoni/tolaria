@@ -52,9 +52,13 @@ import {
     type PackedCorpus,
 } from "./packed-corpus";
 
-/** The committed shard dictionary: `{ "dictionary": "<base64>" }`, served
- *  as its own asset and decoded once per graph. */
-export const SHARD_DICTIONARY_PATH = "data/catalogue/shard-dictionary.json";
+/** The committed shard dictionary — served as its own asset and decoded
+ *  once per graph — and the shard keys: declared in a leaf the Vite plugin
+ *  reads without this encoder (`./compiled-asset-inputs`). */
+export {
+    SHARD_DICTIONARY_PATH,
+    compiledShardKeys,
+} from "./compiled-asset-inputs";
 
 export interface ShardDictionaryFile {
     /** base64 of the raw deflate dictionary. */
@@ -136,10 +140,3 @@ export function compiledClientAssets(
         shards: new Map(shards.map((s) => [s.key, JSON.stringify(s)])),
     };
 }
-
-/** The shard keys of the committed corpus, read off its index — no row
- *  decoded. What the dev server and the tests name URLs from. */
-export const compiledShardKeys = (packedText: string): string[] =>
-    [...new Set((JSON.parse(packedText) as PackedCorpus).setCodes)].sort(
-        (a, b) => (a < b ? -1 : a > b ? 1 : 0)
-    );

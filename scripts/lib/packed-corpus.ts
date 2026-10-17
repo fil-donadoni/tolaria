@@ -51,9 +51,9 @@ import { buildIndexLookups } from "../../convex/cards/definitionIndex";
 import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
 
 /** Where the packed rendering lives: inside `data/catalogue/` beside the
- *  source hash. The server bundles it; the client fetches it as an asset
- *  (`src/lib/catalogueArtifact.ts`, issue #4861). */
-export const PACKED_CORPUS_PATH = "data/catalogue/packed-corpus.json";
+ *  source hash. The server bundles it; the client gets it cut into per-Set
+ *  shards (issue #5616). Declared in a leaf the Vite plugin can read. */
+export { PACKED_CORPUS_PATH } from "./compiled-asset-inputs";
 
 /**
  * Rows per deflate block — the trade between bundle bytes (bigger blocks
