@@ -300,11 +300,15 @@ export function evaluateCreature(
         // animated non-creature engine (a Howling Mine under March of the
         // Machines) reads the board from its controller's seat, as its
         // non-creature face does (`nonCreatureBodyValue`).
-        dslRealizedAbilityValueById(
-            String(card.card.id ?? ""),
-            card,
-            latent,
-            () => standingEngineLens(state, card, weights, pass)
+        withEngineRead(card, (open) =>
+            dslRealizedAbilityValueById(
+                String(card.card.id ?? ""),
+                card,
+                latent,
+                open
+                    ? () => standingEngineLens(state, card, weights, pass)
+                    : undefined
+            )
         )
     );
 }
@@ -1423,14 +1427,43 @@ function nonCreatureBodyValue(
     pass: Layer7Pass
 ): number {
     return (
-        cardValue(
-            state,
-            perm,
-            standingEngineLens(state, perm, weights, pass),
-            weights.latent,
-            pass
+        withEngineRead(perm, (open) =>
+            cardValue(
+                state,
+                perm,
+                open
+                    ? standingEngineLens(state, perm, weights, pass)
+                    : undefined,
+                weights.latent,
+                pass
+            )
         ) * loyaltyRealizationRatio(perm)
     );
+}
+
+/** Issue #5576 (review) — the permanents whose standing engine is being read
+ *  right now, on this synchronous call stack. */
+const ENGINE_READS_IN_FLIGHT = new Set<string>();
+
+/** Read `perm`'s worth with its engine lens `open`, unless that engine is
+ *  already being read further up the stack. An each-step edict prices every
+ *  permanent its sacrifice can take (`realisedLoss`), and when the engine's
+ *  own source is one of them (Keldon Twilight animated by Opalescence, a
+ *  creature its own "that player sacrifices a creature" can take,
+ *  CR 701.21a) that price is this same valuation: the inner read takes no
+ *  lens, so the source's own loss is priced without re-reading its engine
+ *  and the leaf terminates. Every other permanent is read once, lens open. */
+function withEngineRead<T>(
+    perm: CardInstanceState,
+    read: (open: boolean) => T
+): T {
+    if (ENGINE_READS_IN_FLIGHT.has(perm.id)) return read(false);
+    ENGINE_READS_IN_FLIGHT.add(perm.id);
+    try {
+        return read(true);
+    } finally {
+        ENGINE_READS_IN_FLIGHT.delete(perm.id);
+    }
 }
 
 /** Issue #5164 (ADR 0151) — the board a permanent carrying a standing

@@ -35,6 +35,8 @@ import { syncLayers2to5 } from "../../layers2to5";
 import { withTemporaryDefinition } from "../../../cards/registry";
 import { forest, howlingMine } from "../../../cards/sets/lea/colorless.cards";
 import { animateArtifact } from "../../../cards/sets/lea/blue.cards";
+import { keldonTwilight } from "../../../cards/sets/pls/multicolor.cards";
+import { opalescence } from "../../../cards/sets/uds/white.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 
@@ -266,5 +268,44 @@ describe("an animated each-step engine keeps its Differential Reading (issue #55
                 9
             );
         });
+    });
+
+    it("an animated engine whose edict can take ITSELF prices its own loss without re-reading itself", () => {
+        // Keldon Twilight under Opalescence is a creature its own each-step
+        // sacrifice can take (CR 701.21a): pricing that loss is valuing the
+        // Twilight, whose engine reads the same edict. The inner valuation
+        // takes no lens (the engine reads nothing there), so the leaf
+        // terminates instead of overflowing the stack.
+        const pid = (p: string) => ({
+            controllerId: p,
+            ownerId: p,
+            enteredOnTurn: 0,
+        });
+        const side = (p: string, own: boolean) =>
+            makePlayer(p, {
+                hand: [makeInstance(BEAR, { ...pid(p), zone: "hand" })],
+                library: zone(p, BEAR, 10, "library"),
+                battlefield: own
+                    ? [
+                          makeInstance(keldonTwilight().id, {
+                              ...pid(p),
+                              zone: "battlefield",
+                          }),
+                          makeInstance(opalescence().id, {
+                              ...pid(p),
+                              zone: "battlefield",
+                          }),
+                      ]
+                    : [makeInstance(BEAR, { ...pid(p), zone: "battlefield" })],
+            });
+        const state = makeState({
+            players: [side("p1", true), side("p2", false)],
+            turn: 3,
+        });
+        syncLayers2to5(state);
+        const twilight = state.players[0].battlefield[0];
+        expect(isCreature(twilight)).toBe(true);
+        expect(Number.isFinite(evaluateCreature(state, twilight))).toBe(true);
+        expect(Number.isFinite(evaluate(state, "p1"))).toBe(true);
     });
 });
