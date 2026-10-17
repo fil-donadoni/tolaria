@@ -8,7 +8,7 @@ import AbilityWordChip from "./ability-word-chip";
 
 // Renders one oracle-text paragraph. When `counters` are supplied (an in-game
 // preview), it splices a live count chip (AbilityWordChip) directly after each
-// count-based ability word or phrase the table names — one chip per word per
+// count-based ability word or phrase the table names — one chip per counter per
 // paragraph, so "Domain — … basic land types among lands you control" carries
 // the count once. Without counters (deck builder, card profile, back face) it
 // falls back to plain symbol-formatted text.
@@ -28,15 +28,15 @@ export default function OracleParagraph({
     // be scanned from inside a component (React Compiler immutability).
     for (const match of text.matchAll(new RegExp(ABILITY_WORD_SOURCE, "g"))) {
         const counter = counters.get(match[0]);
-        if (!counter || chipped.has(counter.key)) continue;
-        chipped.add(counter.key);
+        if (!counter || chipped.has(counter.chipId)) continue;
+        chipped.add(counter.chipId);
         const end = match.index + match[0].length;
         // Emit the run of text up to and including the word, then the chip.
         parts.push(
-            <Fragment key={`seg-${counter.key}`}>
+            <Fragment key={`seg-${counter.chipId}`}>
                 {formatOracleText(text.slice(lastIndex, end))}
             </Fragment>,
-            <AbilityWordChip key={`chip-${counter.key}`} counter={counter} />
+            <AbilityWordChip key={`chip-${counter.chipId}`} counter={counter} />
         );
         lastIndex = end;
     }

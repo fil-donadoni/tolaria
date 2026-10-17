@@ -33,6 +33,7 @@ describe("OracleParagraph ability-word chips (CR 207.2c)", () => {
                 counters={counters({
                     Delirium: {
                         key: "delirium",
+                        chipId: "delirium",
                         have: 3,
                         goal: { atLeast: 4 },
                         met: false,
@@ -55,6 +56,7 @@ describe("OracleParagraph ability-word chips (CR 207.2c)", () => {
                 counters={counters({
                     Threshold: {
                         key: "threshold",
+                        chipId: "threshold",
                         have: 7,
                         goal: { atLeast: 7 },
                         met: true,
@@ -74,7 +76,12 @@ describe("OracleParagraph ability-word chips (CR 207.2c)", () => {
             <OracleParagraph
                 text="X is your devotion to blue."
                 counters={counters({
-                    "devotion to blue": { key: "devotion", have: 4, met: null },
+                    "devotion to blue": {
+                        key: "devotion",
+                        chipId: "devotion to blue",
+                        have: 4,
+                        met: null,
+                    },
                 })}
             />
         );
@@ -88,6 +95,7 @@ describe("OracleParagraph ability-word chips (CR 207.2c)", () => {
     it("chips a Domain paragraph once, after the word, not again on its phrase", () => {
         const domain: AbilityWordCounter = {
             key: "domain",
+            chipId: "domain",
             have: 3,
             goal: { cap: 5 },
             met: false,
@@ -106,5 +114,31 @@ describe("OracleParagraph ability-word chips (CR 207.2c)", () => {
         );
         expect(chips).toHaveLength(1);
         expect(chips[0].textContent).toBe("3/5");
+    });
+
+    it("chips each devotion colour of one paragraph separately", () => {
+        const { container } = render(
+            <OracleParagraph
+                text="If your devotion to blue is greater than your devotion to red, draw."
+                counters={counters({
+                    "devotion to blue": {
+                        key: "devotion",
+                        chipId: "devotion to blue",
+                        have: 2,
+                        met: null,
+                    },
+                    "devotion to red": {
+                        key: "devotion",
+                        chipId: "devotion to red",
+                        have: 1,
+                        met: null,
+                    },
+                })}
+            />
+        );
+        const chips = container.querySelectorAll(
+            '[data-ability-word="devotion"]'
+        );
+        expect([...chips].map((c) => c.textContent)).toEqual(["2", "1"]);
     });
 });

@@ -4,11 +4,12 @@ import {
     countGraveyardCardTypes,
     DELIRIUM_CARD_TYPES,
     METALCRAFT_ARTIFACTS,
-    type Color,
+    THRESHOLD_CARDS,
     type EmblemInstance,
     type StaticEffectStateView,
 } from "@convex/cards/types";
 import { countDevotion } from "@convex/gre/layers";
+import { COLOR_WORD_TO_CODE } from "@convex/gre/textChanges";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import { toLayerState, type LayerPlayersInput } from "~/lib/effective-stats";
 
@@ -59,23 +60,22 @@ export type AbilityWordCounterRow = {
      *  with its goal but renders no chip until the mechanic gets an engine
      *  count — supplying this function is the whole activation. */
     count?: (input: CounterInput) => number;
+    /** The count reads the matched text (Devotion's colour), so each distinct
+     *  match is its own chip; otherwise one chip per row per paragraph (a
+     *  Domain paragraph naming both the word and its phrase chips once). */
+    perMatch?: true;
 };
 
 /** One computed counter, as the chip renders it. */
 export type AbilityWordCounter = {
     key: string;
+    /** One chip per `chipId` per paragraph — the row key, or the matched text
+     *  for a `perMatch` row. */
+    chipId: string;
     have: number;
     goal?: AbilityWordGoal;
     /** `null` for an uncapped count — there is no threshold to meet. */
     met: boolean | null;
-};
-
-const DEVOTION_COLORS: Record<string, Color> = {
-    white: "W",
-    blue: "U",
-    black: "B",
-    red: "R",
-    green: "G",
 };
 
 /** THE table. Active rows carry `count`; placeholder rows only their word and
@@ -104,8 +104,9 @@ export const ABILITY_WORD_COUNTERS: readonly AbilityWordCounterRow[] = [
         ],
         count: ({ state, controllerId, matched }) => {
             const word = matched.split(" ").at(-1)!;
-            return countDevotion(state, controllerId, DEVOTION_COLORS[word]);
+            return countDevotion(state, controllerId, COLOR_WORD_TO_CODE[word]);
         },
+        perMatch: true,
     },
     {
         key: "metalcraft",
@@ -133,7 +134,7 @@ export const ABILITY_WORD_COUNTERS: readonly AbilityWordCounterRow[] = [
         oracleForms: [
             "Threshold — Nimble Mongoose gets +2/+2 as long as seven or more cards are in your graveyard.",
         ],
-        goal: { atLeast: 7 },
+        goal: { atLeast: THRESHOLD_CARDS },
         count: ({ state, controllerId }) =>
             graveyardOf(state, controllerId).length,
     },
@@ -222,15 +223,19 @@ export const ABILITY_WORD_COUNTERS: readonly AbilityWordCounterRow[] = [
  *  the table, so the renderer never names a word itself. */
 export const ABILITY_WORD_SOURCE = `\\b(?:${ABILITY_WORD_COUNTERS.map(
     (row) => row.pattern
-).join("|")})`;
+).join("|")})\\b`;
+
+/** Each row's pattern anchored to a whole match. Non-global, so `.test()`
+ *  keeps no `lastIndex` state and the instances are safe to share. */
+const ANCHORED_ROWS = ABILITY_WORD_COUNTERS.map(
+    (row) => [new RegExp(`^(?:${row.pattern})$`), row] as const
+);
 
 /** The row whose own pattern spans the WHOLE matched text. */
 export function rowForMatch(
     matched: string
 ): AbilityWordCounterRow | undefined {
-    return ABILITY_WORD_COUNTERS.find((row) =>
-        new RegExp(`^(?:${row.pattern})$`).test(matched)
-    );
+    return ANCHORED_ROWS.find(([re]) => re.test(matched))?.[1];
 }
 
 function graveyardOf(
@@ -258,7 +263,8 @@ export function formatAbilityWordCounter(counter: AbilityWordCounter): string {
 /** Computes, for `controllerId`, every active counter the paragraphs name —
  *  keyed by the exact matched text so the renderer resolves an occurrence to
  *  its counter. `null` when no paragraph names an active row (no chip, and no
- *  board projection paid for). */
+ *  board projection paid for), or when `controllerId` is not a seat of
+ *  `players` (no board to count — no chip rather than a false zero). */
 export function computeAbilityWordCounters(
     paragraphs: readonly string[],
     players: LayerPlayersInput,
@@ -266,6 +272,7 @@ export function computeAbilityWordCounters(
     emblems?: EmblemInstance[],
     continuousEffects?: readonly ContinuousEffect[]
 ): Map<string, AbilityWordCounter> | null {
+    if (!players.some((p) => p.id === controllerId)) return null;
     let state: StaticEffectStateView | null = null;
     const counters = new Map<string, AbilityWordCounter>();
     for (const text of paragraphs) {
@@ -280,6 +287,7 @@ export function computeAbilityWordCounters(
             const have = row.count({ state, controllerId, matched });
             counters.set(matched, {
                 key: row.key,
+                chipId: row.perMatch ? matched : row.key,
                 have,
                 goal: row.goal,
                 met: isMet(have, row.goal),

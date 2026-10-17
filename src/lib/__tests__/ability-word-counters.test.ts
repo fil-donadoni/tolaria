@@ -81,6 +81,15 @@ describe("ability-word counter table — every row's pattern is live", () => {
         }
     }
 
+    it("matches whole words only — Covenant is not Coven", () => {
+        const words = [
+            ..."Covenant of Minds. Domains.".matchAll(
+                new RegExp(ABILITY_WORD_SOURCE, "g")
+            ),
+        ];
+        expect(words).toEqual([]);
+    });
+
     it("placeholder rows (no engine count) render no counter", () => {
         const placeholders = ABILITY_WORD_COUNTERS.filter((r) => !r.count);
         expect(placeholders.map((r) => r.key).sort()).toEqual(
@@ -248,5 +257,38 @@ describe("Threshold — seven cards in your graveyard", () => {
                 "Threshold — x"
             )!.get("Threshold")
         ).toEqual(expect.objectContaining({ have: 7, met: true }));
+    });
+});
+
+describe("perspective — the card's controller, then owner, then viewer", () => {
+    // Viewer p1: Island + Forest (Domain 2). p2: a Swamp (Domain 1).
+    const state = stateWith({
+        battlefield: [onField(island().id), onField(forest().id)],
+    });
+    const players = projectedPlayers(state);
+    const domainOf = (overrides: Partial<CardInstanceState>) =>
+        buildPreviewBody(
+            tribalFlames().id,
+            makeInstance(tribalFlames().id, {
+                zone: "battlefield",
+                ...overrides,
+            }) as never,
+            { allPlayers: players, playerId: "p1" }
+        ).abilityWordCounters?.get("Domain")?.have;
+
+    it("reads the controller's board, not the viewer's", () => {
+        expect(domainOf({ controllerId: "p2", ownerId: "p1" })).toBe(1);
+    });
+
+    it("falls back to the owner when there is no controller", () => {
+        expect(
+            domainOf({ controllerId: undefined as never, ownerId: "p2" })
+        ).toBe(1);
+    });
+
+    it("shows no chip for a seat absent from the projected players", () => {
+        expect(domainOf({ controllerId: "ghost", ownerId: "ghost" })).toBe(
+            undefined
+        );
     });
 });

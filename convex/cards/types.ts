@@ -10521,6 +10521,10 @@ export function countArtifactsControlled(
  *  graveyard" (CR 207.2c ability word, no rules meaning of its own). */
 export const DELIRIUM_CARD_TYPES = 4;
 
+/** Threshold's goal — "seven or more cards in your graveyard" (CR 207.2c
+ *  ability word, no rules meaning of its own). */
+export const THRESHOLD_CARDS = 7;
+
 /** Distinct card TYPES among `cards` — the Delirium count (issue #5491).
  *  ONE implementation shared by the count reader's `countTypes: true` branch
  *  (`gre/effects/interpreter.ts`), every TS-side delirium predicate
