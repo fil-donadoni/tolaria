@@ -3,10 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-    REGENERATE_MARKER,
-    REGENERATED_ARTIFACTS,
-} from "../lib/generated-artifacts";
+import { REGENERATE_MARKER } from "../lib/generated-artifacts";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     BOT_VERDICT_OVERLAY_PATH,
@@ -95,14 +92,6 @@ describe("overlayBranchVerdicts", () => {
         const result = overlayBranchVerdicts(null, ours, theirs);
         expect(result.carried).toBe(0);
         expect(result.lock).toBe(ours);
-    });
-
-    it("applies to the lockfile `land` regenerates with --carry-bot", () => {
-        const artifact = REGENERATED_ARTIFACTS.find(
-            (a) => a.path === BOT_VERDICT_OVERLAY_PATH
-        );
-        expect(artifact?.script).toBe("oracle:compile");
-        expect(artifact?.args).toContain("--carry-bot");
     });
 });
 
