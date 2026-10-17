@@ -1,4 +1,10 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Hand-maintained: the whole point is that a human wrote the reason.",
-    "acknowledged": []
+    "acknowledged": [
+        {
+            "oracleId": "717266b6-2bbc-4a04-8f30-e3eaf0283acd",
+            "name": "Dissension in the Ranks",
+            "reason": "Not caused by the ranged-topdeck rule (issue #5689): a recompile of origin/staging's own convex/oracle sources, with --carry-bot --replay-card, freezes this card identically (no-legal-move > Instant target:Creature, 'bot-unreachable'). The committed lockfile row is a stale Bot-play verdict from before an engine/Bot change on the base; the sweep now finds no legal move for a combat-only instant whose two blocking-creature targets the sweep board never offers. Unrelated to this diff; the row should be re-swept or the sweep scenario fixed on its own."
+        }
+    ]
 }

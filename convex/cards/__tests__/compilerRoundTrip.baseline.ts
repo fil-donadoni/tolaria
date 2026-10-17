@@ -1172,7 +1172,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Surprise Deployment",
     "Sway of Illusion",
     "Sword of the Meek",
-    "Sylvan Library",
     "Sylvan Paradise",
     "Syphon Soul",
     "Tablet of Epityr",
