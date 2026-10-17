@@ -242,7 +242,7 @@ describe("LimitedReviewPanel — shows the opened print (issue #5473)", () => {
                     seatIndex: 0,
                     userId: "user1",
                     nickname: "Alice",
-                    pool: [{ scryfallId: OPENED_PRINT, ...BOLT }],
+                    pool: [{ scryfallId: OPENED_PRINT, ...BEARS }],
                 },
             ],
             createdAt: 0,
@@ -250,8 +250,8 @@ describe("LimitedReviewPanel — shows the opened print (issue #5473)", () => {
         };
         const printed = {
             cardId: OPENED_PRINT,
-            cardName: BOLT.cardName,
-            definitionId: BOLT.cardId,
+            cardName: BEARS.cardName,
+            definitionId: BEARS.cardId,
         };
         return projectLimitedEvent(
             row,
@@ -268,17 +268,17 @@ describe("LimitedReviewPanel — shows the opened print (issue #5473)", () => {
     const faces = (root: Element) =>
         [...root.querySelectorAll<HTMLImageElement>("img")].map((i) => i.src);
 
-    it("Deck tab: draws the saved print and still files the card under Spells", () => {
+    it("Deck tab: draws the saved print and still files the card under Creatures", () => {
         render(<LimitedReviewPanel event={reprintEvent()} />);
         const deck = seatEl(0).querySelector("[data-slot=review-deck]")!;
-        expect(deck.querySelector("[data-group=spells] h4")!.textContent).toBe(
-            "Spells · 1"
-        );
+        expect(
+            deck.querySelector("[data-group=creatures] h4")!.textContent
+        ).toBe("Creatures · 1");
         const srcs = faces(deck);
         expect(srcs.length).toBeGreaterThan(0);
         for (const src of srcs) {
             expect(src).toContain(OPENED_PRINT);
-            expect(src).not.toContain(BOLT.cardId);
+            expect(src).not.toContain(BEARS.cardId);
         }
     });
 
@@ -290,7 +290,7 @@ describe("LimitedReviewPanel — shows the opened print (issue #5473)", () => {
         expect(srcs.length).toBeGreaterThan(0);
         for (const src of srcs) {
             expect(src).toContain(OPENED_PRINT);
-            expect(src).not.toContain(BOLT.cardId);
+            expect(src).not.toContain(BEARS.cardId);
         }
     });
 });
