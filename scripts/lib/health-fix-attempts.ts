@@ -34,8 +34,9 @@ export const FIX_ATTEMPTS_FILE = "fix-attempts.json";
 export type FixOutcome = "attempting" | "landed" | "stuck";
 
 /** Which rung of the RED ladder the record is about (issue #5646): the
- *  headless fixer, or the revert of the culprit. Absent reads `fix`. */
-export type FixRung = "fix" | "revert";
+ *  headless fixer, the revert of the culprit, or the stop's marker (written
+ *  before its issue, so it emails once). Absent reads `fix`. */
+export type FixRung = "fix" | "revert" | "stop";
 
 export interface FixAttempt {
     /** The RED sha the fixer was asked about. */
@@ -73,7 +74,7 @@ const OUTCOME_OF: Record<string, FixOutcome> = {
 
 const SEP = " · ";
 
-const RUNG_SEGMENT = /^(fix|revert) (\d+)$/;
+const RUNG_SEGMENT = /^(fix|revert|stop) (\d+)$/;
 
 /** `LANDED · machine · fix 2 · PR #N · note`, cut to the 140-character cap.
  *  The rung segment is written only when the record names one. */

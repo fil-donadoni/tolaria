@@ -31,6 +31,24 @@ export const FIX_ATTEMPT_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 /** An `attempting` record older than this was killed with its job (the
  *  attempt's bound plus the job's own slack) and counts as a stuck one. */
 export const ATTEMPT_STALE_MS = FIX_ATTEMPT_TIMEOUT_MS + 30 * 60 * 1000;
+/** Tries of the revert rung that failed for a reason other than the revert
+ *  itself (an API error, a push refused) before the ladder stops. */
+export const MAX_REVERT_TRIES = 3;
+/** The prefix of a revert record's note for such a failure: retried. */
+export const TRANSIENT_NOTE = "transient: ";
+/** A repair recorded `landed` that has not moved the tip after this long
+ *  (its PR dequeued, or the verdict wrong) counts as a used attempt. */
+export const LANDED_WAIT_MS = 8 * 60 * 60 * 1000;
+/** A revert PR still in the queue after this long — held by a check it
+ *  cannot pass — stops the ladder. */
+export const REVERT_QUEUE_MAX_MS = 12 * 60 * 60 * 1000;
+/** Ladder runs one chain of `Next rung` dispatches may make (fix 1, fix 2,
+ *  the revert's tries, the stop, and slack): a rung that fails before it
+ *  records anything can never re-dispatch forever. */
+export const MAX_HOPS = 8;
+/** `health-revert.ts`'s exit when it could not record its rung: nothing
+ *  changed on the pivot, so the ladder must not re-dispatch the same rung. */
+export const REVERT_UNRECORDED = 4;
 /** The label the stop rung's issue carries — owner work. */
 export const ESCALATION_LABEL = "ready-for-human";
 
@@ -80,7 +98,7 @@ export type Rung =
     /** The ladder already stopped on this RED: held, quietly (one email). */
     | { kind: "hold"; why: string }
     | { kind: "fix"; attempt: number; why: string }
-    | { kind: "revert"; culprit: Culprit; why: string }
+    | { kind: "revert"; culprit: Culprit; attempt: number; why: string }
     | { kind: "stop"; why: string };
 
 export interface LadderFacts {
@@ -108,10 +126,13 @@ const short = (sha: string) => sha.slice(0, 8);
 
 const rungOf = (a: FixAttempt) => a.rung ?? "fix";
 
-function stale(a: FixAttempt, now: number): boolean {
+function olderThan(a: FixAttempt, ms: number, now: number): boolean {
     const at = a.at ? Date.parse(a.at) : NaN;
-    return !Number.isFinite(at) || now - at > ATTEMPT_STALE_MS;
+    return !Number.isFinite(at) || now - at > ms;
 }
+
+const stale = (a: FixAttempt, now: number) =>
+    olderThan(a, ATTEMPT_STALE_MS, now);
 
 /** The culprit to revert: the standing RED's, else the newest one of the
  *  episode a bisect named. */
@@ -127,7 +148,7 @@ function revertOrStop(facts: LadderFacts, why: string): Rung {
             kind: "stop",
             why: `${why}, and the bisect named no culprit to revert — the failure cannot be isolated`,
         };
-    return { kind: "revert", culprit, why };
+    return { kind: "revert", culprit, attempt: 1, why };
 }
 
 /**
@@ -155,6 +176,13 @@ export function ladderRung(facts: LadderFacts): Rung {
             kind: "hold",
             why: `the ladder stopped on ${short(red)} — issue #${facts.escalated} is the owner's`,
         };
+    // The stop's own marker, written before its issue: a stop whose issue
+    // could not be filed emailed once and holds — never a second email.
+    if (facts.episode.some((r) => r.attempt?.rung === "stop"))
+        return {
+            kind: "hold",
+            why: `the ladder already stopped on this RED episode`,
+        };
     if (red !== facts.tip)
         return {
             kind: "wait",
@@ -172,6 +200,21 @@ export function ladderRung(facts: LadderFacts): Rung {
 
     const revert = records.find((a) => rungOf(a) === "revert");
     if (revert !== undefined) {
+        const tries = revert.attempt ?? 1;
+        if (
+            revert.outcome === "stuck" &&
+            revert.note?.startsWith(TRANSIENT_NOTE) &&
+            tries < MAX_REVERT_TRIES
+        ) {
+            const culprit = episodeCulprit(facts.episode);
+            if (culprit !== null)
+                return {
+                    kind: "revert",
+                    culprit,
+                    attempt: tries + 1,
+                    why: `revert try ${tries} failed (${revert.note.slice(TRANSIENT_NOTE.length)}) — try ${tries + 1} of ${MAX_REVERT_TRIES}`,
+                };
+        }
         if (revert.outcome === "stuck")
             return {
                 kind: "stop",
@@ -195,6 +238,11 @@ export function ladderRung(facts: LadderFacts): Rung {
                 kind: "stop",
                 why: `the revert PR #${pr.number} cannot land (${pr.state === "closed" ? "closed unmerged" : "land-failed"})`,
             };
+        if (olderThan(revert, REVERT_QUEUE_MAX_MS, facts.now))
+            return {
+                kind: "stop",
+                why: `the revert PR #${pr.number} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,
+            };
         return {
             kind: "wait",
             why: `the revert PR #${pr.number} is in the queue`,
@@ -210,7 +258,12 @@ export function ladderRung(facts: LadderFacts): Rung {
             kind: "wait",
             why: `fixer attempt ${running.attempt ?? 1} is running${running.machine ? ` on ${running.machine}` : ""}`,
         };
-    const landed = fixes.find((a) => a.outcome === "landed");
+    const landed = fixes.find(
+        (a) =>
+            a.outcome === "landed" &&
+            // A `landed` that never moved the tip is a used attempt.
+            (a.sha !== red || !olderThan(a, LANDED_WAIT_MS, facts.now))
+    );
     if (landed !== undefined && landed.sha !== red)
         return revertOrStop(
             facts,
@@ -238,6 +291,52 @@ export function ladderRung(facts: LadderFacts): Rung {
         facts,
         `both fixer attempts on ${short(red)} were stuck`
     );
+}
+
+/**
+ * The RED episode on the base's first-parent history: from the standing RED
+ * (`ancestors[0]`) back to the last GREEN, every RED with its attempt record
+ * and culprit, NEWEST first. AMBER and INFRA verdicts and commits with none
+ * are passed over — an AMBER is a proved repair inside the same episode
+ * (`lineageOf`'s second RED). Pure: the stores are the caller's readers.
+ */
+export function walkEpisode(
+    ancestors: readonly string[],
+    read: {
+        status: (sha: string) => string | null;
+        attempt: (sha: string) => FixAttempt | null;
+        evidence: (sha: string) => string | null;
+    }
+): { episode: EpisodeRed[]; standingEvidence: string | null } {
+    const episode: EpisodeRed[] = [];
+    let standingEvidence: string | null = null;
+    for (const [i, sha] of ancestors.entries()) {
+        const status = read.status(sha);
+        if (status === "green") break;
+        if (status !== "red") continue;
+        const body = read.evidence(sha);
+        if (i === 0) standingEvidence = body;
+        episode.push({
+            sha,
+            attempt: read.attempt(sha),
+            culprit: parseCulprit(body),
+        });
+    }
+    return { episode, standingEvidence };
+}
+
+/** The episode's revert record, when one was made. */
+export function revertRecordOf(
+    episode: readonly EpisodeRed[]
+): FixAttempt | null {
+    for (const r of episode) if (r.attempt?.rung === "revert") return r.attempt;
+    return null;
+}
+
+/** May a ladder run dispatch the next one? `hop` is its own place in the
+ *  chain (0 for a run `health` dispatched). */
+export function mayRedispatch(hop: number): boolean {
+    return Number.isInteger(hop) && hop >= 0 && hop + 1 < MAX_HOPS;
 }
 
 /** The host of a runner named `<host>-<role>-<n>` (`runnerSpecs`), or null. */

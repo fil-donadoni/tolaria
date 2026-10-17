@@ -37,6 +37,10 @@ on:
                 description: "the machine that saw the RED (its runner's `host:` label); empty = any pass runner"
                 required: false
                 default: ""
+            hop:
+                description: "the run's place in a `Next rung` chain (bounded by MAX_HOPS); 0 from health"
+                required: false
+                default: "0"
 
 permissions:
     contents: read
@@ -52,6 +56,13 @@ jobs:
             ]
         # One fixer attempt (3 h) plus the job setup and the revert.
         timeout-minutes: 210
+        # ONE run at a time, on both machines (structure guard rule
+        # `dispatcher-serialised`): two would both read "no attempt yet". A
+        # pending run displaced by a newer one loses nothing — every run
+        # re-reads every fact.
+        concurrency:
+            group: health-fix
+            cancel-in-progress: false
         steps:
             - name: Job worktree
               shell: bash
@@ -65,6 +76,7 @@ jobs:
               continue-on-error: true
               env:
                   FIXER_ARGS: ${{ vars.HEALTH_FIX_CLAUDE_ARGS || '--dangerously-skip-permissions' }}
+                  LADDER_HOP: ${{ inputs.hop }}
               run: bun run health:fix ladder "--claude-args=$FIXER_ARGS"
             - name: Next rung
               if: ${{ steps.ladder.outputs.redispatch == 'true' }}
@@ -72,15 +84,17 @@ jobs:
               env:
                   SHA: ${{ inputs.sha }}
                   HOST: ${{ inputs.host }}
-              run: gh workflow run health-fix.yml --ref staging -f sha="$SHA" -f host="$HOST"
+                  HOP: ${{ steps.ladder.outputs.hop }}
+              run: gh workflow run health-fix.yml --ref staging -f sha="$SHA" -f host="$HOST" -f hop="$HOP"
             - name: Re-gate the queue
               if: always()
               continue-on-error: true
               run: gh workflow run pr-gate.yml --ref staging
+            # `health:fix ladder` exits 1 only for the stop — its one email.
             - name: Verdict
               if: ${{ steps.ladder.outcome != 'success' }}
               run: |
-                  echo "::error::the RED ladder stopped — the ready-for-human issue holds the evidence"
+                  echo "::error::the RED ladder stopped — the ready-for-human issue (or this run's log) holds the evidence"
                   exit 1
             - name: Remove the job worktree
               if: always()

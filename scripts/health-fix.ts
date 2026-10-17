@@ -79,7 +79,6 @@ import {
     fixAttemptStore,
     LOOP_FIX_ATTEMPTS,
     loopFixDecision,
-    type FixAttempt,
     type FixAttemptStore,
     type FixRung,
     type LoopFixDecision,
@@ -91,11 +90,16 @@ import {
     FIX_ATTEMPT_TIMEOUT_MS,
     hostOfRunnerName,
     ladderRung,
-    parseCulprit,
-    type EpisodeRed,
+    MAX_HOPS,
+    mayRedispatch,
+    revertRecordOf,
+    REVERT_UNRECORDED,
+    walkEpisode,
     type LadderFacts,
     type RevertPr,
 } from "./lib/health-ladder";
+import { closingIssueRefs } from "./lib/health-cadence";
+import { pivotRepairIssues } from "./lib/health-pivot";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
@@ -633,7 +637,7 @@ function revertPrState(cwd: string, pr: number): RevertPr {
 /**
  * The facts `ladderRung` decides on, read off the pivot. Every read that
  * fails lands in `error`, which waits: an outage never files an escalation.
- * Exported for the job's `--dry-run` and for direct testing of the shape.
+ * The walk is `walkEpisode`'s (pure, tested); this is its I/O.
  */
 export function readLadderFacts(cwd: string, tip: string): LadderFacts {
     const now = Date.now();
@@ -661,23 +665,13 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         )
             .split("\n")
             .filter(Boolean);
-        const episode: EpisodeRed[] = [];
-        let standingEvidence: string | null = null;
-        for (const sha of ancestors) {
-            const v = sha === red ? lineage.verdict : verdicts.read(sha);
-            if (v?.status === "green") break;
-            if (v?.status !== "red") continue;
-            const body = evidence.read(sha);
-            if (sha === red) standingEvidence = body;
-            episode.push({
-                sha,
-                attempt: attempts.read(sha),
-                culprit: parseCulprit(body),
-            });
-        }
-        const revert = episode
-            .map((r) => r.attempt)
-            .find((a): a is FixAttempt => a !== null && a.rung === "revert");
+        const { episode, standingEvidence } = walkEpisode(ancestors, {
+            status: (sha) =>
+                sha === red ? "red" : (verdicts.read(sha)?.status ?? null),
+            attempt: (sha) => attempts.read(sha),
+            evidence: (sha) => evidence.read(sha),
+        });
+        const revert = revertRecordOf(episode);
         return {
             ...empty,
             red,
@@ -702,27 +696,103 @@ function runUrl(): string | undefined {
     return s && r && id ? `${s}/${r}/actions/runs/${id}` : undefined;
 }
 
-/** Tells the job to dispatch the ladder again: the rung just tried is over
- *  and the next one is the next run's to decide. */
-function redispatch(): void {
+/** Tells the job to dispatch the ladder again — the rung just tried is over
+ *  and recorded, the next is the next run's — within `MAX_HOPS`. */
+function redispatch(hop: number): void {
+    if (!mayRedispatch(hop)) {
+        console.error(
+            `health:fix ladder: hop ${hop} is the chain's last (${MAX_HOPS}) — no further dispatch; health's next run asks again`
+        );
+        return;
+    }
     const out = process.env.GITHUB_OUTPUT;
-    if (out) appendFileSync(out, "redispatch=true\n");
+    if (out) appendFileSync(out, `redispatch=true\nhop=${hop + 1}\n`);
     console.log("health:fix ladder: the next rung is the next run's");
 }
 
 /**
+ * A stuck attempt's repair PRs leave the queue: an open PR closing one of
+ * the RED's declared repair issues is admitted under RED, and the next
+ * rung (attempt 2, the revert) must not land beside it. Never fatal.
+ */
+function withdrawRepairPrs(cwd: string, attempt: number): void {
+    const issues = pivotRepairIssues(cwd);
+    if (issues.length === 0) return;
+    const list = gh(
+        [
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--base",
+            BASE_BRANCH,
+            "--json",
+            "number,body",
+            "--limit",
+            "100",
+        ],
+        cwd
+    );
+    if (!list.ok) {
+        console.error(
+            `health:fix ladder: the repair PRs could not be listed — ${list.out}`
+        );
+        return;
+    }
+    const prs = JSON.parse(list.out || "[]") as {
+        number: number;
+        body: string | null;
+    }[];
+    for (const pr of prs) {
+        if (!closingIssueRefs(pr.body ?? "").some((n) => issues.includes(n)))
+            continue;
+        const closed = gh(
+            [
+                "pr",
+                "close",
+                String(pr.number),
+                "--comment",
+                `Closed by the RED ladder: fixer attempt ${attempt} ended stuck, and the next rung must not land beside this repair.`,
+            ],
+            cwd
+        );
+        console.log(
+            closed.ok
+                ? `health:fix ladder: withdrew PR #${pr.number} from the queue`
+                : `health:fix ladder: PR #${pr.number} could not be closed — ${closed.out}`
+        );
+    }
+}
+
+/**
  * `health:fix ladder [--dry-run] [--claude-args="…"]` — one rung of the RED
- * ladder (issue #5646). Exit 0 for every rung but the stop (1); usage 2.
+ * ladder (issue #5646). Exit 1 ONLY for the stop (the one email); every
+ * other rung, and any unexpected error (read as `wait`), exits 0.
+ * `LADDER_HOP` is the run's place in a `Next rung` chain.
  */
 function ladderMain(argv: readonly string[]): number {
+    try {
+        return ladderRun(argv);
+    } catch (e) {
+        console.error(
+            `health:fix ladder: wait — the run failed before a rung (${(e as Error).message}); health's next run asks again`
+        );
+        return 0;
+    }
+}
+
+function ladderRun(argv: readonly string[]): number {
     const cwd = primaryCheckout(process.cwd());
     const dryRun = argv.includes("--dry-run");
+    const hop = Number(process.env.LADDER_HOP || "0");
     git(["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], cwd);
     const tip = git(["rev-parse", ORIGIN_BASE], cwd);
     const facts = readLadderFacts(cwd, tip);
     const rung = ladderRung(facts);
     const label =
-        rung.kind === "fix" ? `fix (attempt ${rung.attempt})` : rung.kind;
+        rung.kind === "fix" || rung.kind === "revert"
+            ? `${rung.kind} (attempt ${rung.attempt})`
+            : rung.kind;
     console.log(`health:fix ladder: ${label} — ${rung.why}`);
     // `health.yml` asks with `--dry-run` whether a ladder run is owed.
     if (process.env.GITHUB_OUTPUT)
@@ -743,9 +813,13 @@ function ladderMain(argv: readonly string[]): number {
             rung: { rung: "fix", attempt: rung.attempt },
             quiet: process.env.GITHUB_ACTIONS === "true",
         });
-        // A landed repair waits for health on its tip; anything else is the
-        // next rung's to decide.
-        if (verdict?.outcome !== "landed") redispatch();
+        // Not recorded: nothing changed on the pivot, so a re-dispatch
+        // would take the same rung — health's next run asks again.
+        if (verdict === null) return 0;
+        if (verdict.outcome !== "landed") {
+            withdrawRepairPrs(cwd, rung.attempt);
+            redispatch(hop);
+        }
         return 0;
     }
     if (rung.kind === "revert") {
@@ -757,15 +831,36 @@ function ladderMain(argv: readonly string[]): number {
                 red,
                 "--culprit",
                 rung.culprit.sha,
+                "--attempt",
+                String(rung.attempt),
                 "--why",
                 rung.why,
             ],
             { cwd, stdio: "inherit", env: process.env }
         );
-        if (r.status !== 0) redispatch();
+        // 0: queued — the queue and health decide next. 4: nothing recorded.
+        // Otherwise (3 conflict, 1 a failed try) the record says what
+        // happened and the next run decides on it.
+        if (r.status !== 0 && r.status !== REVERT_UNRECORDED) redispatch(hop);
         return 0;
     }
-    // stop — one `ready-for-human` issue, one failed run.
+    // stop — the marker first (a failed filing still emails once), then one
+    // `ready-for-human` issue, one failed run.
+    try {
+        fixAttemptStore(cwd).write({
+            sha: red,
+            outcome: "stuck",
+            rung: "stop",
+            attempt: 1,
+            machine: machineName(),
+            at: new Date().toISOString(),
+            note: rung.why.slice(0, 80),
+        });
+    } catch (e) {
+        console.error(
+            `health:fix ladder: the stop marker could not be recorded — ${(e as Error).message}`
+        );
+    }
     const title = escalationTitle(red);
     let evidence: string | null = null;
     try {
