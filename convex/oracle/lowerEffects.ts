@@ -2515,6 +2515,27 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "draw-then-ranged-topdeck": {
+            // CR 121.1 + CR 119.4 + CR 401.4 — draw N, then one ranged 0..M
+            // pick among the cards drawn this turn, each card NOT put back on
+            // top costing `costPerKept` life. The two printed per-card options
+            // ("pay L life" / "put on top") collapse into that one pick: the
+            // reachable outcomes are identical (`rangedTopdeck`).
+            return lowered([
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: sentence.count,
+                },
+                {
+                    op: "rangedTopdeck",
+                    player: "controller",
+                    pool: "drawn-this-turn",
+                    max: sentence.max,
+                    costPerKept: sentence.costPerKept,
+                },
+            ]);
+        }
         case "reveal-hand-pick": {
             // CR 701.20a — the hand is revealed to every player first; CR
             // 701.9b — the CONTROLLER picks from it (`zoneOwnerId` names whose

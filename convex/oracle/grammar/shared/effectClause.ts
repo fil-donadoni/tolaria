@@ -1336,6 +1336,22 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 121.1 + CR 119.4 — "Draw N additional cards. Choose M cards in
+           * your hand drawn this turn. For each of those cards, pay L life or
+           * put the card on top of your library.": the draw, then the ranged
+           * 0..M pick among the cards drawn this turn, each one NOT kept
+           * costing L life. Folded by `assembleSentences` from the
+           * `optional-draw-additional`, `choose-drawn-this-turn` and
+           * `pay-life-or-topdeck` roles; any one alone is refused. The fold
+           * is wrapped in an `optional` (the draw is a "may", CR 603.2).
+           */
+          readonly kind: "draw-then-ranged-topdeck";
+          readonly count: number;
+          readonly max: number;
+          readonly costPerKept: number;
+      }
+    | {
+          /**
            * CR 701.9a — "<player> discards N cards": by default the affected
            * player CHOOSES which cards (CR 701.9b), the counterpart of
            * `discard-at-random`, which lets the game pick.
@@ -1902,7 +1918,21 @@ export type SentenceIR =
      * CR 608.2c — "You may exile a card from your hand.", the first half of
      * an `optional-hand-exile-then`; the `if-you-do` after it is the second.
      */
-    | { readonly role: "optional-hand-exile"; readonly text: string };
+    | { readonly role: "optional-hand-exile"; readonly text: string }
+    /**
+     * CR 121.1 + CR 603.2 — "You may draw N additional cards.", the first
+     * sentence of a `draw-then-ranged-topdeck`; the `choose-drawn-this-turn`
+     * and `pay-life-or-topdeck` after it are the other two.
+     */
+    | {
+          readonly role: "optional-draw-additional";
+          readonly text: string;
+          readonly count: number;
+      }
+    /** "If you do, choose N cards in your hand drawn this turn." */
+    | { readonly role: "choose-drawn-this-turn"; readonly max: number }
+    /** "For each of those cards, pay L life or put the card on top of your library." */
+    | { readonly role: "pay-life-or-topdeck"; readonly costPerKept: number };
 
 /** Where a `reveal-hand-pick`'s chosen card goes. */
 export type HandPickRoute = "discard" | "exile";
@@ -2014,7 +2044,54 @@ export function assembleSentences(
         SentenceIR,
         { role: "optional-hand-exile" }
     > | null = null;
+    // CR 121.1 — "You may draw N additional cards" waits for the pick among
+    // the cards drawn this turn, then for the price of each card not kept.
+    let drawTopdeck: {
+        readonly clause: string;
+        readonly count: number;
+        readonly max: number | null;
+    } | null = null;
     for (const sentence of sentences) {
+        if (drawTopdeck !== null) {
+            if (drawTopdeck.max === null) {
+                if (sentence.role !== "choose-drawn-this-turn")
+                    return {
+                        ok: false,
+                        reason: '"You may draw additional cards" is not followed by "If you do, choose … cards in your hand drawn this turn"',
+                    };
+                drawTopdeck = {
+                    clause: drawTopdeck.clause,
+                    count: drawTopdeck.count,
+                    max: sentence.max,
+                };
+                continue;
+            }
+            if (sentence.role !== "pay-life-or-topdeck")
+                return {
+                    ok: false,
+                    reason: "a pick among the cards drawn this turn is not followed by what each card not kept costs",
+                };
+            effects.push({
+                kind: "optional",
+                clause: drawTopdeck.clause,
+                effect: {
+                    kind: "draw-then-ranged-topdeck",
+                    count: drawTopdeck.count,
+                    max: drawTopdeck.max,
+                    costPerKept: sentence.costPerKept,
+                },
+            });
+            drawTopdeck = null;
+            continue;
+        }
+        if (
+            sentence.role === "choose-drawn-this-turn" ||
+            sentence.role === "pay-life-or-topdeck"
+        )
+            return {
+                ok: false,
+                reason: '"cards drawn this turn" follows no "You may draw additional cards"',
+            };
         if (optionalHandExile !== null) {
             if (sentence.role !== "if-you-do")
                 return {
@@ -2419,6 +2496,14 @@ export function assembleSentences(
             optionalHandExile = sentence;
             continue;
         }
+        if (sentence.role === "optional-draw-additional") {
+            drawTopdeck = {
+                clause: sentence.text,
+                count: sentence.count,
+                max: null,
+            };
+            continue;
+        }
         if (sentence.role === "instead") {
             const previous = effects[effects.length - 1];
             if (previous === undefined)
@@ -2654,6 +2739,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: '"You may exile a card from your hand" is the last sentence and gates no effect',
+        };
+    if (drawTopdeck !== null)
+        return {
+            ok: false,
+            reason: '"You may draw additional cards" is not followed by the pick among the cards drawn this turn and its price',
         };
     if (namePending && !nameRead)
         return {
@@ -3021,6 +3111,19 @@ export function optionalSentenceRule(
                 role: "optional-hand-exile" as const,
                 text: capitalise(clause),
             });
+        // CR 121.1 + CR 603.2 — "you may draw N additional cards" is the
+        // first of the three sentences of a `draw-then-ranged-topdeck`.
+        const additional = clause.match(DRAW_ADDITIONAL_CARDS);
+        if (additional !== null) {
+            const count = readNumberWord(additional[1]!);
+            if (count === null)
+                return fail(`"${additional[1]}" is not a count`, span);
+            return ok({
+                role: "optional-draw-additional" as const,
+                text: clause,
+                count,
+            });
+        }
         const parsed = inner.run(clause, ctx);
         if (!parsed.ok) return parsed;
         if (parsed.value.role !== "effect")
@@ -3325,6 +3428,14 @@ const GRANT_SPELL_MANA_SUBSTITUTION =
 const PAY_VARIABLE_MANA = "you may pay {X}";
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
+/** CR 121.1 — the first half of a `draw-then-ranged-topdeck`, whole. */
+const DRAW_ADDITIONAL_CARDS = /^draw (\S+) additional cards$/;
+/** The pick among the cards drawn this turn, whole. */
+const CHOOSE_DRAWN_THIS_TURN =
+    /^If you do, choose (\S+) cards in your hand drawn this turn$/;
+/** What each card not kept costs, whole (CR 119.4 + CR 401.4). */
+const PAY_LIFE_OR_TOPDECK =
+    /^For each of those cards, pay (\S+) life or put the card on top of your library$/;
 /** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
 const ADD_MANA = /^(That player adds|Add) ((?:\{[WUBRGC]\})+)$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
@@ -4164,6 +4275,20 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // different payment this rule does not read.
         if (uncapitalise(span) === PAY_VARIABLE_MANA)
             return ok({ role: "pay-variable-mana" as const, text: span });
+        const chooseDrawn = span.match(CHOOSE_DRAWN_THIS_TURN);
+        if (chooseDrawn !== null) {
+            const max = readNumberWord(chooseDrawn[1]!);
+            if (max === null)
+                return fail(`"${chooseDrawn[1]}" is not a count`, span);
+            return ok({ role: "choose-drawn-this-turn" as const, max });
+        }
+        const payOrTopdeck = span.match(PAY_LIFE_OR_TOPDECK);
+        if (payOrTopdeck !== null) {
+            const costPerKept = readNumberWord(payOrTopdeck[1]!);
+            if (costPerKept === null)
+                return fail(`"${payOrTopdeck[1]}" is not an amount`, span);
+            return ok({ role: "pay-life-or-topdeck" as const, costPerKept });
+        }
         const ifYouDo = span.match(IF_YOU_DO);
         if (ifYouDo !== null) {
             const inner = sentenceRule.run(capitalise(ifYouDo[1]!), ctx);
