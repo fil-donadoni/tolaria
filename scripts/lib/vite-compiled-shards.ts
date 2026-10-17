@@ -27,12 +27,16 @@
 // `vite.config.ts`'s static closure that made every engine module part of
 // "the build configuration" — `check:ui` scoped every engine diff to the full
 // walk (`scripts/lib/ui-scope.ts`, pinned by `ui-scope-shell.test.ts`) — and
-// in a vitest config it made Set installs ten times slower. The cut is cached
-// on disk by the hash of its inputs, so a build, its worker build and the dev
-// server pay it once per input.
+// in a vitest config it made Set installs ten times slower. The cut runs ONCE
+// per process per input (a build and its worker build share it), into a
+// fresh temporary directory nobody else writes, and is refused unless the
+// cutter read exactly the bytes this process hashed. No cache survives the
+// process: the cut is ~1 s, and an on-disk cache keyed by the inputs alone
+// would keep serving the old format after a change to the encoder itself.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Plugin, ResolvedConfig } from "vite";
 import type { CompiledClientAssets } from "./compiled-shards";
@@ -52,29 +56,43 @@ import {
     readCompiledInputs,
     resolveFilter,
 } from "./vite-compiled-shard-urls";
+import {
+    PACKED_CORPUS_PATH,
+    SHARD_DICTIONARY_PATH,
+} from "./compiled-asset-inputs";
 
 /** The assets cut from the committed inputs — memoised on the inputs, so a
- *  build that runs the plugin in its main and worker graphs cuts once. */
-let memo: { key: string; assets: CompiledClientAssets } | null = null;
+ *  build that runs the plugin in its main and worker graphs cuts once, and
+ *  on their mtimes first, so the dev middleware does not re-hash the corpus
+ *  on each of a page's 223 shard requests. */
+let memo: { stamp: string; key: string; assets: CompiledClientAssets } | null =
+    null;
 
-/** The cut, from its on-disk cache under `node_modules/.cache` (keyed by the
- *  inputs' hash), running the cutter first when the cache has none. */
-function assetsOf(root: string): CompiledClientAssets {
-    const { packed, dictionary } = readCompiledInputs(root);
-    const key = createHash("sha256")
+/** The hash the cutter must report back: the bytes it read. Same function
+ *  as `scripts/compiled-client-assets.ts` computes. */
+export const inputsHash = (packed: string, dictionary: string): string =>
+    createHash("sha256")
         .update(packed)
         .update("\0")
         .update(dictionary)
-        .digest("hex")
-        .slice(0, 16);
-    if (memo !== null && memo.key === key) return memo.assets;
-    const dir = path.join(
-        root,
-        "node_modules/.cache/tolaria-compiled-shards",
-        key
-    );
-    const keysFile = path.join(dir, "keys.json");
-    if (!existsSync(keysFile)) {
+        .digest("hex");
+
+function assetsOf(root: string): CompiledClientAssets {
+    const stamp = [PACKED_CORPUS_PATH, SHARD_DICTIONARY_PATH]
+        .map((p) => {
+            const st = statSync(path.join(root, p));
+            return `${st.mtimeMs}:${st.size}`;
+        })
+        .join("|");
+    if (memo !== null && memo.stamp === stamp) return memo.assets;
+    const { packed, dictionary } = readCompiledInputs(root);
+    const key = inputsHash(packed, dictionary);
+    if (memo !== null && memo.key === key) {
+        memo = { ...memo, stamp };
+        return memo.assets;
+    }
+    const dir = mkdtempSync(path.join(tmpdir(), "tolaria-compiled-shards-"));
+    try {
         const cut = spawnSync(
             "bun",
             [path.join(root, "scripts/compiled-client-assets.ts"), dir],
@@ -85,16 +103,24 @@ function assetsOf(root: string): CompiledClientAssets {
                 `compiled shards: the cut failed (status ${cut.status}): ${cut.stderr}`
             );
         }
+        const read = (file: string) =>
+            readFileSync(path.join(dir, file), "utf8");
+        if (read("inputs.sha256") !== key) {
+            throw new Error(
+                "compiled shards: the inputs changed during the cut — run the build again"
+            );
+        }
+        const keys = JSON.parse(read("keys.json")) as string[];
+        const assets: CompiledClientAssets = {
+            dictionary: read("dictionary.json"),
+            index: read("index.json"),
+            shards: new Map(keys.map((k) => [k, read(`shard-${k}.json`)])),
+        };
+        memo = { stamp, key, assets };
+        return assets;
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
     }
-    const read = (file: string) => readFileSync(path.join(dir, file), "utf8");
-    const keys = JSON.parse(read("keys.json")) as string[];
-    const assets: CompiledClientAssets = {
-        dictionary: read("dictionary.json"),
-        index: read("index.json"),
-        shards: new Map(keys.map((k) => [k, read(`shard-${k}.json`)])),
-    };
-    memo = { key, assets };
-    return assets;
 }
 
 export function compiledShards(): Plugin {
@@ -116,6 +142,11 @@ export function compiledShards(): Plugin {
             handler(id) {
                 if (id !== RESOLVED_COMPILED_SHARDS_ID) return null;
                 if (config.command !== "build") {
+                    // A regenerated corpus (a new Set code) re-renders the
+                    // URL module, instead of a 404 until a restart.
+                    this.addWatchFile(
+                        path.join(config.root, PACKED_CORPUS_PATH)
+                    );
                     return devModuleSource(config.root, config.base);
                 }
                 const assets = assetsOf(config.root);

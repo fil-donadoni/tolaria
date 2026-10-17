@@ -8,6 +8,9 @@ import { subscribeResidency } from "~/lib/catalogue/residency";
 export interface CompiledIndexResidence {
     ready: boolean;
     error: Error | null;
+    /** Load again after a failure — a prompt the player must answer cannot
+     *  stay dead on one failed fetch. */
+    retry: () => void;
 }
 
 /**
@@ -29,6 +32,7 @@ export function useCompiledIndex(enabled = true): CompiledIndexResidence {
         isCompiledIndexInstalled
     );
     const [error, setError] = useState<Error | null>(null);
+    const [attempt, setAttempt] = useState(0);
     useEffect(() => {
         if (!enabled || ready) return;
         let cancelled = false;
@@ -43,6 +47,13 @@ export function useCompiledIndex(enabled = true): CompiledIndexResidence {
         return () => {
             cancelled = true;
         };
-    }, [enabled, ready]);
-    return { ready, error };
+    }, [enabled, ready, attempt]);
+    return {
+        ready,
+        error: ready ? null : error,
+        retry: () => {
+            setError(null);
+            setAttempt((n) => n + 1);
+        },
+    };
 }

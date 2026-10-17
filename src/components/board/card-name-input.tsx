@@ -122,9 +122,19 @@ export default function CardNameInput({
                 Name it
             </Button>
             {names.error !== null && (
-                <p className="text-[11px] text-text-disabled text-center">
-                    Card names failed to load: {names.error.message}
-                </p>
+                <div className="flex flex-col items-center gap-1">
+                    <p className="text-[11px] text-text-disabled text-center">
+                        Card names failed to load: {names.error.message}
+                    </p>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={names.retry}
+                    >
+                        Retry
+                    </Button>
+                </div>
             )}
             {names.ready && trimmed.length > 0 && !isValid && (
                 <p className="text-[11px] text-text-disabled text-center">

@@ -933,7 +933,10 @@ the compiled half.
   order-free: a printed name beats a twin's, between two twins the lower row
   id wins, a back-face trigger's first declarer is the lowest id — each the
   answer the server's id-ordered corpus gives — and every enumeration reads
-  the compiled ids in id order.
+  the compiled ids in id order. The server runs the same rule: where a
+  compiled printed name would collide with a LOWER row's twin name, the
+  printed name now wins (first-write-wins gave it to the twin). No such
+  collision exists in the corpus today, so no lookup changed.
 - **Whole-catalogue mode loads every shard** (deck builder, Draft Lab, admin,
   and the Brain worker until its own slice).
 

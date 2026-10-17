@@ -20,7 +20,8 @@ export type ManifestRow =
  *  shard that holds its row (issue #5616), when this build serves one. A
  *  hint that turns out wrong is caught on the board by
  *  `useDefinitionsResident`, which locates the card through the compiled
- *  index. */
+ *  index — for a card this build knows; one only a newer server knows
+ *  resolves nowhere (the client is out of date). */
 function entryShardKey(entry: {
     definitionId: string;
     setCode: string;

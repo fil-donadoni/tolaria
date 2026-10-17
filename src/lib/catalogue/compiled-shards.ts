@@ -35,8 +35,10 @@ export const compiledShardKeys: readonly string[] = Object.keys(urls).sort();
 
 /** Whether this build serves a compiled shard keyed `key`. A Manifest's
  *  `setCode` is a hint from the server's index, and server and client
- *  deploys are not atomic: an unknown key is dropped, and the card behind
- *  it is caught by the board's hold instead. */
+ *  deploys are not atomic: an unknown key is dropped. The board's hold then
+ *  locates the card through the compiled index — when THIS build knows the
+ *  card at all; a card only a newer server knows resolves nowhere, as with
+ *  the whole corpus before it (the client is out of date). */
 export function isKnownCompiledShard(key: string): boolean {
     return Object.prototype.hasOwnProperty.call(urls, key);
 }

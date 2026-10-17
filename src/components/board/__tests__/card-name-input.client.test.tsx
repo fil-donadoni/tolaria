@@ -29,6 +29,32 @@ afterEach(() => {
 });
 
 describe("CardNameInput on a game route (issue #5616)", () => {
+    // First: the index is loaded once per graph, and kept.
+    it("a failed names load is named with a Retry that really re-fetches — the prompt is never left dead", async () => {
+        const served = serveCompiledAssets();
+        let fail = true;
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((url: string) =>
+                fail ? Promise.reject(new Error("offline")) : served(url)
+            )
+        );
+        const { getByLabelText, findByText, getByText } = render(
+            <CardNameInput disabled={false} onSubmit={() => {}} />
+        );
+        expect(
+            await findByText("Card names failed to load: offline")
+        ).toBeTruthy();
+        const input = getByLabelText("Card name") as HTMLInputElement;
+        expect(input.disabled).toBe(true);
+        fail = false;
+        fireEvent.click(getByText("Retry"));
+        await waitFor(() => expect(input.disabled).toBe(false));
+        // What the prompt loads is the names index alone — never a shard.
+        expect(fetchedUrls(served)).toEqual([compiledIndexUrl]);
+        cleanup();
+    });
+
     it("loads the compiled names on demand — the index alone — then lists and submits a compiled card's name", async () => {
         const fetchMock = serveCompiledAssets();
         vi.stubGlobal("fetch", fetchMock);
@@ -38,9 +64,6 @@ describe("CardNameInput on a game route (issue #5616)", () => {
         );
         const input = getByLabelText("Card name") as HTMLInputElement;
         // Nothing to choose from yet: the field waits for the names.
-        expect(input.disabled).toBe(true);
-        expect(input.placeholder).toBe("Loading card names…");
-
         await waitFor(() => expect(input.disabled).toBe(false));
         const name = PACKED.names[0]!;
         fireEvent.change(input, { target: { value: name.toLowerCase() } });
@@ -52,7 +75,8 @@ describe("CardNameInput on a game route (issue #5616)", () => {
         for (const row of unpackCorpus(PACKED))
             for (const n of chooseableNamesOf(row))
                 expect(listed.has(n), n).toBe(true);
-        // … from ONE request: the names index, never a shard.
-        expect(fetchedUrls(fetchMock)).toEqual([compiledIndexUrl]);
+        // … and the index was resident already: no request at all, and
+        // never a shard.
+        expect(fetchedUrls(fetchMock)).toEqual([]);
     });
 });

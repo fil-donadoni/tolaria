@@ -173,9 +173,10 @@ export default function GameRoute() {
         }
 
         return (
-            // The game downloads only its own cards (issue #5615): the route's
-            // catalogue gate brought the packed corpus; this one installs the
-            // Sets of the game's Definition Manifest before anything below
+            // The game downloads only its own cards (issues #5615, #5616): the
+            // route's catalogue gate brought the shard dictionary; this one
+            // installs the shards of the game's Definition Manifest before
+            // anything below
             // reads a definition — the board, the driver, the debug sheet.
             <DefinitionManifestGate
                 key={gameId}

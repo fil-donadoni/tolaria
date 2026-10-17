@@ -121,9 +121,9 @@ const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
     component: lazyRouteComponent(() => import("./routes/game.route")),
-    // The game downloads only its own cards (issue #5615, PRD #5602): the gate
-    // awaits the packed corpus, and the route loads the Sets of its
-    // Definition Manifest before the board renders
+    // The game downloads only its own cards (issues #5615, #5616, PRD #5602):
+    // the gate awaits the shard dictionary, and the route loads the shards of
+    // its Definition Manifest before the board renders
     // (`DefinitionManifestGate`).
     staticData: { catalogue: "game" },
 });

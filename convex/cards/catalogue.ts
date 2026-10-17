@@ -458,11 +458,13 @@ export function registerCompiledShard(
     dictionaryOf: () => Uint8Array
 ): number {
     if (packedCorpusLookup !== null || installedShards.has(shard.key)) return 0;
-    installedShards.add(shard.key);
-    return installCompiledSection(
+    const added = installCompiledSection(
         shardIndexOf(shard),
         createBlockLookup(shard, dictionaryOf)
     );
+    // Only once it is in: a throw above leaves the shard retryable.
+    installedShards.add(shard.key);
+    return added;
 }
 
 /**
