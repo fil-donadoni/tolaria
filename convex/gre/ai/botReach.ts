@@ -1237,8 +1237,12 @@ function playSeat(
     const endStep: PoseWindow[] = isInstantSpeedCard(def)
         ? [OPPONENT_END_STEP_WINDOW]
         : [];
+    // CR 117.1a — the window is a declare-blockers step: only an
+    // instant-speed card can be cast there.
     const blocked: PoseWindow[] =
-        blockedAttackPose(def) === null ? [] : [BLOCKED_ATTACK_WINDOW];
+        isInstantSpeedCard(def) && blockedAttackPose(def) !== null
+            ? [BLOCKED_ATTACK_WINDOW]
+            : [];
     for (const window of [
         ...later,
         ...trick,

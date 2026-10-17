@@ -5279,6 +5279,7 @@
         {"id":"117.1a","line":"// - the CR 307.1 / 117.1a cast-time snapshot `castOffSorceryTiming` (issue","sites":1,"status":"baseline"},
         {"id":"117.1a","line":"// 117.1a / 601.3a, issue #2473). Lives in its own `*.bot.test.ts` file because","sites":1,"status":"baseline"},
         {"id":"117.1a","line":"// CR 117.1a — a noninstant is castable only on an empty stack, so a","sites":1,"status":"confirmed","ruleHash":"b73e2f586678e67a"},
+        {"id":"117.1a","line":"// CR 117.1a — the window is a declare-blockers step: only an","sites":1,"status":"confirmed","ruleHash":"b73e2f586678e67a"},
         {"id":"117.1a","line":"// CR 307.1 / 117.1a / 601.3a (issue #2473) — the search never calls","sites":1,"status":"confirmed","ruleHash":"b73e2f586678e67a"},
         {"id":"117.1a","line":"// CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared \"cast off sorcery","sites":1,"status":"baseline"},
         {"id":"117.1a","line":"// CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot","sites":1,"status":"baseline"},
