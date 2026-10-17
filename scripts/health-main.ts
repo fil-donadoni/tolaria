@@ -141,6 +141,7 @@ import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
     evidenceStore,
+    lineageBlocks,
     machineName,
     readVerdictLineage,
     verdictAgeMs,
@@ -663,7 +664,13 @@ function finishInfra(
             ...(log ? { log } : {}),
         },
         previous: ctx.previous,
-        redMarkerStanding: existsSync(join(ctx.dir, "RED")),
+        // A RED stands on the store (`readVerdictLineage` is total: an
+        // unreadable store reads as none, and the infra record is written).
+        redMarkerStanding: lineageBlocks(
+            readVerdictLineage(() =>
+                verdictStore(ctx.root, { branch: ctx.branch })
+            ).kind
+        ),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
