@@ -6,23 +6,22 @@ import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
 import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
-import { LANDINGS_PER_BATCH } from "../lib/health-cadence";
 import { PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
 import { SKIPPED_REASON } from "../lib/health-walk-plan";
+import { fakeGh, type FakeGh } from "./fake-gh";
 
 /**
- * The health run, driven for real. The per-batch run (`health-cadence
- * detach`) owes no browser walk (issue #5378); the full walk is `--ui-all`'s,
- * which `release` passes — it runs off the heavy mutex, holding only the
+ * The health run, driven for real. The offline run (`--under-lock
+ * --phase=offline`) owes no browser walk (issue #5378); the full walk is
+ * `--ui-all`'s, which `release` passes — it runs off the heavy mutex, holding only the
  * `check:ui` lane, and its verdict decides the run's ONE record (issue #4962).
  *
- * A scratch primary checkout whose `origin` is a local bare repo; its
+ * A scratch primary checkout whose `origin` is a local bare repo (the verdict store is a fake `gh`, `fake-gh.ts`); its
  * `package.json` stands in every gate. `check:all` and `check:ui` each record
  * what `gate:who` says while they run — `check:ui` after taking the lane the
  * way the real one does. The machine mutex lives in a private lock root.
  */
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const CADENCE = path.join(REPO_ROOT, "scripts", "health-cadence.ts");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const UI_ADMISSION = path.join(REPO_ROOT, "scripts", "lib", "ui-admission.ts");
@@ -33,6 +32,7 @@ let primary: string;
 let lockRoot: string;
 let server: http.Server;
 let convexUrl: string;
+let gh: FakeGh;
 
 const git = (args: string[], cwd: string): string => {
     const r = spawnSync("git", args, {
@@ -119,8 +119,6 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
     // The batch since the last GREEN tip reaches a global input — what the
     // batch-scoped plan of issue #5076 walked in full.
     land("src/index.css");
-    const tip = baseSha;
-
     const health = path.join(primary, ".claude", "telemetry", "health");
     fs.mkdirSync(health, { recursive: true });
     // No Bot batch: the diff from the last green to the tip is empty.
@@ -128,20 +126,7 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
         path.join(primary, ".claude", "telemetry", "green-sha"),
         `${baseSha}\n`
     );
-    // A full batch of landings: the batch fires.
-    const now = Date.now();
-    fs.writeFileSync(
-        path.join(health, "cadence.json"),
-        JSON.stringify({
-            landings: Array.from({ length: LANDINGS_PER_BATCH }, (_, i) => ({
-                sha: tip,
-                at: now - (LANDINGS_PER_BATCH - i) * 1000,
-            })),
-            lastGreenSha: null,
-            lastFiredSha: null,
-            lastFiredAt: null,
-        })
-    );
+    gh = fakeGh(path.join(tmp, "fake-gh"));
 
     server = http.createServer((_, res) => res.end("ok"));
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -160,8 +145,9 @@ afterEach(async () => {
 
 const healthDir = () => path.join(primary, ".claude", "telemetry", "health");
 
-/** `health-cadence detach` (the batch run), or `health-main --ui-all`
- *  (what `release` runs), with the fake walk exiting `ui.exit`. */
+/** `health-main --under-lock --phase=offline` (the offline run), or
+ *  `health-main --ui-all` (what `release` runs), with the fake walk exiting
+ *  `ui.exit`. */
 async function run(
     argv: string[],
     ui: { exit: number; output?: string }
@@ -171,6 +157,7 @@ async function run(
 }> {
     const env: NodeJS.ProcessEnv = {
         ...withoutCorpusExclusion(),
+        ...gh.env,
         TOLARIA_GATE_LOCK_ROOT: lockRoot,
         VITE_CONVEX_URL: convexUrl,
         WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
@@ -196,13 +183,25 @@ async function run(
 }
 
 const detach = (ui: { exit: number; output?: string }) =>
-    run([CADENCE, "detach"], ui);
+    run(
+        [
+            HEALTH_MAIN,
+            `--branch=${BASE_BRANCH}`,
+            "--under-lock",
+            "--phase=offline",
+        ],
+        ui
+    );
 const release = (ui: { exit: number; output?: string }) =>
     run([HEALTH_MAIN, `--branch=${BASE_BRANCH}`, "--ui-all"], ui);
 
 const lastJson = () =>
     JSON.parse(fs.readFileSync(path.join(healthDir(), "last.json"), "utf8"));
-const redMarker = () => fs.existsSync(path.join(healthDir(), "RED"));
+/** Whether the fake store holds a RED `health` status for the tip. */
+const redMarker = () =>
+    gh
+        .statuses(git(["rev-parse", "HEAD"], primary))
+        .some((s) => s.context === "health" && s.state === "failure");
 const whoAt = (phase: "offline" | "walk") =>
     fs.readFileSync(path.join(tmp, `who-${phase}.txt`), "utf8");
 
@@ -212,13 +211,13 @@ const ASSERT_FAIL_RECEIPT = [
     "assert   lobby                1440x900x2   FAIL Create table",
 ].join("\n");
 
-describe("batch health owes no walk; release walks in full (issue #5378)", () => {
+describe("the offline run owes no walk; release walks in full (issue #5378)", () => {
     const walkArgv = () =>
         fs.existsSync(path.join(tmp, "walk-argv.txt"))
             ? fs.readFileSync(path.join(tmp, "walk-argv.txt"), "utf8")
             : "";
 
-    it("a batch run runs no check:ui step, even on a global input: GREEN on the offline half, walk skipped with its reason", async () => {
+    it("an offline run runs no check:ui step, even on a global input: GREEN on the offline half, walk skipped with its reason", async () => {
         const r = await detach({ exit: 1 });
         expect(r.code, r.out).toBe(0);
         // Neither the walk nor the scoper: no `check:ui` invocation at all.
@@ -296,7 +295,11 @@ describe("health-main --ui-all — the walk runs off the heavy mutex (issue #496
             path.join(healthDir(), "last.json"),
             JSON.stringify(red)
         );
-        fs.writeFileSync(path.join(healthDir(), "RED"), "red at test\n");
+        gh.seed(git(["rev-parse", "HEAD"], primary), {
+            state: "failure",
+            context: "health",
+            description: "RED · test · other-machine",
+        });
         const r = await release({ exit: 2, output: "sign-in failed" });
         expect(r.code, r.out).toBe(1);
         expect(lastJson()).toEqual(red);
@@ -322,6 +325,7 @@ describe("health-main --ui-all — the walk runs off the heavy mutex (issue #496
             timeout: 60_000,
             env: {
                 ...withoutCorpusExclusion(),
+                ...gh.env,
                 TOLARIA_GATE_LOCK_ROOT: lockRoot,
                 WHO_WALK: path.join(tmp, "who-walk.txt"),
             },
@@ -335,11 +339,11 @@ describe("health-main --ui-all — the walk runs off the heavy mutex (issue #496
 
 /**
  * The CALL of `gateSkipReason` in `health-main.ts` (issue #4977): its pure
- * rule is pinned in `health-cadence.test.ts`, but `retryTerminal: !underLock`
- * is what makes the cadence's waiter skip a terminal tip while `bun run
+ * rule is pinned in `health-pivot.test.ts`, but `retryTerminal: !underLock`
+ * is what makes an `--under-lock` run skip a terminal tip while `bun run
  * health` by hand re-gates it (issue #4960). Either inversion was invisible.
  */
-describe("health-main — a terminal verdict on the tip: the waiter skips it, a hand run re-gates it (issue #4977)", () => {
+describe("health-main — a terminal verdict on the tip: an --under-lock run skips it, a hand run re-gates it (issue #4977)", () => {
     const INFRA_STARTED_AT = new Date(Date.now() - 60_000).toISOString();
     const seedInfra = () => {
         const record = {
@@ -358,6 +362,7 @@ describe("health-main — a terminal verdict on the tip: the waiter skips it, a 
     const healthMain = (args: string[], env: NodeJS.ProcessEnv = {}) => {
         const childEnv: NodeJS.ProcessEnv = {
             ...withoutCorpusExclusion(),
+            ...gh.env,
             TOLARIA_GATE_LOCK_ROOT: lockRoot,
             WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
             ...env,
@@ -372,7 +377,7 @@ describe("health-main — a terminal verdict on the tip: the waiter skips it, a 
         );
     };
 
-    it("--under-lock (the cadence's waiter) never re-gates an INFRA tip", () => {
+    it("--under-lock never re-gates an INFRA tip", () => {
         const record = seedInfra();
         const r = healthMain(["--under-lock", "--phase=offline"], {
             VITE_CONVEX_URL: convexUrl,

@@ -16,8 +16,8 @@
  *
  *   - `health-main` writes a REQUEST (`writeAuditRequest`) when the batch owes
  *     the audit (`robustnessOwed`) — the mode, nothing else;
- *   - `health-cadence` spawns `health-robustness-audit.ts` detached once the
- *     verdict is GREEN or RED, at the `yield` admission class, on the same tip;
+ *   - `health-nightly` runs `health-robustness-audit.ts` once the verdict is
+ *     GREEN or RED, at the `yield` admission class, on the same tip;
  *   - the audit claims the request (`claimAuditRequest`), runs, files drift
  *     (`robustnessOutcome` / `fileDriftIssues`, unchanged) and leaves ONE
  *     record (`AUDIT_RECORD_FILE`) that `health:status` shows.

@@ -5,19 +5,16 @@
  * marker under `.claude/telemetry/health/` — so a second machine could not
  * see a red found on the first: its `queue:plan` kept picking from a tip it
  * could not know was broken. Every reader now goes through ONE interface,
- * `VerdictStore`, with two backends chosen by `tolaria.config.json`
- * (`health.verdictStore`):
+ * `VerdictStore`, a commit status on the gated sha, `context=health` — state
+ * success / failure / error / pending for GREEN / RED / infra / AMBER, the
+ * description `STATUS · step · machine[ · tests: …][ · log: …]`, the target
+ * URL the log when it is one. Read back with one GraphQL call over the base
+ * branch's history. (A second, local-file backend lived here until issue
+ * #5655: with the pass and the workflows on GitHub, one machine's files no
+ * longer carry a verdict.) `health-main` keeps writing its own run record,
+ * `last.json`, beside its logs — a record no store carries.
  *
- *  - `file` (the default): today's layout, unchanged. `last.json` stays
- *    `health-main`'s run record (it writes it itself, with fields no store
- *    carries); the store owns the MARKERS — `RED`, and `AMBER` below.
- *  - `github`: a commit status on the gated sha, `context=health` — state
- *    success / failure / error / pending for GREEN / RED / infra / AMBER, the
- *    description `STATUS · step · machine[ · tests: …][ · log: …]`, the
- *    target URL the log when it is one. Read back with one GraphQL call over
- *    the base branch's history.
- *
- * Semantics, identical on both backends:
+ * Semantics:
  *
  *  - **Last writer per sha wins** — except that an `infra` write never
  *    replaces a GREEN or RED for the same sha (an infra run proves nothing,
@@ -36,20 +33,13 @@
  * and it runs before `node_modules` may exist.
  */
 import { spawnSync } from "node:child_process";
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { BASE_BRANCH, CONFIG_PATH } from "./branches";
+import { BASE_BRANCH } from "./branches";
 import { failingFiles, isEvidenceFor } from "./health-evidence";
 import type { HealthStatus } from "./health-verdict";
 
-/** Where the file backend lives, relative to the primary checkout. */
+/** Where `health-main`'s run record and logs live, relative to the primary checkout. */
 export const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
 
 /** The GitHub commit-status context the verdict is written under. */
@@ -62,13 +52,12 @@ export const UI_WALK_CONTEXT = "ui-walk";
 /** A GitHub commit description is capped at 140 characters. */
 export const DESCRIPTION_MAX = 140;
 
-export type VerdictBackend = "file" | "github";
+export type VerdictBackend = "github";
 
 export type VerdictStatus = "green" | "red" | "infra" | "amber";
 
 export interface Verdict {
     sha: string;
-    /** `running` only ever comes back from the file backend's `last.json`. */
     status: VerdictStatus | HealthStatus;
     /** The failed step (`test:app`), or what a GREEN ran last. */
     step?: string;
@@ -185,194 +174,6 @@ export function lineageOf(history: readonly Verdict[]): Lineage {
  *  lane must run (`land`'s repair proof). Sorted, unique. */
 export function failedTestFiles(output: string): string[] {
     return failingFiles(output);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Configuration
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** `health.verdictStore` — absent reads `file`, anything else is an error. */
-export function parseVerdictBackend(
-    raw: string,
-    source = CONFIG_PATH
-): VerdictBackend {
-    let doc: unknown;
-    try {
-        doc = JSON.parse(raw);
-    } catch (e) {
-        throw new Error(`${source}: not valid JSON — ${(e as Error).message}`);
-    }
-    const health = (doc as { health?: unknown })?.health;
-    if (health === undefined) return "file";
-    const v = (health as { verdictStore?: unknown } | null)?.verdictStore;
-    if (v === undefined) return "file";
-    if (v === "file" || v === "github") return v;
-    throw new Error(
-        `${source}: health.verdictStore must be "file" or "github", got ${JSON.stringify(v)}`
-    );
-}
-
-export function readVerdictBackend(path = CONFIG_PATH): VerdictBackend {
-    return parseVerdictBackend(readFileSync(path, "utf8"), path);
-}
-
-/** The configured backend, or `file` — loudly — when the config cannot say:
- *  a torn or mistyped key must never disable the local RED refusal. */
-export function configuredBackend(): VerdictBackend {
-    try {
-        return readVerdictBackend();
-    } catch (e) {
-        console.error(
-            `health verdict store: ${(e as Error).message} — reading the file backend`
-        );
-        return "file";
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// File backend
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** What the `AMBER` marker holds. */
-interface AmberRecord {
-    sha: string;
-    repairOf?: string;
-    machine?: string;
-    at?: string;
-}
-
-function readJson<T>(path: string): T | null {
-    try {
-        return JSON.parse(readFileSync(path, "utf8")) as T;
-    } catch {
-        return null;
-    }
-}
-
-/** `last.json` as a verdict: a `running` record stands for the one it
- *  replaced (`prior`) where it carries one. */
-function lastAsVerdict(dir: string): Verdict | null {
-    const last = readJson<
-        Verdict & { failedStep?: string; finishedAt?: string; prior?: Verdict }
-    >(join(dir, "last.json"));
-    if (!last || typeof last.sha !== "string") return null;
-    return {
-        ...last,
-        step: last.failedStep ?? last.step,
-        at: last.finishedAt ?? last.at,
-    };
-}
-
-function amberAsVerdict(dir: string): Verdict | null {
-    const a = readJson<AmberRecord>(join(dir, "AMBER"));
-    if (!a || typeof a.sha !== "string") return null;
-    return { ...a, status: "amber" };
-}
-
-export interface FileStoreOptions {
-    /** The primary checkout. */
-    root: string;
-    /** `git merge-base --is-ancestor a b` in `root` — injectable for tests. */
-    isAncestor?: (a: string, b: string) => boolean;
-    /** The branch the RED marker names. */
-    branch?: string;
-}
-
-/**
- * Today's layout. The `RED` marker is the verdict (its presence is what every
- * reader refused on); `AMBER` is new and holds the repair's JSON record.
- * `last.json` is read for the explanation, never written here.
- */
-export function fileVerdictStore(opts: FileStoreOptions): VerdictStore {
-    const dir = join(opts.root, HEALTH_DIR_REL);
-    const red = join(dir, "RED");
-    const amber = join(dir, "AMBER");
-    const isAncestor =
-        opts.isAncestor ??
-        ((a: string, b: string) =>
-            spawnSync("git", ["merge-base", "--is-ancestor", a, b], {
-                cwd: opts.root,
-            }).status === 0);
-    const store: VerdictStore = {
-        backend: "file",
-        read(sha) {
-            const a = amberAsVerdict(dir);
-            if (a?.sha === sha) return a;
-            const last = lastAsVerdict(dir);
-            if (last?.sha === sha && last.status !== "running") return last;
-            return null;
-        },
-        write(v) {
-            mkdirSync(dir, { recursive: true });
-            if (v.status === "green") {
-                rmSync(red, { force: true });
-                rmSync(amber, { force: true });
-                return { written: true };
-            }
-            if (v.status === "red") {
-                const a = amberAsVerdict(dir);
-                // A late RED about a tip the repair is already ahead of.
-                if (a && a.sha !== v.sha && isAncestor(v.sha, a.sha))
-                    return {
-                        written: false,
-                        reason: `RED @ ${v.sha.slice(0, 8)} is older than the repair AMBER @ ${a.sha.slice(0, 8)}`,
-                    };
-                writeFileSync(
-                    red,
-                    `${opts.branch ?? BASE_BRANCH} @ ${v.sha} red at ${v.step ?? "unknown step"} — log: ${v.log ?? "none"}\n`
-                );
-                return { written: true };
-            }
-            if (v.status === "amber") {
-                const record: AmberRecord = {
-                    sha: v.sha,
-                    repairOf: v.repairOf,
-                    machine: v.machine,
-                    at: v.at,
-                };
-                writeFileSync(amber, JSON.stringify(record, null, 2));
-                rmSync(red, { force: true });
-                return { written: true };
-            }
-            // infra: `last.json` is the caller's (`recordInfra`), and an infra
-            // run neither raises nor clears a marker.
-            return { written: true };
-        },
-        latest() {
-            const a = amberAsVerdict(dir);
-            const last = lastAsVerdict(dir);
-            const decided =
-                last?.status === "running"
-                    ? ((last as { prior?: Verdict }).prior ?? null)
-                    : last;
-            if (a && (!decided || decided.sha === a.sha)) return a;
-            if (a && decided && isAncestor(decided.sha, a.sha)) return a;
-            return decided;
-        },
-        lineage() {
-            const redStands = existsSync(red);
-            const a = amberAsVerdict(dir);
-            const last = lastAsVerdict(dir);
-            if (redStands)
-                return {
-                    kind: a ? "second-red" : "red",
-                    // The raw record, `running` included: `health:fix`
-                    // refuses to race a run that is re-gating the tip.
-                    verdict: last,
-                };
-            if (a) return { kind: "amber", verdict: a };
-            const decided =
-                last?.status === "running"
-                    ? ((last as { prior?: Verdict }).prior ?? null)
-                    : last;
-            if (decided?.status === "green")
-                return { kind: "green", verdict: decided };
-            if (decided?.status === "infra")
-                return { kind: "infra", verdict: decided };
-            return { kind: "none", verdict: decided };
-        },
-    };
-    return store;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -643,6 +444,10 @@ export function machineName(): string {
 }
 
 export function originRepo(root: string): string {
+    // `gh`'s own override (`OWNER/REPO`): a checkout whose origin is not the
+    // repository the store lives on — a fixture, a mirror — names it here.
+    const pinned = process.env.GH_REPO;
+    if (pinned && /^[^/\s]+\/[^/\s]+$/.test(pinned)) return pinned;
     const r = spawnSync("git", ["remote", "get-url", "origin"], {
         cwd: root,
         encoding: "utf8",
@@ -650,35 +455,24 @@ export function originRepo(root: string): string {
     const repo = r.status === 0 ? repoFromRemote(r.stdout) : null;
     if (repo === null)
         throw new Error(
-            `health.verdictStore is "github" but the origin remote of ${root} names no GitHub repository`
+            `the origin remote of ${root} names no GitHub repository`
         );
     return repo;
 }
 
-/** The backend in force: the override, else the env, else the config. */
-export function selectedBackend(override?: VerdictBackend): VerdictBackend {
-    if (override) return override;
-    const env = process.env.TOLARIA_VERDICT_STORE;
-    return env === "file" || env === "github" ? env : configuredBackend();
-}
-
 /**
- * The store `tolaria.config.json` selects, rooted at the primary checkout
- * (where the file backend lives). `TOLARIA_VERDICT_STORE` overrides the
- * config for one process — a test, or a hand-run read of the other backend.
+ * The store of the repository `root` is a checkout of — its origin remote.
+ * `branch` is the base branch unless a test says otherwise.
  */
 export function verdictStore(
     root: string,
-    opts: { backend?: VerdictBackend; run?: GhRunner; branch?: string } = {}
+    opts: { run?: GhRunner; branch?: string } = {}
 ): VerdictStore {
-    const backend = selectedBackend(opts.backend);
-    if (backend === "github")
-        return githubVerdictStore({
-            repo: originRepo(root),
-            branch: opts.branch,
-            run: opts.run,
-        });
-    return fileVerdictStore({ root, branch: opts.branch });
+    return githubVerdictStore({
+        repo: originRepo(root),
+        branch: opts.branch,
+        run: opts.run,
+    });
 }
 
 /**
@@ -702,10 +496,8 @@ export function readVerdictLineage(store: () => VerdictStore): Lineage & {
 
 /**
  * Where a RED's evidence (`lib/health-evidence.ts`) lives so EITHER machine
- * reads it: on the github backend a commit comment on the gated sha — the
- * same repository, the same token scope as the commit status, found by the
- * sha alone; on the file backend a file beside the log (one machine reads
- * and writes it, which is what the file backend means).
+ * reads it: a commit comment on the gated sha — the same repository, the same
+ * token scope as the commit status, found by the sha alone.
  *
  * `publish` returns the pointer the verdict carries in `log` (the comment's
  * URL, or the file's path) and THROWS when it could not publish; `read`
@@ -715,28 +507,6 @@ export interface EvidenceStore {
     readonly backend: VerdictBackend;
     publish(sha: string, body: string): string;
     read(sha: string): string | null;
-}
-
-export function evidenceFileName(sha: string): string {
-    return `${sha.slice(0, 12)}.evidence.md`;
-}
-
-export function fileEvidenceStore(root: string): EvidenceStore {
-    const dir = join(root, HEALTH_DIR_REL);
-    return {
-        backend: "file",
-        publish(sha, body) {
-            mkdirSync(dir, { recursive: true });
-            const p = join(dir, evidenceFileName(sha));
-            writeFileSync(p, body);
-            return p;
-        },
-        read(sha) {
-            const p = join(dir, evidenceFileName(sha));
-            const body = existsSync(p) ? readFileSync(p, "utf8") : null;
-            return isEvidenceFor(body, sha) ? body : null;
-        },
-    };
 }
 
 export function githubEvidenceStore(opts: {
@@ -778,16 +548,10 @@ export function githubEvidenceStore(opts: {
     };
 }
 
-/** The evidence store on the backend `verdictStore` would pick. */
+/** The evidence store of the repository `root` is a checkout of. */
 export function evidenceStore(
     root: string,
-    opts: { backend?: VerdictBackend; run?: GhRunner } = {}
+    opts: { run?: GhRunner } = {}
 ): EvidenceStore {
-    const env = process.env.TOLARIA_VERDICT_STORE;
-    const backend =
-        opts.backend ??
-        (env === "file" || env === "github" ? env : configuredBackend());
-    return backend === "github"
-        ? githubEvidenceStore({ repo: originRepo(root), run: opts.run })
-        : fileEvidenceStore(root);
+    return githubEvidenceStore({ repo: originRepo(root), run: opts.run });
 }

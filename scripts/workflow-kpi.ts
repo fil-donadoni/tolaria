@@ -80,7 +80,7 @@ export function rollingWindows(nowS: number): Array<[string, KpiWindow]> {
 
 /**
  * The four lines per rolling window, read from `root`'s telemetry DB — what
- * `health-cadence` prints when it fires. Never throws: a missing or
+ * `workflow:kpi` prints. Never throws: a missing or
  * unreadable DB (or one not yet migrated) is one line saying so.
  */
 export function kpiReport(root: string, nowS = Date.now() / 1000): string[] {

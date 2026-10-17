@@ -13,7 +13,7 @@
  *    under a RED green only for a PR closing a declared repair issue.
  *    `healthAdmission` is that rule, and `planTick` reads it too.
  */
-import { closingIssueRefs, redLandGate } from "./health-cadence";
+import { closingIssueRefs, redLandGate } from "./red-land-gate";
 import { READY_LABEL } from "./land-labels";
 import {
     DESCRIPTION_MAX,

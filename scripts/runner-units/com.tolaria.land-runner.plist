@@ -3,10 +3,9 @@
 <!--
   The land-runner's launchd agent (MacBook ONLY) — the one merger, kept alive
   (issue #5469). The alternative to `bun run loop:afk --start`, which starts the
-  same process detached; the runner's lock keeps one of them. Install like the
-  reaper's (docs/guides/huawei-runner.md § Install on the MacBook). __REPO__,
-  __BUN__, __NODE_BIN__ and __HOME__ are substituted at install time. The `unit:` tag keeps
-  the reaper off its tree. Restarted only after a CRASH: SIGTERM (`--disarm`)
+  same process detached; the runner's lock keeps one of them. Install per
+  docs/guides/huawei-runner.md § Install on the MacBook. __REPO__,
+  __BUN__, __NODE_BIN__ and __HOME__ are substituted at install time. Restarted only after a CRASH: SIGTERM (`--disarm`)
   makes it exit 0 after the landing in flight, which launchd leaves stopped;
   `ExitTimeOut` gives that landing an hour before launchd's SIGKILL.
   `RunAtLoad` starts it at login: KeepAlive/SuccessfulExit only restarts after
@@ -40,8 +39,6 @@
         <string>__HOME__</string>
         <key>PATH</key>
         <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-        <key>TOLARIA_OWNER</key>
-        <string>unit:com.tolaria.land-runner</string>
     </dict>
     <key>StandardOutPath</key>
     <string>__HOME__/.cache/tolaria/land-runner/agent.log</string>

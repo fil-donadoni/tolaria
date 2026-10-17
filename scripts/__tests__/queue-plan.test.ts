@@ -39,8 +39,6 @@ import {
     rateLimitFallbackMessage,
     readBoardPriorityCache,
     writeBoardPriorityCache,
-    readHealthInfra,
-    readHealthMarker,
     readWholeQueue,
     NO_PRIORITY_MESSAGE,
     type BoardPriorityDeps,
@@ -2938,114 +2936,6 @@ describe("admission — the claim journal fold (issue #3775)", () => {
 
     it("reads an empty journal as nothing released", () => {
         expect(releasedClaims("")).toEqual([]);
-    });
-});
-
-describe("admission — reading the health marker off disk (issue #3775)", () => {
-    const withHealthDir = (
-        write: (dir: string) => void,
-        assert: (root: string) => void
-    ) => {
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "health-"));
-        try {
-            const dir = path.join(root, ".claude", "telemetry", "health");
-            fs.mkdirSync(dir, { recursive: true });
-            write(dir);
-            assert(root);
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    };
-
-    it("is null with no marker, whatever last.json says", () => {
-        withHealthDir(
-            (dir) =>
-                fs.writeFileSync(
-                    path.join(dir, "last.json"),
-                    JSON.stringify({ sha: "abc", status: "green" })
-                ),
-            (root) => expect(readHealthMarker(root)).toBeNull()
-        );
-    });
-
-    it("reads the sha, the failed step and the log beside the marker", () => {
-        withHealthDir(
-            (dir) => {
-                fs.writeFileSync(path.join(dir, "RED"), "");
-                fs.writeFileSync(
-                    path.join(dir, "last.json"),
-                    JSON.stringify({
-                        sha: "deadbeefcafe",
-                        status: "red",
-                        failedStep: "test:app",
-                        log: "/tmp/h.log",
-                    })
-                );
-            },
-            (root) =>
-                expect(readHealthMarker(root)).toEqual({
-                    sha: "deadbeefcafe",
-                    failedStep: "test:app",
-                    log: "/tmp/h.log",
-                })
-        );
-    });
-
-    it("survives a torn last.json — the marker is still the verdict", () => {
-        withHealthDir(
-            (dir) => {
-                fs.writeFileSync(path.join(dir, "RED"), "");
-                fs.writeFileSync(path.join(dir, "last.json"), "{");
-            },
-            (root) => expect(readHealthMarker(root)).toEqual({})
-        );
-    });
-
-    it("survives last.json missing entirely", () => {
-        withHealthDir(
-            (dir) => fs.writeFileSync(path.join(dir, "RED"), ""),
-            (root) => expect(readHealthMarker(root)).toEqual({})
-        );
-    });
-});
-
-describe("admission — an INFRA verdict is a notice, never a refusal (issue #4943)", () => {
-    const withLast = (last: string, assert: (root: string) => void) => {
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "health-"));
-        try {
-            const dir = path.join(root, ".claude", "telemetry", "health");
-            fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(path.join(dir, "last.json"), last);
-            assert(root);
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    };
-
-    it("reads the step and the remedy of an INFRA record — and no RED marker refuses", () => {
-        withLast(
-            JSON.stringify({
-                sha: "deadbeefcafe",
-                status: "infra",
-                failedStep: "preflight:convex",
-                reason: "start it",
-            }),
-            (root) => {
-                expect(readHealthInfra(root)).toEqual({
-                    sha: "deadbeefcafe",
-                    failedStep: "preflight:convex",
-                    reason: "start it",
-                });
-                expect(readHealthMarker(root)).toBeNull();
-            }
-        );
-    });
-
-    it("is null for any other status, and for a torn record", () => {
-        withLast(JSON.stringify({ sha: "a", status: "red" }), (root) =>
-            expect(readHealthInfra(root)).toBeNull()
-        );
-        withLast("{", (root) => expect(readHealthInfra(root)).toBeNull());
     });
 });
 

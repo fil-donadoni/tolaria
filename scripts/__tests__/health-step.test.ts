@@ -226,9 +226,8 @@ describe("healthGateEnv — who holds the mutex for a health run", () => {
         expect(env.PATH).toBe("/usr/bin");
     });
 
-    it("keeps it under `keepHold` — the per-batch gate takes the mutex ONCE, for the whole run (ADR 0136 §6)", () => {
-        // `health-cadence.ts` wraps the whole run in one `gate.ts yield`
-        // acquisition. Scrubbing the hold there would make each of the three
+    it("keeps it under `keepHold` — a caller that takes the mutex ONCE holds it for the whole run (ADR 0136 §6)", () => {
+        // A caller wraps the whole run in one `gate.ts yield` acquisition. Scrubbing the hold there would make each of the three
         // steps queue separately, which is three blocks a land can race into
         // instead of the one uninterrupted block the yield rule is built on.
         const env = healthGateEnv(held, { keepHold: true });

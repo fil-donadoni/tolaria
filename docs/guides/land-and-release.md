@@ -34,7 +34,7 @@ cd /Users/filippo/code/mtg/tolaria     # the primary checkout, on the release br
 bun run release --dry-run              # what would move, nothing moves
 bun run release                        # full gate on the base tip, then main fast-forwards
 bun run release --no-fix               # ... but refuse on RED instead of starting a fix
-bun run health:fix                     # clear a standing RED marker without a release
+bun run health:fix                     # repair a standing RED without a release
 ```
 
 Branch names are not in this guide because they are not in the scripts either:
@@ -151,14 +151,6 @@ shell command so the tree that lands is the tree that was gated:
    local branch and removes the worktree (`--keep` keeps all three;
    `--no-merge` stops after step 5).
 
-9. Records the landing in `.claude/telemetry/health/cadence.json` and starts
-   the [batch health gate](#g-batch-health)'s decision —
-   `scripts/health-cadence.ts spawn`, which re-launches the decision in its own
-   session and returns in ~60 ms. Both steps non-gating. (`spawn`, not
-   `nohup … &`: the locked command's `sh` leads a process group that the gate
-   SIGKILLs on its way out, issue #3821, so anything merely backgrounded here
-   dies with it.)
-
 **Nothing GitHub-bound after the merge.** `gaps:sync`, the grammar residue,
 the `in-progress` claim release and the umbrella detach are the hourly
 [`housekeeping` cron](#the-housekeeping-cron--the-github-bound-post-merge-steps)'s,
@@ -176,10 +168,10 @@ per-command hatch for a real recovery.
 
 #### Recovery: the housekeeping alone, on a PR that already merged
 
-`land` on a **MERGED** PR runs steps 8–9 and nothing else — no rebase, no lane
+`land` on a **MERGED** PR runs step 8 and nothing else — no rebase, no lane
 gate, no merge. It says so on its first line, `land: mode=housekeeping — …`.
 That is the mode a `pr-merge.ts` retry leaves owing, and a hand-typed merge
-too: the seed, the fast-forward, telemetry and the health cadence all still
+too: the seed, the fast-forward, telemetry all still
 have to happen. (The GitHub-bound steps need nothing: the cron below finds
 every merged PR, however it merged.)
 
@@ -249,47 +241,27 @@ checkout, hourly:
 Until a PR's steps have run, its issue may still carry `in-progress`: that is
 harmless, since the session cap counts OPEN claimed issues only.
 
-### The batch health gate — every 10 landings, or every 4 h
+### The batch health gate — a schedule, not a cadence
 
 The full offline gate is not a landing's business, but it is not a release's
 either: between releases the base tip could stand red for the 1–2 days
-observed, and every worktree born in that window starts from it. So it runs per
-BATCH (ADR 0136 §6).
+observed. It runs per BATCH (ADR 0136 §6) — and since issue #5655 the batch is
+a clock: `.github/workflows/health.yml` runs `bun run health --scheduled
+--retry-infra` (ADR 0156 §4). `land` records no landing and detaches no
+decision; the 20-landing / 8 h counter, its ledger and the health runner that
+read it were deleted.
 
-- **Trigger.** `land` appends the merged tip to
-  `.claude/telemetry/health/cadence.json` and detaches the decision. It fires
-  after the **10th landing since the last GREEN**, or **4 h after the first
-  un-healthed landing**, whichever comes first — and holds otherwise, so the
-  step costs one process per landing and nothing else.
-- **Dedup.** By sha, twice over: a tip already GREEN, and a tip health has
-  already been started for (that second stamp expires after 90 min, so a run
-  killed before it wrote a verdict costs one window, not that batch's whole
-  coverage). Five quick landings are ONE health run, and one run is in flight
-  at a time.
-- **Coverage.** It gates the tip current when it starts, not the tip that
-  triggered it, so one run covers everything that landed meanwhile — and the
-  ledger reconciles against the sha the health RECORD names, never the one the
-  trigger saw, because yielding to queued lands is exactly what moves the tip
-  between the two.
-- **Precedence.** It takes the mutex through `gate.ts yield`, the lowest
-  admission class: every queued `land` goes first, and once it holds the lock
-  nothing interrupts it. It cannot starve — a waiter rises one class per
-  30 min queued, so after 90 min health is a land's equal and the oldest — or
-  a queue that never empties would mean the tip is never gated at all. Worst
-  case for a landing behind it: 10 min of health plus the lands ahead, ≤ 18
-  min at the admission cap of 3, at most once per 10 landings.
-- **GREEN** resets the counter and rewrites `green-sha`, exactly as a release's
-  health run does. **RED** writes the same durable marker, which makes
-  `queue:plan` refuse the next PICK — never the next LAND, because the
+- **Dedup.** By sha: a tip already GREEN is not gated again, and a tip health
+  has already been started for is not started twice (that stamp expires after
+  90 min, so a run killed before it wrote a verdict costs one window).
+- **Verdict.** The commit status `context=health` on the gated sha is the only
+  store; a RED stands there until a GREEN, or a proved repair's AMBER, answers
+  it. `queue:plan` refuses the next PICK — never the next LAND, because the
   fix-forward arrives through a `land` and a session already mid-issue must be
-  able to finish — and hands the tip to `bun run health:fix`. Detached there is
-  no TTY, so that spawn refuses with its own line and the marker stands; run
-  `bun run health:fix` from a terminal to start the repair.
-- The counter is deliberately NOT reset on RED: the landing that carries the
-  fix moves the tip past the dedup and is gated at once.
-
-`bun run health:cadence status` prints the ledger; the detached run's output is
-`.claude/telemetry/health/detach.log`.
+  able to finish — and the repair starts with `bun run health:fix`.
+- **Repair.** `bun run health:fix repair-issue --issue=<N>` records the repair
+  issue on the pivot; after a proved repair `land` runs `bun
+scripts/health-fix.ts amber --sha=… --repair-of=…`.
 
 ## Releasing the base branch to production
 
@@ -360,7 +332,7 @@ is one health gate plus at most one fix:
    `landed` (with the PR verified `MERGED`) or `stuck`, and nothing else.
 3. Parsing is **fail-closed**: no file, unparsable JSON, an unknown outcome or
    a verdict about another sha all read as `stuck`, which ends the loop and
-   leaves the RED marker standing.
+   leaves the RED standing.
 4. On `landed`, the base tip is re-read from the remote — the base branch
    moved — and the next round gates the fixed tree.
 
@@ -385,15 +357,15 @@ session, or under `nohup`, behaves exactly as it did before ADR 0118.
 rather than spawning a fixer nobody authorised overnight.
 
 `bun run health:fix` on its own is the manual entry point — same skill, same
-verdict, no release. It is how a standing RED marker blocking the AFK loop
-gets cleared. It refuses, each with its reason: no `RED` marker (exit 0), a
-marker with no health record behind it, a record about another sha, a record
+verdict, no release. It is how a standing RED blocking the AFK loop
+gets cleared. It refuses, each with its reason: no standing `RED` (exit 0), a
+RED with no health record behind it, a record about another sha, a record
 that is `running` or `green`, and no TTY.
 
 ### When release refuses
 
 - **RED, and the [fix loop](#g-fix-loop) gave up.** The handover names what every round
-  attempted, then the refusal verbatim; the marker stays and `land` warns on
+  attempted, then the refusal verbatim; the RED stands and `land` warns on
   every landing until it is gone. A `stuck` verdict means the fixer would not
   defend its own repair — read its issue, fix forward on the base branch like
   any PR (never stack unrelated work on a red tip, never silence a test), then
@@ -443,11 +415,10 @@ mutex a day and produced 1.4 contention false-REDs a day).
 
 ### <a id="g-batch-health"></a>Batch health gate
 
-`scripts/health-cadence.ts`: the cadence around the [health
-gate](#g-health-gate) — 10 landings since the last GREEN, or 4 h since the
-first, deduplicated by sha, detached by `land`, run under `gate.ts yield` so
-queued landings go first (ADR 0136 §6). The decision itself is pure
-(`scripts/lib/health-cadence.ts`).
+The scheduled run of the [health gate](#g-health-gate):
+`.github/workflows/health.yml`, `bun run health --scheduled --retry-infra`
+(ADR 0156 §4, issue #5655). It replaced a landing-count cadence, deduplicated
+by sha, that `land` detached under `gate.ts yield`.
 
 ### <a id="g-fix-loop"></a>Fix loop
 
@@ -466,5 +437,5 @@ CPU is reclaimed. The light tier (`check:lane` by itself, targeted vitest)
 takes no lock. The queue has an order — `land` > `job` > hand-run heavy >
 `health`, each waiter rising one class per 30 min queued — and only its head
 may take the mutex; the `yield` tier is the heavy tier queued in the `health`
-class, which is how the [batch health gate](#g-batch-health) lets landings
+class, which is how the batch health gate once let landings
 through.

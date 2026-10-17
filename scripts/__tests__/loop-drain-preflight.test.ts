@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { fakeGh, type FakeGh } from "./fake-gh";
 import {
     installLoopDrainHarness,
     REAL_BUN,
@@ -267,25 +268,38 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
 });
 
 describe("health RED — the green-main invariant (ADR 0110)", () => {
-    const redMarker = (): string =>
-        path.join(tmp, ".claude", "telemetry", "health", "RED");
+    const RED = "deadbeef".repeat(5);
+    const REPAIR = "cafebabe".repeat(5);
+    let gh: FakeGh;
 
+    /** The fake's env WITHOUT its PATH: the harness owns PATH (its own `gh`
+     *  stub counts the queue); its `health:status` branch puts the fake
+     *  first for that one call (`FAKE_GH_BIN`). */
+    const ghEnv = (): Record<string, string> => gh.envNoPath;
+
+    /** A RED `health` status on the base tip, in the fake store (issue
+     *  #5462: the loop reads the verdict through the store). */
     const writeRed = (): void => {
-        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
-        fs.writeFileSync(redMarker(), "main @ deadbeef red at test:app\n");
-        // The loop reads the verdict through the store (issue #5462), whose
-        // file backend explains the marker with `last.json`.
-        fs.writeFileSync(
-            path.join(path.dirname(redMarker()), "last.json"),
-            JSON.stringify({
-                sha: "deadbeef",
-                status: "red",
-                failedStep: "test:app",
-            })
-        );
+        gh = fakeGh(path.join(tmp, "fake-gh"));
+        gh.setHistory([RED]);
+        gh.seed(RED, {
+            state: "failure",
+            context: "health",
+            description: "RED · test:app · MacBook",
+        });
     };
 
-    it("stops before running any pass when the marker exists", () => {
+    /** An AMBER on a repair's tip, older than the newest commit. */
+    const writeAmber = (history: string[]): void => {
+        gh.setHistory(history);
+        gh.seed(REPAIR, {
+            state: "pending",
+            context: "health",
+            description: `AMBER · - · MacBook · repair-of: ${RED}`,
+        });
+    };
+
+    it("stops before running any pass when a RED stands on the store", () => {
         // "A RED marker means fix-forward FIRST — never stack unrelated work
         // on a red tip" (ADR 0110). `land` refuses a non-repair PR without
         // `--red-ok` (issue #4964), a flag a human states; unattended there
@@ -293,7 +307,7 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         stubGhCountingFrom(5);
         stubClaudeProgress();
         writeRed();
-        const r = run({ args: ["--claude-args", "x"] });
+        const r = run({ args: ["--claude-args", "x"], env: ghEnv() });
         expect(r.stdout).toMatch(/reason=health-red/);
         expect(passLogCount()).toBe(0);
     });
@@ -304,13 +318,15 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         // aborted on a broken main as a night that finished its work.
         stubGhCountingFrom(5);
         writeRed();
-        expect(run({ args: ["--claude-args", "x"] }).status).toBe(1);
+        expect(run({ args: ["--claude-args", "x"], env: ghEnv() }).status).toBe(
+            1
+        );
     });
 
-    it("names the marker's contents on stderr, so the morning log says what to fix", () => {
+    it("names the verdict on stderr, so the morning log says what to fix", () => {
         stubGhCountingFrom(5);
         writeRed();
-        const r = run({ args: ["--claude-args", "x"] });
+        const r = run({ args: ["--claude-args", "x"], env: ghEnv() });
         expect(r.stderr).toMatch(/the base tip is RED/);
         expect(r.stderr).toMatch(/red at test:app/);
     });
@@ -319,15 +335,13 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         stubGhCountingFrom(5);
         stubClaudeProgress();
         writeRed();
-        fs.writeFileSync(
-            path.join(path.dirname(redMarker()), "AMBER"),
-            JSON.stringify({ sha: "cafebabe", repairOf: "deadbeef" })
-        );
+        // The repair landed (AMBER) before the RED that followed it.
+        writeAmber([RED, REPAIR]);
         const notified = path.join(tmp, "notified");
         const r = run({
             args: ["--claude-args", "x"],
             env: {
-                TOLARIA_VERDICT_STORE: "file",
+                ...ghEnv(),
                 TOLARIA_NOTIFY_CMD: `printf '%s' "$1" > "${notified}"`,
             },
         });
@@ -343,24 +357,19 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
     it("runs the pass on an AMBER lineage — a proved repair landed (issue #5462)", () => {
         stubGhCountingFrom(1);
         stubClaudeProgress();
-        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
-        fs.writeFileSync(
-            path.join(path.dirname(redMarker()), "AMBER"),
-            JSON.stringify({ sha: "cafebabe", repairOf: "deadbeef" })
-        );
-        const r = run({
-            args: ["--claude-args", "x"],
-            env: { TOLARIA_VERDICT_STORE: "file" },
-        });
+        writeRed();
+        writeAmber([REPAIR, RED]);
+        const r = run({ args: ["--claude-args", "x"], env: ghEnv() });
         expect(r.stdout).not.toMatch(/reason=health-/);
         expect(passLogCount()).toBe(1);
     });
 
-    it("runs normally when the marker is absent (proof the check is the marker, not the directory)", () => {
+    it("runs normally when the store holds no RED (proof the check is the verdict, not the plumbing)", () => {
         stubGhCountingFrom(1);
         stubClaudeProgress();
-        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
-        const r = run({ args: ["--claude-args", "x"] });
+        gh = fakeGh(path.join(tmp, "fake-gh"));
+        gh.setHistory([RED]);
+        const r = run({ args: ["--claude-args", "x"], env: ghEnv() });
         expect(r.stdout).not.toMatch(/reason=health-red/);
         expect(passLogCount()).toBe(1);
     });

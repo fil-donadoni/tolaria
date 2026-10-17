@@ -40,8 +40,6 @@
         <string>__HOME__</string>
         <key>PATH</key>
         <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-        <key>TOLARIA_OWNER</key>
-        <string>unit:com.tolaria.convex</string>
     </dict>
     <key>StandardOutPath</key>
     <string>__HOME__/.cache/tolaria/convex/agent.log</string>

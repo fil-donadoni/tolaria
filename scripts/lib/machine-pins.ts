@@ -26,13 +26,6 @@ export const MACHINE_PINS = {
         reclaimableMb: 16_384,
         sessions: [],
     }),
-    // The health verdict store (issue #5462): the LOCAL file store — a
-    // fixture repo has no GitHub origin to write a commit status to.
-    TOLARIA_VERDICT_STORE: "file",
-    // The health runner (issue #5467): none — a cadence test must not turn
-    // into the stale-verdict fallback because the real config names the
-    // Huawei.
-    TOLARIA_HEALTH_RUNNER_PLATFORM: "",
     // The land-runner (issue #5469): runs nowhere — no test merges.
     TOLARIA_LAND_RUNNER_PLATFORM: "",
     // The browser walk (issue #5465): it gates, as on the MacBook that

@@ -8,12 +8,9 @@ import {
     decodeStatus,
     encodeDescription,
     failedTestFiles,
-    fileVerdictStore,
     githubVerdictStore,
     lineageBlocks,
     lineageOf,
-    parseVerdictBackend,
-    readVerdictBackend,
     readVerdictLineage,
     repoFromRemote,
     verdictAgeMs,
@@ -26,17 +23,17 @@ import { redRefusal } from "../lib/queue-plan";
 import {
     buildLockedCommand,
     landHealthLineage,
-    recordLandingStep,
+    markAmberStep,
     repairProofOf,
     repairProofStep,
 } from "../land";
-import { redLandGate } from "../lib/health-cadence";
+import { redLandGate } from "../lib/red-land-gate";
 import { readRedFromStore, spawnDecision } from "../health-fix";
 
 /**
- * The health verdict as shared state (issue #5462): one store interface, a
- * file backend (today's layout) and a GitHub commit-status backend, every
- * consumer reading through it. The GitHub backend is driven here by a FAKE
+ * The health verdict as shared state (issue #5462): one store interface over
+ * GitHub commit statuses (the local-file backend went with issue #5655), every
+ * consumer reading through it. The backend is driven here by a FAKE
  * `gh` — an in-memory commit-status table over an ordered base history — so
  * what is pinned is the store's own semantics: round-trip, last writer wins,
  * infra never overwrites, the latest gated tip and its age, and AMBER.
@@ -344,21 +341,6 @@ describe("review fixes — AMBER must be reachable on the github backend", () =>
         ]);
         expect(repairProofOf(lineage, "repair")).toBeUndefined();
     });
-
-    it("reads the RED's tests from the prior of a running record (file backend, health re-gating)", () => {
-        const lineage = {
-            kind: "red" as const,
-            verdict: {
-                sha: T3,
-                status: "running",
-                prior: { sha: T2, status: "red", tests: ["a/b.test.ts"] },
-            } as unknown as Verdict,
-        };
-        expect(repairProofOf(lineage, "repair")).toEqual({
-            redSha: T2,
-            tests: ["a/b.test.ts"],
-        });
-    });
 });
 
 describe("AMBER — a proved repair resumes picks and landings (issue #5462)", () => {
@@ -444,104 +426,7 @@ function withRoot(fn: (root: string, dir: string) => void): void {
     }
 }
 
-const writeLast = (dir: string, last: object) =>
-    fs.writeFileSync(path.join(dir, "last.json"), JSON.stringify(last));
-
-describe("file backend — today's layout, the markers through the store", () => {
-    // T1 < T2 < T3 < T4 in commit order.
-    const order = [T1, T2, T3, T4];
-    const isAncestor = (a: string, b: string) =>
-        order.indexOf(a) <= order.indexOf(b);
-
-    it("writes the RED marker in its old format, and GREEN removes it", () => {
-        withRoot((root, dir) => {
-            const store = fileVerdictStore({
-                root,
-                isAncestor,
-                branch: "staging",
-            });
-            store.write(v(T2, "red", { step: "test:app", log: "/h/2.log" }));
-            expect(fs.readFileSync(path.join(dir, "RED"), "utf8")).toBe(
-                `staging @ ${T2} red at test:app — log: /h/2.log\n`
-            );
-            writeLast(dir, { sha: T2, status: "red", failedStep: "test:app" });
-            expect(store.lineage()).toMatchObject({
-                kind: "red",
-                verdict: { sha: T2, step: "test:app" },
-            });
-            store.write(v(T3, "green"));
-            expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
-        });
-    });
-
-    it("AMBER replaces the marker; GREEN clears it; a RED over it is the second", () => {
-        withRoot((root, dir) => {
-            const store = fileVerdictStore({ root, isAncestor });
-            store.write(v(T2, "red", { step: "test:app" }));
-            store.write(v(T3, "amber", { repairOf: T2 }));
-            expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
-            expect(store.lineage()).toMatchObject({
-                kind: "amber",
-                verdict: { sha: T3, repairOf: T2 },
-            });
-            expect(store.read(T3)?.status).toBe("amber");
-            expect(
-                store.write(v(T4, "red", { step: "test:app" })).written
-            ).toBe(true);
-            expect(store.lineage().kind).toBe("second-red");
-            store.write(v(T4, "green"));
-            expect(store.lineage().kind).not.toMatch(/red|amber/);
-            expect(fs.existsSync(path.join(dir, "AMBER"))).toBe(false);
-        });
-    });
-
-    it("a late RED about a tip the repair is ahead of raises no marker", () => {
-        withRoot((root, dir) => {
-            const store = fileVerdictStore({ root, isAncestor });
-            store.write(v(T1, "red"));
-            store.write(v(T3, "amber", { repairOf: T1 }));
-            expect(store.write(v(T2, "red"))).toMatchObject({ written: false });
-            expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
-            expect(store.lineage().kind).toBe("amber");
-        });
-    });
-
-    it("reads last.json as the verdict; a running record stands for its prior", () => {
-        withRoot((root, dir) => {
-            const store = fileVerdictStore({ root, isAncestor });
-            writeLast(dir, {
-                sha: T3,
-                status: "running",
-                prior: {
-                    sha: T2,
-                    status: "infra",
-                    failedStep: "x",
-                    reason: "r",
-                },
-            });
-            expect(store.latest()).toMatchObject({ sha: T2, status: "infra" });
-            expect(store.lineage().kind).toBe("infra");
-            expect(store.read(T3)).toBeNull();
-        });
-    });
-});
-
-describe("configuration — tolaria.config.json `health.verdictStore`", () => {
-    it("absent reads file; file and github parse; anything else is an error", () => {
-        expect(parseVerdictBackend("{}")).toBe("file");
-        expect(parseVerdictBackend('{"health":{}}')).toBe("file");
-        expect(
-            parseVerdictBackend('{"health":{"verdictStore":"github"}}')
-        ).toBe("github");
-        expect(() =>
-            parseVerdictBackend('{"health":{"verdictStore":"s3"}}')
-        ).toThrow(/file" or "github/);
-    });
-
-    it("the repository's store is github: Phase 1 flipped it (issue #5543)", () => {
-        expect(readVerdictBackend()).toBe("github");
-    });
-
+describe("the repository named by the origin remote", () => {
     it("reads owner/name from either origin URL form", () => {
         expect(repoFromRemote("git@github.com:fil-donadoni/tolaria.git")).toBe(
             "fil-donadoni/tolaria"
@@ -674,16 +559,16 @@ describe("consumers — land refuses a non-repair PR on a RED in the store", () 
         const lane = cmd.indexOf("check:lane");
         const run = cmd.indexOf("repair proof: $*");
         const push = cmd.indexOf("git push --force-with-lease");
-        const record = cmd.indexOf(`\${REPAIR_PROVED:+ --amber-of=${T2}}`);
+        const record = cmd.indexOf(`--repair-of=${T2}`);
         expect(lane).toBeGreaterThan(-1);
         expect(run).toBeGreaterThan(lane);
         expect(push).toBeGreaterThan(run);
         expect(record).toBeGreaterThan(push);
     });
 
-    it("no repair, no proof, no AMBER in the landing record", () => {
-        expect(recordLandingStep("/p", "red-ok", T2)).not.toMatch(/amber-of/);
-        expect(recordLandingStep("/p", "repair")).not.toMatch(/amber-of/);
+    it("no repair, no proof, no AMBER step", () => {
+        expect(markAmberStep("/p", "red-ok", T2)).toBe("");
+        expect(markAmberStep("/p", "repair")).toBe("");
     });
 
     it("the proof step sets REPAIR_PROVED only when the named tests ran and passed", () => {

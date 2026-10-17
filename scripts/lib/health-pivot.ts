@@ -24,7 +24,6 @@ import {
     lineageBlocks,
     machineName,
     originRepo,
-    selectedBackend,
     verdictStore,
     type GhRunner,
     type Verdict,
@@ -36,17 +35,14 @@ export const FIX_CONTEXT = "health-fix";
 
 export interface PivotOpts {
     run?: GhRunner;
-    /** Test seam: force a backend instead of the configured one. */
-    backend?: "file" | "github";
 }
 
-/** The status store for one pivot context, or null off the github backend. */
+/** The status store for one pivot context. */
 function pivotStore(
     root: string,
     context: string,
     opts: PivotOpts
-): VerdictStore | null {
-    if (selectedBackend(opts.backend) !== "github") return null;
+): VerdictStore {
     return githubVerdictStore({
         repo: originRepo(root),
         run: opts.run,
@@ -65,7 +61,7 @@ export function publishRunMarker(
     opts: PivotOpts = {}
 ): void {
     try {
-        pivotStore(root, RUN_CONTEXT, opts)?.write({
+        pivotStore(root, RUN_CONTEXT, opts).write({
             sha,
             status: "amber",
             step: "running",
@@ -90,7 +86,7 @@ export function pivotRunInFlight(
     } = {}
 ): string | null {
     try {
-        const marker = pivotStore(root, RUN_CONTEXT, opts)?.latest() ?? null;
+        const marker = pivotStore(root, RUN_CONTEXT, opts).latest();
         if (marker === null || marker.status !== "amber" || !marker.at)
             return null;
         // This machine's own run is judged by its pid probe (`last.json`):
@@ -101,11 +97,7 @@ export function pivotRunInFlight(
             return null;
         const settled = (
             opts.stored ??
-            ((sha) =>
-                verdictStore(root, {
-                    backend: opts.backend,
-                    run: opts.run,
-                }).read(sha))
+            ((sha) => verdictStore(root, { run: opts.run }).read(sha))
         )(marker.sha);
         const settledAt = settled?.at ? Date.parse(settled.at) : NaN;
         if (
@@ -124,10 +116,7 @@ export function pivotRunInFlight(
 
 /** The standing RED's sha, or null when none stands or the store is down. */
 function standingRedSha(root: string, opts: PivotOpts): string | null {
-    const lineage = verdictStore(root, {
-        backend: opts.backend,
-        run: opts.run,
-    }).lineage();
+    const lineage = verdictStore(root, { run: opts.run }).lineage();
     return lineageBlocks(lineage.kind) ? (lineage.verdict?.sha ?? null) : null;
 }
 
@@ -141,7 +130,6 @@ export function recordPivotRepairIssue(
 ): string | null {
     try {
         const store = pivotStore(root, FIX_CONTEXT, opts);
-        if (store === null) return null;
         const sha = standingRedSha(root, opts);
         if (sha === null) return null;
         const issues = new Set(store.read(sha)?.issues ?? []);
@@ -167,7 +155,6 @@ export function pivotRepairIssues(
 ): number[] {
     try {
         const store = pivotStore(root, FIX_CONTEXT, opts);
-        if (store === null) return [];
         const sha = standingRedSha(root, opts);
         if (sha === null) return [];
         return store.read(sha)?.issues ?? [];

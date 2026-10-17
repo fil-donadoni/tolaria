@@ -137,7 +137,7 @@ function main(): number {
     if (lineage.error)
         console.log(`pr-gate: verdict store unreadable (${lineage.error})`);
     const repairIssues = lineageBlocks(lineage.kind)
-        ? pivotRepairIssues(ROOT, { backend: "github", run })
+        ? pivotRepairIssues(ROOT, { run })
         : [];
     console.log(
         `pr-gate: health lineage ${lineage.kind}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}` : ""}; ${trusted.length} trusted author(s); ${prs.length} PR(s)`

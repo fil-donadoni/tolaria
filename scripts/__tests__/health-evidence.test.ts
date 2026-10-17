@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
     buildEvidence,
     classifyFailure,
@@ -16,7 +13,6 @@ import {
     decodeStatus,
     encodeDescription,
     failedTestFiles,
-    fileEvidenceStore,
     githubEvidenceStore,
     type GhRunner,
 } from "../lib/health-verdict-store";
@@ -214,12 +210,6 @@ describe("the verdict's `failure:` field", () => {
 });
 
 describe("the evidence store — the pivot", () => {
-    let dir: string | undefined;
-    afterEach(() => {
-        if (dir) rmSync(dir, { recursive: true, force: true });
-        dir = undefined;
-    });
-
     it("github: publishes a commit comment on the sha and reads the newest back", () => {
         const calls: string[][] = [];
         const comments: { body: string }[] = [
@@ -257,14 +247,5 @@ describe("the evidence store — the pivot", () => {
             run: () => ({ status: 1, stdout: "", stderr: "HTTP 403" }),
         });
         expect(() => store.publish(SHA, "b")).toThrow(/403/);
-    });
-
-    it("file: writes beside the log and reads only a body for that sha", () => {
-        dir = mkdtempSync(join(tmpdir(), "evidence-"));
-        const store = fileEvidenceStore(dir);
-        const p = store.publish(SHA, `${evidenceMarker(SHA)}\nbody`);
-        expect(p).toMatch(/00aebfc400a3\.evidence\.md$/);
-        expect(store.read(SHA)).toBe(`${evidenceMarker(SHA)}\nbody`);
-        expect(store.read("ffffffffffff")).toBeNull();
     });
 });

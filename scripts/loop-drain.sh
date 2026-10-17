@@ -46,7 +46,6 @@ set -eu
 # caller's cwd happens to be, so it is the one thing in this script anchored
 # to the script's own location instead.
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-LEASE_CLI="$SCRIPT_DIR/lib/process-lease.ts"
 
 # ── flags / env fallbacks ───────────────────────────────────────────────────
 BUDGET="${TOLARIA_LOOP_TOKEN_BUDGET:-}"
@@ -330,7 +329,7 @@ cleanup_pid_file() {
 # `$LANE_DIR/<k>/`, one value per file — read back with `cat`, never sourced:
 #   driver     this driver's pid — a lane is only ever ours to finish
 #   pid        the background job running the pass (`kill -0` liveness)
-#   pass.pid   the `claude` process itself (the lease anchor), for signals
+#   pass.pid   the `claude` process itself, for signals
 #   done       written by the job as its very last act
 #   pass issue model session epoch log rc overlap, and the before-readings
 #   the pass-end accounting compares against.
@@ -1050,7 +1049,6 @@ start_pass() {
             : >"$done_file"
         ) &
     else
-        pass_lease="loop-pass-$$-$pass-$(date +%s)"
         # The pass runs as a background JOB so other lanes can run beside it;
         # with one lane the driver `wait`s on it straight away. Its output goes
         # to the terminal only with one lane: several would interleave
@@ -1090,24 +1088,16 @@ start_pass() {
                 # the resolved tier flag and of a user-supplied flag string,
                 # both documented above.
                 #
-                # The `sh -c … exec` wrapper: the pass's PROCESS LEASE (issue
-                # #5470). The wrapper registers the lease on its own pid and
-                # then BECOMES `claude` (exec keeps the pid), so the lease is
-                # anchored on the pass itself and everything the pass spawns
-                # inherits the tag. Once the pass ends, `bun run reaper` takes
-                # whatever it left running (a detached `gate:run` run has its
-                # own lease). The tag is exported only once the lease is
-                # written: a tag naming no registered lease is reaped. A pass
-                # dies on its anchor, never on the clock (`--no-expiry`). The
-                # same pid goes to the lane's `pass.pid`: the one the driver
-                # signals when it is itself interrupted (`stop_lanes`).
+                # The `sh -c … exec` wrapper records its own pid in the lane's
+                # `pass.pid` and then BECOMES `claude` (exec keeps the pid):
+                # the pid the driver signals when it is itself interrupted
+                # (`stop_lanes`).
                 TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-                    sh -c 'echo $$ >"$4" 2>/dev/null; if bun "$1" put "$2" loop-pass $$ 0 --no-expiry --cwd "$PWD" --command "claude -p $3" >/dev/null; then TOLARIA_OWNER=$2; export TOLARIA_OWNER; fi; shift 4; exec "$@"' \
-                    lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" "$LANE_DIR/$lane/pass.pid" \
+                    sh -c 'echo $$ >"$1" 2>/dev/null; shift; exec "$@"' \
+                    pass "$LANE_DIR/$lane/pass.pid" \
                     claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
                 echo $? >"$rc_file"
             ) | if [ "$LANES" = "1" ]; then tee "$pass_log"; else cat >"$pass_log"; fi
-            bun "$LEASE_CLI" clear "$pass_lease" >/dev/null 2>&1 || true
             : >"$done_file"
         ) &
     fi

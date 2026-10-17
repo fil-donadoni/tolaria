@@ -3,9 +3,9 @@
  *
  *   bun scripts/health-robustness-audit.ts
  *
- * Spawned detached by `health-cadence` once a run's verdict is GREEN or RED,
- * wrapped in `gate.ts yield` (the lowest admission class, like the batch
- * gate): a queued `land` is never made to wait for it. It audits the tip the
+ * Run by `health-nightly` for the tip a recorded verdict is about, wrapped in
+ * `gate.ts yield` (the lowest admission class): a queued `land` is never made
+ * to wait for it. It audits the tip the
  * verdict is about, in its own worktree, files drift as issues and leaves
  * `robustness-audit.json` for `health:status`. It never writes `last.json` or
  * the RED marker, and `release` does not wait for it. Why this is safe to take

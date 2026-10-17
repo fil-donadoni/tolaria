@@ -3,9 +3,8 @@
  * The full health gate for a branch tip (ADR 0110, re-homed by ADR 0116).
  *
  * `land` runs the LANE gate only; `bun run release` runs this script on the
- * base branch tip before fast-forwarding the release branch,
- * `scripts/health-cadence.ts` detaches it once per BATCH of landings (ADR
- * 0136 §6), and `bun run health` runs it by hand. It runs the FULL gate
+ * base branch tip before fast-forwarding the release branch, `health.yml`
+ * runs it on a schedule (ADR 0156 §4), and `bun run health` runs it by hand. It runs the FULL gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
  * hygiene census `check:test-hygiene`, all three test suites, and — under
@@ -35,9 +34,9 @@
  * TWO PHASES (issue #4962). The offline gates and the browser walk are cut by
  * `splitHealthGates`. `--phase=offline` runs the first and, when green, leaves
  * a `running` record with `phase: "walk"` and exits; `--phase=walk` picks it
- * up and writes the run's ONE verdict. `health-cadence detach` runs the first
- * under its `gate.ts yield` hold and the second after releasing it, so no
- * `land` queues behind a browser walk. With no `--phase` (`release`, by hand)
+ * up and writes the run's ONE verdict. A caller holding `gate.ts yield` runs
+ * the first under that hold and the second after releasing it, so no `land`
+ * queues behind a browser walk. With no `--phase` (`release`, by hand)
  * one process runs both, and the walk is still off the mutex: only
  * `--under-lock` ever passes a hold through, and the walk scrubs it.
  *
@@ -57,8 +56,8 @@
  * stale-worktree report (worktrees whose branch is merged into the base —
  * the corpses policy of ADR 0110). `--under-lock` says the CALLER already
  * holds the heavy mutex for the OFFLINE gates and they must pass through it
- * rather than each queue for it — what `health-cadence.ts` passes under its
- * single `gate.ts yield` acquisition (ADR 0136 §6); `release` never does. It
+ * rather than each queue for it — what a caller passes under a single
+ * `gate.ts yield` acquisition (ADR 0136 §6); `release` never does. It
  * implies `--phase=offline`: a hold is never carried into the walk.
  *
  * Each step reports to the terminal while it runs (issue #3487) — start and
@@ -141,6 +140,7 @@ import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
     evidenceStore,
+    lineageBlocks,
     machineName,
     readVerdictLineage,
     verdictAgeMs,
@@ -172,21 +172,15 @@ import {
     runSaturated,
     waitForMachine,
 } from "./lib/machine-admission";
-import {
-    describeLastDecision,
-    gateSkipReason,
-    parseCadence,
-} from "./lib/health-cadence";
+import { gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
-    existsSync,
     mkdirSync,
     readFileSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { holdLease } from "./lib/process-lease";
 import {
     DURATIONS_ENV,
     headroomLine,
@@ -454,11 +448,6 @@ function status(root: string): never {
         console.log(
             `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.retried ? `\n  retry: ${retryNote("test", last.retried, last.retryCause)} — ${retryOutcome(last)}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
-    // Why the last landing did or did not fire the batch gate (issue #4964).
-    const cadence = join(dir, "cadence.json");
-    console.log(
-        `  cadence: ${describeLastDecision(parseCadence(existsSync(cadence) ? readFileSync(cadence, "utf8") : null))}`
-    );
     // The two halves, each on its own (issue #4962): a walk the environment
     // cut short says so instead of hiding inside the run's single status.
     if (last)
@@ -673,7 +662,13 @@ function finishInfra(
             ...(log ? { log } : {}),
         },
         previous: ctx.previous,
-        redMarkerStanding: existsSync(join(ctx.dir, "RED")),
+        // A RED stands on the store (`readVerdictLineage` is total: an
+        // unreadable store reads as none, and the infra record is written).
+        redMarkerStanding: lineageBlocks(
+            readVerdictLineage(() =>
+                verdictStore(ctx.root, { branch: ctx.branch })
+            ).kind
+        ),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
@@ -1005,10 +1000,6 @@ async function main(): Promise<void> {
         }
     } else if (!process.argv.includes("--status"))
         refuseCorpusExclusion("health");
-    // Every step runs synchronously, which blocks the renewal timer for the
-    // whole step: the lease lives by its anchor, the TTL only bounds a hang
-    // (issue #5470).
-    holdLease({ kind: "health-main", ttlMs: 6 * 60 * 60 * 1000 });
     const cwd = process.cwd();
     // A status read outside a checkout reads `cwd` (the loop driver's tests
     // run it in a bare directory); everything else needs the repository.
@@ -1293,7 +1284,7 @@ async function main(): Promise<void> {
     }
     if (phase === "offline") {
         // The walk is owed and the caller's hold must end first: the record
-        // says so, and `--phase=walk` picks it up (`health-cadence detach`).
+        // says so, and `--phase=walk` picks it up.
         writeLast(dir, {
             sha: tip,
             status: "running",

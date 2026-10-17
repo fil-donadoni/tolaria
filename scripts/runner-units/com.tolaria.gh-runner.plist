@@ -8,8 +8,8 @@
   __RUNNER_NAME__ and __RUNNER_DIR__ are substituted per runner, then __REPO__,
   __BUN__, __NODE_BIN__ and __HOME__ as for every plist here. `caffeinate -i -s`
   keeps the machine awake while the runner lives: a job's processes die with
-  the job, and a sleeping MacBook fails every job in flight. The `unit:` tag
-  keeps the reaper off the job trees. TOLARIA_PRIMARY_CHECKOUT is the checkout
+  the job, and a sleeping MacBook fails every job in flight.
+  TOLARIA_PRIMARY_CHECKOUT is the checkout
   every job's worktree is cut from (scripts/ci/job-worktree.sh, issue #5636).
 -->
 <plist version="1.0">
@@ -39,8 +39,6 @@
         <string>__HOME__</string>
         <key>PATH</key>
         <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-        <key>TOLARIA_OWNER</key>
-        <string>unit:com.tolaria.gh-runner.__RUNNER_NAME__</string>
         <key>TOLARIA_PRIMARY_CHECKOUT</key>
         <string>__REPO__</string>
     </dict>

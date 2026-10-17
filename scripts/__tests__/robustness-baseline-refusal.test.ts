@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closingIssueRefs } from "../lib/health-cadence";
+import { closingIssueRefs } from "../lib/red-land-gate";
 import { robustnessBaselineRefusal } from "../lib/robustness-baseline-refusal";
 
 // Issue #4980: PR #4933 closed issue #4917 — the owner of the "Discard

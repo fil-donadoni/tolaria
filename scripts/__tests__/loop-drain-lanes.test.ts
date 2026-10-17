@@ -370,8 +370,6 @@ describe("loop-drain lanes — one account, one run (issue #5486)", () => {
                     PATH: `${bin}:${process.env.PATH}`,
                     TOLARIA_LOOP_TOKEN_BUDGET: "",
                     TOLARIA_LOOP_ALLOW_NO_BUDGET: "1",
-                    TOLARIA_LEASE_DIR: path.join(tmp, "leases"),
-                    TOLARIA_OWNER: "",
                     TOLARIA_MACHINE_PROBE: JSON.stringify({
                         load1: 1,
                         pressure: 1,

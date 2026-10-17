@@ -7,7 +7,6 @@ import {
     existsSync,
     utimesSync,
     readFileSync,
-    readdirSync,
     writeFileSync,
 } from "node:fs";
 import { cpus, tmpdir } from "node:os";
@@ -70,8 +69,6 @@ function env(extra: Record<string, string> = {}) {
         ...process.env,
         TOLARIA_GATE_LOCK_ROOT: lockRoot,
         TOLARIA_GATE_RUN_DIR: join(lockRoot, "gate-runs"),
-        // Never the machine's lease registry the real reaper sweeps.
-        TOLARIA_LEASE_DIR: join(lockRoot, "leases"),
     };
     // Strip everything gate.ts itself sets: this suite may well be running
     // UNDER a heavy gate (`bun run test`), which exports these to its whole
@@ -81,7 +78,6 @@ function env(extra: Record<string, string> = {}) {
     delete base.TOLARIA_ALLOW_FULL_SUITE;
     delete base.TOLARIA_VITEST_WORKERS;
     delete base.TOLARIA_HEAVY_WORKERS_CAP;
-    delete base.TOLARIA_OWNER;
     return { ...base, ...extra };
 }
 
@@ -363,22 +359,6 @@ describe("gate.ts — tier dispatch", () => {
     it("propagates the child's exit code", () => {
         expect(run(["heavy", "exit 3"]).status).toBe(3);
         expect(run(["light", "exit 3"]).status).toBe(3);
-    });
-
-    it("holds a process lease while the command runs, tags the command with it, and clears it on exit (issue #5470)", () => {
-        const r = run([
-            "light",
-            'echo owner=[$TOLARIA_OWNER]; ls "$TOLARIA_LEASE_DIR"',
-        ]);
-        expect(r.status, r.stderr).toBe(0);
-        const owner = /owner=\[(gate-\d+-\d+)\]/.exec(r.stdout)?.[1];
-        expect(owner, r.stdout).toBeDefined();
-        expect(r.stdout).toContain(`${owner}.json`);
-        expect(
-            existsSync(join(lockRoot, "leases"))
-                ? readdirSync(join(lockRoot, "leases"))
-                : []
-        ).toEqual([]);
     });
 
     it("rejects an unknown tier", () => {

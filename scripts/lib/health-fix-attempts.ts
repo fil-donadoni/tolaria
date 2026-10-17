@@ -14,12 +14,8 @@
  * fixer and the parsed verdict after (`parseVerdict`, fail-closed), and
  * `loop-drain.sh` asks `loopFixDecision` what to do about a standing RED.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import {
-    configuredBackend,
     DESCRIPTION_MAX,
-    HEALTH_DIR_REL,
     originRepo,
     realGh,
     type GhRunner,
@@ -28,8 +24,6 @@ import {
 
 /** The commit-status context a fix attempt is recorded under. */
 export const FIX_CONTEXT = "health-fix-attempt";
-
-export const FIX_ATTEMPTS_FILE = "fix-attempts.json";
 
 export type FixOutcome = "attempting" | "landed" | "stuck";
 
@@ -174,45 +168,12 @@ export function githubFixAttemptStore(opts: {
     };
 }
 
-export function fileFixAttemptStore(root: string): FixAttemptStore {
-    const path = join(root, HEALTH_DIR_REL, FIX_ATTEMPTS_FILE);
-    // A file that exists and does not parse THROWS: an unreadable record
-    // must stop the loop (`loopFixDecision`), never read as "no attempt" —
-    // nor be overwritten, dropping every other sha's record.
-    const all = (): Record<string, FixAttempt> => {
-        if (!existsSync(path)) return {};
-        const doc = JSON.parse(readFileSync(path, "utf8")) as unknown;
-        if (typeof doc !== "object" || doc === null || Array.isArray(doc))
-            throw new Error(`${path} is not a JSON object`);
-        return doc as Record<string, FixAttempt>;
-    };
-    return {
-        backend: "file",
-        read(sha) {
-            return all()[sha] ?? null;
-        },
-        write(a) {
-            mkdirSync(join(root, HEALTH_DIR_REL), { recursive: true });
-            writeFileSync(
-                path,
-                `${JSON.stringify({ ...all(), [a.sha]: a }, null, 2)}\n`
-            );
-        },
-    };
-}
-
-/** The store on the backend the verdict store uses. */
+/** The store of the repository `root` is a checkout of. */
 export function fixAttemptStore(
     root: string,
-    opts: { backend?: VerdictBackend; run?: GhRunner } = {}
+    opts: { run?: GhRunner } = {}
 ): FixAttemptStore {
-    const env = process.env.TOLARIA_VERDICT_STORE;
-    const backend =
-        opts.backend ??
-        (env === "file" || env === "github" ? env : configuredBackend());
-    return backend === "github"
-        ? githubFixAttemptStore({ repo: originRepo(root), run: opts.run })
-        : fileFixAttemptStore(root);
+    return githubFixAttemptStore({ repo: originRepo(root), run: opts.run });
 }
 
 /** Repairs one unattended run may attempt — `release`'s bound

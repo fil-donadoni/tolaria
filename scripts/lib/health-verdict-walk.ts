@@ -11,23 +11,16 @@
  *
  * Node builtins plus the sibling store only: `health-main.ts` imports this.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { CONFIG_PATH } from "./branches";
 import {
-    HEALTH_DIR_REL,
     UI_WALK_CONTEXT,
     githubVerdictStore,
     originRepo,
-    readVerdictBackend,
     type GhRunner,
     type Verdict,
-    type VerdictBackend,
     type WriteOutcome,
 } from "./health-verdict-store";
-
-/** Where the file backend keeps the walk's last verdict. */
-export const UI_WALK_FILE = "ui-walk.json";
 
 /** `ui-walk.gating` — absent reads `undefined`, a non-boolean is an error. */
 export function parseUiWalkGating(
@@ -63,8 +56,7 @@ export function uiWalkGating(
 /** The effective flag on this machine, fail-closed: a torn config reads as
  *  advisory on Linux (the walk must not red the health verdict by accident)
  *  and as gating elsewhere. `TOLARIA_UI_WALK_GATING` (`true`/`false`)
- *  overrides both for one process — a test, like `TOLARIA_VERDICT_STORE` for
- *  the store (issue #5590). */
+ *  overrides both for one process — a test (issue #5590). */
 export function readUiWalkGating(
     path = CONFIG_PATH,
     platform: NodeJS.Platform = process.platform,
@@ -89,29 +81,18 @@ export function readUiWalkGating(
 }
 
 /**
- * Write the walk's verdict under `context=ui-walk`: a commit status on the
- * github backend, `ui-walk.json` under the health dir on the file backend.
- * Neither touches the `health` context or its `RED` / `AMBER` markers.
- * `machine` must be set — the point of the record is which machine walked.
+ * Write the walk's verdict under `context=ui-walk`: a commit status that
+ * never touches the `health` context or its RED / AMBER lineage. `machine`
+ * must be set — the point of the record is which machine walked.
  */
 export function writeWalkVerdict(
     root: string,
     verdict: Verdict & { machine: string },
-    opts: { backend?: VerdictBackend; run?: GhRunner } = {}
+    opts: { run?: GhRunner } = {}
 ): WriteOutcome {
-    const env = process.env.TOLARIA_VERDICT_STORE;
-    const backend =
-        opts.backend ??
-        (env === "file" || env === "github" ? env : readVerdictBackend());
-    if (backend === "github") {
-        return githubVerdictStore({
-            repo: originRepo(root),
-            context: UI_WALK_CONTEXT,
-            run: opts.run,
-        }).write(verdict);
-    }
-    const dir = join(root, HEALTH_DIR_REL);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, UI_WALK_FILE), JSON.stringify(verdict, null, 2));
-    return { written: true };
+    return githubVerdictStore({
+        repo: originRepo(root),
+        context: UI_WALK_CONTEXT,
+        run: opts.run,
+    }).write(verdict);
 }

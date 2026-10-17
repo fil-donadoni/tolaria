@@ -9,7 +9,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { gateSkipReason } from "../lib/health-cadence";
+import { gateSkipReason } from "../lib/health-gate-skip";
 import {
     pivotRepairIssues,
     pivotRunInFlight,
@@ -131,14 +131,12 @@ describe("run marker on the pivot", () => {
         repo.seed(TIP, marker());
         const read = () =>
             pivotRunInFlight(root, NOW(), STALE, {
-                backend: "github",
                 run: repo.run,
                 stored: () => null,
             });
         expect(read()).toMatch(/health run on aaaaaaaa is already in flight/);
         expect(
             pivotRunInFlight(root, NOW(), STALE, {
-                backend: "github",
                 run: repo.run,
                 stored: () => ({
                     sha: TIP,
@@ -151,10 +149,9 @@ describe("run marker on the pivot", () => {
 
     it("this machine's own marker is left to its pid probe", () => {
         const repo = sharedRepo([TIP], clock);
-        publishRunMarker(root, TIP, { backend: "github", run: repo.run });
+        publishRunMarker(root, TIP, { run: repo.run });
         expect(
             pivotRunInFlight(root, NOW(), STALE, {
-                backend: "github",
                 run: repo.run,
                 stored: () => null,
             })
@@ -166,20 +163,8 @@ describe("run marker on the pivot", () => {
         repo.seed(TIP, marker());
         expect(
             pivotRunInFlight(root, NOW() + STALE, STALE, {
-                backend: "github",
                 run: repo.run,
                 stored: () => null,
-            })
-        ).toBeNull();
-    });
-
-    it("the file backend has no pivot: nothing published, nothing read", () => {
-        const repo = sharedRepo([TIP], clock);
-        publishRunMarker(root, TIP, { backend: "file", run: repo.run });
-        expect(
-            pivotRunInFlight(root, NOW(), STALE, {
-                backend: "file",
-                run: repo.run,
             })
         ).toBeNull();
     });
@@ -196,7 +181,7 @@ describe("repair issues on the pivot", () => {
     it("an issue recorded on one machine is read by the other", () => {
         const repo = sharedRepo([TIP, OLD], clock);
         repo.seed(TIP, red());
-        const o = { backend: "github", run: repo.run } as const;
+        const o = { run: repo.run } as const;
         expect(recordPivotRepairIssue(root, 7, o)).toMatch(/#7 recorded/);
         recordPivotRepairIssue(root, 3, o);
         expect(pivotRepairIssues(root, o)).toEqual([3, 7]);
@@ -204,14 +189,13 @@ describe("repair issues on the pivot", () => {
 
     it("no RED standing: nothing recorded, nothing read", () => {
         const repo = sharedRepo([TIP], clock);
-        const o = { backend: "github", run: repo.run } as const;
+        const o = { run: repo.run } as const;
         expect(recordPivotRepairIssue(root, 7, o)).toBeNull();
         expect(pivotRepairIssues(root, o)).toEqual([]);
     });
 
     it("an unreachable store reads as no issues, never a throw", () => {
         const o = {
-            backend: "github",
             run: () => ({ status: 1, stdout: "", stderr: "down" }),
         } as const;
         expect(pivotRepairIssues(root, o)).toEqual([]);

@@ -28,7 +28,7 @@ import {
     type LadderFacts,
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
-import { closingIssueRefs } from "../lib/health-cadence";
+import { closingIssueRefs } from "../lib/red-land-gate";
 import { prNumberOfUrl, worktreeHolding } from "../health-revert";
 
 /**

@@ -98,8 +98,8 @@ import {
     type LadderFacts,
     type RevertPr,
 } from "./lib/health-ladder";
-import { closingIssueRefs } from "./lib/health-cadence";
-import { pivotRepairIssues } from "./lib/health-pivot";
+import { closingIssueRefs } from "./lib/red-land-gate";
+import { pivotRepairIssues, recordPivotRepairIssue } from "./lib/health-pivot";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
@@ -370,11 +370,71 @@ function readVerdictFile(root: string): string | null {
     }
 }
 
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
+/** `repair-issue --issue=<N>` — `/health-fix` § 3: the issue it opened for the
+ *  standing RED, so `land` recognises the PR that closes it as a repair
+ *  (issue #4964). Recorded on the pivot, which both machines read. */
+function repairIssueMain(args: readonly string[], cwd: string): number {
+    const raw = args.find((a) => a.startsWith("--issue="))?.slice(8);
+    const issue = Number(raw);
+    if (!Number.isInteger(issue) || issue <= 0) {
+        console.error(
+            `health:fix: repair-issue needs --issue=<N>, got ${JSON.stringify(raw)}`
+        );
+        return 2;
+    }
+    const note = recordPivotRepairIssue(cwd, issue);
+    console.log(
+        note ??
+            `health:fix: issue #${issue} not recorded — no RED stands on the pivot`
+    );
+    return 0;
+}
+
+/** `amber --sha=<tip> --repair-of=<red sha>` — a PROVED repair landed (issue
+ *  #5462): its lane ran the failing tests the RED verdict names, and they
+ *  passed. The lineage turns AMBER at the tip the repair created — picks and
+ *  landings resume, the next health run confirms (GREEN clears it) or refutes
+ *  (the SECOND RED). Non-gating: the PR is merged whatever happens here. */
+function amberMain(args: readonly string[], cwd: string): number {
+    const sha = args.find((a) => a.startsWith("--sha="))?.slice(6);
+    const repairOf = args.find((a) => a.startsWith("--repair-of="))?.slice(12);
+    if (!sha || !FULL_SHA.test(sha) || !repairOf || !FULL_SHA.test(repairOf)) {
+        console.error(
+            "health:fix: amber needs --sha=<40-hex tip> and --repair-of=<40-hex RED sha>"
+        );
+        return 2;
+    }
+    try {
+        const out = verdictStore(cwd).write({
+            sha,
+            status: "amber",
+            repairOf,
+            machine: machineName(),
+            at: new Date().toISOString(),
+        });
+        console.log(
+            out.written
+                ? `health:fix: lineage AMBER @ ${sha.slice(0, 8)} — repair of RED @ ${repairOf.slice(0, 8)} proved; picks and landings resume, health confirms`
+                : `health:fix: AMBER not written — ${out.reason}`
+        );
+    } catch (err) {
+        console.error(
+            `health:fix: AMBER not written — the verdict store failed: ${String(err)}`
+        );
+    }
+    return 0;
+}
+
 function main(): void {
     const cwd = process.cwd();
     const argv = process.argv.slice(2);
     const own = argv;
     if (own[0] === "ladder") process.exit(ladderMain(own.slice(1)));
+    if (own[0] === "repair-issue")
+        process.exit(repairIssueMain(own.slice(1), cwd));
+    if (own[0] === "amber") process.exit(amberMain(own.slice(1), cwd));
     // `host`: this runner's machine, for a dispatch that must come back to
     // it (`health.yml` → `health-fix.yml`); empty off a runner.
     if (own[0] === "host") {

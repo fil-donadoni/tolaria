@@ -593,8 +593,7 @@ runner_pid() {
 # machine that merges — `land-runner.ts --host-check` is the one authority on
 # that (`tolaria.config.json` landRunner.platform; the Huawei never runs it).
 # Its own session (setsid) so a Ctrl-C of a foreground driver does not reach
-# it, and tagged `TOLARIA_OWNER=unit:…` so the reaper (issue #5470) never
-# takes a `bun scripts/*` it cannot see a parent for as an abandoned orphan.
+# it.
 # A failure here never blocks the driver: the queue waits, the PRs keep.
 start_land_runner() {
     [ -f "$LAND_RUNNER" ] || return 0
@@ -611,7 +610,7 @@ start_land_runner() {
         return 0
     fi
     mkdir -p "$(dirname "$RUNNER_OUT")"
-    set -- env TOLARIA_OWNER=unit:tolaria-land-runner bun "$LAND_RUNNER"
+    set -- bun "$LAND_RUNNER"
     if command -v perl >/dev/null 2>&1; then
         set -- perl -e "$SETSID_PERL" -- "$@"
     fi

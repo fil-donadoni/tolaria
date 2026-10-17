@@ -25,10 +25,7 @@ describe("blade:robustness wiring (issue #4875)", () => {
 
     it("health neither gates on it nor asks for it: the nightly runs it weekly (issue #5458)", () => {
         expect(HEALTH_SCRIPTS).not.toContain("blade:robustness");
-        for (const file of [
-            "scripts/health-main.ts",
-            "scripts/health-cadence.ts",
-        ]) {
+        for (const file of ["scripts/health-main.ts"]) {
             const src = readFileSync(join(ROOT, file), "utf8");
             expect(src, file).not.toContain("writeAuditRequest(");
             expect(src, file).not.toContain("robustnessOutcome(");

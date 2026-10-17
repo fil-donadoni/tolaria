@@ -36,54 +36,6 @@ import {
     sustainedSample,
 } from "./lib/machine-admission";
 import { sessionCap } from "./lib/branches";
-import { leaseDir, readLeases, type ProcessLease } from "./lib/process-lease";
-import { readLastSweep, reaperDir } from "./reaper";
-
-function pidAlive(pid: number): boolean {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-const ago = (ms: number) =>
-    ms < 120_000
-        ? `${Math.round(ms / 1000)}s`
-        : `${Math.round(ms / 60_000)} min`;
-
-/** One lease row: what it anchors, how old, how long it has left. */
-function leaseLine(l: ProcessLease, now: number): string {
-    const left = l.deadline - now;
-    const grace =
-        l.graceUntil !== null && l.graceUntil > now
-            ? ` · grace ${ago(l.graceUntil - now)}`
-            : "";
-    return `${l.id} · ${l.kind} · pid ${l.pid} ${pidAlive(l.pid) ? "running" : "GONE"} · age ${ago(now - l.startedAt)} · ${left > 0 ? `expires in ${ago(left)}` : `EXPIRED ${ago(-left)} ago`}${grace} · ${l.cwd}`;
-}
-
-/** The process leases and the reaper's last sweep (issue #5470). */
-function leaseReport(): void {
-    const now = Date.now();
-    const leases = readLeases();
-    if (leases === null)
-        console.log(
-            `  process leases   UNREADABLE (${leaseDir()}) — the reaper sweeps nothing`
-        );
-    else {
-        console.log(
-            `  process leases   ${leases.length} registered (${leaseDir()})`
-        );
-        for (const l of leases) console.log(`    ${leaseLine(l, now)}`);
-    }
-    const last = readLastSweep();
-    console.log(
-        last === null
-            ? "  reaper           never swept on this machine — install it (docs/guides/huawei-runner.md § The reaper)"
-            : `  reaper           last sweep ${ago(now - Date.parse(last.at))} ago: ${last.processes} processes, ${last.liveLeases}/${last.leases} leases live, ${last.killed} reaped${last.survivors.length > 0 ? `, ${last.survivors.length} SURVIVED` : ""} · log ${reaperDir()}/reaped.log`
-    );
-}
 
 function report(): number {
     const t0 = performance.now();
@@ -145,7 +97,6 @@ function report(): number {
     console.log(
         `  a claim/worktree ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
     );
-    leaseReport();
     return 0;
 }
 

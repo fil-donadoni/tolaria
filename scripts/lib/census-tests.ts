@@ -272,18 +272,12 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "a scratch telemetry dir the test creates; it censuses no repo corpus",
     "scripts/__tests__/gate-run.test.ts":
         "scratch run dirs the test creates; it censuses no repo corpus",
-    "scripts/__tests__/gate.test.ts":
-        "a scratch lock-lease dir; it censuses no repo corpus",
-    "scripts/__tests__/health-walk-calibrate.test.ts":
-        "a scratch output dir; it censuses no repo corpus",
     "scripts/__tests__/health-main-preflight.test.ts":
         "a scratch log dir; it censuses no repo corpus",
     "scripts/__tests__/health-main-headroom.test.ts":
         "a mkdtemp dir; it censuses no repo corpus",
     "scripts/__tests__/identity-test-classifier.test.ts":
         "`readdirSync` inside an inline source-string fixture; it censuses no repo corpus",
-    "scripts/__tests__/loop-drain-lease.test.ts":
-        "a scratch lease dir; it censuses no repo corpus",
     "scripts/__tests__/ladder-verdict.test.ts":
         "`git ls-files` named in a comment only; it censuses no repo corpus",
     "scripts/__tests__/loop-drain-lanes.test.ts":
@@ -292,8 +286,6 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "a scratch telemetry dir; it censuses no repo corpus",
     "scripts/__tests__/machine-admission-spawn.test.ts":
         "a scratch log dir; it censuses no repo corpus",
-    "scripts/__tests__/process-lease.test.ts":
-        "a scratch lease dir; it censuses no repo corpus",
     "scripts/__tests__/receipt.test.ts":
         "`readdirSync` named in comments and test titles only; it censuses no repo corpus",
     "scripts/__tests__/queue-plan.test.ts":

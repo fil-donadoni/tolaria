@@ -14,10 +14,7 @@ import {
     type LoopInputs,
 } from "../release";
 import { issueWorktree } from "../lib/issue-worktree";
-import { mkdtempSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
 import {
-    fileVerdictStore,
     githubVerdictStore,
     type GhRunner,
     type Verdict,
@@ -357,23 +354,8 @@ describe("release — reconcileRecord (store vs local last.json)", () => {
     });
 });
 
-describe("release — publishVerdict through the file backend", () => {
+describe("release — publishVerdict", () => {
     const tip = "c".repeat(40);
-
-    it("writes RED (raises the marker) and GREEN (clears it) through the store", () => {
-        const root = mkdtempSync(join(tmpdir(), "release-store-"));
-        const dir = join(root, ".claude", "telemetry", "health");
-        mkdirSync(dir, { recursive: true });
-        const store = () => fileVerdictStore({ root });
-        publishVerdict(
-            store,
-            { sha: tip, status: "red", failedStep: "x" },
-            null
-        );
-        expect(existsSync(join(dir, "RED"))).toBe(true);
-        publishVerdict(store, { sha: tip, status: "green" }, null);
-        expect(existsSync(join(dir, "RED"))).toBe(false);
-    });
 
     it("writes nothing for a running record or one the store already holds", () => {
         const calls: Verdict[] = [];
