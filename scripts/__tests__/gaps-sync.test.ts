@@ -2453,7 +2453,13 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
     };
     const dirs: string[] = [];
     afterAll(() => {
-        for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+        for (const dir of dirs)
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
     });
     /** A throwaway clone's identity: no signing, no hooks, whatever the
      *  machine's global config says. */
