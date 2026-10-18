@@ -128,7 +128,13 @@ describe("runPreQueue — red refuses", () => {
 describe("landRefusals — land's refusals before the PR is queued", () => {
     const repos: string[] = [];
     afterAll(() => {
-        for (const r of repos) rmSync(r, { recursive: true, force: true });
+        for (const r of repos)
+            rmSync(r, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
     });
 
     /** A repo whose `origin/<base>` is the root commit and whose HEAD adds
