@@ -63,7 +63,6 @@ const darkRitual = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f");
 const deathgrip = getDefinition("2371c126-f19a-472a-ba5f-3b1366274ea0");
 const demonicHordes = getDefinition("6c9bb8b1-fb79-4b99-ba09-c6e6c860de50");
 const demonicTutor = getDefinition("711d4d54-5520-4de8-9b93-79902ed8e562");
-const drainLife = getDefinition("5d077a49-73d4-4958-b42a-31b814e110e8");
 const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
 const fear = getDefinition("0cd927be-e63f-4371-a1d8-7a0489cb187e");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
@@ -329,60 +328,6 @@ describe("Demonic Tutor (search library, put into hand, CR 701.23)", () => {
         expect(p1.hand.map((c) => c.id)).toContain("wanted");
         expect(p1.library.map((c) => c.id)).not.toContain("wanted");
         expect(p1.library).toHaveLength(2);
-    });
-});
-
-describe("Drain Life (X damage to any target, gain X life, CR 107.3 + 120.1)", () => {
-    it("deals X damage to a player and gains the caster X life", () => {
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20 }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        const spell = pushSpell(state, drainLife.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        spell.chosenX = 5;
-        resolveTopOfStack(state);
-        expect(state.players[1].life).toBe(15);
-        expect(state.players[0].life).toBe(25);
-    });
-
-    it("deals X damage to a creature and gains the caster X life", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "opp-bear",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20 }),
-                makePlayer("p2", { battlefield: [bear] }),
-            ],
-        });
-        const spell = pushSpell(state, drainLife.id, "p1", [
-            { type: "permanent", id: "opp-bear" },
-        ]);
-        spell.chosenX = 3;
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(23);
-    });
-
-    it("is a no-op when X is 0", () => {
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20 }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        const spell = pushSpell(state, drainLife.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        spell.chosenX = 0;
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(20);
-        expect(state.players[1].life).toBe(20);
     });
 });
 

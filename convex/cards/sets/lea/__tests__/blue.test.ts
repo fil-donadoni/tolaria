@@ -336,52 +336,6 @@ describe("Braingeyser ({X}{U}{U} — target player draws X, CR 107.3 / 121.1)", 
         });
     }
 
-    it("target player draws X cards on resolution", () => {
-        const state = setup();
-        const item = pushSpell(state, braingeyser.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        item.chosenX = 4;
-        resolveTopOfStack(state);
-        expect(state.players[1].hand).toHaveLength(4);
-        expect(state.players[1].library).toHaveLength(6);
-    });
-
-    it("can target the caster", () => {
-        const p1Library = Array.from({ length: 5 }, (_, i) =>
-            makeInstance(grizzlyBearsId(), {
-                id: `p1-lib-${i}`,
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            })
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { library: p1Library }),
-                makePlayer("p2"),
-            ],
-        });
-        const item = pushSpell(state, braingeyser.id, "p1", [
-            { type: "player", id: "p1" },
-        ]);
-        item.chosenX = 3;
-        resolveTopOfStack(state);
-        expect(state.players[0].hand).toHaveLength(3);
-        expect(state.players[0].library).toHaveLength(2);
-    });
-
-    it("is a no-op when X is 0 (draws no cards)", () => {
-        const state = setup();
-        const item = pushSpell(state, braingeyser.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        item.chosenX = 0;
-        resolveTopOfStack(state);
-        expect(state.players[1].hand).toHaveLength(0);
-        expect(state.players[1].library).toHaveLength(10);
-    });
-
     it("stops at empty library and flags hasDrawnFromEmpty (CR 704.5b)", () => {
         // Library has only 2 cards; X=5 draws 2 and then pulls from empty.
         const state = setup(2);

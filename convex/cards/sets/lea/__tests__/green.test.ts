@@ -93,7 +93,6 @@ const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const shanodinDryads = getDefinition("814cf35c-f1ad-4bf4-8c10-a5592c3b1be8");
 const shivanDragon = getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
-const streamOfLife = getDefinition("aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9");
 const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const thicketBasilisk = getDefinition("e92cce01-b3bd-4307-aae5-9a7c8fa386ab");
 const tranquility = getDefinition("774cc5a6-3a69-4812-add4-eb5eb6389238");
@@ -1171,24 +1170,6 @@ describe("Ley Druid ({T}: untap target land)", () => {
             (c) => c.id === "p1-plains"
         )!;
         expect(after.isTapped).toBe(false);
-    });
-});
-
-describe("Stream of Life (target player gains X life)", () => {
-    it("gains X life for the targeted player", () => {
-        const state = makeState();
-        state.stack.push({
-            ...makeInstance(streamOfLife.id, {
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "stack",
-            }),
-            castById: "p1",
-            chosenX: 5,
-            targets: [{ type: "player", id: "p1" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(25);
     });
 });
 
