@@ -311,9 +311,9 @@ describe("Bot combat-damage split (issue #5662, CR 510.1c)", () => {
 
 describe("several splits by one assigner (issue #5662 review)", () => {
     it("never prices a trample split against another source's seed it is about to replace (CR 702.19b)", () => {
-        // X (1/1) blocks BOTH attackers (CR 509.1a additional block). A is a
-        // 3/3 trampler blocked by X and Y (2/1); B a 3/3 blocked by X and
-        // Z (3/3). The seed puts all of B's 3 on X, its first live blocker.
+        // X (1/1) blocks BOTH attackers (an ability lets it block an extra
+        // creature). A is a 3/3 trampler blocked by X and Y (2/1); B a 3/3
+        // blocked by X and Z (3/3). The seed puts all of B's 3 on X, its first live blocker.
         // Priced against that seed, A would read X as already lethally
         // damaged and trample 2 past it — and B, re-split, prefers Z and
         // leaves X with nothing: an illegal pair the server never re-checks.
