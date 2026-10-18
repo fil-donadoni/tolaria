@@ -29,8 +29,12 @@
  *      which `queue:plan` turns into a repair pick. A `gh` write that fails
  *      is logged, never thrown, so one PR cannot stall the queue.
  *
- * The runner does not reload its own code: a merged change to it takes
- * effect at its next start (`loop:afk --disarm`, then `--start`).
+ * The runner does not reload its own code in place: between ticks it reads
+ * `RUNNER_SOURCE_PATHS` at the primary's HEAD and, once they moved, exits
+ * `RESTART_EXIT` so launchd (`KeepAlive.SuccessfulExit = false`) starts it on
+ * the new code (issue #5941); under `loop:afk` the next `--start` does.
+ * A head it has just failed is held for `RECENT_FAILURE_WINDOW_MS`: the queue
+ * read lags the `land-failed` relabel (issue #5941).
  *
  * Flags: `--once` (one tick, then exit — cron/launchd-friendly), `--dry-run`
  * (print the tick's plan, touch nothing), `--interval <s>` (between ticks;
@@ -70,6 +74,7 @@ import {
     failureReason,
     type LandFailure,
     labelArgs,
+    liveFailures,
     mergedComment,
     outcomeOf,
     owesPresetSeed,
@@ -77,9 +82,13 @@ import {
     pinLandRunnerPlatform,
     planTick,
     READY_LABEL,
+    type RecentFailure,
+    RESTART_EXIT,
+    RUNNER_SOURCE_PATHS,
     SHADOW_LABEL,
     RUNNER_ENV,
     runsHere,
+    sourcesChanged,
     worktreeOfBranch,
     type LandOutcome,
     type QueuedPr,
@@ -157,9 +166,28 @@ function listQueued(): QueuedPr[] {
             "--limit",
             "50",
             "--json",
-            "number,state,headRefName,createdAt,body,labels",
+            "number,state,headRefName,headRefOid,createdAt,body,labels",
         ])
     ) as QueuedPr[];
+}
+
+/** `RUNNER_SOURCE_PATHS`' ids at the primary's HEAD, one line each, or null
+ *  when git cannot read them. */
+function sourceIdentity(primary: string): string | null {
+    const r = git(primary, [
+        "rev-parse",
+        ...RUNNER_SOURCE_PATHS.map((p) => `HEAD:${p}`),
+    ]);
+    return r.ok ? r.out : null;
+}
+
+/** `scripts 1a2b3c4d, tolaria.config.json 5e6f7a8b` — a log's view of an
+ *  identity. */
+function shortIdentity(identity: string): string {
+    return identity
+        .split("\n")
+        .map((id, i) => `${RUNNER_SOURCE_PATHS[i] ?? "?"} ${id.slice(0, 8)}`)
+        .join(", ");
 }
 
 function remoteBranches(primary: string): Set<string> {
@@ -441,8 +469,11 @@ function tick(opts: {
     dir: string;
     dryRun: boolean;
     log: (line: string) => void;
-    /** Each `land-failed` relabel — the loop notifies the owner once per burst. */
-    onFailed: (failure: LandFailure) => void;
+    /** Each `land-failed` relabel and the head it failed at — the loop
+     *  notifies the owner once per burst and holds that head (issue #5941). */
+    onFailed: (failure: LandFailure, headSha: string) => void;
+    /** `liveFailures` of this process. */
+    recentFailures: ReadonlyMap<number, RecentFailure>;
 }): boolean {
     const { primary, dryRun, log } = opts;
     const queued = listQueued();
@@ -460,6 +491,7 @@ function tick(opts: {
         remoteBranches: remoteBranches(primary),
         red,
         repairIssues: red ? readRepairIssues(primary) : [],
+        recentFailures: opts.recentFailures,
     });
     for (const s of plan.stale) {
         log(`PR #${s.pr}: stale (${s.reason}) — unlabelled`);
@@ -495,7 +527,7 @@ function tick(opts: {
             primary,
             log,
         });
-        if (failure) opts.onFailed(failure);
+        if (failure) opts.onFailed(failure, pr.headRefOid);
         return true;
     }
     log(`PR #${pr.number}: land in ${wt.dir} (log ${logPath})`);
@@ -539,7 +571,7 @@ function tick(opts: {
         primary,
         log,
     });
-    if (failure) opts.onFailed(failure);
+    if (failure) opts.onFailed(failure, pr.headRefOid);
     return true;
 }
 
@@ -604,22 +636,46 @@ async function main(): Promise<void> {
         log(`notifying the owner: ${message}`);
         notifyOwner(message, "Tolaria land-runner");
     };
+    // The heads this process failed (issue #5941): held while the queue read
+    // still lists them, pruned by `liveFailures` each tick.
+    let recentFailures = new Map<number, RecentFailure>();
+    // The code this process loaded; a merged runner change restarts it
+    // between ticks (issue #5941) — `--once` and `--dry-run` end anyway.
+    const startedFrom = once || dryRun ? null : sourceIdentity(primary);
+    let restart = false;
     try {
         do {
             let busy = false;
+            recentFailures = liveFailures(recentFailures, Date.now());
             try {
                 busy = tick({
                     primary,
                     dir,
                     dryRun,
                     log,
-                    onFailed: (f) => burst.push(f),
+                    onFailed: (f, headSha) => {
+                        burst.push(f);
+                        recentFailures.set(f.pr, {
+                            sha: headSha,
+                            at: Date.now(),
+                        });
+                    },
+                    recentFailures,
                 });
             } catch (err) {
                 log(`tick failed: ${(err as Error).message.split("\n")[0]}`);
             }
             if (!busy || once || stopping) flushBurst();
             if (once || stopping) break;
+            const now = startedFrom === null ? null : sourceIdentity(primary);
+            if (sourcesChanged(startedFrom, now)) {
+                log(
+                    `runner sources changed (${shortIdentity(startedFrom!)} → ${shortIdentity(now!)}) — exiting ${RESTART_EXIT} for launchd to restart on the new code`
+                );
+                flushBurst();
+                restart = true;
+                break;
+            }
             // Straight on to the next PR after a landing; a quiet queue waits.
             if (!busy) {
                 for (let s = 0; s < intervalS && !stopping; s++)
@@ -629,6 +685,7 @@ async function main(): Promise<void> {
     } finally {
         if (!dryRun) rmSync(lockPath, { force: true });
     }
+    if (restart) process.exit(RESTART_EXIT);
 }
 
 if (import.meta.main) {

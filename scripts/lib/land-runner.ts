@@ -29,9 +29,37 @@ export interface QueuedPr {
     number: number;
     state: "OPEN" | "CLOSED" | "MERGED";
     headRefName: string;
+    /** The head commit — what a land of this PR would land. */
+    headRefOid: string;
     createdAt: string;
     body: string;
     labels: { name: string }[];
+}
+
+/**
+ * How long a `land-failed` relabel of THIS process outranks the queue read
+ * (issue #5941). The read goes through GitHub's search index, which shows
+ * the PR still `ready-to-land` for seconds after the relabel: the next tick
+ * landed the same head again — 34 of 77 failure episodes, 12–18 October,
+ * ran twice. Minutes, not hours: a human relabel at the same head waits this
+ * long, a push lands at once.
+ */
+export const RECENT_FAILURE_WINDOW_MS = 5 * 60_000;
+
+/** A `land-failed` relabel this process made: the head it failed at, when. */
+export interface RecentFailure {
+    sha: string;
+    at: number;
+}
+
+/** The failures still inside `RECENT_FAILURE_WINDOW_MS` at `now`. */
+export function liveFailures(
+    failures: ReadonlyMap<number, RecentFailure>,
+    now: number
+): Map<number, RecentFailure> {
+    return new Map(
+        [...failures].filter(([, f]) => now - f.at < RECENT_FAILURE_WINDOW_MS)
+    );
 }
 
 /** What one tick does with the queue. */
@@ -40,7 +68,8 @@ export interface TickPlan {
     shadowed: { pr: number; reason: string }[];
     /** Unlabel and log: the PR is closed/merged or its branch is gone. */
     stale: { pr: number; reason: string }[];
-    /** Left labelled for a later tick: a non-repair PR under RED. */
+    /** Left labelled for a later tick: a non-repair PR under RED, or a head
+     *  this process has just failed. */
     held: { pr: number; reason: string }[];
     /** The PR this tick lands, `null` when there is none to land. */
     next: QueuedPr | null;
@@ -53,7 +82,9 @@ export interface TickPlan {
  * `pr-gate`'s `base-health` posts too) lands; the rest stay queued until the
  * lineage reads AMBER or GREEN. A PR labelled `queue:shadow` is Mergify's
  * (issue #5642, the shadow phase): the runner never lands, unlabels nor
- * relabels it, merged or closed included — one merger per PR.
+ * relabels it, merged or closed included — one merger per PR. A PR still
+ * listed at the head this process just failed is held (issue #5941): the
+ * list lags the `land-failed` relabel, the PR did not change.
  */
 export function planTick(
     prs: readonly QueuedPr[],
@@ -63,6 +94,8 @@ export function planTick(
         /** `lineageBlocks(lineage.kind)` — RED or second RED. */
         red: boolean;
         repairIssues: readonly number[];
+        /** `liveFailures` of this process; absent = none. */
+        recentFailures?: ReadonlyMap<number, RecentFailure>;
     }
 ): TickPlan {
     const plan: TickPlan = { shadowed: [], stale: [], held: [], next: null };
@@ -90,6 +123,13 @@ export function planTick(
             plan.stale.push({
                 pr: pr.number,
                 reason: `branch ${pr.headRefName} is gone from origin`,
+            });
+            continue;
+        }
+        if (ctx.recentFailures?.get(pr.number)?.sha === pr.headRefOid) {
+            plan.held.push({
+                pr: pr.number,
+                reason: `this runner just failed its head ${pr.headRefOid.slice(0, 8)} — the list lags the \`${FAILED_LABEL}\` relabel; a push lands at once`,
             });
             continue;
         }
@@ -299,6 +339,38 @@ export function pinLandRunnerPlatform(
 /** Whether THIS machine runs the land-runner. */
 export function runsHere(config: LandRunnerConfig, platform: string): boolean {
     return config.platform === platform;
+}
+
+/**
+ * What the runner's code is, read as `git rev-parse HEAD:<path>` in the
+ * primary checkout it runs from (issue #5941). The process never reloads its
+ * modules: one started 2026-10-15 ran without the shadow skip (issue #5642)
+ * and the RED hold until a manual restart on 2026-10-18 — it touched a
+ * `queue:shadow` PR and failed five healthy PRs under RED. The `scripts`
+ * tree covers the entry, every `scripts/lib` module it imports and the
+ * top-level scripts it imports (`land.ts`, `loop-doctor.ts`) in one id; the
+ * config is read once at start. A change to an unrelated script costs a
+ * restart between ticks (launchd's 60 s throttle), never a landing.
+ */
+export const RUNNER_SOURCE_PATHS: readonly string[] = [
+    "scripts",
+    "tolaria.config.json",
+];
+
+/** The exit that asks launchd for a restart: non-zero, so
+ *  `KeepAlive.SuccessfulExit = false` respawns the runner (75 = EX_TEMPFAIL). */
+export const RESTART_EXIT = 75;
+
+/**
+ * Whether the runner's committed sources moved since it started: both
+ * readings present and different. An unreadable reading (git failed) is no
+ * evidence — restarting on it would loop on a broken checkout.
+ */
+export function sourcesChanged(
+    started: string | null,
+    now: string | null
+): boolean {
+    return started !== null && now !== null && started !== now;
 }
 
 /** One PR the runner labelled `land-failed`, as the owner notification sees it. */

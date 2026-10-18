@@ -14,18 +14,22 @@ import {
     labelArgs,
     landExcerpt,
     laneReceipt,
+    liveFailures,
     mergedComment,
     outcomeOf,
     owesPresetSeed,
     parseLandRunnerConfig,
     planTick,
     READY_LABEL,
+    RECENT_FAILURE_WINDOW_MS,
     runsHere,
     SATURATED_EXIT,
     SHADOW_LABEL,
+    sourcesChanged,
     worktreeOfBranch,
     type LandFailure,
     type QueuedPr,
+    type RecentFailure,
 } from "../lib/land-runner";
 
 const pr = (
@@ -36,6 +40,7 @@ const pr = (
     number,
     state: "OPEN",
     headRefName: `feat/issue-${number}`,
+    headRefOid: `${number}`.padStart(40, "a"),
     createdAt,
     body: "",
     labels: [{ name: READY_LABEL }],
@@ -196,6 +201,72 @@ describe("planTick — under RED only a declared repair lands (AMBER resumes the
         });
         expect(plan.held).toEqual([]);
         expect(plan.next?.number).toBe(1);
+    });
+});
+
+describe("planTick — a head this runner just failed is held, a push lands (issue #5941)", () => {
+    const prs = [pr(1, "2026-10-12T08:00:00Z"), pr(2, "2026-10-12T09:00:00Z")];
+    const ctx = {
+        remoteBranches: branchesOf(prs),
+        red: false,
+        repairIssues: [],
+    };
+    const failedAt = Date.parse("2026-10-18T12:18:41Z");
+    const failed = (sha: string): Map<number, RecentFailure> =>
+        new Map([[1, { sha, at: failedAt }]]);
+
+    it("holds a PR still listed at the head it just failed at, and lands the next", () => {
+        const plan = planTick(prs, {
+            ...ctx,
+            recentFailures: failed(prs[0].headRefOid),
+        });
+        expect(plan.held.map((h) => h.pr)).toEqual([1]);
+        expect(plan.held[0].reason).toMatch(/just failed its head/);
+        expect(plan.next?.number).toBe(2);
+    });
+
+    it("lands a PR whose head moved since the failure — the repair's push", () => {
+        const plan = planTick(prs, {
+            ...ctx,
+            recentFailures: failed("f".repeat(40)),
+        });
+        expect(plan.held).toEqual([]);
+        expect(plan.next?.number).toBe(1);
+    });
+
+    it("lands the same head again once the failure is past the window", () => {
+        const recent = liveFailures(
+            failed(prs[0].headRefOid),
+            failedAt + RECENT_FAILURE_WINDOW_MS
+        );
+        expect(recent.size).toBe(0);
+        expect(
+            planTick(prs, { ...ctx, recentFailures: recent }).next?.number
+        ).toBe(1);
+    });
+
+    it("keeps a failure inside the window", () => {
+        expect(
+            liveFailures(
+                failed(prs[0].headRefOid),
+                failedAt + RECENT_FAILURE_WINDOW_MS - 1
+            ).get(1)?.sha
+        ).toBe(prs[0].headRefOid);
+    });
+});
+
+describe("sourcesChanged — a merged runner change restarts the runner (issue #5941)", () => {
+    it("is true when the committed sources moved since start", () => {
+        expect(sourcesChanged("tree-a\nconf-a", "tree-b\nconf-a")).toBe(true);
+    });
+
+    it("is false while they stand still", () => {
+        expect(sourcesChanged("tree-a\nconf-a", "tree-a\nconf-a")).toBe(false);
+    });
+
+    it("never restarts on an unreadable reading — a broken checkout would loop", () => {
+        expect(sourcesChanged(null, "tree-b")).toBe(false);
+        expect(sourcesChanged("tree-a", null)).toBe(false);
     });
 });
 
