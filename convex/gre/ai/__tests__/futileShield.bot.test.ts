@@ -68,6 +68,17 @@ describe("isFutileShieldMove — regeneration (CR 701.19a)", () => {
         expect(isFutileShieldMove(state, move)).toBe(true);
     });
 
+    it("prunes Regenerate against the Aura's own tap trigger (aiEffects script)", () => {
+        const state = position(TROLL_VS_SPELLS, [
+            ...castAtTroll("Sleeping Potion"),
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+        ]);
+        expect(state.stack).toHaveLength(1);
+        const move = onlyActivation(state, 1, "Charging Troll");
+        expect(isFutileShieldMove(state, move)).toBe(true);
+    });
+
     it("keeps Regenerate against a destroy spell on the stack", () => {
         const state = position(TROLL_VS_SPELLS, castAtTroll("Vindicate"));
         const move = onlyActivation(state, 1, "Charging Troll");
