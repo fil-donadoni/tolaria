@@ -194,8 +194,9 @@ describe("health-step — terminal progress", () => {
                 out: rec.out,
                 livenessMs: 150,
                 sample: () => {
-                    // The first beat's probe fails; the others answer.
-                    if (++reads === 2) throw new Error("sysctl timed out");
+                    // The start's probe and the first beat's fail; every
+                    // later one answers.
+                    if (++reads <= 2) throw new Error("sysctl timed out");
                     return reading(reads);
                 },
             }
@@ -205,7 +206,7 @@ describe("health-step — terminal progress", () => {
         expect(alive).toBeGreaterThanOrEqual(2);
         expect(r.samples?.map((s) => s.load1)).toEqual(
             Array.from({ length: alive + 2 }, (_, i) => i + 1).filter(
-                (n) => n !== 2
+                (n) => n > 2
             )
         );
     }, 10_000);
