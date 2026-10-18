@@ -253,6 +253,11 @@
             "label": "stretch: attacks with a lone 3/3 into an empty board",
             "tier": "stretch",
             "needsSetup": false
+        },
+        {
+            "label": "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Impulse": [

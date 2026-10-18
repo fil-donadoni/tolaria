@@ -8022,6 +8022,142 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "The leaf half of the same episode — `declaredBlockDelta` must score the double block strictly below the single one — is a deterministic assertion on the term and lives in `evaluate.bot.test.ts`.",
     },
+    {
+        // TRAMPLE OVERFLOW (issue #5785) — THE DISCRIMINATING PAIR.
+        //
+        // Skizzik (5/3 trample) attacks a defender holding Hill Giant (3/3),
+        // Savannah Lions (2/1) and Mons's Goblin Raiders (1/1). The 2/1 + 1/1
+        // double block kills the 5/3 for the two cheapest bodies, but owes only
+        // 1 + 1 lethal (CR 702.19b), so 3 tramples over. Any block that
+        // includes the 3/3 owes at least 3 and lets at most 2 through.
+        //
+        // At 3 life the 3 overflow is lethal (CR 704.5a); at 5 it is not, and
+        // the cheap double block is an acceptable trade. The two entries
+        // differ ONLY in `life.opp`: a trample-blind leaf (pre-fix, a blocked
+        // attacker dealt the player nothing in both `lethalUnblockedDelta`
+        // and `declaredBlockDelta`) fails the must; one that over-reads
+        // lethal and throws every body in fails the control.
+        //
+        // BITE PROOF: red before the fix — the bot declared the 2/1 + 1/1
+        // double block on all five seeds at 3 life and died. Green on all
+        // five after (Hill Giant + Mons's Goblin Raiders).
+        label: "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the bot at 5 life" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Skizzik",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            // No lands: no castable answer, the block is the whole decision.
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        setup: [{ kind: "declare-attackers", cards: ["Skizzik"] }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // Exactly the blocks that include the 3/3 survive: alone it lets 2
+            // through, beside a chump at most 1. Every block without it lets
+            // ≥ 3 through (no block: 5).
+            moves: [{ kind: "declare-blockers", card: "Hill Giant" }],
+        },
+        note: "Deterministic halves of the same fix — `lethalUnblockedDelta` and `declaredBlockDelta` counting trample overflow past lethal to every blocker, deathtouch included — live in `trample-overflow.bot.test.ts`.",
+    },
+    {
+        // LIFE-DEPENDENT NEGATIVE CONTROL (issue #5785) — the SAME board as the
+        // entry above at 5 life, where every block survives and no block
+        // (5 damage) does not. The 2/1 + 1/1 double block stays acceptable:
+        // it kills the 5/3 and its 3 overflow leaves the bot at 2. What is
+        // ruled out is the triple block: the 5/3 owes 3 + 1 + 1 and kills all
+        // three bodies (CR 702.19b), so it spends the Lions on top of the
+        // Giant + Raiders block to save a single life point. Measured: the
+        // bot picks the double block on all five seeds, before and after.
+        label: "trample overflow: survivable overflow does not buy a three-body block (issue #5785)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the bot at 3 life" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Skizzik",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 5 },
+        },
+        setup: [{ kind: "declare-attackers", cards: ["Skizzik"] }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-blockers",
+                    cards: [
+                        "Hill Giant",
+                        "Savannah Lions",
+                        "Mons's Goblin Raiders",
+                    ],
+                },
+            ],
+        },
+    },
 
     // -----------------------------------------------------------------------
     // ORDERED TOP (issue #2996) — Scry (CR 701.22) / Surveil (CR 701.25) /
