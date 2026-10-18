@@ -16,11 +16,10 @@
 // (ADR 0113 Amendment VI). The one committed input of their bytes besides the
 // corpus is the frozen shard dictionary (`SHARD_DICTIONARY_PATH`).
 //
-// BOTH BUILDS. `vite.config.ts` lists this plugin under `plugins` AND
-// `worker.plugins` — the Brain worker has its own module graph and plugins
-// are not shared with it (`resolve.alias` is). The two builds emit the same
-// bytes under the same hashed name; the cut is memoised per input, so it is
-// paid once per process.
+// ONE BUILD. The Brain worker is an entry chunk of the page's build since
+// issue #5617 (`./vite-brain-worker-chunk`), so this plugin is listed once,
+// under `plugins`, and both graphs read the same shard URLs. The cut is
+// memoised per input, so it is paid once per process.
 //
 // THE ENCODER RUNS IN A SUBPROCESS (`scripts/compiled-client-assets.ts`),
 // never in this module's import graph: it reaches `convex/cards/**`, and in
