@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { classifyLane, type RelatedTests } from "../check-lane";
-import { runPreQueue } from "../land-ready";
+import { landRefusals, runPreQueue } from "../land-ready";
+import { ORIGIN_BASE } from "../lib/branches";
+import type { Lineage } from "../lib/health-verdict-store";
+import { SKIN_RECEIPT_REFUSAL } from "../land";
 import { EXCLUDED_FROM_PRE_QUEUE, preQueueSteps } from "../lib/pre-queue-steps";
 
 const none: RelatedTests = {
@@ -113,5 +120,68 @@ describe("runPreQueue — red refuses", () => {
 
     it("all green → null", () => {
         expect(run(null).failed).toBeNull();
+    });
+});
+
+// Issue #5956 — `land:ready` refuses what `land` would refuse, through the
+// SAME `pr-checks` functions, on a real git diff (`origin/<base>...HEAD`).
+describe("landRefusals — land's refusals before the PR is queued", () => {
+    const repos: string[] = [];
+    afterAll(() => {
+        for (const r of repos)
+            rmSync(r, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+    });
+
+    /** A repo whose `origin/<base>` is the root commit and whose HEAD adds
+     *  `files` — the PR's diff. */
+    function prRepo(files: string[]): string {
+        const root = mkdtempSync(join(tmpdir(), "land-ready-"));
+        repos.push(root);
+        const git = (...args: string[]) =>
+            execFileSync("git", args, { cwd: root, stdio: "pipe" });
+        git("init", "-q");
+        git("config", "user.email", "t@t");
+        git("config", "user.name", "t");
+        git("commit", "-q", "--allow-empty", "-m", "base");
+        git("update-ref", `refs/remotes/${ORIGIN_BASE}`, "HEAD");
+        for (const f of files) {
+            mkdirSync(dirname(join(root, f)), { recursive: true });
+            writeFileSync(join(root, f), "export const x = 1;\n");
+        }
+        git("add", "-A");
+        git("commit", "-q", "-m", "pr");
+        return root;
+    }
+
+    const noRed = () => ({ kind: "green", verdict: null }) as Lineage;
+    const refusalsOf = (files: string[], prBody: string) =>
+        landRefusals(
+            { cwd: prRepo(files), prBody, lineage: noRed },
+            () => undefined
+        );
+
+    it("a DOM-reaching PR with no check:ui receipt is refused in land's words", () => {
+        const r = refusalsOf(["src/components/game/Thing.tsx"], "Closes #1");
+        expect(r).toEqual([`land: refusing — ${SKIN_RECEIPT_REFUSAL}`]);
+    });
+
+    it("a convex/gre PR with no preset scenario is refused", () => {
+        const r = refusalsOf(["convex/gre/thing.ts"], "Closes #1");
+        expect(r).toHaveLength(1);
+        expect(r[0]).toMatch(/^land: refusing — .*[Pp]reset scenario/);
+    });
+
+    it("a PR that passes every refusal yields none", () => {
+        expect(
+            refusalsOf(
+                ["convex/gre/thing.ts"],
+                "## Preset scenario\n\nnone owed — a refactor."
+            )
+        ).toEqual([]);
     });
 });
