@@ -3,7 +3,9 @@
 # formatting costs no session (ADR 0156 Amendment I § Duties, issue #5640).
 #
 # Dispatched by `pr-check` (a red lane `scripts/pr-fixup.ts classify` calls
-# regenerable, on a same-repository PR) or by hand. `workflow_dispatch` only:
+# regenerable, on a same-repository PR), by `queue-lane` (the same red on the
+# queue's draft: the PR, dequeued as `land-failed`, goes back to
+# `ready-to-land` after the push — issue #5955) or by hand. `workflow_dispatch` only:
 # nothing an outsider can fire reaches the owner's runner. The dispatch input
 # `fixes` only SELECTS rows of the FIXES table in scripts/pr-fixup.ts — it
 # never carries a command — and the script refuses a PR whose author is not in
@@ -22,6 +24,11 @@ on:
             fixes:
                 description: "Comma list of fix keys: oracle, blade-index, format"
                 required: true
+                type: string
+            requeue:
+                description: "The queue dequeued this PR on this red: hand it back (land-failed → ready-to-land) after the push"
+                required: false
+                default: "false"
                 type: string
 
 permissions:
@@ -45,7 +52,10 @@ jobs:
                   PR: ${{ inputs.pr }}
                   FIXES: ${{ inputs.fixes }}
                   TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
-              run: bun run pr:fixup run --pr "$PR" --fixes "$FIXES"
+                  REQUEUE: ${{ inputs.requeue }}
+              run: |
+                  if [ "$REQUEUE" = "true" ]; then set -- --requeue; else set --; fi
+                  bun run pr:fixup run --pr "$PR" --fixes "$FIXES" "$@"
             - name: Remove the job worktree
               if: always()
               shell: bash
