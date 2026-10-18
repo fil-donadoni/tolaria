@@ -6,7 +6,9 @@
  *   bun run health:bisect ladder [--sha <sha>] [--dry-run]
  *       The RED at <sha> (default: this machine's last health run, when it
  *       was RED) re-runs fresh at the same sha. Not reproduced → the RED
- *       closes as GREEN and the flaky test is filed. Reproduced → bisect.
+ *       closes as GREEN and the flaky test is filed — on the RED's runner
+ *       class only; on another, the RED stands as environment-dependent
+ *       (issue #5858). Reproduced → bisect.
  *       Exit 0: no RED stands (none, or closed GREEN); 1: the RED stands
  *       (or the last run was INFRA); 2: usage.
  *   bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] [--dry-run]
@@ -26,7 +28,6 @@ import { BASE_BRANCH } from "./lib/branches";
 import {
     bisectFirstRed,
     culpritLine,
-    flakeVerdict,
     flakyIssueBody,
     flakyIssueTitle,
     flakySubjects,
@@ -35,6 +36,7 @@ import {
     LADDER_MARK,
     laddered,
     lastGreenOf,
+    settleFreshPass,
     remainingGates,
     vitestCommands,
     type FreshRun,
@@ -446,28 +448,24 @@ function ladder(ctx: Ctx): number {
         note(ctx, "the fresh run could not run — the RED stands, unconfirmed");
         return 1;
     }
-    if (outcome === "green") {
-        const v = flakeVerdict({
-            sha: ctx.sha,
-            plan,
-            machine: machineName(),
-            at: new Date().toISOString(),
-            log: runUrl(),
-        });
-        if (ctx.dryRun) note(ctx, "(dry run) would close the RED as GREEN");
-        else {
-            const out = store.write(v);
-            note(
-                ctx,
-                out.written
-                    ? "not reproduced — the RED closed as GREEN"
-                    : `GREEN not written — ${out.reason}`
-            );
-            if (!out.written) return 1;
-        }
-        fileFlake(ctx, plan, verdict?.log);
-        return 0;
-    }
+    if (outcome === "green")
+        return settleFreshPass(
+            {
+                red: verdict,
+                sha: ctx.sha,
+                plan,
+                freshMachine: machineName(),
+                at: new Date().toISOString(),
+                log: runUrl(),
+                dryRun: ctx.dryRun,
+            },
+            {
+                note: (line) => note(ctx, line),
+                writeGreen: (v) => store.write(v),
+                fileFlake: () => fileFlake(ctx, plan, verdict?.log),
+                publish: (line) => publishCulprit(ctx, line),
+            }
+        );
     let line: string;
     if (elsewhere !== undefined) {
         note(

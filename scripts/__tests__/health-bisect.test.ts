@@ -16,8 +16,12 @@ import {
     flakySubjects,
     freshRunPlan,
     lastGreenOf,
+    notReproduced,
     prOfSubject,
+    runnerClass,
+    settleFreshPass,
     vitestCommands,
+    type FreshPassEffects,
     type ProbeOutcome,
 } from "../lib/health-bisect";
 import {
@@ -27,7 +31,12 @@ import {
     withEvidenceLine,
 } from "../lib/health-evidence";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
-import type { Verdict } from "../lib/health-verdict-store";
+import {
+    decodeStatus,
+    encodeDescription,
+    machineName,
+    type Verdict,
+} from "../lib/health-verdict-store";
 
 /**
  * The RED ladder (issue #5645): a fresh run of a RED, the GREEN a flake
@@ -148,6 +157,130 @@ describe("a RED that does not reproduce closes as GREEN and files the flake", ()
         expect(
             flakySubjects(step).map((s) => flakyIssueTitle(step, s))
         ).toEqual(["Flaky health step: check:all"]);
+    });
+});
+
+describe("a fresh pass on another runner class is environment-dependent, never a flake (issue #5858)", () => {
+    const hosted = machineName({
+        GITHUB_ACTIONS: "true",
+        RUNNER_ENVIRONMENT: "github-hosted",
+    });
+    const lane = machineName({
+        GITHUB_ACTIONS: "true",
+        RUNNER_ENVIRONMENT: "self-hosted",
+    });
+    it("a hosted runner's machine name carries its class, through the commit status", () => {
+        expect(runnerClass(hosted)).toBe("github-hosted");
+        expect(runnerClass(lane)).toBe("self-hosted");
+        expect(runnerClass(machineName({}))).toBe("self-hosted");
+        const decoded = decodeStatus({
+            sha: RED.sha,
+            state: "failure",
+            description: encodeDescription({ ...RED, machine: hosted }),
+            targetUrl: null,
+            createdAt: null,
+        });
+        expect(runnerClass(decoded?.machine)).toBe("github-hosted");
+    });
+    it("a hosted RED that passes on lane stands, its evidence naming both machines", () => {
+        const out = notReproduced({
+            redMachine: hosted,
+            freshMachine: "huawei",
+        });
+        expect(out.kind).toBe("environment");
+        if (out.kind !== "environment") return;
+        expect(out.line).toContain(`\`${hosted}\` (github-hosted)`);
+        expect(out.line).toContain("`huawei` (self-hosted)");
+        expect(out.line).toContain("environment-dependent, not a flake");
+        // The ladder's mark: the RED is climbed once, and names no culprit.
+        expect(laddered(out.line)).toBe(true);
+    });
+    it("a RED and its fresh run on the same class are a flake, as before", () => {
+        expect(
+            notReproduced({ redMachine: "huawei", freshMachine: "macbook" })
+        ).toEqual({ kind: "flake" });
+        expect(
+            notReproduced({ redMachine: hosted, freshMachine: hosted })
+        ).toEqual({ kind: "flake" });
+    });
+});
+
+describe("settleFreshPass — what the ladder does with a fresh pass (issue #5858)", () => {
+    const hosted = machineName({
+        GITHUB_ACTIONS: "true",
+        RUNNER_ENVIRONMENT: "github-hosted",
+    });
+    const plan = { kind: "step" as const, step: "worktree:init" };
+
+    /** The ladder's I/O, recorded. */
+    function recorder(written = true) {
+        const calls = {
+            greens: [] as Verdict[],
+            flakes: 0,
+            published: [] as string[],
+            notes: [] as string[],
+        };
+        const fx: FreshPassEffects = {
+            note: (l) => calls.notes.push(l),
+            writeGreen: (v) => {
+                calls.greens.push(v);
+                return written
+                    ? { written: true }
+                    : { written: false, reason: "newer verdict" };
+            },
+            fileFlake: () => calls.flakes++,
+            publish: (l) => calls.published.push(l),
+        };
+        return { calls, fx };
+    }
+
+    function settle(redMachine: string, fx: FreshPassEffects, dryRun = false) {
+        return settleFreshPass(
+            {
+                red: { sha: RED.sha, machine: redMachine },
+                sha: RED.sha,
+                plan,
+                freshMachine: "huawei",
+                at: "2026-10-18T00:00:00Z",
+                dryRun,
+            },
+            fx
+        );
+    }
+
+    it("a hosted RED passing on lane: no GREEN, no flake filed, the RED stands with both machines in its evidence", () => {
+        const { calls, fx } = recorder();
+        expect(settle(hosted, fx)).toBe(1);
+        expect(calls.greens).toEqual([]);
+        expect(calls.flakes).toBe(0);
+        expect(calls.published).toHaveLength(1);
+        expect(calls.published[0]).toContain(`\`${hosted}\``);
+        expect(calls.published[0]).toContain("`huawei`");
+        expect(laddered(calls.published[0]!)).toBe(true);
+    });
+    it("a RED on the fresh run's own class: the flake GREEN is written and filed, as before", () => {
+        const { calls, fx } = recorder();
+        expect(settle("macbook", fx)).toBe(0);
+        expect(calls.greens).toHaveLength(1);
+        expect(calls.greens[0]).toMatchObject({
+            sha: RED.sha,
+            status: "green",
+            step: "flake: worktree:init passed on a fresh run",
+            machine: "huawei",
+        });
+        expect(calls.flakes).toBe(1);
+        expect(calls.published).toEqual([]);
+    });
+    it("a flake GREEN the store declines leaves the RED standing, nothing filed", () => {
+        const { calls, fx } = recorder(false);
+        expect(settle("macbook", fx)).toBe(1);
+        expect(calls.flakes).toBe(0);
+    });
+    it("a dry run writes nothing but still walks the filing (which dry-runs itself)", () => {
+        const { calls, fx } = recorder();
+        expect(settle("macbook", fx, true)).toBe(0);
+        expect(calls.greens).toEqual([]);
+        expect(calls.flakes).toBe(1);
     });
 });
 

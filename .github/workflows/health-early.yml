@@ -10,6 +10,9 @@
 # (`base-health`, re-dispatched below — a status written with the job's
 # token fires no `status` event) and dispatches health.yml's ladder on a
 # `lane` runner, which re-runs it fresh, closes a flake GREEN, or bisects.
+# A fresh pass on `lane` is never a flake here: the RED ran on another
+# runner class, so it stands as environment-dependent (issue #5858) — the
+# verdict's `github-hosted/` machine name is what tells the ladder.
 #
 # The batch: one run at a time, and the pushes that land while it runs
 # collapse into ONE pending run of the newest tip (a concurrency group keeps
