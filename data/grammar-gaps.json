@@ -145,12 +145,12 @@
         {
             "key": "(op) › revealAndCategorize",
             "op": "revealAndCategorize",
-            "issue": 5166
+            "issue": 5690
         },
         {
             "key": "(op) › revealTopAndRoute",
             "op": "revealTopAndRoute",
-            "issue": 5166
+            "issue": 5691
         },
         {
             "key": "(op) › setBasePT",
@@ -1187,7 +1187,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Distribute three +N/+N counters among one, two, or three target creatures",
-            "issue": 4574
+            "issue": 5699
         },
         {
             "kind": "grammar",
@@ -1472,7 +1472,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › You may reveal a sorcery card you own from outside the game and put it into your hand",
-            "issue": 4574
+            "issue": 5700
         },
         {
             "kind": "grammar",
@@ -1482,12 +1482,12 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › all artifacts target player owns",
-            "issue": 4574
+            "issue": 5701
         },
         {
             "kind": "grammar",
             "key": "spell › effect clause › all cards from target player's graveyard other than basic land cards",
-            "issue": 4574
+            "issue": 5702
         },
         {
             "kind": "grammar",
@@ -1527,7 +1527,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › each of X targets",
-            "issue": 4574
+            "issue": 5696
         },
         {
             "kind": "grammar",
@@ -1642,7 +1642,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › up to X target cards from your graveyard",
-            "issue": 4568
+            "issue": 5703
         },
         {
             "kind": "grammar",
@@ -1652,7 +1652,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › up to three target cards from a single graveyard",
-            "issue": 4568
+            "issue": 5694
         },
         {
             "kind": "grammar",
@@ -1737,7 +1737,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As this creature enters, exile any number of creature cards from your graveyard",
-            "issue": 4570
+            "issue": 5704
         },
         {
             "kind": "grammar",
@@ -1797,12 +1797,12 @@
         {
             "kind": "grammar",
             "key": "static › static clause › If this land would enter, sacrifice a Forest instead. If you do, put this land onto the battlefield. If you don't, put it into its owner's graveyard",
-            "issue": 4570
+            "issue": 5705
         },
         {
             "kind": "grammar",
             "key": "static › static clause › If you control a creature, damage that would reduce your life total to less than N reduces it to N instead",
-            "issue": 4570
+            "issue": 5706
         },
         {
             "kind": "grammar",
@@ -1832,7 +1832,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Play with the top card of your library revealed",
-            "issue": 4570
+            "issue": 5693
         },
         {
             "kind": "grammar",
@@ -1842,7 +1842,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Prevent all damage that would be dealt to you",
-            "issue": 4570
+            "issue": 5697
         },
         {
             "kind": "grammar",
@@ -1957,7 +1957,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › You may play lands and cast spells from the top of your library",
-            "issue": 4570
+            "issue": 5695
         },
         {
             "kind": "grammar",
@@ -2017,7 +2017,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Create a N/N green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn",
-            "issue": 4571
+            "issue": 5707
         },
         {
             "kind": "grammar",
@@ -2037,7 +2037,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Draw two additional cards",
-            "issue": 4571
+            "issue": 5698
         },
         {
             "kind": "grammar",
@@ -2047,7 +2047,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Exchange control of this creature and up to one target creature an opponent controls",
-            "issue": 4571
+            "issue": 5708
         },
         {
             "kind": "grammar",
@@ -2056,8 +2056,8 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › effect clause › Have it deal X damage to target creature, where X is the number of Goblins on the battlefield",
-            "issue": 5314
+            "key": "triggered › effect clause › Have it deal X damage to target creature",
+            "issue": 5709
         },
         {
             "kind": "grammar",
@@ -2122,12 +2122,12 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › That player chooses target player who controls more creatures than they do and is their opponent",
-            "issue": 4571
+            "issue": 5692
         },
         {
             "kind": "grammar",
             "key": "triggered › effect clause › That player taps an untapped artifact, creature, or land they control for each fade counter on this artifact",
-            "issue": 4571
+            "issue": 5710
         },
         {
             "kind": "grammar",
