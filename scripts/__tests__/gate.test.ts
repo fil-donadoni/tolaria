@@ -162,7 +162,8 @@ function alive(pid: number): boolean {
  * `ps`'s stdout, or a throw naming the call. An unchecked `ps` that failed or
  * timed out under load reads as an empty table — no descendants, no rows —
  * and a caller then parses `""` as a pid: `expected +0 to be <pid>` (issue
- * #5874).
+ * #5874). Inside a `waitFor` the throw ends the poll on purpose: a probe that
+ * cannot see the table is a red naming `ps`, never a retried guess.
  */
 function ps(args: string[]): string {
     const r = spawnSync("ps", args, { encoding: "utf8" });
@@ -246,8 +247,9 @@ let strays: number[] = [];
  * neither fork past the walk nor lose a member to reparenting; the walk
  * repeats until a round finds nobody new.
  */
-function frozenTree(roots: number[]): number[] {
+function frozenTree(roots: number[]): { pids: number[]; walkError?: unknown } {
     const seen = new Set<number>();
+    let walkError: unknown;
     // A root already gone may be a recycled pid by now: walking it would
     // freeze an unrelated subtree.
     let frontier = roots.filter(alive);
@@ -260,11 +262,22 @@ function frozenTree(roots: number[]): number[] {
                 /* already gone */
             }
         }
-        frontier = [...new Set(frontier.flatMap(descendants))].filter(
-            (pid) => !seen.has(pid)
-        );
+        // A failed walk still hands back what it froze: the cleanup kills it,
+        // then reds with the walk's error — never a frozen leak.
+        frontier = [
+            ...new Set(
+                frontier.flatMap((pid) => {
+                    try {
+                        return descendants(pid);
+                    } catch (e) {
+                        walkError ??= e;
+                        return [];
+                    }
+                })
+            ),
+        ].filter((pid) => !seen.has(pid));
     }
-    return [...seen];
+    return { pids: [...seen], walkError };
 }
 
 /** Live processes whose command line names `path` — the test's own commands
@@ -285,7 +298,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-    for (const pid of frozenTree(strays)) {
+    const frozen = frozenTree(strays);
+    for (const pid of frozen.pids) {
         try {
             process.kill(pid, "SIGKILL");
         } catch {
@@ -297,22 +311,28 @@ afterEach(async () => {
     // names `lockRoot` once the tree is dead would poll a deleted directory
     // forever (issue #4978). Killed so the run leaks nothing — and a red, so
     // the cleanup that missed it is fixed rather than outlived.
+    // A `ps` that fails here still leaves no directory behind.
     const root = lockRoot;
-    await waitFor(() => naming(root).length === 0, 5_000);
-    const survivors = naming(root);
-    for (const { pid } of survivors) {
-        try {
-            process.kill(pid, "SIGKILL");
-        } catch {
-            /* already gone */
+    let survivors: { pid: number; args: string }[] = [];
+    try {
+        await waitFor(() => naming(root).length === 0, 5_000);
+        survivors = naming(root);
+        for (const { pid } of survivors) {
+            try {
+                process.kill(pid, "SIGKILL");
+            } catch {
+                /* already gone */
+            }
         }
+    } finally {
+        rmSync(root, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     }
-    rmSync(root, {
-        recursive: true,
-        force: true,
-        maxRetries: 10,
-        retryDelay: 100,
-    });
+    if (frozen.walkError) throw frozen.walkError;
     expect(survivors, "processes outlived the test's cleanup").toEqual([]);
     // Above vitest's 10 s default: the survivor wait alone is 5 s, plus the
     // `ps` walks, on a loaded machine.
@@ -1118,6 +1138,7 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
         });
         const gatePid = gate.pid!;
 
+        strays = [gatePid];
         let tree: number[] = [];
         // Both sleeps, counted by name — anything less and the assertion
         // below would pass on a tree that never got built. A count of pids
@@ -1131,7 +1152,7 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
             ).length;
         };
         await waitFor(() => sleeps() >= 2);
-        strays = [gatePid, ...tree];
+        strays.push(...tree);
         expect(sleeps()).toBeGreaterThanOrEqual(2);
 
         // The signal a session teardown sends: the gate's pid alone. A Ctrl-C
