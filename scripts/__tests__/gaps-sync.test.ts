@@ -2401,18 +2401,28 @@ describe("gaps:sync files under the computed Target band — no origin band (iss
         });
         const r2 = syncGaps([gap("bot", METAGAME)], cluster, new Set([4831]));
         expect(r2.actions.map((a) => a.action)).toEqual(["create"]);
-        // A filing adopted by the open issue naming its card records THAT
-        // issue, title or no title.
+        // A live key re-homed off a CLOSED Gap Cluster whose card an open
+        // issue names (`## Cards`) records THAT issue — the adoption path —
+        // not an open same-title single.
         const adopts = new StubTracker();
         adopts.issues.set(4832, { state: "OPEN", title: "bot gap", body: "x" });
         adopts.issues.set(4833, { state: "OPEN", body: "## Cards\n\n- X" });
+        adopts.issues.set(4840, { state: "CLOSED", body: "cluster" });
         const r3 = syncGaps(
-            [{ ...gap("bot", METAGAME), adopts: 4833 }],
-            adopts
+            [{ ...gap("bot", METAGAME, 4840), adopts: 4833 }],
+            adopts,
+            new Set([4840])
         );
         expect(r3.actions).toEqual([
-            { action: "adopt", kind: "bot", key: "bot-key", issue: 4833 },
+            {
+                action: "re-home",
+                kind: "bot",
+                key: "bot-key",
+                issue: 4833,
+                from: 4840,
+            },
         ]);
+        expect(adopts.updateCalls).toBe(0);
     });
 });
 
