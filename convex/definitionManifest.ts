@@ -30,12 +30,17 @@ import type { CardInstanceState, GameState } from "./gre/state";
 
 type Ctx = Pick<MutationCtx, "db">;
 
-/** A seat as the game build holds it: its handle and its sideboard, every
- *  entry resolved (`withSeatDefinitionIds`). */
+/** A deck entry as the game build holds it: its printing, and the Card
+ *  Definition `withSeatDefinitionIds` resolved it to. */
+type ResolvedDeckCard = { cardId: string; definitionId?: string };
+
+/** A seat as the game build holds it: its handle, its maindeck and its
+ *  sideboard, every entry resolved (`withSeatDefinitionIds`). */
 interface ManifestSeat {
     id: string;
     deck: {
-        sideboard?: readonly { cardId: string; definitionId?: string }[];
+        cards: readonly ResolvedDeckCard[];
+        sideboard?: readonly ResolvedDeckCard[];
     };
 }
 
@@ -139,7 +144,24 @@ export function seatDefinitionManifests(
     );
 }
 
-/** Writes the manifests of a Game whose state was just built from `seats`. */
+/** Each seat's maindeck as Card Definition ids, one per copy in decklist
+ *  order (issue #5617): the deck knowledge the Bot's search samples a seat's
+ *  hidden zones from (`convex/gre/deckKnowledge.ts`). Resolved here, by the
+ *  game build, because a stored deck entry keeps only its print id and the
+ *  client cannot resolve one. */
+export function seatDeckDefinitionIds(
+    seats: readonly ManifestSeat[]
+): Map<string, string[]> {
+    return new Map(
+        seats.map((seat) => [
+            seat.id,
+            seat.deck.cards.map((c) => c.definitionId ?? c.cardId),
+        ])
+    );
+}
+
+/** Writes the manifests of a Game whose state was just built from `seats`,
+ *  each with its seat's maindeck as definition ids. */
 export async function writeGameDefinitionManifests(
     ctx: Ctx,
     gameId: Id<"games">,
@@ -149,7 +171,8 @@ export async function writeGameDefinitionManifests(
     await writeDefinitionManifests(
         ctx,
         gameId,
-        seatDefinitionManifests(seats, state)
+        seatDefinitionManifests(seats, state),
+        seatDeckDefinitionIds(seats)
     );
 }
 

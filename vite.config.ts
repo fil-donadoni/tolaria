@@ -7,6 +7,10 @@ import { buildDefine } from "./scripts/lib/build-define";
 import { cardSetsDevBundle } from "./scripts/lib/vite-card-sets-dev-bundle";
 import { compiledShards } from "./scripts/lib/vite-compiled-shards";
 import {
+    brainWorkerChunk,
+    workerSafePreloadDependencies,
+} from "./scripts/lib/vite-brain-worker-chunk";
+import {
     cardSetChunkName,
     setChunkName,
     setCodeOf,
@@ -56,10 +60,10 @@ export default defineConfig({
             // the literal pool) in BOTH the `card-catalogue` chunk and the
             // `brain.worker` bundle, on every cold load. Swapping the module
             // for an empty stub here takes it
-            // out of both graphs — `resolve` is shared with the worker build,
-            // unlike `plugins` — and the client fetches the packed corpus as
-            // an immutable asset instead, decoding a block on first request
-            // (`src/lib/catalogueArtifact.ts`, issue #4861).
+            // out of both graphs (since issue #5617 the worker is a chunk of
+            // this one build) — and the client fetches the compiled corpus as
+            // immutable assets instead, decoding a block on first request
+            // (`src/lib/catalogueArtifact.ts`, issues #4861, #5616).
             //
             // The `find` matches the RELATIVE specifier because that is what
             // `convex/cards/catalogue.ts` writes (a `convex/` module cannot
@@ -80,7 +84,7 @@ export default defineConfig({
             // graph the swap installs a Set as one lazily imported chunk on
             // demand (`set-chunk-loader.ts`), so a game downloads the Sets of
             // its Definition Manifest and nothing else — in the page and in
-            // the Brain worker alike, as this alias reaches both builds. Sound
+            // the Brain worker alike, a chunk of the same build. Sound
             // while `catalogue.ts` is the module's one importer, pinned by
             // `scripts/__tests__/set-modules-client-seam.test.ts`.
             {
@@ -93,6 +97,11 @@ export default defineConfig({
         ],
     },
     build: {
+        // The Brain worker runs chunks of this build (issue #5617, below):
+        // a Set chunk's `import()` must not preload through `document`.
+        modulePreload: {
+            resolveDependencies: workerSafePreloadDependencies,
+        },
         rollupOptions: {
             output: {
                 // The hand-written Set modules are ONE CHUNK PER SET
@@ -163,13 +172,6 @@ export default defineConfig({
             },
         },
     },
-    // The Brain worker is its own build, and `plugins` are not shared with it
-    // (`resolve` is): it reads the compiled shards' URLs through the same
-    // virtual module as the page, so the plugin is listed for it too. Both
-    // builds emit the same bytes under the same content-hashed name.
-    worker: {
-        plugins: () => [compiledShards()],
-    },
     plugins: [
         // Issue #5616 (PRD #5602, ADR 0113 Amendment VI) — the COMPILED half
         // of the per-game delivery: the packed corpus is cut into one
@@ -178,6 +180,12 @@ export default defineConfig({
         // index; `virtual:compiled-shards` hands their URLs to the client's
         // loader. The dev server serves the same bytes from a middleware.
         compiledShards(),
+        // Issue #5617 (PRD #5602, ADR 0113 Amendment VII) — the Brain worker
+        // is an entry chunk of THIS build, not a build of its own: its engine
+        // chunks, Set chunks and compiled shards are the URLs the page
+        // already fetched, so a game against the Bot downloads them once.
+        // `virtual:brain-worker-url` hands `brain-client.ts` its URL.
+        brainWorkerChunk(),
         // Dev server only (issue #5597): the 1070 Set modules the catalogue
         // imports are served as ONE pre-bundled module instead of 1070
         // revalidated requests per graph — page and Brain worker alike. The

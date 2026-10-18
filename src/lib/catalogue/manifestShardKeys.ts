@@ -22,7 +22,7 @@ export type ManifestRow =
  *  `useDefinitionsResident`, which locates the card through the compiled
  *  index — for a card this build knows; one only a newer server knows
  *  resolves nowhere (the client is out of date). */
-function entryShardKey(entry: {
+export function entryShardKey(entry: {
     definitionId: string;
     setCode: string;
 }): string | undefined {

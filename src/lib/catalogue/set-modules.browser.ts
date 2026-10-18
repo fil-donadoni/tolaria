@@ -1,8 +1,8 @@
 // The CLIENT's hand-written Set modules (issue #5615, PRD #5602, ADR 0113
 // Amendment V): what `vite.config.ts` aliases `./setModules` to — the
 // specifier `convex/cards/catalogue.ts` imports its Sets from — in BOTH the
-// app graph and the `brain.worker` graph (`resolve.alias` is shared with the
-// worker build; `plugins` are not).
+// app graph and the `brain.worker` graph (since issue #5617 a chunk of the
+// same build, so a Set chunk is one URL for both).
 //
 // The server's `convex/cards/setModules.ts` imports every Set statically. Here
 // a Set is RESIDENT only once `install` has loaded its chunk

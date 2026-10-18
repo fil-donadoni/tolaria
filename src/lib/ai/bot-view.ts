@@ -920,9 +920,10 @@ function nameCardDefaultFor(
  *
  *  On a game route the client holds only its game's Sets (issue #5615): a
  *  non-resident hand-written card resolves to nothing here and is skipped, so
- *  this rung's answer on the MAIN thread depends on which Sets are resident —
- *  the Brain worker holds every Set, and rung 2 answers almost every head
- *  before this one is reached. Accepted until PRD #5602's worker slice.
+ *  this rung's answer depends on which Sets are resident. It runs on the MAIN
+ *  thread (the driver), never in the Brain worker — no in-tree decision names
+ *  a card — and rung 2 answers almost every head before this one is reached.
+ *  Accepted (PRD #5602).
  *
  *  The two sets agree where it matters. On both sides the registry enumerates
  *  the catalogue's lazy source in Definition Index order (issue #4856), the

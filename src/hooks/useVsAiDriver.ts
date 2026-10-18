@@ -89,7 +89,13 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor, knowsOpponent } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
-import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
+import {
+    consultBrain,
+    disposeBrain,
+    primeBrain,
+    warmBrain,
+} from "~/lib/ai/brain-client";
+import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     recordAiDecision,
     recordAiEscalation,
@@ -248,26 +254,26 @@ export function useVsAiDriver(
     // Own-deck content is public knowledge to its owner (only the ORDER is
     // hidden — `determinize` reshuffles it), so reading it here is legitimate;
     // in a vs-AI game both seats belong to the same user regardless.
-    // The decklists left the `games` row in issue #2506, so this is a point
-    // lookup on the bot's (immutable) `gameDecks` row rather than the former
-    // `getGame` subscription — it no longer re-executes on the `games` patches
-    // that fire several times a turn.
-    const botDeck = useResilientQuery(
-        api.gameReads.getSeatDeck,
+    // Read as DEFINITION ids (issue #5617): a stored deck entry keeps only its
+    // print id, which the client cannot resolve, so the game build resolves
+    // the deck and stores it on the seat's manifest row. A point lookup on
+    // that row, never re-executed by the `games` patches of a turn.
+    const botKnowledge = useResilientQuery(
+        api.gameReads.getSeatDeckKnowledge,
         botId ? { gameId, playerId: botId } : "skip"
     ).data;
     // The HUMAN seat's decklist (issue #2790, PRD #2787) — the second entry
     // the #2788 per-seat shape was left room for. Read only once `botState`
     // has resolved the opponent's seat id; both `botId` and this id are the
-    // one user's own handles in a vs-AI game (`${userId}-p1`/`-p2`), so
-    // `getSeatDeck`'s ownership gate admits it exactly as it does the bot's
-    // own lookup above — no new authorisation surface, and a real 2-player
-    // game never mounts this hook at all (it runs no Brain, see the module
+    // one user's own handles in a vs-AI game (`${userId}-p1`/`-p2`), so the
+    // query's ownership gate admits it exactly as it does the bot's own
+    // lookup above — no new authorisation surface, and a real 2-player game
+    // never mounts this hook at all (it runs no Brain, see the module
     // header).
     //
-    // This subscription is UNCONDITIONAL, one extra `getSeatDeck` per vs-AI
-    // game whatever the difficulty, and that is deliberate: the difficulty
-    // gate lives at the SEARCH SITE (below, beside `budgetFor`), because
+    // This subscription is UNCONDITIONAL, one extra read per vs-AI game
+    // whatever the difficulty, and that is deliberate: the difficulty gate
+    // lives at the SEARCH SITE (below, beside `budgetFor`), because
     // `getStoredDifficulty` reads localStorage and localStorage is not a
     // reactive input — a difficulty read during render, whether in a hook
     // argument or inside a `useMemo`, is frozen at whatever the last
@@ -275,10 +281,30 @@ export function useVsAiDriver(
     // consulted, which means fetching both seats and choosing between them
     // at the moment of use.
     const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
-    const humanDeck = useResilientQuery(
-        api.gameReads.getSeatDeck,
+    const humanKnowledge = useResilientQuery(
+        api.gameReads.getSeatDeckKnowledge,
         humanId ? { gameId, playerId: humanId } : "skip"
     ).data;
+    // A Game built before the deck was stored on its manifest rows answers
+    // `null`: its stored entries are read as they are, as before issue #5617.
+    const botDeck = useResilientQuery(
+        api.gameReads.getSeatDeck,
+        botId && botKnowledge === null ? { gameId, playerId: botId } : "skip"
+    ).data;
+    const humanDeck = useResilientQuery(
+        api.gameReads.getSeatDeck,
+        humanId && humanKnowledge === null
+            ? { gameId, playerId: humanId }
+            : "skip"
+    ).data;
+    const botSeat = useMemo(
+        () => seatKnowledge(botKnowledge, botDeck),
+        [botKnowledge, botDeck]
+    );
+    const humanSeat = useMemo(
+        () => seatKnowledge(humanKnowledge, humanDeck),
+        [humanKnowledge, humanDeck]
+    );
     // Per-seat deck knowledge (issue #2788, generalised to two seats by
     // #2790), pre-computed in BOTH shapes so the difficulty gate at the search
     // site is a choice between two ready values rather than a render-time read
@@ -303,28 +329,38 @@ export function useVsAiDriver(
     }, [gameId, botId]);
 
     const deckKnowledge = useMemo(() => {
-        // `null` when the seat has no decklist row (or the caller does not own
-        // the seat) — deckKnowledge stays undefined and the search falls back
-        // to the placeholder library, exactly as it did before issue #1509.
-        if (!botId || !botDeck?.cards) return undefined;
-        const blind = [
-            {
-                playerId: botId,
-                cardIds: botDeck.cards.map((c) => c.cardId),
-            },
-        ];
-        if (!humanId || !humanDeck?.cards) return { blind, informed: blind };
+        // `undefined` when the seat has no decklist (or the caller does not
+        // own the seat) — deckKnowledge stays undefined and the search falls
+        // back to the placeholder library, exactly as it did before issue
+        // #1509.
+        if (!botId || !botSeat) return undefined;
+        const blind = [{ playerId: botId, cardIds: botSeat.cardIds }];
+        if (!humanId || !humanSeat) return { blind, informed: blind };
         return {
             blind,
             informed: [
                 ...blind,
-                {
-                    playerId: humanId,
-                    cardIds: humanDeck.cards.map((c) => c.cardId),
-                },
+                { playerId: humanId, cardIds: humanSeat.cardIds },
             ],
         };
-    }, [botDeck, botId, humanDeck, humanId]);
+    }, [botSeat, botId, humanSeat, humanId]);
+    // The Brain worker's Manifest (issue #5617): the bot seat's Definition
+    // Manifest — both maindecks, both companions, the bot's sideboard. Not
+    // the deck knowledge, which is what the search may KNOW (the human's
+    // deck only at `expert`); this is what it may need RESIDENT — any card
+    // either deck can put on the board — and it is what the board's gate
+    // already installed (it subscribes every seat the viewer owns, and vs the
+    // Bot the viewer owns both), so every shard is a cache hit and no card
+    // on the board sends the worker to the compiled index. The same
+    // subscription the gate holds; primed as soon as it lands, overlapping
+    // the game's setup rather than the first consult, and again on a widen.
+    const botManifest = useResilientQuery(
+        api.gameReads.getDefinitionManifest,
+        botId ? { gameId, playerId: botId } : "skip"
+    ).data;
+    useEffect(() => {
+        if (botManifest) primeBrain(botManifest.entries);
+    }, [botManifest]);
     const retryTick = tickQuery.retry;
     const retryBotState = botStateQuery.retry;
     const retryDriverSubscriptions = useCallback(() => {

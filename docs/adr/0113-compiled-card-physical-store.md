@@ -943,7 +943,89 @@ the compiled half.
 ### What stays open
 
 - The Brain worker on a per-game Manifest (PRD #5602's worker slice): today
-  it loads every shard, as it loaded the whole corpus.
+  it loads every shard, as it loaded the whole corpus. Settled by Amendment
+  VII.
+
+## Amendment VII (issue #5617, 2026-10-18) — the Brain worker is a chunk of the page's build, and installs only its own Manifest
+
+Amendments V–VI made a game's PAGE download only its own definitions. The
+Brain worker still downloaded everything: it was a separate `iife` build
+(`new Worker(new URL(…))` makes Vite run one), so it carried the engine and
+every hand-written Set inlined, and in its own graph it installed every
+compiled shard.
+
+### The spike, measured
+
+Which mechanism gives the worker ONE download of what the page already
+fetched? Both candidates built on the same tree (`vite build`, gzip):
+
+| Mechanism                                | Worker's static closure | Downloaded by the worker alone       | Set chunks                   |
+| ---------------------------------------- | ----------------------- | ------------------------------------ | ---------------------------- |
+| today: separate `iife` build             | 1 file, 731.0 KB        | 731.0 KB + every compiled shard      | inlined, all 146             |
+| separate `es` build, the page's chunking | 26 files, 368.6 KB      | 368.6 KB + a game's Set chunks again | own copies, other hashes     |
+| **an entry chunk of the page's build**   | 26 files, 386.8 KB      | **0.9 KB** (the shell)               | the page's chunks, same URLs |
+
+The page's own static closure is unchanged by the third (998 KB before, 995
+KB after — the Set imports lost their preload lists, below). A Worker still
+gets its own module instances; one DOWNLOAD is the goal, not one instance.
+
+Production build, cold browser context, Playwright, a game against the Bot
+(Burn vs Burn, then Burn vs Psychatog), Resource Timing read inside the page
+and inside the worker (`transferSize` 0 = served from the HTTP cache):
+
+|                                                  | before (staging)                  | after                                                                                                                                                                           |
+| ------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `brain.worker` script                            | 714.2 KB                          | 1.1 KB                                                                                                                                                                          |
+| card data fetched by the worker from the network | 223 compiled shards, 920.7 KB     | **none**                                                                                                                                                                        |
+| card data the worker installs                    | every Set (inlined) + every shard | the bot seat's Manifest: Burn vs Psychatog 17 Sets + 3 shards (both maindecks, the Bot's sideboard) — every one a cache hit on a URL the page fetched; the compiled index never |
+
+### Decision
+
+- **The worker is an entry chunk of the page's build**
+  (`scripts/lib/vite-brain-worker-chunk.ts` emits `src/lib/ai/brain.worker.ts`
+  as a chunk; `virtual:brain-worker-url` hands `brain-client.ts` its URL).
+  No `worker` build exists any more. Its engine chunks, Set chunks and
+  compiled shards are the URLs the game route already loaded.
+- **A Set chunk's `import()` carries no preload list**
+  (`build.modulePreload.resolveDependencies`): Vite's preload helper adds
+  `<link rel="modulepreload">` through `document`, which a Worker has not. The
+  page discovers a Set's shared helper chunks one round trip later.
+- **The worker's Manifest is the bot seat's Definition Manifest** (both
+  maindecks, both companions, the Bot's sideboard), the row the board's gate
+  already installed — RESIDENCY, not knowledge: any card either deck can put
+  on the board must resolve in the worker, while the human's decklist still
+  reaches the SEARCH at `expert` only. Priming it with the deck knowledge
+  instead was reviewed out: at blind difficulty a human's compiled card on the
+  board had no hint and sent the worker to the compiled index, a download the
+  page never makes.
+- **Deck knowledge as definition ids**: `gameReads.getSeatDeckKnowledge`. A
+  stored deck entry keeps only its printing, so the game build stores each
+  seat's maindeck, resolved print → definition (`withSeatDefinitionIds`), on
+  its `gameDefinitionManifests` row (`deck`).
+- **Residency before an answer.** The driver primes the worker with that
+  Manifest as soon as it lands; each consult then installs every shard its
+  state and deck knowledge name (`src/lib/catalogue/residentFor.ts`; the id
+  walker `publicStateDefinitionIds` also names what a stand-in stands in for —
+  `copiedFrom`, `transformedFrom`, an Adventure's or split half's parent — and
+  a triggered grant's source) before `handleBrainRequest` reads
+  `getDefinition` synchronously. A compiled card is located by its Manifest
+  hint; the compiled index only for a card outside every Manifest.
+- **Guarded in the built graph** (`brainWorkerViolations`, `check:bundle`):
+  exactly one worker chunk; every chunk of its static closure is in the game
+  route's; the worker chunk carries no engine (a build of its own again); no
+  chunk it can evaluate (static or through `import()`) preloads through
+  `document`. The
+  `brain.worker-` budget row now measures the shell (2 KB ceiling).
+
+### Consequences
+
+- A game against the Bot costs no more card data than a Solo game.
+- The client heap probe (`scripts/lib/client-heap.ts`) still measures the
+  whole mode, now the upper bound of both contexts rather than the worker's
+  real load.
+- A Game built before the `deck` field answers `null` from
+  `getSeatDeckKnowledge`; the driver falls back to the stored deck entries
+  (print ids included, as before), and the worker installs per consult.
 
 ## Open, deliberately not decided here
 

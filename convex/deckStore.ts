@@ -330,12 +330,33 @@ export async function loadDefinitionManifests(
     return new Map(rows.map((r) => [r.playerId, r.entries]));
 }
 
+/** One seat's deck knowledge for the Bot (issue #5617): its maindeck as
+ *  Card Definition ids, one per copy in decklist order. `null` when the seat
+ *  has no manifest, or one written before the deck was stored on it. One
+ *  point read. */
+export async function loadSeatDeckKnowledge(
+    ctx: QueryCtx,
+    gameId: Id<"games">,
+    playerId: string
+): Promise<string[] | null> {
+    const row = await ctx.db
+        .query("gameDefinitionManifests")
+        .withIndex("by_game", (q) =>
+            q.eq("gameId", gameId).eq("playerId", playerId)
+        )
+        .unique();
+    return row?.deck ?? null;
+}
+
 /** Writes each seat's manifest in `bySeat` (insert or replace); a seat not
- *  named keeps its row. */
+ *  named keeps its row. `decks` names each seat's maindeck as definition ids
+ *  (the game build); a seat it does not name keeps the deck its row holds —
+ *  a widen changes what the client may need, never what the seat drew from. */
 export async function writeDefinitionManifests(
     ctx: MutationCtx,
     gameId: Id<"games">,
-    bySeat: ReadonlyMap<string, readonly DefinitionManifestEntry[]>
+    bySeat: ReadonlyMap<string, readonly DefinitionManifestEntry[]>,
+    decks: ReadonlyMap<string, readonly string[]> = new Map()
 ): Promise<void> {
     const existing = await ctx.db
         .query("gameDefinitionManifests")
@@ -343,8 +364,14 @@ export async function writeDefinitionManifests(
         .collect();
     const rowBySeat = new Map(existing.map((r) => [r.playerId, r]));
     for (const [playerId, entries] of bySeat) {
-        const doc = { gameId, playerId, entries: [...entries] };
         const row = rowBySeat.get(playerId);
+        const deck = decks.get(playerId) ?? row?.deck;
+        const doc = {
+            gameId,
+            playerId,
+            entries: [...entries],
+            ...(deck ? { deck: [...deck] } : {}),
+        };
         if (row) await ctx.db.replace(row._id, doc);
         else await ctx.db.insert("gameDefinitionManifests", doc);
     }

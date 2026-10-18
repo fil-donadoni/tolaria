@@ -3,7 +3,11 @@ import { internalMutation, query } from "./_generated/server";
 import { auth, getCurrentUser } from "./auth";
 import { seatBelongsToUser } from "./gameLifecycle";
 import { activeGameOpponentName, findActiveMatchForUser } from "./matches";
-import { loadGameSeatCards, loadSeatDefinitionManifest } from "./deckStore";
+import {
+    loadGameSeatCards,
+    loadSeatDeckKnowledge,
+    loadSeatDefinitionManifest,
+} from "./deckStore";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
@@ -164,6 +168,46 @@ export const getDefinitionManifest = query({
         );
         if (!entries) return null;
         return { playerId: args.playerId, entries };
+    },
+});
+
+/** ONE seat's deck knowledge for the Bot (issue #5617, PRD #5602): its
+ *  maindeck as Card Definition ids (one per copy, decklist order) — what the
+ *  search samples the seat's hidden zones from. (Which shards the Brain
+ *  worker installs is the seats' Definition Manifests', not this.)
+ *
+ *  Definition ids, never print ids: a stored deck entry keeps only its
+ *  printing, which the client cannot resolve, so the game build resolves it
+ *  (`withSeatDefinitionIds`) and stores the result on the seat's manifest row
+ *  (`convex/definitionManifest.ts`). Gated on SEAT ownership like
+ *  `getSeatDeck` — vs the Bot one user owns both seats, so the driver reads
+ *  the human's too, and `expert` alone hands it to the search
+ *  (`convex/gre/difficulty.ts`). `null` for a seat the caller does not own,
+ *  a Game not built yet, or a row written before the field (the driver then
+ *  falls back to `getSeatDeck`'s entries). One point read, no definition. */
+export const getSeatDeckKnowledge = query({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.union(
+        v.null(),
+        v.object({
+            playerId: v.string(),
+            cardIds: v.array(v.string()),
+        })
+    ),
+    handler: async (ctx, args) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return null;
+        if (!seatBelongsToUser(args.playerId, userId)) return null;
+        const cardIds = await loadSeatDeckKnowledge(
+            ctx,
+            args.gameId,
+            args.playerId
+        );
+        if (!cardIds) return null;
+        return { playerId: args.playerId, cardIds };
     },
 });
 

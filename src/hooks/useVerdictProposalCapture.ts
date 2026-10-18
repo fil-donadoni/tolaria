@@ -14,7 +14,7 @@
 // `verdict-proposal-store.ts` for the panel (issue #3986); nothing is written
 // anywhere else, and a game swap drops it unanswered.
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -34,6 +34,7 @@ import {
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
 import { consultBrain } from "~/lib/ai/brain-client";
+import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
 export function useVerdictProposalCapture(
     gameId: Id<"games">,
@@ -59,10 +60,23 @@ export function useVerdictProposalCapture(
         api.game.getPublicState,
         humanOwes ? { gameId, playerId: humanId! } : "skip"
     ).data;
-    const humanDeck = useResilientQuery(
-        api.gameReads.getSeatDeck,
+    // The seat's decklist as definition ids (issue #5617) — the driver's
+    // read. The Brain worker judging it was primed by the driver with the
+    // game's Manifest, which holds this deck.
+    const humanKnowledge = useResilientQuery(
+        api.gameReads.getSeatDeckKnowledge,
         active ? { gameId, playerId: humanId! } : "skip"
     ).data;
+    const legacyDeck = useResilientQuery(
+        api.gameReads.getSeatDeck,
+        active && humanKnowledge === null
+            ? { gameId, playerId: humanId! }
+            : "skip"
+    ).data;
+    const humanDeck = useMemo(
+        () => seatKnowledge(humanKnowledge, legacyDeck),
+        [humanKnowledge, legacyDeck]
+    );
     const gameOver = !!tick?.gameOver;
 
     useEffect(() => {
@@ -83,12 +97,7 @@ export function useVerdictProposalCapture(
 
     useEffect(() => {
         if (!active || !humanState || humanState.gameOver) return;
-        observeHumanWindow(
-            gameId,
-            humanState,
-            humanId!,
-            humanDeck?.cards.map((c) => c.cardId)
-        );
+        observeHumanWindow(gameId, humanState, humanId!, humanDeck?.cardIds);
     }, [active, gameId, humanId, humanState, humanDeck]);
 
     useEffect(() => {

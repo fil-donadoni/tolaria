@@ -65,8 +65,9 @@ export function hydrateGameCatalogue(): Promise<void> {
  * The WHOLE catalogue resident: every compiled shard fetched and installed,
  * and every hand-written Set chunk (issues #5615, #5616). What a
  * whole-catalogue surface awaits — the deck builder, deck detail, the Draft
- * Lab, admin, the join antechamber — and the Brain's Worker in its own graph,
- * until its own slice gives it a per-game Manifest.
+ * Lab, admin, the join antechamber. Never a game: the page installs its
+ * Definition Manifest's shards, the Brain worker its own Manifest's
+ * (`src/lib/ai/brain-residency.ts`, issue #5617).
  *
  * Promise singleton: the loading gate awaits it. A rejection is not memoised
  * — the gate offers a retry, and a retried load must actually re-load (the

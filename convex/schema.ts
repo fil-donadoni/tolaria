@@ -606,6 +606,12 @@ export default defineSchema({
         /** The opaque GRE seat handle — `games.players[].id`. */
         playerId: v.string(),
         entries: v.array(definitionManifestEntryValidator),
+        /** THIS seat's maindeck as Card Definition ids, in decklist order,
+         *  one per copy (issue #5617): the Bot's deck knowledge, resolved
+         *  print → definition by the game build (`withSeatDefinitionIds`) —
+         *  a stored deck entry keeps only its print id, which the client
+         *  cannot resolve. Absent on a row written before the field. */
+        deck: v.optional(v.array(v.string())),
     })
         // `gameDecks`' shape and name: both seats of one game, or one seat's
         // point lookup with `eq` on both components.

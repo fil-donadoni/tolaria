@@ -22,8 +22,9 @@
  *     paths;
  *   - in a fresh `node --expose-gc`, the heap after `gc()` is read after the
  *     import, after `hydrateCatalogue()` — the WHOLE mode, every shard: the
- *     Brain worker's until its own slice, and the upper bound of a page's
- *     game — and the game's `getDefinition`s, and the CATALOGUE figure is
+ *     upper bound of a game's page and of its Brain worker, each of which
+ *     installs only its own Manifest's shards (issues #5615–#5617) — and the
+ *     game's `getDefinition`s, and the CATALOGUE figure is
  *     the difference — what the shards and the game's decoded cards hold,
  *     the code excluded. The minimum of several runs, since noise only ever
  *     adds.

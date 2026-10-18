@@ -3,6 +3,7 @@ import path from "path";
 import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
 import { compiledShardUrls } from "./scripts/lib/vite-compiled-shard-urls";
+import { brainWorkerChunk } from "./scripts/lib/vite-brain-worker-chunk";
 import { LongestFirstSequencer } from "./scripts/lib/vitest-sequencer";
 import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
 import { VITEST_NODE_ARGV } from "./scripts/lib/vitest-node-argv";
@@ -258,7 +259,9 @@ export default defineConfig({
     // `virtual:compiled-shards` (issue #5616): the client's compiled-shard
     // URLs, named after the dev middleware here — a test serves the bytes
     // through a `fetch` stub (`scripts/lib/compiled-shards.ts` cuts them).
-    plugins: [compiledShardUrls()],
+    // `virtual:brain-worker-url` (issue #5617): the worker's dev URL — a test
+    // never spawns it (`brain-client.ts` runs in-thread without `Worker`).
+    plugins: [compiledShardUrls(), brainWorkerChunk()],
     // The SAME build-identity substitution `vite.config.ts` applies (issue
     // #3256). Without it `__BUILD_COMMIT__` is an undeclared global under test
     // and the guard asserting the bug-report payload carries a build identity
