@@ -321,8 +321,8 @@ async function clickIfVisible(
  * #3492, where the mulligan click landed on the phase-stops panel instead and
  * left a `[role=dialog]` standing that nothing in the walk could answer. Every
  * short prompt label here goes through `:text-is()` for that reason. */
-const MULLIGAN_KEEP = 'button:text-is("Keep")';
-const PREGAME_PLAY = '[role=dialog] button:text-is("Play")';
+export const MULLIGAN_KEEP = 'button:text-is("Keep")';
+export const PREGAME_PLAY = '[role=dialog] button:text-is("Play")';
 const BANNER_RESUME = 'button:text-is("Resume")';
 const BANNER_LEAVE = 'button:text-is("Leave")';
 const BANNER_CONCEDE = 'button:text-is("Concede Match")';
@@ -1064,9 +1064,9 @@ const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
 /** The Split creatures preference (`src/lib/deckViewPrefs.ts`). */
 const SPLIT_CREATURES_KEY = "tolaria:deckViewPrefs:splitCreatures";
 /** The setup flow's remembered setup (`src/lib/matchSetup.ts`). */
-const MATCH_SETUP_KEY = "tolaria:matchSetup";
+export const MATCH_SETUP_KEY = "tolaria:matchSetup";
 /** The flow's Start, once every step is answered (`match-setup-rail.tsx`). */
-const START_MATCH = 'button:text-is("Start match"):not([disabled])';
+export const START_MATCH = 'button:text-is("Start match"):not([disabled])';
 
 /**
  * Open /play/constructed on its FIRST step. The flow re-opens on the last
@@ -1086,14 +1086,14 @@ async function openFreshSetupFlow(page: Page, ctx: WalkContext): Promise<void> {
 }
 
 /** Press the setup choice whose accessible name starts with `name`. */
-async function chooseSetup(page: Page, name: string): Promise<void> {
+export async function chooseSetup(page: Page, name: string): Promise<void> {
     await page
         .getByRole("button", { name: new RegExp(`^${name}`) })
         .click({ timeout: STEP_TIMEOUT });
 }
 
 /** The flow's step currently open (`data-setup-step` on the rail). */
-async function currentSetupStep(page: Page): Promise<string | null> {
+export async function currentSetupStep(page: Page): Promise<string | null> {
     return page
         .locator("[data-setup-step][aria-current=step]")
         .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
@@ -1108,7 +1108,7 @@ async function currentSetupStep(page: Page): Promise<string | null> {
  * decking before the first priority, and the Game Over scrim then swallows
  * every later click on the board. A preset is a real 60-card list.
  */
-async function pickPlayableDeck(page: Page): Promise<void> {
+export async function pickPlayableDeck(page: Page): Promise<void> {
     const preset = page
         .locator(
             'section:has(h3:has-text("Presets")) [data-deck-select]:not([disabled])'

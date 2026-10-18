@@ -138,6 +138,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
+    "check:game-download",
     "check:ui --all",
 ];
 
@@ -165,6 +166,15 @@ export const HEALTH_ONLY_GUARDS: Readonly<
         measuredCostS: 879,
         measured:
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
+    },
+    // A game's card-data download on a production build (issue #5618): a
+    // `vite build`, then a Solo and a Bot game in Chromium against the
+    // deployment — a browser step of the walk phase (`isWalkStep`), offline
+    // `check:lane` cannot run it.
+    "check:game-download": {
+        measuredCostS: 30,
+        measured:
+            "`bun run check:game-download` 28 s / 30 s at load ~2 (2026-10-18; build 12 s, two games)",
     },
     // The client bundle build (ADR 0154 §3, issue #5464): a full `vite build`
     // every lane paid for the duplicate-import class, now health's

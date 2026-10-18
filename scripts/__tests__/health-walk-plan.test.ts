@@ -28,6 +28,7 @@ describe("planHealthWalk", () => {
         expect(plan.kind).toBe("full");
         expect(describeWalkPlan(plan)).toMatch(/^full — /);
         expect(splitHealthGates(HEALTH_SCRIPTS).walk).toEqual([
+            "check:game-download",
             FULL_WALK_ENTRY,
         ]);
     });
