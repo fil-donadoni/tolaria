@@ -973,11 +973,11 @@ Production build, cold browser context, Playwright, a game against the Bot
 (Burn vs Burn, then Burn vs Psychatog), Resource Timing read inside the page
 and inside the worker (`transferSize` 0 = served from the HTTP cache):
 
-|                                                  | before (staging)                  | after                                                                                                                                           |
-| ------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `brain.worker` script                            | 714.2 KB                          | 1.1 KB                                                                                                                                          |
-| card data fetched by the worker from the network | 223 compiled shards, 920.7 KB     | **none**                                                                                                                                        |
-| card data the worker installs                    | every Set (inlined) + every shard | its Manifest's: Psychatog at `medium` 13 Sets + 2 shards; at `expert` 16 + 3 (both maindecks) — every one a cache hit on a URL the page fetched |
+|                                                  | before (staging)                  | after                                                                                                                                                                           |
+| ------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `brain.worker` script                            | 714.2 KB                          | 1.1 KB                                                                                                                                                                          |
+| card data fetched by the worker from the network | 223 compiled shards, 920.7 KB     | **none**                                                                                                                                                                        |
+| card data the worker installs                    | every Set (inlined) + every shard | the bot seat's Manifest: Burn vs Psychatog 17 Sets + 3 shards (both maindecks, the Bot's sideboard) — every one a cache hit on a URL the page fetched; the compiled index never |
 
 ### Decision
 
@@ -990,21 +990,31 @@ and inside the worker (`transferSize` 0 = served from the HTTP cache):
   (`build.modulePreload.resolveDependencies`): Vite's preload helper adds
   `<link rel="modulepreload">` through `document`, which a Worker has not. The
   page discovers a Set's shared helper chunks one round trip later.
-- **The worker's Manifest is its deck knowledge**: its own decklist, plus the
-  human's at `expert`, as Manifest entries — `gameReads.getSeatDeckKnowledge`.
-  Definition ids, never print ids: a stored deck entry keeps only its printing,
-  so the game build stores each seat's maindeck, resolved print → definition
-  (`withSeatDefinitionIds`), on its `gameDefinitionManifests` row (`deck`).
+- **The worker's Manifest is the bot seat's Definition Manifest** (both
+  maindecks, both companions, the Bot's sideboard), the row the board's gate
+  already installed — RESIDENCY, not knowledge: any card either deck can put
+  on the board must resolve in the worker, while the human's decklist still
+  reaches the SEARCH at `expert` only. Priming it with the deck knowledge
+  instead was reviewed out: at blind difficulty a human's compiled card on the
+  board had no hint and sent the worker to the compiled index, a download the
+  page never makes.
+- **Deck knowledge as definition ids**: `gameReads.getSeatDeckKnowledge`. A
+  stored deck entry keeps only its printing, so the game build stores each
+  seat's maindeck, resolved print → definition (`withSeatDefinitionIds`), on
+  its `gameDefinitionManifests` row (`deck`).
 - **Residency before an answer.** The driver primes the worker with that
-  Manifest as soon as it is known; each consult then installs every shard its
-  state and deck knowledge name (`src/lib/catalogue/residentFor.ts`: a
-  compiled card located by its Manifest hint, the compiled index only for a
-  card outside every hint) before `handleBrainRequest` reads `getDefinition`
-  synchronously.
+  Manifest as soon as it lands; each consult then installs every shard its
+  state and deck knowledge name (`src/lib/catalogue/residentFor.ts`; the id
+  walker `publicStateDefinitionIds` also names what a stand-in stands in for —
+  `copiedFrom`, `transformedFrom`, an Adventure's or split half's parent — and
+  a triggered grant's source) before `handleBrainRequest` reads
+  `getDefinition` synchronously. A compiled card is located by its Manifest
+  hint; the compiled index only for a card outside every Manifest.
 - **Guarded in the built graph** (`brainWorkerViolations`, `check:bundle`):
   exactly one worker chunk; every chunk of its static closure is in the game
   route's; the worker chunk carries no engine (a build of its own again); no
-  dynamic import in its closure preloads through `document`. The
+  chunk it can evaluate (static or through `import()`) preloads through
+  `document`. The
   `brain.worker-` budget row now measures the shell (2 KB ceiling).
 
 ### Consequences
