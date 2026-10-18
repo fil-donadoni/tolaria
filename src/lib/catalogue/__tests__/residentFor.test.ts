@@ -94,20 +94,6 @@ describe("making definition ids resident from Manifest hints", () => {
         expect(tryGetDefinition(HAND_ID)?.id).toBe(HAND_ID);
     });
 
-    it("locates a card no hint names through the compiled index, then installs the shard it names", async () => {
-        const fetchMock = serveCompiledAssets();
-        vi.stubGlobal("fetch", fetchMock);
-        expect(tryGetDefinition(CARD_B.id)).toBeNull();
-
-        await makeResident([CARD_B.id], new Map());
-
-        expect(fetchedUrls(fetchMock)).toEqual([
-            compiledIndexUrl,
-            compiledShardUrl(KEY_B!)!,
-        ]);
-        expect(getDefinition(CARD_B.id).name).toBe(CARD_B.name);
-    });
-
     it("a hint naming a resident shard that lacks the card falls back to the index's answer", async () => {
         const fetchMock = serveCompiledAssets();
         vi.stubGlobal("fetch", fetchMock);
@@ -116,8 +102,27 @@ describe("making definition ids resident from Manifest hints", () => {
 
         await makeResident([CARD_C.id], hints);
 
-        expect(fetchedUrls(fetchMock)).toContain(compiledShardUrl(KEY_C!));
+        // Before any index is resident: the wrong hint is caught, the index
+        // located the card, its real shard was installed.
+        expect(isCompiledIndexInstalled()).toBe(true);
+        expect(fetchedUrls(fetchMock)).toEqual([
+            compiledIndexUrl,
+            compiledShardUrl(KEY_C!)!,
+        ]);
         expect(getDefinition(CARD_C.id).name).toBe(CARD_C.name);
+    });
+
+    it("locates a card no hint names through the resident compiled index, installing only the shard it names", async () => {
+        const fetchMock = serveCompiledAssets();
+        vi.stubGlobal("fetch", fetchMock);
+        expect(tryGetDefinition(CARD_B.id)).toBeNull();
+
+        await makeResident([CARD_B.id], new Map());
+
+        // The index is resident (the wrong hint above loaded it): it names
+        // the card's shard, and only that shard is fetched.
+        expect(fetchedUrls(fetchMock)).toEqual([compiledShardUrl(KEY_B!)!]);
+        expect(getDefinition(CARD_B.id).name).toBe(CARD_B.name);
     });
 
     it("rejects when an install does, so the caller never reads a half-resident catalogue", async () => {
