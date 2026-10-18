@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dragOnto, installDndJsdomShims } from "./dragHarness";
 import { cardsIn, columnLabelsIn, paneOf } from "./zoneQueries";
+import { ICE_MOUNTAIN_PRINT } from "./basicLandPrintRows";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
@@ -54,8 +55,12 @@ vi.mock("~/hooks/useLimitedEvent", () => ({
     }),
 }));
 
-vi.mock("convex/react", () => ({
+vi.mock("convex/react", async () => ({
     useMutation: (...args: unknown[]) => useMutationMock(...args),
+    // The print resolver's `cardPrints` rows (issue #5550).
+    useQuery: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).getByPrintIdsStub,
 }));
 
 vi.mock("@convex/_generated/api", () => {
@@ -1472,6 +1477,60 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
                 cardName: "Lightning Bolt",
                 definitionId: BOLT_ID,
             },
+        ]);
+    });
+});
+
+// Live legality resolves the deck side through the `cardPrints` rows, like
+// the server (issue #5550): a Basic re-arted to a reprint by the art picker
+// is still a Basic — exempt from the Pool — never a raw Print ID the Pool
+// does not grant.
+describe("PoolDeckBuilderForm — re-arted basic stays Pool-exempt (issue #5550)", () => {
+    afterEach(() => {
+        window.localStorage.clear();
+    });
+
+    it("a non-Alpha Mountain print in the Maindeck reads no pool-not-granted reason", async () => {
+        setup();
+        const { getByLabelText, queryAllByText, getAllByText, unmount } =
+            render(
+                <PoolDeckBuilderForm
+                    eventId={"event-1" as never}
+                    seatIndex={0}
+                    pool={[
+                        {
+                            scryfallId: "b1",
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                        },
+                    ]}
+                    existingDeck={null}
+                    eventType="sealed"
+                    packSlots={["ice"]}
+                    poolArrangement={[]}
+                />
+            );
+        fireEvent.click(getByLabelText("Add one Mountain"));
+        fireEvent.click(getByLabelText("Choose Mountain art"));
+        fireEvent.click(
+            document.querySelector<HTMLElement>(
+                `button[data-print-id="${ICE_MOUNTAIN_PRINT}"]`
+            )!
+        );
+        expect(queryAllByText(/Mountain: not in this seat's Pool/)).toEqual([]);
+        // The panel is live, not blank: the 1-card Maindeck still fails the
+        // Limited minimum.
+        expect(getAllByText(/minimum is 40/).length).toBeGreaterThan(0);
+
+        // The rewrite really landed on the reprint — the assertion above
+        // would pass vacuously on the Alpha print, which always resolved.
+        unmount();
+        await waitFor(() => expect(createMock).toHaveBeenCalled());
+        const payload = createMock.mock.calls[0][0] as {
+            cards: { cardId: string }[];
+        };
+        expect(payload.cards.map((c) => c.cardId)).toEqual([
+            ICE_MOUNTAIN_PRINT,
         ]);
     });
 });

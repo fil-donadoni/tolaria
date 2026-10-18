@@ -121,6 +121,29 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
         expect(deck.reasons.some((r) => r.code === "size-min")).toBe(true);
     });
 
+    it("resolves a basic reprint through its stored definitionId when no server legality is present (issue #5550)", () => {
+        // A Print ID the registry does not know: before the fix it resolved
+        // to `null` and the deck read illegal instead of padding with basics.
+        const reprint = {
+            cardId: "ice-mountain-print",
+            cardName: "Mountain",
+            definitionId: MOUNTAIN,
+        };
+        const deck = toUserLobbyDeck(
+            userDeck({
+                format: "old-school",
+                cards: [
+                    ...Array.from({ length: 4 }, () =>
+                        dc(BOLT_LEA, "Lightning Bolt")
+                    ),
+                    ...Array.from({ length: 56 }, () => reprint),
+                ],
+            })
+        );
+        expect(deck.reasons).toEqual([]);
+        expect(deck.isLegal).toBe(true);
+    });
+
     it("a full legal Old School user deck is legal", () => {
         const deck = toUserLobbyDeck(
             userDeck({ format: "old-school", cards: legalOldSchoolMain() })
