@@ -501,13 +501,16 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(queryMounts.some((m) => m.ref === "getSeatDeck")).toBe(false);
     });
 
-    it("primes the Brain worker with its own decklist's Manifest entries (issue #5617)", async () => {
+    it("primes the Brain worker with its own decklist's Manifest entries before its first consult (issue #5617)", async () => {
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN, BEARS]);
         seatKnowledge[HUMAN] = knows(HUMAN, [WURM]);
-        currentState = botStateWithLibrary(1);
+        // The human holds priority: nothing is owed, nothing is searched —
+        // the worker installs its shards while the game is elsewhere.
+        currentState = botState({ priorityPlayerId: HUMAN });
         renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();
 
+        expect(searchAdapterCalls()).toEqual([]);
         const primed = new Set(
             primedManifests.flat().map((e) => e.definitionId)
         );
