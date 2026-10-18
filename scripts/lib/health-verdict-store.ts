@@ -438,9 +438,18 @@ export function githubVerdictStore(opts: GithubStoreOptions): VerdictStore {
 // The one factory every consumer calls
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The machine name a verdict records. */
-export function machineName(): string {
-    return hostname().replace(/\.local$/, "");
+/** The mark a GitHub-hosted runner's machine name carries (issue #5858):
+ *  its hostname is an ephemeral VM's, so without it a hosted verdict reads
+ *  like any other machine's and the ladder cannot tell the runner class. */
+export const HOSTED_MACHINE_PREFIX = "github-hosted/";
+
+/** The machine name a verdict records — prefixed on a GitHub-hosted runner. */
+export function machineName(env: NodeJS.ProcessEnv = process.env): string {
+    const host = hostname().replace(/\.local$/, "");
+    return env.GITHUB_ACTIONS === "true" &&
+        env.RUNNER_ENVIRONMENT === "github-hosted"
+        ? `${HOSTED_MACHINE_PREFIX}${host}`
+        : host;
 }
 
 export function originRepo(root: string): string {

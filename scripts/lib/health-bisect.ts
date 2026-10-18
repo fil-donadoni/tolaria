@@ -12,15 +12,18 @@
  *     and stands.
  *  2. **Not reproduced** → the RED closes as GREEN (`flake: …`, last writer
  *     wins on the sha) and each flaky file is filed, once (an open issue of
- *     the same title gets a comment instead).
+ *     the same title gets a comment instead) — only when the fresh run ran
+ *     on the RED's runner class (`notReproduced`, issue #5858). A hosted RED
+ *     that passes on `lane` is environment-dependent: the RED stands, its
+ *     evidence names both machines.
  *  3. **Reproduced** → bisect the base's first-parent commits after the last
  *     GREEN: the failing files at each probe, a probe at a commit that does
  *     not have a file yet skips it (a test the culprit added is green before
  *     it). The first red commit is the culprit; its PR rides in the evidence.
  *
- * Node builtins plus `lib/health-verdict-store.ts` (types only).
+ * Node builtins plus `lib/health-verdict-store.ts`.
  */
-import type { Verdict } from "./health-verdict-store";
+import { HOSTED_MACHINE_PREFIX, type Verdict } from "./health-verdict-store";
 
 /** What a fresh run of one RED re-runs. */
 export type FreshRun =
@@ -110,6 +113,38 @@ export function flakeVerdict(input: {
         machine: input.machine,
         at: input.at,
         ...(input.log ? { log: input.log } : {}),
+    };
+}
+
+/** The runner class a verdict's `machine` names: `machineName()` marks a
+ *  GitHub-hosted runner's; every other name is a self-hosted machine's. */
+export function runnerClass(
+    machine: string | undefined
+): "github-hosted" | "self-hosted" {
+    return machine?.startsWith(HOSTED_MACHINE_PREFIX)
+        ? "github-hosted"
+        : "self-hosted";
+}
+
+/** What a fresh run that passed proves (issue #5858): a flake only on the
+ *  RED's own runner class. On another class the same sha passing says the
+ *  failure needs the RED's environment (a missing file, a secret, a tool
+ *  version) — deterministic there, so the RED stands and its evidence names
+ *  both machines. */
+export type NotReproduced =
+    | { kind: "flake" }
+    | { kind: "environment"; line: string };
+
+export function notReproduced(input: {
+    redMachine: string | undefined;
+    freshMachine: string;
+}): NotReproduced {
+    const red = runnerClass(input.redMachine);
+    const fresh = runnerClass(input.freshMachine);
+    if (red === fresh) return { kind: "flake" };
+    return {
+        kind: "environment",
+        line: `${LADDER_MARK}not bisected — environment-dependent, not a flake: the RED ran on \`${input.redMachine ?? "-"}\` (${red}), the fresh run passed at the same sha on \`${input.freshMachine}\` (${fresh})`,
     };
 }
 

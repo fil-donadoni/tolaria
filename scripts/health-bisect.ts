@@ -6,7 +6,9 @@
  *   bun run health:bisect ladder [--sha <sha>] [--dry-run]
  *       The RED at <sha> (default: this machine's last health run, when it
  *       was RED) re-runs fresh at the same sha. Not reproduced → the RED
- *       closes as GREEN and the flaky test is filed. Reproduced → bisect.
+ *       closes as GREEN and the flaky test is filed — on the RED's runner
+ *       class only; on another, the RED stands as environment-dependent
+ *       (issue #5858). Reproduced → bisect.
  *       Exit 0: no RED stands (none, or closed GREEN); 1: the RED stands
  *       (or the last run was INFRA); 2: usage.
  *   bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] [--dry-run]
@@ -35,6 +37,7 @@ import {
     LADDER_MARK,
     laddered,
     lastGreenOf,
+    notReproduced,
     remainingGates,
     vitestCommands,
     type FreshRun,
@@ -447,6 +450,19 @@ function ladder(ctx: Ctx): number {
         return 1;
     }
     if (outcome === "green") {
+        const passed = notReproduced({
+            redMachine: verdict?.machine,
+            freshMachine: machineName(),
+        });
+        if (passed.kind === "environment") {
+            note(
+                ctx,
+                "not reproduced on another runner class — the RED stands, environment-dependent"
+            );
+            note(ctx, passed.line);
+            publishCulprit(ctx, passed.line);
+            return 1;
+        }
         const v = flakeVerdict({
             sha: ctx.sha,
             plan,
