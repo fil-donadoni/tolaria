@@ -26,8 +26,13 @@ import type { BrainWorkerMessage } from "../brain-residency";
 
 let resolveResidency: () => void;
 let rejectResidency: (cause: unknown) => void;
-const makeResident = vi.fn(
-    (_ids: readonly string[], _hints: ReadonlyMap<string, string>) =>
+const makeResident = vi.fn<
+    (
+        ids: readonly string[],
+        hints: ReadonlyMap<string, string>
+    ) => Promise<void>
+>(
+    () =>
         new Promise<void>((resolve, reject) => {
             resolveResidency = resolve;
             rejectResidency = reject;
@@ -42,7 +47,9 @@ const hintedShardKeys = vi.fn(
         return entries.map((e) => `compiled:${e.setCode}`);
     }
 );
-const installShards = vi.fn((_keys: Iterable<string>) => Promise.resolve());
+const installShards = vi.fn<(keys: Iterable<string>) => Promise<void>>(() =>
+    Promise.resolve()
+);
 const hydrateCatalogue = vi.fn(() => Promise.resolve(0));
 const handleBrainRequest = vi.fn(
     (request: BrainRequest): BrainResponse => ({
