@@ -545,11 +545,10 @@ function boardSide(
             const withDraws = [...landing];
             for (let i = 0; i < drawn; i++) withDraws.push(library.mean);
             // CR 514.1 / 402.2 — the cleanup discard keeps the player's best
-            // cards up to the maximum hand size.
+            // cards up to the maximum hand size, read over the hands that
+            // can reach that cleanup (`cleanupKeptGain`).
             const cap = effectiveMaxHandSize(player, state);
-            return (
-                (keptWorth(withDraws, cap) - keptWorth(landing, cap)) / scale
-            );
+            return cleanupKeptGain(landing, withDraws, cap) / scale;
         },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
@@ -787,6 +786,36 @@ function keptWorth(values: readonly number[], cap: number): number {
     let kept = 0;
     for (let i = 0; i < cap; i++) kept += best[i];
     return kept;
+}
+
+/** Issue #5579 — how many cards either side of the leaf's hand the hand
+ *  that reaches cleanup may hold. */
+const CLEANUP_HAND_SPREAD = 1;
+
+/** Issue #5579 — what the cleanup discard (CR 514.1) lets `withDraws` keep
+ *  over `landing`, read over the hands that can reach that cleanup rather
+ *  than the leaf's hand alone. Between the leaf and the player's cleanup it
+ *  draws for its turn (CR 504.1) and plays a main phase: on average the two
+ *  cancel (the reading issue #5164 shipped), but either may outrun the
+ *  other by a card. Read at the leaf's hand only, one card in or out of a
+ *  hand at the maximum hand size swung the reading by a whole kept card;
+ *  averaged over the leaf's hand ± `CLEANUP_HAND_SPREAD` cards, one card
+ *  moves it by a share of one, and the cleanup rule's reading stands at the
+ *  extremes (a near-empty hand keeps the card whole, a hand past the
+ *  maximum keeps only what it beats). A card more or fewer is read as a
+ *  maximum hand size one fewer or more — the cards spent or drawn are not
+ *  priced individually. */
+function cleanupKeptGain(
+    landing: readonly number[],
+    withDraws: readonly number[],
+    cap: number
+): number {
+    let gain = 0;
+    for (let k = -CLEANUP_HAND_SPREAD; k <= CLEANUP_HAND_SPREAD; k++) {
+        const room = Math.max(0, cap - k);
+        gain += keptWorth(withDraws, room) - keptWorth(landing, room);
+    }
+    return gain / (2 * CLEANUP_HAND_SPREAD + 1);
 }
 
 /** Issue #4773 — the realised loss a `forEach` over the battlefield takes
