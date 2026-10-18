@@ -960,9 +960,10 @@ Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 
 `.mergify.yml` (ADR 0156 §3 and §8, Amendment I; issue #5642). Mergify reads
 it from the **base** branch, so a PR is judged by the rules already merged,
-never by its own. It is in [shadow](#g-shadow): it acts only on PRs the owner
-labels `queue:shadow`; every other `ready-to-land` PR still goes through the
-land-runner.
+never by its own. It is in [shadow](#g-shadow): it acts only on PRs labelled
+`queue:shadow`, and since issue #5952 `land:ready` adds that label to every PR
+the queue admits. The land-runner lands the rest: a PR touching `.github/` or
+`.mergify.yml`, and any PR handed back to it.
 
 | Rule                       | Value                                                                                                                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -981,13 +982,21 @@ label is off (`dequeued_label: null`): any other dequeue — the PR updated, a
 conflict ([`pr-refresh`](#pr-refresh) handles those), a manual dequeue —
 leaves the PR queued again as soon as its conditions hold.
 
-**Moving a PR to shadow** — the owner, by label, on a PR already
-`ready-to-land`:
+**Who lands a PR** is decided at hand-off. `land:ready` adds `queue:shadow`
+beside `ready-to-land` when no changed path is under `.github/` and none is
+`.mergify.yml` (`queueAdmits`, `scripts/lib/land-labels.ts`, mirroring the
+two path exclusions of `queue_conditions`), and prints which merger has the
+PR. A repair's `land:ready` hands it to the same merger again. The fallback,
+should the queue stall, is a label:
 
 ```bash
-gh pr edit <N> --add-label queue:shadow   # Mergify queues it
-gh pr edit <N> --remove-label queue:shadow   # back to the land-runner
+gh pr edit <N> --remove-label queue:shadow   # this PR back to the land-runner
+gh pr list --label queue:shadow --state open --json number --jq '.[].number' |
+    xargs -I{} gh pr edit {} --remove-label queue:shadow   # every PR back
 ```
+
+To stop new hand-offs going to the queue, revert issue #5952's one-line
+change in `land:ready`.
 
 The land-runner never touches a `queue:shadow` PR — not to land it, not to
 unlabel it once Mergify merged it: its `gh pr list` excludes the label and
@@ -995,7 +1004,10 @@ unlabel it once Mergify merged it: its `gh pr list` excludes the label and
 pinned by `scripts/__tests__/land-runner.test.ts`). So a PR has exactly one
 merger. What the land-runner does after a merge — closing the issue,
 releasing the claim, seeding the preset scenario — it does not do for a
-shadow PR; that moves with the cut-over.
+shadow PR: [`post-merge`](#post-merge) does it for every merge, whoever
+merged — `housekeeping` closes the issue the branch names if the merge left
+it open (issue #5952), then releases its claim; `seed` seeds the preset
+scenario.
 
 The [structure guard](#the-structure-guard) pins the entry, merge,
 parallel-check, batch and dequeue rows (`queue-entry`, `queue-merge`,
@@ -1354,8 +1366,9 @@ machine are not in it: set the budget with that headroom.
 
 ### <a id="g-shadow"></a>Shadow
 
-Phase 1 of the queue (ADR 0156 § Migration): Mergify lands only the PRs the
-owner labels `queue:shadow`, the land-runner the rest, so the two run side by
+Phase 1 of the queue (ADR 0156 § Migration): Mergify lands only the PRs
+labelled `queue:shadow` — since issue #5952 every PR `land:ready` hands off
+that the queue admits — and the land-runner the rest, so the two run side by
 side on real PRs before the cut-over drops the label.
 
 ### <a id="g-trusted-authors"></a>`TRUSTED_AUTHORS`

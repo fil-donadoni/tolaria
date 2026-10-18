@@ -339,6 +339,7 @@ describe("housekeeping.ts — the steps", () => {
             pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457")
         );
         expect(steps.map((s) => s.holesExit === true)).toEqual([
+            false,
             true,
             false,
             false,
@@ -360,11 +361,19 @@ describe("housekeeping.ts — the steps", () => {
         expect(source).toMatch(/if \(retry\) failed\.add\(pr\.number\);/);
     });
 
-    it("per PR: residue, then the claim release, then the umbrella detach — on the issue the branch names, no band (issues #5222, #3130, #4235, #5871)", () => {
+    it("per PR: the issue's close, residue, the claim release, then the umbrella detach — on the issue the branch names, no band (issues #5952, #5222, #3130, #4235, #5871)", () => {
         const steps = prSteps(
             pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457")
         );
         expect(steps.map((s) => s.argv)).toEqual([
+            [
+                "gh",
+                "issue",
+                "close",
+                "5457",
+                "--comment",
+                "Closed by the merge of PR #5458.",
+            ],
             ["bun", "scripts/grammar-residue.ts", "5457", "--pr", "5458"],
             [
                 "gh",

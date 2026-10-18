@@ -30,6 +30,7 @@ import {
     type LandFailure,
     type QueuedPr,
 } from "../lib/land-runner";
+import { queueAdmits } from "../lib/land-labels";
 
 const pr = (
     number: number,
@@ -372,7 +373,7 @@ describe("the PR comments", () => {
 
 describe("label moves", () => {
     it("ready adds ready-to-land and drops land-failed (a repair re-queues with one verb)", () => {
-        expect(labelArgs.ready(5)).toEqual([
+        expect(labelArgs.ready(5, { shadow: false })).toEqual([
             "pr",
             "edit",
             "5",
@@ -381,6 +382,40 @@ describe("label moves", () => {
             "--remove-label",
             FAILED_LABEL,
         ]);
+    });
+
+    it("ready hands a queue-eligible PR to Mergify with queue:shadow (issue #5952)", () => {
+        expect(labelArgs.ready(5, { shadow: true })).toEqual([
+            "pr",
+            "edit",
+            "5",
+            "--add-label",
+            READY_LABEL,
+            "--add-label",
+            SHADOW_LABEL,
+            "--remove-label",
+            FAILED_LABEL,
+        ]);
+    });
+});
+
+describe("queueAdmits — the queue_conditions path exclusions (issue #5952)", () => {
+    it("admits a diff with no workflow file and no Mergify config", () => {
+        expect(
+            queueAdmits([
+                "scripts/land-ready.ts",
+                "docs/guides/github-pipeline.md",
+            ])
+        ).toBe(true);
+    });
+
+    it("refuses a diff touching .github/ or .mergify.yml — the runner keeps it", () => {
+        expect(queueAdmits(["scripts/a.ts", ".github/workflows/x.yml"])).toBe(
+            false
+        );
+        expect(queueAdmits([".mergify.yml"])).toBe(false);
+        // A lookalike path is not the config file.
+        expect(queueAdmits(["docs/.mergify.yml.md", "x/.github/y"])).toBe(true);
     });
 
     it("failed swaps ready-to-land for land-failed; unqueue only drops ready-to-land", () => {
