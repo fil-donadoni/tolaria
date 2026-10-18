@@ -1,9 +1,20 @@
 ---
 title: A "combat-to-and-by" prevention slot is signed beneficial, so Maze of Ith on the opponent's attacker reads as misdirected
 discoveredBy: 5815
-status: draft
+status: declined
 confidence: medium
+declinedReason: >
+    No decision moves today. The sign is read by the root misdirection penalty,
+    which ranks siblings of ONE announcement against each other, and every
+    candidate of an "attacking creature" requirement sits on the active
+    player's side in a two-player game — the own-vs-opponent split this
+    finding assumed never exists. Elvish Scout / Ebony Horse are
+    `controller: "you"`, Goblin Snowman is `$source`. The only reachable
+    effect is a future Bot-play sweep pose once Maze of Ith / Foxfire compile
+    `ready` (both `unparsed` today): a gap row there is the signal to act.
 ---
+
+**DECLINED (triage of issue #5815's finding).** See `declinedReason`.
 
 **What is wrong.** Issue #5815 made `opBeneficence` read `preventDamage`'s
 sign off its mode: `"all-from-source"` names the source whose damage is erased
