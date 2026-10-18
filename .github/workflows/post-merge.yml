@@ -2,10 +2,13 @@
 # 0156 Amendment I, issue #5644): on every machine, fast-forward the primary
 # checkout, remove the merged PR's worktree and ingest the telemetry; on the
 # `seed` machine, seed the PR's preset scenario (and every preset list when a
-# card set changed); on one machine, `housekeeping` (gaps:sync with its direct
-# push, grammar residue, claim release, umbrella detach). Two schedules cover
-# what no push triggers: housekeeping's hourly retry and `health:nightly`.
+# card set changed); on ANY one lane runner, `housekeeping` (gaps:sync with its
+# direct push, grammar residue, claim release, umbrella detach). Two schedules
+# cover what no push triggers: housekeeping's hourly retry and `health:nightly`.
 # They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
+# No job requires one host (issue #5873): `housekeeping` and `nightly` keep
+# their state in `refs/tolaria/state` and work in a worktree of their own, so
+# a runner that is offline or broken costs nothing but its own `sync` leg.
 #
 # `branches:` names the base by literal because a workflow cannot read
 # tolaria.config.json: renaming the base (ADR 0116) means editing this line
@@ -92,7 +95,14 @@ jobs:
     housekeeping:
         name: housekeeping
         if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || inputs.job == 'housekeeping' }}
-        runs-on: [self-hosted, lane, host:huawei]
+        # Any lane runner (issue #5873): its state is shared and its work
+        # happens in a throwaway worktree, so no host is required. One run at
+        # a time across machines; a RUNNING run is never cancelled, a pending
+        # one dropped loses nothing (the next run re-reads every fact).
+        runs-on: [self-hosted, lane]
+        concurrency:
+            group: post-merge-housekeeping
+            cancel-in-progress: false
         timeout-minutes: 50
         steps:
             - name: Job worktree
@@ -113,7 +123,11 @@ jobs:
     nightly:
         name: health:nightly
         if: ${{ github.event.schedule == '40 3 * * *' || inputs.job == 'nightly' }}
-        runs-on: [self-hosted, lane, host:huawei]
+        # Any lane runner (issue #5873); its record is shared state too.
+        runs-on: [self-hosted, lane]
+        concurrency:
+            group: post-merge-nightly
+            cancel-in-progress: false
         timeout-minutes: 360
         steps:
             - name: Job worktree

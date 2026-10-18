@@ -431,6 +431,76 @@ describe("workflow structure guard", () => {
         ).toEqual(["dispatcher-serialised", "concurrency-group"]);
     });
 
+    it("requires a shared post-merge duty to run one at a time by a job-level group, and admits exactly that (issue #5873)", () => {
+        const group =
+            "    concurrency:\n      group: post-merge-housekeeping\n      cancel-in-progress: false\n";
+        const serialised = edit(
+            SELF_HOSTED,
+            "    timeout-minutes: 30\n",
+            `    timeout-minutes: 30\n${group}`
+        ).replace("  lane:\n", "  housekeeping:\n");
+        const postMerge = (text: string): StructureInput => ({
+            ...fixture(),
+            workflows: [
+                ...fixture().workflows,
+                { path: ".github/workflows/post-merge.yml", text },
+            ],
+        });
+        expect(rules(postMerge(serialised))).toEqual([]);
+        // No group: two machines could move one watermark twice.
+        expect(
+            rules(
+                postMerge(SELF_HOSTED.replace("  lane:\n", "  housekeeping:\n"))
+            )
+        ).toEqual(["dispatcher-serialised"]);
+        // A job of the same workflow that is not a shared duty keeps the ban.
+        expect(
+            rules(
+                postMerge(serialised.replace("  housekeeping:\n", "  sync:\n"))
+            )
+        ).toEqual(["concurrency-group"]);
+        // Cancelling a RUNNING run is still refused.
+        expect(
+            rules(
+                postMerge(
+                    edit(
+                        serialised,
+                        "cancel-in-progress: false",
+                        "cancel-in-progress: true"
+                    )
+                )
+            )
+        ).toEqual(["concurrency-group", "dispatcher-serialised"]);
+    });
+
+    it("refuses a self-hosted job pinned to one host by a literal label; a matrix or input expression is not a pin (issue #5873)", () => {
+        const pinned = edit(
+            SELF_HOSTED,
+            "runs-on: [self-hosted, lane]",
+            "runs-on: [self-hosted, lane, host:huawei]"
+        );
+        expect(rules(fixture({ self: pinned }))).toEqual(["host-pinned"]);
+        const matrix = edit(
+            SELF_HOSTED,
+            "runs-on: [self-hosted, lane]",
+            'runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]'
+        );
+        expect(rules(fixture({ self: matrix }))).toEqual([]);
+        const input = edit(
+            SELF_HOSTED,
+            "runs-on: [self-hosted, lane]",
+            "runs-on: [self-hosted, lane, \"host:${{ inputs.host || 'macbook' }}\"]"
+        );
+        expect(rules(fixture({ self: input }))).toEqual([]);
+        // The `{ group, labels }` form pins just the same.
+        const grouped = edit(
+            SELF_HOSTED,
+            "runs-on: [self-hosted, lane]",
+            "runs-on:\n      group: ours\n      labels: [lane, host:huawei]"
+        );
+        expect(rules(fixture({ self: grouped }))).toEqual(["host-pinned"]);
+    });
+
     it("refuses actions/checkout on a self-hosted job", () => {
         const self = edit(
             SELF_HOSTED,

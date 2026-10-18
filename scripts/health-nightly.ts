@@ -22,8 +22,12 @@
  * cron queues behind a `land` or a health run instead of racing it. Exit 1
  * when a step failed, so the cron's log says so; 0 otherwise.
  *
- * Its record (`nightly.json`, beside `last.json`) is what the next night
- * reads: the tip last measured, when the audits last ran.
+ * Its record — the tip last measured, when the audits last ran — is SHARED
+ * state (issue #5873: the `nightly` key of `refs/tolaria/state`,
+ * `lib/shared-state.ts`), because the job runs on whichever lane runner is
+ * free: a night on the MacBook must know what the Huawei measured. A
+ * `nightly.json` beside `last.json` from before that is read once, as the
+ * first shared record, when the ref holds none.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -31,9 +35,7 @@ import {
     existsSync,
     mkdirSync,
     readFileSync,
-    renameSync,
     rmSync,
-    writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
@@ -62,7 +64,13 @@ import {
     runHealthStep,
     WALK_BOOTSTRAP,
 } from "./lib/health-step";
+import { readVerdictLineage, verdictStore } from "./lib/health-verdict-store";
 import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    SharedStateConflict,
+    readSharedState,
+    writeSharedState,
+} from "./lib/shared-state";
 
 const HEALTH_DIR = join(".claude", "telemetry", "health");
 const GATE = resolve(__dirname, "gate.ts");
@@ -79,24 +87,57 @@ function git(args: string[], cwd: string): string {
     return r.stdout.trim();
 }
 
-function readRecord(dir: string): NightlyRecord {
+/** The shared-state key of the nightly record (issue #5873). */
+const RECORD_KEY = "nightly";
+
+/** The ref sha the record was read at: the lease of every write. */
+let recordLease: string | null = null;
+
+function parseRecord(raw: string | null): NightlyRecord {
     try {
         return {
             ...EMPTY_NIGHTLY,
-            ...(JSON.parse(
-                readFileSync(join(dir, NIGHTLY_RECORD_FILE), "utf8")
-            ) as Partial<NightlyRecord>),
+            ...(JSON.parse(raw ?? "") as Partial<NightlyRecord>),
         };
     } catch {
         return { ...EMPTY_NIGHTLY };
     }
 }
 
-/** Atomic, like the cadence ledger: a reader sees one whole version. */
-function writeRecord(dir: string, record: NightlyRecord): void {
-    const tmp = join(dir, `${NIGHTLY_RECORD_FILE}.${process.pid}.tmp`);
-    writeFileSync(tmp, JSON.stringify(record, null, 2));
-    renameSync(tmp, join(dir, NIGHTLY_RECORD_FILE));
+/** The shared record; the local file of a machine from before issue #5873
+ *  when the ref holds none. Throws when origin does not answer: a night
+ *  that cannot know what was measured measures nothing. */
+function readRecord(root: string, dir: string): NightlyRecord {
+    const shared = readSharedState(root, RECORD_KEY);
+    recordLease = shared.sha;
+    if (shared.raw !== null) return parseRecord(shared.raw);
+    try {
+        return parseRecord(
+            readFileSync(join(dir, NIGHTLY_RECORD_FILE), "utf8")
+        );
+    } catch {
+        return { ...EMPTY_NIGHTLY };
+    }
+}
+
+/** Compare-and-swap on the ref: the job's concurrency group keeps two
+ *  nightlies apart, so a conflict is a hand run racing the job — this
+ *  write is dropped, loudly, and the night's work stands (idempotent). */
+function writeRecord(root: string, record: NightlyRecord): void {
+    try {
+        recordLease = writeSharedState(
+            root,
+            RECORD_KEY,
+            JSON.stringify(record, null, 2),
+            recordLease
+        );
+    } catch (err) {
+        console.error(
+            err instanceof SharedStateConflict
+                ? "health-nightly: the shared record moved under this run — its record is not written; the next night re-reads"
+                : `health-nightly: could not write the shared record — ${(err as Error).message}`
+        );
+    }
 }
 
 /** Paths changed between the last refreshed tip and `tip`, or `null` when
@@ -163,36 +204,63 @@ async function refresh(root: string, dir: string, tip: string) {
 }
 
 /**
- * File the Bot Gaps for the measured tip (`gaps:sync`, issue #4944): it
- * commits and pushes the allowlist from the PRIMARY checkout and reads ITS
- * tree, so it runs only when that tree is the measured tip. Tracked apart
- * from the measurement (`filedSha`): a night whose primary lagged files on a
- * later night, without waiting for the Bot to move again.
+ * File the Bot Gaps for the measured tip (`gaps:sync`, issue #4944) — in a
+ * throwaway worktree AT that tip (issue #5873), never in the primary
+ * checkout: the job runs on whichever machine is free, and a primary is the
+ * owner's. The script commits and pushes the allowlist from the worktree and
+ * exits 1 when that push did not land (issue #5871): a failed filing, never
+ * a worktree discarded in silence. Tracked apart from the measurement
+ * (`filedSha`): a night that failed to file files on a later night, without
+ * waiting for the Bot to move again.
  */
 async function file(
     root: string,
     dir: string,
     tip: string
-): Promise<"filed" | "skipped" | "failed"> {
-    if (git(["rev-parse", "HEAD"], root) !== tip) {
-        console.error(
-            `health-nightly: ${FILING_STEP_NAME} skipped — the primary checkout is not at the measured tip ${tip.slice(0, 12)}; Bot Gaps file on a later night`
-        );
-        return "skipped";
-    }
-    const step = botRefreshSteps(0, root).find(
-        (s) => s.name === FILING_STEP_NAME
-    )!;
+): Promise<"filed" | "failed"> {
+    const wt = join(root, "..", `tolaria-nightly-file-${process.pid}`);
     const logPath = join(dir, `${tip.slice(0, 12)}.nightly.log`);
-    const r = await runHealthStep(
-        { ...step, ordinal: 1, total: 1 },
-        { cwd: root, env: healthGateEnv(process.env), logPath }
-    );
-    if (r.ok) return "filed";
-    console.error(
-        `health-nightly: ${FILING_STEP_NAME} failed — Bot Gaps not filed tonight (${logPath})`
-    );
-    return "failed";
+    const env = healthGateEnv(process.env);
+    try {
+        git(["worktree", "add", "--detach", wt, tip], root);
+        const boot = await runHealthStep(
+            {
+                ordinal: 1,
+                total: 2,
+                name: WALK_BOOTSTRAP,
+                cmd: "bun",
+                args: healthStepArgs(WALK_BOOTSTRAP),
+            },
+            { cwd: wt, env, logPath }
+        );
+        if (!boot.ok) {
+            console.error(
+                `health-nightly: ${WALK_BOOTSTRAP} failed — Bot Gaps not filed tonight (${logPath})`
+            );
+            return "failed";
+        }
+        const step = botRefreshSteps(0, wt).find(
+            (s) => s.name === FILING_STEP_NAME
+        )!;
+        const r = await runHealthStep(
+            { ...step, ordinal: 2, total: 2 },
+            { cwd: wt, env, logPath }
+        );
+        if (!r.ok) {
+            console.error(
+                `health-nightly: ${FILING_STEP_NAME} failed — Bot Gaps not filed tonight (${logPath})`
+            );
+            return "failed";
+        }
+        return "filed";
+    } catch (err) {
+        console.error(
+            `health-nightly: ${FILING_STEP_NAME} threw — ${String(err)}`
+        );
+        return "failed";
+    } finally {
+        spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
+    }
 }
 
 /** The two audits, in full, on the tip the last verdict is about — each in
@@ -202,16 +270,15 @@ function audits(
     dir: string,
     reason: string
 ): { ran: boolean; ok: boolean } {
-    let last: { sha?: string; status?: string } | null = null;
-    try {
-        last = JSON.parse(readFileSync(join(dir, "last.json"), "utf8"));
-    } catch {
-        last = null;
-    }
+    // The verdict store, not this machine's `last.json` (issue #5873): the
+    // job runs on either machine, and the tip the last GREEN or RED is about
+    // is the same from both.
+    const lineage = readVerdictLineage(() => verdictStore(root));
+    const last = lineage.verdict;
     const sha = last?.sha;
     if (!sha || (last?.status !== "green" && last?.status !== "red")) {
         console.log(
-            `health-nightly: audits owed (${reason}) but no GREEN or RED verdict to follow (last: ${last?.status ?? "none"}) — next night`
+            `health-nightly: audits owed (${reason}) but no GREEN or RED verdict to follow (store: ${last?.status ?? lineage.error ?? "none"}) — next night`
         );
         return { ran: false, ok: true };
     }
@@ -252,7 +319,15 @@ async function main(): Promise<number> {
     const root = primaryCheckout(process.cwd());
     const dir = join(root, HEALTH_DIR);
     mkdirSync(dir, { recursive: true });
-    const record = readRecord(dir);
+    let record: NightlyRecord;
+    try {
+        record = readRecord(root, dir);
+    } catch (err) {
+        console.error(
+            `health-nightly: could not read the shared record (${(err as Error).message.split("\n")[0]}) — nothing measured tonight`
+        );
+        return 1;
+    }
     let code = 0;
 
     // A throw here (fetch, worktree) fails the refresh, never the audits.
@@ -269,10 +344,10 @@ async function main(): Promise<number> {
                 `health-nightly: the base left the Bot alone since ${record.refreshedSha?.slice(0, 12)} — no refresh`
             );
             record.refreshedSha = tip;
-            writeRecord(dir, record);
+            writeRecord(root, record);
         } else if (await refresh(root, dir, tip)) {
             record.refreshedSha = tip;
-            writeRecord(dir, record);
+            writeRecord(root, record);
         } else {
             code = 1;
         }
@@ -282,8 +357,8 @@ async function main(): Promise<number> {
             const filed = await file(root, dir, measured);
             if (filed === "filed") {
                 record.filedSha = measured;
-                writeRecord(dir, record);
-            } else if (filed === "failed") code = 1;
+                writeRecord(root, record);
+            } else code = 1;
         }
     } catch (err) {
         console.error(`health-nightly: Bot refresh threw — ${String(err)}`);
@@ -305,7 +380,7 @@ async function main(): Promise<number> {
     const startedAt = Date.now();
     const run = audits(root, dir, due.reason);
     if (!run.ok) code = 1;
-    if (run.ran) writeRecord(dir, { ...readRecord(dir), auditedAt: startedAt });
+    if (run.ran) writeRecord(root, { ...record, auditedAt: startedAt });
     return code;
 }
 

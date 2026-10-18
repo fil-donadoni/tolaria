@@ -879,7 +879,7 @@ So the full gate moved. `tolaria.config.json` names a **base** branch
 | Step                 | Runs                                                                      | Where (ADR 0154)                          | Mutex                      |
 | -------------------- | ------------------------------------------------------------------------- | ----------------------------------------- | -------------------------- |
 | `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base  | MacBook, by the land-runner (issue #5469) | ≤ 3 min budget (6.8 meas.) |
-| batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | Huawei (`lane` runner)                    | its own machine's          |
+| batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | either machine's `lane` runner            | its own machine's          |
 | `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward     | MacBook                                   | ~13 min + walk, once       |
 | `bun run health`     | the same full gate, by hand, on the base tip                              | either                                    | ~13 min                    |
 
@@ -966,8 +966,10 @@ there. `health:nightly` refreshes the Bot Findings only when `origin/<base>`
 moved the Bot's globs since its last refresh (`nightly.json` beside
 `last.json`), and runs the audits on the weekly night — or on any night once
 the last audit is over eight days old — on the tip the last GREEN or RED
-verdict is about. Neither can red a tip. The cron wiring is the Huawei's
-(issues #5467, #5468).
+verdict is about. Neither can red a tip. Both are jobs of `post-merge.yml` on
+any `lane` runner, their state shared through `refs/tolaria/state` (issue
+#5873); topology B' makes the Huawei the usual taker, never a dependency
+(issues #5467, #5468, #5873).
 
 **The verdict is shared state (issue #5462).** A health verdict on one machine
 was a local file (`last.json`, a `RED` marker), so

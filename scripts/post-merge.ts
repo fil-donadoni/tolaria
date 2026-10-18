@@ -18,23 +18,51 @@
  * failures behind `; true` because a merge cannot be undone, a workflow can
  * simply be re-run.
  *
+ * A PRIMARY THAT DIVERGED (issue #5873). Observed 2026-10-16: a `gaps:sync`
+ * allowlist commit whose push lost a race stayed on the Huawei's primary, and
+ * from then on every `sync` leg there failed, silently, for a day. Now the
+ * fast-forward HEALS the one divergence that is the pipeline's own — local
+ * commits that are all `gaps:sync` allowlist writes (`strandedAllowlistOnly`,
+ * dropped with `reset --keep`; the next sync re-derives every number) — and
+ * for any other divergence the leg goes red AND tells the owner through the
+ * channel a RED uses (`lib/notify-owner.ts`), once per distinct failure
+ * (`.claude/telemetry/post-merge/notice.json` beside the log remembers the
+ * last one; a green leg clears it). What this leg cannot heal is the owner's
+ * — nothing else on the machine depends on it: `housekeeping` and `nightly`
+ * run on any lane runner and never touch the primary.
+ *
  * The decisions are `lib/post-merge.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { hostname } from "node:os";
+import { join } from "node:path";
+import { ALLOWLIST_PATH } from "./check-gaps";
+import { ALLOWLIST_COMMIT_SUBJECT } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
+import { forgetNotice, notifyOnce } from "./lib/notify-owner";
 import {
     mergedPrNumbers,
     cwdInside,
     mergedWorktree,
     pushRange,
     seedPlan,
+    syncNotice,
 } from "./lib/post-merge";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 /** Wall for one child: a hung `convex` call must not hold the lane runner. */
 const STEP_WALL_MS = 10 * 60_000;
+
+/** Where the last notice sent for a red `sync` leg is remembered, relative
+ *  to the primary checkout. */
+export const NOTICE_FILE = join(
+    ".claude",
+    "telemetry",
+    "post-merge",
+    "notice.json"
+);
 
 function git(args: string[], cwd: string): { ok: boolean; out: string } {
     const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -52,9 +80,47 @@ function bun(args: string[], cwd: string): boolean {
 }
 
 /**
+ * The local commits a fast-forward refused on, when every one of them is a
+ * `gaps:sync` allowlist write whose push lost a race — the one divergence
+ * this script repairs (by dropping them: the next sync re-derives them).
+ * Anything else, or nothing, is false. Pure.
+ */
+export function strandedAllowlistOnly(
+    commits: ReadonlyArray<{ subject: string; files: string[] }>
+): boolean {
+    return (
+        commits.length > 0 &&
+        commits.every(
+            (c) =>
+                c.subject === ALLOWLIST_COMMIT_SUBJECT &&
+                c.files.length === 1 &&
+                c.files[0] === ALLOWLIST_PATH
+        )
+    );
+}
+
+/** The primary checkout's commits not on `origin/<base>`, with their files. */
+export function localCommits(
+    primary: string
+): { subject: string; files: string[] }[] {
+    const shas = git(["rev-list", `${ORIGIN_BASE}..HEAD`], primary).out;
+    return shas === ""
+        ? []
+        : shas.split("\n").map((sha) => ({
+              subject: git(["log", "-1", "--format=%s", sha], primary).out,
+              files: git(
+                  ["diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                  primary
+              ).out.split("\n"),
+          }));
+}
+
+/**
  * Fetch, then fast-forward the primary checkout — only when it has the base
  * branch checked out, and `--ff-only` on top: anything else would move a
- * branch of the owner's work in progress (the guard `land` always had).
+ * branch of the owner's work in progress (the guard `land` always had). A
+ * refusal over stranded `gaps:sync` commits alone is healed (issue #5873):
+ * they are dropped and the fast-forward retried.
  */
 export function fastForward(primary: string): boolean {
     if (
@@ -71,13 +137,32 @@ export function fastForward(primary: string): boolean {
         );
         return false;
     }
-    if (!git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary).ok) {
+    if (git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary).ok)
+        return true;
+    const local = localCommits(primary);
+    if (strandedAllowlistOnly(local)) {
+        if (
+            git(["reset", "--keep", "--quiet", ORIGIN_BASE], primary).ok &&
+            git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary).ok
+        ) {
+            console.log(
+                `post-merge: healed ${primary} — dropped ${local.length} stranded gaps:sync commit(s) (the next sync re-derives them)`
+            );
+            return true;
+        }
         console.error(
-            `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} — pull it by hand`
+            `post-merge: could not drop the stranded gaps:sync commit(s) in ${primary}`
         );
         return false;
     }
-    return true;
+    console.error(
+        `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} — ${
+            local.length === 0
+                ? "it diverged from the base"
+                : `it holds ${local.length} local commit(s) not on the base: ${local.map((c) => JSON.stringify(c.subject)).join(", ")}`
+        } — pull it by hand`
+    );
+    return false;
 }
 
 /** Remove the worktree a merged PR's session left standing. */
@@ -131,12 +216,40 @@ function readPush(before: string, after: string, primary: string) {
     return { prs: mergedPrNumbers(subjects), files };
 }
 
-export function sync(primary: string, before: string, after: string): boolean {
-    let ok = fastForward(primary);
+/** The failing steps of a `sync`, by name — what the owner's notice lists. */
+export function syncSteps(
+    primary: string,
+    before: string,
+    after: string
+): string[] {
+    const failed: string[] = [];
+    if (!fastForward(primary)) failed.push(`fast-forward of ${primary}`);
     const { prs } = readPush(before, after, primary);
-    for (const pr of prs) ok = removeMergedWorktree(primary, pr) && ok;
-    ok = bun(["scripts/telemetry-ingest.ts", "--quick"], primary) && ok;
-    return ok;
+    for (const pr of prs)
+        if (!removeMergedWorktree(primary, pr))
+            failed.push(`worktree of PR #${pr}`);
+    if (!bun(["scripts/telemetry-ingest.ts", "--quick"], primary))
+        failed.push("telemetry ingest");
+    return failed;
+}
+
+/** Tell the owner about a red leg — once per distinct failure; a green leg
+ *  forgets the last notice. */
+function notice(primary: string, failed: readonly string[]): void {
+    const path = join(primary, NOTICE_FILE);
+    const n = syncNotice(failed, hostname());
+    if (n === null) {
+        forgetNotice(path);
+        return;
+    }
+    if (notifyOnce(path, n.key, n.message, "Tolaria post-merge"))
+        console.log(`post-merge: notifying the owner: ${n.message}`);
+}
+
+export function sync(primary: string, before: string, after: string): boolean {
+    const failed = syncSteps(primary, before, after);
+    notice(primary, failed);
+    return failed.length === 0;
 }
 
 export function seed(primary: string, before: string, after: string): boolean {

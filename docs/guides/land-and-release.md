@@ -224,20 +224,21 @@ Every step is idempotent, so a second run with nothing new merged is a no-op.
 the other machine. `land`'s merged-tip check (step 7 above) does not count
 that one commit — the `gaps:sync` subject on a diff of `data/grammar-gaps.json`
 alone — and still refuses any other foreign push.
-State and logs live in the primary checkout's
-`.claude/telemetry/housekeeping/`: `state.json` (the watermark, plus the PRs
-whose steps failed — retried each run, given up loudly after 24 attempts) and
-`housekeeping.log` (every child's output). A missing state file looks back
-24 h; `--since <ISO>` moves the watermark back for a backfill, `--dry-run`
-prints the plan and writes nothing. Exit 0 = nothing to do or all done, 1 =
-something left to retry.
+Its state — the watermark, plus the PRs whose steps failed (retried each
+run, given up loudly after 24 attempts) — is shared between the machines
+(issue #5873): the `housekeeping` key of the git ref `refs/tolaria/state` on
+origin, written with a compare-and-swap. The log, `housekeeping.log` under
+the primary checkout's `.claude/telemetry/housekeeping/`, is this machine's.
+The work happens in a throwaway worktree of `origin/<base>`, never in the
+primary checkout. No shared state yet looks back 24 h (or reads the
+machine's old `state.json` once); `--since <ISO>` moves the watermark back
+for a backfill, `--dry-run` prints the plan and writes nothing. Exit 0 =
+nothing to do or all done, 1 = something left to retry — and the owner is
+notified, once per distinct failure.
 
-It runs on the crons machine (Huawei, topology B'), from its primary
-checkout, hourly:
-
-```cron
-0 * * * * cd ~/code/mtg/tolaria && bun run housekeeping >/dev/null 2>&1
-```
+It runs as the `housekeeping` job of `post-merge.yml` on any `lane` runner,
+on every push to the base and hourly
+([github-pipeline.md § post-merge](github-pipeline.md#post-merge)).
 
 Until a PR's steps have run, its issue may still carry `in-progress`: that is
 harmless, since the session cap counts OPEN claimed issues only.
