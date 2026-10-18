@@ -31,6 +31,16 @@ export const EXCERPT_LINES = 60;
  *  enough for a gateway blip to pass, short enough that a queue of one PR
  *  is not idle for an hour. */
 export const INFRA_BACKOFF_S = 300;
+/** Consecutive `infra` reds on one PR before it is `land-failed` after all
+ *  (issue #5955): a deterministic line the pattern happens to match must
+ *  reach a human, never re-queue forever. */
+export const INFRA_MAX_STRIKES = 3;
+
+/** One PR's infra backoff: not retried before `until`, `strikes` in a row. */
+export interface Deferral {
+    until: number;
+    strikes: number;
+}
 
 /** One PR as `gh pr list --label ready-to-land --state all` reads it. */
 export interface QueuedPr {
@@ -80,9 +90,8 @@ export function planTick(
         /** `lineageBlocks(lineage.kind)` — RED or second RED. */
         red: boolean;
         repairIssues: readonly number[];
-        /** PR → epoch ms before which it is not retried: an `infra` red's
-         *  backoff (issue #5955). */
-        deferred?: ReadonlyMap<number, number>;
+        /** PR → its infra backoff (issue #5955). */
+        deferred?: ReadonlyMap<number, Deferral>;
         /** Epoch ms now — paired with `deferred`. */
         now?: number;
     }
@@ -135,11 +144,11 @@ export function planTick(
             });
             continue;
         }
-        const until = ctx.deferred?.get(pr.number);
-        if (until !== undefined && (ctx.now ?? 0) < until) {
+        const deferral = ctx.deferred?.get(pr.number);
+        if (deferral !== undefined && (ctx.now ?? 0) < deferral.until) {
             plan.held.push({
                 pr: pr.number,
-                reason: `infra red — retried after ${new Date(until).toISOString()}`,
+                reason: `infra red (${deferral.strikes}/${INFRA_MAX_STRIKES}) — retried after ${new Date(deferral.until).toISOString()}`,
             });
             continue;
         }
@@ -173,6 +182,8 @@ export function outcomeOf(
         lane: LaneJson | null;
         /** Subjects of the PR's commits, newest last. */
         subjects: readonly string[];
+        /** `infra` reds already taken in a row on this PR. */
+        infraStrikes?: number;
     } = { lane: null, subjects: [] }
 ): LandOutcome {
     if (status === 0) return { action: "merged" };
@@ -183,15 +194,27 @@ export function outcomeOf(
         };
     if (status === null)
         return { action: "requeue", reason: "land was killed by a signal" };
-    const cls = classifyRed({ ...red, output });
+    const cls = classifyRed({
+        lane: red.lane,
+        subjects: red.subjects,
+        output,
+    });
     if (cls.kind === "regenerable")
         return { action: "fixup", fixes: cls.fixes };
-    if (cls.kind === "infra")
+    if (cls.kind === "infra") {
+        const strikes = (red.infraStrikes ?? 0) + 1;
+        if (strikes >= INFRA_MAX_STRIKES)
+            return {
+                action: "failed",
+                excerpt: landExcerpt(output),
+                cause: `infra ${strikes} times running (${cls.reason}) — not an outage any more`,
+            };
         return {
             action: "requeue",
             reason: `infra — ${cls.reason}`,
             backoffS: INFRA_BACKOFF_S,
         };
+    }
     return {
         action: "failed",
         excerpt: landExcerpt(output),

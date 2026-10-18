@@ -105,6 +105,7 @@ import {
 import { notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { FIXUP_PUSHED_RE, type LaneJson } from "./pr-fixup";
+import type { Deferral } from "./lib/land-runner";
 import { performRelease } from "./lib/queue-claim";
 import { readRepairIssues } from "./land";
 import { claimLedgerPath } from "./loop-doctor";
@@ -242,7 +243,7 @@ function prepareWorktree(
     pr: number,
     branch: string,
     log: (line: string) => void
-): { dir: string; created: boolean } {
+): { dir: string; created: boolean; head: string } {
     const fetch = git(primary, ["fetch", "origin", branch]);
     if (!fetch.ok)
         throw new PrepError(`git fetch origin ${branch}: ${fetch.out}`, true);
@@ -261,7 +262,11 @@ function prepareWorktree(
                 `could not reset ${existing} to origin/${branch}: ${reset.out}`,
                 true
             );
-        return { dir: existing, created: false };
+        return {
+            dir: existing,
+            created: false,
+            head: git(existing, ["rev-parse", "HEAD"]).out,
+        };
     }
     git(primary, ["worktree", "prune"]);
     const dir = join(dirname(primary), `${basename(primary)}-land-${pr}`);
@@ -289,7 +294,7 @@ function prepareWorktree(
             true
         );
     }
-    return { dir, created: true };
+    return { dir, created: true, head: git(dir, ["rev-parse", "HEAD"]).out };
 }
 
 function dropWorktree(primary: string, dir: string, branch: string): void {
@@ -413,6 +418,8 @@ function runFixup(input: {
     pr: number;
     fixes: readonly string[];
     cwd: string;
+    /** The sha `prepareWorktree` reset the worktree to — the push's lease. */
+    lease: string;
     logPath: string;
     log: (line: string) => void;
 }): Exclude<LandOutcome, { action: "fixup" }> {
@@ -433,6 +440,8 @@ function runFixup(input: {
             "--fixes",
             fixes.join(","),
             "--in-place",
+            "--lease",
+            input.lease,
         ],
         {
             cwd: input.cwd,
@@ -455,6 +464,11 @@ function runFixup(input: {
             reason: `fixed up (${fixes.join(", ")}) — the next tick lands the regenerated tip`,
         };
     }
+    // A fixup that stopped short leaves regenerated files, or a commit the
+    // lease refused: the worktree goes back to a clean tree, or the next
+    // `land:ready` is refused on "uncommitted changes" that are nobody's.
+    git(input.cwd, ["reset", "--hard"]);
+    git(input.cwd, ["clean", "-fd"]);
     const last = out.trim().split("\n").at(-1) ?? `exit ${r.status}`;
     return {
         action: "failed",
@@ -586,11 +600,15 @@ function tick(opts: {
     log: (line: string) => void;
     /** Each `land-failed` relabel — the loop notifies the owner once per burst. */
     onFailed: (failure: LandFailure) => void;
-    /** PR → epoch ms before which it is not retried (`infra`, issue #5955). */
-    deferred: Map<number, number>;
+    /** PR → its infra backoff (issue #5955). */
+    deferred: Map<number, Deferral>;
 }): boolean {
     const { primary, dryRun, log, deferred } = opts;
     const queued = listQueued();
+    // A deferred PR that left the queue (merged by hand, closed, unlabelled)
+    // takes its row with it.
+    for (const n of [...deferred.keys()])
+        if (!queued.some((q) => q.number === n)) deferred.delete(n);
     if (queued.length === 0) {
         if (dryRun) log(`no \`${READY_LABEL}\` PR — nothing to land`);
         return false;
@@ -628,7 +646,7 @@ function tick(opts: {
     // previous landing of the same PR would classify the wrong red.
     const laneJsonPath = join(opts.dir, `land-${pr.number}.lane.json`);
     rmSync(laneJsonPath, { force: true });
-    let wt: { dir: string; created: boolean };
+    let wt: { dir: string; created: boolean; head: string };
     try {
         wt = prepareWorktree(primary, pr.number, pr.headRefName, log);
     } catch (err) {
@@ -688,6 +706,7 @@ function tick(opts: {
             : {
                   lane: readLaneJson(laneJsonPath),
                   subjects: prSubjects(pr.number, log),
+                  infraStrikes: deferred.get(pr.number)?.strikes ?? 0,
               }
     );
     if (landed.action === "fixup")
@@ -700,12 +719,16 @@ function tick(opts: {
                   pr: pr.number,
                   fixes: landed.fixes,
                   cwd: wt.dir,
+                  lease: wt.head,
                   logPath,
                   log,
               })
             : landed;
     if (outcome.action === "requeue" && outcome.backoffS !== undefined) {
-        deferred.set(pr.number, Date.now() + outcome.backoffS * 1000);
+        deferred.set(pr.number, {
+            until: Date.now() + outcome.backoffS * 1000,
+            strikes: (deferred.get(pr.number)?.strikes ?? 0) + 1,
+        });
         log(
             `PR #${pr.number}: retried in ${outcome.backoffS}s (${INFRA_BACKOFF_S}s infra backoff)`
         );
@@ -784,7 +807,7 @@ async function main(): Promise<void> {
     // (issue #5599), flushed when the queue goes quiet or the loop ends.
     let burst: LandFailure[] = [];
     let lastReason: string | null = null;
-    const deferred = new Map<number, number>();
+    const deferred = new Map<number, Deferral>();
     const flushBurst = (): void => {
         const message = describeLandFailures(burst, lastReason);
         if (message === null) return;

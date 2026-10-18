@@ -81,8 +81,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { ORIGIN_BASE } from "./lib/branches";
@@ -1385,7 +1386,7 @@ function shellRun(command: string, cwd: string, json: boolean): ExecResult {
  * inside `check:pr`, and the fixup classifier (`pr-fixup.ts`) tells a stale
  * blade card index from a real red by the files, never by the step. Used
  * whenever the JSON receipt is being recorded (`--json`, or the sidecar
- * `TOLARIA_LANE_JSON_OUT`); the pretty-only run keeps streaming.
+ * `TOLARIA_LANE_JSON_OUT`); the pretty-only run spawns the plain way.
  */
 function shellRunCapturing(
     command: string,
@@ -1393,14 +1394,32 @@ function shellRunCapturing(
     json: boolean
 ): ExecResult {
     const t0 = Date.now();
-    const r = spawnSync("bun", [GATE, "light", command], {
-        stdio: ["inherit", "pipe", "pipe"],
-        cwd,
-        encoding: "utf8",
-        maxBuffer: 512 * 1024 * 1024,
-    });
-    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-    (json ? process.stderr : process.stdout).write(out);
+    // `tee` keeps the output STREAMING (a `check:pr` runs for minutes; a job
+    // killed on its timeout must have logged what it ran) and in order, on
+    // the fd `shellStdio` would have used; the copy is read for the files.
+    // `pipefail` makes the exit `bun`'s, never `tee`'s.
+    const copy = join(tmpdir(), `check-lane-${process.pid}-${Date.now()}.log`);
+    const r = spawnSync(
+        "bash",
+        [
+            "-o",
+            "pipefail",
+            "-c",
+            'exec bun "$1" light "$2" 2>&1 | tee "$3"',
+            "_",
+            GATE,
+            command,
+            copy,
+        ],
+        { stdio: shellStdio(json), cwd }
+    );
+    let out = "";
+    try {
+        out = readFileSync(copy, "utf8");
+        unlinkSync(copy);
+    } catch {
+        // No copy (tee could not write): no files named, never a crash.
+    }
     if (r.status === 0) return { ok: true, ms: Date.now() - t0 };
     return { ok: false, ms: Date.now() - t0, failedFiles: failingFiles(out) };
 }
@@ -1498,9 +1517,9 @@ export function executePlan(
     exec: (command: string) => ExecResult,
     log: (line: string) => void,
     endHeadOf: () => string,
-    /** Where the JSON receipt ALSO goes when the human form is printed
-     *  (`TOLARIA_LANE_JSON_OUT`, issue #5955) — the same `renderJson` call,
-     *  never a second renderer. */
+    /** Where the JSON receipt ALSO goes (`TOLARIA_LANE_JSON_OUT`, issue
+     *  #5955), in either mode — the same `renderJson` call, never a second
+     *  renderer. */
     jsonSink?: (json: string) => void
 ): RunResult {
     if (!json) log(renderPlan(plan, head));
@@ -1516,11 +1535,10 @@ export function executePlan(
     // this tree was gated.
     const endHead = endHeadOf();
 
-    if (json) log(renderJson(plan, head, result, endHead));
-    else {
-        jsonSink?.(renderJson(plan, head, result, endHead));
-        log(renderReceipt(result, { start: head, end: endHead }));
-    }
+    const blob = renderJson(plan, head, result, endHead);
+    jsonSink?.(blob);
+    if (json) log(blob);
+    else log(renderReceipt(result, { start: head, end: endHead }));
 
     return result;
 }

@@ -1547,7 +1547,7 @@ describe("check-lane — execution (issue #2741)", () => {
 
     // Issue #5955: the land-runner reads the lane's JSON from a sidecar
     // file while `land`'s log keeps the human receipt — the SAME renderJson.
-    it("executePlan hands the JSON receipt to the sidecar sink in human mode only", () => {
+    it("executePlan hands the JSON receipt to the sidecar sink in either mode", () => {
         const plan = classifyLane(["src/app.tsx"]);
         const { exec } = fakeExec(
             Object.fromEntries(
@@ -1569,16 +1569,17 @@ describe("check-lane — execution (issue #2741)", () => {
         expect(lines[1]).toMatch(/^PASS/m);
 
         const sunkJson: string[] = [];
+        const printed: string[] = [];
         executePlan(
             plan,
             "deadbee",
             true,
             exec,
-            () => {},
+            (l) => printed.push(l),
             () => "deadbee",
             (j) => sunkJson.push(j)
         );
-        expect(sunkJson).toEqual([]);
+        expect(sunkJson).toEqual(printed);
     });
 
     it("executePlan prints the human plan then the human receipt when not in json mode", () => {

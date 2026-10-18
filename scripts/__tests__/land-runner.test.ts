@@ -16,6 +16,7 @@ import {
     FAILED_LABEL,
     failureComment,
     INFRA_BACKOFF_S,
+    INFRA_MAX_STRIKES,
     labelArgs,
     landExcerpt,
     launchdSupervised,
@@ -404,6 +405,26 @@ describe("outcomeOf — a classified red (issue #5955)", () => {
         }
     });
 
+    it("the N-th consecutive infra red is land-failed after all — never an endless re-queue", () => {
+        const outage =
+            "lane: skipped (gated a against b)\nHTTP 502: Bad Gateway (https://api.github.com/graphql)\n";
+        expect(
+            outcomeOf(1, outage, {
+                lane: null,
+                subjects: [],
+                infraStrikes: INFRA_MAX_STRIKES - 2,
+            }).action
+        ).toBe("requeue");
+        const o = outcomeOf(1, outage, {
+            lane: null,
+            subjects: [],
+            infraStrikes: INFRA_MAX_STRIKES - 1,
+        });
+        expect(o.action).toBe("failed");
+        if (o.action === "failed")
+            expect(o.cause).toMatch(/^infra 3 times running/);
+    });
+
     it("everything else is land-failed, carrying the class's reason", () => {
         const o = outcomeOf(1, log, {
             lane: {
@@ -442,18 +463,20 @@ describe("planTick — an infra red's PR waits out its backoff (issue #5955)", (
     it("holds the deferred PR and lands the next while the backoff stands", () => {
         const plan = planTick(prs, {
             ...ctx,
-            deferred: new Map([[10, 2_000]]),
+            deferred: new Map([[10, { until: 2_000, strikes: 1 }]]),
             now: 1_000,
         });
         expect(plan.next?.number).toBe(11);
         expect(plan.held.map((h) => h.pr)).toEqual([10]);
-        expect(plan.held[0].reason).toMatch(/infra red — retried after/);
+        expect(plan.held[0].reason).toMatch(
+            /infra red \(1\/3\) — retried after/
+        );
     });
 
     it("lands it once the backoff has passed", () => {
         const plan = planTick(prs, {
             ...ctx,
-            deferred: new Map([[10, 2_000]]),
+            deferred: new Map([[10, { until: 2_000, strikes: 1 }]]),
             now: 2_000,
         });
         expect(plan.next?.number).toBe(10);

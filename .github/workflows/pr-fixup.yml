@@ -25,6 +25,11 @@ on:
                 description: "Comma list of fix keys: oracle, blade-index, format"
                 required: true
                 type: string
+            requeue:
+                description: "The queue dequeued this PR on this red: hand it back (land-failed → ready-to-land) after the push"
+                required: false
+                default: "false"
+                type: string
 
 permissions:
     contents: read
@@ -47,7 +52,10 @@ jobs:
                   PR: ${{ inputs.pr }}
                   FIXES: ${{ inputs.fixes }}
                   TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
-              run: bun run pr:fixup run --pr "$PR" --fixes "$FIXES"
+                  REQUEUE: ${{ inputs.requeue }}
+              run: |
+                  if [ "$REQUEUE" = "true" ]; then set -- --requeue; else set --; fi
+                  bun run pr:fixup run --pr "$PR" --fixes "$FIXES" "$@"
             - name: Remove the job worktree
               if: always()
               shell: bash

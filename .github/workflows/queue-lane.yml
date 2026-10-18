@@ -30,10 +30,14 @@ jobs:
         name: queue-lane
         runs-on: [self-hosted, lane]
         timeout-minutes: 60
-        # `actions: write` only to dispatch pr-fixup below (issue #5955).
+        # `actions: write` only to dispatch pr-fixup below, `pull-requests:
+        # read` to find the PR behind the draft (issue #5955) — the same
+        # pattern as pr-check's fixup step, on a same-repository draft whose
+        # PR passed `trusted-author` to enter the queue.
         permissions:
             contents: read
             actions: write
+            pull-requests: read
         steps:
             - name: Job worktree
               shell: bash

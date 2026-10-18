@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
+import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
+import { failingFiles } from "../lib/health-evidence";
 import {
+    CONFLICT_LINE,
     FIXES,
     FIXUP_COMMIT_SUBJECT,
     FIXUP_PUSHED_RE,
     classifyLane,
     classifyRed,
     fixupLimitReached,
+    fixupPushedLine,
     fixupRefusal,
     flakeSummary,
     outsideLane,
@@ -265,15 +269,50 @@ const HEALTH_UI = "scripts/__tests__/health-ui-walk.test.ts";
 
 describe("classifyRed — one decision for every red (issue #5955)", () => {
     it("PR #5863's landing: blade-index drift inside check:pr is regenerable", () => {
+        // The link the runner relies on: `check:lane` records the failed
+        // step's files from its captured output (`failingFiles`), and the
+        // row cures `check:pr` on exactly that file.
+        expect(BLADE).toBe(BLADE_INDEX_DRIFT_TEST);
+        const failedFiles = failingFiles(LOG_5863);
+        expect(failedFiles).toEqual([BLADE]);
         expect(
             classifyRed({
-                lane: lane([
-                    { id: "check:pr", status: "fail", failedFiles: [BLADE] },
-                ]),
+                lane: lane([{ id: "check:pr", status: "fail", failedFiles }]),
                 subjects: ["fix: exile-held pile opens (issue #5515)"],
                 output: LOG_5863,
             })
         ).toEqual({ kind: "regenerable", fixes: ["blade-index"] });
+    });
+
+    it("PR #5932's outage-looking lines are the lane's: with no lane JSON they are cut, not read", () => {
+        // The lane died before its receipt (no JSON); its output still
+        // carries the mocked outage and 504 lines. Nothing outside names one.
+        const cls = classifyRed({
+            lane: null,
+            subjects: [],
+            output: `${LOG_5932}\nerror: land exited 1`,
+        });
+        expect(cls).toEqual({
+            kind: "needs-pass",
+            reason: "red outside the lane, naming no outage",
+        });
+    });
+
+    it("a rebase that stopped is needs-pass even when the commit subject reads like an outage", () => {
+        const cls = classifyRed({
+            lane: null,
+            subjects: [],
+            output: [
+                "Rebasing (3/4)",
+                "CONFLICT (content): Merge conflict in scripts/lib/gh.ts",
+                "error: could not apply 1a2b3c4d5... fix: retry on HTTP 503 Service Unavailable",
+                "Could not apply 1a2b3c4d5... fix: retry on HTTP 503 Service Unavailable",
+            ].join("\n"),
+        });
+        expect(cls.kind).toBe("needs-pass");
+        if (cls.kind === "needs-pass")
+            expect(cls.reason).toMatch(/^the rebase stopped: CONFLICT/);
+        expect(CONFLICT_LINE.test("Could not apply 1a2b3c4... x")).toBe(true);
     });
 
     it("PR #5932's landing: a real test red is needs-pass, its mocked outage lines notwithstanding", () => {
@@ -308,7 +347,7 @@ describe("classifyRed — one decision for every red (issue #5955)", () => {
         for (const line of [
             "fatal: unable to access 'https://github.com/x/y.git/': Could not resolve host: github.com",
             "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
-            "gh: transient error on `gh pr view` (HTTP 504) — retry 3/3 in 10s",
+            "GraphQL: Something went wrong while executing your query. (timedout)",
             "ssh: connect to host github.com port 22: Network is unreachable",
         ]) {
             const cls = classifyRed({
@@ -397,9 +436,12 @@ describe("queuedPrOfDraft — the PR behind a Mergify draft", () => {
 });
 
 describe("FIXUP_PUSHED_RE — what the land-runner reads back", () => {
-    it("matches the pushed line and nothing less", () => {
+    it("matches the line `run` prints and nothing less", () => {
+        expect(FIXUP_PUSHED_RE.test(fixupPushedLine(7, ["oracle"]))).toBe(true);
         expect(
-            FIXUP_PUSHED_RE.test("pr:fixup: PR #7 fixed (oracle) and pushed")
+            FIXUP_PUSHED_RE.test(
+                fixupPushedLine("12", ["blade-index", "format"])
+            )
         ).toBe(true);
         expect(
             FIXUP_PUSHED_RE.test(
