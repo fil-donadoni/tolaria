@@ -71,10 +71,10 @@ import {
     emitAttackersDeclaredEvents,
     emitBlockersConfirmedEvents,
     applyAllCombatDamage,
-    buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
 } from "./phases";
+import { chooseCombatDamageAssignments } from "./ai/damageSplit";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
 import { getEffectiveBlockGraph, recordBlockedAttackers } from "./banding";
@@ -699,8 +699,9 @@ function passInSearch(
     // A pass during the combat-damage step first resolves the turn-based
     // combat damage (CR 510.2) — the real engine applies it via the
     // damage-assignment confirm / auto-pass path, which this search-side pass
-    // stands in for. Single-block / unblocked positions need no manual
-    // assignment, so the auto assignments are authoritative.
+    // stands in for. A multi-target source (CR 510.1c-d) splits by the Bot's
+    // own policy (`ai/damageSplit.ts`, issue #5662) — the split the driver
+    // submits — rather than dropping its damage.
     const combat = state.combat;
     if (
         combat &&
@@ -712,7 +713,7 @@ function passInSearch(
             state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
         applyAllCombatDamage(
             state,
-            buildAutoDamageAssignments(state, kind),
+            chooseCombatDamageAssignments(state, kind),
             kind
         );
         combat.damageConfirmed = true;

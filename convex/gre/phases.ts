@@ -1042,7 +1042,7 @@ function getCardToughness(
  *  damage this step and has 2+ targets to split among (CR 510.1c/d). For an
  *  attacker that means 2+ blockers; for a blocker (only possible under banding)
  *  that means it blocks 2+ band members. Returns the set of such source ids. */
-function getManualAssignmentSourceIds(
+export function getManualAssignmentSourceIds(
     state: GameState,
     kind: DamageKind,
     graph: BlockGraph

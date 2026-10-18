@@ -149,10 +149,10 @@ import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
     applyAllCombatDamage,
-    buildAutoDamageAssignments,
     emitAttackersDeclaredEvents,
     wasCastOffSorceryTiming,
 } from "./phases";
+import { chooseCombatDamageAssignments } from "./ai/damageSplit";
 import {
     markAttacking,
     markDeclaredBlockers,
@@ -1114,20 +1114,20 @@ export function applyActivationCostsForSearch(
 
 /** Resolve all combat damage for a fully-declared combat to a stable point,
  *  reusing the exact pipeline the phase machine runs (first-strike step, then
- *  regular, with SBA between/after). Single-block / no-banding positions need
- *  no manual assignment, so the auto assignments are authoritative here. */
+ *  regular, with SBA between/after). A multi-target source (CR 510.1c-d)
+ *  splits by the Bot's policy (`ai/damageSplit.ts`, issue #5662). */
 function resolveCombatDamage(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
     applyAllCombatDamage(
         state,
-        buildAutoDamageAssignments(state, "first-strike"),
+        chooseCombatDamageAssignments(state, "first-strike"),
         "first-strike"
     );
     checkStateBasedActions(state);
     if (state.combat) {
         applyAllCombatDamage(
             state,
-            buildAutoDamageAssignments(state, "regular"),
+            chooseCombatDamageAssignments(state, "regular"),
             "regular"
         );
     }

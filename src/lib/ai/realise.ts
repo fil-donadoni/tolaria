@@ -22,6 +22,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PublicGameState } from "@convex/gameProjections";
 import { botActionRealisation, type BotAction } from "./brain";
 import { botActionToMove } from "./bot-view";
+import { owedDamageSplits } from "@convex/gre/ai/damageSplit";
+import { projectedToGameState } from "./state-adapter";
 import { executeMove, type MoveMutations } from "./executor";
 import {
     submitOwedPayment,
@@ -47,6 +49,9 @@ export type DirectMutations = {
     ) => Promise<unknown>;
     selectConvokeCreatures: (
         a: Seat & { creatureInstanceIds: string[] }
+    ) => Promise<unknown>;
+    setDamageAssignment: (
+        a: Seat & { attackerId: string; assignments: Record<string, number> }
     ) => Promise<unknown>;
     confirmDamage: (a: Seat) => Promise<unknown>;
     passPriority: (a: Seat) => Promise<unknown>;
@@ -86,12 +91,30 @@ export function realiseBotAction(
         case "unanswered":
             return null;
 
-        // Combat-damage confirmation (CR 510.1c, multi-block): the engine
-        // pre-fills the default assignment on step entry, so confirming is
-        // enough. Without it the bot would `pass` and the server would reject it
-        // ("Must assign combat damage…") forever.
-        case "confirm-damage":
-            return () => ctx.direct.confirmDamage(seat);
+        // Combat-damage confirmation (CR 510.1c-d, multi-target). The engine's
+        // pre-filled default (all damage on the first live blocker) is only the
+        // human modal's seed: the bot submits its own split for every source it
+        // assigns (`owedDamageSplits`, issue #5662) through the same
+        // `setDamageAssignment` the modal uses — re-validated server-side,
+        // ADR 0074 — then confirms. Without the confirm the bot would `pass`
+        // and the server would reject it ("Must assign combat damage…")
+        // forever.
+        case "confirm-damage": {
+            const splits = owedDamageSplits(
+                projectedToGameState(ctx.botState),
+                ctx.botId
+            );
+            return async () => {
+                for (const { sourceId, assignments } of splits) {
+                    await ctx.direct.setDamageAssignment({
+                        ...seat,
+                        attackerId: sourceId,
+                        assignments,
+                    });
+                }
+                return ctx.direct.confirmDamage(seat);
+            };
+        }
 
         // CR 508.1c/1g — the parked mana attack tax (Propaganda / Collective
         // Restraint): pay it (auto-tap) or drop the declaration.

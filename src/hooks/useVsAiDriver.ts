@@ -519,7 +519,12 @@ export function useVsAiDriver(
         selectSacrifice: mutations.selectSacrifice,
     };
 
+    // CR 510.1c-d (issue #5662) — the bot's combat-damage split, submitted
+    // before `confirmDamage`. Driven directly, like `confirmDamage`.
+    const setDamageAssignment = useMutation(api.game.setDamageAssignment);
+
     const directMutations: DirectMutations = {
+        setDamageAssignment,
         autoTapForAttackTax,
         cancelAttackTax,
         resolveManaSpendChoice,
