@@ -26,9 +26,11 @@
  *     primary checkout (`<primary>-housekeeping-<pid>`), bootstrapped by
  *     `worktree:init`, removed when the run ends. `gaps:sync` reads the
  *     merged lockfile and allowlist from that tree and pushes its allowlist
- *     commit from it. A push that loses a race with a merge is a failed sync
- *     (`gaps:sync` exits 1 on it, issue #5871): the batch is retried, the
- *     owner told, the worktree goes and the next run reclaims by title. The
+ *     commit from it. A push that loses a race with a merge is rebuilt once
+ *     on the fetched tip; one that loses twice, or misses its deadline, is a
+ *     failed sync (`gaps:sync` exits 1 on it, issues #5871, #5933): the batch
+ *     is retried, the owner told, the worktree goes and the next run reclaims
+ *     by title. The
  *     primary checkout's branch, divergence or dirt never enters the
  *     picture;
  *   - the RED is visible: a run that leaves a PR to retry, drops one, or
@@ -97,6 +99,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { GIT_NET_TIMEOUT_MS } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { releaseEditArgs } from "./lib/claim-labels";
 import { gh, netEnv } from "./lib/gh";
@@ -140,10 +143,24 @@ export interface Step {
     /** `grammar:residue`: its `HOLES_EXIT` is a reported finding, not a
      *  failure to retry. */
     holesExit?: boolean;
+    /** Killed past this: a failure the batch retries, never a stall that
+     *  only the job's `timeout-minutes` ends (issue #5933). */
+    timeoutMs?: number;
 }
 
 /** The shared-state key of the watermark and retry list (issue #5873). */
 export const STATE_KEY = "housekeeping";
+
+/** A network-bound git step (`fetch`): the same deadline as `gaps:sync`'s
+ *  own push (issue #5933). */
+export const GIT_STEP_TIMEOUT_MS = GIT_NET_TIMEOUT_MS;
+
+/** `gaps:sync`'s ceiling: about 3× its slowest measured healthy run on the
+ *  Huawei (~10 min filing 20 gaps), and well inside the job's 50 minutes, so
+ *  housekeeping itself reports the failure and keeps the batch in `retry`.
+ *  Killing it is safe: its write-back never leaves the checkout ahead of the
+ *  remote (issue #5933). */
+export const GAPS_SYNC_TIMEOUT_MS = 30 * 60_000;
 
 /** Hourly cron × 24 = a day of retries before a PR is given up on. */
 export const MAX_ATTEMPTS = 24;
@@ -315,6 +332,7 @@ export function withNotice(
 export const GAPS_SYNC_STEP: Step = {
     label: "gaps:sync",
     argv: ["bun", "scripts/gaps-sync.ts"],
+    timeoutMs: GAPS_SYNC_TIMEOUT_MS,
 };
 
 /** Whether a PR's steps left it for retry: the batch's `gaps:sync` failed
@@ -391,9 +409,26 @@ export function staleWorkspaces(porcelain: string, primary: string): string[] {
         .map((l) => l.slice("worktree ".length));
 }
 
-function gitIn(cwd: string, args: string[]): { ok: boolean; err: string } {
-    const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-    return { ok: r.status === 0, err: (r.stderr ?? "").trim() };
+function gitIn(
+    cwd: string,
+    args: string[],
+    timeoutMs?: number
+): { ok: boolean; err: string } {
+    const r = spawnSync("git", args, {
+        cwd,
+        encoding: "utf8",
+        timeout: timeoutMs,
+        killSignal: "SIGKILL",
+    });
+    const timedOut =
+        r.error !== undefined &&
+        (r.error as { code?: string }).code === "ETIMEDOUT";
+    return {
+        ok: r.status === 0,
+        err: timedOut
+            ? `no answer within ${(timeoutMs ?? 0) / 1000}s`
+            : (r.stderr ?? "").trim(),
+    };
 }
 
 /**
@@ -416,14 +451,18 @@ export function prepareWorkspace(
     };
     step(
         `git fetch origin ${BASE_BRANCH}`,
-        gitIn(primary, [
-            "fetch",
-            "--no-tags",
-            "--no-write-fetch-head",
-            "--quiet",
-            "origin",
-            BASE_BRANCH,
-        ])
+        gitIn(
+            primary,
+            [
+                "fetch",
+                "--no-tags",
+                "--no-write-fetch-head",
+                "--quiet",
+                "origin",
+                BASE_BRANCH,
+            ],
+            GIT_STEP_TIMEOUT_MS
+        )
     );
     const listed = spawnSync("git", ["worktree", "list", "--porcelain"], {
         cwd: primary,
@@ -738,6 +777,8 @@ function main(): void {
             cwd: workspace!,
             env,
             stdio: ["ignore", log, log],
+            timeout: step.timeoutMs,
+            killSignal: "SIGKILL",
         });
         if (step.holesExit && r.status === HOLES_EXIT) {
             say(
@@ -747,7 +788,12 @@ function main(): void {
         }
         const ok = r.status === 0;
         if (!ok)
-            say(`${step.label} failed (exit ${r.status ?? r.signal ?? "?"})`);
+            say(
+                r.error !== undefined &&
+                    (r.error as { code?: string }).code === "ETIMEDOUT"
+                    ? `${step.label} killed after ${(step.timeoutMs ?? 0) / 1000}s without finishing`
+                    : `${step.label} failed (exit ${r.status ?? r.signal ?? "?"})`
+            );
         return ok;
     };
 

@@ -14,6 +14,8 @@ import { BASE_BRANCH } from "../lib/branches";
 import {
     FIRST_RUN_LOOKBACK_MS,
     GAPS_SYNC_STEP,
+    GAPS_SYNC_TIMEOUT_MS,
+    GIT_STEP_TIMEOUT_MS,
     MAX_ATTEMPTS,
     SWEEP_STEP,
     needsNextPage,
@@ -393,5 +395,29 @@ describe("housekeeping.ts — the steps", () => {
             "scripts/umbrella-detach.ts",
             "--sweep",
         ]);
+    });
+});
+
+describe("housekeeping's steps have deadlines inside the job's (issue #5933)", () => {
+    const source = readFileSync("scripts/housekeeping.ts", "utf8");
+    const workflow = readFileSync(".github/workflows/post-merge.yml", "utf8");
+
+    it("gaps:sync is killed by housekeeping itself, well before the job's timeout-minutes — the batch is retried, never cut mid-run by the runner", () => {
+        const job = workflow.slice(workflow.indexOf("\n    housekeeping:"));
+        const minutes = Number(/timeout-minutes:\s*(\d+)/.exec(job)?.[1]);
+        expect(minutes).toBeGreaterThan(0);
+        expect(GAPS_SYNC_STEP.timeoutMs).toBe(GAPS_SYNC_TIMEOUT_MS);
+        // Room left for the batch-band reads before it and the per-PR steps after.
+        expect(GAPS_SYNC_TIMEOUT_MS).toBeLessThanOrEqual(
+            (minutes - 15) * 60_000
+        );
+    });
+
+    it("the step runner enforces a step's deadline, and the workspace's base-branch fetch has one", () => {
+        expect(source).toMatch(/timeout: step\.timeoutMs,/);
+        expect(source).toMatch(
+            /"fetch",[^\]]*"origin",\s*BASE_BRANCH,\s*\],\s*GIT_STEP_TIMEOUT_MS\s*\)/
+        );
+        expect(GIT_STEP_TIMEOUT_MS).toBeGreaterThan(0);
     });
 });

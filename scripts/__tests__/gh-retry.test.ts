@@ -1,9 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+    GH_READ_TIMEOUT_MS,
     GH_RETRY_BACKOFF_MS,
+    GH_WRITE_TIMEOUT_MS,
     type GhRetryState,
+    ghTimeoutMs,
     isReadOnlyGh,
+    isTimeoutError,
     isTransientGhError,
+    runGh,
     withGhRetry,
 } from "../lib/gh";
 
@@ -248,5 +256,87 @@ describe("withGhRetry", () => {
             )
         ).toBe("ok");
         expect(state.outage).toBe(false);
+    });
+});
+
+// ── every call has a deadline (issue #5933) ──────────────────────────────────
+
+/** What `execFileSync` throws when its `timeout` expires. */
+const TIMED_OUT = Object.assign(new Error("spawnSync gh ETIMEDOUT"), {
+    code: "ETIMEDOUT",
+    signal: "SIGKILL",
+});
+
+describe("gh deadlines — a hung call is a failure, never a stall (issue #5933)", () => {
+    it("a read gets the read deadline, a write the longer write deadline", () => {
+        expect(ghTimeoutMs(QUEUE_READ)).toBe(GH_READ_TIMEOUT_MS);
+        expect(ghTimeoutMs(["issue", "create", "--title", "t"])).toBe(
+            GH_WRITE_TIMEOUT_MS
+        );
+        expect(GH_WRITE_TIMEOUT_MS).toBeGreaterThan(GH_READ_TIMEOUT_MS);
+    });
+
+    it("a missed deadline is a timeout, and transient", () => {
+        expect(isTimeoutError(TIMED_OUT)).toBe(true);
+        expect(isTimeoutError(NOT_FOUND)).toBe(false);
+        expect(isTransientGhError(TIMED_OUT)).toBe(true);
+    });
+
+    it("a read that missed its deadline is replayed; a write never is — it may have landed", () => {
+        const read = flaky([TIMED_OUT]);
+        expect(
+            withGhRetry(
+                QUEUE_READ,
+                read.run,
+                () => {},
+                GH_RETRY_BACKOFF_MS,
+                fresh()
+            )
+        ).toBe("ok");
+        expect(read.calls()).toBe(2);
+
+        const write = flaky([TIMED_OUT]);
+        expect(() =>
+            withGhRetry(
+                ["issue", "edit", "1", "--body", "b"],
+                write.run,
+                () => {
+                    throw new Error("must not sleep");
+                },
+                GH_RETRY_BACKOFF_MS,
+                fresh()
+            )
+        ).toThrow(TIMED_OUT);
+        expect(write.calls()).toBe(1);
+    });
+
+    describe("runGh kills a gh that never answers", () => {
+        const savedPath = process.env.PATH;
+        const dirs: string[] = [];
+        afterEach(() => {
+            process.env.PATH = savedPath;
+            for (const d of dirs.splice(0))
+                rmSync(d, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 10,
+                    retryDelay: 100,
+                });
+        });
+
+        it("throws ETIMEDOUT at its deadline — the hung gh would otherwise exit 0 after 30 s", () => {
+            const bin = mkdtempSync(join(tmpdir(), "gh-hang-"));
+            dirs.push(bin);
+            writeFileSync(join(bin, "gh"), "#!/bin/sh\nexec sleep 30\n");
+            chmodSync(join(bin, "gh"), 0o755);
+            process.env.PATH = `${bin}:${savedPath}`;
+            let caught: unknown;
+            try {
+                runGh(["issue", "view", "1"], 300);
+            } catch (err) {
+                caught = err;
+            }
+            expect(isTimeoutError(caught)).toBe(true);
+        });
     });
 });
