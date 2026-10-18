@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import {
     FIRST_RUN_LOOKBACK_MS,
+    GAPS_SYNC_STEP,
     MAX_ATTEMPTS,
     SWEEP_STEP,
-    batchBand,
-    gapsSyncStep,
     needsNextPage,
     nextState,
-    originBandForBranch,
     parseState,
     pendingPrs,
+    prRetried,
     prSteps,
     strandedAllowlistOnly,
     type HousekeepingState,
@@ -55,7 +55,7 @@ describe("housekeeping.ts — the watermark", () => {
     it("never moves the watermark backwards", () => {
         const state: HousekeepingState = {
             since: "2026-10-11T12:00:00.000Z",
-            retry: [{ ...older, attempts: 1, band: null }],
+            retry: [{ ...older, attempts: 1 }],
         };
         expect(nextState(state, [older], new Set()).state.since).toBe(
             state.since
@@ -73,7 +73,7 @@ describe("housekeeping.ts — the watermark", () => {
             new Set([older.number])
         );
         expect(state.since).toBe(newer.mergedAt);
-        expect(state.retry).toEqual([{ ...older, attempts: 1, band: null }]);
+        expect(state.retry).toEqual([{ ...older, attempts: 1 }]);
         expect(dropped).toEqual([]);
         // Not in the list any more: the retry entry carries the PR whole.
         expect(pendingPrs([], state)).toEqual([older]);
@@ -87,15 +87,13 @@ describe("housekeeping.ts — the watermark", () => {
                 new Set([older.number])
             ));
         expect(state.retry).toEqual([]);
-        expect(dropped).toEqual([
-            { ...older, attempts: MAX_ATTEMPTS, band: null },
-        ]);
+        expect(dropped).toEqual([{ ...older, attempts: MAX_ATTEMPTS }]);
     });
 
     it("processes each PR once, oldest merge first, when it is both new and up for retry", () => {
         const state: HousekeepingState = {
             since: "2026-10-11T10:00:00.000Z",
-            retry: [{ ...newer, attempts: 2, band: null }],
+            retry: [{ ...newer, attempts: 2 }],
         };
         expect(pendingPrs([newer, older], state)).toEqual([newer]);
         const mid = pr(5002, "2026-10-11T10:30:00Z");
@@ -106,28 +104,17 @@ describe("housekeeping.ts — the watermark", () => {
         ).toEqual([5002, 5003]);
     });
 
-    it("keeps the band a failed PR first ran with — its detach may have removed the parent edge since (issue #4158)", () => {
-        const start: HousekeepingState = {
-            since: "2026-10-11T08:00:00.000Z",
-            retry: [],
-        };
-        const { state } = nextState(
-            start,
-            [older],
-            new Set([older.number]),
-            new Map([[older.number, "P0" as const]])
-        );
-        expect(state.retry).toEqual([{ ...older, attempts: 1, band: "P0" }]);
-        // A state file written before the field existed reads as bandless.
+    it("a state file written with the retired `band` field reads without it (issue #5871)", () => {
+        const start = "2026-10-11T08:00:00.000Z";
         expect(
             parseState(
                 JSON.stringify({
-                    since: start.since,
-                    retry: [{ ...older, attempts: 1 }],
+                    since: start,
+                    retry: [{ ...older, attempts: 1, band: "P0" }],
                 }),
                 Date.now()
             ).retry
-        ).toEqual([{ ...older, attempts: 1, band: null }]);
+        ).toEqual([{ ...older, attempts: 1 }]);
     });
 
     it("pages the merged list until a PR last updated before the watermark — a merge updates a PR", () => {
@@ -201,8 +188,7 @@ describe("housekeeping.ts — the steps", () => {
 
     it("reads grammar:residue's holes exit as a finding, not a failure — every other step's non-zero is one", () => {
         const steps = prSteps(
-            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457"),
-            null
+            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457")
         );
         expect(steps.map((s) => s.holesExit === true)).toEqual([
             true,
@@ -211,38 +197,27 @@ describe("housekeeping.ts — the steps", () => {
         ]);
     });
 
-    it("runs gaps:sync once for the batch, P0 when any PR closed P0 work, never --no-file-bot (issues #4158, #5301)", () => {
-        expect(batchBand([null, "P2", "P0"])).toBe("P0");
-        expect(batchBand(["P1", null])).toBeNull();
-        expect(gapsSyncStep(null).argv).toEqual([
-            "bun",
-            "scripts/gaps-sync.ts",
-        ]);
-        expect(gapsSyncStep("P0").argv).toEqual([
-            "bun",
-            "scripts/gaps-sync.ts",
-            "--band",
-            "P0",
-        ]);
-        for (const band of [null, "P0"] as const)
-            expect(gapsSyncStep(band).argv).not.toContain("--no-file-bot");
+    it("runs gaps:sync once for the batch — never --no-file-bot, never --band — and a failed one (a lost allowlist write-back included) keeps every PR of the batch in retry, whatever its own steps did (issues #5301, #5871)", () => {
+        expect(prRetried(false, true)).toBe(true);
+        expect(prRetried(false, false)).toBe(true);
+        expect(prRetried(true, false)).toBe(true);
+        expect(prRetried(true, true)).toBe(false);
+        // `main` reads it from the ONE gaps:sync run, per PR — pinned by
+        // SHAPE: `main` spawns processes.
+        const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        expect(GAPS_SYNC_STEP.argv).toEqual(["bun", "scripts/gaps-sync.ts"]);
+        expect(source.match(/run\(GAPS_SYNC_STEP\)/g)).toHaveLength(1);
+        expect(source).toMatch(/const synced = run\(GAPS_SYNC_STEP\);/);
+        expect(source).toMatch(/const retry = prRetried\(synced, own\);/);
+        expect(source).toMatch(/if \(retry\) failed\.add\(pr\.number\);/);
     });
 
-    it("per PR: residue, then the claim release, then the umbrella detach — on the issue the branch names (issues #5222, #3130, #4235)", () => {
+    it("per PR: residue, then the claim release, then the umbrella detach — on the issue the branch names, no band (issues #5222, #3130, #4235, #5871)", () => {
         const steps = prSteps(
-            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457"),
-            "P0"
+            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457")
         );
         expect(steps.map((s) => s.argv)).toEqual([
-            [
-                "bun",
-                "scripts/grammar-residue.ts",
-                "5457",
-                "--pr",
-                "5458",
-                "--band",
-                "P0",
-            ],
+            ["bun", "scripts/grammar-residue.ts", "5457", "--pr", "5458"],
             [
                 "gh",
                 "issue",
@@ -257,96 +232,20 @@ describe("housekeeping.ts — the steps", () => {
             ],
             ["bun", "scripts/umbrella-detach.ts", "5457"],
         ]);
-        expect(
-            prSteps(pr(5458, "2026-10-11T10:00:00Z", "fix/issue-7"), null)[0]!
-                .argv
-        ).not.toContain("--band");
+        // No step of the cron derives or forwards a band (issue #5871).
+        const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        expect(source).not.toMatch(/"--band"/);
+        expect(source).not.toMatch(/origin-band/);
     });
 
     it("has no per-PR step for a branch naming no issue; the sweep runs once per batch (issue #5081)", () => {
         expect(
-            prSteps(
-                pr(5459, "2026-10-11T10:00:00Z", "chore/no-issue-branch"),
-                null
-            )
+            prSteps(pr(5459, "2026-10-11T10:00:00Z", "chore/no-issue-branch"))
         ).toEqual([]);
         expect(SWEEP_STEP.argv).toEqual([
             "bun",
             "scripts/umbrella-detach.ts",
             "--sweep",
         ]);
-    });
-});
-
-describe("housekeeping.ts — the origin band (issue #4158)", () => {
-    it("originBandForBranch: the band of the issue the branch names, by queue:plan's own rule (issue #4158)", () => {
-        const board = { 4099: "P0", 4200: "P2", 4300: "P3" } as const;
-        const deps = (
-            parents: Record<number, number | null>,
-            parentState: "OPEN" | "CLOSED" = "OPEN"
-        ) => ({
-            readParent: (n: number) => {
-                const parent = parents[n];
-                return parent == null
-                    ? null
-                    : { number: parent, state: parentState };
-            },
-            readBoard: () => ({ ...board }),
-        });
-        // Own priority.
-        expect(
-            originBandForBranch("feat/issue-4200", deps({ 4200: null })).band
-        ).toBe("P2");
-        // Inherited from the parent PRD — the grammar-rule shape: the issue
-        // carries no Priority of its own, its umbrella is P0.
-        expect(
-            originBandForBranch("feat/issue-4128", deps({ 4128: 4099 })).band
-        ).toBe("P0");
-        // The parent governs, in both directions (issue #4371): a P2 child of
-        // a P0 umbrella rises, and a P0 child of a P3 umbrella falls. The
-        // second case is what keeps `gaps:sync --band` honest — a gap born of
-        // work the maintainer filed under a P3 epic is P3 work, whatever the
-        // slice was hand-marked at filing time.
-        expect(
-            originBandForBranch("fix/issue-4200", deps({ 4200: 4099 })).band
-        ).toBe("P0");
-        expect(
-            originBandForBranch("fix/issue-4099", deps({ 4099: 4300 })).band
-        ).toBe("P3");
-        // A CLOSED umbrella governs nothing (issue #4105): the band degrades
-        // to the issue's own value, so a landing under a dead P0 epic does not
-        // file its gaps into that epic's band.
-        expect(
-            originBandForBranch(
-                "fix/issue-4200",
-                deps({ 4200: 4099 }, "CLOSED")
-            ).band
-        ).toBe("P2");
-    });
-
-    it("originBandForBranch: never throws — a branch naming no issue, an unprioritised issue and an unreadable board are a null band plus a reason (issue #4158)", () => {
-        const ok = { readParent: () => null, readBoard: () => ({}) };
-        const noIssue = originBandForBranch("main", ok);
-        expect(noIssue.band).toBeNull();
-        expect(noIssue.reason).toMatch(/names no issue/);
-        const unranked = originBandForBranch("feat/issue-1", ok);
-        expect(unranked.band).toBeNull();
-        expect(unranked.reason).toMatch(/carry no board Priority/);
-        const boardDown = originBandForBranch("feat/issue-1", {
-            readParent: () => null,
-            readBoard: () => {
-                throw new Error("rate limited");
-            },
-        });
-        expect(boardDown.band).toBeNull();
-        expect(boardDown.reason).toMatch(/board Priority \(rate limited\)/);
-        const parentDown = originBandForBranch("feat/issue-1", {
-            readParent: () => {
-                throw new Error("gh exploded");
-            },
-            readBoard: () => ({}),
-        });
-        expect(parentDown.band).toBeNull();
-        expect(parentDown.reason).toMatch(/parent of issue #1 \(gh exploded\)/);
     });
 });

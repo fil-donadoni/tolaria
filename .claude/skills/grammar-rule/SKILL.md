@@ -244,17 +244,14 @@ rule emits: `enumerateMoves` (reachable?), the choice surface (can it answer?),
 `OP_VALUERS` + `OP_BENEFICENCE` (does it want to?). Replace this step with the
 sweep's read-back the day #3830 lands.
 
-**The gaps `land` files inherit this ticket's band, automatically.** `land`
-reads the band of the issue the branch names (its parent umbrella's board
-`Priority` when the umbrella carries one, else its own — `queue:plan`'s rule,
-issue #4371) and runs `gaps:sync --band <band>`; a
-Grammar Rule under a P0 umbrella therefore files the Grammar, Bot and
-mechanic gaps it creates under the family's **P0** umbrella, not the P1 its
-Target computes (issue #4158). Nothing to pass or fix by hand after `land`;
-the hourly `housekeeping` cron runs the sync after the merge (issue #5457),
-and when the band could not be read it logs `no --band (…)` and the gaps file
-by their computed band. Run by hand from a P0 session (primary checkout only), pass
-`--band P0` yourself.
+**The gaps this ticket's landing files take their Target's band, never this
+ticket's.** The hourly `housekeeping` cron runs `gaps:sync` after the merge
+(issue #5457) and every gap it creates files under the umbrella of the
+Target its cards serve — a Grammar Rule under a P0 umbrella files the
+Grammar, Bot and mechanic gaps it uncovers under the P1 (or lower) their
+Targets compute, not under P0 (issue #5871 retired issue #4158's origin
+band). Nothing to pass or fix by hand after the landing; `gaps:sync --band`
+is refused.
 
 **Never run `bun run gaps:sync` from the worktree.** It commits the allowlist
 and pushes `HEAD:<base>` from its cwd — from a feature branch that pushes the

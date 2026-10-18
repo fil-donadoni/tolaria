@@ -16,9 +16,10 @@
  *
  *   --pr <N>        the merged PR; "before" = its merge commit's parent
  *   --before <ref>  override "before" (replay)
-
- *   --band <P>      forwarded to the `gaps:sync` re-run (origin band, issue #4158)
  *   --dry-run       no `gaps:sync`, no comment: print the ledger only
+ *
+ * No `--band`: the `gaps:sync` re-run files under the computed Target band
+ * (issue #5871 retired issue #4158's origin band).
  *
  * Not a Grammar Cluster (no `## Grammar Gaps` table in the issue) → exit 0.
  */
@@ -26,6 +27,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { ORIGIN_BASE, BASE_BRANCH } from "./lib/branches";
+import { WRITE_BACK_FAILED_EXIT } from "./gaps-sync";
 import {
     buildResidue,
     HOLES_EXIT,
@@ -164,7 +166,7 @@ function main(): void {
         pr <= 0
     ) {
         process.stderr.write(
-            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--band <P>] [--dry-run]\n"
+            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--dry-run]\n"
         );
         process.exit(2);
     }
@@ -207,15 +209,22 @@ function main(): void {
         process.stdout.write(
             `grammar:residue — ${report.holes.length} hole(s); running gaps:sync once to file them\n`
         );
-        const band = flag("--band");
-        const sync = spawnSync(
-            "bun",
-            [
-                resolve(ROOT, "scripts/gaps-sync.ts"),
-                ...(band === null ? [] : ["--band", band]),
-            ],
-            { cwd: ROOT, stdio: "inherit" }
-        );
+        const sync = spawnSync("bun", [resolve(ROOT, "scripts/gaps-sync.ts")], {
+            cwd: ROOT,
+            stdio: "inherit",
+        });
+        if (sync.status === WRITE_BACK_FAILED_EXIT) {
+            // The holes ARE filed; only the allowlist rows did not reach the
+            // base branch, which is what this ledger reads the claims from
+            // (issue #5871). Reported against the base they would all read
+            // as holes again and invite hand-filed duplicates — so no
+            // ledger, no comment: housekeeping retries the batch, and the
+            // next gaps:sync reclaims the issues by title.
+            process.stderr.write(
+                "grammar:residue — gaps:sync filed the holes but its allowlist write-back did not reach the base branch; no ledger this run, retried next hour\n"
+            );
+            process.exit(1);
+        }
         if (sync.status !== 0)
             process.stderr.write(
                 `grammar:residue — gaps:sync exited ${String(sync.status ?? sync.signal)}: the filer failed, so the holes below were NOT filed\n`

@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
     cardBandIndex,
     openCardIssueIndex,
@@ -24,7 +24,6 @@ import {
     BAND_UMBRELLAS,
     KIND_FALLBACK,
     buildGrammarGapFilings,
-    originUmbrellaOf,
     partitionCardIndex,
     PRD_ISSUE,
     planUnlockEdges,
@@ -61,17 +60,27 @@ import {
     type KindInputs,
 } from "../lib/gap-kinds";
 import {
+    ALLOWLIST_COMMIT_SUBJECT,
     closeClaims,
     closureComment,
-    parseOriginBand,
+    commitAndPushAllowlist,
+    commitsAhead,
     planClaimClosures,
     readSetFileMatches,
+    retiredFlagError,
     settledHandTailOf,
     staleClaims,
     trustedBotFindings,
+    WRITE_BACK_FAILED_EXIT,
     type ClaimCloser,
     heldKindsOf,
 } from "../gaps-sync";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ALLOWLIST_PATH } from "../check-gaps";
+import { BASE_BRANCH } from "../lib/branches";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
@@ -250,7 +259,11 @@ class StubTracker implements GapTracker {
             parent: input.parent,
         });
         const number = this.next++;
-        this.issues.set(number, { state: "OPEN", body: input.body });
+        this.issues.set(number, {
+            state: "OPEN",
+            title: input.title,
+            body: input.body,
+        });
         this.parents.set(number, input.parent);
         return number;
     }
@@ -300,6 +313,14 @@ class StubTracker implements GapTracker {
     }
 
     addBlockedBy(): void {}
+
+    /** Like the real tracker: the OPEN issues with exactly this title, oldest first. */
+    findOpenByTitle(title: string): readonly number[] {
+        return [...this.issues]
+            .filter(([, i]) => i.state === "OPEN" && i.title === title)
+            .map(([n]) => n)
+            .sort((a, b) => a - b);
+    }
 }
 
 /** Sync `filings`, then sync the SAME filings with their new issue numbers —
@@ -564,7 +585,6 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         const result = syncGaps(
             buildBotGapFilings(inputs(lock)),
             tracker,
-            undefined,
             new Set(),
             [],
             "tip",
@@ -583,7 +603,6 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         const again = syncGaps(
             buildBotGapFilings(inputs(lock, { filed })),
             tracker,
-            undefined,
             new Set(),
             [],
             "tip",
@@ -2145,9 +2164,9 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
     });
 });
 
-// ── the ORIGIN band — a gap born of P0 work files under P0 (issue #4158) ──
+// ── the computed band is the ONLY band (issue #5871 retired issue #4158) ──
 
-describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (issue #4158)", () => {
+describe("gaps:sync files under the computed Target band — no origin band (issue #5871)", () => {
     const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
     const OPS = BAND_UMBRELLAS.ops;
     const BOTS = BAND_UMBRELLAS["bot-gaps"];
@@ -2183,116 +2202,384 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
         gap("bot", METAGAME),
     ];
 
-    it("P0: a created bot, grammar and mechanic gap each lands in its OWN family's P0 umbrella, whatever band was computed", () => {
+    it("a created bot, grammar and mechanic gap each lands in its Target's umbrella — never a P0 one, whatever work triggered the run", () => {
         const tracker = new StubTracker();
-        syncGaps(PARTITIONED, tracker, "P0");
+        syncGaps(PARTITIONED, tracker);
         expect(tracker.created.map((c) => [c.title, c.parent])).toEqual([
-            ["grammar gap", GRAMMAR.P0],
-            ["mechanic gap", OPS.P0],
-            ["bot gap", BOTS.P0],
+            ["grammar gap", GRAMMAR[METAGAME]],
+            ["mechanic gap", OPS[CUBE]],
+            ["bot gap", BOTS[METAGAME]],
         ]);
+        for (const c of tracker.created)
+            expect([GRAMMAR.P0, OPS.P0, BOTS.P0]).not.toContain(c.parent);
     });
 
-    it("P0: a residue gap (no computed band) of P0 work files under P0 too — not the family's P3", () => {
+    it("a residue gap (no computed band) files under the family's lowest-ranked Target umbrella, never P0", () => {
         const tracker = new StubTracker();
-        syncGaps([gap("bot", null)], tracker, "P0");
-        expect(tracker.created[0]!.parent).toBe(BOTS.P0);
+        syncGaps([gap("bot", null)], tracker);
+        expect(tracker.created[0]!.parent).toBe(BOTS[POOL]);
     });
 
-    it("a second run with NO band leaves the gap in P0 — nothing moves out of a P0 umbrella", () => {
-        const tracker = new StubTracker();
-        const first = syncGaps([gap("bot", METAGAME)], tracker, "P0");
-        const issue = [...first.updatedRows.values()][0]!;
-        const second = syncGaps([gap("bot", METAGAME, issue)], tracker);
-        expect(second.moves).toEqual([]);
-        expect(tracker.parents.get(issue)).toBe(BOTS.P0);
-    });
-
-    it("no band, and every non-P0 band, is today's behaviour: the computed band's umbrella", () => {
-        for (const band of [undefined, "P1", "P2", "P3"] as const) {
-            const tracker = new StubTracker();
-            syncGaps(PARTITIONED, tracker, band);
-            expect(tracker.created.map((c) => c.parent)).toEqual([
-                GRAMMAR[METAGAME],
-                OPS[CUBE],
-                BOTS[METAGAME],
-            ]);
-        }
-    });
-
-    it("an existing open gap sitting in a P1 umbrella is NOT pulled up by a P0 run", () => {
+    it("an issue the owner put in a P0 umbrella by hand stays there — nothing moves out of P0", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4700, { state: "OPEN", body: "x" });
-        tracker.parents.set(4700, BOTS[METAGAME]);
-        const result = syncGaps([gap("bot", METAGAME, 4700)], tracker, "P0");
+        tracker.parents.set(4700, BOTS.P0);
+        const result = syncGaps([gap("bot", METAGAME, 4700)], tracker);
         expect(result.moves).toEqual([]);
-        expect(tracker.parents.get(4700)).toBe(BOTS[METAGAME]);
+        expect(tracker.parents.get(4700)).toBe(BOTS.P0);
     });
 
-    it("a HOMELESS gap — no parent, or one under a retired umbrella — goes to P0 in a P0 run, to its fallback otherwise", () => {
+    it("a HOMELESS gap — no parent, or one under a retired umbrella — goes to its band's umbrella, or its fallback without a band", () => {
         for (const parent of [undefined, PRD_ISSUE]) {
-            const p0 = new StubTracker();
-            const plain = new StubTracker();
-            for (const t of [p0, plain]) {
+            const banded = new StubTracker();
+            const residue = new StubTracker();
+            for (const t of [banded, residue]) {
                 t.issues.set(4701, { state: "OPEN", body: "x" });
                 if (parent !== undefined) t.parents.set(4701, parent);
             }
-            syncGaps([gap("bot", null, 4701)], p0, "P0");
-            syncGaps([gap("bot", null, 4701)], plain);
-            expect(p0.parents.get(4701)).toBe(BOTS.P0);
-            expect(plain.parents.get(4701)).toBe(BOTS[POOL]);
-        }
-    });
-
-    it("a HOMELESS gap WITH a computed band goes to P0 in a P0 run — the origin outranks the band; to its band otherwise", () => {
-        for (const parent of [undefined, PRD_ISSUE]) {
-            const p0 = new StubTracker();
-            const plain = new StubTracker();
-            for (const t of [p0, plain]) {
-                t.issues.set(4702, { state: "OPEN", body: "x" });
-                if (parent !== undefined) t.parents.set(4702, parent);
-            }
-            syncGaps([gap("bot", METAGAME, 4702)], p0, "P0");
-            syncGaps([gap("bot", METAGAME, 4702)], plain);
-            expect(p0.parents.get(4702)).toBe(BOTS.P0);
-            expect(plain.parents.get(4702)).toBe(BOTS[METAGAME]);
+            syncGaps([gap("bot", METAGAME, 4701)], banded);
+            syncGaps([gap("bot", null, 4701)], residue);
+            expect(banded.parents.get(4701)).toBe(BOTS[METAGAME]);
+            expect(residue.parents.get(4701)).toBe(BOTS[POOL]);
         }
     });
 
     it("a create reports the umbrella it was filed under", () => {
         const tracker = new StubTracker();
-        const { actions } = syncGaps([gap("bot", METAGAME)], tracker, "P0");
-        expect(actions[0]).toMatchObject({ action: "create", parent: BOTS.P0 });
+        const { actions } = syncGaps([gap("bot", METAGAME)], tracker);
+        expect(actions[0]).toMatchObject({
+            action: "create",
+            parent: BOTS[METAGAME],
+        });
     });
 
-    it("kinds outside the partition — scenario, migration — ignore the band", () => {
+    it("kinds outside the partition — scenario, migration — file under their own fallback", () => {
         for (const kind of ["scenario", "migration"] as const) {
-            expect(originUmbrellaOf(gap(kind, undefined), "P0")).toBeNull();
             const tracker = new StubTracker();
-            syncGaps([gap(kind, undefined)], tracker, "P0");
+            syncGaps([gap(kind, undefined)], tracker);
             expect(tracker.created[0]!.parent).toBe(KIND_FALLBACK[kind]);
         }
     });
 
-    it("the P0 umbrella counts against GitHub's sub-issue cap like any other parent", () => {
+    // ── reclaim (issue #5871) ──────────────────────────────────────────
+
+    it("reclaim: a gap that would be created, when an OPEN issue already carries its exact title, records that issue instead of filing a second one", () => {
         const tracker = new StubTracker();
-        tracker.childCounts.set(BOTS.P0, SUB_ISSUE_CAP);
-        expect(() => syncGaps([gap("bot", METAGAME)], tracker, "P0")).toThrow(
-            new RegExp(`#${BOTS.P0} holds ${SUB_ISSUE_CAP} sub-issues`)
-        );
+        tracker.issues.set(4800, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        tracker.parents.set(4800, BOTS[METAGAME]);
+        const result = syncGaps([gap("bot", METAGAME)], tracker);
         expect(tracker.created).toEqual([]);
+        expect(result.updatedRows.get(claimId("bot", "bot-key"))).toBe(4800);
+        expect(result.actions).toEqual([
+            { action: "reclaim", kind: "bot", key: "bot-key", issue: 4800 },
+        ]);
+        // Already there: no move, no body write.
+        expect(result.moves).toEqual([]);
+        expect(tracker.updateCalls).toBe(0);
+    });
+
+    it("reclaim: the row whose issue was DELETED is reclaimed too, and a reclaimed issue is moved to its Target umbrella and gets the computed body", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4801, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "stale",
+        });
+        tracker.parents.set(4801, PRD_ISSUE);
+        // 4444 is the recorded issue — gone from the tracker.
+        const result = syncGaps([gap("bot", METAGAME, 4444)], tracker);
+        expect(tracker.created).toEqual([]);
+        expect(result.updatedRows.get(claimId("bot", "bot-key"))).toBe(4801);
+        expect(result.moves).toEqual([
+            {
+                kind: "bot",
+                key: "bot-key",
+                issue: 4801,
+                from: PRD_ISSUE,
+                to: BOTS[METAGAME],
+            },
+        ]);
+        expect(tracker.issues.get(4801)!.body).toBe("x");
+        expect(result.actions.map((a) => a.action)).toEqual(["reclaim"]);
+    });
+
+    it("reclaim: a CLOSED issue with the title is not reclaimed — the gap is created", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4802, {
+            state: "CLOSED",
+            title: "bot gap",
+            body: "x",
+        });
+        const result = syncGaps([gap("bot", METAGAME)], tracker);
+        expect(tracker.created).toHaveLength(1);
+        expect(result.actions.map((a) => a.action)).toEqual(["create"]);
+    });
+
+    it("reclaim: the OLDEST open issue wins, and an issue another filing already claims is never reclaimed by a second one", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4810, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        tracker.issues.set(4805, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        for (const n of [4805, 4810]) tracker.parents.set(n, BOTS[METAGAME]);
+        const other: GapFiling = { ...gap("bot", METAGAME), key: "other-key" };
+        const result = syncGaps([gap("bot", METAGAME, 4805), other], tracker);
+        // 4805 is claimed by the first filing; the second reclaims 4810.
+        expect(result.updatedRows.get(claimId("bot", "other-key"))).toBe(4810);
+        expect(tracker.created).toEqual([]);
+        // Two unfiled gaps sharing one title: the first takes the oldest,
+        // the second finds it claimed and creates.
+        const fresh = new StubTracker();
+        fresh.issues.set(4820, { state: "OPEN", title: "bot gap", body: "x" });
+        fresh.parents.set(4820, BOTS[METAGAME]);
+        const twice = syncGaps([gap("bot", METAGAME), other], fresh);
+        expect(twice.updatedRows.get(claimId("bot", "bot-key"))).toBe(4820);
+        expect(fresh.created).toHaveLength(1);
+        expect(twice.actions.map((a) => a.action)).toEqual([
+            "reclaim",
+            "create",
+        ]);
+    });
+
+    it("reclaim: the run after a lost write-back is idempotent — same issues, no create, rows recorded", () => {
+        const tracker = new StubTracker();
+        const first = syncGaps(PARTITIONED, tracker);
+        expect(first.actions.map((a) => a.action)).toEqual([
+            "create",
+            "create",
+            "create",
+        ]);
+        // The allowlist never recorded the rows: the same unfiled filings.
+        const second = syncGaps(PARTITIONED, tracker);
+        expect(tracker.created).toHaveLength(3);
+        expect(second.actions.map((a) => a.action)).toEqual([
+            "reclaim",
+            "reclaim",
+            "reclaim",
+        ]);
+        expect([...second.updatedRows.values()].sort()).toEqual(
+            [...first.updatedRows.values()].sort()
+        );
+    });
+
+    it("reclaim never takes an issue the allowlist records for another key, a Gap Cluster, or stands in for a `## Cards` adoption", () => {
+        // A gone key's row still owns 4830 (the close pass will close it);
+        // a same-title live key must not reclaim it.
+        const recorded = new StubTracker();
+        recorded.issues.set(4830, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        const r1 = syncGaps(
+            [gap("bot", METAGAME)],
+            recorded,
+            new Set(),
+            [],
+            "tip",
+            new Set(),
+            new Set([4830])
+        );
+        expect(r1.actions.map((a) => a.action)).toEqual(["create"]);
+        // A Gap Cluster carrying the title is adopted into by its
+        // Signature, never reclaimed as a single.
+        const cluster = new StubTracker();
+        cluster.issues.set(4831, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        const r2 = syncGaps([gap("bot", METAGAME)], cluster, new Set([4831]));
+        expect(r2.actions.map((a) => a.action)).toEqual(["create"]);
+        // A live key re-homed off a CLOSED Gap Cluster whose card an open
+        // issue names (`## Cards`) records THAT issue — the adoption path —
+        // not an open same-title single.
+        const adopts = new StubTracker();
+        adopts.issues.set(4832, { state: "OPEN", title: "bot gap", body: "x" });
+        adopts.issues.set(4833, { state: "OPEN", body: "## Cards\n\n- X" });
+        adopts.issues.set(4840, { state: "CLOSED", body: "cluster" });
+        const r3 = syncGaps(
+            [{ ...gap("bot", METAGAME, 4840), adopts: 4833 }],
+            adopts,
+            new Set([4840])
+        );
+        expect(r3.actions).toEqual([
+            {
+                action: "re-home",
+                kind: "bot",
+                key: "bot-key",
+                issue: 4833,
+                from: 4840,
+            },
+        ]);
+        expect(adopts.updateCalls).toBe(0);
     });
 });
 
-describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
-    // `main()` reads the network, so the one argument that carries the band
-    // from `parseOriginBand` into `syncGaps` cannot be run under test; a flag
-    // parsed and then dropped is exactly the failure issue #4158 exists to end.
-    // Pinned by SHAPE, the same way `land.test.ts` pins the locked command.
-    it("passes `originBand` third, the allowlist's Grammar Clusters fourth, its Cluster Signatures fifth, the tip sixth and the held kinds seventh", () => {
+describe("gaps-sync main hands the allowlist's Grammar Clusters, Cluster Signatures, tip and held kinds to syncGaps — and no band", () => {
+    // `main()` reads the network; pinned by SHAPE, the same way `land.test.ts`
+    // pins the locked command. No third `originBand` argument any more
+    // (issue #5871): the computed band is the only band.
+    it("passes the Grammar Clusters third, the Cluster Signatures fourth, the tip fifth, the held kinds sixth and every recorded issue seventh", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip,\s*holdCreates\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip,\s*holdCreates,\s*new Set\(filed\.values\(\)\)\s*\)/
+        );
+        // The Cluster Cut prefix is prefetched too, so a lost `cuts` row's
+        // ticket is reclaimed by title (issue #5871).
+        expect(source).toMatch(/new GhGapTracker\(prefixes\)/);
+        expect(source).toMatch(/CLUSTER_CUT_TITLE_PREFIX,\s*\];/);
+    });
+});
+
+// ── the allowlist write-back fails the run when it does not land (issue #5871) ──
+
+describe("commitAndPushAllowlist — false when the update does not reach the base branch", () => {
+    const git = (cwd: string, args: string[]): string => {
+        const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
+    };
+    const dirs: string[] = [];
+    afterAll(() => {
+        for (const dir of dirs)
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+    });
+    /** A throwaway clone's identity: no signing, no hooks, whatever the
+     *  machine's global config says. */
+    const identity = (repo: string, who: string): void => {
+        git(repo, ["config", "user.email", `${who}@example.com`]);
+        git(repo, ["config", "user.name", who]);
+        git(repo, ["config", "commit.gpgsign", "false"]);
+        git(repo, ["config", "core.hooksPath", join(repo, ".no-hooks")]);
+    };
+    /** A bare remote with `BASE_BRANCH`, and a clone of it on that branch
+     *  holding one allowlist commit — the primary checkout's shape. */
+    function repos(): { bare: string; root: string } {
+        const dir = mkdtempSync(join(tmpdir(), "gaps-sync-push-"));
+        dirs.push(dir);
+        const bare = join(dir, "origin.git");
+        const root = join(dir, "primary");
+        mkdirSync(bare);
+        git(bare, ["init", "--bare", "-q", "-b", BASE_BRANCH]);
+        git(dir, ["clone", "-q", bare, root]);
+        identity(root, "t");
+        git(root, ["checkout", "-q", "-b", BASE_BRANCH]);
+        mkdirSync(join(root, "data"), { recursive: true });
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[]}\n');
+        git(root, ["add", "--", ALLOWLIST_PATH]);
+        git(root, ["commit", "-q", "-m", "seed"]);
+        git(root, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
+        return { bare, root };
+    }
+    /** Somebody else lands `file` on the base branch after `root` fetched. */
+    function landElsewhere(bare: string, root: string, file: string): void {
+        const other = join(root, "..", "other");
+        git(join(root, ".."), ["clone", "-q", bare, other]);
+        identity(other, "o");
+        git(other, ["checkout", "-q", BASE_BRANCH]);
+        mkdirSync(join(other, "data"), { recursive: true });
+        writeFileSync(join(other, file), "theirs\n");
+        git(other, ["add", "--", file]);
+        git(other, ["commit", "-q", "-m", "a merge"]);
+        git(other, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
+    }
+
+    it("true when the push lands: the base branch tip is the allowlist commit", () => {
+        const { bare, root } = repos();
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[1]}\n');
+        expect(commitAndPushAllowlist(root)).toBe(true);
+        expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
+            ALLOWLIST_COMMIT_SUBJECT
+        );
+        expect(commitsAhead(root)).toBe(0);
+    });
+
+    it("a push that lost the race with a landing is rebased onto the moved tip and pushed once more — true, both commits on the base branch", () => {
+        const { bare, root } = repos();
+        landElsewhere(bare, root, "x.txt");
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[2]}\n');
+        expect(commitAndPushAllowlist(root)).toBe(true);
+        expect(
+            git(bare, ["log", "-2", "--format=%s", BASE_BRANCH]).split("\n")
+        ).toEqual([ALLOWLIST_COMMIT_SUBJECT, "a merge"]);
+        expect(commitsAhead(root)).toBe(0);
+    });
+
+    it("false when the rebase conflicts (the allowlist itself moved under it) — the rebase is aborted, the commit stays local: the stranded shape housekeeping repairs", () => {
+        const { bare, root } = repos();
+        landElsewhere(bare, root, ALLOWLIST_PATH);
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[3]}\n');
+        expect(commitAndPushAllowlist(root)).toBe(false);
+        expect(git(root, ["log", "-1", "--format=%s"])).toBe(
+            ALLOWLIST_COMMIT_SUBJECT
+        );
+        expect(git(root, ["status", "--porcelain"])).toBe("");
+        expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
+            "a merge"
+        );
+        expect(commitsAhead(root)).toBe(1);
+    });
+
+    it("true with nothing staged — an unchanged file is not a lost write-back", () => {
+        const { root } = repos();
+        expect(commitAndPushAllowlist(root)).toBe(true);
+    });
+});
+
+describe("gaps-sync main exits non-zero on a lost write-back, after every other pass (issue #5871)", () => {
+    // `main()` reads the network: pinned by SHAPE, like the pins below. A
+    // run that printed "could not push" and exited 0 is what let the
+    // `housekeeping` cron report four duplicate waves as `done`.
+    it("every write-back call sets the flag, and the flag exits WRITE_BACK_FAILED_EXIT last", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        expect(source.match(/commitAndPushAllowlist\(root\)/g)).toHaveLength(2);
+        expect(
+            source.match(
+                /if \(!commitAndPushAllowlist\(root\)\) writeBackFailed = true;/g
+            )
+        ).toHaveLength(2);
+        const orphanPass = source.indexOf("orphan pass —");
+        const exitAt = source.indexOf("if (writeBackFailed) {", orphanPass);
+        expect(orphanPass).toBeGreaterThan(-1);
+        expect(exitAt).toBeGreaterThan(orphanPass);
+        expect(source.slice(exitAt)).toMatch(
+            /process\.exit\(WRITE_BACK_FAILED_EXIT\)/
+        );
+        expect(WRITE_BACK_FAILED_EXIT).not.toBe(0);
+        // A later push of the same run may carry the lost commit up: the
+        // checkout is asked before the exit.
+        expect(source.slice(orphanPass, exitAt)).toMatch(
+            /writeBackFailed && commitsAhead\(root\) === 0/
+        );
+    });
+
+    it("never closes an absorbed single after a lost write-back — the base branch still points its row at the single", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const guard = source.indexOf(
+            "if (result.absorbed.length > 0 && writeBackFailed) {"
+        );
+        const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
+        expect(guard).toBeGreaterThan(-1);
+        expect(close).toBeGreaterThan(guard);
+        expect(source.slice(guard, close)).toMatch(
+            /\} else if \(result\.absorbed\.length > 0\) \{\s*try \{/
         );
     });
 });
@@ -2304,7 +2591,7 @@ describe("gaps-sync main closes absorbed singles only after the rows are recorde
     // network.
     it("calls closeAbsorbedSingles after commitAndPushAllowlist, inside its own try", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
-        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root))");
         const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
         expect(writeBack).toBeGreaterThan(-1);
         expect(close).toBeGreaterThan(writeBack);
@@ -2321,7 +2608,7 @@ describe("gaps-sync main writes the managed blocks only after the rows are recor
     // origin-band pin above: `main()` reads the network.
     it("calls syncAdoptedBlocks after commitAndPushAllowlist, inside its own try", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
-        const writeBack = source.indexOf("commitAndPushAllowlist(root);");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root))");
         const blocks = source.indexOf("syncAdoptedBlocks(\n");
         expect(writeBack).toBeGreaterThan(-1);
         expect(blocks).toBeGreaterThan(writeBack);
@@ -2331,17 +2618,25 @@ describe("gaps-sync main writes the managed blocks only after the rows are recor
     });
 });
 
-describe("parseOriginBand — the flag is the only channel into a hand-set P0 umbrella", () => {
-    it("reads `--band P0` and `--band=P0`; absent is undefined", () => {
-        expect(parseOriginBand(["--band", "P0"])).toBe("P0");
-        expect(parseOriginBand(["--dry-run", "--band=P2"])).toBe("P2");
-        expect(parseOriginBand(["--dry-run"])).toBeUndefined();
+describe("retiredFlagError — `--band` is refused, never ignored (issue #5871)", () => {
+    it("names the flag and the issue for `--band P0` and `--band=P0`; null without it", () => {
+        expect(retiredFlagError(["--band", "P0"])).toMatch(
+            /`--band` is retired \(issue #5871\)/
+        );
+        expect(retiredFlagError(["--dry-run", "--band=P2"])).toMatch(
+            /`--band=P2` is retired/
+        );
+        expect(retiredFlagError(["--dry-run"])).toBeNull();
+        expect(retiredFlagError([])).toBeNull();
     });
 
-    it("refuses an unknown or missing value — a typo read as `no band` would file one band too low, silently", () => {
-        expect(() => parseOriginBand(["--band", "p0"])).toThrow(/got "p0"/);
-        expect(() => parseOriginBand(["--band=P9"])).toThrow(/got "P9"/);
-        expect(() => parseOriginBand(["--band"])).toThrow(/got nothing/);
+    it("main exits 2 on it before reading anything", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const check = source.indexOf("retiredFlagError(process.argv.slice(2))");
+        const lock = source.indexOf("missing — run: bun run oracle:compile");
+        expect(check).toBeGreaterThan(-1);
+        expect(check).toBeLessThan(lock);
+        expect(source.slice(check, lock)).toMatch(/process\.exit\(2\)/);
     });
 });
 

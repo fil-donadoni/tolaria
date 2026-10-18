@@ -20,11 +20,12 @@
  *      (`strandedAllowlistOnly`) is dropped with `reset --keep` — the next
  *      sync re-derives every number it carried;
  *   2. `gaps:sync` ONCE for the batch — it reconciles the whole allowlist, so
- *      a run per PR would file nothing more. `--band P0` when any PR of the
- *      batch closed P0 work (issue #4158: only P0 changes what is filed; the
- *      accepted cost is that a non-P0 PR's gaps in a P0 hour file under P0).
- *      A failure here does not stop the per-PR steps; it marks every PR of
- *      the batch for retry;
+ *      a run per PR would file nothing more. Never `--band`: a gap's parent
+ *      is its computed Target umbrella, whatever band the PRs of the batch
+ *      closed (issue #5871 retired issue #4158's origin band, which filed a
+ *      whole batch's gaps under P0 for one P0 PR). A failure here — a lost
+ *      allowlist write-back included, `gaps:sync` exits 1 on it — does not
+ *      stop the per-PR steps; it marks every PR of the batch for retry;
  *   3. per PR, oldest merge first: `grammar:residue` (issue #5222), the
  *      `in-progress` claim release (issue #3130), `umbrella:detach <issue>`
  *      (issue #4235) — for a branch naming an issue; none otherwise;
@@ -38,9 +39,8 @@
  *
  * Every step is idempotent (the reasons are in each script's header), so a
  * re-run is safe. A PR whose steps fail is kept in the state's `retry` list
- * (with the band read on its first attempt — the detach removes the parent
- * edge the band is read from) and re-run next hour, dropped loudly after
- * `MAX_ATTEMPTS`; a failure of step 1 keeps the whole batch for the next run.
+ * and re-run next hour, dropped loudly after `MAX_ATTEMPTS`; a failure of
+ * step 1 keeps the whole batch for the next run.
  * `grammar:residue`'s `HOLES_EXIT` is a finding, reported and never retried.
  * The watermark moves past every PR the run saw, so a second run with nothing
  * new merged is a no-op.
@@ -75,17 +75,10 @@ import { join } from "node:path";
 import { ALLOWLIST_PATH } from "./check-gaps";
 import { ALLOWLIST_COMMIT_SUBJECT } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import type { BoardPriority } from "./lib/board-priority";
 import { releaseEditArgs } from "./lib/claim-labels";
 import { gh, netEnv } from "./lib/gh";
 import { HOLES_EXIT } from "./lib/grammar-residue";
 import { issueOfBranch } from "./lib/issue-worktree";
-import {
-    LIVE_ORIGIN_BAND_DEPS,
-    originBandOfIssue,
-    type OriginBand,
-    type OriginBandDeps,
-} from "./lib/origin-band";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 /** A merged PR into the base branch. */
@@ -97,8 +90,6 @@ export interface MergedPr {
 
 export interface RetryEntry extends MergedPr {
     attempts: number;
-    /** The origin band read on the first attempt (issue #4158). */
-    band: BoardPriority | null;
 }
 
 export interface HousekeepingState {
@@ -182,8 +173,15 @@ export function parseState(
         const s = JSON.parse(raw) as Partial<HousekeepingState>;
         if (typeof s.since !== "string" || Number.isNaN(Date.parse(s.since)))
             return fresh;
+        // `band` — a state written before issue #5871 — is dropped: no
+        // step reads it any more.
         const retry = Array.isArray(s.retry)
-            ? s.retry.map((r) => ({ ...r, band: r.band ?? null }))
+            ? s.retry.map(({ number, headRefName, mergedAt, attempts }) => ({
+                  number,
+                  headRefName,
+                  mergedAt,
+                  attempts,
+              }))
             : [];
         return { since: s.since, retry };
     } catch {
@@ -217,15 +215,13 @@ export function pendingPrs(
 
 /**
  * The state after a run that processed `pending` and saw `failed` among them:
- * the watermark moves past every PR seen; a failure is retried, with the band
- * it ran with, until `MAX_ATTEMPTS`, then `dropped` (the caller says so
- * loudly).
+ * the watermark moves past every PR seen; a failure is retried until
+ * `MAX_ATTEMPTS`, then `dropped` (the caller says so loudly).
  */
 export function nextState(
     state: HousekeepingState,
     pending: MergedPr[],
-    failed: ReadonlySet<number>,
-    bands: ReadonlyMap<number, BoardPriority | null> = new Map()
+    failed: ReadonlySet<number>
 ): { state: HousekeepingState; dropped: RetryEntry[] } {
     let since = state.since;
     for (const pr of pending)
@@ -240,44 +236,24 @@ export function nextState(
             headRefName: pr.headRefName,
             mergedAt: pr.mergedAt,
             attempts: (prior.get(pr.number) ?? 0) + 1,
-            band: bands.get(pr.number) ?? null,
         };
         (entry.attempts >= MAX_ATTEMPTS ? dropped : retry).push(entry);
     }
     return { state: { since, retry }, dropped };
 }
 
-/** `gaps:sync --band` for the batch: only P0 changes what it files
- *  (`gaps-sync.ts` § `--band`), so any P0 origin makes the batch P0. */
-export function batchBand(
-    bands: ReadonlyArray<BoardPriority | null>
-): BoardPriority | null {
-    return bands.includes("P0") ? "P0" : null;
-}
-
-/** The band of the issue `branch` names, by `queue:plan`'s rule (issue
- *  #4158); null plus a reason, never a throw. */
-export function originBandForBranch(
-    branch: string,
-    deps: OriginBandDeps = LIVE_ORIGIN_BAND_DEPS
-): OriginBand {
-    const issue = issueOfBranch(branch);
-    if (issue === null)
-        return { band: null, reason: `branch ${branch} names no issue` };
-    return originBandOfIssue(issue, deps);
-}
-
 /** Step 2: the one `gaps:sync` of the batch. Files Bot Gaps too (issue
- *  #5301): never `--no-file-bot`. */
-export function gapsSyncStep(band: BoardPriority | null): Step {
-    return {
-        label: `gaps:sync${band === null ? "" : ` --band ${band}`}`,
-        argv: [
-            "bun",
-            "scripts/gaps-sync.ts",
-            ...(band === null ? [] : ["--band", band]),
-        ],
-    };
+ *  #5301): never `--no-file-bot`; never `--band` (issue #5871). */
+export const GAPS_SYNC_STEP: Step = {
+    label: "gaps:sync",
+    argv: ["bun", "scripts/gaps-sync.ts"],
+};
+
+/** Whether a PR's steps left it for retry: the batch's `gaps:sync` failed
+ *  (a lost allowlist write-back included, issue #5871), or one of its own
+ *  steps did. `done` only when both held. */
+export function prRetried(synced: boolean, ownStepsOk: boolean): boolean {
+    return !(synced && ownStepsOk);
 }
 
 /**
@@ -286,7 +262,7 @@ export function gapsSyncStep(band: BoardPriority | null): Step {
  * detach — the issue is closed by now, which is what the detach requires.
  * Empty for a branch that names no issue.
  */
-export function prSteps(pr: MergedPr, band: BoardPriority | null): Step[] {
+export function prSteps(pr: MergedPr): Step[] {
     const issue = issueOfBranch(pr.headRefName);
     if (issue === null) return [];
     const n = String(issue);
@@ -300,7 +276,6 @@ export function prSteps(pr: MergedPr, band: BoardPriority | null): Step[] {
                 n,
                 "--pr",
                 String(pr.number),
-                ...(band === null ? [] : ["--band", band]),
             ],
         },
         {
@@ -522,33 +497,10 @@ function main(): void {
         `${pending.length} PR(s) since ${state.since}: ${pending.map((p) => `#${p.number}`).join(" ")}`
     );
 
-    // Read BEFORE any detach: the parent edge is part of the band. A retry
-    // reuses the band its first attempt read — that attempt's detach may
-    // have removed the edge since.
-    const retried = new Map(state.retry.map((r) => [r.number, r.band]));
-    const bands = new Map<number, BoardPriority | null>();
-    // The board is one ~20 s read: once per run, not once per PR.
-    let board: Record<number, BoardPriority> | null = null;
-    const bandDeps: OriginBandDeps = {
-        readParent: LIVE_ORIGIN_BAND_DEPS.readParent,
-        readBoard: () => (board ??= LIVE_ORIGIN_BAND_DEPS.readBoard()),
-    };
-    for (const pr of pending) {
-        if (retried.has(pr.number)) {
-            bands.set(pr.number, retried.get(pr.number)!);
-            continue;
-        }
-        const origin = originBandForBranch(pr.headRefName, bandDeps);
-        if (origin.reason !== undefined && issueOfBranch(pr.headRefName))
-            say(`PR #${pr.number}: no --band (${origin.reason})`);
-        bands.set(pr.number, origin.band);
-    }
-    const band = batchBand([...bands.values()]);
-
     if (dryRun) {
         for (const step of [
-            gapsSyncStep(band),
-            ...pending.flatMap((pr) => prSteps(pr, bands.get(pr.number)!)),
+            GAPS_SYNC_STEP,
+            ...pending.flatMap((pr) => prSteps(pr)),
             SWEEP_STEP,
         ])
             say(`would run: ${step.argv.join(" ")}`);
@@ -614,23 +566,25 @@ function main(): void {
 
     // Step 2: one sync for the batch. A failure does not hold back the claim
     // releases and detaches below, but every PR is retried for it.
-    const synced = run(gapsSyncStep(band));
+    const synced = run(GAPS_SYNC_STEP);
 
     // Step 3: per PR.
     const failed = new Set<number>();
     for (const pr of pending) {
-        let ok = synced;
-        for (const step of prSteps(pr, bands.get(pr.number)!))
-            ok = run(step) && ok;
-        if (!ok) failed.add(pr.number);
-        say(`PR #${pr.number} (${pr.headRefName}): ${ok ? "done" : "retry"}`);
+        let own = true;
+        for (const step of prSteps(pr)) own = run(step) && own;
+        const retry = prRetried(synced, own);
+        if (retry) failed.add(pr.number);
+        say(
+            `PR #${pr.number} (${pr.headRefName}): ${retry ? "retry" : "done"}`
+        );
     }
 
     // Step 4: the sweep; it always exits 0 on a readable outcome.
     run(SWEEP_STEP);
     closeSync(log);
 
-    const next = nextState(state, pending, failed, bands);
+    const next = nextState(state, pending, failed);
     for (const d of next.dropped)
         say(
             `GIVING UP on PR #${d.number} after ${d.attempts} attempts — run its steps by hand (see ${logPath})`

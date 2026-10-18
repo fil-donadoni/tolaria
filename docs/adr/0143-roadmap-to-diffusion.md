@@ -22,6 +22,10 @@ retired, and the hand source is now `user-decision`.
 working another inherits its band, copied by `issue:inherit-band` — the one
 script that may write `P0`, and only by copying it.
 
+**Amended 2026-10-18** (issue #5871, Amendment V): the origin band of issue
+#4158 is retired — `gaps:sync` files every gap under its computed Target
+umbrella, and no run files into a `P0` umbrella.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -360,10 +364,24 @@ acceptance criterion the PR cannot meet. The shape that prompted it: issue
 by hand.
 
 The script COPIES a band; it never derives one. The value is N's effective
-band — the same `originBandOfIssue` read `land` hands to
+band — the `originBandOfIssue` read, once also what `land` handed to
 `gaps:sync --band` — so a `P0` it writes is always a `P0` a human set on N
 or on N's umbrella. It refuses to overwrite a band already set, and it never
 clears one. Every other script still never writes or clears `P0`.
+
+### A gap's band is its Target's — Amendment V (issue #5871, 2026-10-18)
+
+The origin band of issue #4158 — `gaps:sync --band P0`, the band of the
+work that triggered the run, overriding the computed Target band for every
+gap the run created or found homeless — is **retired**. `housekeeping`
+passed it for a whole batch when any PR of the batch closed P0 work, so one
+P0 PR in an hour filed that hour's long-tail grammar gaps under the P0
+umbrellas, and "nothing moves out of P0" kept them there. Now "`P0` is
+hand-set only" holds without exception for the filer: a gap's parent is the
+umbrella of the Target its cards serve, `gaps:sync --band` is refused, and
+no post-merge step derives a band. `issue:inherit-band` (Amendment IV) is
+untouched: it copies a human's band onto an issue a human-directed session
+files, which is not a computed gap.
 
 ### Format Tiers
 

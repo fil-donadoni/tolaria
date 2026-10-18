@@ -16,8 +16,8 @@ It copies the band `queue:plan` orders `N` by (the open umbrella's
 and refuses rather than overwrite a band already set. It COPIES a hand-set
 band and never derives one — the one way a script writes `P0` (ADR 0143,
 Amendment IV). The issue body's `## Band` names the same band and where it
-came from. Gap issues are not filed by hand: `land` already passes the band
-to `gaps:sync --band`. Labels and the `## Band` section follow
+came from. Gap issues are not filed by hand: `gaps:sync` files them under
+their computed Target umbrella (issue #5871). Labels and the `## Band` section follow
 `docs/agents/triage-labels.md` § Every new issue is stamped at filing.
 
 **Done when:** `issue:inherit-band` read the band back on `<new>`, and its
