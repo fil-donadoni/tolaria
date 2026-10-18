@@ -31,12 +31,14 @@ describe("classifyLane", () => {
         ).toEqual(["oracle"]);
     });
 
+    // The lane runs the drift test as its own `blade-index` guard (issue
+    // #5940): no related run selects a bot-node file.
     it("the blade card index drift test is the `blade-index` fix", () => {
         expect(
             classifyLane(
                 lane([
                     {
-                        id: "vitest(related)",
+                        id: "blade-index",
                         status: "fail",
                         failedFiles: [BLADE],
                     },
@@ -45,12 +47,12 @@ describe("classifyLane", () => {
         ).toEqual(["blade-index"]);
     });
 
-    it("a vitest red naming any other file, or none, is untouched", () => {
+    it("a blade-index red naming any other file, or none, is untouched", () => {
         expect(
             classifyLane(
                 lane([
                     {
-                        id: "vitest(related)",
+                        id: "blade-index",
                         status: "fail",
                         failedFiles: [
                             BLADE,
@@ -61,7 +63,21 @@ describe("classifyLane", () => {
             )
         ).toBeNull();
         expect(
-            classifyLane(lane([{ id: "vitest(related)", status: "fail" }]))
+            classifyLane(lane([{ id: "blade-index", status: "fail" }]))
+        ).toBeNull();
+    });
+
+    it("a vitest(related) red is never the blade-index fix", () => {
+        expect(
+            classifyLane(
+                lane([
+                    {
+                        id: "vitest(related)",
+                        status: "fail",
+                        failedFiles: [BLADE],
+                    },
+                ])
+            )
         ).toBeNull();
     });
 
