@@ -36,6 +36,7 @@ import { getCardByName, getInstanceManaCost } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 import { SPLICE_COST_ID_PREFIX } from "../../splice";
 import { isCategorizedPickLegal } from "../../categorizedPick";
+import { damageSplitAtDamageStep } from "./damageSplitProbe";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
@@ -13831,6 +13832,149 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             moves: [{ kind: "resolution-choice", card: "Gray Ogre" }],
         },
         note: "Issue #5601, the preference twin of the entry above (issue #3731: a threatening source over the first candidate). The Raiders are the first candidate and the minimal-legal answer; the attacking Ogre is the threat. Proof-of-failure: `pickSourceCandidates` (`gre/ai/choiceCandidates.ts`) offering only its first candidate leaves the Raiders as the answer and the entry reds.",
+    },
+    {
+        // COMBAT-DAMAGE SPLIT (CR 510.1c, issue #5662). The Bot's 3/3 is
+        // double-blocked by a 1/1 and a 2/1: 1 + 1 is lethal for both, so the
+        // split kills both. The engine's seed puts all 3 on the first blocker
+        // and kills one — the split the Bot confirmed unedited before #5662.
+        //
+        // The split is not a Move (the driver submits it through
+        // `setDamageAssignment` before `confirmDamage`), so the predicate
+        // walks the position into the real damage step and reads the split
+        // the policy chooses there (`damageSplitProbe.ts`). The root move at
+        // this post-block window is a pass — no mana, no cards.
+        label: "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3",
+        // Absolute: a predicate lowers to no Verdict (`registrySource.ts`), so
+        // the pair is linked by label in the notes, not by `pairOf`.
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers" },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Mons's Goblin Raiders",
+                        attacker: "Hill Giant",
+                    },
+                    { blocker: "Savannah Lions", attacker: "Hill Giant" },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) => {
+                const split = damageSplitAtDamageStep(state, "me");
+                const giant = split?.["Hill Giant"];
+                return (
+                    giant !== undefined &&
+                    giant["Mons's Goblin Raiders"] === 1 &&
+                    giant["Savannah Lions"] === 2
+                );
+            },
+            describe:
+                "splits Hill Giant's 3 damage 1 to Mons's Goblin Raiders, 2 to Savannah Lions (both die)",
+        },
+        note: 'Issue #5662. The anchor of a discriminating pair with "discriminating pair: damage split kills the 3/3 of a 1/1 and a 3/3 blocking a 3/3": same attacker, the 2/1 swapped for a 3/3 so only one blocker can die. Proof-of-failure: `chooseDamageSplit` (`gre/ai/damageSplit.ts`) returning the engine\'s seed puts 3 on the Raiders and the entry reds.',
+    },
+    {
+        // The discriminating half of the entry above (issue #5662): the 2/1
+        // becomes a 3/3, so 3 damage kills at most one blocker (lethal 3 + 1).
+        // The policy kills the one it values more — the 3/3 Bog Wraith — and
+        // it is declared SECOND, so the engine's seed (first live blocker) would
+        // kill the 1/1 instead: the entry discriminates the value pick from
+        // declaration order.
+        label: "discriminating pair: damage split kills the 3/3 of a 1/1 and a 3/3 blocking a 3/3",
+        // Absolute: a predicate lowers to no Verdict (`registrySource.ts`), so
+        // the pair is linked by label in the notes, not by `pairOf`.
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Bog Wraith",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "declare-attackers" },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Mons's Goblin Raiders",
+                        attacker: "Hill Giant",
+                    },
+                    { blocker: "Bog Wraith", attacker: "Hill Giant" },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) => {
+                const giant = damageSplitAtDamageStep(state, "me")?.[
+                    "Hill Giant"
+                ];
+                return (
+                    giant !== undefined &&
+                    giant["Bog Wraith"] === 3 &&
+                    giant["Mons's Goblin Raiders"] === undefined
+                );
+            },
+            describe:
+                "puts all 3 of Hill Giant's damage on Bog Wraith (the 3/3), none on Mons's Goblin Raiders",
+        },
+        note: 'Issue #5662, the discriminating half of "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3". Proof-of-failure: a kill-set search that prefers the cheapest kill (or the seed\'s first live blocker) puts the 3 on the Raiders and the entry reds.',
     },
 ];
 

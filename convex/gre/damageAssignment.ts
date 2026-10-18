@@ -107,9 +107,13 @@ export function lethalForBlocker(
     });
 }
 
-/** blockerId → lethal threshold for every creature `sourceId` is assigning to
+/** targetId → lethal threshold for every creature `sourceId` is assigning to
  *  in this combat damage step (CR 702.19b / CR 702.2c). The map the manual
- *  validator and the assigner UI both check an assignment against. */
+ *  validator and the assigner UI both check an assignment against. An
+ *  attacker's targets are its blockers (CR 510.1c); a blocker's, the creatures
+ *  it blocks (CR 510.1d, banding CR 702.22k) — the latter have no excess sink,
+ *  so the validator never reads them, but the Bot's split policy
+ *  (`ai/damageSplit.ts`, issue #5662) prices them the same way. */
 export function lethalThresholdsForSource(
     state: GameState,
     sourceId: string,
@@ -118,11 +122,14 @@ export function lethalThresholdsForSource(
     const source = findPermanent(state, sourceId);
     if (!source) return {};
     const graph = getEffectiveBlockGraph(state);
-    const blockerIds = graph.blockersByAttacker[sourceId] ?? [];
+    const isAttacker = (state.combat?.attackerIds ?? []).includes(sourceId);
+    const targetIds = isAttacker
+        ? (graph.blockersByAttacker[sourceId] ?? [])
+        : (graph.attackersByBlocker[sourceId] ?? []);
     return assignmentThresholds({
         sourceId,
         sourceHasDeathtouch: source.staticAbilities.includes("deathtouch"),
-        blockers: blockerIds.flatMap((id) => {
+        blockers: targetIds.flatMap((id) => {
             const blocker = findPermanent(state, id);
             return blocker
                 ? [
