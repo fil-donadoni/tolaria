@@ -39,6 +39,8 @@ import {
 } from "../../damageAssignment";
 import { damageSplitsFor, owedDamageSplits } from "../damageSplit";
 import { applyMoveInSearch } from "../../search";
+import { evaluateCreature } from "../../evaluate";
+import { findPermanent } from "../../lookup";
 
 function permanent(
     defId: string,
@@ -212,6 +214,24 @@ describe("Bot combat-damage split (issue #5662, CR 510.1c)", () => {
         expectAccepted(state, "atk", split);
     });
 
+    it("keeps leftover damage off the player when the kill set is partial (CR 702.19b)", () => {
+        // 3/3 trample into a 6/4 and a 1/1: it kills the 1/1 (lethal 1) and
+        // cannot kill the 6/4 (lethal 4), so the 2 left over stay on a
+        // blocker — the player may not receive any while the 6/4 is short.
+        const state = damageStep(
+            [permanent(warMammoth().id, "atk", "p1")],
+            [
+                permanent(crawWurm().id, "wurm", "p2"),
+                permanent(monssGoblinRaiders().id, "goblin", "p2"),
+            ],
+            { wurm: ["atk"], goblin: ["atk"] },
+            { atk: "p1" }
+        );
+        const split = splitOf(state, "p1", "atk")!;
+        expect(split).toEqual({ wurm: 2, goblin: 1 });
+        expectAccepted(state, "atk", split);
+    });
+
     it("uses deathtouch: one point is lethal per blocker (CR 702.2c)", () => {
         // 4/4 deathtouch into a 3/3 and a 6/4 — without deathtouch it could
         // kill only the 3/3.
@@ -280,8 +300,14 @@ describe("Bot combat-damage split (issue #5662, CR 510.1c)", () => {
         const dead = Object.keys(lethal).filter(
             (id) => (split[id] ?? 0) >= lethal[id]
         );
-        expect(dead).toHaveLength(1);
         expect(split.bears + split.lions).toBe(3);
+        // The one given up is the LESS valuable of the two, by the same
+        // valuation the policy reads.
+        const value = (id: string) =>
+            evaluateCreature(state, findPermanent(state, id)!);
+        expect(value("bears")).not.toBe(value("lions"));
+        const cheaper = value("bears") < value("lions") ? "bears" : "lions";
+        expect(dead).toEqual([cheaper]);
     });
 });
 
