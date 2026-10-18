@@ -766,8 +766,10 @@ cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
 (`test:bot`) and `check:bundle` with their costs (issue #5464; ADR 0154 named
 `check:convex-bundle` too, but at 2–4 s it rides the lane), and
 moves `check:convex-heap` (9–17 min per health run) out of `HEALTH_SCRIPTS`
-altogether, to a by-hand `maintenance` script (issue #5458). A guard in
-neither place reds the census.
+altogether, to a by-hand `maintenance` script (issue #5458). Issue #5618 adds
+`check:game-download` (30 s: a production build, then a Solo and a Bot game
+in Chromium), a browser step of the walk phase beside `check:ui --all`
+(`isWalkStep`, same exit contract). A guard in neither place reds the census.
 
 ### No pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
