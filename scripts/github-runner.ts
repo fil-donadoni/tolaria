@@ -126,6 +126,7 @@ function observe(
         runners[name] = {
             extracted: existsSync(join(dir, "config.sh")),
             registered: existsSync(join(dir, ".runner")),
+            envText: readOrNull(join(dir, ".env")),
             paused: existsSync(join(dir, PAUSED_MARKER)),
             unitText:
                 platform === "darwin"
@@ -413,6 +414,7 @@ function main(): void {
                             path: MACHINE_FILE,
                             content: serializeDeclaration({ host, counts }),
                         },
+                        notifyCmd: process.env.TOLARIA_NOTIFY_CMD,
                     },
                     seen
                 )

@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+    existsSync,
+    mkdtempSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BASE_BRANCH } from "../lib/branches";
 import {
     FIRST_RUN_LOOKBACK_MS,
     GAPS_SYNC_STEP,
@@ -8,13 +18,20 @@ import {
     SWEEP_STEP,
     needsNextPage,
     nextState,
+    noticeDue,
     parseState,
     pendingPrs,
     prRetried,
     prSteps,
-    strandedAllowlistOnly,
+    prepareWorkspace,
+    redSummary,
+    removeWorkspace,
+    staleWorkspaces,
+    withNotice,
+    workspacePath,
     type HousekeepingState,
     type MergedPr,
+    type RetryEntry,
 } from "../housekeeping";
 
 /**
@@ -164,28 +181,157 @@ describe("housekeeping.ts — the watermark", () => {
     });
 });
 
-describe("housekeeping.ts — the steps", () => {
-    it("drops a local divergence only when it is gaps:sync's own stranded allowlist commits", () => {
-        const sync = {
-            subject: ALLOWLIST_COMMIT_SUBJECT,
-            files: ["data/grammar-gaps.json"],
-        };
-        expect(strandedAllowlistOnly([sync])).toBe(true);
-        expect(strandedAllowlistOnly([sync, sync])).toBe(true);
-        expect(strandedAllowlistOnly([])).toBe(false);
-        expect(
-            strandedAllowlistOnly([sync, { subject: "wip", files: ["a.ts"] }])
-        ).toBe(false);
-        expect(
-            strandedAllowlistOnly([
-                { ...sync, files: ["data/grammar-gaps.json", "a.ts"] },
-            ])
-        ).toBe(false);
-        expect(
-            strandedAllowlistOnly([{ ...sync, subject: "gaps:sync — other" }])
-        ).toBe(false);
+describe("housekeeping.ts — the owner's notice (issue #5873)", () => {
+    const entry = (n: number): RetryEntry => ({
+        ...pr(n, "2026-10-11T09:00:00Z"),
+        attempts: 1,
     });
 
+    it("a green run has no notice; a red one names what is left to retry, what was dropped, or why nothing ran", () => {
+        expect(redSummary({ retry: [], dropped: [] })).toBeNull();
+        expect(redSummary({ retry: [entry(5001)], dropped: [] })).toBe(
+            "housekeeping: 1 PR(s) left to retry: #5001"
+        );
+        expect(
+            redSummary({ retry: [entry(5001)], dropped: [entry(4990)] })
+        ).toBe(
+            `housekeeping: 1 PR(s) left to retry: #5001; GAVE UP on #4990 after ${MAX_ATTEMPTS} attempts`
+        );
+        expect(
+            redSummary({ retry: [], dropped: [], reason: "could not read x" })
+        ).toBe("housekeeping: could not read x");
+        // A state write that failed is a red of its own, even with every
+        // step green: the watermark did not move.
+        expect(
+            redSummary({ retry: [], dropped: [], writeFailed: "ref moved" })
+        ).toBe("housekeeping: state not written (ref moved)");
+    });
+
+    it("sends a notice once per distinct text: the hourly retry of one failure is one message, a green run makes it news again", () => {
+        const red = "housekeeping: 1 PR(s) left to retry: #5001";
+        const state: HousekeepingState = {
+            since: "2026-10-11T08:00:00.000Z",
+            retry: [],
+        };
+        expect(noticeDue(red, undefined)).toBe(true);
+        const after = withNotice(state, red);
+        expect(after.lastNotice).toBe(red);
+        expect(noticeDue(red, after.lastNotice)).toBe(false);
+        expect(
+            noticeDue(
+                "housekeeping: 2 PR(s) left to retry: #5001 #5002",
+                after.lastNotice
+            )
+        ).toBe(true);
+        expect(noticeDue(null, after.lastNotice)).toBe(false);
+        // A green run clears it; the state carries no stale notice.
+        expect(withNotice(after, null)).toEqual(state);
+        expect("lastNotice" in withNotice(after, null)).toBe(false);
+        // Round-trips through the shared document; a document without it
+        // reads as none.
+        expect(parseState(JSON.stringify(after), 0).lastNotice).toBe(red);
+        expect("lastNotice" in parseState(JSON.stringify(state), 0)).toBe(
+            false
+        );
+    });
+});
+
+describe("housekeeping.ts — the workspace (issue #5873)", () => {
+    let dir: string;
+    const git = (args: string[], cwd: string) =>
+        spawnSync("git", args, { cwd, encoding: "utf8" });
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "housekeeping-ws-"));
+        git(["init", "-q", "--bare", "-b", BASE_BRANCH, "origin.git"], dir);
+        git(["clone", "-q", "origin.git", "primary"], dir);
+        const primary = join(dir, "primary");
+        git(["config", "user.email", "t@t"], primary);
+        git(["config", "user.name", "t"], primary);
+        git(["checkout", "-q", "-B", BASE_BRANCH], primary);
+        writeFileSync(join(primary, "a"), "a");
+        git(["add", "."], primary);
+        git(["commit", "-qm", "a"], primary);
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+    });
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
+
+    it("names the workspace beside the primary and tells its leftovers from issue worktrees", () => {
+        expect(workspacePath("/x/tolaria", 42)).toBe(
+            "/x/tolaria-housekeeping-42"
+        );
+        const porcelain = [
+            "worktree /x/tolaria",
+            "HEAD aaa",
+            "",
+            "worktree /x/tolaria-issue-5873",
+            "HEAD bbb",
+            "",
+            "worktree /x/tolaria-housekeeping-99",
+            "HEAD ccc",
+            "",
+            "worktree /x/tolaria-housekeeping-abc",
+            "",
+        ].join("\n");
+        expect(staleWorkspaces(porcelain, "/x/tolaria")).toEqual([
+            "/x/tolaria-housekeeping-99",
+        ]);
+    });
+
+    it("a diverged, dirty primary on another branch still yields a clean worktree at the base tip — and is left exactly as it was", () => {
+        const primary = join(dir, "primary");
+        // The base moves on origin…
+        const other = join(dir, "other");
+        git(["clone", "-q", "origin.git", "other"], dir);
+        git(["config", "user.email", "t@t"], other);
+        git(["config", "user.name", "t"], other);
+        writeFileSync(join(other, "b"), "b");
+        git(["add", "."], other);
+        git(["commit", "-qm", "b"], other);
+        git(["push", "-q", "origin", `HEAD:${BASE_BRANCH}`], other);
+        const tip = git(["rev-parse", "HEAD"], other).stdout.trim();
+        // …while the primary sits on a WIP branch with a local commit and dirt.
+        git(["checkout", "-q", "-b", "wip"], primary);
+        writeFileSync(join(primary, "local"), "local");
+        git(["add", "."], primary);
+        git(["commit", "-qm", "local"], primary);
+        writeFileSync(join(primary, "dirty"), "dirty");
+        const head = git(["rev-parse", "HEAD"], primary).stdout.trim();
+        // A killed run's leftover, registered.
+        const stale = workspacePath(primary, 1);
+        git(["worktree", "add", "--detach", "-q", stale, "HEAD"], primary);
+
+        const wt = prepareWorkspace(primary, { pid: 2, bootstrap: false });
+        expect(wt).toBe(workspacePath(realpathSync(primary), 2));
+        expect(git(["rev-parse", "HEAD"], wt).stdout.trim()).toBe(tip);
+        expect(git(["status", "--porcelain"], wt).stdout).toBe("");
+        expect(existsSync(stale)).toBe(false);
+        // The primary: same branch, same head, same dirt.
+        expect(
+            git(["symbolic-ref", "--short", "HEAD"], primary).stdout.trim()
+        ).toBe("wip");
+        expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(head);
+        expect(existsSync(join(primary, "dirty"))).toBe(true);
+
+        expect(removeWorkspace(primary, wt)).toBe(true);
+        expect(existsSync(wt)).toBe(false);
+        expect(
+            staleWorkspaces(
+                git(["worktree", "list", "--porcelain"], primary).stdout,
+                realpathSync(primary)
+            )
+        ).toEqual([]);
+    });
+});
+
+describe("housekeeping.ts — the steps", () => {
     it("reads grammar:residue's holes exit as a finding, not a failure — every other step's non-zero is one", () => {
         const steps = prSteps(
             pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457")

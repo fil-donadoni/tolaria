@@ -214,6 +214,8 @@ export interface ObservedRunner {
     extracted: boolean;
     /** `.runner` is in its directory: `config.sh` registered it. */
     registered: boolean;
+    /** Its `.env` (job environment), or null when none. */
+    envText?: string | null;
     /** The installed unit's text (macOS: its plist), or null. */
     unitText: string | null;
     /** Its directory carries the `.paused` marker. */
@@ -254,6 +256,17 @@ export interface InstallInput {
     /** The declaration to remember (`machine.json`), so a re-run without
      *  flags declares the same runners. */
     machineFile: { path: string; content: string };
+    /** The installing shell's `TOLARIA_NOTIFY_CMD` (issue #5873): written to
+     *  each runner's `.env`, which actions/runner loads into every job, so a
+     *  job's `notifyOwner` reaches the owner from a headless machine too.
+     *  Undefined = leave each runner's `.env` as it is. */
+    notifyCmd?: string;
+}
+
+/** The runner's `.env` for `notifyCmd` (actions/runner reads `<dir>/.env`
+ *  into job environments at start). Pure. */
+export function runnerEnvFile(notifyCmd: string): string {
+    return `TOLARIA_NOTIFY_CMD=${notifyCmd}\n`;
 }
 
 /** What `machine.json` remembers: the host name and the role counts. */
@@ -374,6 +387,17 @@ export function planInstall(
                 kind: "run",
                 why: `${r.name}: unpack the runner`,
                 argv: ["tar", "xzf", TARBALL_PLACEHOLDER, "-C", r.dir],
+            });
+        }
+        if (
+            input.notifyCmd !== undefined &&
+            (s.envText ?? null) !== runnerEnvFile(input.notifyCmd)
+        ) {
+            steps.push({
+                kind: "write",
+                why: `${r.name}: TOLARIA_NOTIFY_CMD into its .env (a job's notices reach the owner; applied at the runner's next start)`,
+                path: join(r.dir, ".env"),
+                content: runnerEnvFile(input.notifyCmd),
             });
         }
         if (!s.registered) {

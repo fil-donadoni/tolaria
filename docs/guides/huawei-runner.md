@@ -209,18 +209,23 @@ holding the port.
 
 The hourly housekeeping and the nightly Bot upkeep **no longer run from
 systemd timers** (issue #5644, ADR 0156 Amendment I). Both are jobs of
-`.github/workflows/post-merge.yml` on the Huawei's [`lane`](github-pipeline.md#g-lane)
-runner, so the units `tolaria-housekeeping.{service,timer}` and
+`.github/workflows/post-merge.yml` on **any** [`lane`](github-pipeline.md#g-lane)
+runner — the Huawei, always on, usually takes them; nothing depends on it
+(issue #5873) — so the units `tolaria-housekeeping.{service,timer}` and
 `tolaria-nightly.{service,timer}` were deleted from
 [`scripts/runner-units/`](../../scripts/runner-units/). What each does and when
 it fires: [post-merge](github-pipeline.md#post-merge).
 
 The job runs as the owner in a worktree of this machine's primary checkout, so
-what the units needed still holds: `housekeeping` pushes `gaps:sync`'s
-allowlist to the base branch, so `gh auth status` must succeed and `git push`
-must work from the primary checkout (`GH_TOKEN` in
-`~/.config/tolaria/runner.env` if the keyring is not reachable from a user
-service); `health:nightly` needs `tolaria-convex` up.
+what the units needed still holds on EVERY machine that may take the job:
+`housekeeping` pushes `gaps:sync`'s allowlist and the shared state refs to
+origin, so `gh auth status` must succeed and `git push` must work from the
+primary checkout (`GH_TOKEN` in `~/.config/tolaria/runner.env` if the keyring
+is not reachable from a user service); `health:nightly` needs the machine's
+Convex deployment up (`tolaria-convex` here). A red job notifies through
+`TOLARIA_NOTIFY_CMD`: export it (the `ntfy` curl) in the shell that runs
+`bun run runner install`, which writes it into each runner's `.env` — the
+desktop fallback reaches nobody on a headless machine.
 
 ### Retire the old timers
 

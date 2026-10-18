@@ -326,6 +326,26 @@ describe("install plan", () => {
         });
     }
 
+    it("writes TOLARIA_NOTIFY_CMD into each runner's .env when the installing shell has one, and leaves .env alone otherwise (issue #5873)", () => {
+        const inp = { ...input("linux"), notifyCmd: 'curl -d "$1" ntfy' };
+        const seen = installed(inp);
+        const writes = planInstall(inp, seen).filter(
+            (s) => s.kind === "write" && s.path.endsWith("/.env")
+        );
+        expect(
+            writes.map((s) => (s.kind === "write" ? s.content : ""))
+        ).toEqual(
+            inp.runners.map(() => 'TOLARIA_NOTIFY_CMD=curl -d "$1" ntfy\n')
+        );
+        // Already in place: nothing to do.
+        for (const r of inp.runners)
+            seen.runners[r.name]!.envText =
+                'TOLARIA_NOTIFY_CMD=curl -d "$1" ntfy\n';
+        expect(planInstall(inp, seen)).toEqual([]);
+        // No notify command in the shell: an existing .env is not touched.
+        expect(planInstall(input("linux"), seen)).toEqual([]);
+    });
+
     it("darwin: a changed plist on a running agent is booted out, then bootstrapped", () => {
         const inp = input("darwin");
         const seen = installed(inp);

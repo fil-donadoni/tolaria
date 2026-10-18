@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { ALLOWLIST_PATH } from "../check-gaps";
+import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import { BASE_BRANCH } from "../lib/branches";
 import {
     cardSetsChanged,
@@ -11,8 +13,46 @@ import {
     mergedWorktree,
     pushRange,
     seedPlan,
+    syncNotice,
 } from "../lib/post-merge";
-import { fastForward } from "../post-merge";
+import { fastForward, strandedAllowlistOnly } from "../post-merge";
+
+describe("strandedAllowlistOnly (issue #5873)", () => {
+    it("is true only for gaps:sync's own allowlist commits, all of them", () => {
+        const sync = {
+            subject: ALLOWLIST_COMMIT_SUBJECT,
+            files: [ALLOWLIST_PATH],
+        };
+        expect(strandedAllowlistOnly([sync])).toBe(true);
+        expect(strandedAllowlistOnly([sync, sync])).toBe(true);
+        expect(strandedAllowlistOnly([])).toBe(false);
+        expect(
+            strandedAllowlistOnly([sync, { subject: "wip", files: ["a.ts"] }])
+        ).toBe(false);
+        expect(
+            strandedAllowlistOnly([
+                { ...sync, files: [ALLOWLIST_PATH, "a.ts"] },
+            ])
+        ).toBe(false);
+        expect(
+            strandedAllowlistOnly([{ ...sync, subject: "gaps:sync — other" }])
+        ).toBe(false);
+    });
+});
+
+describe("syncNotice (issue #5873)", () => {
+    it("a green leg has none; a red one is keyed by its failing steps, so notifyOnce sends each distinct failure once", () => {
+        expect(syncNotice([], "h")).toBeNull();
+        expect(syncNotice(["fast-forward of /p"], "huawei")).toEqual({
+            key: "fast-forward of /p",
+            message: "post-merge sync red on huawei: fast-forward of /p",
+        });
+        expect(
+            syncNotice(["fast-forward of /p", "telemetry ingest"], "huawei")!
+                .key
+        ).toBe("fast-forward of /p; telemetry ingest");
+    });
+});
 
 describe("pushRange", () => {
     it("is before..after for a push onto an existing branch", () => {
@@ -146,6 +186,43 @@ describe("fastForward", () => {
         expect(git(["rev-parse", "HEAD"], primary).stdout).toBe(
             git(["rev-parse", `origin/${BASE_BRANCH}`], primary).stdout
         );
+    });
+
+    it("heals a primary whose only divergence is stranded gaps:sync allowlist commits (issue #5873)", () => {
+        const primary = join(dir, "primary");
+        mkdirSync(join(primary, dirname(ALLOWLIST_PATH)), { recursive: true });
+        writeFileSync(join(primary, ALLOWLIST_PATH), "{}");
+        git(["add", "--", ALLOWLIST_PATH], primary);
+        git(
+            ["commit", "-qm", ALLOWLIST_COMMIT_SUBJECT, "--", ALLOWLIST_PATH],
+            primary
+        );
+        // Diverged for real: the base moved under it (fetched), the local
+        // commit is not on it.
+        git(["fetch", "-q"], primary);
+        expect(
+            git(["merge", "--ff-only", `origin/${BASE_BRANCH}`], primary).status
+        ).not.toBe(0);
+        expect(fastForward(primary)).toBe(true);
+        expect(git(["rev-parse", "HEAD"], primary).stdout).toBe(
+            git(["rev-parse", `origin/${BASE_BRANCH}`], primary).stdout
+        );
+        expect(
+            git(
+                ["rev-list", `origin/${BASE_BRANCH}..HEAD`],
+                primary
+            ).stdout.trim()
+        ).toBe("");
+    });
+
+    it("refuses — and leaves standing — any other local commit", () => {
+        const primary = join(dir, "primary");
+        writeFileSync(join(primary, "wip.ts"), "x");
+        git(["add", "."], primary);
+        git(["commit", "-qm", "wip"], primary);
+        const before = git(["rev-parse", "HEAD"], primary).stdout;
+        expect(fastForward(primary)).toBe(false);
+        expect(git(["rev-parse", "HEAD"], primary).stdout).toBe(before);
     });
 
     it("leaves a checkout on another branch alone", () => {

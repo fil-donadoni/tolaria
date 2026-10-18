@@ -31,15 +31,25 @@
  *     shared job setup (`./.github/actions/job-setup`) first.
  *   - `concurrency-group` — a `concurrency` key on a self-hosted job or on a
  *     workflow holding one: a group keeps one pending job and CANCELS the
- *     older pending one; heavy work is serialised by runner labels. The one
- *     exception is a `SERIALISED_DISPATCHERS` job (below).
- *   - `dispatcher-serialised` — a job of a `SERIALISED_DISPATCHERS` workflow
- *     without a JOB-level `concurrency: { group, cancel-in-progress: false }`.
- *     The dispatcher claims issues: two runs at once could claim one issue
- *     twice (issue #5649). A dropped pending dispatcher loses nothing — the
- *     next run re-reads every fact — so the group's cancel is harmless there;
- *     job level, so a run whose job is skipped (a label event that is not
- *     `ready-for-agent`) never displaces a pending one.
+ *     older pending one; heavy work is serialised by runner labels. The
+ *     exceptions are the `SERIALISED_DISPATCHERS` and `SERIALISED_JOBS`
+ *     below.
+ *   - `dispatcher-serialised` — a job of a `SERIALISED_DISPATCHERS` workflow,
+ *     or a `SERIALISED_JOBS` job, without a JOB-level
+ *     `concurrency: { group, cancel-in-progress: false }`. The dispatcher
+ *     claims issues: two runs at once could claim one issue twice (issue
+ *     #5649); a shared post-merge duty (`housekeeping`, `nightly`) runs on
+ *     any machine and two at once would move one watermark twice (issue
+ *     #5873). A dropped pending run loses nothing in either case — the next
+ *     run re-reads every fact — so the group's cancel is harmless there; job
+ *     level, so a run whose job is skipped (a label event that is not
+ *     `ready-for-agent`, a push that fires no nightly) never displaces a
+ *     pending one.
+ *   - `host-pinned` — a self-hosted job whose `runs-on` names ONE machine by
+ *     a literal `host:<name>` label (issue #5873): that machine offline or
+ *     broken holds the job for 24 h, then fails it. A per-machine duty is a
+ *     matrix over the hosts (`host:${{ matrix.host }}`) or an input; a shared
+ *     duty names no host at all.
  *   - `self-hosted-clone` — `actions/checkout` on a self-hosted job: a job on
  *     the owner's machines works in a worktree of the primary checkout.
  *   - `job-worktree` — a self-hosted job whose first step does not create the
@@ -105,6 +115,7 @@ export type RuleId =
     | "queue-dequeue"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
+    | "host-pinned"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -126,6 +137,29 @@ export const SERIALISED_DISPATCHERS: ReadonlySet<string> = new Set([
     // attempt yet" and spawn two fixers, or file the stop's issue twice.
     ".github/workflows/health-fix.yml",
 ]);
+
+/** Jobs that must run one at a time, cross-machine, by a job-level
+ *  concurrency group (issue #5873): `<workflow path>#<job id>`. Each reads
+ *  every fact it acts on from shared state at its start, so a dropped
+ *  pending run costs nothing; two running at once would act on one
+ *  watermark twice. */
+export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
+    ".github/workflows/post-merge.yml#housekeeping",
+    ".github/workflows/post-merge.yml#nightly",
+]);
+
+/** A `runs-on` label that names one machine: `host:<name>` spelled out. An
+ *  expression (`host:${{ matrix.host }}`) is a matrix or an input, not a
+ *  pin. */
+const HOST_LITERAL = /^host:(?!.*\$\{\{)\S+$/;
+
+/** The `host:` literal a `runs-on` carries, or null. Pure. */
+export function pinnedHost(runsOn: unknown): string | null {
+    const labels = isObj(runsOn) ? asArray(runsOn.labels) : asArray(runsOn);
+    for (const label of labels)
+        if (typeof label === "string" && HOST_LITERAL.test(label)) return label;
+    return null;
+}
 
 /** `{ group: <non-empty>, cancel-in-progress: false }` — serialises without
  *  ever cancelling a RUNNING job (a dispatcher mid-claim). */
@@ -272,13 +306,22 @@ function checkJob(
     const timeout = job["timeout-minutes"];
     if (!(typeof timeout === "number" && timeout > 0))
         v("no-timeout", "no positive `timeout-minutes`");
-    const serialised = wf.dispatcher && isSerialisingGroup(job.concurrency);
+    const mustSerialise = wf.dispatcher || SERIALISED_JOBS.has(`${file}#${id}`);
+    const serialised = mustSerialise && isSerialisingGroup(job.concurrency);
     if (selfHosted && job.concurrency !== undefined && !serialised)
         v("concurrency-group", "self-hosted job declares `concurrency`");
-    if (wf.dispatcher && !serialised)
+    if (mustSerialise && !serialised)
         v(
             "dispatcher-serialised",
-            "a dispatcher job must declare `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice"
+            wf.dispatcher
+                ? "a dispatcher job must declare `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice"
+                : "a shared post-merge duty must declare `concurrency: { group, cancel-in-progress: false }` — two machines at once would move one watermark twice (issue #5873)"
+        );
+    const host = selfHosted ? pinnedHost(job["runs-on"]) : null;
+    if (host !== null)
+        v(
+            "host-pinned",
+            `\`runs-on\` pins the job to \`${host}\` — that machine offline holds it for 24 h; use a matrix or an input, or no host (issue #5873)`
         );
 
     const steps = asArray(job.steps);

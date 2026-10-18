@@ -96,9 +96,10 @@ export const FILING_STEP_NAME = "gaps:sync";
  * Bot Gaps the committed findings carry (issue #4944, ADR 0146 — one sweep adds
  * at most one issue per family, through the Cluster Signatures).
  *
- * `gaps:sync` runs in the PRIMARY checkout (`primary`), not the batch worktree:
- * it commits and pushes the allowlist to the base branch, which only a checkout
- * on that branch can do.
+ * `gaps:sync` runs in `primary` — historically the PRIMARY checkout; since
+ * issue #5873 the nightly passes a throwaway worktree at the measured tip, from
+ * which the script commits and pushes the allowlist (`push origin HEAD:<base>`
+ * needs no branch checked out). A health batch still passes its primary.
  *
  * `bot:reach` goes through the heavy gate like every CPU-bound step: it queues
  * on the mutex instead of racing a `land` or a health run.

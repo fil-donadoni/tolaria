@@ -1,24 +1,48 @@
 #!/usr/bin/env bun
 /**
  * `bun run housekeeping` — the GitHub-bound post-merge steps `land` used to
- * run inside the mutex (ADR 0154 §5, issue #5457), as an hourly cron.
+ * run inside the mutex (ADR 0154 §5, issue #5457), as an hourly job of
+ * `post-merge.yml` on ANY lane runner (issue #5873).
  *
  * Nobody in a session waits for them, and a GitHub 502 inside `land` cost the
  * session a landing that looked failed on a PR that had merged. Here a 502
- * costs the cron a retry. `land` keeps what the session needs at once: the
+ * costs the run a retry. `land` keeps what the session needs at once: the
  * landing record, the primary fast-forward, the scenario seed, telemetry
  * ingest, the health detach and the teardown.
  *
- * One run walks the PRs merged into the base branch since its WATERMARK
- * (`.claude/telemetry/housekeeping/state.json` in the primary checkout):
+ * NOTHING HERE IS MACHINE-LOCAL (issue #5873). The run used to fast-forward
+ * the primary checkout and work in it, with its watermark in a file beside
+ * it — so the job was pinned to one host, a diverged primary failed every
+ * run, and no other machine could resume the batch. Now:
  *
- *   1. `git fetch` + fast-forward the primary checkout — `gaps:sync` reads
- *      the merged lockfile from disk and pushes its allowlist write to the
- *      base branch, so a checkout off the base branch or behind it stops the
- *      run (nothing processed, watermark kept). The one divergence it repairs
- *      is its own: a `gaps:sync` commit whose push lost a race with a merge
- *      (`strandedAllowlistOnly`) is dropped with `reset --keep` — the next
- *      sync re-derives every number it carried;
+ *   - the WATERMARK and the retry list are shared state (`lib/shared-state.ts`,
+ *     the `housekeeping` key of `refs/tolaria/state` on origin), read at the
+ *     start and written back with a compare-and-swap: a run on machine B
+ *     resumes exactly where a run on machine A stopped, and two runs that
+ *     raced each other cannot both move the watermark (the loser exits 1 and
+ *     the next hour re-reads). A local `state.json` from before this is read
+ *     once, as the first shared state, when the ref does not exist yet;
+ *   - the WORK happens in a throwaway worktree of `origin/<base>` beside the
+ *     primary checkout (`<primary>-housekeeping-<pid>`), bootstrapped by
+ *     `worktree:init`, removed when the run ends. `gaps:sync` reads the
+ *     merged lockfile and allowlist from that tree and pushes its allowlist
+ *     commit from it. A push that loses a race with a merge is a failed sync
+ *     (`gaps:sync` exits 1 on it, issue #5871): the batch is retried, the
+ *     owner told, the worktree goes and the next run reclaims by title. The
+ *     primary checkout's branch, divergence or dirt never enters the
+ *     picture;
+ *   - the RED is visible: a run that leaves a PR to retry, drops one, or
+ *     cannot read or write its state notifies the owner (`lib/notify-owner.ts`,
+ *     the channel a RED uses) — once per distinct notice, so the hourly
+ *     retry of one failure is one message, not twenty-four. The notice of a
+ *     run that processed PRs is remembered in the shared state (either
+ *     machine dedupes it); the notice of a run that could not start (no
+ *     state, no workspace, no PR list) in this machine's marker file.
+ *
+ * One run walks the PRs merged into the base branch since the watermark:
+ *
+ *   1. the workspace: `git fetch` into the primary's object store, the
+ *      throwaway worktree at `origin/<base>`, `worktree:init` there;
  *   2. `gaps:sync` ONCE for the batch — it reconciles the whole allowlist, so
  *      a run per PR would file nothing more. Never `--band`: a gap's parent
  *      is its computed Target umbrella, whatever band the PRs of the batch
@@ -43,7 +67,7 @@
  * step 1 keeps the whole batch for the next run.
  * `grammar:residue`'s `HOLES_EXIT` is a finding, reported and never retried.
  * The watermark moves past every PR the run saw, so a second run with nothing
- * new merged is a no-op.
+ * new merged is a no-op — and writes nothing.
  *
  * The merged PRs are listed by `updatedAt`, newest first, paging until a PR
  * last updated before the watermark — a merge updates a PR, so nothing merged
@@ -52,10 +76,10 @@
  *
  * Cron-friendly: one invocation, exit 0 when there is nothing to do or every
  * step passed, 1 when something is left to retry, 2 on a usage error. The
- * child scripts' output goes to `housekeeping.log` beside the state; stdout
- * carries one line per decision. Runs in the PRIMARY checkout whatever the
- * cwd. Flags: `--dry-run` (print the plan, run and write nothing),
- * `--since <ISO>` (move the watermark back, for a backfill).
+ * child scripts' output goes to `housekeeping.log` under the primary
+ * checkout's `.claude/telemetry/housekeeping/` (a log, not state); stdout
+ * carries one line per decision. Flags: `--dry-run` (print the plan, run and
+ * write nothing), `--since <ISO>` (move the watermark back, for a backfill).
  *
  * Every DECISION is a pure function below, tested in
  * `__tests__/housekeeping.test.ts`; `main` is plumbing.
@@ -68,18 +92,23 @@ import {
     mkdirSync,
     openSync,
     readFileSync,
+    realpathSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { ALLOWLIST_PATH } from "./check-gaps";
-import { ALLOWLIST_COMMIT_SUBJECT } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { releaseEditArgs } from "./lib/claim-labels";
 import { gh, netEnv } from "./lib/gh";
 import { HOLES_EXIT } from "./lib/grammar-residue";
 import { issueOfBranch } from "./lib/issue-worktree";
+import { forgetNotice, notifyOnce, notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    SharedStateConflict,
+    readSharedState,
+    writeSharedState,
+} from "./lib/shared-state";
 
 /** A merged PR into the base branch. */
 export interface MergedPr {
@@ -99,6 +128,9 @@ export interface HousekeepingState {
     /** PRs whose steps failed, kept whole so a PR that fell off the merged
      *  list is still retried. */
     retry: RetryEntry[];
+    /** The last notice sent to the owner (issue #5873); the same text is not
+     *  sent twice in a row. Absent until a run went red. */
+    lastNotice?: string;
 }
 
 /** One step: what it is called in the log, and the argv it runs. */
@@ -109,6 +141,9 @@ export interface Step {
      *  failure to retry. */
     holesExit?: boolean;
 }
+
+/** The shared-state key of the watermark and retry list (issue #5873). */
+export const STATE_KEY = "housekeeping";
 
 /** Hourly cron × 24 = a day of retries before a PR is given up on. */
 export const MAX_ATTEMPTS = 24;
@@ -134,26 +169,6 @@ export function needsNextPage(page: MergedPage, since: string): boolean {
         page.hasNextPage &&
         last !== undefined &&
         Date.parse(last.updatedAt) >= Date.parse(since)
-    );
-}
-
-/**
- * The local commits a fast-forward refused on, when every one of them is a
- * `gaps:sync` allowlist write whose push lost a race — the one divergence
- * this script repairs (by dropping them: the next sync re-derives them).
- * Anything else, or nothing, is false.
- */
-export function strandedAllowlistOnly(
-    commits: ReadonlyArray<{ subject: string; files: string[] }>
-): boolean {
-    return (
-        commits.length > 0 &&
-        commits.every(
-            (c) =>
-                c.subject === ALLOWLIST_COMMIT_SUBJECT &&
-                c.files.length === 1 &&
-                c.files[0] === ALLOWLIST_PATH
-        )
     );
 }
 
@@ -183,7 +198,13 @@ export function parseState(
                   attempts,
               }))
             : [];
-        return { since: s.since, retry };
+        return {
+            since: s.since,
+            retry,
+            ...(typeof s.lastNotice === "string"
+                ? { lastNotice: s.lastNotice }
+                : {}),
+        };
     } catch {
         return fresh;
     }
@@ -240,6 +261,53 @@ export function nextState(
         (entry.attempts >= MAX_ATTEMPTS ? dropped : retry).push(entry);
     }
     return { state: { since, retry }, dropped };
+}
+
+/**
+ * The owner's notice for a run that went red (issue #5873): what is left to
+ * retry, what was dropped, or the reason nothing ran. `null` for a green
+ * run. Pure.
+ */
+export function redSummary(input: {
+    retry: readonly RetryEntry[];
+    dropped: readonly RetryEntry[];
+    reason?: string;
+    /** The shared-state write failed: the watermark did not move. */
+    writeFailed?: string;
+}): string | null {
+    if (input.reason !== undefined) return `housekeeping: ${input.reason}`;
+    const parts: string[] = [];
+    if (input.writeFailed !== undefined)
+        parts.push(`state not written (${input.writeFailed})`);
+    if (input.retry.length > 0)
+        parts.push(
+            `${input.retry.length} PR(s) left to retry: ${input.retry.map((r) => `#${r.number}`).join(" ")}`
+        );
+    if (input.dropped.length > 0)
+        parts.push(
+            `GAVE UP on ${input.dropped.map((d) => `#${d.number}`).join(" ")} after ${MAX_ATTEMPTS} attempts`
+        );
+    return parts.length === 0 ? null : `housekeeping: ${parts.join("; ")}`;
+}
+
+/** Whether `summary` is sent: a red that reads like the last one sent is
+ *  not re-sent (the hourly retry of one failure is one notice). Pure. */
+export function noticeDue(
+    summary: string | null,
+    lastNotice: string | undefined
+): boolean {
+    return summary !== null && summary !== lastNotice;
+}
+
+/** The state carried to the next run: a red run's summary, so the next red
+ *  compares against it; a green run clears it, so the same failure after a
+ *  green gap is news again. Pure. */
+export function withNotice(
+    state: HousekeepingState,
+    summary: string | null
+): HousekeepingState {
+    const rest: HousekeepingState = { since: state.since, retry: state.retry };
+    return summary === null ? rest : { ...rest, lastNotice: summary };
 }
 
 /** Step 2: the one `gaps:sync` of the batch. Files Bot Gaps too (issue
@@ -303,6 +371,104 @@ export const SWEEP_STEP: Step = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
+// The workspace — a throwaway worktree of origin/<base> (issue #5873)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** `<primary>-housekeeping-<pid>`: beside the primary, like an issue
+ *  worktree, never inside it. */
+export function workspacePath(primary: string, pid: number): string {
+    return `${primary}-housekeeping-${pid}`;
+}
+
+/** The workspaces killed runs left registered — every worktree at a path
+ *  `workspacePath` would produce for this primary. Pure over
+ *  `git worktree list --porcelain`. */
+export function staleWorkspaces(porcelain: string, primary: string): string[] {
+    const prefix = `worktree ${primary}-housekeeping-`;
+    return porcelain
+        .split("\n")
+        .filter((l) => l.startsWith(prefix) && /-\d+$/.test(l))
+        .map((l) => l.slice("worktree ".length));
+}
+
+function gitIn(cwd: string, args: string[]): { ok: boolean; err: string } {
+    const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+    return { ok: r.status === 0, err: (r.stderr ?? "").trim() };
+}
+
+/**
+ * Create the workspace: fetch the base into the primary's object store,
+ * forget the workspaces of killed runs, add a detached worktree at
+ * `origin/<base>`, and (unless `bootstrap` is false — tests) run
+ * `worktree:init` in it. Touches the primary's `.git` only, never its tree,
+ * branch or index — a diverged or dirty primary is no obstacle. Throws with
+ * the failing step named.
+ */
+export function prepareWorkspace(
+    primary: string,
+    opts: { pid?: number; bootstrap?: boolean } = {}
+): string {
+    // `git worktree list` prints resolved paths (macOS: /var → /private/var).
+    primary = realpathSync(primary);
+    const wt = workspacePath(primary, opts.pid ?? process.pid);
+    const step = (what: string, r: { ok: boolean; err: string }): void => {
+        if (!r.ok) throw new Error(`${what} failed: ${r.err}`);
+    };
+    step(
+        `git fetch origin ${BASE_BRANCH}`,
+        gitIn(primary, [
+            "fetch",
+            "--no-tags",
+            "--no-write-fetch-head",
+            "--quiet",
+            "origin",
+            BASE_BRANCH,
+        ])
+    );
+    const listed = spawnSync("git", ["worktree", "list", "--porcelain"], {
+        cwd: primary,
+        encoding: "utf8",
+    }).stdout;
+    for (const stale of staleWorkspaces(listed ?? "", primary))
+        gitIn(primary, ["worktree", "remove", "--force", "--force", stale]);
+    gitIn(primary, ["worktree", "prune"]);
+    rmSync(wt, { recursive: true, force: true });
+    step(
+        `git worktree add ${wt}`,
+        gitIn(primary, [
+            "worktree",
+            "add",
+            "--detach",
+            "--quiet",
+            wt,
+            ORIGIN_BASE,
+        ])
+    );
+    if (opts.bootstrap !== false) {
+        const boot = spawnSync("bun", ["run", "worktree:init"], {
+            cwd: wt,
+            encoding: "utf8",
+            timeout: 600_000,
+        });
+        if (boot.status !== 0) {
+            removeWorkspace(primary, wt);
+            throw new Error(
+                `worktree:init failed in ${wt}: ${(boot.stderr ?? "").trim().split("\n").at(-1) ?? ""}`
+            );
+        }
+    }
+    return wt;
+}
+
+/** Remove the workspace; a failure here is logged by the caller, never fatal. */
+export function removeWorkspace(primary: string, wt: string): boolean {
+    const r = gitIn(primary, ["worktree", "remove", "--force", "--force", wt]);
+    gitIn(primary, ["worktree", "prune"]);
+    rmSync(wt, { recursive: true, force: true });
+    return r.ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // main — plumbing
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -320,7 +486,9 @@ function pidAlive(pid: number): boolean {
     }
 }
 
-/** One run at a time; a lock whose pid is dead is taken over. */
+/** One run at a time on this machine; a lock whose pid is dead is taken
+ *  over. Across machines the job's concurrency group serialises, and the
+ *  state write's lease catches what slips through. */
 function takeLock(path: string): boolean {
     for (let i = 0; i < 2; i++) {
         try {
@@ -395,27 +563,6 @@ function listMergedSince(since: string): MergedPr[] {
     );
 }
 
-/** The primary checkout's commits not on `origin/<base>`, with their files. */
-function localCommits(primary: string): { subject: string; files: string[] }[] {
-    const git = (args: string[]) =>
-        spawnSync("git", ["-C", primary, ...args], {
-            encoding: "utf8",
-        }).stdout.trim();
-    const shas = git(["rev-list", `${ORIGIN_BASE}..HEAD`]);
-    return shas === ""
-        ? []
-        : shas.split("\n").map((sha) => ({
-              subject: git(["log", "-1", "--format=%s", sha]),
-              files: git([
-                  "diff-tree",
-                  "--no-commit-id",
-                  "--name-only",
-                  "-r",
-                  sha,
-              ]).split("\n"),
-          }));
-}
-
 function main(): void {
     const dryRun = process.argv.includes("--dry-run");
     const sinceArg = flag("--since");
@@ -429,7 +576,7 @@ function main(): void {
     const primary = primaryCheckout();
     const dir = join(primary, ".claude", "telemetry", "housekeeping");
     mkdirSync(dir, { recursive: true });
-    const statePath = join(dir, "state.json");
+    const legacyStatePath = join(dir, "state.json");
     const logPath = join(dir, "housekeeping.log");
     const say = (line: string): void => {
         const stamped = `${new Date().toISOString()} housekeeping: ${line}`;
@@ -439,12 +586,74 @@ function main(): void {
 
     const lockPath = join(dir, "housekeeping.lock");
     if (!dryRun && !takeLock(lockPath)) {
-        say("another run holds the lock — nothing to do");
+        say("another run holds the lock on this machine — nothing to do");
         return;
     }
+    let workspace: string | null = null;
     const exit = (code: number): never => {
+        if (workspace !== null && !removeWorkspace(primary, workspace))
+            say(`could not remove the workspace ${workspace}`);
         if (!dryRun) rmSync(lockPath, { force: true });
         process.exit(code);
+    };
+    /** A red that ran nothing: say it, tell the owner (once per distinct
+     *  reason on this machine — no shared state to remember it in), exit 1. */
+    const noticeMarker = join(dir, "notice.json");
+    const bail = (reason: string): never => {
+        say(reason);
+        if (!dryRun) {
+            const message = redSummary({ retry: [], dropped: [], reason })!;
+            // The reason minus what changes every run (a pid, a path).
+            const key = message.replace(
+                /-housekeeping-\d+/g,
+                "-housekeeping-N"
+            );
+            if (notifyOnce(noticeMarker, key, message, "Tolaria housekeeping"))
+                say(`notifying the owner: ${message}`);
+        }
+        return exit(1);
+    };
+
+    // The shared state first: nothing runs on a watermark this run cannot
+    // write back.
+    let shared: { sha: string | null; raw: string | null };
+    try {
+        shared = readSharedState(primary, STATE_KEY);
+    } catch (err) {
+        return bail(
+            `could not read the shared state (${(err as Error).message.split("\n")[0]}) — nothing processed`
+        );
+    }
+    let raw = shared.raw;
+    if (raw === null && existsSync(legacyStatePath)) {
+        raw = readFileSync(legacyStatePath, "utf8");
+        say(
+            `no shared state yet — starting from this machine's ${legacyStatePath}`
+        );
+    }
+    let state = parseState(raw, Date.now());
+    const previousNotice = state.lastNotice;
+    if (sinceArg !== null)
+        state = { ...state, since: new Date(sinceArg).toISOString() };
+    /** null = written; else why not (said, and part of the notice). */
+    const writeState = (next: HousekeepingState): string | null => {
+        if (dryRun) return null;
+        try {
+            writeSharedState(
+                primary,
+                STATE_KEY,
+                JSON.stringify(next, null, 2),
+                shared.sha
+            );
+            return null;
+        } catch (err) {
+            const why =
+                err instanceof SharedStateConflict
+                    ? "another run moved the shared state meanwhile — this run's watermark is dropped; the next run re-reads (every step is idempotent)"
+                    : `could not write the shared state: ${(err as Error).message.split("\n")[0]}`;
+            say(why);
+            return why;
+        }
     };
 
     // Step 0: not tied to any merged PR, so it runs before the early returns.
@@ -470,27 +679,28 @@ function main(): void {
             );
     }
 
-    let state = parseState(
-        existsSync(statePath) ? readFileSync(statePath, "utf8") : null,
-        Date.now()
-    );
-    if (sinceArg !== null)
-        state = { ...state, since: new Date(sinceArg).toISOString() };
-
     let merged: MergedPr[];
     try {
         merged = listMergedSince(state.since);
     } catch (err) {
-        say(
+        return bail(
             `could not list merged PRs (${(err as Error).message.split("\n")[0]}) — retry next run`
         );
-        return exit(1);
     }
 
     const pending = pendingPrs(merged, state);
     if (pending.length === 0) {
         say(`nothing merged since ${state.since}`);
-        if (!dryRun) writeFileSync(statePath, JSON.stringify(state, null, 2));
+        // Nothing changed: no write — except the first shared state (a
+        // migration or a first run) and an explicit `--since`.
+        if (shared.raw === null || sinceArg !== null) {
+            const why = writeState(state);
+            if (why !== null)
+                return bail(
+                    `${why} — nothing to do, but the first shared state is not written`
+                );
+        }
+        forgetNotice(noticeMarker);
         return exit(0);
     }
     say(
@@ -498,6 +708,9 @@ function main(): void {
     );
 
     if (dryRun) {
+        say(
+            `would create the workspace ${workspacePath(primary, process.pid)} at ${ORIGIN_BASE}`
+        );
         for (const step of [
             GAPS_SYNC_STEP,
             ...pending.flatMap((pr) => prSteps(pr)),
@@ -507,12 +720,22 @@ function main(): void {
         return exit(0);
     }
 
+    // Step 1: the merged tree, in a worktree of our own (issue #5873).
+    try {
+        workspace = prepareWorkspace(primary);
+        say(`workspace ${workspace} at ${ORIGIN_BASE}`);
+    } catch (err) {
+        return bail(
+            `could not prepare the workspace (${(err as Error).message.split("\n")[0]}) — nothing processed`
+        );
+    }
+
     const log = openSync(logPath, "a");
     const env = netEnv(process.env);
     const run = (step: Step): boolean => {
         appendFileSync(logPath, `── ${step.label}\n`);
         const r = spawnSync(step.argv[0]!, step.argv.slice(1), {
-            cwd: primary,
+            cwd: workspace!,
             env,
             stdio: ["ignore", log, log],
         });
@@ -527,42 +750,6 @@ function main(): void {
             say(`${step.label} failed (exit ${r.status ?? r.signal ?? "?"})`);
         return ok;
     };
-
-    // Step 1: the merged tree on disk, on the base branch.
-    const head = spawnSync(
-        "git",
-        ["-C", primary, "symbolic-ref", "--quiet", "--short", "HEAD"],
-        { encoding: "utf8" }
-    ).stdout.trim();
-    if (head !== BASE_BRANCH) {
-        say(
-            `${primary} is on ${head || "a detached HEAD"}, not ${BASE_BRANCH} — gaps:sync would push from the wrong branch; nothing processed`
-        );
-        return exit(1);
-    }
-    const ff: Step = {
-        label: `fast-forward ${BASE_BRANCH}`,
-        argv: ["git", "merge", "--ff-only", "-q", ORIGIN_BASE],
-    };
-    if (
-        !run({
-            label: `git fetch origin ${BASE_BRANCH}`,
-            argv: ["git", "fetch", "origin", BASE_BRANCH, "-q"],
-        }) ||
-        !(
-            run(ff) ||
-            (strandedAllowlistOnly(localCommits(primary)) &&
-                run({
-                    label: `drop a stranded gaps:sync commit (reset --keep ${ORIGIN_BASE})`,
-                    argv: ["git", "reset", "--keep", "-q", ORIGIN_BASE],
-                }))
-        )
-    ) {
-        say(
-            "the primary checkout is not on the merged tip — nothing processed"
-        );
-        return exit(1);
-    }
 
     // Step 2: one sync for the batch. A failure does not hold back the claim
     // releases and detaches below, but every PR is retried for it.
@@ -589,8 +776,30 @@ function main(): void {
         say(
             `GIVING UP on PR #${d.number} after ${d.attempts} attempts — run its steps by hand (see ${logPath})`
         );
-    writeFileSync(statePath, JSON.stringify(next.state, null, 2));
-    return exit(failed.size === 0 ? 0 : 1);
+    const summary = redSummary({
+        retry: next.state.retry,
+        dropped: next.dropped,
+    });
+    const writeFailed = writeState(withNotice(next.state, summary));
+    // A failed write is part of the red — and leaves nothing to dedupe by,
+    // so that notice is remembered in this machine's marker instead.
+    const full =
+        writeFailed === null
+            ? summary
+            : redSummary({
+                  retry: next.state.retry,
+                  dropped: next.dropped,
+                  writeFailed: writeFailed.split(" — ")[0]!,
+              });
+    if (writeFailed !== null) {
+        if (notifyOnce(noticeMarker, full!, full!, "Tolaria housekeeping"))
+            say(`notifying the owner: ${full}`);
+    } else if (noticeDue(summary, previousNotice)) {
+        say(`notifying the owner: ${summary}`);
+        notifyOwner(summary!, "Tolaria housekeeping");
+        forgetNotice(noticeMarker);
+    } else if (summary === null) forgetNotice(noticeMarker);
+    return exit(writeFailed === null && failed.size === 0 ? 0 : 1);
 }
 
 if (import.meta.main) main();

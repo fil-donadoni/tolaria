@@ -100,3 +100,18 @@ export function cwdInside(lsofOut: string, dir: string): boolean {
                 (l.slice(1) === dir || l.slice(1).startsWith(`${dir}/`))
         );
 }
+
+/**
+ * The owner's notice for a `sync` leg (issue #5873): the failing steps on
+ * this host, keyed so `notifyOnce` sends the same failure once — a leg that
+ * keeps failing on every push for the same reason is one message; a new
+ * reason, or the same one after a green leg, is news. null = green.
+ */
+export function syncNotice(
+    failed: readonly string[],
+    host: string
+): { key: string; message: string } | null {
+    if (failed.length === 0) return null;
+    const key = failed.join("; ");
+    return { key, message: `post-merge sync red on ${host}: ${key}` };
+}

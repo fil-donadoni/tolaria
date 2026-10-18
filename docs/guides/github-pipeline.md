@@ -237,9 +237,13 @@ By [runner labels](#g-label), never by a `concurrency` group: a group keeps
 ONE pending job and cancels the older pending one, which would silently drop
 a queue check or a health run. One [`lane`](#g-lane) runner per machine
 already runs one heavy job at a time. A hosted-only workflow may use a group
-with `cancel-in-progress` to drop a superseded run (`pr-check` does). The one
-self-hosted exception is the [dispatcher](#g-dispatcher), which MUST run one
-at a time ([§ afk-dispatch](#afk-dispatch)).
+with `cancel-in-progress` to drop a superseded run (`pr-check` does). The
+self-hosted exceptions are the jobs that MUST run one at a time across
+machines and lose nothing when a pending run is dropped: the
+[dispatcher](#g-dispatcher) ([§ afk-dispatch](#afk-dispatch)) and the shared
+post-merge duties `housekeeping` and `nightly` ([§ post-merge](#post-merge)),
+listed in `SERIALISED_DISPATCHERS` / `SERIALISED_JOBS` of the
+[structure guard](#g-structure-guard).
 
 ## Workflows
 
@@ -444,8 +448,8 @@ resolver does.
 | -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout), remove the merged PR's worktree, telemetry ingest                |
 | `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**` |
-| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane, host:huawei]`        | `bun run housekeeping`: `gaps:sync` with its direct push, grammar residue, claim release, umbrella detach                                             |
-| `nightly`      | 03:40 UTC               | `[self-hosted, lane, host:huawei]`        | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                         |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, grammar residue, claim release, umbrella detach — in a worktree of its own                  |
+| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                         |
 
 The `host` matrix of `sync` lists the machines by their `host:<name>` label
 (`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
@@ -453,6 +457,41 @@ fast-forward is what makes `convex dev` serve the merged tree, since it
 serves the deployment from the primary checkout. The merged PRs are read off
 the pushed commits' subjects (a squash merge ends in ` (#N)`), the worktree
 from each PR's head branch by the rule `wt:new` created it with.
+
+**No job requires one host (issue #5873).** `housekeeping` and `nightly` run
+on whichever `lane` runner is free: their state — the housekeeping watermark
+and retry list, the nightly's last measured tip and audit time — is
+[shared state](#g-shared-state), one git ref per key on origin
+(`refs/tolaria/state/<key>`, `scripts/lib/shared-state.ts`) read at the start
+of a run and written back with a compare-and-swap, so a run on one machine
+resumes exactly where a run on the other stopped. `housekeeping` does its work in a throwaway worktree of
+`origin/<base>` beside the primary checkout (`<primary>-housekeeping-<pid>`,
+removed when the run ends): `gaps:sync` reads the merged tree there and
+pushes its allowlist commit from there, never from a long-lived checkout; a
+push that loses a race is a failed sync (`gaps:sync` exits 1 on it, issue
+#5871) — the batch is retried, the owner told. `nightly` files its Bot Gaps the same way,
+from a worktree at the measured tip, and follows the verdict store, not a
+machine's `last.json`. A job-level concurrency group keeps
+each to one run across machines without cancelling a run in progress; the
+structure guard's `host-pinned` rule refuses a literal `host:<name>` on any
+job, and `dispatcher-serialised` requires the group on these two. A machine
+that is offline or broken therefore costs exactly its own `sync` leg.
+
+**A red leg is heard.** `sync` heals a primary whose only divergence is
+stranded `gaps:sync` allowlist commits (dropped with `reset --keep`; the next
+sync re-derives them). Any other red `sync` leg, and a red `housekeeping`
+(a PR left to retry, one given up on, a state it could not read or write),
+notifies the owner through the channel a RED uses (`lib/notify-owner.ts`:
+`TOLARIA_NOTIFY_CMD`, else the desktop notifier) — once per distinct notice,
+so a failure that repeats every push or every hour is one message, and a
+green run makes the same failure news again. A diverged primary that is the
+owner's own work is left standing and named in the notice: pull it by hand.
+For the command to reach a job, `bun run runner install` writes the
+installing shell's `TOLARIA_NOTIFY_CMD` into each runner's `.env`
+(actions/runner loads it into every job); on a headless Linux runner the
+desktop fallback reaches nobody, so set it there. A runner that is fully
+offline notifies nobody by itself: its `sync` leg waits in the queue and
+GitHub's failed-run mail, after 24 h, is the signal.
 
 Orders that hold:
 
@@ -475,11 +514,19 @@ Orders that hold:
   `GITHUB_SHA` is the default branch tip, so a fix to `housekeeping` landed on
   the base is live only after the next release. `workflow_dispatch` takes a
   `job` input (`housekeeping` or `nightly`).
-- **Serialised by the runner.** One `lane` runner per machine is an invariant
-  here (`concurrency` is refused on self-hosted jobs): a second lane runner
-  would let the Huawei's `sync` and `housekeeping` race on its primary checkout.
-  `seed` has no `needs: sync`, which would wait for the Huawei's leg behind a
-  nightly of up to 6 h.
+- **Serialised by the runner, and by a group where the duty is shared.** One
+  `lane` runner per machine is an invariant here: a second lane runner would
+  let a machine's `sync` legs race on its primary checkout. `housekeeping` and
+  `nightly` carry a job-level `concurrency: { group, cancel-in-progress: false }`
+  because they run on any machine; a pending run the group drops loses
+  nothing (the next re-reads every fact from shared state). `seed` has no
+  `needs: sync`, which would wait for the slower machine's leg.
+- **The first shared run inherits the machine's file.** A `state.json` /
+  `nightly.json` left under `.claude/telemetry/` by a run from before issue
+  #5873 is read as the first shared state when the ref holds none; after that
+  the files are dead. The machine that holds the live retry list (the
+  Huawei, before issue #5873) should run `bun run housekeeping` once by hand
+  before the first job runs elsewhere, so its list seeds the ref.
 
 `branches: [staging]` names the base by literal, as in
 [`pr-refresh`](#pr-refresh).
@@ -1026,26 +1073,27 @@ Force-pushing the base stays denied by § 2 whatever the hatch says.
 the lane of any diff under `scripts/` and costs ~0.1 s of tests (≤ 10 s ⇒ the
 lane, issue #4963). Each line it prints names a rule:
 
-| Rule                           | Fails when                                                                                                                                                                                                                          |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `schedule`, `workflow_dispatch`, `push` with a `branches:` filter Dependabot's branches cannot match, and `issues` limited to `labeled`/`unlabeled`     |
-| `pr-target-head-checkout`      | a `pull_request_target` job checks out anything but the base (`ref:` / `repository:` set) or fetches the PR head                                                                                                                    |
-| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                                                                             |
-| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                                                                          |
-| `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                       |
-| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                             |
-| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                      |
-| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the dispatcher's job-level group below                                                                                                                |
-| `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml` lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, or spawn two fixers                                           |
-| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                           |
-| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                             |
-| `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                 |
-| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                           |
-| `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                      |
-| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `label=queue:shadow` (the shadow phase), `-label=land-failed`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml` |
-| `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                 |
-| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                 |
-| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link                                                                         |
+| Rule                           | Fails when                                                                                                                                                                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `schedule`, `workflow_dispatch`, `push` with a `branches:` filter Dependabot's branches cannot match, and `issues` limited to `labeled`/`unlabeled`                                                            |
+| `pr-target-head-checkout`      | a `pull_request_target` job checks out anything but the base (`ref:` / `repository:` set) or fetches the PR head                                                                                                                                                                           |
+| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                                                                                                                                    |
+| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                                                                                                                                 |
+| `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                                                                              |
+| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                                                                                    |
+| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                                                                             |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the job-level group of a job `dispatcher-serialised` requires                                                                                                                                                |
+| `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, or move one watermark twice |
+| `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host                                                |
+| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                  |
+| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                    |
+| `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                                                                        |
+| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                                                                                  |
+| `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                                                                             |
+| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `label=queue:shadow` (the shadow phase), `-label=land-failed`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml`                                                        |
+| `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                        |
+| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                        |
+| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link                                                                                                                                |
 
 Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
 `macos-15`, …) counts as GitHub-hosted. Anything else — an expression, a
@@ -1096,21 +1144,23 @@ slices add: the queue's required checks and entry conditions (Phase 1).
 
 ## Troubleshooting
 
-| Symptom                                       | Look at                                                                                                                                                 |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `could not get a registration token`          | the `gh` login is not the repository's admin: `gh auth status`                                                                                          |
-| `node not resolvable on the rendered PATH`    | run `install` from a shell where `command -v node` resolves                                                                                             |
-| a [runner](#g-runner) offline on GitHub       | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                    |
-| the [Convex agent](#g-convex-agent) restarts  | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                    |
-| `TOLARIA_PRIMARY_CHECKOUT is unset`           | the runner predates issue #5636: `bun run runner install` on that machine                                                                               |
-| `deny-guard` blocks a `git push` of a session | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose |
-| `refusing workspace …`                        | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand                                         |
-| `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                     |
-| `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                            |
-| `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                               |
-| `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                 |
-| an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                       |
-| jobs fail when the MacBook lid closes         | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                           |
+| Symptom                                       | Look at                                                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `could not get a registration token`          | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
+| `node not resolvable on the rendered PATH`    | run `install` from a shell where `command -v node` resolves                                                                                                                           |
+| a [runner](#g-runner) offline on GitHub       | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
+| the [Convex agent](#g-convex-agent) restarts  | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                                                  |
+| `TOLARIA_PRIMARY_CHECKOUT is unset`           | the runner predates issue #5636: `bun run runner install` on that machine                                                                                                             |
+| `deny-guard` blocks a `git push` of a session | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose                               |
+| `refusing workspace …`                        | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand                                                                       |
+| a `sync` leg red: `could not fast-forward …`  | that machine's primary checkout diverged by the owner's own commits (the notice names them); `gaps:sync` strandings heal themselves. Pull it by hand                                  |
+| `housekeeping` red: `shared state … moved`    | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
+| `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
+| `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                                          |
+| `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
+| `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
+| an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
+| jobs fail when the MacBook lid closes         | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                                                         |
 
 ## Glossary
 
@@ -1272,3 +1322,13 @@ sha. Not reproduced, the RED closes as GREEN and the flaky test is filed.
 The ladder's second rung: a binary search of the base's commits after the
 last GREEN on the RED's failing files; the first red commit's PR is the
 culprit, named in the RED's evidence.
+
+### <a id="g-shared-state"></a>Shared state
+
+Pipeline state every runner reads and writes (issue #5873): one git ref per
+duty on origin, `refs/tolaria/state/<key>` (`housekeeping`, `nightly`), each
+a parentless commit holding that key's `<key>.json`. Read with `ls-remote` +
+`cat-file`, written with `push --force-with-lease` — the compare-and-swap
+that keeps two machines from moving one watermark twice; one ref per key so
+the keys never spoil each other's lease. Distinct from the verdict store (a
+commit status, keyed by sha).

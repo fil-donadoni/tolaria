@@ -248,8 +248,8 @@ over two machines); the rest is batch health's.
 - **No CI: local gates are the only gates.** Full suite **per batch**: health
   fires at the 20th landing since GREEN or 8 h after the first un-healthed
   (ADR 0154); a failed vitest project is re-run once before RED. **Topology
-  B'**: MacBook = sessions + land-runner + `release`; Huawei = batch health,
-  crons, audits, release walk. **The verdict is shared**
+  B'** (any machine, #5873): MacBook = sessions + land-runner + `release`;
+  Huawei = health, crons, audits, release walk. **The verdict is shared**
   (commit status on the gated sha, read through the verdict store by
   `queue:plan`, `land`, the loop, on both machines); `release` re-proves the
   tip here.
