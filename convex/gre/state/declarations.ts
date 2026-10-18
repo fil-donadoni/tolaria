@@ -3973,6 +3973,27 @@ export type RevealNotification = {
     cards: { instanceId: string; cardId: string }[];
 };
 
+/** ADR 0053 (pile division, issue #5661) — the most recent `pick-pile`
+ *  answer, so EVERY seat (the divider too, who never submits it) can confirm
+ *  which pile was taken. One slot, overwritten by the next pick — never a log
+ *  (`docs/PROJECT.md` § Data model). `cardNames` is captured at submit time,
+ *  while the piles still sit where they were divided, because the chosen pile
+ *  may move at once to a zone the divider cannot see (Fact or Fiction's hand)
+ *  and the client could no longer name it. A face-down card is named as such
+ *  (CR 708.2a: it has no name), never by its identity. */
+export type PileChoiceNotice = {
+    /** `${seq}:${stackItemId}:${step}:${choiceId}` — unique per pick; the
+     *  client confirms each new key once. */
+    key: string;
+    /** 1 + the previous notice's `seq`: the per-game pick count that keeps
+     *  `key` unique when the same spell is cast again (a spell's stack item id
+     *  is its card's instance id). */
+    seq: number;
+    chooserId: string;
+    pile: "A" | "B";
+    cardNames: string[];
+};
+
 /** CR 508.1c/1g — a parked per-attacker MANA attack tax awaiting the attacking
  *  player's payment (Propaganda / Ghostly Prison / Windborn Muse / Collective
  *  Restraint). Set at declare-attackers confirmation once the aggregated tax is
@@ -4442,6 +4463,9 @@ export type GameState = {
      *  `PermanentFilter.controlledSinceTurnStart`. See that module's header for
      *  why this is a ledger of BREAKS and not a start-of-turn snapshot. */
     controlChangedThisTurn?: string[];
+    /** ADR 0053 (issue #5661) — the last pile picked; see
+     *  {@link PileChoiceNotice}. Written by `submitPilePick` only. */
+    lastPileChoice?: PileChoiceNotice;
     /** CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values of every
      *  permanent that has left the battlefield recently, keyed by the instance
      *  id it had there. Written at the single battlefield-departure funnel

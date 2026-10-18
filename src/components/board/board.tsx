@@ -81,6 +81,9 @@ import PutBackPicker from "./put-back-picker";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
+import NoticeToast from "./notice-toast";
+import { usePileChoiceNotice } from "~/hooks/usePileChoiceNotice";
+import { formatPileChoiceNotice } from "~/lib/pile-choice-notice";
 import BoardConnectionError from "./board-connection-error";
 import VsAiDriver from "./vs-ai-driver";
 import VerdictProposalCapture from "./verdict-proposal-capture";
@@ -302,6 +305,14 @@ export default function Board({
     // stable instance id — see useRecentArrivals. Runs above the !state early
     // return like every other hook; undefined state yields an empty set.
     const recentArrivals = useRecentArrivals(state?.players, state?.stack);
+
+    // Pile-pick confirmation (ADR 0053, issue #5661) for EVERY seat — the
+    // divider included, who never submitted it — off the snapshot's one-slot
+    // `lastPileChoice`. Above the early returns like every other hook.
+    const pileNotice = usePileChoiceNotice(
+        state !== undefined,
+        state?.lastPileChoice
+    );
 
     // Escalated: retries are exhausted, or the failure was never the kind a
     // retry fixes. The player gets a sentence and a button, never a stack trace
@@ -799,6 +810,24 @@ export default function Board({
                                                 onDismiss={
                                                     pendingChoiceBuffer.dismissError
                                                 }
+                                            />
+                                            <NoticeToast
+                                                message={
+                                                    pileNotice.confirm
+                                                        ? formatPileChoiceNotice(
+                                                              pileNotice.confirm,
+                                                              allPlayers
+                                                          )
+                                                        : null
+                                                }
+                                                noticeKey={
+                                                    pileNotice.confirm?.key ??
+                                                    null
+                                                }
+                                                hidden={
+                                                    !!pendingChoiceBuffer.lastError
+                                                }
+                                                onDismiss={pileNotice.dismiss}
                                             />
                                         </main>
                                     </MinimizedChoiceContext>

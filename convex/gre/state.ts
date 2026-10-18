@@ -400,6 +400,7 @@ export type {
     StaticAdditionalSacrifice,
     NormalizedMayPayCost,
     MayPayHandCard,
+    PileChoiceNotice,
 } from "./state/declarations";
 import type {
     Duration,

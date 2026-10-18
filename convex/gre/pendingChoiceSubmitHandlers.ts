@@ -32,6 +32,8 @@ import {
     finalizeUntapPick,
 } from "./phases";
 import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
+import { findCardInAnyZone } from "./lookup";
+import { tryGetDefinition } from "../cards";
 import { damageSourceChoicePool } from "./damageSourceChoice";
 import { applyMulliganBottomChoice } from "./mulligan";
 import { raiseTriggerTargetSelection } from "./rules";
@@ -420,6 +422,24 @@ export function submitOptionPick(
     });
 }
 
+/** The names `lastPileChoice` confirms (issue #5661), read before the pick's
+ *  effects move anything. A face-down card keeps its identity hidden (CR 708.2a);
+ *  an id no longer in the game is skipped. */
+function pileCardNames(state: GameState, ids: string[] = []): string[] {
+    const names: string[] = [];
+    for (const id of ids) {
+        const card = findCardInAnyZone(state, id);
+        if (!card) continue;
+        if (card.faceDown) {
+            names.push("Face-down card");
+            continue;
+        }
+        const name = tryGetDefinition(card.card.id as string)?.name;
+        if (name) names.push(name);
+    }
+    return names;
+}
+
 // --- Pick a pile (ADR 0053, pile division — step 2 of the divide-then-
 // choose family): the submission is the literal label "A" or "B", not a
 // zone member id. Validates against the two completed piles' labels
@@ -436,6 +456,16 @@ export function submitPilePick(
     if (id !== "A" && id !== "B") {
         throw new Error('Pile choice must be "A" or "B"');
     }
+    // `seq` makes the key unique per GAME: a recast spell keeps its instance
+    // id as its stack item id, so the choice coordinates alone repeat.
+    const seq = (state.lastPileChoice?.seq ?? 0) + 1;
+    state.lastPileChoice = {
+        key: `${seq}:${head.stackItemId}:${head.step}:${head.choiceId}`,
+        seq,
+        chooserId: head.playerId,
+        pile: id,
+        cardNames: pileCardNames(state, id === "A" ? head.pileA : head.pileB),
+    };
     commitChoiceAnswer(state, head, [id]);
     dequeueHead(state, queue);
     resumeAfterChoice(state, {

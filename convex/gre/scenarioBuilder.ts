@@ -4270,6 +4270,10 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     // true`), i.e. an item ON THE STACK or a delayed trigger — both already
     // reported as not lowered, so the loss is named where it is real.
     "lastKnownCopiable",
+    // ADR 0053 (issue #5661) — the last pile pick, read only by the client's
+    // confirmation toast. No rule reads it, so a rebuilt position loses
+    // nothing game-visible by starting without one.
+    "lastPileChoice",
     // CR 514.3a (issue #2472, issue #3453) — the within-cleanup resume marker,
     // meaningful only while it EQUALS `state.turn`, which only holds inside
     // that turn's CLEANUP step. A scenario places a position before its
