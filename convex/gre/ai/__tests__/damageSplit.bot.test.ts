@@ -9,8 +9,7 @@
 // `bun run cr 702.2c`: one deathtouch point is lethal.
 //
 // Before the policy the Bot confirmed the engine's seed (everything on the
-// first live blocker) and the search dropped a multi-blocked attacker's damage
-// outright. Every board here is hand-built at the combat damage step with the
+// first live blocker). Every board here is hand-built at the combat damage step with the
 // engine's own seed in place, exactly as the step's entry leaves it.
 
 import { describe, it, expect } from "vitest";
@@ -38,7 +37,6 @@ import {
     attackTargetExcessSink,
 } from "../../damageAssignment";
 import { damageSplitsFor, owedDamageSplits } from "../damageSplit";
-import { applyMoveInSearch } from "../../search";
 import { evaluateCreature } from "../../evaluate";
 import { findPermanent } from "../../lookup";
 
@@ -335,18 +333,5 @@ describe("several splits by one assigner (issue #5662 review)", () => {
         expect(state.combat!.damageAssignments!.b).toEqual({ x: 3, z: 0 });
         expect(splitOf(state, "p1", "a")).toEqual({ x: 1, y: 1, p2: 1 });
         expect(splitOf(state, "p1", "b")).toEqual({ x: 0, z: 3 });
-    });
-});
-
-describe("search-side combat damage (issue #5662)", () => {
-    it("deals a multi-blocked attacker's damage by the split instead of dropping it", () => {
-        const state = threeIntoOneOneAndTwoOne();
-        applyMoveInSearch(state, "p1", { kind: "pass" });
-        const p2 = state.players[1];
-        expect(p2.battlefield.map((c) => c.id)).toEqual([]);
-        expect(p2.graveyard.map((c) => c.id).sort()).toEqual([
-            "goblin",
-            "lions",
-        ]);
     });
 });

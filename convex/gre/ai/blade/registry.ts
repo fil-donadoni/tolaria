@@ -13845,6 +13845,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // the policy chooses there (`damageSplitProbe.ts`). The root move at
         // this post-block window is a pass — no mana, no cards.
         label: "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3",
+        // Absolute: a predicate lowers to no Verdict (`registrySource.ts`), so
+        // the pair is linked by label in the notes, not by `pairOf`.
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
@@ -13911,6 +13914,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // kill the 1/1 instead: the entry discriminates the value pick from
         // declaration order.
         label: "discriminating pair: damage split kills the 3/3 of a 1/1 and a 3/3 blocking a 3/3",
+        // Absolute: a predicate lowers to no Verdict (`registrySource.ts`), so
+        // the pair is linked by label in the notes, not by `pairOf`.
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 {

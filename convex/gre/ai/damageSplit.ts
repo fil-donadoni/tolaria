@@ -10,16 +10,14 @@
 // creatures. The engine seeds every such source with a default (all damage on
 // the first live blocker, `buildDefaultDamageAssignments`), which is only the
 // human assigner modal's pre-fill. Before this module the Bot confirmed that
-// seed unedited, and the search (`buildAutoDamageAssignments`) dropped the
-// damage of every multi-target source outright.
+// seed unedited. Now the driver submits `damageSplitsFor`'s choice through
+// `setDamageAssignment` before `confirmDamage` (ADR 0074: the server
+// re-validates it, no client authority).
 //
-// ONE policy, two consumers, so the search prices the split the driver will
-// actually submit:
-//   * `chooseCombatDamageAssignments` — the search's stand-in for the whole
-//     step's assignment (single-block auto map + this policy for the rest);
-//   * `chooseDamageSplit` — one source's split, which the driver submits
-//     through `setDamageAssignment` before `confirmDamage` (ADR 0074: the
-//     server re-validates it, no client authority).
+// The SEARCH does not simulate this split yet: `buildAutoDamageAssignments`
+// still drops a multi-target source's damage there. Pricing it honestly
+// exposes the search's defender exploring dominated multi-blocks (issue
+// #5951), which is why that half was split off issue #5662.
 //
 // The policy, general over every source (ADR 0102, no per-card knowledge):
 //   * hostile targets (the assigner's opponent's creatures): kill the most
@@ -42,11 +40,6 @@ import {
     attackTargetExcessSink,
     lethalThresholdsForSource,
 } from "../damageAssignment";
-import {
-    buildAutoDamageAssignments,
-    getManualAssignmentSourceIds,
-    type DamageKind,
-} from "../phases";
 import { evaluateCreature } from "../evaluate";
 
 type StepAssignments = Record<string, Record<string, number>>;
@@ -253,27 +246,6 @@ export function chooseDamageSplit(
     return splitOntoHostile(targets, power, excessSinkId);
 }
 
-/**
- * The whole step's combat-damage assignment as the search simulates it: the
- * engine's auto map (unblocked / single-blocked sources) plus the policy's
- * split for every multi-target source (CR 510.1c-d), whoever assigns it — the
- * opponent is modelled as assigning by the same policy. Sources are walked in
- * the engine's own order so a later split sees an earlier one's damage.
- */
-export function chooseCombatDamageAssignments(
-    state: GameState,
-    kind: DamageKind
-): StepAssignments {
-    const result = buildAutoDamageAssignments(state, kind);
-    if (!state.combat) return result;
-    const graph = getEffectiveBlockGraph(state);
-    for (const sourceId of getManualAssignmentSourceIds(state, kind, graph)) {
-        const split = chooseDamageSplit(state, sourceId, result);
-        if (split) result[sourceId] = split;
-    }
-    return result;
-}
-
 /** One source's chosen split, and whether the step map already holds it. */
 export type ChosenDamageSplit = {
     sourceId: string;
@@ -298,8 +270,8 @@ export function damageSplitsFor(
     const owned = Object.entries(combat.damageAssignerIds ?? {})
         .filter(([, owner]) => owner === assignerId)
         .map(([sourceId]) => sourceId);
-    // The step map as the search builds it: every source this assigner is
-    // about to (re)split starts with NO entry, never the engine's seed. A
+    // Every source this assigner is about to (re)split starts with NO entry,
+    // never the engine's seed. A
     // seed left in place would count toward another split's lethal threshold
     // (CR 702.19b) and then be replaced — a trampler could be priced as
     // having lethal on a shared blocker that ends up with none.
