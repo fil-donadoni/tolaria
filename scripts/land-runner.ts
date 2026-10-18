@@ -70,6 +70,7 @@ import {
 } from "./lib/health-verdict-store";
 import { issueOfBranch } from "./lib/issue-worktree";
 import {
+    betweenTicks,
     describeLandFailures,
     failureComment,
     failureReason,
@@ -688,11 +689,9 @@ async function main(): Promise<void> {
             }
             if (!busy || once || stopping) flushBurst();
             if (once || stopping) break;
-            // Straight on to the next PR after a landing; a quiet queue waits.
-            if (!busy) {
-                for (let s = 0; s < intervalS && !stopping; s++)
-                    await Bun.sleep(1000);
-            }
+            // Straight on to the next PR after a landing, past one event-loop
+            // turn that serves a pending stop; a quiet queue waits.
+            await betweenTicks(busy, intervalS, () => stopping, Bun.sleep);
         } while (!stopping);
     } finally {
         if (!dryRun) rmSync(lockPath, { force: true });

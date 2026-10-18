@@ -2,10 +2,13 @@
  * The land-runner's decisions (issue #5469): which `ready-to-land` PR lands
  * next, what a `land` exit means for the PR's labels, what the failure
  * comment carries, and which machine runs it. All pure — `land-runner.ts`
- * is the I/O.
+ * is the I/O — save the stop between two ticks, which a real signal proves.
  */
+import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+    betweenTicks,
     checkSources,
     describeLandFailures,
     EXCERPT_LINES,
@@ -269,6 +272,60 @@ describe("checkSources — a merged runner change restarts the runner (issue #59
     it("never restarts on an unreadable reading — a broken checkout would loop", () => {
         expect(checkSources("tree-a", null, true)).toBe("unreadable");
         expect(checkSources(null, "tree-b", true)).toBe("same");
+    });
+});
+
+// The runner's loop in miniature: back-to-back ticks, each blocking on
+// `spawnSync` like a `land` does, then `betweenTicks` — under bun, as the
+// runner runs. Prints `tick N` as each landing starts, `ticks=N` at the end.
+const BUSY_LOOP = `
+import { spawnSync } from "node:child_process";
+import { betweenTicks } from ${JSON.stringify(join(import.meta.dirname, "../lib/land-runner.ts"))};
+let stopping = false;
+process.on("SIGTERM", () => { stopping = true; });
+let ticks = 0;
+do {
+    ticks++;
+    console.log("tick " + ticks);
+    spawnSync("sleep", ["0.3"]);
+    if (stopping || ticks === 6) break;
+    await betweenTicks(true, 60, () => stopping, Bun.sleep);
+} while (!stopping);
+console.log("ticks=" + ticks);
+`;
+
+describe("betweenTicks — a stop is served between two landings (issue #5950)", () => {
+    it("ends a busy queue's loop after the landing in flight", async () => {
+        const child = spawn("bun", ["-e", BUSY_LOOP], {
+            stdio: ["ignore", "pipe", "inherit"],
+        });
+        let out = "";
+        let signalled = false;
+        child.stdout.on("data", (chunk: Buffer) => {
+            out += chunk.toString();
+            if (!signalled && out.includes("tick 1")) {
+                signalled = true;
+                child.kill("SIGTERM");
+            }
+        });
+        const code = await new Promise<number | null>((done) =>
+            child.on("close", done)
+        );
+        expect(code).toBe(0);
+        expect(out).toContain("ticks=1");
+    }, 15_000);
+
+    it("returns at once after a landing, waits the interval on a quiet queue", async () => {
+        const slept: number[] = [];
+        const sleep = async (ms: number) => void slept.push(ms);
+        await betweenTicks(true, 3, () => false, sleep);
+        expect(slept).toEqual([0]);
+        slept.length = 0;
+        await betweenTicks(false, 3, () => false, sleep);
+        expect(slept).toEqual([0, 1000, 1000, 1000]);
+        slept.length = 0;
+        await betweenTicks(false, 3, () => true, sleep);
+        expect(slept).toEqual([0]);
     });
 });
 

@@ -436,3 +436,22 @@ export function describeLandFailures(
             : `log ${failures.at(-1)!.logPath}`;
     return `${head}: ${clauses.join(" | ")} (${where})`;
 }
+
+/**
+ * The wait between two ticks. It always yields to the event loop once, even
+ * straight after a landing: a tick blocks on `spawnSync`, so a back-to-back
+ * loop with no `await` never lets a SIGTERM/SIGINT handler run — on
+ * 2026-10-18 a stop went unserved through two landings (issue #5950). The
+ * yield serves a pending signal between two landings, never during one.
+ * A quiet queue then waits `intervalS`, cut short by a stop.
+ */
+export async function betweenTicks(
+    busy: boolean,
+    intervalS: number,
+    isStopping: () => boolean,
+    sleep: (ms: number) => Promise<unknown>
+): Promise<void> {
+    await sleep(0);
+    if (busy) return;
+    for (let s = 0; s < intervalS && !isStopping(); s++) await sleep(1000);
+}
