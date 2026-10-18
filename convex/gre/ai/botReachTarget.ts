@@ -398,46 +398,6 @@ export function flashAmbushPosition(
 }
 
 /**
- * CR 509.1 + CR 510.1 — the blocked attack an answer to the OPPONENT's
- * attacking creature is posed in, or `null` when `def` is not one (issue
- * #5816). The requirement's own pose holds the attack before blocks, where the
- * holder still has a blocker to declare and the Bot rightly keeps an answer it
- * can cast once the block is known: a shield on the attacker's damage
- * (Warning) is worth a card only when that damage would kill something. Here
- * the opponent's bigger creature attacks and the holder's plain creature
- * blocks it, so the answer has a loss to turn. A FIFTH window, tried only
- * after every earlier one passed the card over (`playSeat`), like
- * {@link combatTrickPosition} — the mirror of the holder-side attacker pose
- * in `requirementPose`.
- */
-export function blockedAttackPose(def: CardDefinition): TargetPose | null {
-    const req = creatureRequirement(def.targetRequirement);
-    if (!req || !asList(req.combatRoleFilter).includes("attacking"))
-        return null;
-    if (favoursItsTarget(def, req)) return null;
-    const body = creatureFor(req);
-    if (body === null) return null;
-    const attacker = body.name === BASE_CREATURE ? SAVED_ATTACKER : body.name;
-    return {
-        cards: [{ name: attacker, owner: "opp", zone: "battlefield" }],
-        // Castle gives the holder's UNTAPPED blocker +0/+2, and a 2/4 survives
-        // the 3/3: the block would cost nothing for the answer to turn.
-        omitToughnessBoost: true,
-        position: {
-            phase: "DECLARE_BLOCKERS",
-            activePlayer: "opp",
-            priority: "me",
-            combat: {
-                attackers: [attacker],
-                confirmed: true,
-                blockers: [{ blocker: BASE_CREATURE, blocking: [0] }],
-                blockersConfirmed: true,
-            },
-        },
-    };
-}
-
-/**
  * CR 701.21 + CR 508.1 — the declared attack an edict over ATTACKING creatures
  * is posed against, or `null` when `def` is not one ("target player sacrifices
  * an attacking creature"). It shares the flash ambush's window

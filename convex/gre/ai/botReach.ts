@@ -75,7 +75,6 @@ import {
 } from "./botReachTrace";
 import {
     attackEdictPosition,
-    blockedAttackPose,
     combatTrickPosition,
     flashAmbushPosition,
     costPose,
@@ -711,15 +710,11 @@ export const AMBUSH_WINDOW = "FLASH_AMBUSH";
  * holder's own main phases read that hold as a refusal (issue #4260).
  */
 export const OPPONENT_END_STEP_WINDOW = "OPPONENT_END_STEP";
-/** The position an answer to the opponent's attacker is posed in once every
- *  earlier window passed it over (issue #5816) — see `blockedAttackPose`. */
-export const BLOCKED_ATTACK_WINDOW = "BLOCKED_ATTACK";
 type PoseWindow =
     | ReachWindow
     | typeof TRICK_WINDOW
     | typeof AMBUSH_WINDOW
-    | typeof OPPONENT_END_STEP_WINDOW
-    | typeof BLOCKED_ATTACK_WINDOW;
+    | typeof OPPONENT_END_STEP_WINDOW;
 
 /** CR 117.1a / 702.8a — an instant, or a permanent spell with Flash:
  *  castable in a window the holder does not own, so the opponent's end step
@@ -868,8 +863,6 @@ export function botReachSpec(
     const shrinks = shrinksEveryCreature(def) || damagesEveryCreature(def);
     const spendsSelf = spendsItselfOnDamageSweep(def);
     const target = targetPose(def);
-    const blocked =
-        window === BLOCKED_ATTACK_WINDOW ? blockedAttackPose(def) : null;
     const edicted = edictedTypes(def);
     // A symmetric edict is posed where the holder has nothing of the edicted
     // type to give up: every filler of that type stays on the opponent's side
@@ -888,7 +881,6 @@ export function botReachSpec(
         if (
             !shrinks &&
             !target.omitToughnessBoost &&
-            !blocked?.omitToughnessBoost &&
             stands(FILLER_ENCHANTMENT)
         )
             cards.push({
@@ -1004,7 +996,6 @@ export function botReachSpec(
     const race = sorceryPumpRace(def) ?? sorceryLifeGainRace(def);
     cards.push(
         ...target.cards,
-        ...(blocked?.cards ?? []),
         ...cost.cards,
         ...(race?.cards ?? []),
         ...manaSinkPose(def, landCount),
@@ -1028,9 +1019,7 @@ export function botReachSpec(
     return {
         cards,
         phase:
-            window === TRICK_WINDOW ||
-            window === AMBUSH_WINDOW ||
-            window === BLOCKED_ATTACK_WINDOW
+            window === TRICK_WINDOW || window === AMBUSH_WINDOW
                 ? "PRECOMBAT_MAIN"
                 : window === OPPONENT_END_STEP_WINDOW
                   ? "END_STEP"
@@ -1053,7 +1042,6 @@ export function botReachSpec(
         ...(race ? { life: race.life } : {}),
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
         ...(window === AMBUSH_WINDOW ? ambushPosition(def) : null),
-        ...(blocked?.position ?? null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack ? { stack: [...stack.stack] } : {}),
     };
@@ -1237,19 +1225,7 @@ function playSeat(
     const endStep: PoseWindow[] = isInstantSpeedCard(def)
         ? [OPPONENT_END_STEP_WINDOW]
         : [];
-    // CR 117.1a — the window is a declare-blockers step: only an
-    // instant-speed card can be cast there.
-    const blocked: PoseWindow[] =
-        isInstantSpeedCard(def) && blockedAttackPose(def) !== null
-            ? [BLOCKED_ATTACK_WINDOW]
-            : [];
-    for (const window of [
-        ...later,
-        ...trick,
-        ...ambush,
-        ...endStep,
-        ...blocked,
-    ]) {
+    for (const window of [...later, ...trick, ...ambush, ...endStep]) {
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or

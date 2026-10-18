@@ -22,15 +22,9 @@ import {
     botReachSpec,
     buildBotReachState,
     playBotReach,
-    BLOCKED_ATTACK_WINDOW,
     TRICK_WINDOW,
 } from "../botReach";
-import {
-    blockedAttackPose,
-    combatTrickPosition,
-    costPose,
-    targetPose,
-} from "../botReachTarget";
+import { combatTrickPosition, costPose, targetPose } from "../botReachTarget";
 
 const targetPoseCards = (def: CardDefinition) => targetPose(def).cards;
 
@@ -526,45 +520,6 @@ describe("a combat trick is posed in a declared combat once the main phases pass
         expect(
             withTemporaryDefinition(TRICK, () => playBotReach(TRICK))
         ).toEqual({ outcome: "played" });
-    });
-});
-
-// Issue #5816 — a shield on the opponent's attacker (Warning, CR 615.1a) is
-// worth a card only once the attacker is blocked by a creature it would kill.
-describe("an answer to the opponent's attacker is posed after blocks once earlier windows passed it over (issue #5816)", () => {
-    const warning = getCardByName("Warning")!;
-
-    it("Warning's target slot is posed on the OPPONENT's attacker, blocked by the holder's creature", () => {
-        // The pose reads the Bot's own beneficence sign: a source-scoped shield
-        // signed as a gift posed Warning on the holder's own attacker.
-        const spec = botReachSpec(warning, BLOCKED_ATTACK_WINDOW);
-        expect(spec.phase).toBe("DECLARE_BLOCKERS");
-        expect(spec.activePlayer).toBe("opp");
-        expect(spec.priority).toBe("me");
-        expect(spec.combat?.attackers).toEqual(["Hill Giant"]);
-        expect(spec.combat?.blockers).toEqual([
-            { blocker: "Grizzly Bears", blocking: [0] },
-        ]);
-        // No Castle: its +0/+2 would keep the blocker alive anyway.
-        expect(spec.cards.some((c) => c.name === "Castle")).toBe(false);
-    });
-
-    it("poses nothing for a spell that helps its own attacker", () => {
-        expect(
-            blockedAttackPose(
-                instant(
-                    "own-attacker",
-                    { combatRoleFilter: "attacking" },
-                    {
-                        effects: PUMP,
-                    }
-                )
-            )
-        ).toBeNull();
-    });
-
-    it("the Bot casts Warning in that combat", () => {
-        expect(playBotReach(warning)).toEqual({ outcome: "played" });
     });
 });
 
