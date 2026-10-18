@@ -114,11 +114,13 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * to the most expensive place: 19 of 40 RED tips in 14 days were violations
  * a 3-second check would have refused at `land`.
  *
- * `check:gaps`, `check:targets` and `check:test-hygiene` are those cheap
- * guards (`CHEAP_GUARDS` in `check-lane.ts`, with their measured costs and
- * admission paths). They run in the lane on every diff that can move them
+ * `check:gaps`, `check:targets` and `check:test-hygiene` are the script
+ * cheap guards (`CHEAP_GUARDS` in `check-lane.ts`, with their measured costs
+ * and admission paths). They run in the lane on every diff that can move them
  * AND stay here, because health is the full gate — the lane is only where a
- * violation is first seen. Here they run AFTER `check:all`, which holds
+ * violation is first seen. The fourth row, `blade-index` (issue #5940), is a
+ * bot-node vitest file, not a script: health runs it in the `test` step
+ * (`test:bot`), never as an entry of this list. Here they run AFTER `check:all`, which holds
  * `check:oracle`: an un-regenerated lockfile is lockfile DRIFT, and that is
  * the error a reader must see, not a census computed off a stale file.
  * `check:targets` reads the same lockfile and allowlist as `check:gaps`, and

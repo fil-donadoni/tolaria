@@ -732,8 +732,10 @@ export function classifyLane(
  * THE RULE IS COST, NOT PHASE: a guard whose measured cost is ≤ 10 s on the
  * heavy tier belongs in the lane; `health`-only is for guards that cost more
  * (`HEALTH_ONLY_GUARDS` in `lib/health-step.ts`, each with its measured
- * cost). These stay in `HEALTH_SCRIPTS` too — health is the full gate; the
- * lane is only no longer the place a violation is first SEEN late.
+ * cost). These stay in health too — a script guard in `HEALTH_SCRIPTS`, the
+ * vitest-file one (`blade-index`) in its `test` step through `test:bot` —
+ * health is the full gate; the lane is only no longer the place a violation
+ * is first SEEN late.
  *
  * ADMISSION, NOT SCOPING: each guard runs whole, and runs when the diff holds
  * a path that is one of its inputs — never on a slice. A census reads its

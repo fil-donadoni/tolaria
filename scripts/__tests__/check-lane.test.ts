@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import picomatch from "picomatch";
 import {
     classifyPath,
     packageJsonClass,
@@ -31,6 +32,7 @@ import {
     LANE_COST_BUDGET_S,
     MAINTENANCE_SCRIPTS,
 } from "../lib/health-step";
+import vitestSettings from "../../vitest.config";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -48,6 +50,26 @@ import {
  */
 
 const ROOT = resolve(__dirname, "..", "..");
+
+interface VitestProject {
+    name?: string;
+    include?: string[];
+    exclude?: string[];
+}
+
+/** `vitest.config.ts`'s projects, as the bot-node membership check reads them. */
+const vitestProjects: VitestProject[] = (
+    (vitestSettings as { test?: { projects?: { test?: VitestProject }[] } })
+        .test?.projects ?? []
+).map((p) => p.test ?? {});
+
+/** Whether `project`'s include/exclude globs select `file`. */
+function selectedBy(project: VitestProject, file: string): boolean {
+    return (
+        (project.include ?? []).some((g) => picomatch(g)(file)) &&
+        !(project.exclude ?? []).some((g) => picomatch(g)(file))
+    );
+}
 
 function ids(entries: { id: string }[]): string[] {
     return entries.map((e) => e.id);
@@ -2083,14 +2105,21 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
     });
 
     it("stays in health too — health is the full gate", () => {
-        for (const id of CENSUS) expect(HEALTH_SCRIPTS).toContain(id);
-        // The one vitest-file guard is a bot-node test: health's `test` step
-        // runs it with the bot suite (issue #5940).
-        expect(CHEAP_GUARDS.map((g) => g.id)).toEqual([
-            ...CENSUS,
-            "blade-index",
-        ]);
-        expect(BLADE_INDEX_DRIFT_TEST).toMatch(/\.bot\.test\.ts$/);
+        // A script guard is a HEALTH_SCRIPTS step. A vitest-file guard is
+        // covered by health's `test` step, whose `test:bot` runs the bot-node
+        // project — so its file must exist and that project must select it
+        // (issue #5940).
+        const botNode = vitestProjects.find((p) => p.name === "bot-node");
+        expect(botNode).toBeDefined();
+        for (const guard of CHEAP_GUARDS) {
+            if (guard.command === undefined) {
+                expect(HEALTH_SCRIPTS, guard.id).toContain(guard.id);
+                continue;
+            }
+            const file = guard.command.split(/\s+/).at(-1)!;
+            expect(existsSync(resolve(ROOT, file)), file).toBe(true);
+            expect(selectedBy(botNode!, file), file).toBe(true);
+        }
     });
 });
 
@@ -2125,7 +2154,8 @@ describe("check-lane — the blade card index drift test runs where the index ca
         ]) {
             const plan = classifyLane([file]);
             expect(guard(plan), file).toBeUndefined();
-            expect(ids(plan.skip), file).toContain("blade-index");
+            const skipped = plan.skip.find((s) => s.id === "blade-index");
+            expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
         }
     });
 

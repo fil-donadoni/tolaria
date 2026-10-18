@@ -742,9 +742,21 @@ unconditionally — the fallback cannot say what moved. They run after
 `check:oracle`, so lockfile drift is the error seen first. They stay in
 `HEALTH_SCRIPTS`: health is the full gate.
 
+A fourth row, `blade-index` (issue #5940), is a vitest file, not a script: the
+blade card index drift test (`blade-card-index-drift.bot.test.ts`), a
+`bot-node` file no scoped lane relates (ADR 0154 §3). It is admitted by
+`convex/gre/ai/blade/**`, `data/blade-card-index.json`,
+`data/blade-reproducers.json`, its builder `scripts/lib/blade-card-index.ts`
+or the test itself, and runs with its own command
+(`bunx vitest run --project bot-node <file>`). Health covers it through
+`test:bot`. Its red is what `pr-fixup`'s `blade-index` row regenerates
+(`docs/guides/github-pipeline.md` § pr-fixup). Without it, PR #5868 landed a
+blade entry with a stale index and the base went RED.
+
 Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
 `check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
 most 8 s on a landing that admits all three, nothing on one that admits none.
+`blade-index`: 1.9 s at load ~2, 4.5–9.2 s wall at load 33–35 (2026-10-18).
 
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or
