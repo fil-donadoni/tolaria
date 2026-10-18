@@ -12365,6 +12365,54 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4935 (issue #4900 review), a REACHABILITY entry — `predicate`, so it lowers to no Verdict and owes no weight refit: Fireblast's alternative cost is a PERMANENT leg (sacrifice two Mountains), which `searchPayableOwnAlternativeCosts` used to refuse, so with both Mountains tapped the Bot offered only `pass` and left four lethal damage in hand. `MoveMatcher` has no field for `alternativeCostId`, hence the predicate shape (as for overload / dash). The victims now ride on the Move (`castCostPicks.sacrificeIds`) and the search charges them (`applyAlternativeCostPermanentLegForSearch`).",
     },
     {
+        label: "Fireblast with no mana open: keeps both Mountains with the opponent at 20",
+        pairOf: {
+            anchor: "Fireblast with no mana open: sacrifices two Mountains for lethal",
+            discriminant: {
+                kind: "life",
+                detail: "the opponent at more than 4 life",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Fireblast", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 20 },
+            activePlayer: "me",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                !(
+                    move !== null &&
+                    move.kind === "cast-spell" &&
+                    move.alternativeCostId === "sacrifice-two-mountains"
+                ),
+            describe: "does not sacrifice two Mountains for four damage",
+        },
+        note: "Issue #5445, the other half of the lethal entry above: the whole mana base for four damage at 20 life. The leaf already priced it (`pass` 178.4 against 43 for the cast: hand 103.6 + lands 63.9 against the opponent's 32 life), yet the Bot cast on all five seeds through the material tie-break — the `pass` edge's subtree re-offered the same cast at every later decision (including the self-targeted one) and the flat reward band let UCB keep opening them, so `pass`'s mean margin (-13.7) read below the cast's (+26.0). `isManaBaseSacrificeCast` now keeps the cast out of the rollout and of the tree below the root; the root still weighs it, which is what the lethal half above pins. `predicate` for the same reason as the anchor: `MoveMatcher` has no `alternativeCostId` field.",
+    },
+    {
         label: "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
         classification: {
             kind: "conditional",
