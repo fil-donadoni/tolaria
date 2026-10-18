@@ -2599,7 +2599,7 @@ export function isDenialExchangeSacrifice(
 
 /** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
  *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
- *  #5445) — a mana base given up for a spell.
+ *  #5445) — lands given up for a spell.
  *
  *  The cast-side sibling of the activation predicates above, on the same
  *  terms. The cast edge pays the cost once, at the node it is taken from;
@@ -2611,10 +2611,13 @@ export function isDenialExchangeSacrifice(
  *  `pass` against 43 for the cast at the leaf, yet `pass`'s mean margin read
  *  below the cast's on every seed and the material tie-break cast it.
  *
- *  The bot's own moves only and never at the root, so a sacrifice the bot
- *  could take NOW — lethal, say — stays a scored option, and the greedy
- *  rollout policy still takes it wherever its one-ply probe wins; the
- *  opponent's stays in the tree. A RETURN leg is not this shape: the land
+ *  Dropped from BOTH rollout policies (the ε draw and the greedy one) and
+ *  from the tree below the root, so only the root weighs it: a sacrifice the
+ *  bot could take NOW — lethal, say — stays a scored option, re-weighed at
+ *  every real decision. Known cost: a line where the cast is the SECOND step
+ *  of a kill (attack, then burn after blocks) is invisible below the root.
+ *  The bot's own moves only; the opponent's stays in the tree. Any land the
+ *  leg's filter can take counts. A RETURN leg is not this shape: the land
  *  comes back to hand and is played again.
  *
  *  Per-card-agnostic, never a card name (ADR 0102). */
