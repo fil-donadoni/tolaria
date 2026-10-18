@@ -4,11 +4,20 @@
 // already runs what no diff can pay for (issue #4490). Since issue #5378 only
 // `--ui-all` — `release` — runs it; a batch run owes no walk.
 import { describe, expect, it } from "vitest";
-import { HEALTH_SCRIPTS, healthStepArgs } from "../lib/health-step";
+import {
+    HEALTH_SCRIPTS,
+    healthStepArgs,
+    splitHealthGates,
+} from "../lib/health-step";
 
 describe("health runs the full check:ui walk (issue #4913)", () => {
-    it("is the LAST health step — every offline verdict comes first", () => {
-        expect(HEALTH_SCRIPTS.at(-1)).toBe("check:ui --all");
+    it("is in the browser TAIL of health — every offline verdict comes first", () => {
+        // The browser steps (`isWalkStep`: the walk, and since issue #5618 the
+        // per-game download after it) close the list; none sits among the
+        // offline gates.
+        const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
+        expect(HEALTH_SCRIPTS).toEqual([...offline, ...walk]);
+        expect(walk[0]).toBe("check:ui --all");
     });
 
     it("its argv forces the full scope: `bun run check:ui --all`", () => {
