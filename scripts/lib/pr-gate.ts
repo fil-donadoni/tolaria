@@ -116,6 +116,15 @@ export function isMergifyQueuePr(
     );
 }
 
+/** `gh api --paginate` path and jq for every path a PR touches — a rename
+ *  contributes its old name too (`previous_filename`). One query, read by
+ *  `pr-gate` and by `land:ready`'s hand-off (issue #5952). */
+export function prFilesApiPath(repo: string, pr: number): string {
+    return `repos/${repo}/pulls/${pr}/files?per_page=100`;
+}
+export const PR_FILES_JQ =
+    ".[] | (.filename, (.previous_filename // empty)) | tojson";
+
 /** The touched paths that keep a PR out of the queue, sorted. */
 export function protectedPaths(files: readonly string[]): string[] {
     return [

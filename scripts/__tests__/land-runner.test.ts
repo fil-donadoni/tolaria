@@ -12,6 +12,8 @@ import {
     failureReason,
     FAILED_LABEL,
     failureComment,
+    bodyWithClosingRef,
+    handsToQueue,
     labelArgs,
     landExcerpt,
     launchdSupervised,
@@ -30,7 +32,6 @@ import {
     type LandFailure,
     type QueuedPr,
 } from "../lib/land-runner";
-import { queueAdmits } from "../lib/land-labels";
 
 const pr = (
     number: number,
@@ -372,7 +373,7 @@ describe("the PR comments", () => {
 });
 
 describe("label moves", () => {
-    it("ready adds ready-to-land and drops land-failed (a repair re-queues with one verb)", () => {
+    it("ready to the runner adds ready-to-land, drops land-failed and any queue:shadow (a repair re-queues with one verb; no PR is left with no merger, issue #5952)", () => {
         expect(labelArgs.ready(5, { shadow: false })).toEqual([
             "pr",
             "edit",
@@ -381,10 +382,12 @@ describe("label moves", () => {
             READY_LABEL,
             "--remove-label",
             FAILED_LABEL,
+            "--remove-label",
+            SHADOW_LABEL,
         ]);
     });
 
-    it("ready hands a queue-eligible PR to Mergify with queue:shadow (issue #5952)", () => {
+    it("ready to the queue adds ready-to-land and queue:shadow, drops land-failed (issue #5952)", () => {
         expect(labelArgs.ready(5, { shadow: true })).toEqual([
             "pr",
             "edit",
@@ -396,26 +399,6 @@ describe("label moves", () => {
             "--remove-label",
             FAILED_LABEL,
         ]);
-    });
-});
-
-describe("queueAdmits — the queue_conditions path exclusions (issue #5952)", () => {
-    it("admits a diff with no workflow file and no Mergify config", () => {
-        expect(
-            queueAdmits([
-                "scripts/land-ready.ts",
-                "docs/guides/github-pipeline.md",
-            ])
-        ).toBe(true);
-    });
-
-    it("refuses a diff touching .github/ or .mergify.yml — the runner keeps it", () => {
-        expect(queueAdmits(["scripts/a.ts", ".github/workflows/x.yml"])).toBe(
-            false
-        );
-        expect(queueAdmits([".mergify.yml"])).toBe(false);
-        // A lookalike path is not the config file.
-        expect(queueAdmits(["docs/.mergify.yml.md", "x/.github/y"])).toBe(true);
     });
 
     it("failed swaps ready-to-land for land-failed; unqueue only drops ready-to-land", () => {
@@ -435,6 +418,52 @@ describe("queueAdmits — the queue_conditions path exclusions (issue #5952)", (
             "--remove-label",
             READY_LABEL,
         ]);
+    });
+});
+
+describe("handsToQueue — who lands a handed-off PR (issue #5952)", () => {
+    it("the queue, when pr-gate's trusted-author verdict is green", () => {
+        expect(handsToQueue({ trustedAuthor: "success", labels: [] })).toBe(
+            true
+        );
+        // A queue repair keeps its merger: Mergify's dequeue leaves the label.
+        expect(
+            handsToQueue({
+                trustedAuthor: "success",
+                labels: [FAILED_LABEL, SHADOW_LABEL],
+            })
+        ).toBe(true);
+    });
+
+    it("the runner, when the queue would refuse it — never a shadow PR with no merger", () => {
+        expect(handsToQueue({ trustedAuthor: "failure", labels: [] })).toBe(
+            false
+        );
+        expect(
+            handsToQueue({ trustedAuthor: "pending", labels: [SHADOW_LABEL] })
+        ).toBe(false);
+    });
+
+    it("the runner, for a PR the runner failed — the owner handed it back, or it never was the queue's", () => {
+        expect(
+            handsToQueue({ trustedAuthor: "success", labels: [FAILED_LABEL] })
+        ).toBe(false);
+    });
+});
+
+describe("bodyWithClosingRef — GitHub closes the issue at merge, whoever merges (issue #5952)", () => {
+    it("appends a bare Closes #N when GitHub links no closing ref to the issue", () => {
+        expect(bodyWithClosingRef("Summary.\n\n", 12, [])).toBe(
+            "Summary.\n\nCloses #12\n"
+        );
+        // Another issue's closing ref is not this one's.
+        expect(bodyWithClosingRef("Fixes #7", 12, [7])).toBe(
+            "Fixes #7\n\nCloses #12\n"
+        );
+    });
+
+    it("leaves a body GitHub already links as closing the issue", () => {
+        expect(bodyWithClosingRef("Closes #12", 12, [12])).toBeNull();
     });
 });
 
