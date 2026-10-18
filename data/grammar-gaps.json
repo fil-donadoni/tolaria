@@ -3761,8 +3761,18 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"discardAtRandom\" reads a runtime \"count\" amount — the canned generator does not size it",
+            "issue": 5943
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4387
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"mill\" reads a runtime \"count\" amount — the canned generator does not size it",
+            "issue": 5944
         },
         {
             "kind": "scenario",
