@@ -176,6 +176,16 @@ describe("buildEvidence", () => {
         expect(evidenceSummary(ev.body)).toMatch(/failure:\*\* assertion/);
     });
 
+    it("names why a failed step was not re-run (issue #5939)", () => {
+        const ev = buildEvidence({
+            ...input,
+            retryRefused: "a FAIL line names no vitest project",
+        });
+        expect(evidenceSummary(ev.body)).toContain(
+            "- **retry:** none — a FAIL line names no vitest project"
+        );
+    });
+
     it("stays under the pivot's cap whatever the output", () => {
         const huge = `${COLOURED_RUN}\n${"x".repeat(200)}\n`.repeat(2000);
         const ev = buildEvidence({ ...input, output: huge });

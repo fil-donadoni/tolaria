@@ -10,17 +10,20 @@
  *   - a START line before the child runs (`[2/3] check:all — start`),
  *   - every `[gate] …` line the child prints, LIVE — the mutex-wait lines
  *     exist precisely to tell a queue from a hang, and they were swallowed,
- *   - a liveness line every `livenessMs` while the step runs,
+ *   - a liveness line every `livenessMs` while the step runs — and a machine
+ *     sample with it (issue #5939),
  *   - an END line with the exit status and the wall-clock elapsed.
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
  *
- * Node builtins plus `lib/health-verdict.ts` (builtins and builtins-only
- * modules only) — `health-main.ts` carries the same constraint.
+ * Node builtins plus `lib/health-verdict.ts` and `lib/machine-admission.ts`
+ * (which `health-verdict.ts` already loads) — `health-main.ts` carries the
+ * same constraint.
  */
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { isWalkStep } from "./health-verdict";
+import { readMachineSample, type MachineSample } from "./machine-admission";
 
 export interface HealthStep {
     /** 1-based position in the run, and the run's step count. */
@@ -47,6 +50,8 @@ export interface StepRunOptions {
     out?: (line: string) => void;
     /** Interval between liveness lines while the step runs. */
     livenessMs?: number;
+    /** Read on each liveness line (issue #5939); the machine by default. */
+    sample?: () => MachineSample;
 }
 
 export interface StepResult {
@@ -59,6 +64,22 @@ export interface StepResult {
     /** The child's stdout then stderr, as the log received them — what the
      *  walk's verdict is read from (`walkRunVerdict`, issue #4962). */
     output: string;
+    /** The machine read on each liveness line while the step ran (issue
+     *  #5939): a 20-minute `test` step's load peaks between its two edges. */
+    samples?: MachineSample[];
+}
+
+/**
+ * Every machine sample of one step: its start, the ones taken while it ran,
+ * its end — what `runSaturated` reads to excuse a timeout as `infra` (issue
+ * #5939). The edges alone read calm while a 20-minute step's middle did not.
+ */
+export function stepMachineSamples(
+    atStart: MachineSample | null,
+    run: Pick<StepResult, "samples">,
+    atEnd: MachineSample | null
+): (MachineSample | null)[] {
+    return [atStart, ...(run.samples ?? []), atEnd];
 }
 
 const PREFIX = "health-main:";
@@ -318,10 +339,18 @@ export function runHealthStep(
             fromErr.push(c);
         });
 
+        const sample = opts.sample ?? (() => readMachineSample());
+        const samples: MachineSample[] = [];
         const liveness = setInterval(() => {
             out(
                 `${tag} — still running, ${fmtElapsed(Date.now() - t0)} elapsed\n`
             );
+            // A probe that fails costs the reading, never the step.
+            try {
+                samples.push(sample());
+            } catch {
+                /* no sample this beat */
+            }
         }, livenessMs);
 
         let settled = false;
@@ -354,6 +383,7 @@ export function runHealthStep(
                 signal,
                 elapsedMs,
                 output: `${stdout}${stderr}`,
+                samples,
             });
         };
         // `close`, not `exit`: it fires after both pipes have drained, so the

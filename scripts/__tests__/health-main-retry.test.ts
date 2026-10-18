@@ -202,6 +202,79 @@ describe("planRetry — review hardening", () => {
     });
 });
 
+describe("a refused retry names its reason (issue #5939)", () => {
+    // The RED of 8442d0b4 said only "not a retryable test failure", and its
+    // log stayed on the machine that ran it.
+    async function refusal(step: HealthStep, first: StepResult) {
+        const lines: string[] = [];
+        const out = await runStepWithRetry(step, fakeRunner([first]).run, (l) =>
+            lines.push(l)
+        );
+        expect(out.retried).toBeUndefined();
+        return { refused: out.refused, log: lines.join("") };
+    }
+
+    it("each refusal says which rule held the step, in the result and the log", async () => {
+        const cases: [HealthStep, StepResult, string][] = [
+            [
+                TEST_STEP,
+                result(false, "boom"),
+                "no vitest FAIL line in the output",
+            ],
+            [
+                TEST_STEP,
+                result(false, `${FAIL_ENGINE} FAIL  a.test.ts > x\n`),
+                "a FAIL line names no vitest project",
+            ],
+            [
+                TEST_STEP,
+                result(false, `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`),
+                "vitest reported an unhandled error the FAIL lines do not explain",
+            ],
+            [
+                TEST_STEP,
+                {
+                    ...result(false, FAIL_ENGINE),
+                    status: null,
+                    signal: "SIGKILL",
+                },
+                "killed by SIGKILL — a crash or OOM kill is not a flaky test",
+            ],
+            [
+                { ...TEST_STEP, name: "check:all" },
+                result(false, FAIL_ENGINE),
+                "only the `test` step is re-run",
+            ],
+        ];
+        for (const [step, first, reason] of cases) {
+            const r = await refusal(step, first);
+            expect(r.refused).toBe(reason);
+            expect(r.log).toBe(
+                `health-main: ${step.name} failed — not re-run: ${reason}\n`
+            );
+        }
+    });
+
+    it("a step that passes, or is re-run, carries no refusal", async () => {
+        const green = await runStepWithRetry(
+            TEST_STEP,
+            fakeRunner([result(true)]).run
+        );
+        expect(green.refused).toBeUndefined();
+        const rerun = await runStepWithRetry(
+            TEST_STEP,
+            // The retry, then the two chain scripts it never reached.
+            fakeRunner([
+                result(false, FAIL_ENGINE),
+                result(true),
+                result(true),
+                result(true),
+            ]).run
+        );
+        expect(rerun.refused).toBeUndefined();
+    });
+});
+
 describe("the retry note separates a timeout from an assertion (issue #5484)", () => {
     const TIMEOUT_BOT = [
         BOT_CMD,

@@ -148,6 +148,36 @@ describe("health-step — terminal progress", () => {
         await new Promise((r) => setTimeout(r, 500));
         expect(alive()).toBe(atEnd);
     }, 10_000);
+
+    it("reads the machine on each liveness line and returns the readings (issue #5939)", async () => {
+        const rec = recorder();
+        let beat = 0;
+        const r = await runHealthStep(
+            nodeStep(`setTimeout(() => {}, 2000)`, "test"),
+            {
+                cwd: dir,
+                env: process.env,
+                logPath,
+                out: rec.out,
+                livenessMs: 150,
+                sample: () => ({
+                    load1: ++beat,
+                    swapUsedMb: null,
+                    pressure: null,
+                    reclaimableMb: null,
+                }),
+            }
+        );
+        const alive = rec.lines.filter((l) =>
+            l.line.includes("still running")
+        ).length;
+        expect(alive).toBeGreaterThanOrEqual(2);
+        // One reading per beat, in order — the middle of the step, which
+        // its two edges never see.
+        expect(r.samples?.map((s) => s.load1)).toEqual(
+            Array.from({ length: alive }, (_, i) => i + 1)
+        );
+    }, 10_000);
 });
 
 describe("health-step — the per-sha log", () => {

@@ -231,6 +231,8 @@ export interface EvidenceInput {
      *  failure was (`lib/health-retry.ts`). */
     retried?: readonly string[];
     retryCause?: string;
+    /** Why a failed step was NOT re-run (`retryDecision`, issue #5939). */
+    retryRefused?: string;
     at: string;
 }
 
@@ -259,7 +261,7 @@ export function buildEvidence(input: EvidenceInput): Evidence {
         `- **files:** ${files.length > 0 ? files.map((f) => `\`${f}\``).join(", ") : "none named"}`,
         input.retried && input.retried.length > 0
             ? `- **retry:** re-ran ${input.retried.join(", ")} once (first failure: ${input.retryCause ?? "unrecorded"}) — failed again; the excerpt is the retry's`
-            : "- **retry:** none (not a retryable test failure)",
+            : `- **retry:** none — ${input.retryRefused ?? "not a retryable test failure"}`,
         `- **log on ${input.machine}:** \`${input.logPath}\``,
         "",
     ].join("\n");
