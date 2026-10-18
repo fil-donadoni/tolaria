@@ -8,7 +8,7 @@ import {
     failingFiles,
     failingProjects,
 } from "../lib/health-evidence";
-import { failedVitestProjects, planRetry } from "../lib/health-retry";
+import { failedVitestProjects, retryDecision } from "../lib/health-retry";
 import {
     decodeStatus,
     encodeDescription,
@@ -61,9 +61,9 @@ describe("the FAIL line, both label forms (the incident)", () => {
 
     it("lets the retry cover a coloured run — it read nothing before", () => {
         expect(failedVitestProjects(COLOURED_RUN)).toEqual(["node-tooling"]);
-        expect(planRetry("test", COLOURED_RUN)?.projects).toEqual([
-            "node-tooling",
-        ]);
+        expect(retryDecision("test", COLOURED_RUN)).toMatchObject({
+            plan: { projects: ["node-tooling"] },
+        });
     });
 
     it("still reads the plain `|project|` form and an untagged line", () => {

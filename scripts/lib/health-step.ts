@@ -11,7 +11,7 @@
  *   - every `[gate] …` line the child prints, LIVE — the mutex-wait lines
  *     exist precisely to tell a queue from a hang, and they were swallowed,
  *   - a liveness line every `livenessMs` while the step runs — and a machine
- *     sample with it (issue #5939),
+ *     reading with it, beside one at each edge (issue #5939),
  *   - an END line with the exit status and the wall-clock elapsed.
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
@@ -50,7 +50,8 @@ export interface StepRunOptions {
     out?: (line: string) => void;
     /** Interval between liveness lines while the step runs. */
     livenessMs?: number;
-    /** Read on each liveness line (issue #5939); the machine by default. */
+    /** Read before the spawn, on each liveness line and at the close (issue
+     *  #5939); the machine by default. */
     sample?: () => MachineSample;
 }
 
@@ -64,22 +65,18 @@ export interface StepResult {
     /** The child's stdout then stderr, as the log received them — what the
      *  walk's verdict is read from (`walkRunVerdict`, issue #4962). */
     output: string;
-    /** The machine read on each liveness line while the step ran (issue
-     *  #5939): a 20-minute `test` step's load peaks between its two edges. */
+    /**
+     * THIS run's machine: one reading before the spawn, one per liveness
+     * line, one at the close — what `runSaturated` reads to excuse a
+     * timeout-only failure as `machine-timeout` (issue #5939). The two edges
+     * alone read calm while a 20-minute `test` step's middle did not.
+     *
+     * A beat reads the whole machine, so it also counts the step's own
+     * workers, and other holders' load while the step queues on the heavy
+     * mutex. That may excuse a first timeout-only failure the tree caused;
+     * `repeatedMachineTimeout` bounds the excuse to once per step.
+     */
     samples?: MachineSample[];
-}
-
-/**
- * Every machine sample of one step: its start, the ones taken while it ran,
- * its end — what `runSaturated` reads to excuse a timeout as `infra` (issue
- * #5939). The edges alone read calm while a 20-minute step's middle did not.
- */
-export function stepMachineSamples(
-    atStart: MachineSample | null,
-    run: Pick<StepResult, "samples">,
-    atEnd: MachineSample | null
-): (MachineSample | null)[] {
-    return [atStart, ...(run.samples ?? []), atEnd];
 }
 
 const PREFIX = "health-main:";
@@ -318,6 +315,18 @@ export function runHealthStep(
 
     out(`${tag} — start\n`);
 
+    const sample = opts.sample ?? (() => readMachineSample());
+    const samples: MachineSample[] = [];
+    const readMachine = (): void => {
+        // A probe that fails costs the reading, never the step.
+        try {
+            samples.push(sample());
+        } catch {
+            /* no sample this time */
+        }
+    };
+    readMachine();
+
     return new Promise((resolvePromise) => {
         const child = spawn(step.cmd, step.args, {
             cwd: opts.cwd,
@@ -339,18 +348,11 @@ export function runHealthStep(
             fromErr.push(c);
         });
 
-        const sample = opts.sample ?? (() => readMachineSample());
-        const samples: MachineSample[] = [];
         const liveness = setInterval(() => {
             out(
                 `${tag} — still running, ${fmtElapsed(Date.now() - t0)} elapsed\n`
             );
-            // A probe that fails costs the reading, never the step.
-            try {
-                samples.push(sample());
-            } catch {
-                /* no sample this beat */
-            }
+            readMachine();
         }, livenessMs);
 
         let settled = false;
@@ -361,6 +363,7 @@ export function runHealthStep(
             if (settled) return;
             settled = true;
             clearInterval(liveness);
+            readMachine();
             fromOut.flush();
             fromErr.flush();
             // Byte-identical to the spawnSync capture this replaced: header,

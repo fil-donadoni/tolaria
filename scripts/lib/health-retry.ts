@@ -87,6 +87,10 @@ export interface RetryPlan {
  *  re-ran says which rule held it. */
 export type RetryDecision = { plan: RetryPlan } | { refused: string };
 
+/** What a failed step owes before it may be called RED: the re-run of
+ *  exactly its failed projects (then the chain scripts that never started),
+ *  or the rule that makes it RED at once — not the `test` step, a failure no
+ *  project tag explains, an unhandled error. */
 export function retryDecision(stepName: string, output: string): RetryDecision {
     if (stepName !== RETRY_STEP)
         return { refused: `only the \`${RETRY_STEP}\` step is re-run` };
@@ -114,13 +118,6 @@ export function retryDecision(stepName: string, output: string): RetryDecision {
             remaining: TEST_CHAIN.slice(from).map((c) => c.script),
         },
     };
-}
-
-/** What a failed `test` step owes before it may be called RED, or null when
- *  it is RED at once. */
-export function planRetry(stepName: string, output: string): RetryPlan | null {
-    const decision = retryDecision(stepName, output);
-    return "plan" in decision ? decision.plan : null;
 }
 
 /** What the first, retried failure was: every failed test timed out, or

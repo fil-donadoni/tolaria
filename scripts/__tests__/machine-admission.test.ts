@@ -41,7 +41,6 @@ import {
     type MachineThresholds,
 } from "../lib/machine-admission";
 import { infraCause, repeatedMachineTimeout } from "../lib/health-verdict";
-import { stepMachineSamples } from "../lib/health-step";
 
 /**
  * Machine admission (issue #4966) — the decisions, pure: what the machine
@@ -1164,26 +1163,6 @@ describe("verdict hygiene — what a saturated machine may explain", () => {
         expect(
             infraCause({ ...step, output: timeouts, machineSaturated: true })
         ).toBe("machine-timeout");
-    });
-
-    it("a step whose edges read calm but whose middle did not is machine-timeout (issue #5939)", () => {
-        // 8442d0b4: a 21-minute `test` step, load 8.5 at the job's start,
-        // calm at both edges of the step, two whole-corpus tests timed out.
-        const hot = { ...calm, load1: 12 };
-        const run = { samples: [calm, hot, calm] };
-        expect(
-            infraCause({
-                ...step,
-                output: timeouts,
-                machineSaturated: runSaturated(
-                    stepMachineSamples(calm, run, calm),
-                    T
-                ),
-            })
-        ).toBe("machine-timeout");
-        // No in-step reading (a step shorter than one liveness beat): the
-        // edges alone decide, as before.
-        expect(stepMachineSamples(calm, {}, null)).toEqual([calm, null]);
     });
 
     it("the excuse is the machine's ONCE: the same step timing out again is the tree's", () => {

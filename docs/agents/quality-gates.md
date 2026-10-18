@@ -1984,9 +1984,12 @@ reason — from a deleted cwd they read null.
 failed test timed out — read per failed test, each one's own error line, never
 as two counts over the output — while the step's samples read saturated is
 `infra` / `machine-timeout`, not RED. One assertion beside the timeouts keeps
-it RED. And the excuse does not repeat: a step's own workers raise the load its
-end sample reads, so "saturated" alone cannot tell a busy machine from a
-regression that hangs the suite. What tells them apart is the next run — the
+it RED. The samples are the step's own: one at each edge and one per liveness
+line (issue #5939), since a 20-minute `test` step's load peaks between its
+edges. And the excuse does not repeat: a step's own workers raise the load its
+samples read (and so does another holder while it queues on the heavy mutex),
+so "saturated" alone cannot tell a busy machine from a regression that hangs
+the suite. What tells them apart is the next run — the
 same step failing the same way twice in a row is the tree's, and is RED
 (`repeatedMachineTimeout`). An unsettled walk needed no new rule: every failing
 row INFRA was already `ui-walk`.

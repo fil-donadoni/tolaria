@@ -119,7 +119,6 @@ import {
     healthStepArgs,
     runHealthStep,
     splitHealthGates,
-    stepMachineSamples,
     HEALTH_SCRIPTS,
     WALK_BOOTSTRAP,
     type HealthStep,
@@ -169,7 +168,6 @@ import {
 } from "./lib/ui-admission";
 import {
     readMachineConfig,
-    readMachineSample,
     runSaturated,
     waitForMachine,
 } from "./lib/machine-admission";
@@ -1211,7 +1209,6 @@ async function main(): Promise<void> {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
             const stepStartedAt = Date.now();
-            const machineAtStart = readMachineSample();
             const run = await runStepWithRetry(
                 step,
                 (s) => runHealthStep(s, { cwd: wt, env, logPath }),
@@ -1230,16 +1227,10 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
-                    // The samples of the run whose failure this classifies —
-                    // the retry's, when there was one (issue #5939).
-                    machineSaturated: runSaturated(
-                        stepMachineSamples(
-                            machineAtStart,
-                            r,
-                            readMachineSample()
-                        ),
-                        thresholds
-                    ),
+                    // The machine of the run whose failure this classifies —
+                    // the retry's, when there was one: its start, every
+                    // liveness beat, its end (issue #5939).
+                    machineSaturated: runSaturated(r.samples ?? [], thresholds),
                 });
                 // The machine's excuse does not repeat: the same step timing
                 // out on two runs in a row is the tree's.

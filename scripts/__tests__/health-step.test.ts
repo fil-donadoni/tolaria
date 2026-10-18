@@ -44,6 +44,16 @@ function nodeStep(script: string, name = "check:all"): HealthStep {
     };
 }
 
+/** A machine reading whose load names the order it was taken in. */
+function reading(load1: number) {
+    return { load1, swapUsedMb: null, pressure: null, reclaimableMb: null };
+}
+
+/** The liveness lines a run printed. */
+function beats(rec: ReturnType<typeof recorder>): number {
+    return rec.lines.filter((l) => l.line.includes("still running")).length;
+}
+
 function recorder() {
     const lines: { line: string; at: number }[] = [];
     return {
@@ -149,9 +159,9 @@ describe("health-step — terminal progress", () => {
         expect(alive()).toBe(atEnd);
     }, 10_000);
 
-    it("reads the machine on each liveness line and returns the readings (issue #5939)", async () => {
+    it("reads the machine before the spawn, on each liveness line and at the close (issue #5939)", async () => {
         const rec = recorder();
-        let beat = 0;
+        let reads = 0;
         const r = await runHealthStep(
             nodeStep(`setTimeout(() => {}, 2000)`, "test"),
             {
@@ -160,22 +170,43 @@ describe("health-step — terminal progress", () => {
                 logPath,
                 out: rec.out,
                 livenessMs: 150,
-                sample: () => ({
-                    load1: ++beat,
-                    swapUsedMb: null,
-                    pressure: null,
-                    reclaimableMb: null,
-                }),
+                sample: () => reading(++reads),
             }
         );
-        const alive = rec.lines.filter((l) =>
-            l.line.includes("still running")
-        ).length;
+        const alive = beats(rec);
         expect(alive).toBeGreaterThanOrEqual(2);
-        // One reading per beat, in order — the middle of the step, which
-        // its two edges never see.
+        // THIS run's machine, in order: the start, every beat — the middle
+        // of the step, which its two edges never see — and the end.
         expect(r.samples?.map((s) => s.load1)).toEqual(
-            Array.from({ length: alive }, (_, i) => i + 1)
+            Array.from({ length: alive + 2 }, (_, i) => i + 1)
+        );
+    }, 10_000);
+
+    it("a probe that throws costs its reading, never the step nor the later beats", async () => {
+        const rec = recorder();
+        let reads = 0;
+        const r = await runHealthStep(
+            nodeStep(`setTimeout(() => {}, 2000)`, "test"),
+            {
+                cwd: dir,
+                env: process.env,
+                logPath,
+                out: rec.out,
+                livenessMs: 150,
+                sample: () => {
+                    // The first beat's probe fails; the others answer.
+                    if (++reads === 2) throw new Error("sysctl timed out");
+                    return reading(reads);
+                },
+            }
+        );
+        expect(r.ok).toBe(true);
+        const alive = beats(rec);
+        expect(alive).toBeGreaterThanOrEqual(2);
+        expect(r.samples?.map((s) => s.load1)).toEqual(
+            Array.from({ length: alive + 2 }, (_, i) => i + 1).filter(
+                (n) => n !== 2
+            )
         );
     }, 10_000);
 });
