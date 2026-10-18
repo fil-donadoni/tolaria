@@ -40,7 +40,8 @@ export interface TickPlan {
     shadowed: { pr: number; reason: string }[];
     /** Unlabel and log: the PR is closed/merged or its branch is gone. */
     stale: { pr: number; reason: string }[];
-    /** Left labelled for a later tick: a non-repair PR under RED. */
+    /** Left as it is for a later tick: a non-repair PR under RED, or a row
+     *  the search index still lists after its labels moved. */
     held: { pr: number; reason: string }[];
     /** The PR this tick lands, `null` when there is none to land. */
     next: QueuedPr | null;
@@ -54,6 +55,14 @@ export interface TickPlan {
  * lineage reads AMBER or GREEN. A PR labelled `queue:shadow` is Mergify's
  * (issue #5642, the shadow phase): the runner never lands, unlabels nor
  * relabels it, merged or closed included — one merger per PR.
+ *
+ * A row is read by its OWN labels, never by the list's filter (issue #5941):
+ * the `--label`/`--search` read goes through GitHub's search index, which
+ * keeps listing a PR for seconds after its `ready-to-land` label left, while
+ * the row's `labels` field is already fresh (PR #5945, 2026-10-18). Trusting
+ * the filter landed the same head twice right after a `land-failed` relabel
+ * — 34 of 77 failure episodes, 12–18 October. A row without `ready-to-land`,
+ * or carrying `land-failed`, is held: nothing to land, nothing to unlabel.
  */
 export function planTick(
     prs: readonly QueuedPr[],
@@ -76,6 +85,14 @@ export function planTick(
             plan.shadowed.push({
                 pr: pr.number,
                 reason: `labelled \`${SHADOW_LABEL}\` — the Mergify queue lands it`,
+            });
+            continue;
+        }
+        const labels = new Set(pr.labels.map((l) => l.name));
+        if (!labels.has(READY_LABEL) || labels.has(FAILED_LABEL)) {
+            plan.held.push({
+                pr: pr.number,
+                reason: `listed by the search index but its own labels are ${[...labels].join(", ") || "none"} — not \`${READY_LABEL}\` alone`,
             });
             continue;
         }
@@ -299,6 +316,60 @@ export function pinLandRunnerPlatform(
 /** Whether THIS machine runs the land-runner. */
 export function runsHere(config: LandRunnerConfig, platform: string): boolean {
     return config.platform === platform;
+}
+
+/**
+ * What the runner's code is, read as `git rev-parse HEAD:<path>` in the
+ * primary checkout it runs from (issue #5941). The process never reloads its
+ * modules: one started 2026-10-15 ran without the shadow skip (issue #5642)
+ * and the RED hold until a manual restart on 2026-10-18 — it touched a
+ * `queue:shadow` PR and failed five healthy PRs under RED. The `scripts`
+ * tree covers the entry, every `scripts/lib` module it imports and the
+ * top-level scripts it imports (`land.ts`, `loop-doctor.ts`) in one id; the
+ * config is read once at start. A change to an unrelated script costs a
+ * restart between ticks (launchd's 60 s throttle), never a landing.
+ */
+export const RUNNER_SOURCE_PATHS: readonly string[] = [
+    "scripts",
+    "tolaria.config.json",
+];
+
+/** The exit that asks launchd for a restart: non-zero, so
+ *  `KeepAlive.SuccessfulExit = false` respawns the runner (75 = EX_TEMPFAIL). */
+export const RESTART_EXIT = 75;
+
+/** The launchd job label of `scripts/runner-units/com.tolaria.land-runner.plist`. */
+export const LAUNCHD_LABEL = "com.tolaria.land-runner";
+
+/**
+ * Whether launchd runs THIS process as the runner's job — it sets
+ * `XPC_SERVICE_NAME` to the job label. Only then does `RESTART_EXIT` come
+ * back as a restart; `loop:afk`'s detached start (`nohup`) has no supervisor,
+ * and an exit there would stop the queue instead.
+ */
+export function launchdSupervised(env: NodeJS.ProcessEnv): boolean {
+    return env.XPC_SERVICE_NAME === LAUNCHD_LABEL;
+}
+
+/**
+ * What a check of the runner's sources, at the top of a loop iteration,
+ * asks for: `same` (carry on — also when there was no startup reading to
+ * compare against), `unreadable` (git failed now — no evidence, and
+ * restarting on it would loop on a broken checkout), `restart` (they moved
+ * and launchd will bring the runner back: exit `RESTART_EXIT`) or `warn`
+ * (they moved under an unsupervised runner: say so, keep landing).
+ */
+export type SourceCheck = "same" | "unreadable" | "restart" | "warn";
+
+export function checkSources(
+    started: string | null,
+    now: string | null,
+    supervised: boolean
+): SourceCheck {
+    if (started === null) return "same";
+    if (now === null) return "unreadable";
+    if (started === now) return "same";
+    return supervised ? "restart" : "warn";
 }
 
 /** One PR the runner labelled `land-failed`, as the owner notification sees it. */

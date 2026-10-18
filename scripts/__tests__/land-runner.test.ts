@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+    checkSources,
     describeLandFailures,
     EXCERPT_LINES,
     failureReason,
@@ -13,6 +14,8 @@ import {
     failureComment,
     labelArgs,
     landExcerpt,
+    launchdSupervised,
+    LAUNCHD_LABEL,
     laneReceipt,
     mergedComment,
     outcomeOf,
@@ -196,6 +199,93 @@ describe("planTick — under RED only a declared repair lands (AMBER resumes the
         });
         expect(plan.held).toEqual([]);
         expect(plan.next?.number).toBe(1);
+    });
+});
+
+describe("planTick — a row is read by its own labels, never by the list's filter (issue #5941)", () => {
+    // The search index lists a PR for seconds after `ready-to-land` left it;
+    // the row's own `labels` are already fresh (PR #5945, 2026-10-18).
+    const failed = {
+        labels: [{ name: FAILED_LABEL }, { name: "area:workflow" }],
+    };
+    const ctx = (prs: QueuedPr[]) => ({
+        remoteBranches: branchesOf(prs),
+        red: false,
+        repairIssues: [],
+    });
+
+    it("holds a row the index still lists after its land-failed relabel, and lands the next", () => {
+        const prs = [
+            pr(1, "2026-10-12T08:00:00Z", failed),
+            pr(2, "2026-10-12T09:00:00Z"),
+        ];
+        const plan = planTick(prs, ctx(prs));
+        expect(plan.held.map((h) => h.pr)).toEqual([1]);
+        expect(plan.held[0].reason).toMatch(/search index/);
+        expect(plan.stale).toEqual([]);
+        expect(plan.next?.number).toBe(2);
+    });
+
+    it("holds a row carrying both labels — land-failed wins", () => {
+        const prs = [
+            pr(1, "2026-10-12T08:00:00Z", {
+                labels: [{ name: READY_LABEL }, { name: FAILED_LABEL }],
+            }),
+        ];
+        const plan = planTick(prs, ctx(prs));
+        expect(plan.held.map((h) => h.pr)).toEqual([1]);
+        expect(plan.next).toBeNull();
+    });
+
+    it("never unlabels a closed row that lost its label — nothing to undo", () => {
+        const prs = [
+            pr(1, "2026-10-12T08:00:00Z", { ...failed, state: "CLOSED" }),
+        ];
+        const plan = planTick(prs, ctx(prs));
+        expect(plan.stale).toEqual([]);
+        expect(plan.held.map((h) => h.pr)).toEqual([1]);
+    });
+});
+
+describe("checkSources — a merged runner change restarts the runner (issue #5941)", () => {
+    it("restarts under launchd when the committed sources moved since start", () => {
+        expect(checkSources("tree-a\nconf-a", "tree-b\nconf-a", true)).toBe(
+            "restart"
+        );
+    });
+
+    it("only warns when nothing would bring the runner back", () => {
+        expect(checkSources("tree-a\nconf-a", "tree-b\nconf-a", false)).toBe(
+            "warn"
+        );
+    });
+
+    it("carries on while they stand still", () => {
+        expect(checkSources("tree-a\nconf-a", "tree-a\nconf-a", true)).toBe(
+            "same"
+        );
+    });
+
+    it("never restarts on an unreadable reading — a broken checkout would loop", () => {
+        expect(checkSources("tree-a", null, true)).toBe("unreadable");
+        expect(checkSources(null, "tree-b", true)).toBe("same");
+    });
+});
+
+describe("launchdSupervised — only launchd's own job exits for a restart (issue #5941)", () => {
+    it("is the job launchd names in XPC_SERVICE_NAME", () => {
+        expect(launchdSupervised({ XPC_SERVICE_NAME: LAUNCHD_LABEL })).toBe(
+            true
+        );
+    });
+
+    it("is not loop:afk's detached start, nor another launchd job", () => {
+        expect(launchdSupervised({})).toBe(false);
+        expect(
+            launchdSupervised({
+                XPC_SERVICE_NAME: "application.com.apple.Terminal",
+            })
+        ).toBe(false);
     });
 });
 

@@ -10,8 +10,10 @@
  *
  * One tick:
  *
- *   1. list `ready-to-land` PRs (`--state all`): a closed/merged one, or one
- *      whose branch is gone from origin, is STALE — unlabelled and logged;
+ *   1. list `ready-to-land` PRs (`--state all`): a row whose own labels are
+ *      not `ready-to-land` without `land-failed` is the search index lagging
+ *      a relabel — held (issue #5941); a closed/merged one, or one whose
+ *      branch is gone from origin, is STALE — unlabelled and logged;
  *   2. read the health lineage through the verdict store: under RED only a
  *      PR closing a recorded `/health-fix` issue lands, the rest stay queued
  *      (AMBER/GREEN resumes them) — `planTick`;
@@ -29,8 +31,11 @@
  *      which `queue:plan` turns into a repair pick. A `gh` write that fails
  *      is logged, never thrown, so one PR cannot stall the queue.
  *
- * The runner does not reload its own code: a merged change to it takes
- * effect at its next start (`loop:afk --disarm`, then `--start`).
+ * The runner does not reload its own code in place: before each tick it
+ * reads `RUNNER_SOURCE_PATHS` at the primary's HEAD and, once they moved,
+ * exits `RESTART_EXIT` when launchd supervises it
+ * (`KeepAlive.SuccessfulExit = false` starts it on the new code), or says so
+ * once under `loop:afk`, whose next `--start` does (issue #5941).
  *
  * Flags: `--once` (one tick, then exit — cron/launchd-friendly), `--dry-run`
  * (print the tick's plan, touch nothing), `--interval <s>` (between ticks;
@@ -70,6 +75,7 @@ import {
     failureReason,
     type LandFailure,
     labelArgs,
+    launchdSupervised,
     mergedComment,
     outcomeOf,
     owesPresetSeed,
@@ -77,9 +83,12 @@ import {
     pinLandRunnerPlatform,
     planTick,
     READY_LABEL,
+    RESTART_EXIT,
+    RUNNER_SOURCE_PATHS,
     SHADOW_LABEL,
     RUNNER_ENV,
     runsHere,
+    checkSources,
     worktreeOfBranch,
     type LandOutcome,
     type QueuedPr,
@@ -160,6 +169,31 @@ function listQueued(): QueuedPr[] {
             "number,state,headRefName,createdAt,body,labels",
         ])
     ) as QueuedPr[];
+}
+
+/** `RUNNER_SOURCE_PATHS`' ids at the primary's HEAD, one line each, or null
+ *  when git cannot read them. Stdout only: a warning on stderr is no id. */
+function sourceIdentity(primary: string): string | null {
+    const r = spawnSync(
+        "git",
+        [
+            "-C",
+            primary,
+            "rev-parse",
+            ...RUNNER_SOURCE_PATHS.map((p) => `HEAD:${p}`),
+        ],
+        { encoding: "utf8" }
+    );
+    return r.status === 0 ? (r.stdout ?? "").trim() : null;
+}
+
+/** `scripts 1a2b3c4d, tolaria.config.json 5e6f7a8b` — a log's view of an
+ *  identity. */
+function shortIdentity(identity: string): string {
+    return identity
+        .split("\n")
+        .map((id, i) => `${RUNNER_SOURCE_PATHS[i] ?? "?"} ${id.slice(0, 8)}`)
+        .join(", ");
 }
 
 function remoteBranches(primary: string): Set<string> {
@@ -604,8 +638,42 @@ async function main(): Promise<void> {
         log(`notifying the owner: ${message}`);
         notifyOwner(message, "Tolaria land-runner");
     };
+    // The code this process loaded (issue #5941), checked at the top of every
+    // iteration so a runner change merged during the sleep never runs one
+    // more tick on the old code — `checkSources` decides. `--once` and
+    // `--dry-run` end anyway.
+    const supervised = launchdSupervised(process.env);
+    const startedFrom = once || dryRun ? null : sourceIdentity(primary);
+    if (!once && !dryRun && startedFrom === null)
+        log(
+            "cannot read the runner's own sources at the primary's HEAD — a runner change will not restart it"
+        );
+    let unreadable = false;
+    let warned = false;
+    let restart = false;
     try {
         do {
+            const now = startedFrom === null ? null : sourceIdentity(primary);
+            const check = checkSources(startedFrom, now, supervised);
+            if (check === "unreadable" && !unreadable)
+                log(
+                    "cannot read the runner's own sources at the primary's HEAD — no restart check until it can"
+                );
+            unreadable = check === "unreadable";
+            if (check === "restart") {
+                log(
+                    `runner sources changed (${shortIdentity(startedFrom!)} → ${shortIdentity(now!)}) — exiting ${RESTART_EXIT} for launchd to restart it on the new code`
+                );
+                flushBurst();
+                restart = true;
+                break;
+            }
+            if (check === "warn" && !warned) {
+                log(
+                    `runner sources changed (${shortIdentity(startedFrom!)} → ${shortIdentity(now!)}) under a runner launchd does not supervise — restart it (\`loop:afk --disarm\`, then \`--start\`)`
+                );
+                warned = true;
+            }
             let busy = false;
             try {
                 busy = tick({
@@ -629,6 +697,7 @@ async function main(): Promise<void> {
     } finally {
         if (!dryRun) rmSync(lockPath, { force: true });
     }
+    if (restart) process.exit(RESTART_EXIT);
 }
 
 if (import.meta.main) {
