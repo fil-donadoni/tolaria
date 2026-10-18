@@ -52,6 +52,7 @@ import {
     findBasicLandRemovalIndex,
     recordBasicLandArtChoice,
     resolveBasicLandCardIds,
+    basicLandEntryDefinitionId,
     rewriteBasicLandArtInDeck,
     seededBasicLandArt,
     type BasicLandSubtype,
@@ -704,8 +705,20 @@ export default function PoolDeckBuilderForm({
     // in hand. The deck side resolves through the `cardPrints` rows like the
     // server's (`useDeckPrintResolver`, issue #5550): a Basic re-arted to a
     // reprint by the art picker stays Basic, hence exempt from the Pool.
+    // A Pool Basic stores no `definitionId`; the resolver is handed one so a
+    // reprint reads as Basic even before its row loads.
     const deckEntries = useMemo(
-        () => [...deck.cards, ...deck.sideboard],
+        () =>
+            [...deck.cards, ...deck.sideboard].map((card) => {
+                if (card.definitionId !== undefined) return card;
+                const definitionId = basicLandEntryDefinitionId(
+                    card.cardId,
+                    card
+                );
+                return definitionId === undefined
+                    ? card
+                    : { ...card, definitionId };
+            }),
         [deck.cards, deck.sideboard]
     );
     const printResolver = useDeckPrintResolver(deckEntries);
