@@ -40,6 +40,12 @@ import type {
     BrainResponse,
 } from "./brain-request";
 import { recordAiDecision } from "./trace-store";
+import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
+import type { BrainPrime } from "./brain-residency";
+// The worker's URL: a chunk of the page's own build, so its engine chunks,
+// Set chunks and compiled shards are the URLs the page already fetched
+// (`scripts/lib/vite-brain-worker-chunk.ts`, issue #5617).
+import brainWorkerUrl from "virtual:brain-worker-url";
 
 /** The Brain's reply: the chosen move, the read-only DecisionTrace of what it
  *  weighed (null when there was no real decision to explain), and HOW the
@@ -91,9 +97,11 @@ type InFlight = { resolve: Pending; request: BrainRequest };
  *  the real constants.
  *
  *  Those relations only bound the CONSULT. Since issue #3053 the Worker also
- *  fetches the card catalogue in its own graph before its first answer, and
- *  that is deliberately kept OUT of this budget by {@link warmBrain}, which
- *  `useVsAiDriver` calls on mount. Without it the first consult on a cold
+ *  makes card definitions resident in its own graph before it answers — since
+ *  issue #5617 only its Manifest's shards, from the page's HTTP cache — and
+ *  that is deliberately kept OUT of this budget by {@link warmBrain} and
+ *  {@link primeBrain}, which `useVsAiDriver` calls ahead of the first consult.
+ *  Without them the first consult on a cold
  *  cache would be a ~1.4 MB download plus a 3,000 ms search inside 5,000 ms. */
 export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
 
@@ -137,10 +145,7 @@ export const BRAIN_FALLBACK_BUDGET: SearchBudget = {
 };
 
 /** Named in the failure text of a script-load failure, which carries no
- *  filename of its own. NOT built with `new URL(..., import.meta.url)`: that
- *  expression is what Vite's worker plugin pattern-matches inside the
- *  `new Worker(...)` call below, and a second copy of it outside one is an
- *  asset reference this message has no use for. */
+ *  filename of its own. */
 const BRAIN_WORKER_SCRIPT = "brain.worker.ts";
 
 /** The explicit marker for the one failure whose event says nothing at all.
@@ -161,6 +166,9 @@ const pending = new Map<number, InFlight>();
 let failures = 0;
 /** Set once the spawn budget is spent: every later consult goes in-thread. */
 let exhausted = false;
+/** Every Manifest entry primed this game, by definition id (issue #5617) —
+ *  re-posted to a FRESH Worker, which starts with nothing resident. */
+const primed = new Map<string, DefinitionManifestEntry>();
 
 function getWorker(): Worker | null {
     if (typeof Worker === "undefined") return null;
@@ -172,10 +180,9 @@ function getWorker(): Worker | null {
     if (worker) return worker;
     // Held in a local as well as in the module singleton, so both handlers can
     // ask "am I still the installed Worker?" — see `onerror` below.
-    const spawned = new Worker(new URL("./brain.worker.ts", import.meta.url), {
-        type: "module",
-    });
+    const spawned = new Worker(brainWorkerUrl, { type: "module" });
     worker = spawned;
+    if (primed.size > 0) postPrime(spawned, [...primed.values()]);
     spawned.onmessage = (e: MessageEvent<BrainResponse>) => {
         // A reply — even one carrying a search `error` — proves the script
         // loaded and this Worker answers, so the failure count starts over.
@@ -357,9 +364,11 @@ function clampToFallback(requested: SearchBudget): SearchBudget {
  * "comfortably ABOVE the hardest search budget".
  *
  * Called on mount by `useVsAiDriver` whenever there is a bot seat, so the
- * Worker's fetch overlaps the game's own setup — and normally hits the
- * browser cache the main thread's gate already filled from the same
- * `immutable` URL. Idempotent; safe where `Worker` is undefined.
+ * Worker's script load overlaps the game's own setup; {@link primeBrain} then
+ * hands it the shards to install. Since issue #5617 the Worker is a chunk of
+ * the page's build, so both hit the browser cache the main thread already
+ * filled from the same `immutable` URLs. Idempotent; safe where `Worker` is
+ * undefined.
  *
  * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_SPAWNS}: a script
  * that cannot load fails here, with no consult pending, which is why that
@@ -367,6 +376,34 @@ function clampToFallback(requested: SearchBudget): SearchBudget {
  */
 export function warmBrain(): void {
     getWorker();
+}
+
+function postPrime(
+    target: Worker,
+    entries: readonly DefinitionManifestEntry[]
+): void {
+    const message: BrainPrime = { kind: "prime", entries };
+    target.postMessage(message);
+}
+
+/**
+ * Hand the Worker its Manifest (issue #5617): the Definition Manifest entries
+ * of the decklists the search may know — the Bot's own, plus the human's at
+ * `expert`. The Worker installs those shards ahead of the consults that need
+ * them, so the first consult does not pay for them inside
+ * {@link BRAIN_CONSULT_TIMEOUT_MS}; a consult still installs whatever its own
+ * state names before it searches. Only entries not yet posted travel;
+ * idempotent; a no-op where there is no Worker (the in-thread path reads the
+ * page's catalogue, which holds its Manifest already).
+ */
+export function primeBrain(entries: readonly DefinitionManifestEntry[]): void {
+    const fresh = entries.filter((e) => !primed.has(e.definitionId));
+    if (fresh.length === 0) return;
+    const running = worker;
+    for (const entry of fresh) primed.set(entry.definitionId, entry);
+    // A Worker spawned by this call is handed every primed entry at birth.
+    const w = getWorker();
+    if (w && w === running) postPrime(w, fresh);
 }
 
 /** Ask the Brain to choose a move for `botId` from its projected `state`. The
@@ -499,4 +536,5 @@ export function disposeBrain(): void {
     }
     failures = 0;
     exhausted = false;
+    primed.clear();
 }

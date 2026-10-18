@@ -14,7 +14,7 @@
 // `verdict-proposal-store.ts` for the panel (issue #3986); nothing is written
 // anywhere else, and a game swap drops it unanswered.
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -33,7 +33,8 @@ import {
     setVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
-import { consultBrain } from "~/lib/ai/brain-client";
+import { consultBrain, primeBrain } from "~/lib/ai/brain-client";
+import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
 export function useVerdictProposalCapture(
     gameId: Id<"games">,
@@ -59,10 +60,22 @@ export function useVerdictProposalCapture(
         api.game.getPublicState,
         humanOwes ? { gameId, playerId: humanId! } : "skip"
     ).data;
-    const humanDeck = useResilientQuery(
-        api.gameReads.getSeatDeck,
+    // The seat's decklist as definition ids, with the Manifest entries the
+    // Brain worker installs to judge it (issue #5617) — the driver's read.
+    const humanKnowledge = useResilientQuery(
+        api.gameReads.getSeatDeckKnowledge,
         active ? { gameId, playerId: humanId! } : "skip"
     ).data;
+    const legacyDeck = useResilientQuery(
+        api.gameReads.getSeatDeck,
+        active && humanKnowledge === null
+            ? { gameId, playerId: humanId! }
+            : "skip"
+    ).data;
+    const humanDeck = useMemo(
+        () => seatKnowledge(humanKnowledge, legacyDeck),
+        [humanKnowledge, legacyDeck]
+    );
     const gameOver = !!tick?.gameOver;
 
     useEffect(() => {
@@ -83,18 +96,14 @@ export function useVerdictProposalCapture(
 
     useEffect(() => {
         if (!active || !humanState || humanState.gameOver) return;
-        observeHumanWindow(
-            gameId,
-            humanState,
-            humanId!,
-            humanDeck?.cards.map((c) => c.cardId)
-        );
+        observeHumanWindow(gameId, humanState, humanId!, humanDeck?.cardIds);
     }, [active, gameId, humanId, humanState, humanDeck]);
 
     useEffect(() => {
         if (!active || !gameOver) return;
         const decisions = takeHumanDecisions(gameId);
         if (decisions.length === 0) return;
+        if (humanDeck) primeBrain(humanDeck.entries);
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
@@ -122,5 +131,7 @@ export function useVerdictProposalCapture(
             .catch(() => {
                 // A failed sample costs only questions; the game is over.
             });
-    }, [active, gameId, gameOver]);
+        // A `humanDeck` that changes after the game ended re-runs this and
+        // finds the buffer already taken: the judge still runs once.
+    }, [active, gameId, gameOver, humanDeck]);
 }

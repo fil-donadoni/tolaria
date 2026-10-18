@@ -7,51 +7,54 @@
 // failure path — lives in that pure module, which is why this file can stay
 // short and untested.
 //
-// The ONE thing it owns is HYDRATION ORDER (ADR 0113 §3, issue #3053). A
-// Worker gets its own module graph, so it has its own registry and its own
-// copy of the catalogue fetch; the card definitions are no longer bundled.
-// Since issue #4861 that fetch is the packed corpus, and the worker decodes a
-// definition the first time the search asks for it — the same source module
-// as the page (`../catalogueArtifact`), never a whole-corpus hydration.
-// `handleBrainRequest` reads `getDefinition`/`tryGetDefinition`
-// SYNCHRONOUSLY, so answering before the corpus has landed would be a bot
-// deciding against a half-empty catalogue — which `.claude/rules/bot-development.md`
-// treats as unshipped, not as a slow start. Requests are therefore chained
-// behind the hydration promise, which also keeps them in FIFO order (an
-// `async` handler would let a later short request overtake an earlier one).
+// The ONE thing it owns is RESIDENCY ORDER (ADR 0113 §3 and Amendment VII,
+// issues #3053, #5617). A Worker gets its own module graph, so it has its own
+// registry and its own catalogue — but not its own download: it is a chunk of
+// the page's build (`scripts/lib/vite-brain-worker-chunk.ts`), so the shards
+// it installs are the URLs the page already fetched. It installs only the
+// definitions it may reason about (`./brain-residency`): the Manifest the
+// driver primes it with (its own decklist, plus the human's at `expert`), and
+// whatever a request's state names. `handleBrainRequest` reads
+// `getDefinition`/`tryGetDefinition` SYNCHRONOUSLY, so answering before those
+// are resident would be a bot deciding against a half-empty catalogue — which
+// `.claude/rules/bot-development.md` treats as unshipped, not as a slow
+// start. Requests are therefore chained one at a time, each behind its own
+// residency, which also keeps them in FIFO order (an `async` handler would let
+// a later short request overtake an earlier one).
 //
-// A hydration FAILURE must not silently swallow the queue either: the chain is
-// re-armed and every request in flight gets a real `error` response, the same
-// shape #2470 added for a search that throws. A bot that answers "no move"
-// forever is indistinguishable from a bot that chose to pass (issue #2450).
+// A residency FAILURE must not silently swallow the queue either: every
+// request it blocks gets a real `error` response, the same shape #2470 added
+// for a search that throws. A bot that answers "no move" forever is
+// indistinguishable from a bot that chose to pass (issue #2450).
 
 /// <reference lib="webworker" />
 import { handleBrainRequest } from "./brain-request";
 import type { BrainRequest, BrainResponse } from "./brain-request";
-import { hydrateCatalogue } from "../catalogueArtifact";
+import {
+    isBrainPrime,
+    requestDefinitionIds,
+    type BrainWorkerMessage,
+} from "./brain-residency";
+import { installShards } from "../catalogue/definitionShards";
+import {
+    hintedShardKeys,
+    makeResident,
+    type ShardHints,
+} from "../catalogue/residentFor";
+// Binds `convex/formats.ts`'s late-bound deck resolver in this graph too, as
+// the whole-catalogue hydration this module used to import did.
+import "../catalogueArtifact";
 
 export type { BrainRequest, BrainResponse } from "./brain-request";
 
 const post = (response: BrainResponse) =>
     (self as DedicatedWorkerGlobalScope).postMessage(response);
 
-/** The hydration in flight. Re-armed on failure, so a later request retries
- *  the fetch instead of inheriting a permanently rejected promise. */
-let hydrated: Promise<void> = arm();
+/** The Set codes of every Manifest entry this worker was primed with. */
+const hints: ShardHints = new Map();
 
-/** Requests, one at a time, in arrival order. Each awaits whatever hydration
- *  is current WHEN ITS TURN COMES — which is what makes the re-arm above
- *  reach the requests queued behind a failure, rather than only the ones
- *  posted after it. */
+/** Requests, one at a time, in arrival order. */
 let chain: Promise<void> = Promise.resolve();
-
-function arm(): Promise<void> {
-    const promise = hydrateCatalogue().then(() => undefined);
-    // Attach a handler so a rejection nobody is waiting on yet is not an
-    // unhandled rejection; every real consumer attaches its own below.
-    promise.catch(() => undefined);
-    return promise;
-}
 
 function serve(request: BrainRequest): void {
     const response = handleBrainRequest(request);
@@ -69,31 +72,55 @@ function toBrainError(cause: unknown): { name: string; message: string } {
         : { name: "Error", message: String(cause) };
 }
 
-/** How long a failed hydration is left failed before another request pays for
+/** How long a failed install is left failed before another request pays for
  *  a fresh attempt. The driver re-consults on every state change, so an
- *  un-cooled re-arm turns a deploy window into one ~0.9 MB request per
- *  consult; the caller still gets a named error immediately either way. */
+ *  un-cooled retry turns a deploy window into one fetch round per consult;
+ *  the caller still gets a named error immediately either way. */
 const REARM_COOLDOWN_MS = 5_000;
-let lastFailureAt = 0;
+let lastFailure: { at: number; cause: unknown } | null = null;
 
-function failHydration(id: number, cause: unknown): void {
-    const now = Date.now();
-    if (now - lastFailureAt >= REARM_COOLDOWN_MS) {
-        lastFailureAt = now;
-        hydrated = arm();
+/** Every shard `request` needs resident — or the failure of the last attempt,
+ *  while it is cooling down. */
+function resident(request: BrainRequest): Promise<void> {
+    if (lastFailure && Date.now() - lastFailure.at < REARM_COOLDOWN_MS) {
+        return Promise.reject(lastFailure.cause);
     }
+    return makeResident(requestDefinitionIds(request), hints).then(
+        () => {
+            lastFailure = null;
+        },
+        (cause: unknown) => {
+            lastFailure = { at: Date.now(), cause };
+            throw cause;
+        }
+    );
+}
+
+function failResidency(id: number, cause: unknown): void {
     const error = toBrainError(cause);
-    console.error("[AI] catalogue hydration failed", error);
+    console.error("[AI] definition shards failed to install", error);
     post({ id, move: null, trace: null, error });
 }
 
-self.onmessage = (e: MessageEvent<BrainRequest>) => {
-    const request = e.data;
+self.onmessage = (e: MessageEvent<BrainWorkerMessage>) => {
+    const message = e.data;
+    if (isBrainPrime(message)) {
+        // Not chained: the install overlaps whatever is in flight, and a
+        // request that needs these shards joins the same in-flight load
+        // (the loader memoises it). A failure here is the request's to
+        // report, when one needs the shard.
+        installShards(hintedShardKeys(message.entries, hints)).catch(
+            (cause: unknown) =>
+                console.warn("[AI] manifest prime failed", toBrainError(cause))
+        );
+        return;
+    }
+    const request = message;
     chain = chain
         .then(() =>
-            hydrated.then(
+            resident(request).then(
                 () => serve(request),
-                (cause: unknown) => failHydration(request.id, cause)
+                (cause: unknown) => failResidency(request.id, cause)
             )
         )
         // TERMINAL, and load-bearing. Without it a throw out of `serve` — in
