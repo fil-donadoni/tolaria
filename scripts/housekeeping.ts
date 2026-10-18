@@ -52,11 +52,9 @@
  *      whole batch's gaps under P0 for one P0 PR). A failure here — a lost
  *      allowlist write-back included, `gaps:sync` exits 1 on it — does not
  *      stop the per-PR steps; it marks every PR of the batch for retry;
- *   3. per PR, oldest merge first: the issue's close if the merge left it
- *      open (issue #5952 — the land-runner's duty, owed here once the Mergify
- *      queue merges), `grammar:residue` (issue #5222), the `in-progress`
- *      claim release (issue #3130), `umbrella:detach <issue>` (issue #4235) —
- *      for a branch naming an issue; none otherwise;
+ *   3. per PR, oldest merge first: `grammar:residue` (issue #5222), the
+ *      `in-progress` claim release (issue #3130), `umbrella:detach <issue>`
+ *      (issue #4235) — for a branch naming an issue; none otherwise;
  *   4. `umbrella:detach --sweep` once (issue #5081).
  *
  * Before any of them, EVERY run — merged PRs or none — releases the claim
@@ -345,30 +343,16 @@ export function prRetried(synced: boolean, ownStepsOk: boolean): boolean {
 }
 
 /**
- * Step 3, for one PR: the issue's close first (issue #5952: a PR the Mergify
- * queue merged had no land-runner to close it, and a body without a bare
- * `Closes #N` leaves it open — released, the picker would hand it out again;
- * `gh issue close` on a closed issue is a no-op), the residue ledger AFTER
- * `gaps:sync` (it reads the claims that step wrote, issue #5222), the claim
- * release, then the umbrella detach — the issue is closed by now, which is
- * what the detach requires. Empty for a branch that names no issue.
+ * Step 3, for one PR: the residue ledger AFTER `gaps:sync` (it reads the
+ * claims that step wrote, issue #5222), the claim release, then the umbrella
+ * detach — the issue is closed by now, which is what the detach requires.
+ * Empty for a branch that names no issue.
  */
 export function prSteps(pr: MergedPr): Step[] {
     const issue = issueOfBranch(pr.headRefName);
     if (issue === null) return [];
     const n = String(issue);
     return [
-        {
-            label: `close issue #${n}`,
-            argv: [
-                "gh",
-                "issue",
-                "close",
-                n,
-                "--comment",
-                `Closed by the merge of PR #${pr.number}.`,
-            ],
-        },
         {
             label: `grammar:residue ${n} --pr ${pr.number}`,
             holesExit: true,
