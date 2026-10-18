@@ -308,12 +308,15 @@ export function owesPresetSeed(paths: readonly string[]): boolean {
 
 /** `gh` argv for each label move — one place, so tests pin them. */
 export const labelArgs = {
-    ready: (pr: number): string[] => [
+    /** `shadow`: the Mergify queue admits the PR (`queueAdmits`), so it is
+     *  handed to the queue, not to the runner (issue #5952). */
+    ready: (pr: number, opts: { shadow: boolean }): string[] => [
         "pr",
         "edit",
         String(pr),
         "--add-label",
         READY_LABEL,
+        ...(opts.shadow ? ["--add-label", SHADOW_LABEL] : []),
         "--remove-label",
         FAILED_LABEL,
     ],

@@ -4,7 +4,10 @@
  * pushed PR to the land-runner. One verb, so the two halves never split:
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
- *      repaired PR re-queues with the same command);
+ *      repaired PR re-queues with the same command) and, when the Mergify
+ *      queue admits its paths, `queue:shadow`: the queue lands it and the
+ *      runner skips it (issue #5952). A PR touching `.github/` or
+ *      `.mergify.yml` stays the runner's;
  *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
  *      but it holds no `sessions.cap` slot on this machine any more;
  *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
@@ -44,6 +47,7 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
+import { queueAdmits, SHADOW_LABEL } from "./lib/land-labels";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
 import { preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -229,7 +233,8 @@ function main(): void {
         process.exit(1);
     }
     preQueueGate(pr, view.headRefOid, view.body);
-    gh(labelArgs.ready(pr));
+    const shadow = queueAdmits(changedPaths(ORIGIN_BASE, process.cwd(), true));
+    gh(labelArgs.ready(pr, { shadow }));
 
     const issue = issueOfBranch(view.headRefName);
     if (issue !== null) {
@@ -252,7 +257,9 @@ function main(): void {
         );
     }
     console.log(
-        `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it` +
+        (shadow
+            ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${SHADOW_LABEL}\` — the Mergify queue lands it`
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — it touches \`.github/\` or \`.mergify.yml\`, which the queue never admits: the land-runner lands it`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
