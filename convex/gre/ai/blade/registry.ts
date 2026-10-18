@@ -12366,11 +12366,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Fireblast with no mana open: keeps both Mountains with the opponent at 20",
-        pairOf: {
-            anchor: "Fireblast with no mana open: sacrifices two Mountains for lethal",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "life",
-                detail: "the opponent at more than 4 life",
+                detail: "the opponent at 4 life or less",
             },
         },
         spec: {
@@ -12410,7 +12410,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 ),
             describe: "does not sacrifice two Mountains for four damage",
         },
-        note: "Issue #5445, the other half of the lethal entry above: the whole mana base for four damage at 20 life. The leaf already priced it (`pass` 178.4 against 43 for the cast: hand 103.6 + lands 63.9 against the opponent's 32 life), yet the Bot cast on all five seeds through the material tie-break — the `pass` edge's subtree re-offered the same cast at every later decision (including the self-targeted one) and the flat reward band let UCB keep opening them, so `pass`'s mean margin (-13.7) read below the cast's (+26.0). `isManaBaseSacrificeCast` now keeps the cast out of the rollout and of the tree below the root; the root still weighs it, which is what the lethal half above pins. `predicate` for the same reason as the anchor: `MoveMatcher` has no `alternativeCostId` field.",
+        note: "Issue #5445, the other half of the lethal entry above: the whole mana base for four damage at 20 life. The leaf already priced it (`pass` 178.4 against 43 for the cast: hand 103.6 + lands 63.9 against the opponent's 32 life), yet the Bot cast on all five seeds through the material tie-break — the `pass` edge's subtree re-offered the same cast at every later decision (including the self-targeted one) and the flat reward band let UCB keep opening them, so `pass`'s mean margin (-13.7) read below the cast's (+26.0). `isManaBaseSacrificeCast` now keeps the cast out of the rollout and of the tree below the root; the root still weighs it, which is what the lethal half above pins. `predicate` for the same reason as the lethal entry (`MoveMatcher` has no `alternativeCostId` field), so the two are a pair in substance but cannot be declared one: `pairOf` needs both halves to lower to a Verdict.",
     },
     {
         label: "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",
