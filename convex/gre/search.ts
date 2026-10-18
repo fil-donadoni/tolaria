@@ -2631,7 +2631,10 @@ export function isManaBaseSacrificeCast(
     const card = findCardInAnyZone(state, move.cardInstanceId);
     const cardId = (card?.card as { id?: string } | undefined)?.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    const leg = getAlternativeCost(def, move.alternativeCostId)?.permanent;
+    const leg = getAlternativeCost(
+        def ?? undefined,
+        move.alternativeCostId
+    )?.permanent;
     if (!leg || leg.action !== "sacrifice") return false;
     return sacrificeCandidates(state, pid, leg.filter).some(isLand);
 }
