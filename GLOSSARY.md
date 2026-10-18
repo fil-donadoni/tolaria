@@ -1111,8 +1111,8 @@ An open issue the band rule can place in no **Priority Band** — nothing it nam
 _Avoid_: Backlog (everything open), unprioritised alone (the board value; residue is why it is empty), leftovers
 
 **Origin Band**:
-The **Priority Band** of the work a landing closes — the landed issue's band, read by the same rule the queue picks by — handed to the gap filer so a gap born of that work files under its family's umbrella of that band rather than the band its Target computes. Only `P0` acts; every other value leaves the computed band in charge.
-_Avoid_: Source band, landing priority, inherited band (the child's band; the origin is the landing's)
+RETIRED (issue #5871, 2026-10-18). Was the **Priority Band** of the work a landing closed, handed to the gap filer (`gaps:sync --band P0`) so a gap born of P0 work filed under its family's P0 umbrella rather than the band its Target computes. One P0 PR in a batch filed every gap of that hour under P0, and nothing moves out of P0: a gap's band is now its Target's, always. The read it was built on survives as the band `issue:inherit-band` copies (**Hand Ruling**).
+_Avoid_: Source band, landing priority, `--band` (refused by `gaps:sync`)
 
 **Hand Ruling**:
 An owner's statement about one issue's band that no rule computed: a `## Band` line in the body (`P1`–`P3`, the truth for what the triage writes) or a hand-set `P0` on the board (never written or cleared by a script). On a standalone issue it is the **Priority Band**; on a **Slice** it orders the slice inside its umbrella's turn and moves the band not at all — an umbrella's ruling is the one the owner maintains.

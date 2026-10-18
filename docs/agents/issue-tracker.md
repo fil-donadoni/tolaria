@@ -117,20 +117,21 @@ whenever the roster shifts, and children inherit it (issue #3212).
   keyed by Target id — plus `P0`. A Target that starts lending a band with no
   row there files as residue, and `gap-issues.test.ts` reds on that drift:
   open the family's umbrella and add the row.
-- **P0 is never COMPUTED — it is hand-set, or inherited from the work that
-  spawned the gap** (issue #4158). No rule derives it from a Target, so the
-  computed band never files into a P0 umbrella and nothing moves an issue out
-  of one. What can: `gaps:sync --band P0`, the ORIGIN band of the run. A gap
-  that run CREATES (or finds homeless) files under its family's P0 umbrella,
-  because a gap born of P0 work is P0 work (an umbrella closes only when its
-  last child does, issue #3212). The hourly `housekeeping` cron (issue #5457;
-  `land` until then) derives the band from the issue each merged branch
-  names — its parent PRD's board `Priority` when the parent carries one, else
-  its own, the rule `queue:plan` orders by (issue #4371) — and passes `P0`
-  when any PR of its batch is P0; nobody types it after a landing. A P0 session running
-  `gaps:sync` by hand passes `--band P0`. Only `P0` acts; any other value
-  leaves the computed band in charge, and an existing issue is never pulled
-  up.
+- **P0 is never COMPUTED — it is hand-set only.** No rule derives it from a
+  Target, so `gaps:sync` never files into a P0 umbrella and nothing moves an
+  issue out of one; the owner places work there by hand. **A gap's band is
+  the band of the Target its cards serve, whatever work triggered the run**
+  (issue #5871): the ORIGIN band of issue #4158 — `gaps:sync --band P0`,
+  passed by `housekeeping` when any PR of its batch closed P0 work — is
+  retired, because one P0 PR in an hour filed the whole batch's long-tail
+  gaps under P0 for good. `gaps:sync --band` is refused (exit 2); no cron
+  step derives a band.
+- **A gap is filed once.** Before creating, `gaps:sync` looks the exact title
+  up among the OPEN issues it already prefetched and RECLAIMS a hit into the
+  allowlist row (action `reclaim`, issue #5871) — an issue it filed whose
+  allowlist write-back never reached the base branch. A write-back that does
+  not land fails the run (exit 1, after every other pass), so `housekeeping`
+  retries the batch instead of reporting it done.
 - **Residue** — no ranked Target among its cards — files under its family's
   umbrella of the **lowest-ranked** Target (`format-premodern`,
   `LOWEST_RANKED_TARGET`) unless a set umbrella claims it at create: an

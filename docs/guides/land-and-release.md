@@ -206,9 +206,10 @@ walks the PRs merged into the base branch since its watermark and runs what
    processed) when it is not on the base branch, since `gaps:sync` pushes its
    allowlist write from there. A local `gaps:sync` commit whose push lost a
    race is dropped (`reset --keep`); the next sync re-derives it;
-2. `gaps:sync` once for the batch, `--band P0` when any PR of the batch closed
-   P0 work; if it fails, the steps below still run and every PR of the batch
-   is retried;
+2. `gaps:sync` once for the batch, never `--band` (a gap files under its
+   computed Target band, issue #5871); if it fails — an allowlist write-back
+   that did not reach the base branch included — the steps below still run
+   and every PR of the batch is retried;
 3. per PR, oldest merge first, for a branch naming issue N:
    `grammar:residue N --pr <PR#>` (holes it cannot file are logged for a
    human, never retried), the `in-progress` claim release on N,
