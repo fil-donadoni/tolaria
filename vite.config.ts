@@ -15,7 +15,6 @@ import {
     setChunkName,
     setCodeOf,
 } from "./scripts/lib/vite-card-set-chunks";
-import MergifyReporter from "@mergifyio/vitest";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -243,7 +242,4 @@ export default defineConfig({
             presets: [reactCompilerPreset()],
         } as Parameters<typeof babel>[0]),
     ],
-    test: {
-        reporters: ["default", new MergifyReporter()],
-    },
 });
