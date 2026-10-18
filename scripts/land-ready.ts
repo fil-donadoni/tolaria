@@ -17,6 +17,11 @@
  * `pr-open` row; fix it here. The announced, logged escape for a red that is
  * base's, not the PR's: `TOLARIA_PREQUEUE_RED_OK=1`.
  *
+ * It also runs `land`'s body/diff refusals FIRST (issue #5956, `pr-checks.ts`
+ * — the same functions `land` calls, never a copy): a missing `check:ui`
+ * receipt or preset scenario refuses here, with `land`'s own words, while the
+ * session can still edit the PR body. No escape: a refusal is the PR's.
+ *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
  * The decisions are `lib/land-runner.ts` and `lib/queue-claim.ts`; this file
@@ -44,6 +49,13 @@ import { preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { buildPrOpenRow } from "./lib/queue-claim";
 import { claimLedgerPath } from "./loop-doctor";
+import {
+    PR_CHECK_NAMES,
+    runPrCheck,
+    type PrCheckContext,
+    type PrCheckName,
+    type PrCheckResult,
+} from "./pr-checks";
 
 /** The announced escape for a red that is base's, not the PR's. */
 export const PREQUEUE_ESCAPE_ENV = "TOLARIA_PREQUEUE_RED_OK";
@@ -74,6 +86,29 @@ export function runPreQueue(deps: PreQueueDeps): {
     const result = runPlan({ ...deps.plan, run }, deps.exec, () => undefined);
     const failed = result.outcomes.find((o) => o.status === "fail");
     return { failed: failed?.id ?? null, result };
+}
+
+/**
+ * `land`'s refusals of the PR's body and diff (issue #5956): every
+ * `pr-checks` check, through `runPrCheck`. Returns each refusal as `land`
+ * would print it (`land: refusing — <reason>`); empty = none. A note (a
+ * check that could not decide) is logged, never a refusal.
+ */
+export function landRefusals(
+    ctx: PrCheckContext,
+    log: (line: string) => void,
+    check: (
+        name: PrCheckName,
+        ctx: PrCheckContext
+    ) => PrCheckResult = runPrCheck
+): string[] {
+    const refusals: string[] = [];
+    for (const name of PR_CHECK_NAMES) {
+        const r = check(name, ctx);
+        if (r.note) log(`land:ready: ${name} — NOTE: ${r.note}`);
+        if (r.refusal) refusals.push(`land: refusing — ${r.refusal}`);
+    }
+    return refusals;
 }
 
 /** `gate.ts` exit 77: INFRA, nothing ran — never a red step. */
@@ -116,9 +151,17 @@ function assertPrWorktree(pr: number, headOid: string): void {
     }
 }
 
-function preQueueGate(pr: number, headOid: string): void {
+function preQueueGate(pr: number, headOid: string, prBody: string): void {
     assertPrWorktree(pr, headOid);
     const cwd = process.cwd();
+    const refusals = landRefusals({ cwd, prBody }, console.log);
+    if (refusals.length > 0) {
+        for (const r of refusals) console.error(`✗ ${r}`);
+        console.error(
+            `✗ land:ready: PR #${pr} NOT queued — \`land\` would refuse it. Fix the PR body or diff, push, re-run.`
+        );
+        process.exit(1);
+    }
     const all = changedPaths(ORIGIN_BASE, cwd, true);
     const present = changedPaths(ORIGIN_BASE, cwd, false);
     const plan = classifyLane(
@@ -166,13 +209,14 @@ function main(): void {
             "view",
             String(pr),
             "--json",
-            "state,headRefName,baseRefName,headRefOid",
+            "state,headRefName,baseRefName,headRefOid,body",
         ])
     ) as {
         state: string;
         headRefName: string;
         baseRefName: string;
         headRefOid: string;
+        body: string;
     };
     if (view.state !== "OPEN") {
         console.error(`✗ land:ready: PR #${pr} is ${view.state}, not OPEN`);
@@ -184,7 +228,7 @@ function main(): void {
         );
         process.exit(1);
     }
-    preQueueGate(pr, view.headRefOid);
+    preQueueGate(pr, view.headRefOid, view.body);
     gh(labelArgs.ready(pr));
 
     const issue = issueOfBranch(view.headRefName);
