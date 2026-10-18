@@ -174,9 +174,9 @@ export const HEALTH_ONLY_GUARDS: Readonly<
     // `--ui-all`), never in batch health (`planHealthWalk`): a regression
     // waits on the base for the next release.
     "check:game-download": {
-        measuredCostS: 30,
+        measuredCostS: 34,
         measured:
-            "`bun run check:game-download` 28 s / 30 s at load ~2 (2026-10-18; build 12 s, two games)",
+            "`bun run check:game-download` 28–35 s at load ~2 (2026-10-18; build 12 s, two games)",
     },
     // The client bundle build (ADR 0154 §3, issue #5464): a full `vite build`
     // every lane paid for the duplicate-import class, now health's
