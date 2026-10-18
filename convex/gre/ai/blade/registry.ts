@@ -14069,7 +14069,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Charging Troll" }],
         },
-        note: "Issue #5493, the window after position A (found in review): Sleeping Potion has resolved and its enters trigger only TAPS the Troll, so the shield still has nothing to replace (CR 701.19a). The trigger is a `resolve()` closure read through its `aiEffects` shadow script; a stack object whose whole script only taps, draws or gains life is not a destruction threat. Proof-of-failure: counting every ability on the stack as a threat (the pre-review predicate) keeps the activation, and the bot activates the Troll here.",
+        note: "Issue #5493, the window after position A (found in review): Sleeping Potion has resolved and its enters trigger only TAPS the Troll, so the shield still has nothing to replace (CR 701.19a). The trigger is a `resolve()` closure read through its `aiEffects` shadow script; a stack object whose whole script only taps, draws or gains life is not a destruction threat. Proof-of-failure: counting every ability on the stack as a threat (the pre-review predicate) keeps the activation, and the bot activates the Troll on seed 3 of five.",
     },
     {
         label: "regeneration shield: regenerates against a destroy spell on the stack",
