@@ -191,10 +191,8 @@ says no review.
 
 ## 5. Hand off — push + `ready-to-land`
 
-The pass ENDS here (issue #5469): its merger lands the PR (rebase, lane,
-merge, seed, teardown) — the Mergify queue, or the land-runner for a PR the
-queue would refuse (issue #5952). A session never runs `land` nor waits for
-it.
+The pass ENDS here: the Mergify queue (or the land-runner, for a PR it
+refuses: issue #5952) lands it. A session never runs `land` nor waits.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).
