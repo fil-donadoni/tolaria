@@ -21,12 +21,14 @@ will require. Version 6 (issue #5641) describes [a pass inside a job](#a-pass-in
 the [`pr-fixup`](#pr-fixup) job for stale generated artefacts. Version 8
 (issue #5642) adds [the merge queue](#the-merge-queue) — `.mergify.yml` in
 [shadow](#g-shadow), acting only on PRs the owner labels `queue:shadow`.
-(issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
+Version 9 (issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
 machine, and the schedules that replaced the Huawei's two timers. Version 10
 (issue #5645) adds [`health`](#health): batch health every two hours on a
 [`lane`](#g-lane) runner, an [early run](#g-early-run) on a hosted runner
 after each merge batch, and the [RED ladder](#g-red-ladder)'s first rungs —
-the [flake check](#g-flake-check) and the [bisect](#g-bisect).
+the [flake check](#g-flake-check) and the [bisect](#g-bisect). Version 11
+(the review of 2026-10-18) adds [where the flow fails](#where-the-flow-fails):
+each failure class, the step that owns it, the gap, and what closes it.
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -1142,10 +1144,92 @@ in the repository's Settings; a slice that needs a new one adds its row here.
 beyond `TRUSTED_AUTHORS`: its token asks for `statuses: write` itself. Later
 slices add: the queue's required checks and entry conditions (Phase 1).
 
+## Where the flow fails
+
+Review of 12–18 October 2026: 151 merged PRs, 52 of them (34 %) with at least
+one `land-failed`. The 113 failure comments are 77 **episodes**, an episode
+being one PR head failing for one reason, however many attempts it took. Every
+fix below **removes a duplicate authority or feeds a mechanism that already
+exists**; none adds a system. Read this before adding a check.
+
+### The flow, one owner per step
+
+1. The session implements and runs targeted tests. It hands off with
+   `ready-to-land` and never merges.
+2. [`pr-check`](#pr-check) runs the full lane on the merge ref at PR open.
+3. The queue admits the PR only when its entry statuses
+   ([`trusted-author`](#g-trusted-author), [`base-health`](#g-base-health))
+   are green.
+4. [`queue-lane`](#queue-lane) runs the lane on the rebased draft, with one
+   flaky re-run.
+5. [`pr-fixup`](#pr-fixup) regenerates a stale generated artefact instead of
+   failing the PR.
+6. [`post-merge`](#post-merge) does what a merge obliges on each machine.
+7. [`health`](#health) gates the base tip, and the
+   [RED ladder](#g-red-ladder) handles a RED.
+
+Until the cut-over (issue #5643), the land-runner does steps 3–4 for every PR
+that is not in [shadow](#g-shadow).
+
+### Failure classes
+
+| Class                             | Episodes | Should be caught by                       | The gap                                                                                                                                     | Fix                                                                                                             |
+| --------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Rebase conflict                   | 21       | the picker's `## Target files` overlap    | append-only lists (blade registry, grammar fixtures, round-trip pins) and this guide, which every slice edits                               | issue #5942 (owner's pick, no new driver)                                                                       |
+| The PR's own defect               | ~15      | the session's targeted runs, then step 2  | the land-runner lands a PR whose `pr-check` is already red                                                                                  | cut-over: `-check-failure=pr-check` in `queue_conditions` (issue #5643)                                         |
+| Tree moved under the lane         | 8        | —                                         | the land-runner lands inside the session's own worktree                                                                                     | cut-over: `queue-lane` runs in a [job worktree](#g-job-worktree) (issue #5643, issue #5654)                     |
+| Load-sensitive tooling test       | ~7       | —                                         | tests asserting on wall-clock time or machine load                                                                                          | issue #5874; the loop driver and gate mutex tests go with issue #5656                                           |
+| Defect inherited from the base    | ~6       | the culprit's own lane                    | a whole-tree guard the culprit's lane never runs: the blade-index drift test (`bot-node`), a CR ledger stale entry its merge driver revives | issue #5940 (an admitted cheap guard, 1.9 s, which also makes `pr-fixup`'s `blade-index` row live); issue #5677 |
+| RED base written as `land-failed` | 5        | the land-runner's hold                    | the land-runner process ran 3-day-old code                                                                                                  | restarted on 2026-10-18; issue #5941 makes it restart itself                                                    |
+| Environment                       | ~3       | the [job setup](#g-job-setup)'s toolchain | `node` missing from a service's `PATH`                                                                                                      | closed (the pinned toolchain)                                                                                   |
+
+Two defects distort the numbers above rather than add to them:
+
+- **Double attempt.** 34 of the 77 episodes ran twice. The land-runner's
+  queue read goes through GitHub's search index, which still lists a PR it has
+  just relabelled. Its notification then calls one PR "same cause on 2 PRs —
+  likely infra". Fix: issue #5941.
+- **False RED from load.** On 2026-10-18 health went RED at `8442d0b4` on
+  timeouts alone. `duplicate-test-blocks` took 146 s on the Huawei against
+  15 s on a calm MacBook. Health reads the machine only at a step's start and
+  end, so the load during the 21-minute `test` step was never seen and the run
+  was not classified [INFRA](#g-infra). It was the lineage's second RED: the
+  line stopped, and the bisect, run under the same load, blamed a PR already
+  reverted. Fix: issue #5939, which samples on the liveness ticks and
+  names why a retry was refused.
+
+The [shadow](#g-shadow) comparison that decides the cut-over (issue #5643)
+counts episodes, not attempts, and leaves out holds.
+
+### The machines
+
+Each machine runs one [`lane`](#g-lane) and two [`pass`](#g-pass) runners; the
+MacBook also runs [`seed`](#g-seed) and, until the cut-over, the land-runner.
+A health run therefore shares its machine with up to two passes. ADR 0156
+accepted a fixed runner count in place of RAM-aware admission; the answer to a
+load-induced timeout is to classify it [INFRA](#g-infra) (excused once, then
+the tree's), not to bring admission back. Working on the MacBook while the
+queue runs: [pause](#pause-and-resume) its runners.
+
+A long-lived process that runs repository code (today only the land-runner)
+must restart when that code changes. Jobs need nothing: each one runs the code
+of its own sha.
+
+### The rule for the next gap
+
+1. Name the class and the step that should have caught it.
+2. Close it with the cheapest of: delete a duplicate authority; add a row to a
+   table that already exists (`CHEAP_GUARDS`, `FIXES`, `queue_conditions`,
+   `REGENERATED_ARTIFACTS`); feed an existing classification. Only then a new
+   check, stating its measured cost (≤ 10 s goes in the lane,
+   `docs/agents/quality-gates.md`).
+3. Count episodes, not attempts, and a hold is never a failure.
+
 ## Troubleshooting
 
 | Symptom                                       | Look at                                                                                                                                                                               |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the land-runner acts on stale rules           | its process predates the change: `launchctl kickstart -k gui/$(id -u)/com.tolaria.land-runner` while no landing is in flight (automatic once issue #5941 lands)                       |
 | `could not get a registration token`          | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
 | `node not resolvable on the rendered PATH`    | run `install` from a shell where `command -v node` resolves                                                                                                                           |
 | a [runner](#g-runner) offline on GitHub       | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
