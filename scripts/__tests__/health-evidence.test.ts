@@ -8,7 +8,7 @@ import {
     failingFiles,
     failingProjects,
 } from "../lib/health-evidence";
-import { failedVitestProjects, planRetry } from "../lib/health-retry";
+import { failedVitestProjects, retryDecision } from "../lib/health-retry";
 import {
     decodeStatus,
     encodeDescription,
@@ -61,9 +61,9 @@ describe("the FAIL line, both label forms (the incident)", () => {
 
     it("lets the retry cover a coloured run — it read nothing before", () => {
         expect(failedVitestProjects(COLOURED_RUN)).toEqual(["node-tooling"]);
-        expect(planRetry("test", COLOURED_RUN)?.projects).toEqual([
-            "node-tooling",
-        ]);
+        expect(retryDecision("test", COLOURED_RUN)).toMatchObject({
+            plan: { projects: ["node-tooling"] },
+        });
     });
 
     it("still reads the plain `|project|` form and an untagged line", () => {
@@ -174,6 +174,16 @@ describe("buildEvidence", () => {
         expect(ev.body).toContain(input.logPath);
         expect(ev.body).not.toContain("\u001b[");
         expect(evidenceSummary(ev.body)).toMatch(/failure:\*\* assertion/);
+    });
+
+    it("names why a failed step was not re-run (issue #5939)", () => {
+        const ev = buildEvidence({
+            ...input,
+            retryRefused: "a FAIL line names no vitest project",
+        });
+        expect(evidenceSummary(ev.body)).toContain(
+            "- **retry:** none — a FAIL line names no vitest project"
+        );
     });
 
     it("stays under the pivot's cap whatever the output", () => {

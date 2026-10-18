@@ -168,7 +168,6 @@ import {
 } from "./lib/ui-admission";
 import {
     readMachineConfig,
-    readMachineSample,
     runSaturated,
     waitForMachine,
 } from "./lib/machine-admission";
@@ -224,6 +223,9 @@ interface LastRun {
     /** Set with `retried` (issue #5484): what the first failure was — a
      *  `timeout` that passed on the retry is a near-miss on its budget. */
     retryCause?: RetryCause;
+    /** `red` only, never with `retried`: why the failed step was not re-run
+     *  (issue #5939) — the evidence names it. */
+    retryRefused?: string;
     /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
     infraCause?: InfraCause;
     reason?: string;
@@ -520,8 +522,8 @@ interface RunCtx {
     mode?: HealthRunMode;
 }
 
-/** The retry half of a record (issues #5461, #5484). */
-type RetryFields = Pick<LastRun, "retried" | "retryCause">;
+/** The retry half of a record (issues #5461, #5484, #5939). */
+type RetryFields = Pick<LastRun, "retried" | "retryCause" | "retryRefused">;
 
 /** What `health:status` says of a retried step. */
 function retryOutcome(last: LastRun): string {
@@ -711,6 +713,7 @@ function publishEvidence(
         ...failed,
         retried: retry?.retried,
         retryCause: retry?.retryCause,
+        retryRefused: retry?.retryRefused,
         at: new Date().toISOString(),
     });
     let pointer = ctx.logPath;
@@ -1206,7 +1209,6 @@ async function main(): Promise<void> {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
             const stepStartedAt = Date.now();
-            const machineAtStart = readMachineSample();
             const run = await runStepWithRetry(
                 step,
                 (s) => runHealthStep(s, { cwd: wt, env, logPath }),
@@ -1215,6 +1217,7 @@ async function main(): Promise<void> {
             const r = run.result;
             if (run.retried)
                 retry = { retried: run.retried, retryCause: run.cause };
+            else if (run.refused) retry = { retryRefused: run.refused };
             if (!r.ok) {
                 // Read at once: a later sleep must not reach back to this step.
                 failedCause = infraCause({
@@ -1224,10 +1227,10 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
-                    machineSaturated: runSaturated(
-                        [machineAtStart, readMachineSample()],
-                        thresholds
-                    ),
+                    // The machine of the run whose failure this classifies —
+                    // the retry's, when there was one: its start, every
+                    // liveness beat, its end (issue #5939).
+                    machineSaturated: runSaturated(r.samples ?? [], thresholds),
                 });
                 // The machine's excuse does not repeat: the same step timing
                 // out on two runs in a row is the tree's.

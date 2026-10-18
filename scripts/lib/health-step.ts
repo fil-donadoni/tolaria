@@ -10,17 +10,20 @@
  *   - a START line before the child runs (`[2/3] check:all — start`),
  *   - every `[gate] …` line the child prints, LIVE — the mutex-wait lines
  *     exist precisely to tell a queue from a hang, and they were swallowed,
- *   - a liveness line every `livenessMs` while the step runs,
+ *   - a liveness line every `livenessMs` while the step runs — and a machine
+ *     reading with it, beside one at each edge (issue #5939),
  *   - an END line with the exit status and the wall-clock elapsed.
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
  *
- * Node builtins plus `lib/health-verdict.ts` (builtins and builtins-only
- * modules only) — `health-main.ts` carries the same constraint.
+ * Node builtins plus `lib/health-verdict.ts` and `lib/machine-admission.ts`
+ * (which `health-verdict.ts` already loads) — `health-main.ts` carries the
+ * same constraint.
  */
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { isWalkStep } from "./health-verdict";
+import { readMachineSample, type MachineSample } from "./machine-admission";
 
 export interface HealthStep {
     /** 1-based position in the run, and the run's step count. */
@@ -47,6 +50,9 @@ export interface StepRunOptions {
     out?: (line: string) => void;
     /** Interval between liveness lines while the step runs. */
     livenessMs?: number;
+    /** Read before the spawn, on each liveness line and at the close (issue
+     *  #5939); the machine by default. */
+    sample?: () => MachineSample;
 }
 
 export interface StepResult {
@@ -59,6 +65,18 @@ export interface StepResult {
     /** The child's stdout then stderr, as the log received them — what the
      *  walk's verdict is read from (`walkRunVerdict`, issue #4962). */
     output: string;
+    /**
+     * THIS run's machine: one reading before the spawn, one per liveness
+     * line, one at the close — what `runSaturated` reads to excuse a
+     * timeout-only failure as `machine-timeout` (issue #5939). The two edges
+     * alone read calm while a 20-minute `test` step's middle did not.
+     *
+     * A beat reads the whole machine, so it also counts the step's own
+     * workers, and other holders' load while the step queues on the heavy
+     * mutex. That may excuse a first timeout-only failure the tree caused;
+     * `repeatedMachineTimeout` bounds the excuse to once per step.
+     */
+    samples?: MachineSample[];
 }
 
 const PREFIX = "health-main:";
@@ -297,6 +315,18 @@ export function runHealthStep(
 
     out(`${tag} — start\n`);
 
+    const sample = opts.sample ?? (() => readMachineSample());
+    const samples: MachineSample[] = [];
+    const readMachine = (): void => {
+        // A probe that fails costs the reading, never the step.
+        try {
+            samples.push(sample());
+        } catch {
+            /* no sample this time */
+        }
+    };
+    readMachine();
+
     return new Promise((resolvePromise) => {
         const child = spawn(step.cmd, step.args, {
             cwd: opts.cwd,
@@ -322,6 +352,7 @@ export function runHealthStep(
             out(
                 `${tag} — still running, ${fmtElapsed(Date.now() - t0)} elapsed\n`
             );
+            readMachine();
         }, livenessMs);
 
         let settled = false;
@@ -332,6 +363,7 @@ export function runHealthStep(
             if (settled) return;
             settled = true;
             clearInterval(liveness);
+            readMachine();
             fromOut.flush();
             fromErr.flush();
             // Byte-identical to the spawnSync capture this replaced: header,
@@ -354,6 +386,7 @@ export function runHealthStep(
                 signal,
                 elapsedMs,
                 output: `${stdout}${stderr}`,
+                samples,
             });
         };
         // `close`, not `exit`: it fires after both pipes have drained, so the

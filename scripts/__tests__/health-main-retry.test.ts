@@ -3,12 +3,13 @@ import type { HealthStep, StepResult } from "../lib/health-step";
 import {
     failedVitestProjects,
     planLaneRetry,
-    planRetry,
     retryCauseOf,
+    retryDecision,
     retryNote,
     runStepWithRetry,
 } from "../lib/health-retry";
 import { decodeStatus, encodeDescription } from "../lib/health-verdict-store";
+import { runSaturated, type MachineThresholds } from "../lib/machine-admission";
 
 /**
  * Health re-runs a failed vitest project once before writing RED (issue
@@ -74,21 +75,24 @@ describe("failedVitestProjects", () => {
     });
 });
 
-describe("planRetry", () => {
+describe("retryDecision", () => {
     it("owes the chain scripts that never started", () => {
-        expect(planRetry("test", FAIL_ENGINE)).toEqual({
-            projects: ["node-engine"],
-            remaining: ["test:bot", "test:blade"],
+        expect(retryDecision("test", FAIL_ENGINE)).toEqual({
+            plan: {
+                projects: ["node-engine"],
+                remaining: ["test:bot", "test:blade"],
+            },
         });
         const bot = `${APP_CMD}\n${BOT_CMD}\n FAIL  |bot-node| x.bot.test.ts > y\n`;
-        expect(planRetry("test", bot)).toEqual({
-            projects: ["bot-node"],
-            remaining: ["test:blade"],
+        expect(retryDecision("test", bot)).toEqual({
+            plan: { projects: ["bot-node"], remaining: ["test:blade"] },
         });
     });
 
     it("never retries a step other than test", () => {
-        expect(planRetry("check:all", FAIL_ENGINE)).toBeNull();
+        expect(retryDecision("check:all", FAIL_ENGINE)).toEqual({
+            refused: "only the `test` step is re-run",
+        });
     });
 });
 
@@ -174,19 +178,21 @@ describe("the retry note in the verdict", () => {
     });
 });
 
-describe("planRetry — review hardening", () => {
+describe("retryDecision — review hardening", () => {
     it("a test printing a later chain's marker cannot skip that chain", () => {
         const noisy = `${FAIL_ENGINE}stdout: --project bot-node BLADE_TIER=must\n`;
-        expect(planRetry("test", noisy)?.remaining).toEqual([
-            "test:bot",
-            "test:blade",
-        ]);
+        expect(retryDecision("test", noisy)).toMatchObject({
+            plan: { remaining: ["test:bot", "test:blade"] },
+        });
     });
 
     it("unhandled errors beside a tagged FAIL are RED at once", () => {
         expect(
-            planRetry("test", `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`)
-        ).toBeNull();
+            retryDecision("test", `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`)
+        ).toEqual({
+            refused:
+                "vitest reported an unhandled error the FAIL lines do not explain",
+        });
     });
 
     it("a signal-killed first run is never retried", async () => {
@@ -199,6 +205,113 @@ describe("planRetry — review hardening", () => {
         const out = await runStepWithRetry(TEST_STEP, f.run);
         expect(out.retried).toBeUndefined();
         expect(f.ran).toHaveLength(1);
+    });
+});
+
+describe("a retried step is classified on the retry's machine (issue #5939)", () => {
+    // health-main reads `runSaturated` over the samples of the result it
+    // classifies; on a retry that is the retry's run, start to end.
+    const T: MachineThresholds = {
+        loadMax: 8,
+        sessionBudgetMb: 2500,
+        waitMaxS: 900,
+    };
+    const at = (load1: number) => ({
+        load1,
+        swapUsedMb: null,
+        pressure: null,
+        reclaimableMb: null,
+    });
+
+    it("a first run on a loaded machine does not excuse a retry that failed on a calm one", async () => {
+        const first = {
+            ...result(false, FAIL_ENGINE),
+            samples: [at(12), at(12)],
+        };
+        const retry = {
+            ...result(false, FAIL_ENGINE),
+            samples: [at(1), at(1)],
+        };
+        const out = await runStepWithRetry(
+            TEST_STEP,
+            fakeRunner([first, retry]).run
+        );
+        expect(out.retried).toEqual(["node-engine"]);
+        expect(out.result.samples).toEqual(retry.samples);
+        expect(runSaturated(out.result.samples ?? [], T)).toBe(false);
+    });
+});
+
+describe("a refused retry names its reason (issue #5939)", () => {
+    // The RED of 8442d0b4 said only "not a retryable test failure", and its
+    // log stayed on the machine that ran it.
+    async function refusal(step: HealthStep, first: StepResult) {
+        const lines: string[] = [];
+        const out = await runStepWithRetry(step, fakeRunner([first]).run, (l) =>
+            lines.push(l)
+        );
+        expect(out.retried).toBeUndefined();
+        return { refused: out.refused, log: lines.join("") };
+    }
+
+    it("each refusal says which rule held the step, in the result and the log", async () => {
+        const cases: [HealthStep, StepResult, string][] = [
+            [
+                TEST_STEP,
+                result(false, "boom"),
+                "no vitest FAIL line in the output",
+            ],
+            [
+                TEST_STEP,
+                result(false, `${FAIL_ENGINE} FAIL  a.test.ts > x\n`),
+                "a FAIL line names no vitest project",
+            ],
+            [
+                TEST_STEP,
+                result(false, `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`),
+                "vitest reported an unhandled error the FAIL lines do not explain",
+            ],
+            [
+                TEST_STEP,
+                {
+                    ...result(false, FAIL_ENGINE),
+                    status: null,
+                    signal: "SIGKILL",
+                },
+                "killed by SIGKILL — a crash or OOM kill is not a flaky test",
+            ],
+            [
+                { ...TEST_STEP, name: "check:all" },
+                result(false, FAIL_ENGINE),
+                "only the `test` step is re-run",
+            ],
+        ];
+        for (const [step, first, reason] of cases) {
+            const r = await refusal(step, first);
+            expect(r.refused).toBe(reason);
+            expect(r.log).toBe(
+                `health-main: ${step.name} failed — not re-run: ${reason}\n`
+            );
+        }
+    });
+
+    it("a step that passes, or is re-run, carries no refusal", async () => {
+        const green = await runStepWithRetry(
+            TEST_STEP,
+            fakeRunner([result(true)]).run
+        );
+        expect(green.refused).toBeUndefined();
+        const rerun = await runStepWithRetry(
+            TEST_STEP,
+            // The retry, then the two chain scripts it never reached.
+            fakeRunner([
+                result(false, FAIL_ENGINE),
+                result(true),
+                result(true),
+                result(true),
+            ]).run
+        );
+        expect(rerun.refused).toBeUndefined();
     });
 });
 

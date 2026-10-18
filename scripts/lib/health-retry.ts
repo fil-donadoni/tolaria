@@ -82,21 +82,41 @@ export interface RetryPlan {
     remaining: string[];
 }
 
-/** What a failed `test` step owes before it may be called RED, or null when
- *  it is RED at once. */
-export function planRetry(stepName: string, output: string): RetryPlan | null {
-    if (stepName !== RETRY_STEP) return null;
-    const projects = failedVitestProjects(output);
-    if (projects === null) return null;
+/** A failed step's retry: the plan, or why it is RED at once — the refusal
+ *  is named in the job log and the evidence (issue #5939), so a RED nobody
+ *  re-ran says which rule held it. */
+export type RetryDecision = { plan: RetryPlan } | { refused: string };
+
+/** What a failed step owes before it may be called RED: the re-run of
+ *  exactly its failed projects (then the chain scripts that never started),
+ *  or the rule that makes it RED at once — not the `test` step, a failure no
+ *  project tag explains, an unhandled error. */
+export function retryDecision(stepName: string, output: string): RetryDecision {
+    if (stepName !== RETRY_STEP)
+        return { refused: `only the \`${RETRY_STEP}\` step is re-run` };
     const plain = plainOf(output);
+    const projects = failedVitestProjects(output);
+    if (projects === null)
+        return {
+            refused:
+                [...plain.matchAll(ANY_FAIL_LINE)].length === 0
+                    ? "no vitest FAIL line in the output"
+                    : "a FAIL line names no vitest project",
+        };
     // A failure the FAIL lines do not explain is not a flake to absorb.
-    if (/Unhandled (Errors|Rejection)/i.test(plain)) return null;
+    if (/Unhandled (Errors|Rejection)/i.test(plain))
+        return {
+            refused:
+                "vitest reported an unhandled error the FAIL lines do not explain",
+        };
     const started = TEST_CHAIN.filter((c) => startLine(c.marker).test(plain));
     const last = started.length > 0 ? started[started.length - 1] : undefined;
     const from = last ? TEST_CHAIN.indexOf(last) + 1 : 1;
     return {
-        projects,
-        remaining: TEST_CHAIN.slice(from).map((c) => c.script),
+        plan: {
+            projects,
+            remaining: TEST_CHAIN.slice(from).map((c) => c.script),
+        },
     };
 }
 
@@ -126,6 +146,8 @@ export interface RetriedStep {
     retried?: string[];
     /** Set with `retried`: what the first failure was. */
     cause?: RetryCause;
+    /** Set when the step failed and was NOT re-run: why (issue #5939). */
+    refused?: string;
 }
 
 /** The retry's own step: exactly the failed projects, under the heavy gate. */
@@ -143,10 +165,11 @@ function retryStep(step: HealthStep, projects: readonly string[]): HealthStep {
 }
 
 /**
- * Runs `step` through `run`; on a failure `planRetry` covers, re-runs exactly
- * the failed projects (then the chain scripts that never started). GREEN only
- * when all pass; the second failure is returned as the result, so RED names
- * what failed twice.
+ * Runs `step` through `run`; on a failure `retryDecision` plans, re-runs
+ * exactly the failed projects (then the chain scripts that never started).
+ * GREEN only when all pass; the second failure is returned as the result, so
+ * RED names what failed twice. A failure it refuses comes back with the
+ * refusal (`refused`), logged here and named in the evidence (issue #5939).
  */
 export async function runStepWithRetry(
     step: HealthStep,
@@ -156,8 +179,18 @@ export async function runStepWithRetry(
     const first = await run(step);
     if (first.ok) return { result: first };
     // A crash or OOM kill is not a flaky test (the exit has a signal).
-    const plan = first.signal ? null : planRetry(step.name, first.output);
-    if (plan === null) return { result: first };
+    const decision: RetryDecision = first.signal
+        ? {
+              refused: `killed by ${first.signal} — a crash or OOM kill is not a flaky test`,
+          }
+        : retryDecision(step.name, first.output);
+    if ("refused" in decision) {
+        log(
+            `health-main: ${step.name} failed — not re-run: ${decision.refused}\n`
+        );
+        return { result: first, refused: decision.refused };
+    }
+    const plan = decision.plan;
 
     log(
         `health-main: ${step.name} failed (${retryCauseOf(first.output)}) in ${plan.projects.join(", ")} — re-running only that, once (issue #5461)\n`

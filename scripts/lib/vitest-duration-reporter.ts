@@ -97,7 +97,7 @@ export class DurationReporter implements Reporter {
  *  reporter plus this one when `env` names a durations directory, nothing
  *  otherwise. An explicit list replaces vitest's pick, so the pick is made
  *  the way vitest makes it (`agent` under an agent, `default` elsewhere,
- *  std-env's `isAgent`): health's output — what `planRetry` and
+ *  std-env's `isAgent`): health's output — what `retryDecision` and
  *  `timeoutOnlyFailure` read — keeps its shape. */
 export function durationReporterOption(env: NodeJS.ProcessEnv): {
     reporters?: (string | Reporter)[];

@@ -211,9 +211,11 @@ export function infraCause(input: StepOutcome): InfraCause | null {
 
 /**
  * Whether a `machine-timeout` is the SECOND in a row at the same step — and
- * so not excused. A step's own workers raise the load its end sample reads,
- * so "saturated" cannot tell a busy machine from a regression that hangs the
- * suite; what tells them apart is that the machine's excuse does not repeat.
+ * so not excused. A step's own workers raise the load its samples read (one
+ * per liveness beat since issue #5939, and other holders' load while it
+ * queues on the heavy mutex), so "saturated" cannot tell a busy machine from
+ * a regression that hangs the suite; what tells them apart is that the
+ * machine's excuse does not repeat.
  * The first timeout-only failure is `infra` and the tip is gated again; the
  * same step failing the same way on the very next run is the tree's.
  */
