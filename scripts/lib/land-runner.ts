@@ -29,37 +29,9 @@ export interface QueuedPr {
     number: number;
     state: "OPEN" | "CLOSED" | "MERGED";
     headRefName: string;
-    /** The head commit — what a land of this PR would land. */
-    headRefOid: string;
     createdAt: string;
     body: string;
     labels: { name: string }[];
-}
-
-/**
- * How long a `land-failed` relabel of THIS process outranks the queue read
- * (issue #5941). The read goes through GitHub's search index, which shows
- * the PR still `ready-to-land` for seconds after the relabel: the next tick
- * landed the same head again — 34 of 77 failure episodes, 12–18 October,
- * ran twice. Minutes, not hours: a human relabel at the same head waits this
- * long, a push lands at once.
- */
-export const RECENT_FAILURE_WINDOW_MS = 5 * 60_000;
-
-/** A `land-failed` relabel this process made: the head it failed at, when. */
-export interface RecentFailure {
-    sha: string;
-    at: number;
-}
-
-/** The failures still inside `RECENT_FAILURE_WINDOW_MS` at `now`. */
-export function liveFailures(
-    failures: ReadonlyMap<number, RecentFailure>,
-    now: number
-): Map<number, RecentFailure> {
-    return new Map(
-        [...failures].filter(([, f]) => now - f.at < RECENT_FAILURE_WINDOW_MS)
-    );
 }
 
 /** What one tick does with the queue. */
@@ -68,8 +40,8 @@ export interface TickPlan {
     shadowed: { pr: number; reason: string }[];
     /** Unlabel and log: the PR is closed/merged or its branch is gone. */
     stale: { pr: number; reason: string }[];
-    /** Left labelled for a later tick: a non-repair PR under RED, or a head
-     *  this process has just failed. */
+    /** Left as it is for a later tick: a non-repair PR under RED, or a row
+     *  the search index still lists after its labels moved. */
     held: { pr: number; reason: string }[];
     /** The PR this tick lands, `null` when there is none to land. */
     next: QueuedPr | null;
@@ -82,9 +54,15 @@ export interface TickPlan {
  * `pr-gate`'s `base-health` posts too) lands; the rest stay queued until the
  * lineage reads AMBER or GREEN. A PR labelled `queue:shadow` is Mergify's
  * (issue #5642, the shadow phase): the runner never lands, unlabels nor
- * relabels it, merged or closed included — one merger per PR. A PR still
- * listed at the head this process just failed is held (issue #5941): the
- * list lags the `land-failed` relabel, the PR did not change.
+ * relabels it, merged or closed included — one merger per PR.
+ *
+ * A row is read by its OWN labels, never by the list's filter (issue #5941):
+ * the `--label`/`--search` read goes through GitHub's search index, which
+ * keeps listing a PR for seconds after its `ready-to-land` label left, while
+ * the row's `labels` field is already fresh (PR #5945, 2026-10-18). Trusting
+ * the filter landed the same head twice right after a `land-failed` relabel
+ * — 34 of 77 failure episodes, 12–18 October. A row without `ready-to-land`,
+ * or carrying `land-failed`, is held: nothing to land, nothing to unlabel.
  */
 export function planTick(
     prs: readonly QueuedPr[],
@@ -94,8 +72,6 @@ export function planTick(
         /** `lineageBlocks(lineage.kind)` — RED or second RED. */
         red: boolean;
         repairIssues: readonly number[];
-        /** `liveFailures` of this process; absent = none. */
-        recentFailures?: ReadonlyMap<number, RecentFailure>;
     }
 ): TickPlan {
     const plan: TickPlan = { shadowed: [], stale: [], held: [], next: null };
@@ -112,6 +88,14 @@ export function planTick(
             });
             continue;
         }
+        const labels = new Set(pr.labels.map((l) => l.name));
+        if (!labels.has(READY_LABEL) || labels.has(FAILED_LABEL)) {
+            plan.held.push({
+                pr: pr.number,
+                reason: `listed by the search index but its own labels are ${[...labels].join(", ") || "none"} — not \`${READY_LABEL}\` alone`,
+            });
+            continue;
+        }
         if (pr.state !== "OPEN") {
             plan.stale.push({
                 pr: pr.number,
@@ -123,13 +107,6 @@ export function planTick(
             plan.stale.push({
                 pr: pr.number,
                 reason: `branch ${pr.headRefName} is gone from origin`,
-            });
-            continue;
-        }
-        if (ctx.recentFailures?.get(pr.number)?.sha === pr.headRefOid) {
-            plan.held.push({
-                pr: pr.number,
-                reason: `this runner just failed its head ${pr.headRefOid.slice(0, 8)} — the list lags the \`${FAILED_LABEL}\` relabel; a push lands at once`,
             });
             continue;
         }
@@ -361,16 +338,38 @@ export const RUNNER_SOURCE_PATHS: readonly string[] = [
  *  `KeepAlive.SuccessfulExit = false` respawns the runner (75 = EX_TEMPFAIL). */
 export const RESTART_EXIT = 75;
 
+/** The launchd job label of `scripts/runner-units/com.tolaria.land-runner.plist`. */
+export const LAUNCHD_LABEL = "com.tolaria.land-runner";
+
 /**
- * Whether the runner's committed sources moved since it started: both
- * readings present and different. An unreadable reading (git failed) is no
- * evidence — restarting on it would loop on a broken checkout.
+ * Whether launchd runs THIS process as the runner's job — it sets
+ * `XPC_SERVICE_NAME` to the job label. Only then does `RESTART_EXIT` come
+ * back as a restart; `loop:afk`'s detached start (`nohup`) has no supervisor,
+ * and an exit there would stop the queue instead.
  */
-export function sourcesChanged(
+export function launchdSupervised(env: NodeJS.ProcessEnv): boolean {
+    return env.XPC_SERVICE_NAME === LAUNCHD_LABEL;
+}
+
+/**
+ * What a check of the runner's sources, at the top of a loop iteration,
+ * asks for: `same` (carry on — also when there was no startup reading to
+ * compare against), `unreadable` (git failed now — no evidence, and
+ * restarting on it would loop on a broken checkout), `restart` (they moved
+ * and launchd will bring the runner back: exit `RESTART_EXIT`) or `warn`
+ * (they moved under an unsupervised runner: say so, keep landing).
+ */
+export type SourceCheck = "same" | "unreadable" | "restart" | "warn";
+
+export function checkSources(
     started: string | null,
-    now: string | null
-): boolean {
-    return started !== null && now !== null && started !== now;
+    now: string | null,
+    supervised: boolean
+): SourceCheck {
+    if (started === null) return "same";
+    if (now === null) return "unreadable";
+    if (started === now) return "same";
+    return supervised ? "restart" : "warn";
 }
 
 /** One PR the runner labelled `land-failed`, as the owner notification sees it. */
