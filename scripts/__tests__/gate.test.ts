@@ -159,15 +159,29 @@ function alive(pid: number): boolean {
 }
 
 /**
+ * `ps`'s stdout, or a throw naming the call. An unchecked `ps` that failed or
+ * timed out under load reads as an empty table — no descendants, no rows —
+ * and a caller then parses `""` as a pid: `expected +0 to be <pid>` (issue
+ * #5874).
+ */
+function ps(args: string[]): string {
+    const r = spawnSync("ps", args, { encoding: "utf8" });
+    if (r.error || r.status !== 0)
+        throw new Error(
+            `ps ${args.join(" ")} failed (status ${r.status}, signal ${r.signal}): ${r.error?.message ?? r.stderr}`
+        );
+    return r.stdout;
+}
+
+/**
  * Every descendant of `root`, by walking `ps` — not by matching a command
  * line. The processes under test are plain `sleep`s, indistinguishable from
  * any other session's on this shared machine; parentage is the only thing
  * that identifies them, and it is also exactly what the fix is about.
  */
 function descendants(root: number): number[] {
-    const r = spawnSync("ps", ["-Ao", "pid,ppid"], { encoding: "utf8" });
     const kids = new Map<number, number[]>();
-    for (const line of r.stdout.split("\n").slice(1)) {
+    for (const line of ps(["-Ao", "pid,ppid"]).split("\n").slice(1)) {
         const [pid, ppid] = line.trim().split(/\s+/).map(Number);
         if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
         kids.set(ppid, [...(kids.get(ppid) ?? []), pid]);
@@ -190,12 +204,16 @@ interface Proc {
     comm: string;
 }
 
+/** `ps -o comm` prints a bare name or a full path, depending on how it ran. */
+function isComm(comm: string, name: string): boolean {
+    return comm === name || comm.endsWith(`/${name}`);
+}
+
 function procs(): Proc[] {
-    const r = spawnSync("ps", ["-Ao", "pid=,ppid=,pgid=,stat=,comm="], {
-        encoding: "utf8",
-    });
     const out: Proc[] = [];
-    for (const line of r.stdout.split("\n")) {
+    for (const line of ps(["-Ao", "pid=,ppid=,pgid=,stat=,comm="]).split(
+        "\n"
+    )) {
         const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
         if (!m || m[4].startsWith("Z")) continue;
         out.push({
@@ -252,11 +270,8 @@ function frozenTree(roots: number[]): number[] {
 /** Live processes whose command line names `path` — the test's own commands
  *  all embed `lockRoot`, so after cleanup this must come back empty. */
 function naming(path: string): { pid: number; args: string }[] {
-    const r = spawnSync("ps", ["-Ao", "pid=,stat=,args="], {
-        encoding: "utf8",
-    });
     const out: { pid: number; args: string }[] = [];
-    for (const line of r.stdout.split("\n")) {
+    for (const line of ps(["-Ao", "pid=,stat=,args="]).split("\n")) {
         const m = /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(line);
         if (!m || m[2].startsWith("Z") || !m[3].includes(path)) continue;
         if (Number(m[1]) !== process.pid)
@@ -1104,11 +1119,20 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
         const gatePid = gate.pid!;
 
         let tree: number[] = [];
-        // The shell plus both sleeps — anything less and the assertion below
-        // would pass on a tree that never got built.
-        await waitFor(() => (tree = descendants(gatePid)).length >= 3);
+        // Both sleeps, counted by name — anything less and the assertion
+        // below would pass on a tree that never got built. A count of pids
+        // would not do: the gate's own `sysctl`/`vm_stat` probes are its
+        // children too, and can fill the count before a sleep exists (issue
+        // #5874).
+        const sleeps = () => {
+            const ids = new Set((tree = descendants(gatePid)));
+            return procs().filter(
+                (p) => ids.has(p.pid) && isComm(p.comm, "sleep")
+            ).length;
+        };
+        await waitFor(() => sleeps() >= 2);
         strays = [gatePid, ...tree];
-        expect(tree.length).toBeGreaterThanOrEqual(3);
+        expect(sleeps()).toBeGreaterThanOrEqual(2);
 
         // The signal a session teardown sends: the gate's pid alone. A Ctrl-C
         // would reach the whole foreground group and hide the defect entirely.
@@ -1258,21 +1282,33 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
         });
         const gatePid = gate.pid!;
 
-        let tree: number[] = [];
-        await waitFor(() => (tree = descendants(gatePid)).length >= 1);
-        strays = [gatePid, ...tree];
+        strays = [gatePid];
 
-        const sh = tree[0]!;
-        const pgid = Number(
-            spawnSync("ps", ["-o", "pgid=", "-p", String(sh)], {
-                encoding: "utf8",
-            }).stdout.trim()
+        // The wrapped command, picked by identity: the gate's child that is
+        // the `sh -c` or the `sleep` it execs into. Never `descendants()[0]`:
+        // the gate spawns `sysctl` and `vm_stat` (its machine sample) right
+        // before the command, and a snapshot taken under load caught one of
+        // those, gone by the time its group was probed (issue #5874).
+        let wrapped: Proc | undefined;
+        const found = await waitFor(
+            () =>
+                (wrapped = procs().find(
+                    (p) =>
+                        p.ppid === gatePid &&
+                        (isComm(p.comm, "sh") || isComm(p.comm, "sleep"))
+                )) !== undefined
         );
-        // A leader's group id IS its pid. Without `detached` the child inherits
-        // the gate's group, and `process.kill(-pid)` then either misses or —
-        // far worse — takes the gate and this test suite down with it.
-        expect(pgid).toBe(sh);
-        expect(pgid).not.toBe(gatePid);
+        const tree = descendants(gatePid);
+        strays.push(...tree);
+        expect(found, "the gate never ran its command").toBe(true);
+
+        // Group read from the same snapshot that saw the process alive — no
+        // second probe to lose it to. A leader's group id IS its pid. Without
+        // `detached` the child inherits the gate's group, and
+        // `process.kill(-pid)` then either misses or — far worse — takes the
+        // gate and this test suite down with it.
+        expect(wrapped!.pgid).toBe(wrapped!.pid);
+        expect(wrapped!.pgid).not.toBe(gatePid);
 
         process.kill(gatePid, "SIGTERM");
         expect(await waitFor(() => tree.every((pid) => !alive(pid)))).toBe(
