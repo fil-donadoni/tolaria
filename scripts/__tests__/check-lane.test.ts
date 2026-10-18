@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import picomatch from "picomatch";
 import {
     classifyPath,
     packageJsonClass,
@@ -21,6 +22,7 @@ import {
     type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
+import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import type { RelatedTests } from "../lib/test-reach";
 import { ORIGIN_BASE } from "../lib/branches";
@@ -30,6 +32,7 @@ import {
     LANE_COST_BUDGET_S,
     MAINTENANCE_SCRIPTS,
 } from "../lib/health-step";
+import vitestSettings from "../../vitest.config";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -47,6 +50,26 @@ import {
  */
 
 const ROOT = resolve(__dirname, "..", "..");
+
+interface VitestProject {
+    name?: string;
+    include?: string[];
+    exclude?: string[];
+}
+
+/** `vitest.config.ts`'s projects, as the bot-node membership check reads them. */
+const vitestProjects: VitestProject[] = (
+    (vitestSettings as { test?: { projects?: { test?: VitestProject }[] } })
+        .test?.projects ?? []
+).map((p) => p.test ?? {});
+
+/** Whether `project`'s include/exclude globs select `file`. */
+function selectedBy(project: VitestProject, file: string): boolean {
+    return (
+        (project.include ?? []).some((g) => picomatch(g)(file)) &&
+        !(project.exclude ?? []).some((g) => picomatch(g)(file))
+    );
+}
 
 function ids(entries: { id: string }[]): string[] {
     return entries.map((e) => e.id);
@@ -542,6 +565,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "blade-index",
         ]);
         expect(plan.rationale).toContain("spanning src/**");
         expect(plan.rationale).not.toContain("prose");
@@ -754,6 +778,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            // Nor the blade registry or its artefacts (issue #5940).
+            "blade-index",
         ]);
     });
 
@@ -920,7 +946,13 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:targets",
             "check:test-hygiene",
         ]);
-        expect(ids(engine.skip)).toEqual(["dom", "bot fast lane", "bundle"]);
+        expect(ids(engine.skip)).toEqual([
+            "dom",
+            "bot fast lane",
+            "bundle",
+            // The engine module is not a blade registry input (issue #5940).
+            "blade-index",
+        ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
@@ -951,6 +983,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bundle",
             "node-engine+node-tooling",
             "dom",
+            "blade-index",
         ]);
         const out = renderPlan(cards, "4f2a91c");
         expect(out).toMatch(/^lane:\s+cards\b/);
@@ -966,6 +999,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "blade-index",
         ]);
         expect(full.skip).toEqual([]);
     });
@@ -2071,8 +2105,62 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
     });
 
     it("stays in health too — health is the full gate", () => {
-        for (const id of CENSUS) expect(HEALTH_SCRIPTS).toContain(id);
-        expect(CHEAP_GUARDS.map((g) => g.id)).toEqual(CENSUS);
+        // A script guard is a HEALTH_SCRIPTS step. A vitest-file guard is
+        // covered by health's `test` step, whose `test:bot` runs the bot-node
+        // project — so its file must exist and that project must select it
+        // (issue #5940).
+        const botNode = vitestProjects.find((p) => p.name === "bot-node");
+        expect(botNode).toBeDefined();
+        for (const guard of CHEAP_GUARDS) {
+            if (guard.command === undefined) {
+                expect(HEALTH_SCRIPTS, guard.id).toContain(guard.id);
+                continue;
+            }
+            const file = guard.command.split(/\s+/).at(-1)!;
+            expect(existsSync(resolve(ROOT, file)), file).toBe(true);
+            expect(selectedBy(botNode!, file), file).toBe(true);
+        }
+    });
+});
+
+/**
+ * Issue #5940 — the blade card index drift test is a `bot-node` file, and no
+ * scoped lane relates that project (ADR 0154 §3): PR #5868 added a blade
+ * entry with a stale index, its lane was green, and the base went RED. The
+ * guard is admitted by the registry, the two artefacts and their builder;
+ * `pr-fixup`'s `blade-index` row keys on its step.
+ */
+describe("check-lane — the blade card index drift test runs where the index can drift (issue #5940)", () => {
+    const guard = (plan: LanePlan) =>
+        plan.run.find((c) => c.id === "blade-index");
+    const command = `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`;
+
+    it("a blade registry, artefact or builder edit plans it, in the bot-node project", () => {
+        for (const file of [
+            "convex/gre/ai/blade/registry.ts",
+            "data/blade-card-index.json",
+            "data/blade-reproducers.json",
+            "scripts/lib/blade-card-index.ts",
+        ]) {
+            expect(guard(classifyLane([file]))?.command, file).toBe(command);
+        }
+    });
+
+    it("a diff that moves none of its inputs skips it, by name", () => {
+        for (const file of [
+            "convex/gre/ai/opValuers.ts",
+            "src/components/board/Card.tsx",
+            "scripts/land.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(guard(plan), file).toBeUndefined();
+            const skipped = plan.skip.find((s) => s.id === "blade-index");
+            expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
+        }
+    });
+
+    it("the full lane runs it with its own command, never `bun run blade-index`", () => {
+        expect(guard(classifyLane(["package.json"]))?.command).toBe(command);
     });
 });
 

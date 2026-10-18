@@ -24,6 +24,7 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { REGENERATED_ARTIFACTS } from "./lib/generated-artifacts";
 
 export type FixKey = "oracle" | "blade-index" | "format";
@@ -53,9 +54,11 @@ export const FIXES: Readonly<Record<FixKey, FixRow>> = {
         args: ORACLE.args ?? [],
     },
     "blade-index": {
-        // The drift test is a vitest file; the lane names it in `failedFiles`.
-        stepId: "vitest(related)",
-        onlyFiles: ["scripts/__tests__/blade-card-index-drift.bot.test.ts"],
+        // The drift test is a `bot-node` file no related run selects: the
+        // lane runs it as its own admitted guard (issue #5940) and names it
+        // in `failedFiles` — a red with no file named (a crash) is not drift.
+        stepId: "blade-index",
+        onlyFiles: [BLADE_INDEX_DRIFT_TEST],
         script: "blade:card-index",
         args: [],
     },

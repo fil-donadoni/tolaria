@@ -24,6 +24,11 @@ import type {
 
 export const BLADE_CARD_INDEX_PATH = "data/blade-card-index.json";
 
+/** The drift test pinning both artefacts to the registry — the lane's
+ *  `blade-index` guard and `pr-fixup`'s `blade-index` row (issue #5940). */
+export const BLADE_INDEX_DRIFT_TEST =
+    "scripts/__tests__/blade-card-index-drift.bot.test.ts";
+
 /** One blade scenario, as far as the index needs to see it — a structural
  *  subset of `BladeScenario` so this stays testable with a plain fixture
  *  rather than a slice of the real 9,000-line registry. */

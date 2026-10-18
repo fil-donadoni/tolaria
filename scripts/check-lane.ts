@@ -80,6 +80,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 import { failingFiles } from "./lib/health-evidence";
@@ -511,11 +512,13 @@ export function classifyLane(
             // (#2738 § Explicitly unchanged).
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
+            // `blade-index` repeats a file `check:guards`' bot run already
+            // ran — 2 s, cheaper than a second rule for one lane.
             run: [
                 { id: "check:pr", command: "bun run check:pr" },
-                ...CHEAP_GUARDS.map(({ id }) => ({
-                    id,
-                    command: `bun run ${id}`,
+                ...CHEAP_GUARDS.map((guard) => ({
+                    id: guard.id,
+                    command: cheapGuardCommand(guard),
                 })),
             ],
             skip: [],
@@ -729,8 +732,10 @@ export function classifyLane(
  * THE RULE IS COST, NOT PHASE: a guard whose measured cost is ≤ 10 s on the
  * heavy tier belongs in the lane; `health`-only is for guards that cost more
  * (`HEALTH_ONLY_GUARDS` in `lib/health-step.ts`, each with its measured
- * cost). These stay in `HEALTH_SCRIPTS` too — health is the full gate; the
- * lane is only no longer the place a violation is first SEEN late.
+ * cost). These stay in health too — a script guard in `HEALTH_SCRIPTS`, the
+ * vitest-file one (`blade-index`) in its `test` step through `test:bot` —
+ * health is the full gate; the lane is only no longer the place a violation
+ * is first SEEN late.
  *
  * ADMISSION, NOT SCOPING: each guard runs whole, and runs when the diff holds
  * a path that is one of its inputs — never on a slice. A census reads its
@@ -748,6 +753,13 @@ export function classifyLane(
  *     keys the verdict merge (`botHash`) — so `convex/**` whole — their
  *     readers under `scripts/lib/**`, and `scripts/oracle-*.ts`
  *     (`poolOracleIds`, `REPORTED_FORMATS`).
+ *   - `blade-index` (issue #5940) is the blade card index drift test, a
+ *     `bot-node` file no scoped lane relates (ADR 0154 §3 sends that project
+ *     to health, where `test:bot` runs it): it reads the blade registry and
+ *     pins the two artefacts built from it plus their builder. 1.9 s at load
+ *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
+ *     landed with a stale index and the base went RED (PR #5868); with it
+ *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
  *
  * Wide on purpose: each costs seconds, and a missed input is a violation
  * that slips back to `health` — the failure this exists to remove.
@@ -761,6 +773,8 @@ export const CHEAP_GUARDS: readonly {
     admits: RegExp;
     /** What the diff lacks, for the skip line. */
     lacks: string;
+    /** The command, when it is not `bun run <id>`. */
+    command?: string;
 }[] = [
     {
         id: "check:gaps",
@@ -777,17 +791,28 @@ export const CHEAP_GUARDS: readonly {
         admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/|^data\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,
         lacks: "no test file, no __tests__/ support, nothing under convex/**, data/** or scripts/lib/** — the census's corpus, registry and allow-list did not move",
     },
+    {
+        id: "blade-index",
+        admits: /^(convex\/gre\/ai\/blade\/|data\/blade-(card-index|reproducers)\.json$|scripts\/lib\/blade-card-index\.ts$|scripts\/__tests__\/blade-card-index-drift\.bot\.test\.ts$)/,
+        lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
+        command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
+    },
 ];
+
+/** The cheap guard's command: its own, else `bun run <id>`. */
+function cheapGuardCommand(guard: (typeof CHEAP_GUARDS)[number]): string {
+    return guard.command ?? `bun run ${guard.id}`;
+}
 
 function appendCheapGuards(
     files: string[],
     run: PlannedCheck[],
     skip: SkippedCheck[]
 ): void {
-    for (const { id, admits, lacks } of CHEAP_GUARDS) {
-        if (files.some((p) => admits.test(p)))
-            run.push({ id, command: `bun run ${id}` });
-        else skip.push({ id, reason: lacks });
+    for (const guard of CHEAP_GUARDS) {
+        if (files.some((p) => guard.admits.test(p)))
+            run.push({ id: guard.id, command: cheapGuardCommand(guard) });
+        else skip.push({ id: guard.id, reason: guard.lacks });
     }
 }
 
