@@ -3,8 +3,8 @@
 //
 // `vite.config.ts` aliases the specifier `./compiledPool` — imported by
 // `convex/cards/catalogue.ts` and by nothing else — to this module, in BOTH
-// the app graph and the `brain.worker` graph (`resolve.alias` is shared with
-// the worker build; `plugins` are not). The effect is that
+// the app graph and the `brain.worker` graph (since issue #5617 a chunk of
+// the same build). The effect is that
 // `data/catalogue/packed-corpus.json` never enters a client bundle: the main
 // thread and the worker each FETCH it cut into per-Set shard assets (issue
 // #5616, `src/lib/catalogue/compiled-shards.ts`) and hand each to
