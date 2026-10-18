@@ -3,13 +3,17 @@
 // the ONE loader the page uses (`~/lib/catalogue/definitionShards`), never the
 // whole catalogue.
 //
-// TWO SOURCES, one rule. The worker's MANIFEST is its deck knowledge — the
-// Bot's own decklist, plus the human's at `expert` (`convex/gre/difficulty.ts`)
-// — as Manifest entries (`gameReads.getSeatDeckKnowledge`), primed as soon as
-// the driver has them so the install overlaps the game's setup. A REQUEST then
-// names more: every card its public state carries (the human's permanents, a
-// revealed card, a card fetched from outside the game) and the deck-knowledge
-// ids it hands the search. Before a request is served every shard those ids
+// TWO SOURCES, one rule. The worker's MANIFEST is the bot seat's Definition
+// Manifest (`gameReads.getDefinitionManifest`: both maindecks, both
+// companions, the bot's sideboard) — what any card either deck puts on the
+// board needs RESIDENT, whatever the search may KNOW (the human's decklist
+// reaches the search at `expert` only, `convex/gre/difficulty.ts`). The driver
+// primes it as soon as it lands, so the install overlaps the game's setup.
+// A REQUEST then names what it names: every card its public state carries —
+// zones, stack, the printed card a copy or a transformed face stands in for,
+// a granting card — and the deck-knowledge ids it hands the search; a card
+// outside every Manifest (a debug placement, a card fetched from outside the
+// game) is located on demand. Before a request is served every shard those ids
 // need is installed (`~/lib/catalogue/residentFor`), so `handleBrainRequest`,
 // which reads `getDefinition` SYNCHRONOUSLY, never searches against a
 // half-resident catalogue (`.claude/rules/bot-development.md`: a bot deciding

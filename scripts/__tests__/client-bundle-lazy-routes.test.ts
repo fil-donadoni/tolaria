@@ -437,6 +437,20 @@ describe("brainWorkerViolations — the worker downloads nothing the game route 
         ]);
     });
 
+    it("reds a preloading dynamic import in a chunk the worker reaches only through import() — a Set chunk it installs", () => {
+        const dist = fakeDist(ENTRY, {
+            ...SHARED,
+            "card-set-lea-GGGG7777.js": `const h=()=>e(()=>import("./helper-HHHH8888.js"),__vite__mapDeps([3]));export const c=1;`,
+            "helper-HHHH8888.js": `export const h=1;`,
+        });
+        expect(brainWorkerViolations(dist)).toEqual([
+            expect.objectContaining({
+                chunk: "card-set-lea-GGGG7777.js",
+                reason: expect.stringContaining("preloads through `document`"),
+            }),
+        ]);
+    });
+
     it("reds a build with no worker chunk, or no game route — the check cannot go vacuous", () => {
         const noWorker: Record<string, string> = { ...SHARED };
         delete noWorker["brain.worker-WWWW0000.js"];

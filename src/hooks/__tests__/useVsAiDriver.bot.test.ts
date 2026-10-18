@@ -71,18 +71,24 @@ type SeatDeckAnswer =
     | undefined;
 let seatDecks: Record<string, SeatDeckAnswer> = {};
 // What `getSeatDeckKnowledge` answers (issue #5617): the seat's maindeck as
-// DEFINITION ids plus the Manifest entries the Brain worker installs. `null`
-// = a Game built before the deck was stored on its manifest rows — the driver
-// then falls back to `getSeatDeck`, whose answers above stay in play.
+// DEFINITION ids. `null` = a Game built before the deck was stored on its
+// manifest rows — the driver then falls back to `getSeatDeck`, whose answers
+// above stay in play.
 type SeatKnowledgeAnswer =
+    | { playerId: string; cardIds: string[] }
+    | null
+    | undefined;
+let seatKnowledge: Record<string, SeatKnowledgeAnswer> = {};
+// What `getDefinitionManifest` answers, by seat (issue #5614) — the bot
+// seat's row is the Brain worker's Manifest (issue #5617).
+type ManifestAnswer =
     | {
           playerId: string;
-          cardIds: string[];
           entries: { definitionId: string; setCode: string }[];
       }
     | null
     | undefined;
-let seatKnowledge: Record<string, SeatKnowledgeAnswer> = {};
+let manifests: Record<string, ManifestAnswer> = {};
 /** Every Manifest the driver handed `primeBrain`, in call order. */
 const primedManifests: { definitionId: string; setCode: string }[][] = [];
 // Every `projectedToGameState` call the search path makes, with the
@@ -176,6 +182,7 @@ vi.mock("@convex/_generated/api", () => ({
             getGame: "getGame",
             getSeatDeck: "getSeatDeck",
             getSeatDeckKnowledge: "getSeatDeckKnowledge",
+            getDefinitionManifest: "getDefinitionManifest",
         },
     },
 }));
@@ -203,6 +210,9 @@ vi.mock("convex/react", async () => {
         }
         if (ref === "getSeatDeckKnowledge") {
             return seatKnowledge[(args as { playerId: string }).playerId];
+        }
+        if (ref === "getDefinitionManifest") {
+            return manifests[(args as { playerId: string }).playerId];
         }
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
@@ -405,6 +415,7 @@ describe("useVsAiDriver (issue #110)", () => {
         tickError = null;
         seatDecks = {};
         seatKnowledge = {};
+        manifests = {};
         primedManifests.length = 0;
         // issue #2790 — a test that opts into `expert` via `storeDifficulty`
         // must not leak it to the next one, which assumes the default.
@@ -459,13 +470,17 @@ describe("useVsAiDriver (issue #110)", () => {
         });
     }
 
-    /** A seat's `getSeatDeckKnowledge` answer: definition ids, and one
-     *  Manifest entry per distinct id. */
+    /** A seat's `getSeatDeckKnowledge` answer: its maindeck as definition
+     *  ids. */
     function knows(playerId: string, cardIds: string[]): SeatKnowledgeAnswer {
+        return { playerId, cardIds };
+    }
+
+    /** A seat's `getDefinitionManifest` row over `ids`. */
+    function manifestOf(playerId: string, ids: string[]): ManifestAnswer {
         return {
             playerId,
-            cardIds,
-            entries: [...new Set(cardIds)].map((definitionId) => ({
+            entries: ids.map((definitionId) => ({
                 definitionId,
                 setCode: `set-of-${definitionId}`,
             })),
@@ -501,9 +516,19 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(queryMounts.some((m) => m.ref === "getSeatDeck")).toBe(false);
     });
 
-    it("primes the Brain worker with its own decklist's Manifest entries before its first consult (issue #5617)", async () => {
+    it("primes the Brain worker with the bot seat's Definition Manifest before its first consult — residency, not knowledge (issue #5617)", async () => {
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN, BEARS]);
         seatKnowledge[HUMAN] = knows(HUMAN, [WURM]);
+        // Both maindecks: any card either deck puts on the board must be
+        // resident in the worker, whatever the search may KNOW.
+        manifests[BOT] = manifestOf(BOT, [MOUNTAIN, BEARS, WURM]);
+        // The human's row adds the human's own sideboard: never the worker's.
+        manifests[HUMAN] = manifestOf(HUMAN, [
+            MOUNTAIN,
+            BEARS,
+            WURM,
+            "human-sideboard-card",
+        ]);
         // The human holds priority: nothing is owed, nothing is searched —
         // the worker installs its shards while the game is elsewhere.
         currentState = botState({ priorityPlayerId: HUMAN });
@@ -511,12 +536,9 @@ describe("useVsAiDriver (issue #110)", () => {
         await settleDriver();
 
         expect(searchAdapterCalls()).toEqual([]);
-        const primed = new Set(
-            primedManifests.flat().map((e) => e.definitionId)
-        );
-        expect(primed).toEqual(new Set([MOUNTAIN, BEARS]));
-        // The default preset is blind: the human's deck is never the worker's.
-        expect(primed.has(WURM)).toBe(false);
+        expect(
+            new Set(primedManifests.flat().map((e) => e.definitionId))
+        ).toEqual(new Set([MOUNTAIN, BEARS, WURM]));
     });
 
     it("falls back to the stored deck entries for a Game built before the deck was on its manifest rows", async () => {
@@ -566,7 +588,7 @@ describe("useVsAiDriver (issue #110)", () => {
     // levels must keep reproducing today's behaviour exactly: the human seat
     // stays absent from `deckKnowledge` regardless of whether the read would
     // answer for it.
-    it("expert also feeds the human seat's decklist into the search adapter, and primes the worker with it", async () => {
+    it("expert also feeds the human seat's decklist into the search adapter", async () => {
         storeDifficulty("expert");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
         seatKnowledge[HUMAN] = knows(HUMAN, [BEARS, WURM]);
@@ -580,9 +602,6 @@ describe("useVsAiDriver (issue #110)", () => {
             { playerId: BOT, cardIds: [MOUNTAIN] },
             { playerId: HUMAN, cardIds: [BEARS, WURM] },
         ]);
-        expect(
-            new Set(primedManifests.flat().map((e) => e.definitionId))
-        ).toEqual(new Set([MOUNTAIN, BEARS, WURM]));
     });
 
     it("the default preset does NOT feed the human seat's decklist even though the read would answer it", async () => {

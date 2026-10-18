@@ -173,9 +173,8 @@ export const getDefinitionManifest = query({
 
 /** ONE seat's deck knowledge for the Bot (issue #5617, PRD #5602): its
  *  maindeck as Card Definition ids (one per copy, decklist order) — what the
- *  search samples the seat's hidden zones from — and the Manifest entries of
- *  those definitions, which are the Brain worker's own Manifest: the shards
- *  it installs, and nothing else.
+ *  search samples the seat's hidden zones from. (Which shards the Brain
+ *  worker installs is the seats' Definition Manifests', not this.)
  *
  *  Definition ids, never print ids: a stored deck entry keeps only its
  *  printing, which the client cannot resolve, so the game build resolves it
@@ -196,20 +195,19 @@ export const getSeatDeckKnowledge = query({
         v.object({
             playerId: v.string(),
             cardIds: v.array(v.string()),
-            entries: v.array(definitionManifestEntryValidator),
         })
     ),
     handler: async (ctx, args) => {
         const userId = await auth.getUserId(ctx);
         if (!userId) return null;
         if (!seatBelongsToUser(args.playerId, userId)) return null;
-        const knowledge = await loadSeatDeckKnowledge(
+        const cardIds = await loadSeatDeckKnowledge(
             ctx,
             args.gameId,
             args.playerId
         );
-        if (!knowledge) return null;
-        return { playerId: args.playerId, ...knowledge };
+        if (!cardIds) return null;
+        return { playerId: args.playerId, cardIds };
     },
 });
 

@@ -33,7 +33,7 @@ import {
     setVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
-import { consultBrain, primeBrain } from "~/lib/ai/brain-client";
+import { consultBrain } from "~/lib/ai/brain-client";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
 export function useVerdictProposalCapture(
@@ -60,8 +60,9 @@ export function useVerdictProposalCapture(
         api.game.getPublicState,
         humanOwes ? { gameId, playerId: humanId! } : "skip"
     ).data;
-    // The seat's decklist as definition ids, with the Manifest entries the
-    // Brain worker installs to judge it (issue #5617) — the driver's read.
+    // The seat's decklist as definition ids (issue #5617) — the driver's
+    // read. The Brain worker judging it was primed by the driver with the
+    // game's Manifest, which holds this deck.
     const humanKnowledge = useResilientQuery(
         api.gameReads.getSeatDeckKnowledge,
         active ? { gameId, playerId: humanId! } : "skip"
@@ -103,7 +104,6 @@ export function useVerdictProposalCapture(
         if (!active || !gameOver) return;
         const decisions = takeHumanDecisions(gameId);
         if (decisions.length === 0) return;
-        if (humanDeck) primeBrain(humanDeck.entries);
         // No cancel-on-cleanup: under StrictMode the effect re-runs at once
         // and the re-run finds the buffer already taken. A swap is caught at
         // landing instead — a list for a game no longer captured is dropped.
@@ -131,7 +131,5 @@ export function useVerdictProposalCapture(
             .catch(() => {
                 // A failed sample costs only questions; the game is over.
             });
-        // A `humanDeck` that changes after the game ended re-runs this and
-        // finds the buffer already taken: the judge still runs once.
-    }, [active, gameId, gameOver, humanDeck]);
+    }, [active, gameId, gameOver]);
 }

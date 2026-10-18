@@ -111,6 +111,7 @@ vi.mock("@convex/_generated/api", () => {
                     "getGame",
                     "getSeatDeck",
                     "getSeatDeckKnowledge",
+                    "getDefinitionManifest",
                 ].map((n) => [n, n])
             ),
         },
@@ -135,7 +136,8 @@ vi.mock("convex/react", async () => {
         if (
             ref === "getGame" ||
             ref === "getSeatDeck" ||
-            ref === "getSeatDeckKnowledge"
+            ref === "getSeatDeckKnowledge" ||
+            ref === "getDefinitionManifest"
         )
             return undefined;
         if (ref === "getGameTick") {

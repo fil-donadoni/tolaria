@@ -324,9 +324,10 @@ export interface BrainWorkerViolation {
  * route already loaded (the entry, `index.html`'s preloads, the game route
  * and their static closure) — a Set chunk or a compiled shard it installs is
  * then one URL for both. Also a violation: a worker chunk that carries the
- * engine itself (a build of its own again, every Set inlined); a chunk in its
- * closure whose dynamic import preloads through `document`, which throws in a
- * Worker; no worker chunk or no game route at all (vacuity).
+ * engine itself (a build of its own again, every Set inlined); a chunk the
+ * worker can evaluate — static or through `import()` — whose dynamic import
+ * preloads through `document`, which throws in a Worker; no worker chunk or
+ * no game route at all (vacuity).
  */
 export function brainWorkerViolations(distDir: string): BrainWorkerViolation[] {
     const assets = readdirSync(join(distDir, "assets")).filter((f) =>
@@ -367,10 +368,26 @@ export function brainWorkerViolations(distDir: string): BrainWorkerViolation[] {
                 reason: "the Brain worker loads it and the game route does not — a second download",
             });
         }
+    }
+    // Every chunk the worker can EVALUATE — its static closure and what that
+    // reaches through `import()` (the Set chunks it installs, their helpers).
+    const evaluated = new Set<string>();
+    const queue = [worker];
+    while (queue.length > 0) {
+        const chunk = queue.pop()!;
+        if (evaluated.has(chunk)) continue;
+        evaluated.add(chunk);
+        queue.push(
+            ...staticImports(distDir, chunk),
+            ...dynamicImports(distDir, chunk)
+        );
+    }
+    for (const chunk of [...evaluated].sort()) {
+        const source = readFileSync(join(distDir, "assets", chunk), "utf8");
         if (source.includes(PRELOAD_LIST_CALL)) {
             out.push({
                 chunk,
-                reason: "in the Brain worker's closure, a dynamic import preloads through `document`, which a Worker has not",
+                reason: "the Brain worker can evaluate it, and a dynamic import in it preloads through `document`, which a Worker has not",
             });
         }
     }

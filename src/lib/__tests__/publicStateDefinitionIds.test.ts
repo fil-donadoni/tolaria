@@ -76,4 +76,51 @@ describe("publicStateDefinitionIds", () => {
             })
         ).toEqual(["face-down:2-2-vanilla", "real", "lord"]);
     });
+
+    it("includes the printed card every stand-in stands in for, and the granting card of a granted trigger (issue #5617)", () => {
+        // A copy's `card.id` is what it copies; the engine reads `copiedFrom`
+        // back when the copy effect ends (CR 707.2) — a Brain worker that had
+        // not installed it would search a card it cannot resolve.
+        expect(
+            publicStateDefinitionIds({
+                players: [
+                    player({
+                        battlefield: [
+                            {
+                                card: { id: "copied-creature" },
+                                copiedFrom: "clone",
+                                grantedTriggeredAbilities: [
+                                    { sourceCardId: "aura", abilityId: "t" },
+                                ],
+                            } as never,
+                            {
+                                card: { id: "token:back-face" },
+                                transformedFrom: "front",
+                            } as never,
+                        ],
+                    }),
+                ],
+                stack: [
+                    {
+                        card: { id: "adventure-twin" },
+                        adventureOf: "adventurer",
+                    } as never,
+                    {
+                        card: { id: "split-half" },
+                        splitHalfOf: "split",
+                    } as never,
+                ],
+            })
+        ).toEqual([
+            "copied-creature",
+            "clone",
+            "aura",
+            "token:back-face",
+            "front",
+            "adventure-twin",
+            "adventurer",
+            "split-half",
+            "split",
+        ]);
+    });
 });

@@ -387,9 +387,9 @@ function postPrime(
 }
 
 /**
- * Hand the Worker its Manifest (issue #5617): the Definition Manifest entries
- * of the decklists the search may know — the Bot's own, plus the human's at
- * `expert`. The Worker installs those shards ahead of the consults that need
+ * Hand the Worker its Manifest (issue #5617): the bot seat's Definition
+ * Manifest entries (both maindecks, both companions, its sideboard). The
+ * Worker installs those shards ahead of the consults that need
  * them, so the first consult does not pay for them inside
  * {@link BRAIN_CONSULT_TIMEOUT_MS}; a consult still installs whatever its own
  * state names before it searches. Only entries not yet posted travel;

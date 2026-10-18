@@ -256,10 +256,8 @@ export function useVsAiDriver(
     // in a vs-AI game both seats belong to the same user regardless.
     // Read as DEFINITION ids (issue #5617): a stored deck entry keeps only its
     // print id, which the client cannot resolve, so the game build resolves
-    // the deck and stores it on the seat's manifest row; the same read names
-    // the Manifest entries of those definitions — the Brain worker's own
-    // Manifest, the only shards it installs. A point lookup on that
-    // (immutable) row, never re-executed by the `games` patches of a turn.
+    // the deck and stores it on the seat's manifest row. A point lookup on
+    // that row, never re-executed by the `games` patches of a turn.
     const botKnowledge = useResilientQuery(
         api.gameReads.getSeatDeckKnowledge,
         botId ? { gameId, playerId: botId } : "skip"
@@ -334,31 +332,34 @@ export function useVsAiDriver(
         // `undefined` when the seat has no decklist (or the caller does not
         // own the seat) — deckKnowledge stays undefined and the search falls
         // back to the placeholder library, exactly as it did before issue
-        // #1509. Each shape carries the Manifest entries of its decklists:
-        // what the Brain worker installs to read them (issue #5617).
+        // #1509.
         if (!botId || !botSeat) return undefined;
-        const blind = {
-            seats: [{ playerId: botId, cardIds: botSeat.cardIds }],
-            manifest: botSeat.entries,
-        };
+        const blind = [{ playerId: botId, cardIds: botSeat.cardIds }];
         if (!humanId || !humanSeat) return { blind, informed: blind };
         return {
             blind,
-            informed: {
-                seats: [
-                    ...blind.seats,
-                    { playerId: humanId, cardIds: humanSeat.cardIds },
-                ],
-                manifest: [...botSeat.entries, ...humanSeat.entries],
-            },
+            informed: [
+                ...blind,
+                { playerId: humanId, cardIds: humanSeat.cardIds },
+            ],
         };
     }, [botSeat, botId, humanSeat, humanId]);
-    // The Brain worker installs its own decklist's shards as soon as it is
-    // known, overlapping the game's setup rather than the first consult
-    // (issue #5617); the human's, at `expert`, are primed at the search site.
-    const botManifest = deckKnowledge?.blind.manifest;
+    // The Brain worker's Manifest (issue #5617): the bot seat's Definition
+    // Manifest — both maindecks, both companions, the bot's sideboard. Not
+    // the deck knowledge, which is what the search may KNOW (the human's
+    // deck only at `expert`); this is what it may need RESIDENT — any card
+    // either deck can put on the board — and it is what the board's gate
+    // already installed (it subscribes every seat the viewer owns, and vs the
+    // Bot the viewer owns both), so every shard is a cache hit and no card
+    // on the board sends the worker to the compiled index. The same
+    // subscription the gate holds; primed as soon as it lands, overlapping
+    // the game's setup rather than the first consult, and again on a widen.
+    const botManifest = useResilientQuery(
+        api.gameReads.getDefinitionManifest,
+        botId ? { gameId, playerId: botId } : "skip"
+    ).data;
     useEffect(() => {
-        if (botManifest) primeBrain(botManifest);
+        if (botManifest) primeBrain(botManifest.entries);
     }, [botManifest]);
     const retryTick = tickQuery.retry;
     const retryBotState = botStateQuery.retry;
@@ -996,11 +997,9 @@ export function useVsAiDriver(
             // `deckKnowledge` memo above.
             const difficulty = getStoredDifficulty();
             const budget = budgetFor(difficulty);
-            const shape = knowsOpponent(difficulty)
+            const knowledge = knowsOpponent(difficulty)
                 ? deckKnowledge?.informed
                 : deckKnowledge?.blind;
-            if (shape) primeBrain(shape.manifest);
-            const knowledge = shape?.seats;
             // The version the SEARCH is about to run on. Captured before the
             // consult, not read when it resolves: a search takes up to a full
             // difficulty budget plus Worker startup, and its verdict —

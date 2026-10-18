@@ -439,11 +439,7 @@ async function deckKnowledge(
 ) {
     return runMutation<
         { gameId: Id<"games">; playerId: string },
-        {
-            playerId: string;
-            cardIds: string[];
-            entries: DefinitionManifestEntry[];
-        } | null
+        { playerId: string; cardIds: string[] } | null
     >(getSeatDeckKnowledge, stub.asUser(userId), {
         gameId: gameId as Id<"games">,
         playerId,
@@ -468,21 +464,6 @@ describe("Seat deck knowledge — the Bot's decklists as definition ids (issue #
         expect(
             (await deckKnowledge(stub, "u3", "game-1", "u3-p2"))?.cardIds
         ).toEqual(BOB_MAIN.map((c) => c.cardId));
-    });
-
-    it("names the Manifest entries of those definitions only — the worker's Manifest, neither the other maindeck nor a sideboard", async () => {
-        const stub = soloMatch();
-        await buildFirstGame(stub, "u3");
-
-        const read = await deckKnowledge(stub, "u3", "game-1", "u3-p1");
-        expect(read!.entries.map((e) => e.definitionId).sort()).toEqual(
-            sorted(ALICE_MAIN_DEFINITIONS)
-        );
-        for (const e of read!.entries) {
-            expect(e.setCode, e.definitionId).toBe(
-                getDefinitionSetCode(e.definitionId)
-            );
-        }
     });
 
     it("is gated on seat ownership, like the decklist it is", async () => {

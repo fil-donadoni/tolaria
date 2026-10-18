@@ -331,30 +331,21 @@ export async function loadDefinitionManifests(
 }
 
 /** One seat's deck knowledge for the Bot (issue #5617): its maindeck as
- *  Card Definition ids, one per copy in decklist order, and the Manifest
- *  entries of those definitions — the shards a Brain worker installs to
- *  reason about them. `null` when the seat has no manifest, or one written
- *  before the deck was stored on it. One point read. */
+ *  Card Definition ids, one per copy in decklist order. `null` when the seat
+ *  has no manifest, or one written before the deck was stored on it. One
+ *  point read. */
 export async function loadSeatDeckKnowledge(
     ctx: QueryCtx,
     gameId: Id<"games">,
     playerId: string
-): Promise<{
-    cardIds: string[];
-    entries: DefinitionManifestEntry[];
-} | null> {
+): Promise<string[] | null> {
     const row = await ctx.db
         .query("gameDefinitionManifests")
         .withIndex("by_game", (q) =>
             q.eq("gameId", gameId).eq("playerId", playerId)
         )
         .unique();
-    if (!row?.deck) return null;
-    const inDeck = new Set(row.deck);
-    return {
-        cardIds: row.deck,
-        entries: row.entries.filter((e) => inDeck.has(e.definitionId)),
-    };
+    return row?.deck ?? null;
 }
 
 /** Writes each seat's manifest in `bySeat` (insert or replace); a seat not
