@@ -804,7 +804,11 @@ const CLEANUP_HAND_SPREAD = 1;
  *  extremes (a near-empty hand keeps the card whole, a hand past the
  *  maximum keeps only what it beats). A card more or fewer is read as a
  *  maximum hand size one fewer or more — the cards spent or drawn are not
- *  priced individually. */
+ *  priced individually, and a hand with no card to spend still reads the
+ *  room one spent card would leave (a maximum of 0 keeps a third of a card).
+ *  The spread is the standing engine's horizon; a one-shot body (`before`)
+ *  takes it too, though its caster's cleanup is this turn's, with no draw
+ *  ahead of it — an approximation that cancels between sides of one shape. */
 function cleanupKeptGain(
     landing: readonly number[],
     withDraws: readonly number[],
