@@ -36,6 +36,8 @@ import {
     baseHealthStatus,
     gatePrOf,
     parseTrustedAuthors,
+    PR_FILES_JQ,
+    prFilesApiPath,
     queuedPrs,
     trustedAuthorStatus,
     type GateStatus,
@@ -63,11 +65,7 @@ function ghLines<T>(run: GhRunner, path: string, jq: string): T[] {
 
 /** Every path the PR touches; a rename contributes its old name too. */
 function prFiles(run: GhRunner, repo: string, pr: number): string[] {
-    return ghLines<string>(
-        run,
-        `repos/${repo}/pulls/${pr}/files?per_page=100`,
-        ".[] | (.filename, (.previous_filename // empty)) | tojson"
-    );
+    return ghLines<string>(run, prFilesApiPath(repo, pr), PR_FILES_JQ);
 }
 
 function argValue(flag: string): string | undefined {

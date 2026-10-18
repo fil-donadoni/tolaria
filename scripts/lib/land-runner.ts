@@ -12,7 +12,7 @@
  * to the next pass as a REPAIR pick, ahead of new issues.
  */
 import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "./land-labels";
-import { healthAdmission } from "./pr-gate";
+import { healthAdmission, type GateState } from "./pr-gate";
 
 export { FAILED_LABEL, READY_LABEL, SHADOW_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
@@ -230,16 +230,59 @@ export function owesPresetSeed(paths: readonly string[]): boolean {
     return paths.some((p) => p.startsWith("convex/cards/sets/"));
 }
 
+/**
+ * Whether `land:ready` hands the PR to the Mergify queue (issue #5952, the
+ * owner's decision of 2026-10-18), else to the runner. The queue admits only
+ * a PR whose `trusted-author` status is green — `pr-gate`'s own decision,
+ * read whole (`trustedAuthorStatus`): a PR it refuses, labelled
+ * `queue:shadow`, would have no merger. A PR the runner failed that carries no
+ * `queue:shadow` stays the runner's: the owner handed it back, or it was
+ * never the queue's, and a repair re-queues it to the same merger.
+ */
+export function handsToQueue(input: {
+    trustedAuthor: GateState;
+    labels: readonly string[];
+}): boolean {
+    if (input.trustedAuthor !== "success") return false;
+    return !(
+        input.labels.includes(FAILED_LABEL) &&
+        !input.labels.includes(SHADOW_LABEL)
+    );
+}
+
+/**
+ * The PR body with a bare `Closes #<issue>` appended when GitHub does not
+ * already link the PR as closing the issue its branch names, else null. The
+ * base is the default branch, so GitHub closes a linked issue at merge
+ * whoever merges — the Mergify queue has no land-runner to close it, and an
+ * open issue whose claim `housekeeping` releases would be picked again
+ * (issue #5952). `closing` is GitHub's own `closingIssuesReferences`, never a
+ * parse of the body (a negated "does not close #N" still closes it).
+ */
+export function bodyWithClosingRef(
+    body: string,
+    issue: number,
+    closing: readonly number[]
+): string | null {
+    if (closing.includes(issue)) return null;
+    return `${body.replace(/\s+$/, "")}\n\nCloses #${issue}\n`;
+}
+
 /** `gh` argv for each label move — one place, so tests pin them. */
 export const labelArgs = {
-    ready: (pr: number): string[] => [
+    /** `shadow` (`handsToQueue`): the PR goes to the Mergify queue, else to
+     *  the runner — and loses a `queue:shadow` it carried, so it never sits
+     *  with no merger (issue #5952). */
+    ready: (pr: number, opts: { shadow: boolean }): string[] => [
         "pr",
         "edit",
         String(pr),
         "--add-label",
         READY_LABEL,
+        ...(opts.shadow ? ["--add-label", SHADOW_LABEL] : []),
         "--remove-label",
         FAILED_LABEL,
+        ...(opts.shadow ? [] : ["--remove-label", SHADOW_LABEL]),
     ],
     unqueue: (pr: number): string[] => [
         "pr",

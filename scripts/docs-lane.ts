@@ -420,7 +420,7 @@ function cmdShip(argv: string[]): void {
         );
     }
     console.log(
-        "docs-lane: handed to the land-runner (ready-to-land) — it merges and removes this worktree."
+        "docs-lane: handed off (ready-to-land) — its merger lands it, and this worktree is removed after the merge."
     );
 }
 

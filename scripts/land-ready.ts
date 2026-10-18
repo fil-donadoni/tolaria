@@ -4,7 +4,10 @@
  * pushed PR to the land-runner. One verb, so the two halves never split:
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
- *      repaired PR re-queues with the same command);
+ *      repaired PR re-queues with the same command) and, when the Mergify
+ *      queue admits its paths, `queue:shadow`: the queue lands it and the
+ *      runner skips it (issue #5952). A PR touching `.github/` or
+ *      `.mergify.yml` stays the runner's;
  *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
  *      but it holds no `sessions.cap` slot on this machine any more;
  *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
@@ -39,7 +42,22 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
-import { labelArgs, READY_LABEL } from "./lib/land-runner";
+import { SHADOW_LABEL } from "./lib/land-labels";
+import {
+    bodyWithClosingRef,
+    handsToQueue,
+    labelArgs,
+    READY_LABEL,
+} from "./lib/land-runner";
+import {
+    gatePrOf,
+    parseTrustedAuthors,
+    PR_FILES_JQ,
+    prFilesApiPath,
+    trustedAuthorStatus,
+    type GateStatus,
+    type RestPr,
+} from "./lib/pr-gate";
 import { preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { buildPrOpenRow } from "./lib/queue-claim";
@@ -153,6 +171,35 @@ function preQueueGate(pr: number, headOid: string): void {
     process.exit(1);
 }
 
+/**
+ * The PR's `trusted-author` verdict, computed here exactly as `pr-gate` posts
+ * it (issue #5952): the queue admits only a green one. An unreadable
+ * `TRUSTED_AUTHORS` trusts nobody, which hands the PR to the runner.
+ */
+function queueAdmission(pr: number): GateStatus {
+    const repo = "{owner}/{repo}";
+    const raw = JSON.parse(gh(["api", `repos/${repo}/pulls/${pr}`])) as RestPr;
+    const files = gh([
+        "api",
+        "--paginate",
+        prFilesApiPath(repo, pr),
+        "--jq",
+        PR_FILES_JQ,
+    ])
+        .split("\n")
+        .filter((l) => l.trim() !== "")
+        .map((l) => JSON.parse(l) as string);
+    let trusted: string[] = [];
+    try {
+        trusted = parseTrustedAuthors(
+            gh(["variable", "get", "TRUSTED_AUTHORS"])
+        );
+    } catch {
+        // Trusts nobody: the runner lands it.
+    }
+    return trustedAuthorStatus(gatePrOf(raw, files), trusted);
+}
+
 function main(): void {
     const numbers = process.argv.slice(2).filter((a) => /^#?\d+$/.test(a));
     if (numbers.length !== 1) {
@@ -166,13 +213,16 @@ function main(): void {
             "view",
             String(pr),
             "--json",
-            "state,headRefName,baseRefName,headRefOid",
+            "state,headRefName,baseRefName,headRefOid,body,labels,closingIssuesReferences",
         ])
     ) as {
         state: string;
         headRefName: string;
         baseRefName: string;
         headRefOid: string;
+        body: string;
+        labels: { name: string }[];
+        closingIssuesReferences: { number: number }[];
     };
     if (view.state !== "OPEN") {
         console.error(`✗ land:ready: PR #${pr} is ${view.state}, not OPEN`);
@@ -185,9 +235,22 @@ function main(): void {
         process.exit(1);
     }
     preQueueGate(pr, view.headRefOid);
-    gh(labelArgs.ready(pr));
-
     const issue = issueOfBranch(view.headRefName);
+    if (issue !== null) {
+        const body = bodyWithClosingRef(
+            view.body,
+            issue,
+            view.closingIssuesReferences.map((r) => r.number)
+        );
+        if (body !== null) gh(["pr", "edit", String(pr), "--body", body]);
+    }
+    const admission = queueAdmission(pr);
+    const shadow = handsToQueue({
+        trustedAuthor: admission.state,
+        labels: view.labels.map((l) => l.name),
+    });
+    gh(labelArgs.ready(pr, { shadow }));
+
     if (issue !== null) {
         gh(prOpenEditArgs(issue));
         const ledger = claimLedgerPath(
@@ -208,7 +271,9 @@ function main(): void {
         );
     }
     console.log(
-        `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it` +
+        (shadow
+            ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${SHADOW_LABEL}\` — the Mergify queue lands it`
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it (${admission.state === "success" ? "a PR the runner failed stays the runner's" : `the queue would refuse it: ${admission.description}`})`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)

@@ -1,6 +1,6 @@
 ---
 name: next-ticket
-description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, hand off to the land-runner."
+description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, hand off to the merge queue."
 disable-model-invocation: true
 ---
 
@@ -191,8 +191,8 @@ says no review.
 
 ## 5. Hand off — push + `ready-to-land`
 
-The pass ENDS here (issue #5469): the land-runner lands every PR (rebase,
-lane, merge, seed, teardown). A session never runs `land` nor waits for it.
+The pass ENDS here: the Mergify queue (or the land-runner, for a PR it
+refuses: issue #5952) lands it. A session never runs `land` nor waits.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).
