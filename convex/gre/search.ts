@@ -143,11 +143,14 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
 import {
     isCreature,
+    isLand,
     hasManaAbility,
     hasInstantSpeed,
     isManaAbilityDefinition,
 } from "./constants";
 import { tryGetDefinition } from "../cards";
+import { getAlternativeCost } from "./alternativeCost";
+import { sacrificeCandidates } from "./sacrificeChoice";
 import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
@@ -1488,8 +1491,15 @@ export function rollout(
             applyMoveInSearch(state, pid, FORCED_PASS, true);
             continue;
         }
-        const moves = enumerateMoves(state, pid);
-        if (moves.length === 0) break;
+        const enumerated = enumerateMoves(state, pid);
+        if (enumerated.length === 0) break;
+        // Issue #5445 — neither policy plays a mana-base sacrifice: the root
+        // weighs it NOW, and a rollout that takes it later is the `pass`
+        // edge paying the cast edge's cost. Never emptying.
+        const kept = enumerated.filter(
+            (m) => !isManaBaseSacrificeCast(state, pid, botId, m)
+        );
+        const moves = kept.length > 0 ? kept : enumerated;
 
         // One census per seat for the whole ply (issue #4461): `state` is only
         // read until the chosen move is applied below.
@@ -2587,6 +2597,51 @@ export function isDenialExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
+ *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
+ *  #5445) — lands given up for a spell.
+ *
+ *  The cast-side sibling of the activation predicates above, on the same
+ *  terms. The cast edge pays the cost once, at the node it is taken from;
+ *  every later decision of the bot's in the `pass` subtree re-offers the same
+ *  cast, and the reward band (a land base is worth a few tenths of
+ *  `outcomeEps`) is too flat for UCB to stop opening it, so `pass`'s mean
+ *  margin absorbs the cast line's lands-gone leaves while the cast edge's does
+ *  not. Measured: two Mountains for four damage at 20 life scored 178 for
+ *  `pass` against 43 for the cast at the leaf, yet `pass`'s mean margin read
+ *  below the cast's on every seed and the material tie-break cast it.
+ *
+ *  Dropped from BOTH rollout policies (the ε draw and the greedy one) and
+ *  from the tree below the root, so only the root weighs it: a sacrifice the
+ *  bot could take NOW — lethal, say — stays a scored option, re-weighed at
+ *  every real decision. Known cost: a line where the cast is the SECOND step
+ *  of a kill (attack, then burn after blocks) is invisible below the root.
+ *  The bot's own moves only; the opponent's stays in the tree. Any land the
+ *  leg's filter can take counts. A RETURN leg is not this shape: the land
+ *  comes back to hand and is played again.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isManaBaseSacrificeCast(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId) return false;
+    if (move.kind !== "cast-spell" || move.alternativeCostId === undefined) {
+        return false;
+    }
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    const cardId = (card?.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const leg = getAlternativeCost(
+        def ?? undefined,
+        move.alternativeCostId
+    )?.permanent;
+    if (!leg || leg.action !== "sacrifice") return false;
+    return sacrificeCandidates(state, pid, leg.filter).some(isLand);
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -2934,7 +2989,8 @@ function iterate(
                                 botId,
                                 k.move
                             ))
-                    )
+                    ) &&
+                    !isManaBaseSacrificeCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
         }
