@@ -93,7 +93,11 @@ function damageStep(
 
 /** Realise the bot's `confirm-combat-damage` for `botId` against the real
  *  mutations; returns the submitted splits and the state afterwards. */
-async function realiseDamage(state: GameState, botId: string) {
+async function realiseDamage(
+    state: GameState,
+    botId: string,
+    refuseSplits = false
+) {
     const h = makeMutationCtx(botId, [gameStateSeed(state)]);
     const submitted: { attackerId: string; assignments: unknown }[] = [];
     const calls: string[] = [];
@@ -113,6 +117,9 @@ async function realiseDamage(state: GameState, botId: string) {
                     attackerId: a.attackerId,
                     assignments: a.assignments,
                 });
+                if (refuseSplits) {
+                    return Promise.reject(new Error("refused by the server"));
+                }
                 return runMutation(setDamageAssignment, h.ctx, a);
             },
             confirmDamage: (a: { gameId: Id<"games">; playerId: string }) => {
@@ -179,6 +186,23 @@ describe("driver: confirm-combat-damage submits the Bot's split (issue #5662)", 
             { attackerId: "giant", assignments: { bears: 2, lions: 1 } },
         ]);
         expect(ids(after.players[0].graveyard)).toEqual(["bears", "lions"]);
+    });
+
+    it("confirms the server's default when a split is refused, rather than stalling", async () => {
+        const state = damageStep(
+            [permanent(hillGiant().id, "atk", "p1")],
+            [
+                permanent(monssGoblinRaiders().id, "goblin", "p2"),
+                permanent(savannahLions().id, "lions", "p2"),
+            ],
+            { goblin: ["atk"], lions: ["atk"] },
+            { atk: "p1" }
+        );
+        const { calls, after } = await realiseDamage(state, "p1", true);
+        expect(calls).toEqual(["setDamageAssignment", "confirmDamage"]);
+        // The seed (all 3 on the first blocker) was confirmed and applied.
+        expect(after.combat?.damageConfirmed).not.toBe(false);
+        expect(ids(after.players[1].graveyard)).toEqual(["goblin"]);
     });
 
     it("submits nothing when the seed already is the split, and still confirms", async () => {

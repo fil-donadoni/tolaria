@@ -105,12 +105,22 @@ export function realiseBotAction(
                 ctx.botId
             );
             return async () => {
-                for (const { sourceId, assignments } of splits) {
-                    await ctx.direct.setDamageAssignment({
-                        ...seat,
-                        attackerId: sourceId,
-                        assignments,
-                    });
+                // A refused split (a projection that read a P/T or a marked
+                // damage differently from the server) must not stall the
+                // window: stop submitting and confirm what the server holds —
+                // its own default, which it always accepts. Each split is
+                // priced without the bot's other splits (`damageSplitsFor`),
+                // so one that did land stays legal beside a default.
+                try {
+                    for (const { sourceId, assignments } of splits) {
+                        await ctx.direct.setDamageAssignment({
+                            ...seat,
+                            attackerId: sourceId,
+                            assignments,
+                        });
+                    }
+                } catch {
+                    // fall through to the confirm
                 }
                 return ctx.direct.confirmDamage(seat);
             };

@@ -294,17 +294,27 @@ export function damageSplitsFor(
 ): ChosenDamageSplit[] {
     const combat = state.combat;
     if (!combat || combat.damageConfirmed !== false) return [];
-    const step: StepAssignments = { ...(combat.damageAssignments ?? {}) };
+    const current = combat.damageAssignments ?? {};
+    const owned = Object.entries(combat.damageAssignerIds ?? {})
+        .filter(([, owner]) => owner === assignerId)
+        .map(([sourceId]) => sourceId);
+    // The step map as the search builds it: every source this assigner is
+    // about to (re)split starts with NO entry, never the engine's seed. A
+    // seed left in place would count toward another split's lethal threshold
+    // (CR 702.19b) and then be replaced — a trampler could be priced as
+    // having lethal on a shared blocker that ends up with none.
+    const step: StepAssignments = { ...current };
+    for (const sourceId of owned) delete step[sourceId];
     const out: ChosenDamageSplit[] = [];
-    for (const [sourceId, owner] of Object.entries(
-        combat.damageAssignerIds ?? {}
-    )) {
-        if (owner !== assignerId) continue;
+    for (const sourceId of owned) {
         const split = chooseDamageSplit(state, sourceId, step);
         if (!split) continue;
-        const unchanged = sameSplit(split, step[sourceId]);
         step[sourceId] = split;
-        out.push({ sourceId, assignments: split, unchanged });
+        out.push({
+            sourceId,
+            assignments: split,
+            unchanged: sameSplit(split, current[sourceId]),
+        });
     }
     return out;
 }
