@@ -3,9 +3,10 @@
 // as PR checks (PRD issue #5620, issue #5639; ADR 0156 Amendment I).
 //
 // Each check is the SAME pure function `land` calls, fed the same facts, and
-// answers with the same refusal string — one reading, two callers
+// answers with the same refusal string — one reading, three callers
 // (`.github/workflows/pr-check.yml` runs one job per check, `land` keeps its
-// copy until the migration retires it, `docs/guides/github-pipeline.md`).
+// copy until the migration retires it, `docs/guides/github-pipeline.md`;
+// `land:ready` runs them all before it queues a PR, issue #5956).
 //
 //   ui-receipt          the `check:ui` receipt, re-derived from the diff's scope
 //   scenario            the `## Preset scenario` block (ADR 0044)
