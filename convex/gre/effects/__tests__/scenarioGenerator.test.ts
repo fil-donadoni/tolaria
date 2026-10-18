@@ -15,6 +15,7 @@ import {
     compiledTriggerSourceOnBattlefield,
     CASTER_ID,
     FILLER_CARD_DEFINITION,
+    GRANTED_ABILITY_HOST,
     OPPONENT_ID,
     opCoverageGaps,
     planSmokeTest,
@@ -835,11 +836,55 @@ describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
         const plan = planSmokeTest(effects);
         expect(plan.kind).toBe("run");
         if (plan.kind !== "run") return;
-        expect(plan.scenario.chosenX).toBe(2);
+        expect(plan.scenario.chosenX).toBe(4);
         expect(plan.assertions.map((a) => a.label)).toEqual([
-            expect.stringContaining("dealDamage 2"),
-            expect.stringContaining("gainLife 2"),
+            expect.stringContaining("dealDamage 4"),
+            expect.stringContaining("gainLife 4"),
         ]);
+    });
+
+    it("an activated ability announces its X too", () => {
+        const host = abilityHost({ types: ["Artifact"] }, true, true);
+        const plan = planSmokeTest(
+            [{ op: "gainLife", player: "controller", amount: { X: true } }],
+            host
+        );
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.chosenX).toBe(4);
+    });
+
+    it("a triggered or granted ability's X stays a card-dependent skip", () => {
+        const script: EffectOp[] = [
+            { op: "gainLife", player: "controller", amount: { X: true } },
+        ];
+        for (const host of [
+            abilityHost({ types: ["Creature"] }, true),
+            GRANTED_ABILITY_HOST,
+        ]) {
+            const plan = planSmokeTest(script, host);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.code)).toEqual(["unannounced-x"]);
+            expect(SMOKE_SKIP_CLASS["unannounced-x"]).toBe("card-dependent");
+        }
+    });
+
+    it("an op-covered Op's X amount stays card-dependent — it never runs", () => {
+        const plan = planSmokeTest([
+            {
+                op: "discardAtRandom",
+                player: { target: 0 },
+                count: { X: true },
+            },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(
+            plan.skips.some(
+                (s) => SMOKE_SKIP_CLASS[s.code] === "card-dependent"
+            )
+        ).toBe(true);
     });
 
     it("the announced X resolves to the predicted outcome", () => {
