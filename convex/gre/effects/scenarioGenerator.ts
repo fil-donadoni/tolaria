@@ -107,14 +107,37 @@ export interface SmokeSourceSpec {
 
 /** Where a script is hosted, and — at an ability site — what its source is and
  *  where. Passed as ONE descriptor rather than a widening list of positional
- *  flags, so a new fact about the host arrives without another argument. */
+ *  flags, so a new fact about the host arrives without another argument.
+ *
+ *  `xAnnounced` (issue #4022): whether the host's stack item carries an
+ *  announced {X}. CR 107.3a — X is announced as part of casting a spell or
+ *  activating an ability, so a spell and an activated ability carry one; a
+ *  triggered ability has no cost to announce it in, and a granted ability's
+ *  kind is not on the definition. Only an announcing host lets the scenario
+ *  announce X; elsewhere a chosen-cost X amount stays a card-dependent skip. */
 export type SmokeHost =
-    | { readonly site: "spell" }
-    | { readonly site: "ability"; readonly source: SmokeSourceSpec };
+    | { readonly site: "spell"; readonly xAnnounced: boolean }
+    | {
+          readonly site: "ability";
+          readonly source: SmokeSourceSpec;
+          readonly xAnnounced: boolean;
+      };
 
 /** The host of a spell-site script — the fail-closed default: no source
- *  permanent, so a `$source` subject is a card-dependent skip. */
-export const SPELL_HOST: SmokeHost = Object.freeze({ site: "spell" as const });
+ *  permanent, so a `$source` subject is a card-dependent skip. A spell
+ *  announces its X as it is cast (CR 107.3a). */
+export const SPELL_HOST: SmokeHost = Object.freeze({
+    site: "spell" as const,
+    xAnnounced: true,
+});
+
+/** The host of a GRANT template's script: the permanent that received the
+ *  grant is not on the granting definition (issue #3879), and neither is
+ *  whether the granted ability announces an X — fail-closed on both. */
+export const GRANTED_ABILITY_HOST: SmokeHost = Object.freeze({
+    site: "spell" as const,
+    xAnnounced: false,
+});
 
 /** CR 113.6b — an ability that states which zones it functions in functions
  *  only from those zones, and these two flags are how a definition states it:
@@ -230,10 +253,14 @@ export function abilityHost(
         power?: number;
         toughness?: number;
     },
-    onBattlefieldAtResolution: boolean
+    onBattlefieldAtResolution: boolean,
+    /** An ACTIVATED ability announces its X (CR 107.3a); a triggered one does
+     *  not. Defaults to the fail-closed `false`. */
+    xAnnounced = false
 ): SmokeHost {
     return {
         site: "ability",
+        xAnnounced,
         source: {
             types: definition.types,
             ...(definition.subtypes === undefined
@@ -294,6 +321,12 @@ export const FILLER_CARD_DEFINITION: CardDefinition = {
  *  never clamped by an empty zone. */
 const LIBRARY_DEPTH = 8;
 const COUNT_SET_SIZE = 3;
+/** The value the canned scenario announces for {X} (CR 107.3a) when a script
+ *  reads the chosen-cost X (issue #4022). Distinct from `COUNT_SET_SIZE` and
+ *  from the small literals scripts print, so an assertion that read X off the
+ *  wrong source would mispredict; below the filler's toughness and
+ *  `LIBRARY_DEPTH`, so no outcome is clamped. */
+const SMOKE_CHOSEN_X = 4;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -313,6 +346,10 @@ export interface Scenario {
      *  (issue #3879). Present exactly when `sourcePermanentId` is, and what
      *  `predictAmount` reads to know whether a count set counts it. */
     sourceSpec?: SmokeSourceSpec;
+    /** The value announced for {X} when the script reads the chosen-cost X
+     *  (issue #4022); absent otherwise. The caller snapshots it onto the stack
+     *  item as `chosenX`, the field `getX()` reads at resolution. */
+    chosenX?: number;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -368,7 +405,7 @@ export const SMOKE_SKIP_CODES = [
     // ── card-dependent ──
     "source-or-each-subject",
     "runtime-amount",
-    "cast-time-x",
+    "unannounced-x",
     "target-slot-shape",
     "choice-binding",
     "unmodelled-object-or-zone",
@@ -392,7 +429,7 @@ export const SMOKE_SKIP_CLASS: Record<SmokeSkipCode, SmokeSkipClass> = {
     "op-own-tests": "op-covered",
     "source-or-each-subject": "card-dependent",
     "runtime-amount": "card-dependent",
-    "cast-time-x": "card-dependent",
+    "unannounced-x": "card-dependent",
     "target-slot-shape": "card-dependent",
     "choice-binding": "card-dependent",
     "unmodelled-object-or-zone": "card-dependent",
@@ -566,6 +603,8 @@ interface Requirements {
     /** The tap state an Op drives `$source` to. An untap seeds the source
      *  tapped, so the untap has an outcome to observe. */
     sourceTapAction?: "tap" | "untap";
+    /** An amount reads the chosen-cost X: announce `SMOKE_CHOSEN_X`. */
+    readsChosenX?: boolean;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -685,15 +724,22 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         return;
     }
     // Chosen-cost X (issue #852): the amount is whatever was announced for {X}
-    // at cast time. The canned scenario pushes the spell directly on the stack
-    // without a cast, so getX() would read 0 — the declared outcome can't be
-    // asserted deterministically. Skip-with-reason (the per-card test remains
-    // the behavioural guarantor for X cards).
+    // — CR 107.3a, "While a spell is on the stack, any X in its mana cost …
+    // equals the announced value." The canned scenario pushes the spell
+    // without a cast, so it announces `SMOKE_CHOSEN_X` itself: the caller
+    // snapshots it onto the stack item as `chosenX`, which `getX()` reads
+    // (issue #4022). Only at a host whose stack item carries an announced X:
+    // a triggered or granted ability's reads 0 in the live engine, so
+    // announcing one there would assert an outcome the game never produces.
     if ("X" in value) {
+        if (req.host.xAnnounced) {
+            req.readsChosenX = true;
+            return;
+        }
         skipBecause(
             req,
-            "cast-time-x",
-            `amount is chosen-cost X — depends on the value announced for {X} at cast time`
+            "unannounced-x",
+            `amount is chosen-cost X at a site that announces no {X} — a triggered or granted ability's stack item carries none`
         );
         return;
     }
@@ -858,9 +904,8 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         return;
     }
     // scaled (issue #2366): a fixed multiplier times a terminal — X, a
-    // literal, or a count. When the operand is X the canned generator can't
-    // reproduce the value (same reason bare `X` skips above: it pushes the
-    // spell directly, never announcing X); when the operand is a count, the
+    // literal, or a count. The predictor sizes only a bare amount — a bare
+    // announced X or one unscaled count set — so neither operand's
     // multiplied total is a fresh magnitude `predictAmount`'s fixed
     // COUNT_SET_SIZE contract doesn't cover either. Skip-with-reason —
     // the member's own interpreter test is the behavioural guarantor
@@ -2741,6 +2786,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         ...(sourcePermanentId === undefined
             ? {}
             : { sourcePermanentId, sourceSpec: source }),
+        ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -2816,6 +2862,7 @@ function sourceContributesTo(
 function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
+    if ("X" in value) return scenario.chosenX ?? null; // announced by the scenario
     if ("counters" in value) return null; // skipped earlier — defensive
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive

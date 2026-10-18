@@ -3,7 +3,7 @@
 // An `op-covered` skip (a Pay/Skip suspension, an untap of a permanent the
 // generator already seeds untapped) is the per-Op
 // regime of ADR 0045 and no longer withholds a Compiled Definition. A
-// `card-dependent` skip (an unmodelled zone, a cast-time X) withholds the card
+// `card-dependent` skip (an unmodelled zone, an X no host announces) withholds the card
 // until a golden fixture exhibits the same form. An ability acting on its own
 // `$source` is no longer one: the smoke generator seeds the source permanent
 // and runs the script against it (issue #3831).
@@ -220,10 +220,16 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
     });
 
     it("an op-covered Op does not hide a cast-time X in its own arguments", () => {
+        // The spell announces its X (issue #4022), but the op-covered random
+        // discard never runs in the canned scenario, so its X `count` is never
+        // exercised: the fail-closed argument walk withholds the card
+        // (issue #5943).
         const outcome = compileCard(RANDOM_DISCARD_X);
         expect(outcome.state).toBe("quarantine");
         expect(smokeReasons(outcome)).toEqual([
-            expect.stringContaining("chosen-cost X"),
+            expect.stringContaining(
+                `Op "discardAtRandom" reads a runtime "count" amount`
+            ),
         ]);
     });
 

@@ -79,16 +79,20 @@ describe("card code ownership (issue #4489)", () => {
     });
 
     it("a card-dependent smoke skip disqualifies the card", () => {
-        expect(ownedCode(PURE, "cast-time-x: …")).toBe(
-            "smoke skip (cast-time-x: …)"
+        expect(ownedCode(PURE, "runtime-amount: …")).toBe(
+            "smoke skip (runtime-amount: …)"
         );
     });
 
     it("records card-dependent smoke skips only, never op-covered ones", () => {
-        const xSpell = card({
-            id: "t-x",
+        const refSpell = card({
+            id: "t-ref",
             effects: [
-                { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+                {
+                    op: "dealDamage",
+                    amount: { ref: "$amount" },
+                    to: { target: 0 },
+                },
             ],
         });
         const randomDiscard = card({
@@ -102,9 +106,9 @@ describe("card code ownership (issue #4489)", () => {
             ],
             targetRequirement: { type: "player", count: 1 },
         });
-        const { skipped, run } = smokeCoverage([PURE, xSpell, randomDiscard]);
-        expect([...skipped.keys()]).toEqual(["t-x"]);
-        expect(skipped.get("t-x")).toMatch(/^cast-time-x: /);
+        const { skipped, run } = smokeCoverage([PURE, refSpell, randomDiscard]);
+        expect([...skipped.keys()]).toEqual(["t-ref"]);
+        expect(skipped.get("t-ref")).toMatch(/^runtime-amount: /);
         expect([...run]).toEqual(["t-bolt"]);
     });
 

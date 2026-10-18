@@ -73,8 +73,18 @@ function runSpellSite(
         }),
         castById: CASTER_ID,
         targets: plan.scenario.targets,
+        ...chosenXOf(plan),
     });
     resolveTopOfStack(state);
+}
+
+/** The announced {X} the plan's assertions were derived from, snapshotted onto
+ *  the stack item where `getX()` reads it (CR 107.3a, issue #4022). */
+function chosenXOf(plan: Extract<Plan, { kind: "run" }>): {
+    chosenX?: number;
+} {
+    const x = plan.scenario.chosenX;
+    return x === undefined ? {} : { chosenX: x };
 }
 
 /** Runs one ability-site script through resolution: registers a synthetic
@@ -129,6 +139,7 @@ function runAbilitySite(
         castById: CASTER_ID,
         abilityId,
         targets: plan.scenario.targets,
+        ...chosenXOf(plan),
     });
     resolveTopOfStack(state);
 }

@@ -9,6 +9,7 @@ import type { CardDefinition, EffectOp } from "../types";
 import {
     abilityHost,
     activatedAbilitySourceOnBattlefield,
+    GRANTED_ABILITY_HOST,
     SPELL_HOST,
     triggeredAbilitySourceOnBattlefield,
     type SmokeHost,
@@ -59,9 +60,11 @@ export function collectDslSites(cards: readonly CardDefinition[]): DslSite[] {
         }[] = [
             ...(card.activatedAbilities ?? []).map((ability) => ({
                 ability,
+                // CR 107.3a — an activated ability announces its X.
                 host: abilityHost(
                     card,
-                    activatedAbilitySourceOnBattlefield(ability)
+                    activatedAbilitySourceOnBattlefield(ability),
+                    true
                 ),
             })),
             ...(card.triggeredAbilities ?? []).map((ability) => ({
@@ -78,11 +81,11 @@ export function collectDslSites(cards: readonly CardDefinition[]): DslSite[] {
             // than by assuming the grantee is a creature (issue #3879).
             ...(card.grantTemplates ?? []).map((ability) => ({
                 ability,
-                host: SPELL_HOST,
+                host: GRANTED_ABILITY_HOST,
             })),
             ...(card.triggeredGrantTemplates ?? []).map((ability) => ({
                 ability,
-                host: SPELL_HOST,
+                host: GRANTED_ABILITY_HOST,
             })),
         ];
         for (const { ability, host } of own) {

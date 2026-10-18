@@ -166,8 +166,11 @@ function collectScripts(
     };
     /** CR 113.7 — the source of any of this definition's abilities is the
      *  permanent this definition makes, so its kind is the definition's own. */
-    const sourceOf = (onBattlefieldAtResolution: boolean): SmokeHost =>
-        abilityHost(definition, onBattlefieldAtResolution);
+    const sourceOf = (
+        onBattlefieldAtResolution: boolean,
+        xAnnounced = false
+    ): SmokeHost =>
+        abilityHost(definition, onBattlefieldAtResolution, xAnnounced);
     push(definition.effects, definition, SPELL_HOST);
     // CR 700.2 — a modal spell's body lives on its MODES; the card-level
     // `effects` is undefined by construction (see `lower.ts`), so a walk that
@@ -188,7 +191,9 @@ function collectScripts(
         push(
             ability.effects,
             ability,
-            sourceOf(activatedAbilitySourceOnBattlefield(ability))
+            // CR 107.3a — an activated ability announces its X as it is
+            // activated; a triggered one (below) has no cost to announce it in.
+            sourceOf(activatedAbilitySourceOnBattlefield(ability), true)
         );
     }
     for (const ability of definition.triggeredAbilities ?? []) {

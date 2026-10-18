@@ -11246,6 +11246,16 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Combat Tutorial",
+        "scryfallId": "ec195607-ac30-4931-acfd-f9d8ac8b047f",
+        "oracleId": "2a483d95-ff99-40b4-9071-6e78585090d5",
+        "firstSet": "fin",
+        "firstPrintId": "ec195607-ac30-4931-acfd-f9d8ac8b047f",
+        "firstPrintSet": "fin",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Command Decision",
         "scryfallId": "9f1f789b-5c08-4a4d-b3a3-4d51ad9f1a4d",
         "oracleId": "1c4afb0d-6d6e-4d21-9fe0-5621cd2fd27c",
@@ -14081,6 +14091,16 @@
         "firstPrintId": "bd0a2fe3-45ab-4bac-aca7-a6418e28d0be",
         "firstPrintSet": "roe",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Death Grasp",
+        "scryfallId": "0e893dd4-8c37-496e-bc39-cd83d42b4cc4",
+        "oracleId": "a2335149-d2db-48c1-9699-0df8ce12d4dd",
+        "firstSet": "apc",
+        "firstPrintId": "0e893dd4-8c37-496e-bc39-cd83d42b4cc4",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -31216,6 +31236,16 @@
         "source": "compiled"
     },
     {
+        "name": "Invoke the Firemind",
+        "scryfallId": "58d8e41a-5990-4ceb-9d41-76632faa7883",
+        "oracleId": "2037659f-2efe-4321-afaf-961bbec35e9e",
+        "firstSet": "gpt",
+        "firstPrintId": "58d8e41a-5990-4ceb-9d41-76632faa7883",
+        "firstPrintSet": "gpt",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Iona's Judgment",
         "scryfallId": "6c2c308c-e681-4eba-8b62-bcc95f1e8548",
         "oracleId": "abbfbe50-4caf-48d0-b8f1-f2c9212bcd2f",
@@ -38686,6 +38716,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mind Spring",
+        "scryfallId": "7b7cd9b6-1ea8-423d-8aa0-8699fffbcf50",
+        "oracleId": "3428287b-cfd5-45bc-b5f9-1e3f5a425a68",
+        "firstSet": "mor",
+        "firstPrintId": "7b7cd9b6-1ea8-423d-8aa0-8699fffbcf50",
+        "firstPrintSet": "mor",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mind Stone",
         "scryfallId": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
         "oracleId": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",
@@ -39432,6 +39472,16 @@
         "firstSet": "leg",
         "firstPrintId": "649a33aa-7eac-4161-ae1a-fcbc758abccf",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Molder",
+        "scryfallId": "8c0eb32c-89b1-40be-a77c-62c114a73ccc",
+        "oracleId": "86b98c3e-f568-4bfc-977f-d1be270936e5",
+        "firstSet": "tsp",
+        "firstPrintId": "8c0eb32c-89b1-40be-a77c-62c114a73ccc",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Moldering Karok",
@@ -42989,6 +43039,16 @@
         "firstPrintId": "21326575-80b9-4a4e-a93c-6880ec6575d5",
         "firstPrintSet": "ktk",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Oracle of Nectars",
+        "scryfallId": "9f6bb004-b8ef-45a0-b9bf-5a3d513689b9",
+        "oracleId": "f7ea8725-db0e-4ce5-ac77-7dfc2a4e9286",
+        "firstSet": "shm",
+        "firstPrintId": "9f6bb004-b8ef-45a0-b9bf-5a3d513689b9",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -46745,6 +46805,16 @@
         "firstPrintId": "d73612fe-8992-4650-a7e3-c7b662da6a03",
         "firstPrintSet": "sos",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Pull from Tomorrow",
+        "scryfallId": "f1eccf27-c934-45fb-87ae-67006cd4e0ed",
+        "oracleId": "b1a23235-3076-475c-a68a-db29cf2a9dba",
+        "firstSet": "akh",
+        "firstPrintId": "f1eccf27-c934-45fb-87ae-67006cd4e0ed",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -61368,6 +61438,16 @@
         "source": "compiled"
     },
     {
+        "name": "Swallowing Plague",
+        "scryfallId": "ac549d51-3862-4eb0-9951-f13a8ba28822",
+        "oracleId": "91cac048-90ca-41bc-9177-56c78453c4a2",
+        "firstSet": "chk",
+        "firstPrintId": "ac549d51-3862-4eb0-9951-f13a8ba28822",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Swamp",
         "scryfallId": "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
         "oracleId": "56719f6a-1a6c-4c0a-8d21-18f7d7350b68",
@@ -65136,6 +65216,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Transcendent Message",
+        "scryfallId": "3261c7e6-45be-44d1-8855-026359ba0ae7",
+        "oracleId": "1f7f7765-aeb9-4e47-a6b9-ce823bb29e33",
+        "firstSet": "mom",
+        "firstPrintId": "3261c7e6-45be-44d1-8855-026359ba0ae7",
+        "firstPrintSet": "mom",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Transguild Promenade",
         "scryfallId": "90ce8115-41fe-44c2-8719-741ba87bcb17",
         "oracleId": "98334bfa-c516-4c20-bdc5-9e32e7127adc",
@@ -66663,6 +66753,16 @@
         "firstPrintId": "2f1b66b2-12b2-497b-a328-b43630c79e73",
         "firstPrintSet": "aer",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Universal Surveillance",
+        "scryfallId": "4b2f5584-df67-439b-b0f0-9c0fdf62f18f",
+        "oracleId": "c5a5c17d-d1e4-4d23-9d2b-1c2febdcb0e7",
+        "firstSet": "nec",
+        "firstPrintId": "4b2f5584-df67-439b-b0f0-9c0fdf62f18f",
+        "firstPrintSet": "nec",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
