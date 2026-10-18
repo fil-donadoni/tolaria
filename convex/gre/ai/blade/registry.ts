@@ -13976,6 +13976,96 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: 'Issue #5662, the discriminating half of "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3". Proof-of-failure: a kill-set search that prefers the cheapest kill (or the seed\'s first live blocker) puts the 3 on the Raiders and the entry reds.',
     },
+    {
+        label: "regeneration shield: holds Regenerate against an Aura that destroys nothing",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a destroy spell on the stack aimed at the regenerator",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Charging Troll",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Sleeping Potion", owner: "me", zone: "hand" },
+                { name: "Vindicate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 8,
+            libraryCount: 20,
+        },
+        // The spell reaches the stack through the REAL cast pipeline (ADR 0070
+        // §4); the caster's window auto-passes, putting the regenerator's
+        // controller on the clock — so the bot plays `opp`.
+        setup: [
+            {
+                kind: "cast",
+                card: "Sleeping Potion",
+                by: "me",
+                target: "Charging Troll",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Charging Troll" }],
+        },
+        note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileShieldMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on SEEDS_PLACEHOLDER_A.",
+    },
+    {
+        label: "regeneration shield: regenerates against a destroy spell on the stack",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "an Aura on the stack that destroys nothing",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Charging Troll",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Sleeping Potion", owner: "me", zone: "hand" },
+                { name: "Vindicate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 8,
+            libraryCount: 20,
+        },
+        // The spell reaches the stack through the REAL cast pipeline (ADR 0070
+        // §4); the caster's window auto-passes, putting the regenerator's
+        // controller on the clock — so the bot plays `opp`.
+        setup: [
+            {
+                kind: "cast",
+                card: "Vindicate",
+                by: "me",
+                target: "Charging Troll",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Charging Troll" }],
+        },
+        note: "Issue #5493, position B — the discriminating twin of the entry above: the same board with Vindicate (destroy target permanent, regenerable) aimed at the Troll. The shield is the only answer that keeps the creature (CR 701.19a), so the prune must leave it standing and the search must take it.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
