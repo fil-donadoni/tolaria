@@ -205,3 +205,44 @@ describe("CardPreviewBody renders the back face of a double-faced card (CR 712)"
         }
     });
 });
+
+// CR 709 (issue #5490) — each split half reaches the DOM of the composition
+// every preview host renders, built through the REAL `buildPreviewBody`.
+describe("CardPreviewBody renders a split card's halves as separate sections (CR 709)", () => {
+    const STAND_DELIVER = getCardByName("Stand // Deliver");
+    const section = (root: ParentNode, label: string) =>
+        root.querySelector(`[data-card-preview-half="${label}"]`);
+
+    it("prints each half's name, cost, type line and text in its own section", () => {
+        const { container } = render(
+            <CardPreviewBody
+                {...buildPreviewBody(STAND_DELIVER.id)}
+                size="sm"
+            />
+        );
+        const left = section(container, "Left half");
+        const right = section(container, "Right half");
+        expect(left).toBeTruthy();
+        expect(right).toBeTruthy();
+        const leftText = left!.textContent ?? "";
+        expect(leftText).toContain("Stand");
+        expect(leftText).toContain("Instant");
+        expect(leftText).toContain("Prevent the next 2 damage");
+        expect(leftText).not.toContain("Return target permanent");
+        const rightText = right!.textContent ?? "";
+        expect(rightText).toContain("Deliver");
+        expect(rightText).toContain("Return target permanent");
+        expect(rightText).not.toContain("Prevent the next 2 damage");
+        // Mana costs render as symbol images, so each half's cost is asserted
+        // through its own section's alts.
+        const alts = (el: Element) =>
+            Array.from(el.querySelectorAll("img")).map((img) =>
+                img.getAttribute("alt")
+            );
+        expect(alts(left!)).toEqual(["{W}"]);
+        expect(alts(right!)).toEqual(["{2}", "{U}"]);
+        // Each half's text is printed once — never also as a merged list.
+        const all = container.textContent ?? "";
+        expect(all.split("Return target permanent").length - 1).toBe(1);
+    });
+});
