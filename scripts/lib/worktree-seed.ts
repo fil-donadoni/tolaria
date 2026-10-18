@@ -17,7 +17,10 @@
  *   - `.tsbuildinfo` records a hash per source file and stores every path
  *     RELATIVE to itself, so the primary's file drops into the same relative
  *     location in any worktree and tsc re-checks exactly the files whose hash
- *     moved. A file from a different commit is not wrong, only less warm.
+ *     moved. A file from a different commit is not wrong, only less warm —
+ *     PROVIDED tsc gets as far as the hashes: `tsc -b` first skips a project
+ *     whose buildinfo is newer than its inputs, so the seed is stamped with
+ *     the epoch (issue #5971).
  *   - eslint's cache (`file-entry-cache`) validates each entry by content hash
  *     under `--cache-strategy content` and by a hash of the resolved config —
  *     but it keys every entry by ABSOLUTE path, so a byte copy would never
@@ -48,6 +51,7 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    utimesSync,
     writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -132,6 +136,13 @@ function seedTsBuildInfo(opts: SeedOptions, report: SeedReport): void {
         }
         mkdirSync(dstDir, { recursive: true });
         copyFileSync(join(srcDir, file), dst);
+        // The copy is stamped NOW, newer than every file `git worktree add`
+        // just wrote, and `tsc -b` trusts timestamps before hashes: "up to
+        // date because newest input is older than output" skipped every
+        // project, so `check:ts` passed a type error at a RED tip (issue
+        // #5971). Epoch mtime = always out of date by timestamp, so tsc
+        // falls through to the per-file hashes this seed exists to reuse.
+        utimesSync(dst, 0, 0);
         copied.push(file);
     }
     if (copied.length > 0) {
