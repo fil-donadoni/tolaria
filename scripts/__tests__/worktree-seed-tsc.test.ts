@@ -68,7 +68,12 @@ describe("seeded tsbuildinfo never makes tsc -b vacuous (issue #5971)", () => {
     });
 
     afterAll(() => {
-        fs.rmSync(tmp, { recursive: true, force: true });
+        fs.rmSync(tmp, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("type-checks the seeded worktree and reports its error", () => {
