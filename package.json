@@ -158,6 +158,7 @@
         "@dnd-kit/helpers": "0.4.0",
         "@dnd-kit/react": "^0.4.0",
         "@fontsource-variable/geist": "^5.2.8",
+        "@mergifyio/vitest": "^2026.10.5",
         "@sentry/react": "^10.59.0",
         "@tailwindcss/vite": "^4.2.1",
         "@tanstack/react-router": "^1.169.2",
