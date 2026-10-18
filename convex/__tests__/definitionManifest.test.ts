@@ -20,7 +20,7 @@ import { FACE_DOWN_CARD_ID } from "../cards/registry";
 import { twinDefinitionId } from "../cards/twinId";
 import { chooseFirstPlayer, debugSetupScenario, setReady } from "../game";
 import { submitSideboard } from "../gameTable";
-import { getDefinitionManifest } from "../gameReads";
+import { getDefinitionManifest, getSeatDeckKnowledge } from "../gameReads";
 import { debugLoadBladeScenario } from "../debugBlade";
 import { manifestEntries, stateDefinitionIds } from "../definitionManifest";
 import type { DefinitionManifestEntry } from "../definitionManifestEntry";
@@ -427,6 +427,96 @@ describe("Definition Manifest — a debug load widens it (issue #5614)", () => {
             expect(ids, seat).toEqual(expect.arrayContaining([DREADNOUGHT]));
             expect(ids, seat).toEqual(expect.arrayContaining([STIFLE]));
         }
+    });
+});
+
+/** `getSeatDeckKnowledge` as `userId` asks for `playerId`'s. */
+async function deckKnowledge(
+    stub: MutationStub,
+    userId: string,
+    gameId: string,
+    playerId: string
+) {
+    return runMutation<
+        { gameId: Id<"games">; playerId: string },
+        {
+            playerId: string;
+            cardIds: string[];
+            entries: DefinitionManifestEntry[];
+        } | null
+    >(getSeatDeckKnowledge, stub.asUser(userId), {
+        gameId: gameId as Id<"games">,
+        playerId,
+    });
+}
+
+/** Alice's maindeck as the game build resolves it: her Bolt reprint read off
+ *  its `cardPrints` row. */
+const ALICE_MAIN_DEFINITIONS = ALICE_MAIN.map((c) =>
+    c.cardId === BOLT_PRINT ? BOLT : c.cardId
+);
+
+describe("Seat deck knowledge — the Bot's decklists as definition ids (issue #5617)", () => {
+    it("gives a seat its own maindeck as definition ids, one per copy in decklist order — a Print-id entry resolved", async () => {
+        const stub = soloMatch();
+        await buildFirstGame(stub, "u3");
+
+        const read = await deckKnowledge(stub, "u3", "game-1", "u3-p1");
+        expect(read?.playerId).toBe("u3-p1");
+        expect(read?.cardIds).toEqual(ALICE_MAIN_DEFINITIONS);
+        expect(read?.cardIds).not.toContain(BOLT_PRINT);
+        expect(
+            (await deckKnowledge(stub, "u3", "game-1", "u3-p2"))?.cardIds
+        ).toEqual(BOB_MAIN.map((c) => c.cardId));
+    });
+
+    it("names the Manifest entries of those definitions only — the worker's Manifest, neither the other maindeck nor a sideboard", async () => {
+        const stub = soloMatch();
+        await buildFirstGame(stub, "u3");
+
+        const read = await deckKnowledge(stub, "u3", "game-1", "u3-p1");
+        expect(read!.entries.map((e) => e.definitionId).sort()).toEqual(
+            sorted(ALICE_MAIN_DEFINITIONS)
+        );
+        for (const e of read!.entries) {
+            expect(e.setCode, e.definitionId).toBe(
+                getDefinitionSetCode(e.definitionId)
+            );
+        }
+    });
+
+    it("is gated on seat ownership, like the decklist it is", async () => {
+        const stub = constructedMatch();
+        await buildFirstGame(stub, "u1");
+
+        expect(await deckKnowledge(stub, "u1", "game-1", "u2")).toBeNull();
+        expect(
+            (await deckKnowledge(stub, "u2", "game-1", "u2"))?.cardIds
+        ).toEqual(BOB_MAIN.map((c) => c.cardId));
+    });
+
+    it("keeps the deck through a debug widen — a widen changes what a client may need, never what the seat drew from", async () => {
+        const stub = soloMatch();
+        await buildFirstGame(stub, "u3");
+
+        await runMutation(debugSetupScenario, stub.asUser("u3"), {
+            gameId: "game-1" as Id<"games">,
+            cards: [{ name: "Shivan Dragon", owner: "opp" }],
+        });
+
+        expect(
+            (await deckKnowledge(stub, "u3", "game-1", "u3-p1"))?.cardIds
+        ).toEqual(ALICE_MAIN_DEFINITIONS);
+    });
+
+    it("reads null for a row written before the deck was stored on it, and before the Game is built", async () => {
+        const stub = soloMatch();
+        expect(await deckKnowledge(stub, "u3", "game-1", "u3-p1")).toBeNull();
+        await buildFirstGame(stub, "u3");
+        for (const w of stub.writes)
+            if (w.table === "gameDefinitionManifests")
+                delete (stub.doc(w.id) as { deck?: string[] }).deck;
+        expect(await deckKnowledge(stub, "u3", "game-1", "u3-p1")).toBeNull();
     });
 });
 

@@ -17,6 +17,7 @@ import {
     reachableChunks,
     setChunkViolations,
     compiledAssetViolations,
+    brainWorkerViolations,
 } from "../lib/asset-graph";
 
 /**
@@ -373,6 +374,79 @@ describe("compiledAssetViolations — shards, never the whole corpus (issue #561
         const dist = fakeDist(ENTRY, {});
         expect(compiledAssetViolations(dist)).toEqual([
             expect.objectContaining({ asset: "compiled-shard-*.json" }),
+        ]);
+    });
+});
+
+describe("brainWorkerViolations — the worker downloads nothing the game route did not (issue #5617)", () => {
+    // The shape `vite build` emits since issue #5617: the worker is an entry
+    // chunk of the page's build, its static closure chunks the game route
+    // already loaded, its Set installs the same `import()` as the page's.
+    const SHARED = {
+        "index-AAAA1111.js": `import{x}from"./util-CCCC3333.js";import("./game.route-DDDD4444.js");`,
+        "util-CCCC3333.js": `export const x=1;`,
+        "game.route-DDDD4444.js": `import"./engine-FFFF6666.js";import"./catalogue-JJJJ0000.js";new URL(\`./brain.worker-WWWW0000.js\`,import.meta.url);`,
+        "engine-FFFF6666.js": `throw Error("${ENGINE_SENTINEL}")`,
+        "catalogue-JJJJ0000.js": `const m={"lea":()=>e(()=>import(\`./card-set-lea-GGGG7777.js\`))};`,
+        "card-set-lea-GGGG7777.js": `export const c=1;`,
+        "brain.worker-WWWW0000.js": `import{h}from"./engine-FFFF6666.js";import"./catalogue-JJJJ0000.js";self.onmessage=h;`,
+    };
+
+    it("passes a worker whose closure is the game route's", () => {
+        expect(brainWorkerViolations(fakeDist(ENTRY, SHARED))).toEqual([]);
+    });
+
+    // Proof of failure — each regression, one at a time.
+    it("reds a worker that is a build of its own again — the engine inside the worker chunk", () => {
+        const dist = fakeDist(ENTRY, {
+            ...SHARED,
+            "brain.worker-WWWW0000.js": `(function(){throw Error("${ENGINE_SENTINEL}")})();`,
+        });
+        expect(brainWorkerViolations(dist)).toEqual([
+            expect.objectContaining({
+                chunk: "brain.worker-WWWW0000.js",
+                reason: expect.stringContaining("a build of its own"),
+            }),
+        ]);
+    });
+
+    it("reds a chunk the worker loads and the game route does not", () => {
+        const dist = fakeDist(ENTRY, {
+            ...SHARED,
+            "brain.worker-WWWW0000.js": `import"./engine-FFFF6666.js";import"./worker-only-XXXX1111.js";`,
+            "worker-only-XXXX1111.js": `export const w=1;`,
+        });
+        expect(brainWorkerViolations(dist)).toEqual([
+            expect.objectContaining({
+                chunk: "worker-only-XXXX1111.js",
+                reason: expect.stringContaining("a second download"),
+            }),
+        ]);
+    });
+
+    it("reds a dynamic import in the worker's closure that preloads through `document`", () => {
+        const dist = fakeDist(ENTRY, {
+            ...SHARED,
+            "catalogue-JJJJ0000.js": `const m={"lea":()=>e(()=>import(\`./card-set-lea-GGGG7777.js\`),__vite__mapDeps([0,1]))};`,
+        });
+        expect(brainWorkerViolations(dist)).toEqual([
+            expect.objectContaining({
+                chunk: "catalogue-JJJJ0000.js",
+                reason: expect.stringContaining("preloads through `document`"),
+            }),
+        ]);
+    });
+
+    it("reds a build with no worker chunk, or no game route — the check cannot go vacuous", () => {
+        const noWorker: Record<string, string> = { ...SHARED };
+        delete noWorker["brain.worker-WWWW0000.js"];
+        expect(brainWorkerViolations(fakeDist(ENTRY, noWorker))).toEqual([
+            expect.objectContaining({ chunk: "brain.worker-*.js" }),
+        ]);
+        const noRoute: Record<string, string> = { ...SHARED };
+        delete noRoute["game.route-DDDD4444.js"];
+        expect(brainWorkerViolations(fakeDist(ENTRY, noRoute))).toEqual([
+            expect.objectContaining({ chunk: "game.route-*.js" }),
         ]);
     });
 });

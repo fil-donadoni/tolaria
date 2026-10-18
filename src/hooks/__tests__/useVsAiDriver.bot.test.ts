@@ -70,6 +70,21 @@ type SeatDeckAnswer =
     | null
     | undefined;
 let seatDecks: Record<string, SeatDeckAnswer> = {};
+// What `getSeatDeckKnowledge` answers (issue #5617): the seat's maindeck as
+// DEFINITION ids plus the Manifest entries the Brain worker installs. `null`
+// = a Game built before the deck was stored on its manifest rows — the driver
+// then falls back to `getSeatDeck`, whose answers above stay in play.
+type SeatKnowledgeAnswer =
+    | {
+          playerId: string;
+          cardIds: string[];
+          entries: { definitionId: string; setCode: string }[];
+      }
+    | null
+    | undefined;
+let seatKnowledge: Record<string, SeatKnowledgeAnswer> = {};
+/** Every Manifest the driver handed `primeBrain`, in call order. */
+const primedManifests: { definitionId: string; setCode: string }[][] = [];
 // Every `projectedToGameState` call the search path makes, with the
 // `deckKnowledge` it was handed and the bot library it produced — the seam
 // where a real decklist either becomes real card identities or is thrown away
@@ -160,6 +175,7 @@ vi.mock("@convex/_generated/api", () => ({
             getGameTick: "getGameTick",
             getGame: "getGame",
             getSeatDeck: "getSeatDeck",
+            getSeatDeckKnowledge: "getSeatDeckKnowledge",
         },
     },
 }));
@@ -184,6 +200,9 @@ vi.mock("convex/react", async () => {
         // degrades the bot in silence (#2506 review, finding 2).
         if (ref === "getSeatDeck") {
             return seatDecks[(args as { playerId: string }).playerId];
+        }
+        if (ref === "getSeatDeckKnowledge") {
+            return seatKnowledge[(args as { playerId: string }).playerId];
         }
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
@@ -252,6 +271,20 @@ vi.mock("~/lib/ai/realise", async (importOriginal) => {
         realiseBotAction: (
             ...args: Parameters<typeof actual.realiseBotAction>
         ) => (forceUnrealisable ? null : actual.realiseBotAction(...args)),
+    };
+});
+
+// The Brain client is the real one — `primeBrain` only WRAPPED, so the
+// Manifest the driver hands the worker is observable (issue #5617).
+vi.mock("~/lib/ai/brain-client", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("~/lib/ai/brain-client")>();
+    return {
+        ...actual,
+        primeBrain: (...args: Parameters<typeof actual.primeBrain>) => {
+            primedManifests.push([...args[0]]);
+            actual.primeBrain(...args);
+        },
     };
 });
 
@@ -371,6 +404,8 @@ describe("useVsAiDriver (issue #110)", () => {
         forceNullTick = false;
         tickError = null;
         seatDecks = {};
+        seatKnowledge = {};
+        primedManifests.length = 0;
         // issue #2790 — a test that opts into `expert` via `storeDifficulty`
         // must not leak it to the next one, which assumes the default.
         localStorage.removeItem("tolaria:aiDifficulty");
@@ -391,7 +426,8 @@ describe("useVsAiDriver (issue #110)", () => {
     // ── The bot's OWN decklist reaches the search (issues #1509 / #2506 /
     //    #2788) ────────────────────────────────────────────────────────────
     //
-    // The driver reads it from `getSeatDeck` and hands it to the adapter as a
+    // The driver reads it from `getSeatDeckKnowledge` (definition ids since
+    // issue #5617; `getSeatDeck` for a Game built before) and hands it to the adapter as a
     // single-entry `deckKnowledge` array naming only the bot's own seat; the
     // adapter rebuilds the bot's library with those identities so
     // fetch/tutor/draw subtrees search real cards. Every OTHER test in this
@@ -423,15 +459,21 @@ describe("useVsAiDriver (issue #110)", () => {
         });
     }
 
-    it("feeds the bot's own getSeatDeck cards into the search adapter", async () => {
-        seatDecks[BOT] = {
-            playerId: BOT,
-            cards: [
-                { cardId: MOUNTAIN, cardName: "Mountain" },
-                { cardId: MOUNTAIN, cardName: "Mountain" },
-                { cardId: BEARS, cardName: "Grizzly Bears" },
-            ],
+    /** A seat's `getSeatDeckKnowledge` answer: definition ids, and one
+     *  Manifest entry per distinct id. */
+    function knows(playerId: string, cardIds: string[]): SeatKnowledgeAnswer {
+        return {
+            playerId,
+            cardIds,
+            entries: [...new Set(cardIds)].map((definitionId) => ({
+                definitionId,
+                setCode: `set-of-${definitionId}`,
+            })),
         };
+    }
+
+    it("feeds the bot's own decklist, as definition ids, into the search adapter", async () => {
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN, MOUNTAIN, BEARS]);
         // Library count 2, deck 3: one Mountain is in hand, so the rebuilt
         // library is the deck MINUS what the bot can already see it holds.
         currentState = botStateWithLibrary(2);
@@ -454,11 +496,50 @@ describe("useVsAiDriver (issue #110)", () => {
         expect([...searched[0].libraries[BOT]].sort()).toEqual(
             [MOUNTAIN, BEARS].sort()
         );
+        // A Game whose manifest rows hold the deck never reads the stored
+        // entries (print ids the client cannot resolve, issue #5617).
+        expect(queryMounts.some((m) => m.ref === "getSeatDeck")).toBe(false);
     });
 
-    it("falls back to a placeholder library when getSeatDeck answers null", async () => {
+    it("primes the Brain worker with its own decklist's Manifest entries (issue #5617)", async () => {
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN, BEARS]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [WURM]);
+        currentState = botStateWithLibrary(1);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const primed = new Set(
+            primedManifests.flat().map((e) => e.definitionId)
+        );
+        expect(primed).toEqual(new Set([MOUNTAIN, BEARS]));
+        // The default preset is blind: the human's deck is never the worker's.
+        expect(primed.has(WURM)).toBe(false);
+    });
+
+    it("falls back to the stored deck entries for a Game built before the deck was on its manifest rows", async () => {
+        seatKnowledge[BOT] = null;
+        seatDecks[BOT] = {
+            playerId: BOT,
+            cards: [
+                { cardId: MOUNTAIN, cardName: "Mountain" },
+                { cardId: BEARS, cardName: "Grizzly Bears" },
+            ],
+        };
+        currentState = botStateWithLibrary(1);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN, BEARS] },
+        ]);
+    });
+
+    it("falls back to a placeholder library when the seat has no decklist at all", async () => {
         // The silent-degradation case the widened stub used to hide: an
         // unowned seat / missing row is not an error anywhere on this path.
+        seatKnowledge[BOT] = null;
         seatDecks[BOT] = null;
         currentState = botStateWithLibrary(2);
         renderHook(() => useVsAiDriver(GAME, BOT));
@@ -480,21 +561,12 @@ describe("useVsAiDriver (issue #110)", () => {
     // criterion by populating a SECOND entry — the opponent's — so the
     // search stops imagining a human who has surrendered. The other three
     // levels must keep reproducing today's behaviour exactly: the human seat
-    // stays absent from `deckKnowledge` regardless of whether `getSeatDeck`
-    // would answer for it.
-    it("expert also feeds the human seat's getSeatDeck cards into the search adapter", async () => {
+    // stays absent from `deckKnowledge` regardless of whether the read would
+    // answer for it.
+    it("expert also feeds the human seat's decklist into the search adapter, and primes the worker with it", async () => {
         storeDifficulty("expert");
-        seatDecks[BOT] = {
-            playerId: BOT,
-            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
-        };
-        seatDecks[HUMAN] = {
-            playerId: HUMAN,
-            cards: [
-                { cardId: BEARS, cardName: "Grizzly Bears" },
-                { cardId: WURM, cardName: "Craw Wurm" },
-            ],
-        };
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS, WURM]);
         currentState = botStateWithLibrary(2);
         renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();
@@ -505,21 +577,18 @@ describe("useVsAiDriver (issue #110)", () => {
             { playerId: BOT, cardIds: [MOUNTAIN] },
             { playerId: HUMAN, cardIds: [BEARS, WURM] },
         ]);
+        expect(
+            new Set(primedManifests.flat().map((e) => e.definitionId))
+        ).toEqual(new Set([MOUNTAIN, BEARS, WURM]));
     });
 
-    it("the default preset does NOT feed the human seat's decklist even though getSeatDeck would answer it", async () => {
+    it("the default preset does NOT feed the human seat's decklist even though the read would answer it", async () => {
         // No `storeDifficulty` call — the default preset (`medium`) applies,
-        // proving the gate is the DIFFICULTY, not merely `getSeatDeck`
-        // answering null for an unowned seat (the other test above already
-        // covers that path).
-        seatDecks[BOT] = {
-            playerId: BOT,
-            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
-        };
-        seatDecks[HUMAN] = {
-            playerId: HUMAN,
-            cards: [{ cardId: BEARS, cardName: "Grizzly Bears" }],
-        };
+        // proving the gate is the DIFFICULTY, not merely the read answering
+        // null for an unowned seat (the other test above already covers that
+        // path).
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
         currentState = botStateWithLibrary(2);
         renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();
@@ -541,14 +610,8 @@ describe("useVsAiDriver (issue #110)", () => {
         // driver mounts on the default preset, searches blind, then the stored
         // value flips to `expert` with the component instance untouched, and
         // the NEXT search must carry the human seat.
-        seatDecks[BOT] = {
-            playerId: BOT,
-            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
-        };
-        seatDecks[HUMAN] = {
-            playerId: HUMAN,
-            cards: [{ cardId: BEARS, cardName: "Grizzly Bears" }],
-        };
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
         currentState = botStateWithLibrary(2);
         const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
         await settleDriver();

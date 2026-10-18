@@ -48,7 +48,9 @@ import { gzipSync } from "node:zlib";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import {
+    BRAIN_WORKER_CHUNK_PREFIX,
     SET_CHUNK_PREFIX,
+    brainWorkerViolations,
     chunksInStaticCycle,
     entryAssets,
     lightSurfaceViolations,
@@ -112,11 +114,16 @@ const BUDGETS: Budget[] = [
     // per-game Manifest; the `card-set-` row above did not move, so the pool
     // is not back.
     //
-    // Headroom stays ~2% rather than the ~10% the card-set row carries:
-    // pool RE-ENTRY reds this row from any of these numbers, and a tight
-    // margin is what makes the next re-anchor a decision somebody takes on
-    // purpose rather than a ceiling that quietly absorbs a regression.
-    { prefix: "brain.worker-", gzipBudgetBytes: 738_000 },
+    // #5617: RE-ANCHORED to 874 B (from 730,998 B on the same tree). The
+    // worker is no longer a build of its own: it is an entry chunk of the
+    // page's build (`scripts/lib/vite-brain-worker-chunk.ts`), so this row
+    // measures the worker's OWN code — the shell — and the engine, the
+    // catalogue glue and the Set chunks it runs are chunks the game route
+    // already loaded (`brainWorkerViolations` below reds any that is not).
+    // The ceiling guards the shell growing back into a bundle: a separate
+    // worker build is hundreds of KB, and reds this row and the violation
+    // check at once.
+    { prefix: BRAIN_WORKER_CHUNK_PREFIX, gzipBudgetBytes: 2_000 },
 ];
 
 /** The chunks a budget row measures: every file carrying the prefix for a
@@ -200,6 +207,10 @@ function main(): void {
     // Issue #5616: the compiled half — shards, never the whole corpus.
     for (const v of compiledAssetViolations(distDir)) {
         failures.push(`compiled assets: ${v.asset} — ${v.reason}`);
+    }
+    // Issue #5617: the Brain worker downloads nothing the game route did not.
+    for (const v of brainWorkerViolations(distDir)) {
+        failures.push(`brain worker: ${v.chunk} — ${v.reason}`);
     }
 
     if (failures.length > 0) {

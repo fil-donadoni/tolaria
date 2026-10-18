@@ -77,18 +77,27 @@ export function brainWorkerChunk(): Plugin {
                 name: BRAIN_WORKER_CHUNK_NAME,
             });
         },
-        resolveId(id) {
-            return id === BRAIN_WORKER_MODULE ? RESOLVED : null;
+        // Hook FILTERS, so only the virtual id and the one chunk holding the
+        // placeholder reach this plugin's JS — not every module and chunk.
+        resolveId: {
+            filter: { id: new RegExp(`^${BRAIN_WORKER_MODULE}$`) },
+            handler: (id) => (id === BRAIN_WORKER_MODULE ? RESOLVED : null),
         },
-        load(id) {
-            return id === RESOLVED ? brainWorkerModuleSource(build) : null;
+        load: {
+            filter: { id: new RegExp(`^\\0${BRAIN_WORKER_MODULE}$`) },
+            handler: (id) =>
+                id === RESOLVED ? brainWorkerModuleSource(build) : null,
         },
-        renderChunk(code) {
-            if (ref === undefined || !code.includes(PLACEHOLDER)) return null;
-            return code.replaceAll(
-                PLACEHOLDER,
-                path.basename(this.getFileName(ref))
-            );
+        renderChunk: {
+            filter: { code: PLACEHOLDER },
+            handler(code) {
+                if (ref === undefined || !code.includes(PLACEHOLDER))
+                    return null;
+                return code.replaceAll(
+                    PLACEHOLDER,
+                    path.basename(this.getFileName(ref))
+                );
+            },
         },
     };
 }

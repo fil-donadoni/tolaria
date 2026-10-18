@@ -300,3 +300,79 @@ export function compiledAssetViolations(
     }
     return out;
 }
+
+/** The Brain worker's entry chunk (`brain.worker-<hash>.js`,
+ *  `scripts/lib/vite-brain-worker-chunk.ts`, issue #5617). */
+export const BRAIN_WORKER_CHUNK_PREFIX = "brain.worker-";
+
+/** The route chunk a game against the Bot loads beside the entry. */
+export const GAME_ROUTE_PREFIX = "game.route-";
+
+/** What Vite's preload helper is called with when a dynamic import carries
+ *  a preload list — which it adds through `document`, absent in a Worker. */
+const PRELOAD_LIST_CALL = "__vite__mapDeps(";
+
+export interface BrainWorkerViolation {
+    chunk: string;
+    reason: string;
+}
+
+/**
+ * Every way `distDir` breaks "the Brain worker downloads nothing the game
+ * page did not" (issue #5617, PRD #5602): the worker is an entry chunk of the
+ * page's own build, so every chunk in its static closure must be one the game
+ * route already loaded (the entry, `index.html`'s preloads, the game route
+ * and their static closure) — a Set chunk or a compiled shard it installs is
+ * then one URL for both. Also a violation: a worker chunk that carries the
+ * engine itself (a build of its own again, every Set inlined); a chunk in its
+ * closure whose dynamic import preloads through `document`, which throws in a
+ * Worker; no worker chunk or no game route at all (vacuity).
+ */
+export function brainWorkerViolations(distDir: string): BrainWorkerViolation[] {
+    const assets = readdirSync(join(distDir, "assets")).filter((f) =>
+        f.endsWith(".js")
+    );
+    const out: BrainWorkerViolation[] = [];
+    const workers = assets.filter((f) =>
+        f.startsWith(BRAIN_WORKER_CHUNK_PREFIX)
+    );
+    const routes = assets.filter((f) => f.startsWith(GAME_ROUTE_PREFIX));
+    if (workers.length !== 1) {
+        out.push({
+            chunk: `${BRAIN_WORKER_CHUNK_PREFIX}*.js`,
+            reason: `${workers.length} Brain worker chunks in dist/assets, expected exactly one — the worker is no longer an entry chunk of the page's build`,
+        });
+    }
+    if (routes.length === 0) {
+        out.push({
+            chunk: `${GAME_ROUTE_PREFIX}*.js`,
+            reason: "no game route chunk in dist/assets — nothing to compare the worker's downloads against",
+        });
+    }
+    if (workers.length !== 1 || routes.length === 0) return out;
+    const worker = workers[0]!;
+    const page = reachableChunks(distDir, [...entryAssets(distDir), ...routes]);
+    for (const chunk of [...reachableChunks(distDir, [worker])].sort()) {
+        const source = readFileSync(join(distDir, "assets", chunk), "utf8");
+        if (chunk === worker) {
+            if (source.includes(ENGINE_SENTINEL)) {
+                out.push({
+                    chunk,
+                    reason: "the worker chunk carries the rules engine itself — it is a build of its own, downloaded beside the page's engine",
+                });
+            }
+        } else if (!page.has(chunk)) {
+            out.push({
+                chunk,
+                reason: "the Brain worker loads it and the game route does not — a second download",
+            });
+        }
+        if (source.includes(PRELOAD_LIST_CALL)) {
+            out.push({
+                chunk,
+                reason: "in the Brain worker's closure, a dynamic import preloads through `document`, which a Worker has not",
+            });
+        }
+    }
+    return out;
+}
