@@ -1,11 +1,12 @@
 # The merge queue (ADR 0156 §3 and §8, Amendment I; issue #5642) — SHADOW
-# phase: Mergify queues only a PR the owner labelled `queue:shadow`; the
-# land-runner skips those (`planTick`), so each PR has exactly one merger.
-# Cut-over drops the `queue:shadow` condition and retires the land-runner.
+# phase: Mergify queues only a PR labelled `queue:shadow`, which `land:ready`
+# adds whenever this queue would admit the PR (issue #5952); the land-runner
+# skips those (`planTick`), so each PR has exactly one merger. Cut-over drops
+# the `queue:shadow` condition and retires the land-runner.
 #
 # Mergify reads this file from the BASE branch: a PR cannot loosen the rules
 # it is judged by, and a PR touching `.github/` or this file never enters the
-# queue (the owner merges it by hand). The structure guard pins the shape:
+# queue (`land:ready` hands it to the land-runner). The structure guard pins the shape:
 # scripts/ci/workflow-structure.ts, rules `queue-entry`, `queue-merge`,
 # `queue-shape`, `queue-dequeue`. docs/guides/github-pipeline.md § The merge
 # queue.
@@ -34,6 +35,14 @@ queue_rules:
           - -label=land-failed
           - check-success=trusted-author
           - check-success=base-health
+          # `land`'s refusals, one `pr-check` job each (issue #5639): they pass
+          # on a PR they do not concern, so requiring them costs nothing
+          # (issue #5960).
+          - check-success=ui-receipt
+          - check-success=scenario
+          - check-success=retired-rows
+          - check-success=robustness-baseline
+          - check-success=repair-proof
           - -files~=^\.github/
           - -files=.mergify.yml
       # The queue's draft (the PR rebased onto the tip) owes only the lane;
