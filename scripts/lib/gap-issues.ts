@@ -44,22 +44,26 @@
  * names its Target, not a band letter, so a band shift (a Target completing)
  * re-parents nothing; an open issue moves only when the Target that lends its
  * band changes — up or down, the board follows the Target List — except out of
- * a `P0` umbrella, which nothing moves an issue OUT of (see the origin band
- * below for how one gets INTO it).
+ * a `P0` umbrella, which nothing moves an issue OUT of: a `P0` umbrella is the
+ * owner's, filled by hand only.
  *
- * ── The ORIGIN band (issue #4158) ──────────────────────────────────────
+ * ── No ORIGIN band (issue #5871 retired issue #4158) ──────────────────
  *
- * The computed band answers "which Target needs this gap?", not "which work
- * spawned it?". A gap born of P0 work (a Grammar Rule landing under a P0
- * umbrella) is P0 too — an umbrella closes only when its last child does, and
- * `effectivePriority` already says children inherit their parent's urgency
- * (issue #3212). A P0 umbrella is hand-set, so nothing computed can put a gap
- * there; the RUN can, because whoever launches it knows which band the work
- * belonged to: `gaps:sync --band P0` (and `land`, which derives the band from
- * the issue the landed branch names). Only `P0` acts — for every other value
- * the computed band stays the authority — and only on a gap this run CREATES
- * or one with no home (no parent, or a retired one): an existing issue is
- * never pulled up, and `planMove` never moves one back out of a P0 umbrella.
+ * A gap's band is the band of the Target its cards serve — the computed one,
+ * always. The `--band P0` override (the band of the WORK that triggered the
+ * run, issue #4158) filed every gap of a batch holding one P0 PR under the
+ * family's P0 umbrella, long-tail grammar gaps included, and `planMove` never
+ * let them out again; it is gone. `gaps:sync --band` is refused, and no
+ * caller computes it.
+ *
+ * ── Reclaim (issue #5871) ───────────────────────────────────────────────
+ *
+ * A gap that would be CREATED is first looked up by its exact title among the
+ * OPEN issues the tracker prefetched (`findOpenByTitle`): a hit is an issue
+ * this script filed whose allowlist record was lost — a write-back whose push
+ * never reached the base branch — and the row adopts it (`reclaim`) instead
+ * of filing the same gap again. Creating before recording is otherwise not
+ * idempotent, and the four waves of issue #5871 were the cost.
  *
  * A partitioned gap with NO ranked Target among its cards is residue: filed
  * under its family's LOWEST-ranked Target umbrella (`KIND_FALLBACK`, issue
@@ -129,10 +133,6 @@ export const PARTITIONED_KINDS: Readonly<
     "hand-tail": "hand-tail",
 };
 
-/** The board's `Priority` values `gaps:sync --band` accepts — `P0` acts, the
- *  rest change nothing (issue #4158). */
-export type UmbrellaBand = "P0" | "P1" | "P2" | "P3";
-
 /** A family's umbrellas: one per Target it partitions by, plus `P0`. */
 export type FamilyUmbrellas = Readonly<Record<string, number>> & {
     readonly P0: number;
@@ -146,8 +146,9 @@ export type FamilyUmbrellas = Readonly<Record<string, number>> & {
  * as residue until one is added, and `gap-issues.test.ts` reds on that drift.
  *
  * `P0` is the one slot no Target keys: those umbrellas are the owner's — no
- * COMPUTED Target files into one, only a run told its origin band is `P0` does
- * (issue #4158) — and nothing is ever moved out of one. An umbrella's board
+ * COMPUTED Target files into one, and no run does either (issue #5871 retired
+ * the origin band of issue #4158) — and nothing is ever moved out of one. An
+ * umbrella's board
  * `Priority` follows its Target — `backlog:triage --write` keeps it current
  * (issue #4212) and its children inherit it (issue #3212).
  */
@@ -470,6 +471,11 @@ export interface GapTracker {
     findSetUmbrella(setCode: string): number | null;
     /** Every OPEN issue carrying `label`. */
     listOpen(label: string): readonly TrackedIssueSummary[];
+    /** Every OPEN issue whose title is exactly `title`, oldest (lowest
+     *  number) first; empty when none. What a create consults first (issue
+     *  #5871): an issue this script filed whose allowlist record never
+     *  landed is reclaimed, never filed twice. */
+    findOpenByTitle(title: string): readonly number[];
     addLabel(number: number, label: string): void;
     comment(number: number, body: string): void;
     /** Close `number` with `comment` — an absorbed single (issue #4678). */
@@ -510,7 +516,8 @@ export type GapSyncAction = {
         | "adopt"
         | "absorb"
         | "re-home"
-        | "raise-band";
+        | "raise-band"
+        | "reclaim";
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
@@ -528,7 +535,7 @@ export type GapSyncAction = {
     readonly single?: number;
     /** The umbrella a `create` filed the issue under, or the umbrella a
      *  `raise-band` moved the cluster TO — so a run says where each gap
-     *  landed, which an origin-band run needs (issue #4158). */
+     *  landed. */
     readonly parent?: number;
 };
 
@@ -606,30 +613,11 @@ export function bandUmbrellaOf(filing: GapFiling): number | null {
     return BAND_UMBRELLAS[family][filing.target] ?? null;
 }
 
-/**
- * The family's P0 umbrella when the run's origin band is `P0` and `filing`'s
- * kind is partitioned, else null (issue #4158). The ONE place the origin band
- * acts — see the header. Any other band, or no band, is a null.
- */
-export function originUmbrellaOf(
-    filing: GapFiling,
-    originBand: UmbrellaBand | undefined
-): number | null {
-    if (originBand !== "P0") return null;
-    const family = PARTITIONED_KINDS[filing.kind];
-    return family === undefined ? null : BAND_UMBRELLAS[family].P0;
-}
-
-/** The parent to file `filing` under — the origin band's P0 umbrella, else its
- *  Target umbrella (the Target lending its band), else its Target's set
- *  umbrella, else the kind's own fallback (`KIND_FALLBACK`). */
-function parentOf(
-    filing: GapFiling,
-    tracker: GapTracker,
-    originBand: UmbrellaBand | undefined
-): number {
-    const origin = originUmbrellaOf(filing, originBand);
-    if (origin !== null) return origin;
+/** The parent to file `filing` under — its Target umbrella (the Target
+ *  lending its band), else its Target's set umbrella, else the kind's own
+ *  fallback (`KIND_FALLBACK`). Never a P0 umbrella: those are hand-filled
+ *  (issue #5871). */
+function parentOf(filing: GapFiling, tracker: GapTracker): number {
     const umbrella = bandUmbrellaOf(filing);
     if (umbrella !== null) return umbrella;
     if (filing.parentSetCode === null) return filing.fallbackParent;
@@ -645,20 +633,13 @@ function parentOf(
  *     its family's hand-set `P0` umbrella;
  *   - residue (or an unpartitioned kind) → nowhere, unless it has no parent
  *     or its parent is a retired umbrella, in which case the kind's fallback
- *     (`KIND_FALLBACK`, its lowest-ranked Target) — or, when the run's origin band is
- *     `P0`, its family's P0 umbrella (issue #4158): a homeless gap of P0 work
- *     is P0 work.
+ *     (`KIND_FALLBACK`, its lowest-ranked Target).
  */
 export function planMove(
     filing: GapFiling,
-    parent: number | null,
-    originBand?: UmbrellaBand
+    parent: number | null
 ): number | null {
     const homeless = parent === null || RETIRED_UMBRELLAS.has(parent);
-    if (homeless) {
-        const origin = originUmbrellaOf(filing, originBand);
-        if (origin !== null) return origin;
-    }
     const target = bandUmbrellaOf(filing);
     if (target === null) {
         // No parent at all is a create whose parent write failed — as much a
@@ -694,16 +675,6 @@ export function umbrellaBandRank(
     return key === null
         ? null
         : Object.keys(BAND_UMBRELLAS[family]).indexOf(key);
-}
-
-/** Where `filing` would be filed today — the run's origin-`P0` umbrella when
- *  it applies, else its Target's band umbrella, else `null` (residue, no vote
- *  in a Gap Cluster's band: an unranked key neither raises nor lowers one). */
-function candidateBandUmbrella(
-    filing: GapFiling,
-    originBand: UmbrellaBand | undefined
-): number | null {
-    return originUmbrellaOf(filing, originBand) ?? bandUmbrellaOf(filing);
 }
 
 /** The comment a Gap Cluster gets when a live key raises its band (issue
@@ -1094,10 +1065,6 @@ export function clusterIssues(allowlist: Allowlist): ReadonlySet<number> {
  * this guards (issue #3974), and a run spans several parents, so the count is
  * per parent.
  *
- * `originBand` is the band of the work that triggered the run (issue #4158):
- * `P0` files every partitioned create, and every homeless gap, under its
- * family's P0 umbrella; anything else changes nothing.
- *
  * `tip` is the sha a re-home comment names (issue #4679).
  */
 /** Whether `filing` is an adoption (issue #4515): its claim records, or is
@@ -1112,13 +1079,12 @@ export function isAdoptedFiling(filing: GapFiling): boolean {
 export function syncGaps(
     inputFilings: readonly GapFiling[],
     tracker: GapTracker,
-    originBand?: UmbrellaBand,
     clusters: ReadonlySet<number> = new Set(),
     signatureRows: readonly ClusterRow[] = [],
     tip = "an unread tip",
     holdCreates: ReadonlySet<GapKind> = new Set()
 ): GapSyncResult {
-    const allFilings = inputFilings;
+    let allFilings: readonly GapFiling[] = inputFilings;
     let filings: readonly GapFiling[] = allFilings;
     // Adopted (issue #4515): an open issue already names the card, so the
     // claim records THAT issue — nothing is created, and its body, parent and
@@ -1154,6 +1120,35 @@ export function syncGaps(
         (filing.currentIssue === null ||
             existing.get(claimId(filing.kind, filing.key)) === null ||
             rehomeFrom.has(claimId(filing.kind, filing.key)));
+
+    // Reclaim (issue #5871, module header): a gap that would be created,
+    // when an OPEN issue already carries its exact title, records THAT issue
+    // — the allowlist lost the row, the tracker did not. It then takes the
+    // path of any filed gap (body and parent reconciled), and its row is
+    // written whatever the body says. An issue another filing already
+    // claims is never reclaimed by a second one: two keys, one issue, would
+    // be the next loop.
+    const reclaimed = new Map<string, number>();
+    const claimedElsewhere = new Set(
+        allFilings
+            .filter((f) => !wouldCreate(f) && f.currentIssue !== null)
+            .map((f) => f.currentIssue!)
+    );
+    allFilings = allFilings.map((filing) => {
+        if (!wouldCreate(filing)) return filing;
+        const found = tracker
+            .findOpenByTitle(filing.title)
+            .find((n) => !claimedElsewhere.has(n));
+        if (found === undefined) return filing;
+        const issue = tracker.getIssue(found);
+        if (issue === null || issue.state !== "OPEN") return filing;
+        const id = claimId(filing.kind, filing.key);
+        reclaimed.set(id, found);
+        claimedElsewhere.add(found);
+        existing.set(id, issue);
+        rehomeFrom.delete(id);
+        return { ...filing, currentIssue: found };
+    });
 
     // Held kinds (issue #4944): a gap of one that would be filed is left out
     // of this run altogether — no create, no cluster adoption, no row — and
@@ -1297,19 +1292,12 @@ export function syncGaps(
     const clusterParentSeen = new Map<number, number | null>();
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
-        // Only a gap NEW this run (an adoption, an absorption, or a re-home
-        // off a closed cluster — all three land a key on a cluster it did
-        // NOT already claim) casts an origin-`P0` vote — `planMove`'s own
-        // asymmetry (module header: "an existing issue is never pulled up").
-        // An already-claimed member re-scanned by an unrelated `--band P0`
-        // run votes its OWN computed Target band, never the run's origin
-        // (issue #4680 review).
-        let cluster: number | undefined = intoCluster.get(id)?.issue;
-        let isNew = cluster !== undefined;
-        if (cluster === undefined) {
-            cluster = absorbInto.get(id);
-            isNew = cluster !== undefined;
-        }
+        // A key new to a cluster this run (an adoption, an absorption, or a
+        // re-home off a closed cluster) and an already-claimed member alike
+        // vote their own computed Target band (issue #5871 retired the
+        // origin band that once let a new key vote P0).
+        let cluster: number | undefined =
+            intoCluster.get(id)?.issue ?? absorbInto.get(id);
         if (cluster === undefined && isCluster(filing)) {
             const current = existing.get(id);
             if (
@@ -1324,9 +1312,7 @@ export function syncGaps(
         if (cluster === undefined) continue;
         const family = PARTITIONED_KINDS[filing.kind];
         if (family === undefined) continue;
-        const parent = isNew
-            ? candidateBandUmbrella(filing, originBand)
-            : bandUmbrellaOf(filing);
+        const parent = bandUmbrellaOf(filing);
         if (parent === null) continue; // residue — no vote
         const rank = umbrellaBandRank(family, parent);
         if (rank === null) continue;
@@ -1390,12 +1376,12 @@ export function syncGaps(
         if (absorbInto.has(id)) continue;
         let parent: number | null;
         if (isCreate(filing)) {
-            parent = parentOf(filing, tracker, originBand);
+            parent = parentOf(filing, tracker);
             parents.set(id, parent);
         } else {
             const current = existing.get(id)!;
             if (current.state === "CLOSED" || isCluster(filing)) continue;
-            parent = planMove(filing, current.parent ?? null, originBand);
+            parent = planMove(filing, current.parent ?? null);
             if (parent === null) continue;
             moveTo.set(id, parent);
         }
@@ -1509,6 +1495,14 @@ export function syncGaps(
             moves.push({ ...common, issue, from: current.parent ?? null, to });
         }
         const body = filing.body(issue);
+        if (reclaimed.has(id)) {
+            // The row is the point: recorded even when the body already
+            // matches, so the next run reads a filed gap, not a create.
+            updatedRows.set(id, issue);
+            if (current.body !== body) updateBody(issue, body);
+            actions.push({ action: "reclaim", ...common, issue });
+            continue;
+        }
         if (current.body === body) {
             actions.push({ action: "noop", ...common, issue });
             continue;

@@ -1,18 +1,18 @@
-// The priority band of the work a merged PR closed (issue #4158) — what
-// `gaps:sync --band` is told, so a gap born of P0 work files under its
-// family's P0 umbrella instead of the umbrella its computed band names.
+// The effective priority band of one issue — what `issue:inherit-band` copies
+// onto an issue a session files while working it (ADR 0143 Amendment IV).
+// Born as the origin band `gaps:sync --band` was told (issue #4158); that
+// use is retired (issue #5871): a gap's band is its Target's, and no
+// post-merge step reads this any more.
 //
 // The band is `effectivePriority` (`lib/queue-plan.ts`, issue #3212, issue
 // #4371), the SAME rule `queue:plan` orders the queue by: the parent's board
 // `Priority` when the parent carries one, else the issue's own — the parent
 // governs, demotions included. Reusing it is the point — a second definition
-// of "which band is this issue in" is how the partition and the queue would
+// of "which band is this issue in" is how the inheritance and the queue would
 // come to disagree about what P0 work is.
 //
-// NON-GATING by contract, like every other post-merge step: an unreadable
-// board or parent is a `null` band plus a reason the caller prints, never a
-// throw. The `housekeeping` cron (issue #5457) then runs `gaps:sync` without
-// `--band` — the computed band stays the authority.
+// NON-GATING by contract: an unreadable board or parent is a `null` band
+// plus a reason the caller prints, never a throw.
 
 import { gh } from "./gh";
 import { fetchBoardPriority, type BoardPriority } from "./board-priority";

@@ -46,20 +46,23 @@
  *
  * `--dry-run` prints the plan and performs no write of any kind.
  *
- * `--band <P0|P1|P2|P3>` is the ORIGIN band of the work that triggered the run
- * (issue #4158): `P0` files every partitioned gap it creates — and every
- * homeless one — under its family's P0 umbrella, the one place nothing computed
- * can reach (`lib/gap-issues.ts` § The ORIGIN band). Any other value changes
- * nothing. `land` derives it from the issue the landed branch names and passes
- * it; a P0 session running this by hand passes it itself.
+ * `--band` is REFUSED (exit 2): the origin band of issue #4158 — the band of
+ * the work that triggered the run, overriding a gap's computed Target band —
+ * is retired by issue #5871. A gap's parent is its computed Target umbrella,
+ * whatever the triggering PR's band (`lib/gap-issues.ts` § No ORIGIN band).
  *
- * `land` runs this post-merge, non-gating, from the PRIMARY checkout — like
- * this command run by hand. It commits + pushes the allowlist update
+ * The `housekeeping` cron runs this post-merge from the PRIMARY checkout —
+ * like this command run by hand. It commits + pushes the allowlist update
  * straight to the base branch when it wrote one: the write is a single
  * `issue` field per row, at the same trust tier ADR 0137 already grants the
  * issue creation itself ("a deliberate exception to the loop drains the
  * queue, never fills it… these issues come from a computed gate… never a
- * subagent's judgement").
+ * subagent's judgement"). **A write-back that does not reach the base branch
+ * fails the run** (exit 1, after every other pass has run): the issues exist
+ * and the allowlist does not say so, and a silent pass here was how issue
+ * #5871's duplicates were filed four times. The next run RECLAIMS them by
+ * title (`lib/gap-issues.ts` § Reclaim) — so the failure is loud, and the
+ * retry is idempotent.
  *
  * ── Why a direct push, not a PR ───────────────────────────────────────────
  *
@@ -105,7 +108,6 @@ import {
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
     OP_KEY_PREFIX,
-    originUmbrellaOf,
     PARTITIONED_KINDS,
     partitionCardIndex,
     PRD_ISSUE,
@@ -129,7 +131,6 @@ import {
     type GapTracker,
     type TrackedIssue,
     type TrackedIssueSummary,
-    type UmbrellaBand,
     type UnlockSource,
 } from "./lib/gap-issues";
 import {
@@ -337,6 +338,18 @@ export class GhGapTracker implements GapTracker {
             title: row.title,
             labels: row.labels.map((l) => l.name),
         }));
+    }
+
+    /** From the prefetch (issue #5871): every kind this run files is listed
+     *  by its title prefix before any write, so a gap this script already
+     *  filed — and the allowlist forgot — is found without a call. Oldest
+     *  first: the duplicates are the newer ones. */
+    findOpenByTitle(title: string): readonly number[] {
+        const found: number[] = [];
+        for (const [number, issue] of this.prefetch())
+            if (issue.state === "OPEN" && issue.title === title)
+                found.push(number);
+        return found.sort((a, b) => a - b);
     }
 
     addLabel(number: number, label: string): void {
@@ -589,10 +602,12 @@ export const ALLOWLIST_COMMIT_SUBJECT =
     "gaps:sync — file per-gap issues, record them in the allowlist";
 
 /** Commit + push the allowlist update straight to `origin/<base>`, from a
- *  clean primary checkout already on that branch. Never throws: `land`
- *  treats this whole script as non-gating — but it prints, so a human
- *  notices the file drifted from the remote. */
-export function commitAndPushAllowlist(root: string): void {
+ *  clean primary checkout already on that branch. Never throws, so the
+ *  passes after it still run — but returns FALSE when the update did not
+ *  reach the remote (stage, commit or push failed), and `main` exits 1 on it
+ *  (issue #5871): the tracker now holds issues the base branch does not
+ *  record, which `housekeeping` must retry, never report as done. */
+export function commitAndPushAllowlist(root: string): boolean {
     const git = (args: string[]) =>
         spawnSync("git", args, { cwd: root, encoding: "utf8" });
     const add = git(["add", "--", ALLOWLIST_PATH]);
@@ -600,8 +615,11 @@ export function commitAndPushAllowlist(root: string): void {
         console.error(
             `gaps:sync: could not stage ${ALLOWLIST_PATH}: ${add.stderr}`
         );
-        return;
+        return false;
     }
+    // Nothing staged is nothing lost: the file already matches HEAD.
+    if (git(["diff", "--cached", "--quiet", "--", ALLOWLIST_PATH]).status === 0)
+        return true;
     const commit = git([
         "commit",
         "-q",
@@ -617,14 +635,37 @@ export function commitAndPushAllowlist(root: string): void {
         console.error(
             `gaps:sync: could not commit ${ALLOWLIST_PATH}: ${commit.stderr}`
         );
-        return;
+        return false;
     }
     const push = git(["push", "origin", `HEAD:${BASE_BRANCH}`]);
     if (push.status !== 0) {
         console.error(
             `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${push.stderr}`
         );
+        return false;
     }
+    return true;
+}
+
+/** The exit code a run whose allowlist write-back never reached the base
+ *  branch ends with (issue #5871) — `housekeeping` keeps its batch in `retry`
+ *  on any non-zero. */
+export const WRITE_BACK_FAILED_EXIT = 1;
+
+/**
+ * Flags this script no longer takes, and REFUSES rather than ignores: a flag
+ * read as nothing would silently do the opposite of what its caller meant.
+ * `--band` (issue #4158's origin band) is retired by issue #5871 — a gap's
+ * band is its Target's, never the triggering work's. Returns the message to
+ * print before exiting 2, or null.
+ */
+export function retiredFlagError(argv: readonly string[]): string | null {
+    const hit = argv.find((a) => a === "--band" || a.startsWith("--band="));
+    if (hit === undefined) return null;
+    return (
+        `gaps:sync: \`${hit}\` is retired (issue #5871) — a gap files under its computed Target umbrella, ` +
+        "never under the band of the work that triggered the run; drop the flag"
+    );
 }
 
 /**
@@ -1106,31 +1147,6 @@ export function trustedBotFindings(
         : null;
 }
 
-/** The bands `--band` accepts — the board's whole `Priority` axis. */
-const ORIGIN_BANDS: readonly UmbrellaBand[] = ["P0", "P1", "P2", "P3"];
-
-/**
- * `--band <B>` / `--band=<B>` from `argv`, or `undefined` when absent. An
- * unknown value THROWS: the flag is the only channel that puts a gap into a
- * hand-set P0 umbrella, and a typo read as "no band" would file it one band
- * too low without a word (the failure this flag exists to end).
- */
-export function parseOriginBand(
-    argv: readonly string[]
-): UmbrellaBand | undefined {
-    const at = argv.findIndex((a) => a === "--band" || a.startsWith("--band="));
-    if (at === -1) return undefined;
-    const arg = argv[at]!;
-    const value = arg.includes("=")
-        ? arg.slice(arg.indexOf("=") + 1)
-        : argv[at + 1];
-    if (!ORIGIN_BANDS.includes(value as UmbrellaBand))
-        throw new Error(
-            `gaps:sync: --band takes one of ${ORIGIN_BANDS.join(", ")}, got ${value === undefined ? "nothing" : `"${value}"`}`
-        );
-    return value as UmbrellaBand;
-}
-
 /** The gap kinds one run must not create, from `argv` — see {@link NO_FILE_BOT_FLAG}. */
 export function heldKindsOf(argv: readonly string[]): ReadonlySet<GapKind> {
     return new Set<GapKind>(argv.includes(NO_FILE_BOT_FLAG) ? ["bot"] : []);
@@ -1140,19 +1156,14 @@ async function main(): Promise<void> {
     const root = resolve(".");
     const dryRun = process.argv.includes("--dry-run");
     const holdCreates = heldKindsOf(process.argv.slice(2));
-    let originBand: UmbrellaBand | undefined;
-    try {
-        originBand = parseOriginBand(process.argv.slice(2));
-    } catch (err) {
-        console.error((err as Error).message);
+    const retired = retiredFlagError(process.argv.slice(2));
+    if (retired !== null) {
+        console.error(retired);
         process.exit(2);
     }
-    if (originBand !== undefined)
-        console.log(
-            originBand === "P0"
-                ? "origin     band P0 — every gap created (or homeless) in this run files under its family's P0 umbrella"
-                : `origin     band ${originBand} — no effect: only P0 overrides the computed band`
-        );
+    // Set by a write-back that did not reach the base branch; read at the
+    // very end, so every pass after it still runs (issue #5871).
+    let writeBackFailed = false;
     if (!existsSync(join(root, LOCKFILE_PATH))) {
         console.error(`${LOCKFILE_PATH} missing — run: bun run oracle:compile`);
         process.exit(1);
@@ -1294,7 +1305,7 @@ async function main(): Promise<void> {
                 ? "no ranked Target among the cards it reaches"
                 : `its Target \`${f.target}\` has no umbrella in BAND_UMBRELLAS — add the family's row (docs/agents/issue-tracker.md)`;
         console.log(
-            `residue    ${f.kind} \`${f.key}\` (${at}) — ${why}; no Target umbrella: it keeps its parent (none, or a retired one: it moves to its family's lowest-ranked Target umbrella — or its P0 umbrella when this run has --band P0)`
+            `residue    ${f.kind} \`${f.key}\` (${at}) — ${why}; no Target umbrella: it keeps its parent (none, or a retired one: it moves to its family's lowest-ranked Target umbrella)`
         );
     }
 
@@ -1349,14 +1360,9 @@ async function main(): Promise<void> {
                         : clusters.has(filing.currentIssue)
                           ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
                           : `would reconcile issue #${filing.currentIssue}`;
-            const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
-                origin !== null && filing.currentIssue === null
-                    ? ` [origin P0 -> #${origin}]`
-                    : umbrella === null
-                      ? ""
-                      : ` [${filing.target} -> #${umbrella}]`;
+                umbrella === null ? "" : ` [${filing.target} -> #${umbrella}]`;
             const shown =
                 holdCreates.has(filing.kind) &&
                 filing.currentIssue === null &&
@@ -1410,7 +1416,6 @@ async function main(): Promise<void> {
     const result = syncGaps(
         withUnlockBlockers(filings, blockers),
         tracker,
-        originBand,
         clusterIssues(allowlist),
         signatureRows,
         tip,
@@ -1462,7 +1467,7 @@ async function main(): Promise<void> {
         console.log(
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
-        commitAndPushAllowlist(root);
+        if (!commitAndPushAllowlist(root)) writeBackFailed = true;
     }
 
     // The absorbed singles (issue #4678), closed only now that their rows
@@ -1532,7 +1537,7 @@ async function main(): Promise<void> {
             console.log(
                 `gaps:sync: ${cuts.updatedRows.size} Cluster Cut ticket(s) recorded in ${ALLOWLIST_PATH}`
             );
-            commitAndPushAllowlist(root);
+            if (!commitAndPushAllowlist(root)) writeBackFailed = true;
         }
     } catch (err) {
         console.log(
@@ -1634,6 +1639,15 @@ async function main(): Promise<void> {
         console.error(
             `gaps:sync: the orphan-card pass failed (${(err as Error).message}) — every filing above is already recorded`
         );
+    }
+
+    // Last, so nothing above was skipped: the write-back is the one failure
+    // that leaves the tracker ahead of the base branch (issue #5871).
+    if (writeBackFailed) {
+        console.error(
+            `gaps:sync: the allowlist write-back did not reach ${BASE_BRANCH} — the issues filed above are not recorded there; exit ${WRITE_BACK_FAILED_EXIT} so housekeeping retries (the next run reclaims them by title, nothing is filed twice)`
+        );
+        process.exit(WRITE_BACK_FAILED_EXIT);
     }
 }
 

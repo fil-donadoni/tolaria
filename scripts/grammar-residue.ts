@@ -16,9 +16,10 @@
  *
  *   --pr <N>        the merged PR; "before" = its merge commit's parent
  *   --before <ref>  override "before" (replay)
-
- *   --band <P>      forwarded to the `gaps:sync` re-run (origin band, issue #4158)
  *   --dry-run       no `gaps:sync`, no comment: print the ledger only
+ *
+ * No `--band`: the `gaps:sync` re-run files under the computed Target band
+ * (issue #5871 retired issue #4158's origin band).
  *
  * Not a Grammar Cluster (no `## Grammar Gaps` table in the issue) → exit 0.
  */
@@ -164,7 +165,7 @@ function main(): void {
         pr <= 0
     ) {
         process.stderr.write(
-            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--band <P>] [--dry-run]\n"
+            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--dry-run]\n"
         );
         process.exit(2);
     }
@@ -207,15 +208,10 @@ function main(): void {
         process.stdout.write(
             `grammar:residue — ${report.holes.length} hole(s); running gaps:sync once to file them\n`
         );
-        const band = flag("--band");
-        const sync = spawnSync(
-            "bun",
-            [
-                resolve(ROOT, "scripts/gaps-sync.ts"),
-                ...(band === null ? [] : ["--band", band]),
-            ],
-            { cwd: ROOT, stdio: "inherit" }
-        );
+        const sync = spawnSync("bun", [resolve(ROOT, "scripts/gaps-sync.ts")], {
+            cwd: ROOT,
+            stdio: "inherit",
+        });
         if (sync.status !== 0)
             process.stderr.write(
                 `grammar:residue — gaps:sync exited ${String(sync.status ?? sync.signal)}: the filer failed, so the holes below were NOT filed\n`

@@ -9,8 +9,8 @@
  * until the owner set it by hand. The owner's rule (2026-10-01): an issue
  * born of the work inherits that work's band.
  *
- * The band is `originBandOfIssue` (`lib/origin-band.ts`), the rule `land`
- * already uses for `gaps:sync --band` and `queue:plan` orders by: the parent
+ * The band is `originBandOfIssue` (`lib/origin-band.ts`), the rule
+ * `queue:plan` orders by: the parent
  * umbrella's `Priority` when it carries one, else `<from>`'s own. This COPIES
  * a band a human set; it never derives one. That is the only way a script
  * writes `P0` (ADR 0143, Amendment IV).

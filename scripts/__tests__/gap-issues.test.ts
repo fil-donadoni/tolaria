@@ -169,10 +169,18 @@ class StubTracker implements GapTracker {
         this.parents.set(child, parent);
     }
 
-    createIssue(input: { body: string; parent: number }): number {
+    createIssue(input: {
+        title: string;
+        body: string;
+        parent: number;
+    }): number {
         this.createCalls += 1;
         const number = this.nextNumber++;
-        this.issues.set(number, { state: "OPEN", body: input.body });
+        this.issues.set(number, {
+            state: "OPEN",
+            title: input.title,
+            body: input.body,
+        });
         this.parents.set(number, input.parent);
         this.children += 1;
         return number;
@@ -233,6 +241,14 @@ class StubTracker implements GapTracker {
                 `issue #${issue} is already blocked by #${blocker}`
             );
         this.edges.set(issue, [...existing, blocker]);
+    }
+
+    /** Like the real tracker: the OPEN issues with exactly this title, oldest first. */
+    findOpenByTitle(title: string): readonly number[] {
+        return [...this.issues]
+            .filter(([, i]) => i.state === "OPEN" && i.title === title)
+            .map(([n]) => n)
+            .sort((a, b) => a - b);
     }
 }
 
@@ -338,7 +354,6 @@ describe("syncGaps", () => {
                 }),
             ],
             tracker,
-            undefined,
             new Set([4001])
         );
         expect(result.actions.map((a) => a.action)).toEqual([
@@ -371,7 +386,6 @@ describe("syncGaps", () => {
         const result = syncGaps(
             [filing({ currentIssue: 4001, body: () => "addMana text" })],
             tracker,
-            undefined,
             clusterIssues(withClaim)
         );
         expect(result.actions.map((a) => a.action)).toEqual(["cluster"]);
@@ -1454,13 +1468,9 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
 
     it("claims the gap for the cluster: no create, no body write, one comment", () => {
         const tracker = trackerWithCluster();
-        const result = syncGaps(
-            [botFiling()],
-            tracker,
-            undefined,
-            new Set([CLUSTER]),
-            [signature]
-        );
+        const result = syncGaps([botFiling()], tracker, new Set([CLUSTER]), [
+            signature,
+        ]);
         expect(result.actions).toEqual([
             {
                 action: "adopt",
@@ -1483,9 +1493,7 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             inProgress: true,
             openPr: false,
         });
-        const result = syncGaps([botFiling()], tracker, undefined, new Set(), [
-            signature,
-        ]);
+        const result = syncGaps([botFiling()], tracker, new Set(), [signature]);
         expect(result.actions.map((a) => [a.action, a.issue])).toEqual([
             ["create", 5000],
         ]);
@@ -1494,13 +1502,10 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
 
     it("the next run over the recorded claim is the cluster, left alone", () => {
         const tracker = trackerWithCluster();
-        syncGaps([botFiling()], tracker, undefined, new Set([CLUSTER]), [
-            signature,
-        ]);
+        syncGaps([botFiling()], tracker, new Set([CLUSTER]), [signature]);
         const second = syncGaps(
             [botFiling({ currentIssue: CLUSTER })],
             tracker,
-            undefined,
             new Set([CLUSTER]),
             [signature]
         );
@@ -1514,7 +1519,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
         const result = syncGaps(
             [botFiling({ adopts: 1234 })],
             tracker,
-            undefined,
             new Set(),
             [signature]
         );
@@ -1526,7 +1530,7 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
     it("with no signature rows, plans exactly what it planned before — and asks no cluster state", () => {
         const plain = syncGaps([botFiling()], new StubTracker());
         const tracker = new StubTracker();
-        const none = syncGaps([botFiling()], tracker, undefined, new Set(), []);
+        const none = syncGaps([botFiling()], tracker, new Set(), []);
         expect(none).toEqual(plain);
         expect(tracker.stateReads).toEqual([]);
     });
@@ -1545,7 +1549,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             const result = syncGaps(
                 [botFiling({ currentIssue: CLOSED })],
                 tracker,
-                undefined,
                 new Set([CLOSED, CLUSTER]),
                 [signature, { ...signature, issue: CLOSED }],
                 TIP
@@ -1583,7 +1586,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             const result = syncGaps(
                 [botFiling({ currentIssue: CLOSED })],
                 tracker,
-                undefined,
                 new Set([CLOSED, CLUSTER]),
                 [signature, { ...signature, issue: CLOSED }],
                 TIP
@@ -1603,7 +1605,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             const result = syncGaps(
                 [botFiling({ currentIssue: CLOSED, adopts: 1234 })],
                 tracker,
-                undefined,
                 new Set([CLOSED, CLUSTER]),
                 [signature, { ...signature, issue: CLOSED }],
                 TIP
@@ -1629,7 +1630,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             const single = syncGaps(
                 [botFiling({ currentIssue: CLOSED })],
                 tracker,
-                undefined,
                 new Set([CLUSTER]),
                 [signature],
                 TIP
@@ -1640,7 +1640,6 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             const gone = syncGaps(
                 [],
                 tracker,
-                undefined,
                 new Set([CLOSED, CLUSTER]),
                 [signature, { ...signature, issue: CLOSED }],
                 TIP
@@ -1754,13 +1753,9 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
     };
     // `main`'s order: plan, (write-back), then close the absorbed singles.
     const run = (t: StubTracker, over: Partial<GapFiling> = {}) => {
-        const result = syncGaps(
-            [filed(over)],
-            t,
-            undefined,
-            new Set([CLUSTER]),
-            [signature]
-        );
+        const result = syncGaps([filed(over)], t, new Set([CLUSTER]), [
+            signature,
+        ]);
         closeAbsorbedSingles(result.absorbed, t);
         return result;
     };
@@ -1788,9 +1783,7 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
 
     it("syncGaps only PLANS the close — the single stays open until after the write-back", () => {
         const t = tracker();
-        const result = syncGaps([filed()], t, undefined, new Set([CLUSTER]), [
-            signature,
-        ]);
+        const result = syncGaps([filed()], t, new Set([CLUSTER]), [signature]);
         expect(t.closed).toEqual([]);
         expect(t.issues.get(SINGLE)!.state).toBe("OPEN");
         expect(result.absorbed).toEqual([
@@ -1857,13 +1850,9 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
 
     it("a multi-claimed issue is a cluster, never absorbed", () => {
         const t = tracker();
-        const result = syncGaps(
-            [filed()],
-            t,
-            undefined,
-            new Set([CLUSTER, SINGLE]),
-            [signature]
-        );
+        const result = syncGaps([filed()], t, new Set([CLUSTER, SINGLE]), [
+            signature,
+        ]);
         expect(result.actions.map((a) => a.action)).toEqual(["cluster"]);
         expect(t.closed).toEqual([]);
     });
@@ -1876,9 +1865,7 @@ describe("syncGaps absorbs its own open singles into the matching Gap Cluster (i
             match: [BOT],
             standalone: true,
         };
-        const result = syncGaps([filed()], t, undefined, new Set(), [
-            standalone,
-        ]);
+        const result = syncGaps([filed()], t, new Set(), [standalone]);
         expect(result.actions.map((a) => a.action)).toEqual(["update"]);
         expect(t.closed).toEqual([]);
     });
@@ -1934,12 +1921,11 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
     const P1 = BAND_UMBRELLAS["bot-gaps"]["premodern-metagame"];
     const P2 = BAND_UMBRELLAS["bot-gaps"]["vintage-cube"];
 
-    it("a P0 key adopted into a band-P2 cluster moves it under the P0 umbrella of its kind", () => {
+    it("a key whose Target lends P1, adopted into a band-P2 cluster, moves it under the P1 umbrella of its kind", () => {
         const tracker = trackerAt(P2);
         const result = syncGaps(
-            [botFiling()],
+            [botFiling({ target: "premodern-metagame" })],
             tracker,
-            "P0",
             new Set([CLUSTER]),
             [signature]
         );
@@ -1949,16 +1935,28 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
             key: BOT,
             issue: CLUSTER,
             from: P2,
-            parent: P0,
+            parent: P1,
         });
-        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
         const comment = tracker.comments.find((c) =>
             c.body.startsWith("`gaps:sync` raised")
         )!;
         expect(comment.issue).toBe(CLUSTER);
         expect(comment.body).toContain(`#${P2}`);
-        expect(comment.body).toContain(`#${P0}`);
+        expect(comment.body).toContain(`#${P1}`);
         expect(comment.body).toContain(BOT);
+    });
+
+    it("no key ever raises a cluster to P0 — the owner's umbrella is hand-filled (issue #5871)", () => {
+        const tracker = trackerAt(P1);
+        const result = syncGaps(
+            [botFiling({ target: "premodern-metagame" })],
+            tracker,
+            new Set([CLUSTER]),
+            [signature]
+        );
+        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
     });
 
     it("a member's own re-home — its Target now lends a stronger band — raises the cluster too", () => {
@@ -1971,7 +1969,6 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
                 }),
             ],
             tracker,
-            undefined,
             new Set([CLUSTER]),
             [signature]
         );
@@ -1989,9 +1986,8 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
     it("never raises a cluster already at, or above, the band a key would lend", () => {
         const tracker = trackerAt(P0);
         const result = syncGaps(
-            [botFiling()],
+            [botFiling({ target: "premodern-metagame" })],
             tracker,
-            "P0",
             new Set([CLUSTER]),
             [signature]
         );
@@ -1999,14 +1995,13 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
         expect(tracker.parents.get(CLUSTER)).toBe(P0);
     });
 
-    it("a closed P0 key never moves the cluster back — a weaker live key stays under it", () => {
+    it("a hand-set P0 cluster never moves back — a weaker live key stays under it", () => {
         const tracker = trackerAt(P0);
         const result = syncGaps(
-            // The P0 key that raised it earlier no longer appears this run
-            // (fixed, closed) — only a weaker live member remains.
+            // The owner put the cluster under P0; only a weaker live member
+            // remains.
             [botFiling({ currentIssue: CLUSTER, target: "vintage-cube" })],
             tracker,
-            undefined,
             new Set([CLUSTER]),
             [signature]
         );
@@ -2022,31 +2017,13 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
         tracker.issues.set(CLUSTER, { state: "OPEN", body: HAND });
         tracker.parents.set(CLUSTER, 4001);
         const result = syncGaps(
-            [botFiling()],
+            [botFiling({ target: "premodern-metagame" })],
             tracker,
-            "P0",
             new Set([CLUSTER]),
             [signature]
         );
         expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
         expect(tracker.parents.get(CLUSTER)).toBe(4001);
-    });
-
-    it("an origin-`P0` run never pulls an already-claimed member's OWN vote up to P0 — only what's new this run (planMove's own asymmetry)", () => {
-        // The cluster sits at its correct P1 umbrella; the member's own
-        // Target lends only the weakest band. `--band P0` is flagged for an
-        // UNRELATED reason this run (the whole backlog is re-scanned), and
-        // must not force this cluster to P0 on that account alone.
-        const tracker = trackerAt(P1);
-        const result = syncGaps(
-            [botFiling({ currentIssue: CLUSTER, target: "format-premodern" })],
-            tracker,
-            "P0",
-            new Set([CLUSTER]),
-            [signature]
-        );
-        expect(result.actions.map((a) => a.action)).not.toContain("raise-band");
-        expect(tracker.parents.get(CLUSTER)).toBe(P1);
     });
 
     it("an absorbed single's key raises the destination cluster's band too", () => {
@@ -2058,9 +2035,8 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
             body: "## Gap\n\nFiled by `gaps:sync`.",
         });
         const result = syncGaps(
-            [botFiling({ currentIssue: SINGLE })],
+            [botFiling({ currentIssue: SINGLE, target: "premodern-metagame" })],
             tracker,
-            "P0",
             new Set([CLUSTER]),
             [signature]
         );
@@ -2077,18 +2053,21 @@ describe("syncGaps raises a Gap Cluster's band to its highest live key, upward o
             key: BOT,
             issue: CLUSTER,
             from: P2,
-            parent: P0,
+            parent: P1,
         });
-        expect(tracker.parents.get(CLUSTER)).toBe(P0);
+        expect(tracker.parents.get(CLUSTER)).toBe(P1);
     });
 
     it("a raise-band's destination is folded into the sub-issue cap check, before any write", () => {
         const tracker = trackerAt(P2);
         tracker.children = SUB_ISSUE_CAP;
         expect(() =>
-            syncGaps([botFiling()], tracker, "P0", new Set([CLUSTER]), [
-                signature,
-            ])
+            syncGaps(
+                [botFiling({ target: "premodern-metagame" })],
+                tracker,
+                new Set([CLUSTER]),
+                [signature]
+            )
         ).toThrow(/sub-issues/);
         expect(tracker.parents.get(CLUSTER)).toBe(P2);
     });
@@ -2208,7 +2187,6 @@ describe("syncGaps computes the unabsorbable singles a Cluster Cut ticket counts
         const result = syncGaps(
             [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
             t,
-            undefined,
             new Set([CLUSTER]),
             [signature]
         );
@@ -2229,7 +2207,6 @@ describe("syncGaps computes the unabsorbable singles a Cluster Cut ticket counts
         const result = syncGaps(
             [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
             t,
-            undefined,
             new Set([CLUSTER]),
             [signature]
         );
@@ -2250,7 +2227,6 @@ describe("syncGaps computes the unabsorbable singles a Cluster Cut ticket counts
         const result = syncGaps(
             [bot(BOT_A, A_ISSUE), bot(BOT_B, B_ISSUE)],
             t,
-            undefined,
             new Set(),
             [standalone]
         );
