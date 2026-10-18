@@ -444,23 +444,31 @@ has an author outside `TRUSTED_AUTHORS` (the Actions variable; unset = refuse),
 touches `.github/` or `.mergify.yml` (ADR 0156 §8.4), or already ends in two
 fixup commits (the loop guard: the regeneration did not cure it).
 
-After the push, a PR the queue had rejected on this red (`land-failed`) is
-handed back to it: `land-failed` → `ready-to-land` (issue #5955).
+It regenerates on the PR **rebased onto the base tip** (issue #5955): the
+staleness the queue finds appears only there — a whole-tree artefact
+regenerated on the old head reproduces the committed file and nothing is
+pushed. The push is `--force-with-lease` on the exact head sha the run started
+from (the job: the head it fetched; the land-runner: the sha it reset the
+worktree to, passed as `--lease`), never on a shared tracking ref: a session's
+push that crossed the run is refused, not clobbered. A rebase that stops leaves
+the PR untouched. With `--requeue` — set only by the `queue-lane` dispatch — a
+PR the queue had rejected on this red is handed back after the push:
+`land-failed` → `ready-to-land`, the labels re-read then. A `pr-check` dispatch
+never moves a label (a `land-failed` there may be a real red a pass is on).
 
-**Its limits.** It regenerates at the PR's own head: a PR red only because the
-base moved under it is `pr-refresh`'s (issue #5638). `oracle:compile` needs the
-gitignored Card Corpus cache, which the owner's machines hold; the job's
-worktree is cut from the primary checkout, so it finds it where `land`'s
-resolver does.
+**Its limits.** A hand-written conflict on the rebase is `pr-refresh`'s (issue
+#5638, issue #5942). `oracle:compile` needs the gitignored Card Corpus cache,
+which the owner's machines hold; the job's worktree is cut from the primary
+checkout, so it finds it where `land`'s resolver does.
 
 **One decision for every red** (`classifyRed`, issue #5955), called by
 `queue-lane` and, until the cut-over, by the land-runner on a red `land`:
 
-| Class         | When                                                                                                                                                                       | Then                                                                                                           |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `regenerable` | the lane went red and every failed step has a row above (`classifyLane`, never re-derived), and the head does not already end in two fixup commits                         | fixed up: the job, or the land-runner's `pr:fixup run --in-place` in the worktree `land` rebased; stays queued |
-| `infra`       | the lane did NOT go red (green, skipped, never reached) and a line of `land`'s own output — never the lane's, a test's stderr quotes outages — names the network or GitHub | the land-runner keeps the PR queued and retries it after `INFRA_BACKOFF_S` (5 min)                             |
-| `needs-pass`  | everything else: a real test, a type error, a conflict, a regenerable red past the fixup bound                                                                             | `land-failed`, the comment naming the class — a repair pick                                                    |
+| Class         | When                                                                                                                                                                                                                                                   | Then                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `regenerable` | the lane went red and every failed step has a row above (`classifyLane`, never re-derived), and the head does not already end in two fixup commits                                                                                                     | fixed up: the job, or the land-runner's `pr:fixup run --in-place` in the worktree `land` rebased; stays queued                              |
+| `infra`       | the lane did NOT go red (green, skipped, never reached), the rebase did not stop (`CONFLICT_LINE` wins: git echoes commit subjects) and a line of `land`'s own output — never the lane's, a test's stderr quotes outages — names the network or GitHub | the land-runner keeps the PR queued and retries it after `INFRA_BACKOFF_S` (5 min); the `INFRA_MAX_STRIKES`-th (3) in a row is `needs-pass` |
+| `needs-pass`  | everything else: a real test, a type error, a conflict, a regenerable red past the fixup bound                                                                                                                                                         | `land-failed`, the comment naming the class — a repair pick                                                                                 |
 
 The land-runner reads the lane's JSON from a sidecar
 (`TOLARIA_LANE_JSON_OUT`, written by `check:lane` beside its human receipt, each
