@@ -294,6 +294,10 @@ export const FILLER_CARD_DEFINITION: CardDefinition = {
  *  never clamped by an empty zone. */
 const LIBRARY_DEPTH = 8;
 const COUNT_SET_SIZE = 3;
+/** The value the canned scenario announces for {X} (CR 107.3a) when a script
+ *  reads the chosen-cost X (issue #4022). Distinct from `COUNT_SET_SIZE`, so an
+ *  assertion that read X off the wrong source would mispredict. */
+const SMOKE_CHOSEN_X = 2;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -313,6 +317,10 @@ export interface Scenario {
      *  (issue #3879). Present exactly when `sourcePermanentId` is, and what
      *  `predictAmount` reads to know whether a count set counts it. */
     sourceSpec?: SmokeSourceSpec;
+    /** The value announced for {X} when the script reads the chosen-cost X
+     *  (issue #4022); absent otherwise. The caller snapshots it onto the stack
+     *  item as `chosenX`, the field `getX()` reads at resolution. */
+    chosenX?: number;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -368,7 +376,6 @@ export const SMOKE_SKIP_CODES = [
     // ── card-dependent ──
     "source-or-each-subject",
     "runtime-amount",
-    "cast-time-x",
     "target-slot-shape",
     "choice-binding",
     "unmodelled-object-or-zone",
@@ -392,7 +399,6 @@ export const SMOKE_SKIP_CLASS: Record<SmokeSkipCode, SmokeSkipClass> = {
     "op-own-tests": "op-covered",
     "source-or-each-subject": "card-dependent",
     "runtime-amount": "card-dependent",
-    "cast-time-x": "card-dependent",
     "target-slot-shape": "card-dependent",
     "choice-binding": "card-dependent",
     "unmodelled-object-or-zone": "card-dependent",
@@ -566,6 +572,8 @@ interface Requirements {
     /** The tap state an Op drives `$source` to. An untap seeds the source
      *  tapped, so the untap has an outcome to observe. */
     sourceTapAction?: "tap" | "untap";
+    /** An amount reads the chosen-cost X: announce `SMOKE_CHOSEN_X`. */
+    readsChosenX?: boolean;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -685,16 +693,13 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         return;
     }
     // Chosen-cost X (issue #852): the amount is whatever was announced for {X}
-    // at cast time. The canned scenario pushes the spell directly on the stack
-    // without a cast, so getX() would read 0 — the declared outcome can't be
-    // asserted deterministically. Skip-with-reason (the per-card test remains
-    // the behavioural guarantor for X cards).
+    // — CR 107.3a, "While a spell is on the stack, any X in its mana cost …
+    // equals the announced value." The canned scenario pushes the spell
+    // without a cast, so it announces `SMOKE_CHOSEN_X` itself: the caller
+    // snapshots it onto the stack item as `chosenX`, which `getX()` reads
+    // (issue #4022).
     if ("X" in value) {
-        skipBecause(
-            req,
-            "cast-time-x",
-            `amount is chosen-cost X — depends on the value announced for {X} at cast time`
-        );
+        req.readsChosenX = true;
         return;
     }
     // counters (issue #1015, CR 122.6): the amount reads the LIVE count of a
@@ -2741,6 +2746,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         ...(sourcePermanentId === undefined
             ? {}
             : { sourcePermanentId, sourceSpec: source }),
+        ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -2816,6 +2822,7 @@ function sourceContributesTo(
 function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
+    if ("X" in value) return scenario.chosenX ?? null; // announced by the scenario
     if ("counters" in value) return null; // skipped earlier — defensive
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive

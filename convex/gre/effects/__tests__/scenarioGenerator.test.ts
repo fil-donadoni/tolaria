@@ -792,3 +792,75 @@ describe("the seeded $source is the HOST card, where it really is (issue #3879)"
         expect(plan.skips.map((s) => s.code)).toEqual(["runtime-amount"]);
     });
 });
+
+/** Resolves `effects` as a SPELL with the plan's announced {X} — the shape the
+ *  catalogue sweep pushes. `withX: false` drops the announcement, the stack
+ *  item a cast-less push would leave without the scenario's `chosenX`. */
+function resolveAsSpell(
+    plan: Extract<Plan, { kind: "run" }>,
+    effects: EffectOp[],
+    id: string,
+    withX: boolean
+): void {
+    registerTokenDefinition({
+        id,
+        name: id,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Sorcery"],
+        effects,
+        targetRequirement: { type: "player", count: 1 },
+    });
+    plan.scenario.state.stack.push({
+        ...makeInstance(id, {
+            controllerId: CASTER_ID,
+            ownerId: CASTER_ID,
+            zone: "hand",
+        }),
+        castById: CASTER_ID,
+        targets: plan.scenario.targets,
+        ...(withX ? { chosenX: plan.scenario.chosenX } : {}),
+    });
+    resolveTopOfStack(plan.scenario.state);
+}
+
+describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
+    // Death Grasp's shape: "deals X damage to any target. You gain X life."
+    const effects: EffectOp[] = [
+        { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        { op: "gainLife", player: "controller", amount: { X: true } },
+    ];
+
+    it("announces an X and predicts every X amount from it", () => {
+        const plan = planSmokeTest(effects);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.chosenX).toBe(2);
+        expect(plan.assertions.map((a) => a.label)).toEqual([
+            expect.stringContaining("dealDamage 2"),
+            expect.stringContaining("gainLife 2"),
+        ]);
+    });
+
+    it("the announced X resolves to the predicted outcome", () => {
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveAsSpell(plan, effects, "smoke-x-announced", true);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("a stack item without the announcement fails the assertions", () => {
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveAsSpell(plan, effects, "smoke-x-unannounced", false);
+        expect(failedAssertions(plan)).toHaveLength(2);
+    });
+
+    it("a script with no X announces none", () => {
+        const plan = planSmokeTest([
+            { op: "gainLife", player: "controller", amount: 3 },
+        ]);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        expect(plan.scenario.chosenX).toBeUndefined();
+    });
+});
