@@ -37,9 +37,15 @@
  * unproven input answers `false` and leaves the move searchable:
  *
  *   * threats are OVER-counted — every stack object counts except a permanent
- *     spell (CR 608.3: resolving, it becomes a permanent; any enters trigger goes on the stack
- *     later, case 1 again), a creature in combat counts as two (a first-strike
- *     step and a regular one, CR 510.4), any marked damage counts;
+ *     spell (CR 608.3: resolving, it becomes a permanent; any enters trigger
+ *     goes on the stack later, case 1 again) and an object whose whole script
+ *     only taps, keeps from untapping, draws or gains life (Sleeping Potion's
+ *     own "tap enchanted creature" trigger, read through its `aiEffects`
+ *     shadow script); a creature in combat counts as two (a first-strike step
+ *     and a regular one, CR 510.4); any marked damage counts;
+ *   * a tap / keep-from-untapping script is NOT harmless against a {T}-cost
+ *     shield — tapping its source closes the window to activate it later.
+ *     Tapping the activation's MANA sources is not modelled: a narrowing;
  *   * only an ability whose WHOLE script is shield Ops on permanents
  *     qualifies — any other Op, a construct, a mode, a mana rider or an
  *     imperative `resolve()` keeps the move;
@@ -69,8 +75,12 @@ import type {
 import type { CardInstanceState, GameState, StackItem } from "../state";
 import type { Move } from "../moves";
 import { findPermanent } from "../lookup";
-import { getEffectiveActivatedAbilities } from "../activatedAbilities";
-import { effectiveTriggeredAbilities } from "../copy";
+import {
+    getEffectiveActivatedAbilities,
+    resolveGrantedActivatedAbility,
+} from "../activatedAbilities";
+import { effectiveTriggeredAbilities, findTriggeredAbility } from "../copy";
+import { tryGetDefinition } from "../../cards";
 import { getStaticAdditionalSacrifices } from "../state";
 import { isSpellStackItem, PERMANENT_TYPES } from "../constants";
 import { SOURCE_BINDING } from "../effects/interpreter";
@@ -98,10 +108,11 @@ export function isFutileShieldMove(state: GameState, move: Move): boolean {
     )?.ability;
     if (!ability) return false;
     if (!costIsLossOnly(state, source, ability)) return false;
+    const tapCost = ability.cost.tap === true;
     const shields = shieldsOf(ability, source.id, move.targets);
     if (!shields) return false;
     if (move.targets.length > 0 && anyBecameTargetListener(state)) return false;
-    return shields.every((s) => shieldIsFutile(state, s));
+    return shields.every((s) => shieldIsFutile(state, s, tapCost));
 }
 
 function costIsLossOnly(
@@ -165,8 +176,12 @@ function shieldOf(
     if (op.op === "preventDamage" && op.mode === "next-n") {
         // CR 514.2 — only a shield that ends with this turn; a longer one can
         // meet a threat the bot never gets priority against in time.
-        const duration = op.duration as { phase?: string };
-        if (duration.phase !== "end-of-turn") return null;
+        if (
+            op.duration.phase !== "end-of-turn" ||
+            (op.duration.skip ?? 0) > 0
+        ) {
+            return null;
+        }
         if ("player" in op.to) return null;
         const permanentId = permanentNamed(op.to, sourceId, targets);
         return permanentId ? { kind: "prevention", permanentId } : null;
@@ -202,10 +217,14 @@ function anyBecameTargetListener(state: GameState): boolean {
     return false;
 }
 
-function shieldIsFutile(state: GameState, shield: Shield): boolean {
+function shieldIsFutile(
+    state: GameState,
+    shield: Shield,
+    tapCost: boolean
+): boolean {
     const permanent = findPermanent(state, shield.permanentId);
     if (!permanent) return false;
-    const threats = threatsTo(state, permanent);
+    const threats = threatsTo(state, permanent, tapCost);
     if (shield.kind === "prevention") return threats === 0;
     // CR 701.19c — "can't be regenerated" makes any shield inapplicable; an
     // exile-on-death replacement suppresses it the same way. A continuous
@@ -223,10 +242,14 @@ function shieldIsFutile(state: GameState, shield: Shield): boolean {
 /** An upper bound on the destruction / damage events that can reach
  *  `permanent` before its controller next holds priority — see the module
  *  header's three cases. */
-function threatsTo(state: GameState, permanent: CardInstanceState): number {
+function threatsTo(
+    state: GameState,
+    permanent: CardInstanceState,
+    tapCost: boolean
+): number {
     let threats = 0;
     for (const item of state.stack) {
-        if (!isHarmlessStackItem(item)) threats++;
+        if (!isHarmlessStackItem(item, tapCost)) threats++;
     }
     const combat = state.combat;
     if (
@@ -242,10 +265,58 @@ function threatsTo(state: GameState, permanent: CardInstanceState): number {
 
 /** CR 608.3 — a permanent spell's resolution puts it onto the battlefield and
  *  nothing else; whatever it triggers goes on the stack and gives priority back
- *  (CR 117.3b). Every other stack object is presumed a threat. */
-function isHarmlessStackItem(item: StackItem): boolean {
-    if (!isSpellStackItem(item)) return false;
-    return item.types.some((t) =>
-        (PERMANENT_TYPES as readonly string[]).includes(t)
-    );
+ *  (CR 117.3b). Any other object is harmless only when its whole script is
+ *  provably harmless Ops; anything unreadable is presumed a threat. */
+function isHarmlessStackItem(item: StackItem, tapCost: boolean): boolean {
+    if (
+        isSpellStackItem(item) &&
+        item.types.some((t) =>
+            (PERMANENT_TYPES as readonly string[]).includes(t)
+        )
+    ) {
+        return true;
+    }
+    const script = stackItemScript(item);
+    if (!script || script.length === 0) return false;
+    const harmless = tapCost ? NON_TAPPING_HARMLESS_OPS : HARMLESS_OPS;
+    return script.every((op) => "op" in op && harmless.has(op.op));
+}
+
+/** Ops that can neither destroy a permanent nor deal damage. */
+const HARMLESS_OPS: ReadonlySet<string> = new Set([
+    "tapUntap",
+    "skipNextUntap",
+    "draw",
+    "gainLife",
+]);
+
+const NON_TAPPING_HARMLESS_OPS: ReadonlySet<string> = new Set([
+    "draw",
+    "gainLife",
+]);
+
+/** The script a stack object resolves — `effects`, else the `aiEffects`
+ *  shadow script a `resolve()` ability carries for the bot (PRD #1423). A
+ *  modal object, a delayed trigger or an unknown source answers `undefined`
+ *  (presumed a threat). */
+function stackItemScript(item: StackItem): readonly EffectOp[] | undefined {
+    if (item.delayedTriggerId) return undefined;
+    if (item.chosenModeIds?.length) return undefined;
+    const cardId = (item.card as { id?: string }).id;
+    const cardDef = cardId ? tryGetDefinition(cardId) : undefined;
+    if (item.triggeredAbilityId) {
+        const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+        return ability?.effects ?? ability?.aiEffects;
+    }
+    if (item.abilityId) {
+        const ability = item.grantedSourceCardId
+            ? resolveGrantedActivatedAbility(
+                  item.grantedSourceCardId,
+                  item.abilityId,
+                  item.grantedAbilityOrigin
+              )
+            : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
+        return ability?.effects ?? ability?.aiEffects;
+    }
+    return cardDef?.effects ?? cardDef?.aiEffects;
 }

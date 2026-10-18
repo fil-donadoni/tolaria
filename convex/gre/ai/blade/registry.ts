@@ -14022,6 +14022,56 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileShieldMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on seeds 1 and 2 of five — the `pass` tie the issue describes.",
     },
     {
+        label: "regeneration shield: holds Regenerate against the Aura's own tap trigger",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a destroy spell on the stack aimed at the regenerator",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Charging Troll",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Sleeping Potion", owner: "me", zone: "hand" },
+                { name: "Vindicate", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 8,
+            libraryCount: 20,
+        },
+        // The spell reaches the stack through the REAL cast pipeline (ADR 0070
+        // §4); the caster's window auto-passes, putting the regenerator's
+        // controller on the clock — so the bot plays `opp`.
+        setup: [
+            {
+                kind: "cast",
+                card: "Sleeping Potion",
+                by: "me",
+                target: "Charging Troll",
+            },
+            // The Aura resolves and its enters trigger ("tap enchanted
+            // creature") goes on the stack; the caster passes, so the
+            // regenerator's controller holds priority in that window.
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Charging Troll" }],
+        },
+        note: "Issue #5493, the window after position A (found in review): Sleeping Potion has resolved and its enters trigger only TAPS the Troll, so the shield still has nothing to replace (CR 701.19a). The trigger is a `resolve()` closure read through its `aiEffects` shadow script; a stack object whose whole script only taps, draws or gains life is not a destruction threat. Proof-of-failure: counting every ability on the stack as a threat (the pre-review predicate) keeps the activation, and the bot activates the Troll here.",
+    },
+    {
         label: "regeneration shield: regenerates against a destroy spell on the stack",
         classification: {
             kind: "conditional",
