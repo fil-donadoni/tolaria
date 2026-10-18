@@ -50,6 +50,9 @@
  *   bun run check:lane --json         # emit the plan + receipt as JSON
  *   bun run check:lane --plan         # print the classification, run NOTHING
  *   bun run check:lane --retry-flaky  # re-run a failed vitest command once (queue lane, issue #5640)
+ *   TOLARIA_LANE_JSON_OUT=<path> bun run check:lane
+ *                                     # pretty output AND the JSON receipt written to <path>
+ *                                     # (the land-runner's red classifier, issue #5955)
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified — and exits 1 again if that tree MOVES under
@@ -78,6 +81,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
@@ -1375,6 +1379,33 @@ function shellRun(command: string, cwd: string, json: boolean): ExecResult {
 }
 
 /**
+ * `shellRun` with the command's output captured and replayed (issue #5955):
+ * a failed step records the vitest test files its output named
+ * (`failedFiles`), whatever the command — a `full` lane runs its tests
+ * inside `check:pr`, and the fixup classifier (`pr-fixup.ts`) tells a stale
+ * blade card index from a real red by the files, never by the step. Used
+ * whenever the JSON receipt is being recorded (`--json`, or the sidecar
+ * `TOLARIA_LANE_JSON_OUT`); the pretty-only run keeps streaming.
+ */
+function shellRunCapturing(
+    command: string,
+    cwd: string,
+    json: boolean
+): ExecResult {
+    const t0 = Date.now();
+    const r = spawnSync("bun", [GATE, "light", command], {
+        stdio: ["inherit", "pipe", "pipe"],
+        cwd,
+        encoding: "utf8",
+        maxBuffer: 512 * 1024 * 1024,
+    });
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    (json ? process.stderr : process.stdout).write(out);
+    if (r.status === 0) return { ok: true, ms: Date.now() - t0 };
+    return { ok: false, ms: Date.now() - t0, failedFiles: failingFiles(out) };
+}
+
+/**
  * `--retry-flaky` (issue #5640): the queue's lane re-runs a failed vitest
  * command ONCE, on the failing files only, and records the flake. Output is
  * captured to be read (`planLaneRetry` owns what is retryable) and replayed
@@ -1387,7 +1418,7 @@ export function shellRunRetrying(
     json: boolean
 ): ExecResult {
     if (!/^bunx vitest run(\s|$)/.test(command)) {
-        return shellRun(command, cwd, json);
+        return shellRunCapturing(command, cwd, json);
     }
     const t0 = Date.now();
     const sink = json ? process.stderr : process.stdout;
@@ -1466,7 +1497,11 @@ export function executePlan(
     json: boolean,
     exec: (command: string) => ExecResult,
     log: (line: string) => void,
-    endHeadOf: () => string
+    endHeadOf: () => string,
+    /** Where the JSON receipt ALSO goes when the human form is printed
+     *  (`TOLARIA_LANE_JSON_OUT`, issue #5955) — the same `renderJson` call,
+     *  never a second renderer. */
+    jsonSink?: (json: string) => void
 ): RunResult {
     if (!json) log(renderPlan(plan, head));
 
@@ -1482,7 +1517,10 @@ export function executePlan(
     const endHead = endHeadOf();
 
     if (json) log(renderJson(plan, head, result, endHead));
-    else log(renderReceipt(result, { start: head, end: endHead }));
+    else {
+        jsonSink?.(renderJson(plan, head, result, endHead));
+        log(renderReceipt(result, { start: head, end: endHead }));
+    }
 
     return result;
 }
@@ -1492,6 +1530,10 @@ export function executePlan(
  * classify), so it is a pure function tested directly — repo convention in
  * this file, same as `shellStdio` and `runPlan`'s injected `exec`.
  */
+/** The sidecar JSON receipt's path (issue #5955): set by the land-runner on
+ *  the `land` it spawns, read here; `pr-fixup.ts` names it too. */
+export const LANE_JSON_OUT_ENV = "TOLARIA_LANE_JSON_OUT";
+
 export function parseArgs(argv: string[]): {
     base: string;
     json: boolean;
@@ -1580,14 +1622,24 @@ function main(): void {
         process.exit(0);
     }
 
+    // The sidecar JSON receipt (issue #5955): `land` prints the human form
+    // into the landing log, and the land-runner reads this file to classify
+    // a red — the same outcomes `--json` would print, `failedFiles` included.
+    const jsonOut = process.env[LANE_JSON_OUT_ENV];
+    const record = json || Boolean(jsonOut);
     const result = executePlan(
         plan,
         head,
         json,
         (command) =>
-            (retryFlaky ? shellRunRetrying : shellRun)(command, cwd, json),
+            (retryFlaky
+                ? shellRunRetrying
+                : record
+                  ? shellRunCapturing
+                  : shellRun)(command, cwd, json),
         console.log,
-        assertQuiet
+        assertQuiet,
+        jsonOut ? (blob) => writeFileSync(jsonOut, blob) : undefined
     );
 
     process.exit(result.ok ? 0 : 1);

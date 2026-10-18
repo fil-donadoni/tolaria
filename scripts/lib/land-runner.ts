@@ -9,8 +9,12 @@
  * serializes rebase → lane → merge → scenario seed by running the existing
  * `land` pipeline in the PR's worktree. A red `land` relabels the PR
  * `land-failed` with the lane excerpt as a comment, and `queue:plan` hands it
- * to the next pass as a REPAIR pick, ahead of new issues.
+ * to the next pass as a REPAIR pick, ahead of new issues — unless the red is
+ * one `classifyRed` (`pr-fixup.ts`, issue #5955) calls `regenerable` (the
+ * runner fixes the PR up and keeps it queued) or `infra` (re-queued after a
+ * backoff): only `needs-pass` costs a pass.
  */
+import { classifyRed, type FixKey, type LaneJson } from "../pr-fixup";
 import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "./land-labels";
 import { healthAdmission } from "./pr-gate";
 
@@ -23,6 +27,10 @@ export const RUNNER_ENV = "TOLARIA_LAND_RUNNER";
 export const SATURATED_EXIT = 77;
 /** Lines of `land`'s output the failure comment carries. */
 export const EXCERPT_LINES = 60;
+/** How long an `infra` red keeps its PR out of the tick (issue #5955): long
+ *  enough for a gateway blip to pass, short enough that a queue of one PR
+ *  is not idle for an hour. */
+export const INFRA_BACKOFF_S = 300;
 
 /** One PR as `gh pr list --label ready-to-land --state all` reads it. */
 export interface QueuedPr {
@@ -72,6 +80,11 @@ export function planTick(
         /** `lineageBlocks(lineage.kind)` — RED or second RED. */
         red: boolean;
         repairIssues: readonly number[];
+        /** PR → epoch ms before which it is not retried: an `infra` red's
+         *  backoff (issue #5955). */
+        deferred?: ReadonlyMap<number, number>;
+        /** Epoch ms now — paired with `deferred`. */
+        now?: number;
     }
 ): TickPlan {
     const plan: TickPlan = { shadowed: [], stale: [], held: [], next: null };
@@ -122,6 +135,14 @@ export function planTick(
             });
             continue;
         }
+        const until = ctx.deferred?.get(pr.number);
+        if (until !== undefined && (ctx.now ?? 0) < until) {
+            plan.held.push({
+                pr: pr.number,
+                reason: `infra red — retried after ${new Date(until).toISOString()}`,
+            });
+            continue;
+        }
         plan.next ??= pr;
     }
     return plan;
@@ -130,17 +151,30 @@ export function planTick(
 /** What a `land` exit means for the PR. */
 export type LandOutcome =
     | { action: "merged" }
-    | { action: "requeue"; reason: string }
-    | { action: "failed"; excerpt: string };
+    | { action: "requeue"; reason: string; backoffS?: number }
+    | { action: "fixup"; fixes: FixKey[] }
+    | { action: "failed"; excerpt: string; cause: string };
 
 /**
  * `land`'s exit code read as a labelling decision. 0 merged. 77 is the
  * machine staying saturated — `land` ran NOTHING (issue #4966), so the PR
  * stays queued, never `land-failed`. A `null` status is `land` killed by a
  * signal (the runner stopped mid-landing): nothing proves the PR red, so it
- * stays queued too. Anything else is a red landing.
+ * stays queued too. Anything else is a red landing, read by `classifyRed`
+ * (issue #5955): `regenerable` → the runner fixes it up (`fixup`),
+ * `infra` → stays queued behind a backoff, `needs-pass` → `land-failed`
+ * with the cause in its comment.
  */
-export function outcomeOf(status: number | null, output: string): LandOutcome {
+export function outcomeOf(
+    status: number | null,
+    output: string,
+    red: {
+        /** The sidecar lane receipt (`TOLARIA_LANE_JSON_OUT`), or null. */
+        lane: LaneJson | null;
+        /** Subjects of the PR's commits, newest last. */
+        subjects: readonly string[];
+    } = { lane: null, subjects: [] }
+): LandOutcome {
     if (status === 0) return { action: "merged" };
     if (status === SATURATED_EXIT)
         return {
@@ -149,7 +183,20 @@ export function outcomeOf(status: number | null, output: string): LandOutcome {
         };
     if (status === null)
         return { action: "requeue", reason: "land was killed by a signal" };
-    return { action: "failed", excerpt: landExcerpt(output) };
+    const cls = classifyRed({ ...red, output });
+    if (cls.kind === "regenerable")
+        return { action: "fixup", fixes: cls.fixes };
+    if (cls.kind === "infra")
+        return {
+            action: "requeue",
+            reason: `infra — ${cls.reason}`,
+            backoffS: INFRA_BACKOFF_S,
+        };
+    return {
+        action: "failed",
+        excerpt: landExcerpt(output),
+        cause: cls.reason,
+    };
 }
 
 // eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
@@ -198,6 +245,9 @@ export function failureComment(input: {
     /** The branch names an issue (`feat|fix/issue-N`): `queue:plan` makes it
      *  a repair pick. `false` (a `docs/` lane): nobody is picked — say so. */
     repairable?: boolean;
+    /** `classifyRed`'s reason — why this red is `needs-pass` and not a
+     *  fixup or a re-queue (issue #5955). */
+    cause?: string;
 }): string {
     // A fence the excerpt cannot close early.
     const fence = "`".repeat(
@@ -209,6 +259,9 @@ export function failureComment(input: {
     return [
         `**land-runner: \`land\` exited ${input.status ?? "on a signal"}** — labelled \`${FAILED_LABEL}\`.`,
         "",
+        ...(input.cause === undefined
+            ? []
+            : [`Class: \`needs-pass\` — ${input.cause}.`, ""]),
         input.repairable === false
             ? "This branch names no issue, so no pass is handed it: a human repairs it; after the fix, `bun run land:ready <PR#>` re-queues it."
             : `\`queue:plan\` hands this PR to the next pass as a repair pick (\`/next-ticket <issue> --resume\`); after the fix, \`bun run land:ready <PR#>\` re-queues it.`,

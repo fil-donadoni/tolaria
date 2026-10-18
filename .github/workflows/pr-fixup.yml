@@ -3,7 +3,9 @@
 # formatting costs no session (ADR 0156 Amendment I § Duties, issue #5640).
 #
 # Dispatched by `pr-check` (a red lane `scripts/pr-fixup.ts classify` calls
-# regenerable, on a same-repository PR) or by hand. `workflow_dispatch` only:
+# regenerable, on a same-repository PR), by `queue-lane` (the same red on the
+# queue's draft: the PR, dequeued as `land-failed`, goes back to
+# `ready-to-land` after the push — issue #5955) or by hand. `workflow_dispatch` only:
 # nothing an outsider can fire reaches the owner's runner. The dispatch input
 # `fixes` only SELECTS rows of the FIXES table in scripts/pr-fixup.ts — it
 # never carries a command — and the script refuses a PR whose author is not in

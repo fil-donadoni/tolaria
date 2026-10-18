@@ -9,6 +9,12 @@
 # account with write access can create: no outsider reaches the runner (the
 # structure guard, scripts/__tests__/workflow-structure.test.ts). The job's
 # name is the status context the queue rule requires.
+#
+# A red lane whose only cause is a stale generated artefact costs no pass
+# (issue #5955): `pr:fixup classify --draft` reads the lane's JSON, finds the
+# PR the draft is checking and dispatches `pr-fixup`, which regenerates,
+# pushes and hands the PR (dequeued as `land-failed` meanwhile) back to the
+# queue as `ready-to-land`. Any other red stays a repair pick.
 # docs/guides/github-pipeline.md § queue-lane.
 name: queue-lane
 
@@ -24,6 +30,10 @@ jobs:
         name: queue-lane
         runs-on: [self-hosted, lane]
         timeout-minutes: 60
+        # `actions: write` only to dispatch pr-fixup below (issue #5955).
+        permissions:
+            contents: read
+            actions: write
         steps:
             - name: Job worktree
               shell: bash
@@ -37,6 +47,13 @@ jobs:
             - name: Flakes in the job summary
               if: always()
               run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
+            - name: Fixup (stale generated artefact)
+              if: failure()
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DRAFT: ${{ github.ref_name }}
+              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --draft "$DRAFT"
             - name: Remove the job worktree
               if: always()
               shell: bash

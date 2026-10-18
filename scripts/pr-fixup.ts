@@ -3,16 +3,22 @@
 // instead of spending a session on it (PRD issue #5620, issue #5640; ADR 0156
 // Amendment I § Duties).
 //
-//   classify --lane <lane.json> [--pr <N>]
+//   classify --lane <lane.json> [--pr <N> | --draft <branch>] [--ref <base>]
 //       Reads the JSON `check:lane --json --retry-flaky` wrote. Prints the fix
 //       keys (`oracle`, `blade-index`, `format`) when EVERY failed step is one
 //       a regeneration cures, nothing and exit 1 otherwise. With `--pr N` it
-//       also dispatches `pr-fixup.yml` for that PR (`gh workflow run`).
+//       also dispatches `pr-fixup.yml` for that PR (`gh workflow run`); with
+//       `--draft <branch>` (the queue's lane, issue #5955) the PR is the one
+//       the Mergify draft on that branch is checking.
 //   flakes --lane <lane.json>
 //       The flakes the lane recorded, as job-summary markdown (empty if none).
-//   run --pr <N> --fixes <k,k>
+//   run --pr <N> --fixes <k,k> [--in-place]
 //       The fixup job: in the job worktree, check out the PR head, regenerate
-//       the named artefacts, commit, push to the PR's branch.
+//       the named artefacts, commit, push to the PR's branch. A PR the queue
+//       had rejected (`land-failed`) is handed back to it (`ready-to-land`).
+//       `--in-place` (the land-runner, issue #5955): the current checkout IS
+//       the PR's branch as `land` left it — rebased onto the base tip — so
+//       no checkout; the push is leased on `origin/<branch>`.
 //
 // WHAT COUNTS AS REGENERABLE is the table below and nothing else: a lane step
 // whose red is "the committed file is not what its generator writes today".
@@ -21,18 +27,26 @@
 // (a type error, a real test) leaves the PR untouched: the fixup never
 // guesses. The dispatch input only SELECTS rows of this table; it can never
 // carry a command.
+//
+// ONE DECISION FOR EVERY RED (issue #5955): `classifyRed` wraps the table —
+// `regenerable` (its keys), `infra` (the outage or the machine, not the PR:
+// re-queue), `needs-pass` (everything else: a repair pick). The queue's lane
+// and the land-runner both call it; neither re-derives a key.
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { REGENERATED_ARTIFACTS } from "./lib/generated-artifacts";
+import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 
 export type FixKey = "oracle" | "blade-index" | "format";
 
 export interface FixRow {
-    /** The lane step id whose failure this row cures. */
-    stepId: string;
-    /** For a vitest step: the ONLY test files whose failure it cures. */
+    /** The lane step ids whose failure this row cures. */
+    stepIds: readonly string[];
+    /** The ONLY test files whose failure it cures — the step's `failedFiles`
+     *  (a vitest step's, or any step's once the lane records its output,
+     *  issue #5955) must be exactly these. */
     onlyFiles?: readonly string[];
     /** `bun run <script> <args…>` — re-derives the artefact. */
     script: string;
@@ -49,7 +63,7 @@ if (!ORACLE)
  *  resolver `land` runs — so the carried-forward Bot verdicts are the same. */
 export const FIXES: Readonly<Record<FixKey, FixRow>> = {
     oracle: {
-        stepId: "check:oracle",
+        stepIds: ["check:oracle"],
         script: ORACLE.script,
         args: ORACLE.args ?? [],
     },
@@ -57,13 +71,16 @@ export const FIXES: Readonly<Record<FixKey, FixRow>> = {
         // The drift test is a `bot-node` file no related run selects: the
         // lane runs it as its own admitted guard (issue #5940) and names it
         // in `failedFiles` — a red with no file named (a crash) is not drift.
-        stepId: "blade-index",
+        // A `full` lane runs it inside `check:pr` (`check:guards`): the same
+        // files rule, read from the captured output (issue #5955, PR #5863
+        // sat `land-failed` 7 h on exactly this red).
+        stepIds: ["blade-index", "check:pr"],
         onlyFiles: [BLADE_INDEX_DRIFT_TEST],
         script: "blade:card-index",
         args: [],
     },
     format: {
-        stepId: "format(diff)",
+        stepIds: ["format(diff)"],
         script: "format",
         args: [],
     },
@@ -99,13 +116,139 @@ export function classifyLane(lane: {
 }
 
 function rowCures(row: FixRow, o: LaneOutcome): boolean {
-    if (o.id !== row.stepId) return false;
+    if (!row.stepIds.includes(o.id)) return false;
     if (!row.onlyFiles) return true;
     // A vitest red with no named file, or any file the row does not own, is a
     // real failure.
     const files = o.failedFiles ?? [];
     return files.length > 0 && files.every((f) => row.onlyFiles?.includes(f));
 }
+
+// eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
+const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g;
+
+/** How a red landing or queue check is handled (issue #5955). */
+export type RedClass =
+    | { kind: "regenerable"; fixes: FixKey[] }
+    | { kind: "infra"; reason: string }
+    | { kind: "needs-pass"; reason: string };
+
+/** The lane JSON as `check:lane --json` / `TOLARIA_LANE_JSON_OUT` wrote it,
+ *  or `null` when the lane wrote none (it never ran, was skipped as already
+ *  gated, or died before its receipt). */
+export type LaneJson = Parameters<typeof classifyLane>[0];
+
+/**
+ * What a line of `land`'s OWN output looks like when the red is the network
+ * or GitHub, not the PR: git's transport errors, `gh`'s gateway errors and
+ * the retry wrapper's exhausted-outage line. Deliberately narrow — a pattern
+ * that also matches a test's wording would turn a real red into an endless
+ * re-queue — and never applied to the lane's own output (`outsideLane`).
+ */
+export const INFRA_LINE =
+    /Could not resolve host|unable to access '|Could not read from remote repository|The remote end hung up unexpectedly|RPC failed|Connection (timed out|refused|reset)|Network is unreachable|TLS handshake|SSL_ERROR|E(AI_AGAIN|NOTFOUND|TIMEDOUT|CONNRESET|HOSTUNREACH)\b|HTTP 5\d\d\b|\b50[234] (Bad Gateway|Service Unavailable|Gateway Time-?out)|GraphQL: .*(timed? ?out|unavailable|Something went wrong)|gh: transient error|rate limit/i;
+
+/** `land`'s output with the lane's own output cut out: everything between
+ *  its `lane: ran` marker and the lane receipt's last line (`PASS|FAIL …
+ *  total`) or the script's exit line. A test's stderr quoting an HTTP 504
+ *  (`gh-retry.test.ts`, `health-pivot.test.ts`) lives in there, and in PR
+ *  #5932's landing log read as an outage; what is left is `land`, git and
+ *  `gh` speaking for themselves. */
+export function outsideLane(output: string): string[] {
+    const lines = output.split("\n");
+    const start = lines.findIndex((l) => /^lane: ran\b/.test(l.trim()));
+    if (start === -1) return lines;
+    const endRel = lines
+        .slice(start + 1)
+        .findIndex((l) =>
+            /^((PASS|FAIL)\s+[\d.]+s total|error: script "check:lane" exited)/.test(
+                l.replace(ANSI, "").trim()
+            )
+        );
+    const end = endRel === -1 ? lines.length - 1 : start + 1 + endRel;
+    return [...lines.slice(0, start), ...lines.slice(end + 1)];
+}
+
+/** Whether the head already ends in two fixup commits — the loop guard
+ *  `fixupRefusal` applies, read ahead of time by `classifyRed`. */
+export function fixupLimitReached(subjects: readonly string[]): boolean {
+    return (
+        subjects.slice(-2).filter((s) => s === FIXUP_COMMIT_SUBJECT).length ===
+        2
+    );
+}
+
+/**
+ * THE decision on a red (issue #5955). In order:
+ *
+ * 1. The lane went red (`lane.ok === false`) and every failed step has a
+ *    fixup row → `regenerable`, unless the head already carries two fixup
+ *    commits (the bound: the regeneration did not cure it) → `needs-pass`.
+ * 2. The lane went red otherwise → `needs-pass`, naming the steps: a real
+ *    test, a type error, a conflict — the lane's output is never read for
+ *    an outage, a test's own wording lives there.
+ * 3. The lane did not go red (green, skipped, never reached) and a line of
+ *    `land`'s own output names the network or GitHub → `infra`.
+ * 4. Else `needs-pass`.
+ */
+export function classifyRed(input: {
+    lane: LaneJson | null;
+    /** Subjects of the PR's commits, newest last. */
+    subjects: readonly string[];
+    /** `land`'s whole output (the landing log); `""` for a queue check. */
+    output: string;
+}): RedClass {
+    const lane = input.lane;
+    if (lane !== null && lane.ok === false) {
+        const fixes = classifyLane(lane);
+        if (fixes !== null) {
+            if (fixupLimitReached(input.subjects))
+                return {
+                    kind: "needs-pass",
+                    reason: `regenerable (${fixes.join(", ")}) but the head already ends in two fixup commits — the regeneration does not cure it`,
+                };
+            return { kind: "regenerable", fixes };
+        }
+        const failed = (lane.outcomes ?? [])
+            .filter((o) => o.status === "fail")
+            .map((o) =>
+                o.failedFiles?.length
+                    ? `${o.id} (${o.failedFiles.join(", ")})`
+                    : o.id
+            );
+        return {
+            kind: "needs-pass",
+            reason: `lane step${failed.length === 1 ? "" : "s"} ${failed.join(", ") || "unknown"} failed with no fixup row`,
+        };
+    }
+    const outage = outsideLane(input.output)
+        .map((l) => l.replace(ANSI, "").trim())
+        .find((l) => INFRA_LINE.test(l));
+    if (outage !== undefined)
+        return { kind: "infra", reason: outage.slice(0, 200) };
+    return {
+        kind: "needs-pass",
+        reason:
+            lane === null
+                ? "red outside the lane, naming no outage"
+                : "the lane passed; the red came after it (push, merge) and names no outage",
+    };
+}
+
+/** The PR a Mergify draft is checking, from the draft's title — `merge queue:
+ *  checking #5854 on staging (5173278)` → `{ pr: 5854, base: "staging" }`;
+ *  `null` on any other title (a batch of several, `batch_size: 1` never
+ *  makes one). */
+export function queuedPrOfDraft(
+    title: string
+): { pr: number; base: string } | null {
+    const m = /^merge queue: checking #(\d+) on (\S+)/.exec(title.trim());
+    return m ? { pr: Number(m[1]), base: m[2] } : null;
+}
+
+/** The line `pr:fixup run` ends on when it pushed — the land-runner reads it
+ *  back to tell a fixed-up PR from an untouched one. */
+export const FIXUP_PUSHED_RE = /^pr:fixup: PR #\d+ fixed \(.*\) and pushed$/m;
 
 /** `oracle,format` → the keys; null on anything not in the table. */
 export function parseFixes(raw: string): FixKey[] | null {
@@ -146,10 +289,7 @@ export function fixupRefusal(
     }
     // Loop guard: a fixup that did not cure the red must not run again on
     // its own push.
-    if (
-        pr.subjects.slice(-2).filter((s) => s === FIXUP_COMMIT_SUBJECT)
-            .length === 2
-    ) {
+    if (fixupLimitReached(pr.subjects)) {
         return "two fixup commits in a row — the regeneration does not cure it";
     }
     return null;
@@ -217,10 +357,36 @@ function classifyMain(argv: string[]): void {
         process.exit(1);
     }
     console.log(keys.join(","));
-    const pr = argOf(argv, "--pr");
+    let pr = argOf(argv, "--pr");
+    let ref = argOf(argv, "--ref");
+    const draft = argOf(argv, "--draft");
+    if (draft !== undefined) {
+        // The queue's lane (issue #5955): the checked branch is a Mergify
+        // draft; its PR's title names the PR it is checking and the base.
+        const titles = ghJson([
+            "pr",
+            "list",
+            "--head",
+            draft,
+            "--state",
+            "all",
+            "--limit",
+            "1",
+            "--json",
+            "title",
+        ]) as { title: string }[];
+        const queued = titles[0] ? queuedPrOfDraft(titles[0].title) : null;
+        if (queued === null) {
+            console.log(
+                `pr:fixup: no single queued PR behind draft ${draft} — nothing dispatched`
+            );
+            return;
+        }
+        pr = String(queued.pr);
+        ref ??= queued.base;
+    }
     if (pr === undefined) return;
     if (!/^\d+$/.test(pr)) die(`--pr ${pr} is not a number`);
-    const ref = argOf(argv, "--ref");
     const r = run("gh", [
         "workflow",
         "run",
@@ -247,18 +413,20 @@ function runMain(argv: string[]): void {
     const fixes = parseFixes(argOf(argv, "--fixes") ?? "");
     if (!fixes) die("run needs --fixes naming rows of the FIXES table");
 
+    const inPlace = argv.includes("--in-place");
     const view = ghJson([
         "pr",
         "view",
         pr,
         "--json",
-        "state,author,headRefName,isCrossRepository,commits",
+        "state,author,headRefName,isCrossRepository,commits,labels",
     ]) as {
         state: string;
         author: { login: string };
         headRefName: string;
         isCrossRepository: boolean;
         commits: { messageHeadline: string }[];
+        labels: { name: string }[];
     };
     const facts: PrFacts = {
         state: view.state,
@@ -280,13 +448,41 @@ function runMain(argv: string[]): void {
         return;
     }
 
-    for (const step of [
-        ["git", "fetch", "--no-tags", "origin", `pull/${pr}/head`],
-        ["git", "checkout", "--detach", "FETCH_HEAD"],
-        ["bun", "run", "worktree:init"],
-    ]) {
-        const r = run(step[0], step.slice(1));
-        if (!r.ok) die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
+    // The push target. In the job: the PR head, checked out detached. In
+    // place (the land-runner): the branch `land` rebased, pushed under a
+    // lease on what origin held when the runner reset it — a push that
+    // crossed a session's would be refused, never clobber it.
+    let push = [
+        "git",
+        "push",
+        "origin",
+        `HEAD:refs/heads/${facts.headRefName}`,
+    ];
+    if (inPlace) {
+        const branch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+        if (branch.out.trim() !== facts.headRefName)
+            die(
+                `--in-place: HEAD is ${branch.out.trim() || "detached"}, not ${facts.headRefName}`
+            );
+        const lease = run("git", ["rev-parse", `origin/${facts.headRefName}`]);
+        if (!lease.ok)
+            die(`--in-place: no origin/${facts.headRefName} to lease on`);
+        push = [
+            "git",
+            "push",
+            `--force-with-lease=refs/heads/${facts.headRefName}:${lease.out.trim()}`,
+            "origin",
+            `HEAD:refs/heads/${facts.headRefName}`,
+        ];
+    } else {
+        for (const step of [
+            ["git", "fetch", "--no-tags", "origin", `pull/${pr}/head`],
+            ["git", "checkout", "--detach", "FETCH_HEAD"],
+            ["bun", "run", "worktree:init"],
+        ]) {
+            const r = run(step[0], step.slice(1));
+            if (!r.ok) die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
+        }
     }
 
     for (const key of fixes) {
@@ -312,12 +508,31 @@ function runMain(argv: string[]): void {
             "-m",
             `${FIXUP_COMMIT_SUBJECT}\n\nRegenerated by pr-fixup: ${fixes.join(", ")} (issue #5640).`,
         ],
-        ["git", "push", "origin", `HEAD:refs/heads/${facts.headRefName}`],
+        push,
     ];
     for (const step of steps) {
         const r = run(step[0], step.slice(1));
         if (!r.ok)
             die(`${step.slice(0, 2).join(" ")} failed: ${r.out.slice(-400)}`);
+    }
+    // A PR the queue rejected on this very red re-enters it with no pass
+    // (issue #5955): `land-failed` → `ready-to-land`. Logged, never fatal —
+    // the push is the fix; a label write that fails is retried by hand.
+    if (view.labels.some((l) => l.name === FAILED_LABEL)) {
+        const r = run("gh", [
+            "pr",
+            "edit",
+            pr,
+            "--add-label",
+            READY_LABEL,
+            "--remove-label",
+            FAILED_LABEL,
+        ]);
+        console.log(
+            r.ok
+                ? `pr:fixup: PR #${pr} re-queued — ${FAILED_LABEL} → ${READY_LABEL}`
+                : `pr:fixup: PR #${pr} label swap failed: ${r.out.trim().slice(-200)}`
+        );
     }
     console.log(`pr:fixup: PR #${pr} fixed (${fixes.join(", ")}) and pushed`);
 }

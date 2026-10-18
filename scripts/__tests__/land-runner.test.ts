@@ -15,6 +15,7 @@ import {
     failureReason,
     FAILED_LABEL,
     failureComment,
+    INFRA_BACKOFF_S,
     labelArgs,
     landExcerpt,
     launchdSupervised,
@@ -367,6 +368,99 @@ describe("outcomeOf — a land exit read as a label decision", () => {
     });
 });
 
+// Issue #5955: a red landing is classified before it is labelled.
+describe("outcomeOf — a classified red (issue #5955)", () => {
+    const BLADE = "scripts/__tests__/blade-card-index-drift.bot.test.ts";
+    const log = "lane: ran\n  ✗ check:pr  398.3s\nFAIL  398.3s total\n";
+
+    it("a regenerable lane red is a fixup, never land-failed", () => {
+        expect(
+            outcomeOf(1, log, {
+                lane: {
+                    ok: false,
+                    outcomes: [
+                        {
+                            id: "check:pr",
+                            status: "fail",
+                            failedFiles: [BLADE],
+                        },
+                    ],
+                },
+                subjects: ["fix: x"],
+            })
+        ).toEqual({ action: "fixup", fixes: ["blade-index"] });
+    });
+
+    it("an outage outside the lane re-queues behind the infra backoff", () => {
+        const o = outcomeOf(
+            1,
+            "lane: skipped (gated a against b)\nHTTP 502: Bad Gateway (https://api.github.com/graphql)\n",
+            { lane: null, subjects: [] }
+        );
+        expect(o.action).toBe("requeue");
+        if (o.action === "requeue") {
+            expect(o.backoffS).toBe(INFRA_BACKOFF_S);
+            expect(o.reason).toMatch(/^infra — HTTP 502/);
+        }
+    });
+
+    it("everything else is land-failed, carrying the class's reason", () => {
+        const o = outcomeOf(1, log, {
+            lane: {
+                ok: false,
+                outcomes: [
+                    {
+                        id: "check:pr",
+                        status: "fail",
+                        failedFiles: ["a.test.ts"],
+                    },
+                ],
+            },
+            subjects: [],
+        });
+        expect(o.action).toBe("failed");
+        if (o.action === "failed") {
+            expect(o.cause).toBe(
+                "lane step check:pr (a.test.ts) failed with no fixup row"
+            );
+            expect(o.excerpt).toMatch(/FAIL {2}398\.3s total/);
+        }
+    });
+});
+
+describe("planTick — an infra red's PR waits out its backoff (issue #5955)", () => {
+    const prs = [
+        pr(10, "2026-10-18T10:00:00Z"),
+        pr(11, "2026-10-18T10:01:00Z"),
+    ];
+    const ctx = {
+        remoteBranches: branchesOf(prs),
+        red: false,
+        repairIssues: [],
+    };
+
+    it("holds the deferred PR and lands the next while the backoff stands", () => {
+        const plan = planTick(prs, {
+            ...ctx,
+            deferred: new Map([[10, 2_000]]),
+            now: 1_000,
+        });
+        expect(plan.next?.number).toBe(11);
+        expect(plan.held.map((h) => h.pr)).toEqual([10]);
+        expect(plan.held[0].reason).toMatch(/infra red — retried after/);
+    });
+
+    it("lands it once the backoff has passed", () => {
+        const plan = planTick(prs, {
+            ...ctx,
+            deferred: new Map([[10, 2_000]]),
+            now: 2_000,
+        });
+        expect(plan.next?.number).toBe(10);
+        expect(plan.held).toEqual([]);
+    });
+});
+
 describe("landExcerpt — the lines a repairer needs", () => {
     it("keeps the last EXCERPT_LINES lines, ANSI stripped", () => {
         const out = Array.from(
@@ -403,6 +497,18 @@ describe("the PR comments", () => {
         expect(body).toMatch(/\/x\/land-9\.log/);
         // The fence is longer than any backtick run inside the excerpt.
         expect(body).toMatch(/^````$/m);
+    });
+
+    it("names the class when the runner classified the red (issue #5955)", () => {
+        const body = failureComment({
+            status: 1,
+            excerpt: "x",
+            logPath: "/l",
+            cause: "lane step tsc[all] failed with no fixup row",
+        });
+        expect(body).toMatch(
+            /Class: `needs-pass` — lane step tsc\[all\] failed with no fixup row\./
+        );
     });
 
     it("a branch naming no issue (a docs lane) says no pass is handed it", () => {

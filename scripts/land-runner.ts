@@ -27,9 +27,14 @@
  *      changed, close the issue if the merge did not, release its claim
  *      (label, assignee, journal row), remove the worktree; 77, a signal or
  *      a worktree that could not be prepared (network, disk) → stays queued;
- *      anything else → `land-failed` + a comment carrying the lane excerpt,
- *      which `queue:plan` turns into a repair pick. A `gh` write that fails
- *      is logged, never thrown, so one PR cannot stall the queue.
+ *      any other red is classified (`classifyRed`, issue #5955) from the
+ *      lane's sidecar JSON (`TOLARIA_LANE_JSON_OUT`) and `land`'s own
+ *      output: `regenerable` → `pr:fixup run --in-place` in the worktree
+ *      `land` rebased, the PR stays queued; `infra` → stays queued, retried
+ *      after `INFRA_BACKOFF_S`; `needs-pass` → `land-failed` + a comment
+ *      carrying the class and the lane excerpt, which `queue:plan` turns
+ *      into a repair pick. A `gh` write that fails is logged, never thrown,
+ *      so one PR cannot stall the queue.
  *
  * The runner does not reload its own code in place: before each tick it
  * reads `RUNNER_SOURCE_PATHS` at the primary's HEAD and, once they moved,
@@ -61,6 +66,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { LANE_JSON_OUT_ENV } from "./check-lane";
 import { CONFIG_PATH } from "./lib/branches";
 import { gh, netEnv } from "./lib/gh";
 import {
@@ -74,8 +80,10 @@ import {
     describeLandFailures,
     failureComment,
     failureReason,
+    INFRA_BACKOFF_S,
     type LandFailure,
     labelArgs,
+    landExcerpt,
     launchdSupervised,
     mergedComment,
     outcomeOf,
@@ -96,6 +104,7 @@ import {
 } from "./lib/land-runner";
 import { notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { FIXUP_PUSHED_RE, type LaneJson } from "./pr-fixup";
 import { performRelease } from "./lib/queue-claim";
 import { readRepairIssues } from "./land";
 import { claimLedgerPath } from "./loop-doctor";
@@ -357,6 +366,103 @@ function closeIssueIfOpen(
         log(`PR #${pr}: issue #${issue} closed`);
 }
 
+/** The sidecar lane receipt `land`'s `check:lane` wrote for this landing
+ *  (`TOLARIA_LANE_JSON_OUT`), or null when it wrote none — the lane was
+ *  skipped as already gated, never reached, or died before its receipt. */
+function readLaneJson(path: string): LaneJson | null {
+    try {
+        return JSON.parse(readFileSync(path, "utf8")) as LaneJson;
+    } catch {
+        return null;
+    }
+}
+
+/** Subjects of the PR's commits, newest last — `classifyRed`'s fixup bound.
+ *  Unreadable → `[]`: the bound then holds one landing later, inside
+ *  `pr:fixup run`'s own refusal. */
+function prSubjects(pr: number, log: (line: string) => void): string[] {
+    try {
+        return gh([
+            "pr",
+            "view",
+            String(pr),
+            "--json",
+            "commits",
+            "--jq",
+            ".commits[].messageHeadline",
+        ])
+            .split("\n")
+            .filter(Boolean);
+    } catch {
+        log(
+            `PR #${pr}: could not read its commits — fixup bound not checked here`
+        );
+        return [];
+    }
+}
+
+/**
+ * A `regenerable` red (issue #5955): `pr:fixup run --in-place` in the
+ * worktree `land` rebased — the same table, refusals and commit the
+ * `pr-fixup` job uses — with the repository's `TRUSTED_AUTHORS`. The result
+ * is read back as a `LandOutcome`: pushed → stays queued (the next tick
+ * lands the fixed tip); anything else → `land-failed`, so a fixup that
+ * cannot push never loops.
+ */
+function runFixup(input: {
+    pr: number;
+    fixes: readonly string[];
+    cwd: string;
+    logPath: string;
+    log: (line: string) => void;
+}): Exclude<LandOutcome, { action: "fixup" }> {
+    const { pr, fixes, log } = input;
+    let trusted = "";
+    try {
+        trusted = gh(["variable", "get", "TRUSTED_AUTHORS"]).trim();
+    } catch {
+        log(`PR #${pr}: TRUSTED_AUTHORS unreadable — fixup refused`);
+    }
+    const r = spawnSync(
+        "bun",
+        [
+            "scripts/pr-fixup.ts",
+            "run",
+            "--pr",
+            String(pr),
+            "--fixes",
+            fixes.join(","),
+            "--in-place",
+        ],
+        {
+            cwd: input.cwd,
+            encoding: "utf8",
+            env: { ...netEnv(process.env), TRUSTED_AUTHORS: trusted },
+            maxBuffer: 64 << 20,
+        }
+    );
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    appendFileSync(
+        input.logPath,
+        `\n--- pr:fixup run (${fixes.join(", ")}) ---\n${out}`
+    );
+    if (r.status === 0 && FIXUP_PUSHED_RE.test(out)) {
+        log(
+            `PR #${pr}: fixed up (${fixes.join(", ")}) and pushed — stays queued`
+        );
+        return {
+            action: "requeue",
+            reason: `fixed up (${fixes.join(", ")}) — the next tick lands the regenerated tip`,
+        };
+    }
+    const last = out.trim().split("\n").at(-1) ?? `exit ${r.status}`;
+    return {
+        action: "failed",
+        excerpt: landExcerpt(readFileSync(input.logPath, "utf8")),
+        cause: `regenerable (${fixes.join(", ")}) but the fixup did not push: ${last.slice(0, 160)}`,
+    };
+}
+
 /** `seed:preset --all` after a merge that touched a card set — idempotent,
  *  and a failure costs a preset deck, never the landing: logged only. */
 function seedPresetsIfOwed(
@@ -392,7 +498,8 @@ function seedPresetsIfOwed(
 
 function applyOutcome(input: {
     pr: QueuedPr;
-    outcome: LandOutcome;
+    /** `fixup` is resolved by `tick` (`runFixup`) before it gets here. */
+    outcome: Exclude<LandOutcome, { action: "fixup" }>;
     status: number | null;
     logPath: string;
     /** `land`'s output — the merged comment quotes its lane receipt. */
@@ -459,6 +566,7 @@ function applyOutcome(input: {
                 excerpt: outcome.excerpt,
                 logPath: input.logPath,
                 repairable: issueOfBranch(pr.headRefName) !== null,
+                cause: outcome.cause,
             }),
         ],
         log
@@ -478,8 +586,10 @@ function tick(opts: {
     log: (line: string) => void;
     /** Each `land-failed` relabel — the loop notifies the owner once per burst. */
     onFailed: (failure: LandFailure) => void;
+    /** PR → epoch ms before which it is not retried (`infra`, issue #5955). */
+    deferred: Map<number, number>;
 }): boolean {
-    const { primary, dryRun, log } = opts;
+    const { primary, dryRun, log, deferred } = opts;
     const queued = listQueued();
     if (queued.length === 0) {
         if (dryRun) log(`no \`${READY_LABEL}\` PR — nothing to land`);
@@ -495,6 +605,8 @@ function tick(opts: {
         remoteBranches: remoteBranches(primary),
         red,
         repairIssues: red ? readRepairIssues(primary) : [],
+        deferred,
+        now: Date.now(),
     });
     for (const s of plan.stale) {
         log(`PR #${s.pr}: stale (${s.reason}) — unlabelled`);
@@ -512,6 +624,10 @@ function tick(opts: {
 
     const logPath = join(opts.dir, `land-${pr.number}.log`);
     writeFileSync(logPath, "");
+    // The lane's sidecar receipt for THIS landing — a stale one from a
+    // previous landing of the same PR would classify the wrong red.
+    const laneJsonPath = join(opts.dir, `land-${pr.number}.lane.json`);
+    rmSync(laneJsonPath, { force: true });
     let wt: { dir: string; created: boolean };
     try {
         wt = prepareWorktree(primary, pr.number, pr.headRefName, log);
@@ -523,7 +639,11 @@ function tick(opts: {
             outcome:
                 err instanceof PrepError && err.requeue
                     ? { action: "requeue", reason: message }
-                    : { action: "failed", excerpt: message },
+                    : {
+                          action: "failed",
+                          excerpt: message,
+                          cause: "the worktree could not be prepared",
+                      },
             status: 1,
             logPath,
             output: message,
@@ -538,7 +658,11 @@ function tick(opts: {
         const fd = openSync(logPath, "a");
         const r = spawnSync("bun", ["scripts/land.ts", String(pr.number)], {
             cwd,
-            env: { ...netEnv(process.env), [RUNNER_ENV]: "1" },
+            env: {
+                ...netEnv(process.env),
+                [RUNNER_ENV]: "1",
+                [LANE_JSON_OUT_ENV]: laneJsonPath,
+            },
             stdio: ["ignore", fd, fd],
         });
         closeSync(fd);
@@ -556,7 +680,36 @@ function tick(opts: {
         status = 0;
     }
     const output = readFileSync(logPath, "utf8");
-    const outcome = outcomeOf(status, output);
+    const landed = outcomeOf(
+        status,
+        output,
+        status === 0
+            ? { lane: null, subjects: [] }
+            : {
+                  lane: readLaneJson(laneJsonPath),
+                  subjects: prSubjects(pr.number, log),
+              }
+    );
+    if (landed.action === "fixup")
+        log(
+            `PR #${pr.number}: red is regenerable (${landed.fixes.join(", ")}) — fixing up in ${wt.dir}`
+        );
+    const outcome =
+        landed.action === "fixup"
+            ? runFixup({
+                  pr: pr.number,
+                  fixes: landed.fixes,
+                  cwd: wt.dir,
+                  logPath,
+                  log,
+              })
+            : landed;
+    if (outcome.action === "requeue" && outcome.backoffS !== undefined) {
+        deferred.set(pr.number, Date.now() + outcome.backoffS * 1000);
+        log(
+            `PR #${pr.number}: retried in ${outcome.backoffS}s (${INFRA_BACKOFF_S}s infra backoff)`
+        );
+    } else deferred.delete(pr.number);
     // `land` tears down only the `<primary>-issue-N` worktree: the runner's
     // own, a `docs/` lane's, or one that survived goes here.
     if (
@@ -631,6 +784,7 @@ async function main(): Promise<void> {
     // (issue #5599), flushed when the queue goes quiet or the loop ends.
     let burst: LandFailure[] = [];
     let lastReason: string | null = null;
+    const deferred = new Map<number, number>();
     const flushBurst = (): void => {
         const message = describeLandFailures(burst, lastReason);
         if (message === null) return;
@@ -683,6 +837,7 @@ async function main(): Promise<void> {
                     dryRun,
                     log,
                     onFailed: (f) => burst.push(f),
+                    deferred,
                 });
             } catch (err) {
                 log(`tick failed: ${(err as Error).message.split("\n")[0]}`);
