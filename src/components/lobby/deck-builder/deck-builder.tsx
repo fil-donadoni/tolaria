@@ -496,11 +496,10 @@ export default function DeckBuilder({
     // banlist override (PRD #1138, issue #1144) so a card banned via the
     // admin Scryfall sync is flagged illegal here reactively, not just at
     // game start.
-    const deckEntries = useMemo(
-        () => [...deck.cards, ...(deck.sideboard ?? [])],
-        [deck.cards, deck.sideboard]
-    );
-    const printResolver = useDeckPrintResolver(deckEntries);
+    const printResolver = useDeckPrintResolver([
+        ...deck.cards,
+        ...(deck.sideboard ?? []),
+    ]);
     const legality = useMemo(
         () =>
             validateDeck(

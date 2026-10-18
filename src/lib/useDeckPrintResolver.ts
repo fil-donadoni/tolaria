@@ -35,9 +35,20 @@ function namesAPrinting(entry: DeckEntry): boolean {
 export function useDeckPrintResolver(
     entries: readonly DeckEntry[]
 ): ResolveCard {
+    // Keyed on CONTENT, so a caller that spreads its zones into a fresh array
+    // every render still gets a stable resolver (and a stable legality memo).
+    const entriesKey = entries
+        .map((e) => `${e.cardId}:${e.definitionId ?? ""}`)
+        .join(",");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on content
+    const stableEntries = useMemo(() => entries, [entriesKey]);
     const printIds = useMemo(
-        () => [...new Set(entries.filter(namesAPrinting).map((e) => e.cardId))],
-        [entries]
+        () => [
+            ...new Set(
+                stableEntries.filter(namesAPrinting).map((e) => e.cardId)
+            ),
+        ],
+        [stableEntries]
     );
     const rows = useQuery(
         api.cardPrints.getByPrintIds,
@@ -52,8 +63,8 @@ export function useDeckPrintResolver(
         () =>
             makeResolveCardFromRows(
                 indexPrintRows(shown ?? []),
-                resolveCardViaDefinitionIds(entries)
+                resolveCardViaDefinitionIds(stableEntries)
             ),
-        [shown, entries]
+        [shown, stableEntries]
     );
 }
