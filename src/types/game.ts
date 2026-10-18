@@ -1,9 +1,13 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
-import type { RestrictedMana, AttackManaTaxPayment } from "@convex/gre/state";
+import type {
+    RestrictedMana,
+    AttackManaTaxPayment,
+    PileChoiceNotice,
+} from "@convex/gre/state";
 import type { ManaCost, TargetSelection } from "@convex/cards/types";
 
-export type { AttackManaTaxPayment };
+export type { AttackManaTaxPayment, PileChoiceNotice };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { FaceDownProducer } from "@convex/gre/faceDown";
 import type { WireCharacteristics } from "@convex/gre/wireCharacteristics";
@@ -374,6 +378,14 @@ export interface CardInstance {
      *  whether it's CURRENTLY armed. Mirrors
      *  `CardInstanceState.skipNextUntap` in `convex/gre/state.ts`. */
     skipNextUntap?: boolean;
+    /** CR 508.1c / 509.1b — turn-scoped combat restrictions (a pile-division
+     *  pick's unchosen pile, ADR 0053; Stun; Tawnos's Wand). Forwarded by
+     *  `slimCard`, cleared by the engine at CLEANUP, so each is true only while
+     *  it is in effect; read by the card preview's live-text status lines
+     *  (issue #5661). Mirror the same-named `CardInstanceState` fields. */
+    cantAttackThisTurn?: boolean;
+    cantBlockThisTurn?: boolean;
+    cantBeBlockedThisTurn?: boolean;
     /** CR 614.12 as-enters NAME choice (Meddling Mage: "As this creature
      *  enters, choose a nonland card name"). Forwarded by `slimCard` like
      *  `chosenModeId`; read by `resolveChosenName` in `src/lib/preview-body.ts`

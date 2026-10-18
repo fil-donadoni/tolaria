@@ -136,6 +136,26 @@ export type PreviewBackFaceHalf = {
     printedImageId: { id: string; face: CardImageFace } | null;
 };
 
+/** CR 508.1c / 509.1b (issue #5661) — one live-text line per turn-scoped
+ *  combat restriction the projected instance carries, in a fixed order. */
+export function combatRestrictionLines(
+    card:
+        | Pick<
+              CardInstance,
+              | "cantAttackThisTurn"
+              | "cantBlockThisTurn"
+              | "cantBeBlockedThisTurn"
+          >
+        | undefined
+): string[] {
+    if (!card) return [];
+    const lines: string[] = [];
+    if (card.cantAttackThisTurn) lines.push("Can't attack this turn.");
+    if (card.cantBlockThisTurn) lines.push("Can't block this turn.");
+    if (card.cantBeBlockedThisTurn) lines.push("Can't be blocked this turn.");
+    return lines;
+}
+
 export const BACK_FACE_HALF_LABEL = "Back face";
 
 export type PreviewBodyContent = {
@@ -190,6 +210,12 @@ export type PreviewBodyContent = {
      *  restriction regardless of whether the permanent's own printed text
      *  happens to be visible. */
     skipNextUntap?: boolean;
+    /** CR 508.1c / 509.1b (issue #5661) — the turn-scoped combat restrictions
+     *  in effect on this permanent ("Can't block this turn." for a pile
+     *  division's unchosen pile, ADR 0053), from {@link combatRestrictionLines}.
+     *  Live text like {@link skipNextUntap}: the engine clears each flag at
+     *  CLEANUP, so the line goes with it. Empty when none applies. */
+    combatRestrictions?: string[];
     /** CR 111.1 / 111.7 — true iff this face is a live TOKEN permanent (a
      *  marker for a permanent not represented by a card, which ceases to exist
      *  as an SBA the moment it leaves the battlefield). Read off the projected
@@ -554,6 +580,7 @@ export function buildPreviewBody(
                 ? attachmentHostName(cardInstance, gameCtx.allPlayers)
                 : null,
         skipNextUntap: !!cardInstance?.skipNextUntap,
+        combatRestrictions: combatRestrictionLines(cardInstance),
         isToken: cardInstance?.isToken === true,
         abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,

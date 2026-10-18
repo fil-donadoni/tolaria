@@ -1466,6 +1466,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // (`gre/continuousEffects.ts`) — so it round-trips through the generic
     // optional-key loop with no per-field compaction.
     "continuousEffects",
+    // ADR 0053 (issue #5661) — the last pile picked, so the divider's client
+    // can confirm a pick it did not submit. Plain scalars and strings; it
+    // must survive the save that follows the pick or no seat ever sees it.
+    "lastPileChoice",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

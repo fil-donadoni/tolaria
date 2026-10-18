@@ -500,6 +500,54 @@ describe("buildPreviewBody — skipNextUntap status", () => {
     });
 });
 
+// CR 509.1b / ADR 0053 (issue #5661) — a pile division's unchosen pile can't
+// block this turn (Stand or Fall). The flag lived in engine state but the
+// preview never read it; it is live text, gone once CLEANUP clears the flag.
+describe("buildPreviewBody — turn-scoped combat restrictions", () => {
+    const GRIZZLY_BEARS = getCardByName("Grizzly Bears");
+
+    function bear(flags: Partial<CardInstance> = {}): CardInstance {
+        return {
+            id: "bear-1",
+            card: { id: GRIZZLY_BEARS.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            ...flags,
+        } as CardInstance;
+    }
+
+    it('states "Can\'t block this turn." while the flag is set', () => {
+        const body = buildPreviewBody(
+            GRIZZLY_BEARS.id,
+            bear({ cantBlockThisTurn: true })
+        );
+        expect(body.combatRestrictions).toEqual(["Can't block this turn."]);
+    });
+
+    it("states nothing once the flag is cleared", () => {
+        const body = buildPreviewBody(GRIZZLY_BEARS.id, bear());
+        expect(body.combatRestrictions).toEqual([]);
+    });
+
+    it("lists the attack and unblockable twins too, in a fixed order", () => {
+        const body = buildPreviewBody(
+            GRIZZLY_BEARS.id,
+            bear({
+                cantBeBlockedThisTurn: true,
+                cantAttackThisTurn: true,
+            })
+        );
+        expect(body.combatRestrictions).toEqual([
+            "Can't attack this turn.",
+            "Can't be blocked this turn.",
+        ]);
+    });
+});
+
 // CR 614.12 / 201.3 — a permanent that named a card as it entered (Meddling
 // Mage) must SAY which one in its live rules box. The printed text only says
 // "the chosen name", and the pick is per-instance: two Mages on the same board

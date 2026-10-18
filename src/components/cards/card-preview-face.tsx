@@ -67,6 +67,7 @@ export default function CardPreviewFace({
     isToken,
     attachedToName,
     skipNextUntap,
+    combatRestrictions,
     abilityWordCounters,
     engineView,
     engineTree,
@@ -307,6 +308,14 @@ export default function CardPreviewFace({
                         Doesn't untap during its controller's next untap step.
                     </div>
                 )}
+                {combatRestrictions?.map((line) => (
+                    <div
+                        key={line}
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-danger-strong`}
+                    >
+                        {line}
+                    </div>
+                ))}
                 {ownerName && (
                     <div
                         className={`text-text-muted border-t border-border-subtle pt-2 ${sectionSize} italic`}
