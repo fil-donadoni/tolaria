@@ -28,7 +28,6 @@ import { BASE_BRANCH } from "./lib/branches";
 import {
     bisectFirstRed,
     culpritLine,
-    flakeVerdict,
     flakyIssueBody,
     flakyIssueTitle,
     flakySubjects,
@@ -37,7 +36,7 @@ import {
     LADDER_MARK,
     laddered,
     lastGreenOf,
-    notReproduced,
+    settleFreshPass,
     remainingGates,
     vitestCommands,
     type FreshRun,
@@ -449,41 +448,24 @@ function ladder(ctx: Ctx): number {
         note(ctx, "the fresh run could not run — the RED stands, unconfirmed");
         return 1;
     }
-    if (outcome === "green") {
-        const passed = notReproduced({
-            redMachine: verdict?.machine,
-            freshMachine: machineName(),
-        });
-        if (passed.kind === "environment") {
-            note(
-                ctx,
-                "not reproduced on another runner class — the RED stands, environment-dependent"
-            );
-            note(ctx, passed.line);
-            publishCulprit(ctx, passed.line);
-            return 1;
-        }
-        const v = flakeVerdict({
-            sha: ctx.sha,
-            plan,
-            machine: machineName(),
-            at: new Date().toISOString(),
-            log: runUrl(),
-        });
-        if (ctx.dryRun) note(ctx, "(dry run) would close the RED as GREEN");
-        else {
-            const out = store.write(v);
-            note(
-                ctx,
-                out.written
-                    ? "not reproduced — the RED closed as GREEN"
-                    : `GREEN not written — ${out.reason}`
-            );
-            if (!out.written) return 1;
-        }
-        fileFlake(ctx, plan, verdict?.log);
-        return 0;
-    }
+    if (outcome === "green")
+        return settleFreshPass(
+            {
+                red: verdict,
+                sha: ctx.sha,
+                plan,
+                freshMachine: machineName(),
+                at: new Date().toISOString(),
+                log: runUrl(),
+                dryRun: ctx.dryRun,
+            },
+            {
+                note: (line) => note(ctx, line),
+                writeGreen: (v) => store.write(v),
+                fileFlake: () => fileFlake(ctx, plan, verdict?.log),
+                publish: (line) => publishCulprit(ctx, line),
+            }
+        );
     let line: string;
     if (elsewhere !== undefined) {
         note(

@@ -23,7 +23,11 @@
  *
  * Node builtins plus `lib/health-verdict-store.ts`.
  */
-import { HOSTED_MACHINE_PREFIX, type Verdict } from "./health-verdict-store";
+import {
+    HOSTED_MACHINE_PREFIX,
+    type Verdict,
+    type WriteOutcome,
+} from "./health-verdict-store";
 
 /** What a fresh run of one RED re-runs. */
 export type FreshRun =
@@ -146,6 +150,68 @@ export function notReproduced(input: {
         kind: "environment",
         line: `${LADDER_MARK}not bisected — environment-dependent, not a flake: the RED ran on \`${input.redMachine ?? "-"}\` (${red}), the fresh run passed at the same sha on \`${input.freshMachine}\` (${fresh})`,
     };
+}
+
+/** What `settleFreshPass` acts through — the ladder's I/O, injected. */
+export interface FreshPassEffects {
+    note(line: string): void;
+    /** Writes the GREEN on the verdict store. */
+    writeGreen(v: Verdict): WriteOutcome;
+    /** Files (or comments on) the flake issue of each subject. */
+    fileFlake(): void;
+    /** Adds one line to the RED's published evidence. */
+    publish(line: string): void;
+}
+
+/**
+ * A fresh run that passed the RED's failure, settled: a flake closes the RED
+ * as GREEN and is filed; an environment-dependent pass (`notReproduced`)
+ * leaves the RED standing, its evidence naming both machines. The exit code
+ * the ladder returns: 0 when no RED stands.
+ */
+export function settleFreshPass(
+    input: {
+        red: Pick<Verdict, "sha" | "machine"> | null;
+        sha: string;
+        plan: Exclude<FreshRun, { kind: "none" }>;
+        freshMachine: string;
+        at: string;
+        log?: string;
+        dryRun: boolean;
+    },
+    fx: FreshPassEffects
+): 0 | 1 {
+    const passed = notReproduced({
+        redMachine: input.red?.machine,
+        freshMachine: input.freshMachine,
+    });
+    if (passed.kind === "environment") {
+        fx.note(
+            "not reproduced on another runner class — the RED stands, environment-dependent"
+        );
+        fx.note(passed.line);
+        fx.publish(passed.line);
+        return 1;
+    }
+    const v = flakeVerdict({
+        sha: input.sha,
+        plan: input.plan,
+        machine: input.freshMachine,
+        at: input.at,
+        log: input.log,
+    });
+    if (input.dryRun) fx.note("(dry run) would close the RED as GREEN");
+    else {
+        const out = fx.writeGreen(v);
+        fx.note(
+            out.written
+                ? "not reproduced — the RED closed as GREEN"
+                : `GREEN not written — ${out.reason}`
+        );
+        if (!out.written) return 1;
+    }
+    fx.fileFlake();
+    return 0;
 }
 
 /** What a flaky-test issue is about: each file, or the step itself. */
