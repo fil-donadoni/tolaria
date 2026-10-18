@@ -197,20 +197,16 @@ describe("housekeeping.ts — the steps", () => {
         ]);
     });
 
-    it("runs gaps:sync once for the batch — never --no-file-bot, never --band (issues #5301, #5871)", () => {
-        expect(GAPS_SYNC_STEP.argv).toEqual(["bun", "scripts/gaps-sync.ts"]);
-        expect(GAPS_SYNC_STEP.argv).not.toContain("--no-file-bot");
-        expect(GAPS_SYNC_STEP.argv.join(" ")).not.toContain("--band");
-    });
-
-    it("a failed gaps:sync — a lost allowlist write-back included — keeps every PR of the batch in retry, whatever its own steps did (issue #5871)", () => {
+    it("runs gaps:sync once for the batch — never --no-file-bot, never --band — and a failed one (a lost allowlist write-back included) keeps every PR of the batch in retry, whatever its own steps did (issues #5301, #5871)", () => {
         expect(prRetried(false, true)).toBe(true);
         expect(prRetried(false, false)).toBe(true);
         expect(prRetried(true, false)).toBe(true);
         expect(prRetried(true, true)).toBe(false);
-        // `main` reads it from the one gaps:sync run, per PR — pinned by
+        // `main` reads it from the ONE gaps:sync run, per PR — pinned by
         // SHAPE: `main` spawns processes.
         const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        expect(GAPS_SYNC_STEP.argv).toEqual(["bun", "scripts/gaps-sync.ts"]);
+        expect(source.match(/run\(GAPS_SYNC_STEP\)/g)).toHaveLength(1);
         expect(source).toMatch(/const synced = run\(GAPS_SYNC_STEP\);/);
         expect(source).toMatch(/const retry = prRetried\(synced, own\);/);
         expect(source).toMatch(/if \(retry\) failed\.add\(pr\.number\);/);
