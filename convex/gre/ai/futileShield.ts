@@ -37,7 +37,7 @@
  * unproven input answers `false` and leaves the move searchable:
  *
  *   * threats are OVER-counted — every stack object counts except a permanent
- *     spell (CR 608.3a: it just enters; any enters trigger goes on the stack
+ *     spell (CR 608.3: resolving, it becomes a permanent; any enters trigger goes on the stack
  *     later, case 1 again), a creature in combat counts as two (a first-strike
  *     step and a regular one, CR 510.4), any marked damage counts;
  *   * only an ability whose WHOLE script is shield Ops on permanents
@@ -113,7 +113,7 @@ function costIsLossOnly(
         if (value === undefined || value === false) continue;
         if (!LOSS_ONLY_COST_KEYS.has(key)) return false;
     }
-    // A Drought-style static tax (CR 118.3) adds a sacrifice to the payment.
+    // A Drought-style static tax (CR 118.8) adds a sacrifice to the payment.
     return (
         getStaticAdditionalSacrifices(
             state,
@@ -209,7 +209,7 @@ function shieldIsFutile(state: GameState, shield: Shield): boolean {
     if (shield.kind === "prevention") return threats === 0;
     // CR 701.19c — "can't be regenerated" makes any shield inapplicable; an
     // exile-on-death replacement suppresses it the same way. A continuous
-    // auto-regeneration (CR 614.5) already answers every destruction.
+    // auto-regeneration replacement already answers every destruction.
     if (
         permanent.cantBeRegeneratedThisTurn === true ||
         permanent.exileOnDeath === true ||
@@ -240,7 +240,7 @@ function threatsTo(state: GameState, permanent: CardInstanceState): number {
     return threats;
 }
 
-/** CR 608.3a — a permanent spell's resolution puts it onto the battlefield and
+/** CR 608.3 — a permanent spell's resolution puts it onto the battlefield and
  *  nothing else; whatever it triggers goes on the stack and gives priority back
  *  (CR 117.3b). Every other stack object is presumed a threat. */
 function isHarmlessStackItem(item: StackItem): boolean {

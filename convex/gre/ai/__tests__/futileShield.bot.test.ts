@@ -62,7 +62,7 @@ function castAtTroll(card: string): BladeSetupStep[] {
 }
 
 describe("isFutileShieldMove — regeneration (CR 701.19a)", () => {
-    it("prunes Regenerate against an Aura spell that destroys nothing (CR 608.3a)", () => {
+    it("prunes Regenerate against an Aura spell that destroys nothing (CR 608.3)", () => {
         const state = position(TROLL_VS_SPELLS, castAtTroll("Sleeping Potion"));
         const move = onlyActivation(state, 1, "Charging Troll");
         expect(isFutileShieldMove(state, move)).toBe(true);
