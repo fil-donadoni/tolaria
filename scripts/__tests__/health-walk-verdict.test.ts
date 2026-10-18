@@ -158,7 +158,7 @@ describe("infraCause reads the walk's verdict on the check:ui step only", () => 
 describe("splitHealthGates — the walk is cut away from the offline gates", () => {
     it("offline keeps every other gate in order; the blade audit is not one (issue #5079)", () => {
         const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
-        expect(walk).toEqual(["check:game-download", "check:ui --all"]);
+        expect(walk).toEqual(["check:ui --all", "check:game-download"]);
         expect(offline).toEqual(
             HEALTH_SCRIPTS.filter((g) => !walk.includes(g))
         );

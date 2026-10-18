@@ -167,8 +167,9 @@ export interface GameDownloadReport {
     failures: string[];
 }
 
-/** The verdict over one game's download. It fails over budget, and — the
- *  vacuity guard — when the game fetched no card data at all (the request
+/** The verdict over one game's download. It fails on any card data the
+ *  Manifest does not name, over budget, and — the vacuity guard — when the
+ *  game fetched no card data at all (the request
  *  listener saw nothing, or the board rendered without its cards). */
 export function judgeGameDownload(
     run: GameDownload,
@@ -189,11 +190,17 @@ export function judgeGameDownload(
             "no card data fetched at all — the measurement saw nothing, so it proves nothing"
         );
     }
-    if (fetchedGzipBytes > run.budget.gzipBytes) {
+    // Each on its own: the budget counts every asset the Manifest names,
+    // fetched or not, so a small unnamed fetch can hide in that slack.
+    if (unnamed.length > 0) {
         const shown = unnamed.slice(0, 8).join(", ");
         failures.push(
-            `${fetchedGzipBytes} B gzip of card data > the Manifest's ${run.budget.gzipBytes} B — ` +
-                `${unnamed.length} asset(s) no Manifest entry names: ${shown}${unnamed.length > 8 ? ", …" : ""}`
+            `${unnamed.length} card-data asset(s) fetched that no Manifest entry names: ${shown}${unnamed.length > 8 ? ", …" : ""}`
+        );
+    }
+    if (fetchedGzipBytes > run.budget.gzipBytes) {
+        failures.push(
+            `${fetchedGzipBytes} B gzip of card data > the Manifest's ${run.budget.gzipBytes} B`
         );
     }
     return {

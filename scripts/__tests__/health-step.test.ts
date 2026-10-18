@@ -312,9 +312,9 @@ describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", 
                 "check:test-hygiene",
                 "test",
             ],
-            // The per-game download first (issue #5618): 30 s, and a red
-            // there is read before the 15-minute walk.
-            walk: ["check:game-download", "check:ui --all"],
+            // The per-game download after the walk (issue #5618): a red
+            // there never hides the walk's own state.
+            walk: ["check:ui --all", "check:game-download"],
         });
     });
 

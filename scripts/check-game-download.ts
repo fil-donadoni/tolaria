@@ -26,8 +26,10 @@
  * `lib/health-step.ts`, with its measured cost) — a production `vite build`
  * and two games are far past the lane's 10 s.
  *
- * Exit: 0 green, 1 over budget, 2 the run could not measure, 3
- * `DEPLOYMENT_DOWN_EXIT` (the deployment did not answer).
+ * Exit (`check:ui`'s contract, read by `walkRunVerdict`): 0 green; 1 the
+ * TREE failed — over budget, or a build, a board or a Manifest the tree
+ * broke; 2 the environment kept the run from measuring (sign-up, sign-in,
+ * preview, browser, an unseeded deployment); 3 `DEPLOYMENT_DOWN_EXIT`.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
@@ -44,6 +46,7 @@ import {
     readEnvLocal,
 } from "./lib/convex-reachable";
 import { acquireUiLane, gateLockRoot } from "./lib/ui-admission";
+import { BRAIN_WORKER_CHUNK_PREFIX } from "./lib/asset-graph";
 import {
     cardDataKind,
     cardDataSizes,
@@ -55,6 +58,7 @@ import {
     type ManifestEntry,
 } from "./lib/game-download";
 import {
+    installSignalTeardown,
     localConvexRunner,
     newLaneAccount,
     passwordSignUp,
@@ -77,11 +81,18 @@ const BOARD_TIMEOUT = 60_000;
  *  worker installs its Manifest after the page) is still the game's; the
  *  run waits for this much quiet before it reads the total. */
 const QUIET_MS = 5_000;
+/** Card data still arriving this long after the board is a download that
+ *  never settles — the tree's fault, never waited out. */
+const SETTLE_DEADLINE_MS = 60_000;
 
 type GameKind = "solo" | "bot";
 
+/** The environment kept the run from measuring: exit 2, INFRA. */
 class FatalError extends Error {}
 class DeploymentDownError extends FatalError {}
+/** The tree broke what the run measures — a build, a board, a Manifest:
+ *  exit 1, RED, like a game over budget. */
+class TreeFailure extends Error {}
 
 function log(line: string): void {
     console.log(`[check:game-download] ${line}`);
@@ -146,7 +157,7 @@ function buildProduction(outDir: string): number {
         { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env }
     );
     if (built.status !== 0) {
-        throw new FatalError(
+        throw new TreeFailure(
             `vite build failed — ${(built.stderr || built.stdout || "").trim().slice(0, 600)}`
         );
     }
@@ -167,8 +178,19 @@ function servePreview(outDir: string, port: number): ChildProcess {
             String(port),
             "--strictPort",
         ],
-        { cwd: ROOT, stdio: "ignore" }
+        // Its own process group: `bunx` forks the vite server, and a kill
+        // of the group reaches both (`stopPreview`).
+        { cwd: ROOT, stdio: "ignore", detached: true }
     );
+}
+
+function stopPreview(preview: ChildProcess | null): void {
+    if (preview?.pid === undefined) return;
+    try {
+        process.kill(-preview.pid, "SIGTERM");
+    } catch {
+        // already gone
+    }
 }
 
 async function signIn(
@@ -254,7 +276,7 @@ async function startGame(
         .first()
         .waitFor({ state: "visible", timeout: BOARD_TIMEOUT })
         .catch(() => {
-            throw new FatalError(
+            throw new TreeFailure(
                 `${kind}: reached /game but no board rendered within ${BOARD_TIMEOUT / 1000}s`
             );
         });
@@ -282,7 +304,9 @@ async function readManifests(
     const active = (await client.query(anyApi.gameReads.myActiveGame, {})) as {
         gameId: string;
     } | null;
-    if (!active) throw new FatalError("the account has no active game");
+    if (!active) {
+        throw new TreeFailure("Start match created no active game");
+    }
     const userId = userIdOf(token);
     const entries: ManifestEntry[] = [];
     for (const seat of ["p1", "p2"]) {
@@ -291,7 +315,7 @@ async function readManifests(
             { gameId: active.gameId, playerId: `${userId}-${seat}` }
         )) as { entries: ManifestEntry[] } | null;
         if (!row) {
-            throw new FatalError(`no Definition Manifest for seat ${seat}`);
+            throw new TreeFailure(`no Definition Manifest for seat ${seat}`);
         }
         entries.push(...row.entries);
     }
@@ -313,10 +337,12 @@ async function measureGame(input: {
     // A fresh context per game: a cold HTTP cache, no storage.
     const context = await browser.newContext();
     const fetched = new Set<string>();
-    let lastCardData = Date.now();
+    let lastCardData = 0;
+    let workerLoaded = false;
     // Context-wide, so the Brain worker's requests count beside the page's.
     context.on("response", (res) => {
         const asset = path.posix.basename(new URL(res.url()).pathname);
+        if (asset.startsWith(BRAIN_WORKER_CHUNK_PREFIX)) workerLoaded = true;
         if (cardDataKind(asset) !== null) {
             fetched.add(asset);
             lastCardData = Date.now();
@@ -326,7 +352,25 @@ async function measureGame(input: {
         const page = await context.newPage();
         await signIn(page, baseUrl, input.account);
         await startGame(page, baseUrl, kind);
-        while (Date.now() - lastCardData < QUIET_MS) {
+        // Against the Bot, the worker is part of the game's download: wait
+        // for its script before the quiet window opens, or a worker that
+        // boots late is never measured.
+        const boardAt = Date.now();
+        while (kind === "bot" && !workerLoaded) {
+            if (Date.now() - boardAt > BOARD_TIMEOUT) {
+                throw new TreeFailure(
+                    `bot: the Brain worker never loaded within ${BOARD_TIMEOUT / 1000}s of the board`
+                );
+            }
+            await page.waitForTimeout(250);
+        }
+        const quietFrom = Date.now();
+        while (Date.now() - Math.max(lastCardData, quietFrom) < QUIET_MS) {
+            if (Date.now() - quietFrom > SETTLE_DEADLINE_MS) {
+                throw new TreeFailure(
+                    `${kind}: card data still arriving ${SETTLE_DEADLINE_MS / 1000}s after the board`
+                );
+            }
             await page.waitForTimeout(500);
         }
         const entries = await readManifests(input.convexUrl, input.token);
@@ -370,6 +414,29 @@ async function main(): Promise<number> {
     const registered: LaneAccount[] = [];
     let preview: ChildProcess | null = null;
     let browser: Browser | null = null;
+    // Synchronous, so a signal — which never reaches the `finally` — runs it
+    // too; idempotent, so both may.
+    let cleaned = false;
+    const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        stopPreview(preview);
+        fs.rmSync(outDir, { recursive: true, force: true });
+        for (const account of registered) {
+            try {
+                run("uiGateAccounts:destroyLaneAccount", {
+                    email: account.email,
+                });
+            } catch (err) {
+                log(
+                    `TEARDOWN FAILED for ${account.email} — ${(err as Error).message}; the next check:ui sweep collects it`
+                );
+            }
+        }
+    };
+    const uninstallSignals = installSignalTeardown(process, cleanup, (code) =>
+        process.exit(code)
+    );
     const t0 = Date.now();
     try {
         const buildSecs = buildProduction(outDir);
@@ -431,19 +498,8 @@ async function main(): Promise<number> {
         return 0;
     } finally {
         await browser?.close().catch(() => {});
-        preview?.kill("SIGTERM");
-        fs.rmSync(outDir, { recursive: true, force: true });
-        for (const account of registered) {
-            try {
-                run("uiGateAccounts:destroyLaneAccount", {
-                    email: account.email,
-                });
-            } catch (err) {
-                log(
-                    `TEARDOWN FAILED for ${account.email} — ${(err as Error).message}; the next check:ui sweep collects it`
-                );
-            }
-        }
+        cleanup();
+        uninstallSignals();
     }
 }
 
@@ -452,7 +508,11 @@ main().then(
     (err: unknown) => {
         console.error(`[check:game-download] ${(err as Error).message}`);
         process.exit(
-            err instanceof DeploymentDownError ? DEPLOYMENT_DOWN_EXIT : 2
+            err instanceof TreeFailure
+                ? 1
+                : err instanceof DeploymentDownError
+                  ? DEPLOYMENT_DOWN_EXIT
+                  : 2
         );
     }
 );

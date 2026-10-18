@@ -163,7 +163,36 @@ describe("judgeGameDownload — fetched against the Manifest", () => {
             "compiled-shard-tmp-0123456789ab.json",
         ]);
         expect(report.failures).toEqual([
-            expect.stringContaining("no Manifest entry names"),
+            expect.stringContaining("4 card-data asset(s) fetched"),
+            expect.stringContaining("gzip of card data > the Manifest's"),
+        ]);
+    });
+
+    it("reds an unnamed fetch that fits inside the budget's slack", () => {
+        const dist = fakeDist(DIST);
+        const sizes = cardDataSizes(dist);
+        // The budget names the big `ice` Set; the game fetched only the
+        // dictionary and the small unnamed `mir` shard.
+        const budget = manifestBudget(
+            dist,
+            [{ definitionId: "id-ice", setCode: "ice" }],
+            handWritten,
+            sizes
+        );
+        const report = judgeGameDownload(
+            {
+                game: "solo",
+                fetched: [
+                    "compiled-dictionary-306b518812ae.json",
+                    "compiled-shard-mir-dd14ab094a1d.json",
+                ],
+                budget,
+            },
+            sizes
+        );
+        expect(report.fetchedGzipBytes).toBeLessThan(budget.gzipBytes);
+        expect(report.failures).toEqual([
+            expect.stringContaining("compiled-shard-mir-dd14ab094a1d.json"),
         ]);
     });
 
@@ -185,7 +214,9 @@ describe("judgeGameDownload — fetched against the Manifest", () => {
         expect(report.unnamed).toEqual([
             "full-catalogue-b679977ae10d73b8.json-DrOI2pdZ.gz",
         ]);
-        expect(report.failures).toHaveLength(1);
+        expect(report.failures).toContainEqual(
+            expect.stringContaining("1 card-data asset(s) fetched")
+        );
     });
 
     it("reds a game that fetched no card data — the check cannot go vacuous", () => {

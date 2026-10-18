@@ -138,8 +138,8 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
-    "check:game-download",
     "check:ui --all",
+    "check:game-download",
 ];
 
 /**
@@ -170,7 +170,9 @@ export const HEALTH_ONLY_GUARDS: Readonly<
     // A game's card-data download on a production build (issue #5618): a
     // `vite build`, then a Solo and a Bot game in Chromium against the
     // deployment — a browser step of the walk phase (`isWalkStep`), offline
-    // `check:lane` cannot run it.
+    // `check:lane` cannot run it. The walk phase runs on `release` (and
+    // `--ui-all`), never in batch health (`planHealthWalk`): a regression
+    // waits on the base for the next release.
     "check:game-download": {
         measuredCostS: 30,
         measured:
