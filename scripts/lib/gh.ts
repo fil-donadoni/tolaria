@@ -113,10 +113,40 @@ function isReadOnlyApi(args: readonly string[]): boolean {
     return fields.length === 0 && !input; // fields without -X make gh POST
 }
 
-/** Whether a failed `gh` call met a gateway-side error worth one more try.
+// ── Why every call has a deadline (issue #5933) ──────────────────────────────
+//
+// `execFileSync` without `timeout` waits forever. On 2026-10-18 one
+// `gaps:sync` run inside `housekeeping` took 47 minutes for work a shadow run
+// does in about 5, and the job's own `timeout-minutes` killed it between the
+// allowlist commit and its push — the stranded commit re-filed a whole wave
+// of Grammar Gaps (issue #5871). A hung call must become a FAILURE the caller
+// already handles, never a stall only the job timeout ends. A read gets
+// 60 s (the slowest measured, a 2000-row `issue list`, takes ~6 s) and is
+// replayed like a 5xx; a write gets 120 s and, like any failed write, is
+// never replayed — it may have landed.
+
+/** A read's deadline: ten times the slowest measured read. */
+export const GH_READ_TIMEOUT_MS = 60_000;
+/** A write's deadline: never replayed, so it is given more room. */
+export const GH_WRITE_TIMEOUT_MS = 120_000;
+
+/** The deadline `gh()` gives `gh <args>`. */
+export function ghTimeoutMs(args: readonly string[]): number {
+    return isReadOnlyGh(args) ? GH_READ_TIMEOUT_MS : GH_WRITE_TIMEOUT_MS;
+}
+
+/** Whether a failed child call was killed by its deadline — what
+ *  `execFileSync` throws when `timeout` expires. */
+export function isTimeoutError(err: unknown): boolean {
+    return (err as { code?: unknown })?.code === "ETIMEDOUT";
+}
+
+/** Whether a failed `gh` call met a gateway-side error worth one more try —
+ *  or its deadline, which reads the same: the far side did not answer.
  *  Reads `stderr` — `message` echoes the argv, whose own text (a search
  *  string, a query) could say "Bad Gateway". */
 export function isTransientGhError(err: unknown): boolean {
+    if (isTimeoutError(err)) return true;
     const e = err as { message?: unknown; stderr?: unknown };
     const stderr = String(e?.stderr ?? "");
     const text = stderr !== "" ? stderr : String(e?.message ?? "");
@@ -161,10 +191,11 @@ export function withGhRetry(
                 throw err;
             }
             const e = err as { message?: unknown; stderr?: unknown };
-            const first =
-                `${String(e?.stderr ?? "")}\n${String(e?.message ?? err)}`
-                    .split("\n")
-                    .find((l) => /HTTP 50|Gateway|Unavailable/i.test(l));
+            const first = isTimeoutError(err)
+                ? "no answer before the deadline"
+                : `${String(e?.stderr ?? "")}\n${String(e?.message ?? err)}`
+                      .split("\n")
+                      .find((l) => /HTTP 50|Gateway|Unavailable/i.test(l));
             console.error(
                 `gh: transient error on \`gh ${args.slice(0, 2).join(" ")}\` (${first?.trim() ?? "5xx"}) — retry ${attempt + 1}/${backoff.length} in ${backoff[attempt] / 1000}s`
             );
@@ -173,17 +204,23 @@ export function withGhRetry(
     }
 }
 
+/** One `gh` process, killed at `timeoutMs` — the single spawn `gh()` replays.
+ *  The deadline is a parameter so a test can prove the kill in milliseconds. */
+export function runGh(args: readonly string[], timeoutMs: number): string {
+    return execFileSync("gh", args, {
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+        env: netEnv(),
+        timeout: timeoutMs,
+        killSignal: "SIGKILL",
+    });
+}
+
 /** Run `gh` under the DEVELOPER's credentials and return stdout. Throws on a
- *  non-zero exit, like `execFileSync` — after replaying a read that met a
- *  transient 5xx (see above). */
+ *  non-zero exit or a missed deadline, like `execFileSync` — after replaying
+ *  a read that met a transient 5xx or its deadline (see above). */
 export function gh(args: string[]): string {
-    return withGhRetry(args, () =>
-        execFileSync("gh", args, {
-            encoding: "utf8",
-            maxBuffer: 32 * 1024 * 1024,
-            env: netEnv(),
-        })
-    );
+    return withGhRetry(args, () => runGh(args, ghTimeoutMs(args)));
 }
 
 /**

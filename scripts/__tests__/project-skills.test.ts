@@ -813,7 +813,7 @@ describe("/grammar-rule names only commands that exist (issue #3834)", () => {
         expect(src).toContain('flag("--gap")');
     });
 
-    it("forbids `gaps:sync` from the worktree — it pushes HEAD onto the base branch", () => {
+    it("forbids `gaps:sync` from the worktree — it pushes straight onto the base branch", () => {
         expect(body()).toMatch(
             /Never run `bun run gaps:sync` from the worktree/
         );
@@ -821,7 +821,7 @@ describe("/grammar-rule names only commands that exist (issue #3834)", () => {
             path.join(REPO_ROOT, "scripts", "gaps-sync.ts"),
             "utf8"
         );
-        expect(src).toContain("`HEAD:${BASE_BRANCH}`");
+        expect(src).toContain("`${sha}:refs/heads/${BASE_BRANCH}`");
     });
 
     it("states the three anti-Forge guards (ADR 0137)", () => {
@@ -937,12 +937,12 @@ describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
         expect(src("scripts", "gaps-sync.ts")).toContain("findSetUmbrella");
     });
 
-    it("forbids `gaps:sync` from the worktree — it pushes HEAD onto the base branch", () => {
+    it("forbids `gaps:sync` from the worktree — it pushes straight onto the base branch", () => {
         expect(body()).toMatch(
             /Never run it from\s*\n?a worktree|Never run `bun run gaps:sync` from a worktree/
         );
         expect(src("scripts", "gaps-sync.ts")).toContain(
-            "`HEAD:${BASE_BRANCH}`"
+            "`${sha}:refs/heads/${BASE_BRANCH}`"
         );
     });
 

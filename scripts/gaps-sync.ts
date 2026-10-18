@@ -85,10 +85,17 @@
 
 import { loadBladeMustCovered } from "./lib/blade-must-covered";
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
-import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
+import { ALLOWLIST_PATH, type Allowlist, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import {
     gh,
@@ -641,67 +648,168 @@ export function listOpenIssueBodies(): { number: number; body: string }[] {
 export const ALLOWLIST_COMMIT_SUBJECT =
     "gaps:sync — file per-gap issues, record them in the allowlist";
 
-/** Commit + push the allowlist update straight to `origin/<base>`, from a
- *  clean primary checkout already on that branch. Never throws, so the
- *  passes after it still run — but returns FALSE when the update did not
- *  reach the remote (stage, commit or push failed), and `main` exits 1 on it
- *  (issue #5871): the tracker now holds issues the base branch does not
- *  record, which `housekeeping` must retry, never report as done. */
-export function commitAndPushAllowlist(root: string): boolean {
-    const git = (args: string[]) =>
-        spawnSync("git", args, { cwd: root, encoding: "utf8" });
-    const add = git(["add", "--", ALLOWLIST_PATH]);
-    if (add.status !== 0) {
+/** The deadline of the write-back's `git push` / `git fetch` (issue #5933):
+ *  an ssh push that never answers must fail the write-back, never stall the
+ *  run until the job timeout kills it. */
+export const GIT_NET_TIMEOUT_MS = 120_000;
+
+/** The allowlist as `gaps:sync` writes it: one canonical serialisation, so
+ *  two runs over one tree write one file. */
+export function renderAllowlist(allowlist: Allowlist): string {
+    return `${JSON.stringify(allowlist, null, 4)}\n`;
+}
+
+/**
+ * Land an allowlist update straight on `origin/<base>`, from the primary
+ * checkout on that branch. `render` maps the allowlist text at a base commit
+ * to the text to record there.
+ *
+ * **The checkout never runs ahead of the remote** (issue #5933). The commit
+ * is built off a scratch index — never the checkout's index or working tree —
+ * and pushed; only a push that landed moves the checkout, by fast-forward. A
+ * run killed at any point (a missed deadline, the job's `timeout-minutes`, a
+ * cancel) leaves the checkout exactly as it found it: no stranded commit for
+ * the next run to build on, no dirty file for its fast-forward to refuse on.
+ * That split — commit landed locally, push never ran — is what re-filed a
+ * whole wave of Grammar Gaps on 2026-10-18 (issue #5871).
+ *
+ * A push that lost the race with a landing (~10 an hour) is rebuilt ONCE on
+ * the fetched tip by re-running `render` on THAT tip's allowlist — the rows
+ * are re-applied to whatever the landing wrote, never rebased as text, so a
+ * landing that touched the allowlist itself merges instead of conflicting.
+ *
+ * Never throws, so the passes after it still run — but returns FALSE when the
+ * update did not reach the remote, and `main` exits 1 on it (issue #5871):
+ * the tracker then holds issues the base branch does not record, which
+ * `housekeeping` must retry; the retry reclaims them by title.
+ */
+export function commitAndPushAllowlist(
+    root: string,
+    render: (base: string) => string,
+    netTimeoutMs: number = GIT_NET_TIMEOUT_MS
+): boolean {
+    const git = (
+        args: string[],
+        opts: { input?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {}
+    ) =>
+        spawnSync("git", args, {
+            cwd: root,
+            encoding: "utf8",
+            input: opts.input,
+            env: opts.env,
+            timeout: opts.timeout,
+            killSignal: "SIGKILL",
+        });
+    const why = (r: ReturnType<typeof git>): string =>
+        r.error !== undefined &&
+        (r.error as { code?: string }).code === "ETIMEDOUT"
+            ? `no answer within ${netTimeoutMs / 1000}s`
+            : r.stderr.trim();
+    /** The allowlist commit on `base`, or "unchanged" when `render` changes
+     *  nothing there, or null (reported) when it cannot be built. */
+    const build = (base: string): string | "unchanged" | null => {
+        const shown = git(["show", `${base}:${ALLOWLIST_PATH}`]);
+        if (shown.status !== 0) {
+            console.error(
+                `gaps:sync: could not read ${ALLOWLIST_PATH} at ${base}: ${why(shown)}`
+            );
+            return null;
+        }
+        let next: string;
+        try {
+            next = render(shown.stdout);
+        } catch (err) {
+            console.error(
+                `gaps:sync: could not apply the update to ${ALLOWLIST_PATH} at ${base}: ${err instanceof Error ? err.message : String(err)}`
+            );
+            return null;
+        }
+        if (next === shown.stdout) return "unchanged";
+        const scratch = mkdtempSync(join(tmpdir(), "gaps-sync-index-"));
+        try {
+            const env = {
+                ...process.env,
+                GIT_INDEX_FILE: join(scratch, "index"),
+            };
+            const blob = git(["hash-object", "-w", "--stdin"], { input: next });
+            const steps = [
+                blob,
+                git(["read-tree", base], { env }),
+                git(
+                    [
+                        "update-index",
+                        "--add",
+                        "--cacheinfo",
+                        `100644,${blob.stdout.trim()},${ALLOWLIST_PATH}`,
+                    ],
+                    { env }
+                ),
+            ];
+            const tree = git(["write-tree"], { env });
+            const commit =
+                tree.status === 0
+                    ? git([
+                          "commit-tree",
+                          tree.stdout.trim(),
+                          "-p",
+                          base,
+                          "-m",
+                          ALLOWLIST_COMMIT_SUBJECT,
+                      ])
+                    : tree;
+            const failed = [...steps, tree, commit].find((r) => r.status !== 0);
+            if (failed !== undefined) {
+                console.error(
+                    `gaps:sync: could not build the allowlist commit on ${base}: ${why(failed)}`
+                );
+                return null;
+            }
+            return commit.stdout.trim();
+        } finally {
+            rmSync(scratch, { recursive: true, force: true });
+        }
+    };
+    const push = (sha: string) =>
+        git(["push", "-q", "origin", `${sha}:refs/heads/${BASE_BRANCH}`], {
+            timeout: netTimeoutMs,
+        });
+
+    let sha = build("HEAD");
+    if (sha === null) return false;
+    if (sha === "unchanged") return true;
+    const first = push(sha);
+    if (first.status !== 0) {
         console.error(
-            `gaps:sync: could not stage ${ALLOWLIST_PATH}: ${add.stderr}`
+            `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${why(first)} — re-applying it on the fetched tip, once`
         );
-        return false;
+        const fetched = git(["fetch", "-q", "origin", BASE_BRANCH], {
+            timeout: netTimeoutMs,
+        });
+        if (fetched.status !== 0) {
+            console.error(
+                `gaps:sync: could not fetch ${BASE_BRANCH}: ${why(fetched)}`
+            );
+            return false;
+        }
+        sha = build(ORIGIN_BASE);
+        if (sha === null) return false;
+        if (sha === "unchanged") return true;
+        const again = push(sha);
+        if (again.status !== 0) {
+            console.error(
+                `gaps:sync: the allowlist update did not land on the second push either: ${why(again)}`
+            );
+            return false;
+        }
     }
-    // Nothing staged is nothing lost: the file already matches HEAD.
-    if (git(["diff", "--cached", "--quiet", "--", ALLOWLIST_PATH]).status === 0)
-        return true;
-    const commit = git([
-        "commit",
-        "-q",
-        "-m",
-        ALLOWLIST_COMMIT_SUBJECT,
-        // Pathspec, never a bare `git commit`: this runs in the PRIMARY
-        // checkout and pushes straight to the base branch, so anything else
-        // staged there would ride along (review of PR #3978).
-        "--",
-        ALLOWLIST_PATH,
-    ]);
-    if (commit.status !== 0) {
+    // Landed: the checkout follows the remote, never the other way round. A
+    // refused fast-forward loses nothing — the commit is on the base branch,
+    // and housekeeping's next fast-forward brings the checkout up to it.
+    const ff = git(["merge", "--ff-only", "-q", sha]);
+    if (ff.status !== 0)
         console.error(
-            `gaps:sync: could not commit ${ALLOWLIST_PATH}: ${commit.stderr}`
+            `gaps:sync: the allowlist update landed on ${BASE_BRANCH}, but the checkout did not fast-forward to it: ${why(ff)}`
         );
-        return false;
-    }
-    const push = git(["push", "origin", `HEAD:${BASE_BRANCH}`]);
-    if (push.status === 0) return true;
-    // Lost the race with a landing (minutes pass between housekeeping's fetch
-    // and this push, at ~10 landings an hour): the commit touches one file,
-    // so rebase it onto the moved tip and push ONCE more. A rebase that
-    // conflicts (the allowlist itself moved) is aborted, and the loss stands.
-    console.error(
-        `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${push.stderr.trim()} — fetching and rebasing once`
-    );
-    if (git(["fetch", "-q", "origin", BASE_BRANCH]).status !== 0) return false;
-    const rebase = git(["rebase", "-q", ORIGIN_BASE]);
-    if (rebase.status !== 0) {
-        git(["rebase", "--abort"]);
-        console.error(
-            `gaps:sync: could not rebase the allowlist update onto ${ORIGIN_BASE}: ${rebase.stderr.trim()}`
-        );
-        return false;
-    }
-    const again = git(["push", "origin", `HEAD:${BASE_BRANCH}`]);
-    if (again.status !== 0) {
-        console.error(
-            `gaps:sync: the allowlist update did not land on the second push either: ${again.stderr.trim()}`
-        );
-        return false;
-    }
     return true;
 }
 
@@ -1535,14 +1643,18 @@ async function main(): Promise<void> {
     // next run would file every one of them again (review of PR #3978).
     if (result.updatedRows.size > 0) {
         allowlist = applyUpdatedIssues(allowlist, result.updatedRows);
-        writeFileSync(
-            join(root, ALLOWLIST_PATH),
-            `${JSON.stringify(allowlist, null, 4)}\n`
-        );
         console.log(
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
-        if (!commitAndPushAllowlist(root)) writeBackFailed = true;
+        // Re-applied to the allowlist AT the commit it lands on — the checkout
+        // file is never written here (issue #5933).
+        const rows = result.updatedRows;
+        if (
+            !commitAndPushAllowlist(root, (base) =>
+                renderAllowlist(applyUpdatedIssues(parseAllowlist(base), rows))
+            )
+        )
+            writeBackFailed = true;
     }
 
     // The absorbed singles (issue #4678), closed only now that their rows
@@ -1612,14 +1724,18 @@ async function main(): Promise<void> {
         }
         if (cuts.updatedRows.size > 0) {
             allowlist = applyUpdatedCuts(allowlist, cuts.updatedRows);
-            writeFileSync(
-                join(root, ALLOWLIST_PATH),
-                `${JSON.stringify(allowlist, null, 4)}\n`
-            );
             console.log(
                 `gaps:sync: ${cuts.updatedRows.size} Cluster Cut ticket(s) recorded in ${ALLOWLIST_PATH}`
             );
-            if (!commitAndPushAllowlist(root)) writeBackFailed = true;
+            const rows = cuts.updatedRows;
+            if (
+                !commitAndPushAllowlist(root, (base) =>
+                    renderAllowlist(
+                        applyUpdatedCuts(parseAllowlist(base), rows)
+                    )
+                )
+            )
+                writeBackFailed = true;
         }
     } catch (err) {
         console.log(

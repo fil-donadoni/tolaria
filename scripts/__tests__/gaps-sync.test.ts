@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
     cardBandIndex,
     openCardIssueIndex,
@@ -2489,57 +2489,146 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
         return { bare, root };
     }
     /** Somebody else lands `file` on the base branch after `root` fetched. */
-    function landElsewhere(bare: string, root: string, file: string): void {
+    function landElsewhere(
+        bare: string,
+        root: string,
+        file: string,
+        content = "theirs\n"
+    ): void {
         const other = join(root, "..", "other");
         git(join(root, ".."), ["clone", "-q", bare, other]);
         identity(other, "o");
         git(other, ["checkout", "-q", BASE_BRANCH]);
         mkdirSync(join(other, "data"), { recursive: true });
-        writeFileSync(join(other, file), "theirs\n");
+        writeFileSync(join(other, file), content);
         git(other, ["add", "--", file]);
         git(other, ["commit", "-q", "-m", "a merge"]);
         git(other, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
     }
 
-    it("true when the push lands: the base branch tip is the allowlist commit", () => {
+    /** The update `main` hands over: the allowlist at the base, one row more. */
+    const addOp =
+        (n: number) =>
+        (base: string): string => {
+            const doc = JSON.parse(base) as { ops: number[] };
+            return `${JSON.stringify({ ...doc, ops: [...doc.ops, n] })}\n`;
+        };
+    /** Whether the checkout is exactly as `repos()` left it: on the seed,
+     *  nothing staged, nothing modified, nothing ahead. */
+    const untouched = (root: string, seed: string): void => {
+        expect(git(root, ["rev-parse", "HEAD"])).toBe(seed);
+        expect(git(root, ["status", "--porcelain"])).toBe("");
+        expect(readFileSync(join(root, ALLOWLIST_PATH), "utf8")).toBe(
+            '{"ops":[]}\n'
+        );
+    };
+
+    it("true when the push lands: the base branch tip is the allowlist commit, and the checkout fast-forwards to it", () => {
         const { bare, root } = repos();
-        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[1]}\n');
-        expect(commitAndPushAllowlist(root)).toBe(true);
+        expect(commitAndPushAllowlist(root, addOp(1))).toBe(true);
         expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
             ALLOWLIST_COMMIT_SUBJECT
         );
+        expect(git(bare, ["show", `${BASE_BRANCH}:${ALLOWLIST_PATH}`])).toBe(
+            '{"ops":[1]}'
+        );
+        expect(git(root, ["rev-parse", "HEAD"])).toBe(
+            git(bare, ["rev-parse", BASE_BRANCH])
+        );
+        expect(git(root, ["status", "--porcelain"])).toBe("");
         expect(commitsAhead(root)).toBe(0);
     });
 
-    it("a push that lost the race with a landing is rebased onto the moved tip and pushed once more — true, both commits on the base branch", () => {
+    it("a push that lost the race with a landing is rebuilt on the fetched tip and pushed once more — true, both commits on the base branch", () => {
         const { bare, root } = repos();
         landElsewhere(bare, root, "x.txt");
-        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[2]}\n');
-        expect(commitAndPushAllowlist(root)).toBe(true);
+        expect(commitAndPushAllowlist(root, addOp(2))).toBe(true);
         expect(
             git(bare, ["log", "-2", "--format=%s", BASE_BRANCH]).split("\n")
         ).toEqual([ALLOWLIST_COMMIT_SUBJECT, "a merge"]);
         expect(commitsAhead(root)).toBe(0);
     });
 
-    it("false when the rebase conflicts (the allowlist itself moved under it) — the rebase is aborted, the commit stays local: the stranded shape housekeeping repairs", () => {
+    it("a landing that moved the allowlist itself is merged, not conflicted: the rows are re-applied to the allowlist it wrote", () => {
         const { bare, root } = repos();
-        landElsewhere(bare, root, ALLOWLIST_PATH);
-        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[3]}\n');
-        expect(commitAndPushAllowlist(root)).toBe(false);
-        expect(git(root, ["log", "-1", "--format=%s"])).toBe(
-            ALLOWLIST_COMMIT_SUBJECT
+        landElsewhere(bare, root, ALLOWLIST_PATH, '{"ops":[9]}\n');
+        expect(commitAndPushAllowlist(root, addOp(3))).toBe(true);
+        expect(git(bare, ["show", `${BASE_BRANCH}:${ALLOWLIST_PATH}`])).toBe(
+            '{"ops":[9,3]}'
         );
-        expect(git(root, ["status", "--porcelain"])).toBe("");
-        expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
-            "a merge"
-        );
-        expect(commitsAhead(root)).toBe(1);
     });
 
-    it("true with nothing staged — an unchanged file is not a lost write-back", () => {
+    it("false when the update cannot land — and the checkout is left exactly as found: no commit, no staged or modified file (issue #5933)", () => {
+        const { bare, root } = repos();
+        const seed = git(root, ["rev-parse", "HEAD"]);
+        rmSync(bare, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
+        expect(commitAndPushAllowlist(root, addOp(4))).toBe(false);
+        untouched(root, seed);
+    });
+
+    it("a push that never answers is killed at its deadline — false, the checkout untouched, never a stall (issue #5933)", () => {
         const { root } = repos();
-        expect(commitAndPushAllowlist(root)).toBe(true);
+        const seed = git(root, ["rev-parse", "HEAD"]);
+        git(root, ["config", "protocol.ext.allow", "always"]);
+        git(root, ["remote", "set-url", "origin", "ext::sleep 30"]);
+        // The deadline, not the remote giving up, is what failed it: the
+        // report names the missed deadline.
+        const reported: string[] = [];
+        const spy = vi
+            .spyOn(console, "error")
+            .mockImplementation((line: unknown) => {
+                reported.push(String(line));
+            });
+        try {
+            expect(commitAndPushAllowlist(root, addOp(5), 300)).toBe(false);
+        } finally {
+            spy.mockRestore();
+        }
+        expect(reported.join("\n")).toMatch(/no answer within 0\.3s/);
+        untouched(root, seed);
+    });
+
+    it("false when the update cannot be applied — reported, nothing written", () => {
+        const { root } = repos();
+        const seed = git(root, ["rev-parse", "HEAD"]);
+        expect(
+            commitAndPushAllowlist(root, () => {
+                throw new Error("bad allowlist");
+            })
+        ).toBe(false);
+        untouched(root, seed);
+    });
+
+    it("a lost race whose fetched tip already records the rows is done — true, nothing more pushed", () => {
+        const { bare, root } = repos();
+        landElsewhere(bare, root, ALLOWLIST_PATH, '{"ops":[6]}\n');
+        const tip = git(bare, ["rev-parse", BASE_BRANCH]);
+        const toSix = (base: string): string =>
+            base.includes("6") ? base : '{"ops":[6]}\n';
+        expect(commitAndPushAllowlist(root, toSix)).toBe(true);
+        expect(git(bare, ["rev-parse", BASE_BRANCH])).toBe(tip);
+    });
+
+    it("a landed update whose checkout cannot fast-forward is still true — the commit is on the base branch, the next fast-forward brings the checkout up", () => {
+        const { bare, root } = repos();
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":["dirty"]}\n');
+        expect(commitAndPushAllowlist(root, addOp(7))).toBe(true);
+        expect(git(bare, ["show", `${BASE_BRANCH}:${ALLOWLIST_PATH}`])).toBe(
+            '{"ops":[7]}'
+        );
+        expect(readFileSync(join(root, ALLOWLIST_PATH), "utf8")).toBe(
+            '{"ops":["dirty"]}\n'
+        );
+    });
+
+    it("true with nothing to change — an unchanged allowlist is not a lost write-back", () => {
+        const { root } = repos();
+        expect(commitAndPushAllowlist(root, (base) => base)).toBe(true);
     });
 });
 
@@ -2549,10 +2638,10 @@ describe("gaps-sync main exits non-zero on a lost write-back, after every other 
     // `housekeeping` cron report four duplicate waves as `done`.
     it("every write-back call sets the flag, and the flag exits WRITE_BACK_FAILED_EXIT last", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
-        expect(source.match(/commitAndPushAllowlist\(root\)/g)).toHaveLength(2);
+        expect(source.match(/commitAndPushAllowlist\(root, /g)).toHaveLength(2);
         expect(
             source.match(
-                /if \(!commitAndPushAllowlist\(root\)\) writeBackFailed = true;/g
+                /!commitAndPushAllowlist\(root, \(base\) =>[^;]*\)\s*\)\s*writeBackFailed = true;/g
             )
         ).toHaveLength(2);
         const orphanPass = source.indexOf("orphan pass —");
@@ -2568,6 +2657,11 @@ describe("gaps-sync main exits non-zero on a lost write-back, after every other 
         expect(source.slice(orphanPass, exitAt)).toMatch(
             /writeBackFailed && commitsAhead\(root\) === 0/
         );
+    });
+
+    it("never writes the allowlist into the checkout — only a landed write-back moves it (issue #5933)", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        expect(source).not.toMatch(/writeFileSync\(/);
     });
 
     it("never closes an absorbed single after a lost write-back — the base branch still points its row at the single", () => {
@@ -2591,7 +2685,7 @@ describe("gaps-sync main closes absorbed singles only after the rows are recorde
     // network.
     it("calls closeAbsorbedSingles after commitAndPushAllowlist, inside its own try", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
-        const writeBack = source.indexOf("commitAndPushAllowlist(root))");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root, ");
         const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
         expect(writeBack).toBeGreaterThan(-1);
         expect(close).toBeGreaterThan(writeBack);
@@ -2608,7 +2702,7 @@ describe("gaps-sync main writes the managed blocks only after the rows are recor
     // origin-band pin above: `main()` reads the network.
     it("calls syncAdoptedBlocks after commitAndPushAllowlist, inside its own try", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
-        const writeBack = source.indexOf("commitAndPushAllowlist(root))");
+        const writeBack = source.indexOf("commitAndPushAllowlist(root, ");
         const blocks = source.indexOf("syncAdoptedBlocks(\n");
         expect(writeBack).toBeGreaterThan(-1);
         expect(blocks).toBeGreaterThan(writeBack);
