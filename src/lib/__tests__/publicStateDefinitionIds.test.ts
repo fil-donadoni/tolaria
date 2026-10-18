@@ -79,7 +79,7 @@ describe("publicStateDefinitionIds", () => {
 
     it("includes the printed card every stand-in stands in for, and the granting card of a granted trigger (issue #5617)", () => {
         // A copy's `card.id` is what it copies; the engine reads `copiedFrom`
-        // back when the copy effect ends (CR 707.2) — a Brain worker that had
+        // back when the copy effect ends — a Brain worker that had
         // not installed it would search a card it cannot resolve.
         expect(
             publicStateDefinitionIds({

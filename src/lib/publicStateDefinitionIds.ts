@@ -14,7 +14,7 @@ type GrantHolder = {
 
 /** The printed cards an instance stands in for (issue #5617), which the
  *  engine reads back when the stand-in ends: a copy's original
- *  (`copiedFrom`, CR 707.2), a transformed permanent's front
+ *  (`copiedFrom`), a transformed permanent's front
  *  (`transformedFrom`), an Adventure's or split half's parent. The server's
  *  Manifest walker (`convex/definitionManifest.ts`) names the same ones. */
 type StandInHolder = {
