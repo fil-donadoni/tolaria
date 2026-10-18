@@ -2412,6 +2412,33 @@ describe("syncClusterCutTickets — the threshold decision (ADR 0146 § Decision
         expect(action.action).toBe("create");
         expect(action.issue).not.toBe(TICKET);
     });
+
+    it("an OPEN ticket with the kind's title that no `cuts` row records — a lost write-back — is reclaimed into the row, kept current, never opened twice (issue #5871)", () => {
+        const t = new StubTracker();
+        const STRAY = 7100;
+        t.issues.set(STRAY, {
+            state: "OPEN",
+            title: clusterCutTitle("bot"),
+            body: clusterCutBody("bot", singles(5)),
+        });
+        // Below threshold too: the ticket exists, so it is the record.
+        const result = syncClusterCutTickets(
+            new Map([["bot", singles(3)]]),
+            new Map(),
+            t,
+            5
+        );
+        expect(result.actions.find((a) => a.kind === "bot")).toEqual({
+            kind: "bot",
+            action: "reclaim",
+            issue: STRAY,
+        });
+        expect(result.updatedRows.get("bot")).toBe(STRAY);
+        expect(t.createCalls).toBe(0);
+        expect(t.issues.get(STRAY)!.body).toBe(
+            clusterCutBody("bot", singles(3))
+        );
+    });
 });
 
 describe("applyUpdatedCuts — the `cuts` write-back (issue #4681)", () => {

@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
     cardBandIndex,
     openCardIssueIndex,
@@ -64,6 +64,7 @@ import {
     closeClaims,
     closureComment,
     commitAndPushAllowlist,
+    commitsAhead,
     planClaimClosures,
     readSetFileMatches,
     retiredFlagError,
@@ -75,7 +76,7 @@ import {
     heldKindsOf,
 } from "../gaps-sync";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ALLOWLIST_PATH } from "../check-gaps";
@@ -2370,17 +2371,64 @@ describe("gaps:sync files under the computed Target band — no origin band (iss
             [...first.updatedRows.values()].sort()
         );
     });
+
+    it("reclaim never takes an issue the allowlist records for another key, a Gap Cluster, or stands in for a `## Cards` adoption", () => {
+        // A gone key's row still owns 4830 (the close pass will close it);
+        // a same-title live key must not reclaim it.
+        const recorded = new StubTracker();
+        recorded.issues.set(4830, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        const r1 = syncGaps(
+            [gap("bot", METAGAME)],
+            recorded,
+            new Set(),
+            [],
+            "tip",
+            new Set(),
+            new Set([4830])
+        );
+        expect(r1.actions.map((a) => a.action)).toEqual(["create"]);
+        // A Gap Cluster carrying the title is adopted into by its
+        // Signature, never reclaimed as a single.
+        const cluster = new StubTracker();
+        cluster.issues.set(4831, {
+            state: "OPEN",
+            title: "bot gap",
+            body: "x",
+        });
+        const r2 = syncGaps([gap("bot", METAGAME)], cluster, new Set([4831]));
+        expect(r2.actions.map((a) => a.action)).toEqual(["create"]);
+        // A filing adopted by the open issue naming its card records THAT
+        // issue, title or no title.
+        const adopts = new StubTracker();
+        adopts.issues.set(4832, { state: "OPEN", title: "bot gap", body: "x" });
+        adopts.issues.set(4833, { state: "OPEN", body: "## Cards\n\n- X" });
+        const r3 = syncGaps(
+            [{ ...gap("bot", METAGAME), adopts: 4833 }],
+            adopts
+        );
+        expect(r3.actions).toEqual([
+            { action: "adopt", kind: "bot", key: "bot-key", issue: 4833 },
+        ]);
+    });
 });
 
 describe("gaps-sync main hands the allowlist's Grammar Clusters, Cluster Signatures, tip and held kinds to syncGaps — and no band", () => {
     // `main()` reads the network; pinned by SHAPE, the same way `land.test.ts`
     // pins the locked command. No third `originBand` argument any more
     // (issue #5871): the computed band is the only band.
-    it("passes the Grammar Clusters third, the Cluster Signatures fourth, the tip fifth and the held kinds sixth", () => {
+    it("passes the Grammar Clusters third, the Cluster Signatures fourth, the tip fifth, the held kinds sixth and every recorded issue seventh", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");
         expect(source).toMatch(
-            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip,\s*holdCreates\s*\)/
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*clusterIssues\(allowlist\),\s*signatureRows,\s*tip,\s*holdCreates,\s*new Set\(filed\.values\(\)\)\s*\)/
         );
+        // The Cluster Cut prefix is prefetched too, so a lost `cuts` row's
+        // ticket is reclaimed by title (issue #5871).
+        expect(source).toMatch(/new GhGapTracker\(prefixes\)/);
+        expect(source).toMatch(/CLUSTER_CUT_TITLE_PREFIX,\s*\];/);
     });
 });
 
@@ -2393,17 +2441,29 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
             throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
         return r.stdout.trim();
     };
+    const dirs: string[] = [];
+    afterAll(() => {
+        for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+    });
+    /** A throwaway clone's identity: no signing, no hooks, whatever the
+     *  machine's global config says. */
+    const identity = (repo: string, who: string): void => {
+        git(repo, ["config", "user.email", `${who}@example.com`]);
+        git(repo, ["config", "user.name", who]);
+        git(repo, ["config", "commit.gpgsign", "false"]);
+        git(repo, ["config", "core.hooksPath", join(repo, ".no-hooks")]);
+    };
     /** A bare remote with `BASE_BRANCH`, and a clone of it on that branch
      *  holding one allowlist commit — the primary checkout's shape. */
     function repos(): { bare: string; root: string } {
         const dir = mkdtempSync(join(tmpdir(), "gaps-sync-push-"));
+        dirs.push(dir);
         const bare = join(dir, "origin.git");
         const root = join(dir, "primary");
         mkdirSync(bare);
         git(bare, ["init", "--bare", "-q", "-b", BASE_BRANCH]);
         git(dir, ["clone", "-q", bare, root]);
-        git(root, ["config", "user.email", "t@example.com"]);
-        git(root, ["config", "user.name", "t"]);
+        identity(root, "t");
         git(root, ["checkout", "-q", "-b", BASE_BRANCH]);
         mkdirSync(join(root, "data"), { recursive: true });
         writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[]}\n');
@@ -2411,6 +2471,18 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
         git(root, ["commit", "-q", "-m", "seed"]);
         git(root, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
         return { bare, root };
+    }
+    /** Somebody else lands `file` on the base branch after `root` fetched. */
+    function landElsewhere(bare: string, root: string, file: string): void {
+        const other = join(root, "..", "other");
+        git(join(root, ".."), ["clone", "-q", bare, other]);
+        identity(other, "o");
+        git(other, ["checkout", "-q", BASE_BRANCH]);
+        mkdirSync(join(other, "data"), { recursive: true });
+        writeFileSync(join(other, file), "theirs\n");
+        git(other, ["add", "--", file]);
+        git(other, ["commit", "-q", "-m", "a merge"]);
+        git(other, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
     }
 
     it("true when the push lands: the base branch tip is the allowlist commit", () => {
@@ -2420,28 +2492,33 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
         expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
             ALLOWLIST_COMMIT_SUBJECT
         );
+        expect(commitsAhead(root)).toBe(0);
     });
 
-    it("false when the push is rejected (the base branch moved since the fetch) — the commit stays local, the stranded shape housekeeping repairs", () => {
+    it("a push that lost the race with a landing is rebased onto the moved tip and pushed once more — true, both commits on the base branch", () => {
         const { bare, root } = repos();
-        // Somebody else lands first.
-        const other = join(root, "..", "other");
-        git(join(root, ".."), ["clone", "-q", bare, other]);
-        git(other, ["config", "user.email", "o@example.com"]);
-        git(other, ["config", "user.name", "o"]);
-        git(other, ["checkout", "-q", BASE_BRANCH]);
-        writeFileSync(join(other, "x.txt"), "x\n");
-        git(other, ["add", "x.txt"]);
-        git(other, ["commit", "-q", "-m", "a merge"]);
-        git(other, ["push", "-q", "origin", `HEAD:${BASE_BRANCH}`]);
+        landElsewhere(bare, root, "x.txt");
         writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[2]}\n');
+        expect(commitAndPushAllowlist(root)).toBe(true);
+        expect(
+            git(bare, ["log", "-2", "--format=%s", BASE_BRANCH]).split("\n")
+        ).toEqual([ALLOWLIST_COMMIT_SUBJECT, "a merge"]);
+        expect(commitsAhead(root)).toBe(0);
+    });
+
+    it("false when the rebase conflicts (the allowlist itself moved under it) — the rebase is aborted, the commit stays local: the stranded shape housekeeping repairs", () => {
+        const { bare, root } = repos();
+        landElsewhere(bare, root, ALLOWLIST_PATH);
+        writeFileSync(join(root, ALLOWLIST_PATH), '{"ops":[3]}\n');
         expect(commitAndPushAllowlist(root)).toBe(false);
         expect(git(root, ["log", "-1", "--format=%s"])).toBe(
             ALLOWLIST_COMMIT_SUBJECT
         );
+        expect(git(root, ["status", "--porcelain"])).toBe("");
         expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
             "a merge"
         );
+        expect(commitsAhead(root)).toBe(1);
     });
 
     it("true with nothing staged — an unchanged file is not a lost write-back", () => {
@@ -2470,6 +2547,24 @@ describe("gaps-sync main exits non-zero on a lost write-back, after every other 
             /process\.exit\(WRITE_BACK_FAILED_EXIT\)/
         );
         expect(WRITE_BACK_FAILED_EXIT).not.toBe(0);
+        // A later push of the same run may carry the lost commit up: the
+        // checkout is asked before the exit.
+        expect(source.slice(orphanPass, exitAt)).toMatch(
+            /writeBackFailed && commitsAhead\(root\) === 0/
+        );
+    });
+
+    it("never closes an absorbed single after a lost write-back — the base branch still points its row at the single", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        const guard = source.indexOf(
+            "if (result.absorbed.length > 0 && writeBackFailed) {"
+        );
+        const close = source.indexOf("closeAbsorbedSingles(result.absorbed");
+        expect(guard).toBeGreaterThan(-1);
+        expect(close).toBeGreaterThan(guard);
+        expect(source.slice(guard, close)).toMatch(
+            /\} else if \(result\.absorbed\.length > 0\) \{\s*try \{/
+        );
     });
 });
 

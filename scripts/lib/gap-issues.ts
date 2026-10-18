@@ -52,9 +52,11 @@
  * A gap's band is the band of the Target its cards serve — the computed one,
  * always. The `--band P0` override (the band of the WORK that triggered the
  * run, issue #4158) filed every gap of a batch holding one P0 PR under the
- * family's P0 umbrella, long-tail grammar gaps included, and `planMove` never
- * let them out again; it is gone. `gaps:sync --band` is refused, and no
- * caller computes it.
+ * family's P0 umbrella, long-tail grammar gaps included, and `planMove` —
+ * which never moves an issue out of P0, then as now: P0 stays the owner's —
+ * kept them there. The override is gone: `gaps:sync --band` is refused, and
+ * no caller computes it. An issue the override filed under P0 before this is
+ * the owner's to move, like any hand-placed one.
  *
  * ── Reclaim (issue #5871) ───────────────────────────────────────────────
  *
@@ -1082,7 +1084,12 @@ export function syncGaps(
     clusters: ReadonlySet<number> = new Set(),
     signatureRows: readonly ClusterRow[] = [],
     tip = "an unread tip",
-    holdCreates: ReadonlySet<GapKind> = new Set()
+    holdCreates: ReadonlySet<GapKind> = new Set(),
+    /** Every issue the allowlist records today, live gap or not — never a
+     *  reclaim candidate (issue #5871): a gone key's row still owns its
+     *  issue until the close pass closes it, and a same-title live key
+     *  reclaiming it would be `skip-closed` for good. */
+    recorded: ReadonlySet<number> = new Set()
 ): GapSyncResult {
     let allFilings: readonly GapFiling[] = inputFilings;
     let filings: readonly GapFiling[] = allFilings;
@@ -1125,20 +1132,23 @@ export function syncGaps(
     // when an OPEN issue already carries its exact title, records THAT issue
     // — the allowlist lost the row, the tracker did not. It then takes the
     // path of any filed gap (body and parent reconciled), and its row is
-    // written whatever the body says. An issue another filing already
-    // claims is never reclaimed by a second one: two keys, one issue, would
-    // be the next loop.
+    // written whatever the body says. Never a candidate: an issue another
+    // filing claims (two keys, one issue, would be the next loop), one the
+    // allowlist records for any key (`recorded`), or a Gap Cluster (a
+    // cluster is adopted into by its Signature, never reclaimed as a
+    // single). A filing with a `## Cards` adoption is left to that path.
     const reclaimed = new Map<string, number>();
-    const claimedElsewhere = new Set(
-        allFilings
+    const claimedElsewhere = new Set([
+        ...recorded,
+        ...allFilings
             .filter((f) => !wouldCreate(f) && f.currentIssue !== null)
-            .map((f) => f.currentIssue!)
-    );
+            .map((f) => f.currentIssue!),
+    ]);
     allFilings = allFilings.map((filing) => {
-        if (!wouldCreate(filing)) return filing;
+        if (!wouldCreate(filing) || filing.adopts !== undefined) return filing;
         const found = tracker
             .findOpenByTitle(filing.title)
-            .find((n) => !claimedElsewhere.has(n));
+            .find((n) => !claimedElsewhere.has(n) && !clusters.has(n));
         if (found === undefined) return filing;
         const issue = tracker.getIssue(found);
         if (issue === null || issue.state !== "OPEN") return filing;
@@ -1615,10 +1625,15 @@ export function applyUpdatedIssues(
 // `clusterCutThreshold`, ONE standing ticket is opened or, once open, kept
 // current — never duplicated, never one per kind twice.
 
-/** The title `gaps:sync` files (and re-finds nothing by — the `cuts` row is
- *  the record) a Cluster Cut ticket under. */
+/** The title prefix of every Cluster Cut ticket — prefetched by
+ *  `GhGapTracker` like a kind's, so a ticket whose `cuts` row was lost is
+ *  reclaimed, never opened twice (issue #5871). */
+export const CLUSTER_CUT_TITLE_PREFIX = "[Cluster] cut";
+
+/** The title `gaps:sync` files a Cluster Cut ticket under — the `cuts` row is
+ *  the record; an OPEN one with this exact title is reclaimed into it. */
 export function clusterCutTitle(kind: ClusterKind): string {
-    return `[Cluster] cut ${kind} singles`;
+    return `${CLUSTER_CUT_TITLE_PREFIX} ${kind} singles`;
 }
 
 /** The strongest (lowest-lettered) band among `singles`, or null when every
@@ -1669,7 +1684,9 @@ export function clusterCutBody(
 
 export interface ClusterCutAction {
     readonly kind: ClusterKind;
-    readonly action: "create" | "update" | "noop";
+    /** `reclaim`: an OPEN ticket with the kind's title the `cuts` row did
+     *  not record — adopted into the row, kept current (issue #5871). */
+    readonly action: "create" | "update" | "noop" | "reclaim";
     /** null only on a `noop` with no standing ticket yet. */
     readonly issue: number | null;
 }
@@ -1680,12 +1697,17 @@ export interface ClusterCutAction {
  * the allowlist's `cuts` rows). A ticket already OPEN is always kept current
  * (its list may shrink back under threshold and stays reported — closing it
  * is `/cluster-gaps`'s call, never this one's); closed or never filed, a
- * fresh one is opened only at or past `threshold`.
+ * fresh one is opened only at or past `threshold` — unless an OPEN ticket
+ * with the kind's title already exists (a lost `cuts` write-back): that one
+ * is reclaimed into the row, whatever the count (issue #5871).
  */
 export function syncClusterCutTickets(
     unabsorbable: ReadonlyMap<ClusterKind, readonly ClusterCutSingle[]>,
     cutIssues: ReadonlyMap<ClusterKind, number>,
-    tracker: Pick<GapTracker, "getIssue" | "createIssue" | "updateBody">,
+    tracker: Pick<
+        GapTracker,
+        "getIssue" | "createIssue" | "updateBody" | "findOpenByTitle"
+    >,
     threshold: number
 ): {
     readonly actions: readonly ClusterCutAction[];
@@ -1706,6 +1728,15 @@ export function syncClusterCutTickets(
             } else {
                 actions.push({ kind, action: "noop", issue: issueNumber });
             }
+            continue;
+        }
+        const stray = tracker.findOpenByTitle(clusterCutTitle(kind))[0];
+        if (stray !== undefined) {
+            const body = clusterCutBody(kind, singles);
+            if (body !== tracker.getIssue(stray)?.body)
+                tracker.updateBody(stray, body);
+            updatedRows.set(kind, stray);
+            actions.push({ kind, action: "reclaim", issue: stray });
             continue;
         }
         if (singles.length < threshold) {

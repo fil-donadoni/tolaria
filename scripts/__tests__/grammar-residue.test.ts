@@ -4,6 +4,7 @@
  * and which are HOLES. Every number is derivable by hand.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
     buildResidue,
@@ -199,5 +200,24 @@ describe("trackingOf — cluster signatures", () => {
                 isOpen: open(),
             })
         ).toEqual({ via: "none" });
+    });
+});
+
+describe("grammar:residue reads gaps:sync's lost write-back as 'filed, not recorded' (issue #5871)", () => {
+    // `main` spawns gaps:sync and `gh`: pinned by SHAPE. Read as a plain
+    // failure, the holes — filed, but absent from the base branch the
+    // ledger reads claims from — would be reported as holes again and
+    // invite hand-filed duplicates.
+    it("exits 1 before any ledger or comment when gaps:sync exits WRITE_BACK_FAILED_EXIT, and never HOLES_EXIT for it", () => {
+        const source = readFileSync("scripts/grammar-residue.ts", "utf8");
+        const branch = source.indexOf(
+            "if (sync.status === WRITE_BACK_FAILED_EXIT) {"
+        );
+        const ledger = source.indexOf("renderLedger(report, issue, pr)");
+        expect(branch).toBeGreaterThan(-1);
+        expect(ledger).toBeGreaterThan(branch);
+        const block = source.slice(branch, ledger);
+        expect(block).toMatch(/process\.exit\(1\);/);
+        expect(block).not.toMatch(/HOLES_EXIT/);
     });
 });

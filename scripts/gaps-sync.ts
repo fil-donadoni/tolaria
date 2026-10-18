@@ -89,7 +89,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
-import { BASE_BRANCH } from "./lib/branches";
+import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import {
     gh,
     issueBlockedBy,
@@ -106,6 +106,7 @@ import {
     applyUpdatedIssues,
     bandUmbrellaOf,
     buildGrammarGapFilings,
+    CLUSTER_CUT_TITLE_PREFIX,
     GAP_TITLE_PREFIX,
     OP_KEY_PREFIX,
     PARTITIONED_KINDS,
@@ -217,13 +218,30 @@ export class GhGapTracker implements GapTracker {
         this.prefixes = prefixes;
     }
 
+    /** One list per prefix; search results are capped here (GitHub's search
+     *  stops at 1000), and a page this full is read as TRUNCATED, not as the
+     *  whole set. */
+    private static readonly PREFETCH_LIMIT = 1000;
+
+    /** True once any prefix returned a full page: `findOpenByTitle` then
+     *  asks the tracker directly instead of trusting the cache (issue
+     *  #5871) — a duplicate that fell off the page would be filed again. */
+    private truncated = false;
+
     /** Every issue of every filed kind, open and closed, in one call per kind.
      *  A number the lists miss falls back to a single `view`. */
     private prefetch(): Map<number, TrackedIssue> {
         if (this.cache !== null) return this.cache;
         const rows: GhIssueRow[] = [];
         for (const prefix of this.prefixes) {
-            rows.push(...this.listByTitle(prefix));
+            const page = this.listByTitle(prefix);
+            if (page.length >= GhGapTracker.PREFETCH_LIMIT) {
+                this.truncated = true;
+                console.error(
+                    `gaps:sync: the "${prefix}" prefetch returned ${page.length} issue(s), the whole page — title look-ups go to the tracker for this run; paginate the prefetch`
+                );
+            }
+            rows.push(...page);
         }
         this.cache = new Map(rows.map((r) => [r.number, trackedIssue(r)]));
         return this.cache;
@@ -238,7 +256,7 @@ export class GhGapTracker implements GapTracker {
             "--state",
             "all",
             "--limit",
-            "500",
+            String(GhGapTracker.PREFETCH_LIMIT),
             "--json",
             "number,state,title,body,parent",
         ]);
@@ -345,10 +363,32 @@ export class GhGapTracker implements GapTracker {
      *  filed — and the allowlist forgot — is found without a call. Oldest
      *  first: the duplicates are the newer ones. */
     findOpenByTitle(title: string): readonly number[] {
+        const cache = this.prefetch();
         const found: number[] = [];
-        for (const [number, issue] of this.prefetch())
+        for (const [number, issue] of cache)
             if (issue.state === "OPEN" && issue.title === title)
                 found.push(number);
+        if (this.truncated) {
+            // The cache may have missed it: one exact-title search. Search
+            // tokenizes, so the exact match is re-checked here.
+            const rows = JSON.parse(
+                gh([
+                    "issue",
+                    "list",
+                    "--search",
+                    `in:title ${JSON.stringify(title)}`,
+                    "--state",
+                    "open",
+                    "--limit",
+                    "50",
+                    "--json",
+                    "number,title",
+                ])
+            ) as { number: number; title: string }[];
+            for (const row of rows)
+                if (row.title === title && !found.includes(row.number))
+                    found.push(row.number);
+        }
         return found.sort((a, b) => a - b);
     }
 
@@ -638,13 +678,42 @@ export function commitAndPushAllowlist(root: string): boolean {
         return false;
     }
     const push = git(["push", "origin", `HEAD:${BASE_BRANCH}`]);
-    if (push.status !== 0) {
+    if (push.status === 0) return true;
+    // Lost the race with a landing (minutes pass between housekeeping's fetch
+    // and this push, at ~10 landings an hour): the commit touches one file,
+    // so rebase it onto the moved tip and push ONCE more. A rebase that
+    // conflicts (the allowlist itself moved) is aborted, and the loss stands.
+    console.error(
+        `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${push.stderr.trim()} — fetching and rebasing once`
+    );
+    if (git(["fetch", "-q", "origin", BASE_BRANCH]).status !== 0) return false;
+    const rebase = git(["rebase", "-q", ORIGIN_BASE]);
+    if (rebase.status !== 0) {
+        git(["rebase", "--abort"]);
         console.error(
-            `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${push.stderr}`
+            `gaps:sync: could not rebase the allowlist update onto ${ORIGIN_BASE}: ${rebase.stderr.trim()}`
+        );
+        return false;
+    }
+    const again = git(["push", "origin", `HEAD:${BASE_BRANCH}`]);
+    if (again.status !== 0) {
+        console.error(
+            `gaps:sync: the allowlist update did not land on the second push either: ${again.stderr.trim()}`
         );
         return false;
     }
     return true;
+}
+
+/** How many commits the checkout holds that `origin/<base>` does not — zero
+ *  once every write-back of this run (or a later one in it) landed. */
+export function commitsAhead(root: string): number {
+    const out = spawnSync(
+        "git",
+        ["rev-list", "--count", `${ORIGIN_BASE}..HEAD`],
+        { cwd: root, encoding: "utf8" }
+    );
+    return out.status === 0 ? Number(out.stdout.trim()) || 0 : -1;
 }
 
 /** The exit code a run whose allowlist write-back never reached the base
@@ -1382,7 +1451,12 @@ async function main(): Promise<void> {
         return;
     }
 
-    const prefixes = [...new Set(filings.map((f) => GAP_TITLE_PREFIX[f.kind]))];
+    // The Cluster Cut prefix rides along: its tickets are reclaimed by title
+    // like a kind's issues (issue #5871).
+    const prefixes = [
+        ...new Set(filings.map((f) => GAP_TITLE_PREFIX[f.kind])),
+        CLUSTER_CUT_TITLE_PREFIX,
+    ];
     const tracker = new GhGapTracker(prefixes);
 
     // The `## Unlocks` pass reads BEFORE anything is written, and a failed read
@@ -1419,7 +1493,8 @@ async function main(): Promise<void> {
         clusterIssues(allowlist),
         signatureRows,
         tip,
-        holdCreates
+        holdCreates,
+        new Set(filed.values())
     );
     for (const id of result.held)
         console.log(
@@ -1473,7 +1548,14 @@ async function main(): Promise<void> {
     // The absorbed singles (issue #4678), closed only now that their rows
     // point at their clusters — in their own try/catch, like the blocks: a
     // failed close leaves an open single, never a row on a closed issue.
-    if (result.absorbed.length > 0) {
+    // Never after a lost write-back (issue #5871): the base branch still
+    // points each row at its single, and a closed single reads `skip-closed`
+    // for good; the retry absorbs and closes them.
+    if (result.absorbed.length > 0 && writeBackFailed) {
+        console.log(
+            `absorb     ${result.absorbed.length} single(s) left open — the rows that re-point them did not reach ${BASE_BRANCH}; the retry closes them`
+        );
+    } else if (result.absorbed.length > 0) {
         try {
             for (const single of closeAbsorbedSingles(result.absorbed, tracker))
                 console.log(`absorb     closed single issue #${single}`);
@@ -1642,7 +1724,15 @@ async function main(): Promise<void> {
     }
 
     // Last, so nothing above was skipped: the write-back is the one failure
-    // that leaves the tracker ahead of the base branch (issue #5871).
+    // that leaves the tracker ahead of the base branch (issue #5871). A
+    // later write-back of the same run may have carried the lost commit up
+    // with it — the checkout is asked, not the flag alone.
+    if (writeBackFailed && commitsAhead(root) === 0) {
+        console.log(
+            `gaps:sync: an earlier write-back failed, but a later push landed every local commit on ${BASE_BRANCH}`
+        );
+        writeBackFailed = false;
+    }
     if (writeBackFailed) {
         console.error(
             `gaps:sync: the allowlist write-back did not reach ${BASE_BRANCH} — the issues filed above are not recorded there; exit ${WRITE_BACK_FAILED_EXIT} so housekeeping retries (the next run reclaims them by title, nothing is filed twice)`
