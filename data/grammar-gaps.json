@@ -466,6 +466,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › preventDamage",
+            "issue": 5816
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant target:Creature › pump",
             "issue": 4264
         },
@@ -1528,6 +1533,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › each of X targets",
             "issue": 5696
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › it at the beginning of the next end step",
+            "issue": 5256
         },
         {
             "kind": "grammar",
@@ -3741,6 +3751,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"createToken\" uses a ref/count token count the canned generator does not model — covered by the card's own per-card test",
+            "issue": 5711
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
             "issue": 4172
         },
@@ -3753,6 +3768,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"moveZone\" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test",
             "issue": 4021
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"pump\" uses a ref/count P/T amount the canned generator does not model — covered by the card's own per-card test",
+            "issue": 5715
         },
         {
             "kind": "scenario",
@@ -3791,13 +3811,33 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set controller is a ref \"$each\"",
+            "issue": 5713
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler",
             "issue": 4206
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set excludes supertype(s) — the filler doesn't model supertype exclusion",
+            "issue": 5714
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › numeric ref \"$event.amount\" — amount depends on a runtime snapshot",
             "issue": 5216
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › numeric ref \"$that1.toughness\" — amount depends on a runtime snapshot",
+            "issue": 5716
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › player parameter is a ref — recipient depends on a runtime snapshot",
+            "issue": 5712
         },
         {
             "kind": "scenario",
