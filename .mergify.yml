@@ -72,3 +72,27 @@ pull_request_rules:
                   **merge queue: dequeued (`{{ queue_dequeue_reason }}`)** — labelled `land-failed`.
 
                   The failing check: [`queue-lane` runs on the queue's drafts](https://github.com/fil-donadoni/tolaria/actions/workflows/queue-lane.yml?query=branch%3Amergify%2Fmerge-queue) — the run on this PR's draft is the one linked from Mergify's dequeue comment above.
+    # An unmet queue condition is no dequeue — Mergify only waits — so a PR
+    # whose `land` refusal is red would sit with no merger and no signal
+    # (issue #5960). The same repair pick as a dequeue.
+    - name: a red land refusal on a queue PR is a repair pick
+      conditions:
+          - label=queue:shadow
+          - label=ready-to-land
+          - or:
+                - check-failure=ui-receipt
+                - check-failure=scenario
+                - check-failure=retired-rows
+                - check-failure=robustness-baseline
+                - check-failure=repair-proof
+      actions:
+          label:
+              add:
+                  - land-failed
+              remove:
+                  - ready-to-land
+          comment:
+              message: |
+                  **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
+
+                  The red check is one of `pr-check`'s refusal jobs (see the PR's checks). Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.

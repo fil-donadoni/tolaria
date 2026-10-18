@@ -329,10 +329,17 @@ was moved or deleted by the repair — it cannot decide, and `land` stays the
 authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
 (closing none of the ledger's `/health-fix` issues) owes nothing to it.
 
-Like `lane`, the checks are advisory until a ruleset names them; once it does,
-this section is the list of required status contexts: `refusals (ui-receipt)`,
-`refusals (scenario)`, `refusals (retired-rows)`,
-`refusals (robustness-baseline)`, `refusals (repair-proof)`.
+The Mergify queue requires the five (`queue_conditions`, issue #5960); their
+contexts are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
+`robustness-baseline` and `repair-proof`. Four read the PR body, so `pr-check`
+also runs on `edited`: fixing a body re-runs them. An unmet queue condition is
+no dequeue (Mergify only waits), so a refusal red on a `queue:shadow` PR
+labels it `land-failed` through its own `pull_request_rules` entry, the same
+repair pick as a dequeue. The refusals judge the PR's merge ref at its last
+push or edit, never the queue's rebased draft: against a base that moved
+since, `repair-proof` and `robustness-baseline` can be stale, which the
+migration accepts (`land`, on the land-runner path, still checks the rebased
+tip).
 
 ### pr-refresh
 
