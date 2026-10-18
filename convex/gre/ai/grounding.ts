@@ -202,7 +202,9 @@ export interface EachPlayerSide {
      *  library — the order is hidden, the contents are not), kept only as
      *  far as the cleanup discard lets it stay (CR 514.1 / 402.2: past the
      *  maximum hand size the player keeps its best cards, so a drawn card
-     *  into a full hand is worth only what it beats), over the board's mean
+     *  into a full hand is worth only what it beats; issue #5579 — read over
+     *  the hands that can reach that cleanup, the leaf's ± one card, so one
+     *  card in or out of a hand moves it by a share of one), over the board's mean
      *  library card — so an average card kept whole is one unit, and the
      *  side with the better library draws more of them. The card being
      *  valued is left out of the hand, as in `handWorth`; at most the

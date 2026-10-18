@@ -113,6 +113,23 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         expect(delta(7, 1)).toBeLessThan(0);
     });
 
+    it("one card into a hand at the maximum hand size moves the reading by less than one firing stream (issue #5579)", () => {
+        // CR 514.1 is read over the hands that reach cleanup, not the leaf's:
+        // the turn's draw (CR 504.1) and a main phase lie between. One firing
+        // stream = one extra card kept whole on one side, none on the other
+        // (an empty hand against a hand far past the maximum, whose drawn
+        // Bear beats no Bear it holds).
+        const stream = mineWorth(
+            board({ hand: 0, mine: "board" }, { hand: 10 })
+        );
+        expect(stream).toBeGreaterThan(0);
+        const step =
+            mineWorth(board({ hand: 6, mine: "board" }, { hand: 7 })) -
+            mineWorth(board({ hand: 7, mine: "board" }, { hand: 7 }));
+        expect(step).toBeGreaterThan(0);
+        expect(step).toBeLessThan(stream);
+    });
+
     it("with equal hands the side with the better library-top expectation is fed", () => {
         // Libraries of dragons against libraries of forests: the same extra
         // card a turn is a Shivan Dragon to one player and a Forest to the
@@ -175,9 +192,11 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         // CR 603.4 "if Howling Mine is untapped" is decided per side against
         // the source as its controller's untap step leaves it (CR 502.3) —
         // the engine is a recurrence over future steps, so a Mine tapped now
-        // still feeds the table next turn.
-        const untapped = board({ hand: 1, mine: "board" }, { hand: 7 });
-        const tapped = board({ hand: 1, mine: "board" }, { hand: 7 });
+        // still feeds the table next turn. The opponent's hand sits far past
+        // the maximum, so its own side reads nothing whichever way its step
+        // finds the Mine (issue #5578 reads that side).
+        const untapped = board({ hand: 1, mine: "board" }, { hand: 10 });
+        const tapped = board({ hand: 1, mine: "board" }, { hand: 10 });
         tapped.players[0].battlefield[0].isTapped = true;
         expect(mineWorth(tapped)).toBeGreaterThan(0);
         expect(mineWorth(tapped)).toBeCloseTo(mineWorth(untapped), 6);

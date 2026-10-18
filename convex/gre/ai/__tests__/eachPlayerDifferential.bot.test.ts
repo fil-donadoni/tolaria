@@ -449,8 +449,8 @@ describe("an each-player draw is priced off the drawing side's board (issue #557
     });
 
     it("a counted discard shrinks the hand the draw lands in", () => {
-        // Each player discards three, then draws three. The caster's seven
-        // Bears go to four, so its three Bears are all kept, as the
+        // Each player discards three, then draws three. The caster's six
+        // Bears go to three, so its three Bears are all kept, as the
         // opponent's are into an empty hand: the draws cancel and the body
         // reads exactly its discard.
         const edict: EffectOp[] = [
@@ -471,7 +471,7 @@ describe("an each-player draw is priced off the drawing side's board (issue #557
         ]);
         const discardOnly = sorcery("discard-three", edict);
         const board: [Side, Side] = [
-            { hand: cards(7, bear), library: bears },
+            { hand: cards(6, bear), library: bears },
             { library: bears },
         ];
         withTemporaryDefinition(discardThenDraw, () =>
