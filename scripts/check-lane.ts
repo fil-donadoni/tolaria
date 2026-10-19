@@ -1189,45 +1189,33 @@ export interface TreeSnapshot {
  * when nothing moved. Pure, so the DECISION is testable without a
  * subprocess — same convention as every other decision in this file.
  *
- * THE SIGNAL IS THE STASH STACK CHANGING, NOT A LINT-STAGED ENTRY BEING
- * PRESENT. Issue #4379 asked for the direct check — "an entry whose message
- * starts with `lint-staged automatic backup` while the lane runs is the same
- * refusal" — and that is wrong on this machine, for two reasons that only
- * showed up against a real repo. The stash stack is shared by every worktree,
- * so one session's entry refuses every other session's lane; and a
- * lint-staged that dies between its stash and its restore leaves the entry
- * behind forever. One such entry, dated 2026-09-17, was sitting on this
- * repo's stack when this guard was first run — presence alone would have
- * refused every `check:lane` (and therefore every `land`) on the machine
- * until a human dropped it.
- *
- * A lint-staged run that races us, by contrast, PUSHES its backup and then
- * DROPS it, so the stack differs between two snapshots — which is exactly
- * the observed failure (the lint-staged banner appearing inside the lane's
- * own log). Comparing the list catches that and is inert against a stale
- * entry, which changes nothing and is applied to nothing.
+ * The tree is HEAD and status: a stash change alone is no move (issue
+ * #5993). The stash stack is shared by every worktree of the checkout, so a
+ * session committing anywhere on the machine pushes and drops its
+ * `lint-staged automatic backup` under this run — the job worktree of a
+ * queue draft, where nothing commits, went red that way. The backup changes
+ * nothing on disk; when lint-staged does rewrite THIS tree (it hides
+ * unstaged hunks while it formats), status moves, and the stash only names
+ * the likely cause.
  */
 export function treeMoved(
     start: TreeSnapshot,
     now: TreeSnapshot
 ): string | null {
+    const cause =
+        hasLintStagedStash(start.stash) || hasLintStagedStash(now.stash)
+            ? "; a `lint-staged automatic backup` is on the stash stack"
+            : "";
     const moved =
         "the tree moved under the lane — a lint-staged stash or a concurrent commit; re-run on a quiet tree";
     if (start.head !== now.head) {
-        return `${moved} (HEAD ${start.head} → ${now.head})`;
+        return `${moved} (HEAD ${start.head} → ${now.head}${cause})`;
     }
     if (start.status !== now.status) {
         const first = now.status.trim().split("\n")[0] ?? "";
         return `${moved} (working tree no longer matches the one classified${
             first === "" ? "" : `, first change: ${first}`
-        })`;
-    }
-    if (start.stash !== now.stash) {
-        return `${moved} (${
-            hasLintStagedStash(start.stash) || hasLintStagedStash(now.stash)
-                ? "a `lint-staged automatic backup` stash entry was pushed or dropped under the run"
-                : "the stash stack changed under the run"
-        })`;
+        }${cause})`;
     }
     return null;
 }
