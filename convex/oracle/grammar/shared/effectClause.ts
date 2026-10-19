@@ -1731,7 +1731,11 @@ export type RestrictionIR =
     | { readonly kind: "any-player" }
     /** CR 113.6/602.5b — "Activate only if this card is in your graveyard."
      *  (`ActivatedAbility.activateFromGraveyard`, Ashen Ghoul's shape.) */
-    | { readonly kind: "activate-from-graveyard" };
+    | { readonly kind: "activate-from-graveyard" }
+    /** CR 602.1b (issue #3685) — "Activate only if there are N or more cards
+     *  in your graveyard." (Threshold's spelled-out condition), lowered to a
+     *  declarative `ActivatedAbility.activationCondition`. */
+    | { readonly kind: "own-graveyard-at-least"; readonly count: number };
 
 /** The two turn-scoped combat restrictions one announced creature can carry. */
 export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
@@ -4085,6 +4089,31 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
 ]);
 
 /**
+ * CR 602.1b (issue #3685) — "Activate only if there are N or more cards in
+ * your graveyard", in both printed word orders. Only the UNFILTERED count of
+ * the activator's own graveyard: "N or more creature cards" needs a card
+ * filter and "N or more card types among cards" a type tally, neither of which
+ * an activation-time condition reads, so both stay refused under their own key.
+ */
+const OWN_GRAVEYARD_AT_LEAST = [
+    /^activate only if there are (\S+) or more cards in your graveyard$/,
+    /^activate only if (\S+) or more cards are in your graveyard$/,
+];
+
+function readOwnGraveyardAtLeast(span: string): RestrictionIR | undefined {
+    for (const form of OWN_GRAVEYARD_AT_LEAST) {
+        const match = form.exec(span);
+        if (match === null) continue;
+        const count = readNumberWord(match[1]);
+        // "a"/"an" read as one, but no card prints "a or more" — only a
+        // cardinal of two or more is a threshold.
+        if (count === null || count < 2) return undefined;
+        return { kind: "own-graveyard-at-least", count };
+    }
+    return undefined;
+}
+
+/**
  * CR 613.1f — "<mass subject> gain protection from the chosen color until
  * <duration>", the plural-verb reader for `choose-color-grant-protection`
  * (Glory). The GRANT half a "Choose a color." marker's antecedent feeds; the
@@ -4195,7 +4224,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // the list is a closed CR census, so a per-card subset would be a
         // catalogue of card names wearing a grammar's clothes.
         const span = withoutAbilityWord(printed);
-        const restriction = RESTRICTIONS.get(span.toLowerCase());
+        const restriction =
+            RESTRICTIONS.get(span.toLowerCase()) ??
+            readOwnGraveyardAtLeast(span.toLowerCase());
         if (restriction !== undefined)
             return ok({ role: "restriction" as const, restriction });
         if (ADD_MANA_INSTEAD_IF_COUNT.test(span))
