@@ -65,6 +65,7 @@ import { tryGetDefinition } from "../../cards";
 import { type Beneficence, opBeneficence } from "./opValuers";
 import { soleChosenModeId } from "../modeSelection";
 import { childOpArrays, isTriggerBodyHost } from "./effectOpChildren";
+import { findTriggeredAbility } from "../copy";
 
 /** Merge two signs for the same slot. Agreement keeps the sign; disagreement
  *  (a "target player draws a card and loses 2 life" shape) collapses to
@@ -395,7 +396,47 @@ function slotSignerFor(
         }
         return (slot) => abilityTargetSlotBeneficence(ability, slot);
     }
+    if (move.kind === "submit-target") return raisedTriggerSlotSigner(state);
     return undefined;
+}
+
+/** Per-slot sign function for a `submit-target` answering a RAISED trigger
+ *  target selection (CR 603.3d, issue #5496), or `undefined` for any other
+ *  selection. Nobody announced the trigger, but its controller still chooses
+ *  its targets, and the choice is the same question a cast's tuple answers:
+ *  who is on the receiving end of the script. The script is the trigger's own
+ *  (`findTriggeredAbility` — the printed-or-granted lookup resolution uses),
+ *  or the announced mode's for a modal trigger (CR 700.2c). The submission's
+ *  slot `i` is script slot `priorSelected + selected + i`: the stack item's
+ *  `targets` are those three concatenated (`applyRaisedTargetFinalization`).
+ *  A retarget / copy-retarget is a different question (whose script the new
+ *  targets serve is the SPELL's, not a trigger's) and stays unranked. */
+function raisedTriggerSlotSigner(
+    state: GameState
+): ((slot: number) => Beneficence) | undefined {
+    const pt = state.pendingTarget;
+    if (!pt || pt.kind !== "trigger") return undefined;
+    const item = state.stack.find((s) => s.id === pt.cardInstanceId);
+    if (!item?.triggeredAbilityId) return undefined;
+    const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+    if (!ability) return undefined;
+    let effects = ability.effects;
+    if (ability.modes && ability.modes.length > 0) {
+        const modeId = item.chosenModeIds?.[0];
+        effects = ability.modes.find((m) => m.id === modeId)?.effects;
+    }
+    const offset = (pt.priorSelected?.length ?? 0) + pt.selected.length;
+    return (slot) => scriptSlotSign(effects, offset + slot);
+}
+
+/** The targets `move` names, for the move kinds whose targets carry a slot
+ *  sign: a cast, an activation, a raised-target submission. */
+function signedTargetsOf(move: Move): readonly TargetSelection[] {
+    return move.kind === "cast-spell" ||
+        move.kind === "activate-ability" ||
+        move.kind === "submit-target"
+        ? move.targets
+        : [];
 }
 
 /** How many of `move`'s announced targets are MISDIRECTED for `botId` — a
@@ -419,10 +460,7 @@ export function misdirectedTargetCount(
 ): number {
     const signOf = slotSignerFor(state, move);
     if (!signOf) return 0;
-    const targets =
-        move.kind === "cast-spell" || move.kind === "activate-ability"
-            ? move.targets
-            : [];
+    const targets = signedTargetsOf(move);
 
     let count = 0;
     for (let slot = 0; slot < targets.length; slot++) {
@@ -446,10 +484,7 @@ export function misdirectedTargetCount(
 export function boonsEveryTarget(state: GameState, move: Move): boolean {
     const signOf = slotSignerFor(state, move);
     if (!signOf) return false;
-    const targets =
-        move.kind === "cast-spell" || move.kind === "activate-ability"
-            ? move.targets
-            : [];
+    const targets = signedTargetsOf(move);
     return (
         targets.length > 0 &&
         targets.every((_, slot) => signOf(slot) === "beneficial")

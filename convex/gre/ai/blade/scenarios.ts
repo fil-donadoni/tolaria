@@ -41,6 +41,7 @@ import {
     TITANIA_PAYOFF,
     EXTRA_PLAINS,
     answersRaisedTargetLegally,
+    submitsSoleTarget,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -13635,5 +13636,145 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #5816, Bot Gap `never-chosen › Instant target:Creature › preventDamage`. CR 615.1a + CR 510.1: the opponent's 3/3 is blocked by the holder's 2/2, so preventing the attacker's combat damage saves the blocker. The Bot-play sweep's `BLOCKED_ATTACK` window poses this board; before blocks the Bot rightly holds the shield.",
+    },
+    {
+        // ISSUE #5496 — the Bot pointed its own kicked Thunderscape
+        // Battlemage's "target player discards two cards" at ITSELF. A
+        // trigger's targets are answered by a standalone `submit-target`
+        // (CR 603.3d), which the announcement-variant ranking did not reach:
+        // the self- and opponent-aimed answers tied inside `OUTCOME_EPS` and
+        // the pick fell to rollout noise.
+        label: "raised target: a kicked discard trigger hits the opponent, not the Bot (#5496)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Thunderscape Battlemage", owner: "me", zone: "hand" },
+                // Two cards with no graveyard value: the self-discard the QA
+                // game showed is cheap enough to sit within outcome noise.
+                { name: "Plains", owner: "me", zone: "hand", count: 2 },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Hill Giant", owner: "opp", zone: "hand" },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The real cast pipeline, {1}{B}-kicked, then its resolution: the
+        // creature enters and its per-Kicker ETB raises the target selection.
+        setup: [
+            {
+                kind: "cast",
+                card: "Thunderscape Battlemage",
+                kickers: ["kicker-b"],
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        // A `predicate`, not `moves`, for the reason the depletion-land entry
+        // records: a `moves` entry is a fitted VERDICT, and the refit these
+        // oblige is refused (`bun run fit:weights` prints DO NOT PASTE — the
+        // evaluator has no hand-size term, issue #5496's out-of-scope). The
+        // ranking that answers it is the announcement-variant tie-break.
+        expect: {
+            predicate: (move, state) => submitsSoleTarget(move, state, "opp"),
+            describe: "a `submit-target` naming the opponent alone",
+        },
+        note: "Issue #5496. CR 603.3d — the trigger's controller chooses its targets as it is put on the stack; `discard` is signed harmful to its player, so the Bot aimed at itself is a misdirected slot (`misdirectedTargetCount`, now reading a trigger's script through `raisedTriggerSlotSigner`). Proof-of-failure: with the `submit-target` branch of `slotSignerFor` removed, the Bot discards its own hand on 5 of these 8 seeds.",
+    },
+    {
+        // ISSUE #5496 — the Bot pointed its own kicked Thunderscape
+        // Battlemage's "target player discards two cards" at ITSELF. A
+        // trigger's targets are answered by a standalone `submit-target`
+        // (CR 603.3d), which the announcement-variant ranking did not reach:
+        // the self- and opponent-aimed answers tied inside `OUTCOME_EPS` and
+        // the pick fell to rollout noise.
+        label: "raised target: a kicked discard trigger hits an EMPTY-handed opponent over the Bot (#5496)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Thunderscape Battlemage", owner: "me", zone: "hand" },
+                // Two cards with no graveyard value: the self-discard the QA
+                // game showed is cheap enough to sit within outcome noise.
+                { name: "Plains", owner: "me", zone: "hand", count: 2 },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The real cast pipeline, {1}{B}-kicked, then its resolution: the
+        // creature enters and its per-Kicker ETB raises the target selection.
+        setup: [
+            {
+                kind: "cast",
+                card: "Thunderscape Battlemage",
+                kickers: ["kicker-b"],
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        // A `predicate`, not `moves`, for the reason the depletion-land entry
+        // records: a `moves` entry is a fitted VERDICT, and the refit these
+        // oblige is refused (`bun run fit:weights` prints DO NOT PASTE — the
+        // evaluator has no hand-size term, issue #5496's out-of-scope). The
+        // ranking that answers it is the announcement-variant tie-break.
+        expect: {
+            predicate: (move, state) => submitsSoleTarget(move, state, "opp"),
+            describe: "a `submit-target` naming the opponent alone",
+        },
+        note: "Issue #5496. CR 603.3d — the trigger's controller chooses its targets as it is put on the stack; `discard` is signed harmful to its player, so the Bot aimed at itself is a misdirected slot (`misdirectedTargetCount`, now reading a trigger's script through `raisedTriggerSlotSigner`). The whiff edge case: an opponent with no cards still beats self-harm. Proof-of-failure: with the `submit-target` branch of `slotSignerFor` removed, the Bot discards its own hand on EVERY seed.",
+    },
+    {
+        // ISSUE #5496, the class witness: a different Op (`loseLife`) through a
+        // different trigger event (an upkeep scan, CR 503.1a) — the rule reads
+        // the trigger's Effect Script, never the discard.
+        label: "raised target: an upkeep life-loss trigger hits the opponent, not the Bot (#5496)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Smoldering Tar", owner: "me", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "phase-trigger", phase: "UPKEEP" }],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        // A `predicate`, not `moves`, for the reason the depletion-land entry
+        // records: a `moves` entry is a fitted VERDICT, and the refit these
+        // oblige is refused (`bun run fit:weights` prints DO NOT PASTE — the
+        // evaluator has no hand-size term, issue #5496's out-of-scope). The
+        // ranking that answers it is the announcement-variant tie-break.
+        expect: {
+            predicate: (move, state) => submitsSoleTarget(move, state, "opp"),
+            describe: "a `submit-target` naming the opponent alone",
+        },
+        note: "Issue #5496. CR 603.3d — `loseLife` is signed harmful to its player. Life loss is margin-visible, so `resolvedMarginDelta` alone already ranks it once `submit-target` reaches the announcement-variant tie-break; the guard here is the SEARCH half. Proof-of-failure: with `submit-target` dropped from that tie-break's move-kind gate (`selectRootMove`), the Bot pings its own face on seed 2. The two Battlemage entries red under either half.",
     },
 ];

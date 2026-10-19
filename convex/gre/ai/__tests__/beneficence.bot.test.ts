@@ -655,6 +655,139 @@ describe("activated-ability targets are ranked too (CR 602.2b, PR #1914 review f
     });
 });
 
+// ---------------------------------------------------------------------------
+// The THIRD site: a trigger's targets (CR 603.3d, issue #5496)
+// ---------------------------------------------------------------------------
+
+describe("raised trigger targets are ranked too (CR 603.3d, issue #5496)", () => {
+    /** The Bot's kicked Thunderscape Battlemage on the stack's resolution:
+     *  "target player discards two cards" raised for its controller. */
+    function battlemageBoard(oppHand: string[]): GameState {
+        const land = (name: string, count: number) => ({
+            name,
+            owner: "me" as const,
+            zone: "battlefield" as const,
+            count,
+        });
+        return buildBladeState({
+            label: "beneficence-raised-discard",
+            spec: {
+                cards: [
+                    {
+                        name: "Thunderscape Battlemage",
+                        owner: "me",
+                        zone: "hand",
+                    },
+                    { name: "Plains", owner: "me", zone: "hand", count: 2 },
+                    land("Mountain", 3),
+                    land("Swamp", 2),
+                    ...oppHand.map((name) => ({
+                        name,
+                        owner: "opp" as const,
+                        zone: "hand" as const,
+                    })),
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                landCount: 0,
+                libraryCount: 20,
+            },
+            setup: [
+                {
+                    kind: "cast",
+                    card: "Thunderscape Battlemage",
+                    kickers: ["kicker-b"],
+                },
+                { kind: "resolve-top" },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [{ kind: "pass" }] },
+        });
+    }
+
+    /** Smoldering Tar's "At the beginning of your upkeep, target player loses
+     *  1 life." — a different Op (`loseLife`) through a different trigger
+     *  event, so the rule is the class, not the discard. */
+    function tarBoard(): GameState {
+        return buildBladeState({
+            label: "beneficence-raised-life-loss",
+            spec: {
+                cards: [
+                    {
+                        name: "Smoldering Tar",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                landCount: 2,
+                libraryCount: 20,
+            },
+            setup: [{ kind: "phase-trigger", phase: "UPKEEP" }],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [{ kind: "pass" }] },
+        });
+    }
+
+    /** The two submissions, split by which player they name. */
+    function split(state: GameState) {
+        const moves = enumerateMoves(state, me(state)).filter(
+            (m): m is Extract<Move, { kind: "submit-target" }> =>
+                m.kind === "submit-target"
+        );
+        return {
+            self: moves.find((m) => m.targets[0]?.id === me(state))!,
+            other: moves.find((m) => m.targets[0]?.id === opp(state))!,
+        };
+    }
+
+    for (const [label, board] of [
+        [
+            "a kicked discard trigger, opponent holding two cards",
+            () => battlemageBoard(["Hill Giant", "Lightning Bolt"]),
+        ],
+        [
+            "a kicked discard trigger, opponent's hand empty",
+            () => battlemageBoard([]),
+        ],
+        ["an upkeep life-loss trigger", tarBoard],
+    ] as const) {
+        it(`scores ${label} aimed at the Bot itself as misdirected`, () => {
+            const state = board();
+            const botId = me(state);
+            expect(state.pendingTarget?.kind).toBe("trigger");
+            const { self, other } = split(state);
+            expect(self).toBeDefined();
+            expect(other).toBeDefined();
+            expect(misdirectedTargetCount(state, self, botId)).toBe(1);
+            expect(misdirectedTargetCount(state, other, botId)).toBe(0);
+        });
+    }
+
+    it("redirects an outcome-equal self-aimed submission to the opponent, and only then", () => {
+        const state = battlemageBoard([]);
+        const botId = me(state);
+        const { self, other } = split(state);
+
+        const tied = [edge(self, botId, 0.5), edge(other, botId, 0.5)];
+        expect(
+            selectRootMove(nodeOf(tied), [self, other], state, botId)
+        ).toEqual(other);
+
+        // Preference, never a filter: a self-aimed answer that strictly
+        // out-rewards its sibling keeps the pick (a madness enabler, say).
+        const gapped = [edge(self, botId, 0.9), edge(other, botId, 0.1)];
+        expect(
+            selectRootMove(nodeOf(gapped), [self, other], state, botId)
+        ).toEqual(self);
+    });
+});
+
 describe("selectRootMove NEGATIVE CONTROL — the rule is a preference, not a filter (issue #1888)", () => {
     it("keeps a misdirected cast that strictly out-rewards its sibling", () => {
         const state = build({

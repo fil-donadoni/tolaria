@@ -4483,6 +4483,10 @@ function isCastVariantOf(move: Move, ref: Move): boolean {
             move.abilityId === ref.abilityId
         );
     }
+    // Issue #5496 — a raised target selection (CR 603.3d) is ONE pending
+    // question at a time, so every `submit-target` at a root is an answer to
+    // the same selection: siblings by construction.
+    if (move.kind === "submit-target") return true;
     return false;
 }
 
@@ -4924,6 +4928,9 @@ export function selectRootMove(
     // `misdirectedTargetCount` reads `move.targets` against an `EffectOp[]` —
     // so restricting to casts only left Garruk Wildspeaker's "+1: Untap two
     // target lands" free to untap the OPPONENT's lands on rollout noise.
+    // The third site is a TRIGGER's targets (CR 603.3d, issue #5496): its
+    // controller answers a raised selection with a `submit-target`, and a
+    // kicked discard trigger left unranked here discarded the bot's own hand.
     //
     // Pulled from the FULL `pool` on outcome-equality alone (not the visit
     // band), as the land-drop / hold-trick rules are: the alternative is the
@@ -4934,7 +4941,11 @@ export function selectRootMove(
         rootState &&
         botId &&
         (best.move.kind === "cast-spell" ||
-            best.move.kind === "activate-ability")
+            best.move.kind === "activate-ability" ||
+            // A retarget / copy-retarget (CR 115.7, 707.10c) re-points a
+            // SPELL's targets: a different question, left unranked here.
+            (best.move.kind === "submit-target" &&
+                rootState.pendingTarget?.kind === "trigger"))
     ) {
         if (ruleOn("announcement-variant")) {
             const scoreCache = new Map<Edge, number>();

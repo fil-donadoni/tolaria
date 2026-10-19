@@ -752,11 +752,30 @@ function applyCast(
         }
     }
 
+    if (step.kickers !== undefined) {
+        const wanted = [...step.kickers].sort().join(",");
+        candidates = candidates.filter(
+            (m) =>
+                Object.entries(m.kickerPayments ?? {})
+                    .filter(([, n]) => n > 0)
+                    .map(([id]) => id)
+                    .sort()
+                    .join(",") === wanted
+        );
+        if (candidates.length === 0) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has no legal cast paying exactly the kickers [${step.kickers.join(", ")}].`
+            );
+        }
+    }
+
     if (candidates.length > 1) {
         throw new BladeSetupError(
             label,
             step,
-            `${candidates.length} legal casts of "${step.card}" still match — narrow the step with \`target\` and/or \`x\` (X values offered: ${[
+            `${candidates.length} legal casts of "${step.card}" still match — narrow the step with \`target\`, \`x\` and/or \`kickers\` (X values offered: ${[
                 ...new Set(candidates.map((m) => m.chosenX ?? 0)),
             ].join(", ")}).`
         );
