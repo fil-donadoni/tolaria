@@ -6,7 +6,10 @@
  *   1. `playable` — every card `ready` or hand-written (the hand tail
  *      declared by name — never 100% grammar). A Target with
  *      `completion: "ready"` (issue #4519) has the `ready` clause instead:
- *      every card `ready`, a hand-written card listed as missing;
+ *      every card `ready`, a hand-written card listed as missing; one with
+ *      `completion: "closed-tail"` (issue #6085) keeps the `playable` clause
+ *      over `ready` ∪ its `closedTail`, a hand-written card outside the list
+ *      listed as missing;
  *   2. `coverage-invariant` — the Coverage Invariant green on the Target
  *      (`coverageReds`, the one definition `check:targets` reds on);
  *   3. `bot-play` — `frozen` = 0; every `never-chosen` card fixed or covered
@@ -24,7 +27,11 @@ import type {
     BotReachCause,
     BotReachOutcome,
 } from "../../convex/gre/ai/botReach";
-import { coverageReds, type TargetCoverage } from "./targets";
+import {
+    coverageReds,
+    type CompletionMode,
+    type TargetCoverage,
+} from "./targets";
 
 export const COMPLETION_CLAUSES = [
     "playable",
@@ -116,6 +123,8 @@ export interface TargetCompletion {
      *  (`failing` and the report line carry the same name). */
     readonly playable: {
         readonly clause: "playable" | "ready";
+        /** The Target's completion mode — what `missing` was measured against. */
+        readonly mode: CompletionMode;
         readonly green: boolean;
         readonly missing: readonly string[];
     };
@@ -231,10 +240,15 @@ export function targetCompleted(
               }
             : botPlayClause(cardNames, new Set(coverage.unplayable), botPlay);
     // Under `ready` a hand-written card is not green: everything that is not
-    // `ready` is missing (issue #4519).
+    // `ready` is missing (issue #4519). Under `closed-tail` only the listed
+    // hand-written cards are (issue #6085).
     const clause = coverage.completion === "ready" ? "ready" : "playable";
     const missing =
-        clause === "ready" ? coverage.notReady : coverage.unplayable;
+        coverage.completion === "ready"
+            ? coverage.notReady
+            : coverage.completion === "closed-tail"
+              ? coverage.outsideTail
+              : coverage.unplayable;
     const failing: CompletionClause[] = [];
     if (missing.length > 0) failing.push(clause);
     if (reds.length > 0) failing.push("coverage-invariant");
@@ -242,7 +256,12 @@ export function targetCompleted(
     return {
         id: coverage.id,
         completed: failing.length === 0,
-        playable: { clause, green: missing.length === 0, missing },
+        playable: {
+            clause,
+            mode: coverage.completion,
+            green: missing.length === 0,
+            missing,
+        },
         coverageInvariant: { green: reds.length === 0, reds },
         botPlay: bot,
         failing,
@@ -274,7 +293,9 @@ export function formatCompletion(completion: TargetCompletion): string {
         lines.push(
             completion.playable.clause === "ready"
                 ? `ready — ${completion.playable.missing.length} card(s) not ready (a hand-written card does not count): ${listed(completion.playable.missing)}`
-                : `playable — ${completion.playable.missing.length} card(s) neither ready nor hand-written: ${listed(completion.playable.missing)}`
+                : completion.playable.mode === "closed-tail"
+                  ? `playable — ${completion.playable.missing.length} card(s) neither ready nor in \`closedTail\` (a card written by hand later does not count): ${listed(completion.playable.missing)}`
+                  : `playable — ${completion.playable.missing.length} card(s) neither ready nor hand-written: ${listed(completion.playable.missing)}`
         );
     if (!completion.coverageInvariant.green)
         lines.push(

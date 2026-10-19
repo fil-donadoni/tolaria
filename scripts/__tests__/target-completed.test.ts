@@ -393,6 +393,55 @@ describe("targetCompleted — the three clauses of the v1 gate", () => {
     });
 });
 
+describe("targetCompleted — a `closed-tail` Target completes at 100 % playable over its `closedTail` (issue #6085)", () => {
+    const tailed = (ids: readonly string[], tail: readonly string[]) =>
+        targetCoverage(
+            {
+                row: {
+                    id: "t",
+                    kind: "name-list",
+                    source: "t.txt",
+                    completion: "closed-tail",
+                    closedTail: tail.map((id) => byOracleId.get(id)!.name),
+                },
+                cards: ids.map((id) => ({
+                    oracleId: id,
+                    name: byOracleId.get(id)!.name,
+                })),
+                closedTail: new Set(tail),
+            },
+            CTX
+        );
+    const bot = verdicts([played("Ready"), played("Held Hand-Written")]);
+
+    it("counts a hand-written card green only when `closedTail` lists it", () => {
+        expect(targetCompleted(tailed(GREEN_IDS, ["q"]), bot).completed).toBe(
+            true
+        );
+
+        const completion = targetCompleted(tailed(GREEN_IDS, []), bot);
+        expect(completion.completed).toBe(false);
+        expect(completion.failing).toEqual(["playable"]);
+        expect(completion.playable.missing).toEqual(["Held Hand-Written"]);
+        expect(formatCompletion(completion)).toContain(
+            "playable — 1 card(s) neither ready nor in `closedTail`"
+        );
+    });
+
+    it("reds the Coverage Invariant on a `closedTail` card that is not hand-written", () => {
+        // "Ready Two" is `ready`, so playable either way — but the list
+        // accepts hand-written cards only, so naming it is stale.
+        const completion = targetCompleted(
+            tailed(["r", "r2", "q"], ["q", "r2"]),
+            verdicts([...GREEN_BOT.cards, played("Ready Two")])
+        );
+        expect(completion.failing).toEqual(["coverage-invariant"]);
+        expect(completion.coverageInvariant.reds).toEqual([
+            "t: Ready Two — in `closedTail` but not hand-written: drop it from the list",
+        ]);
+    });
+});
+
 describe("targetCompleted — a `ready` Target completes at 100 % ready (issue #4519)", () => {
     const READY_BOT = verdicts([played("Ready"), played("Ready Two")]);
 
