@@ -1,77 +1,77 @@
 {
     "adventure: casts Stomp to kill the blocker": {
         "root": {
-            "evaluate": 76.38081399999999,
-            "materialMargin": 91.38081399999999,
-            "reward": 0.538190407
+            "evaluate": 76.67840299999995,
+            "materialMargin": 91.67840299999995,
+            "reward": 0.5383392014999999
         },
         "terminals": {
             "bot wins": {
-                "evaluate": 1000091.380814,
-                "materialMargin": 91.38081399999999,
-                "reward": 0.8978452035000082,
+                "evaluate": 1000091.678403,
+                "materialMargin": 91.67840299999995,
+                "reward": 0.8979196007499995,
                 "leaf": {
-                    "reward": 0.8978452035000082,
-                    "margin": 91.38081399999999
+                    "reward": 0.8979196007499995,
+                    "margin": 91.67840299999995
                 }
             },
             "bot loses": {
-                "evaluate": -999908.619186,
-                "materialMargin": 91.38081399999999,
-                "reward": 0.1478452035000082,
+                "evaluate": -999908.321597,
+                "materialMargin": 91.67840299999995,
+                "reward": 0.14791960074999952,
                 "leaf": {
-                    "reward": 0.1478452035000082,
-                    "margin": 91.38081399999999
+                    "reward": 0.14791960074999952,
+                    "margin": 91.67840299999995
                 }
             },
             "draw": {
                 "evaluate": 0,
-                "materialMargin": 91.38081399999999,
+                "materialMargin": 91.67840299999995,
                 "reward": 0.5,
                 "leaf": {
                     "reward": 0.5,
-                    "margin": 91.38081399999999
+                    "margin": 91.67840299999995
                 }
             },
             "opponent at 0 life": {
-                "evaluate": 1000251.380814,
-                "materialMargin": 251.380814,
-                "reward": 0.9378452035000082,
+                "evaluate": 1000251.678403,
+                "materialMargin": 251.67840299999997,
+                "reward": 0.9379196007499995,
                 "leaf": {
-                    "reward": 0.8856926345000102,
-                    "margin": 42.770538000000016
+                    "reward": 0.8856967184999958,
+                    "margin": 42.78687400000001
                 }
             },
             "bot at 0 life": {
-                "evaluate": -1000068.619186,
-                "materialMargin": -68.61918600000001,
-                "reward": 0.1078452035000082,
+                "evaluate": -1000068.321597,
+                "materialMargin": -68.32159700000005,
+                "reward": 0.10791960074999951,
                 "leaf": {
-                    "reward": 0.05569263450001018,
-                    "margin": -277.229462
+                    "reward": 0.05569671849999577,
+                    "margin": -277.21312600000005
                 }
             }
         },
         "rollouts": [
             {
-                "reward": 0.605792799,
-                "margin": 211.58559799999998
+                "reward": 0.6059967085,
+                "margin": 211.99341699999997
             },
             {
-                "reward": 0.605792799,
-                "margin": 211.58559799999998
+                "reward": 0.6059967085,
+                "margin": 211.99341699999997
             },
             {
-                "reward": 0.605792799,
-                "margin": 211.58559799999998
+                "reward": 0.6059967085,
+                "margin": 211.99341699999997
             },
             {
-                "reward": 0.605792799,
-                "margin": 211.58559799999998
+                "reward": 0.6059967085,
+                "margin": 211.99341699999997
             },
             {
-                "reward": 0.605792799,
-                "margin": 211.58559799999998
+                "reward": 0.6059967085,
+                "margin": 211.99341699999997
             }
         ],
         "search": {
@@ -81,103 +81,103 @@
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
                     "visits": 30,
-                    "meanReward": 0.6027995775666664,
-                    "meanMargin": 205.5991551333332
+                    "meanReward": 0.602998923,
+                    "meanMargin": 205.99784599999992
                 },
                 {
                     "label": "pass",
                     "visits": 26,
-                    "meanReward": 0.5517557915256408,
-                    "meanMargin": 111.55645484615381
+                    "meanReward": 0.5519656048525642,
+                    "meanMargin": 111.97608149999995
                 },
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P2",
                     "visits": 22,
-                    "meanReward": 0.49969788437121226,
-                    "meanMargin": 15.835162681818145
+                    "meanReward": 0.4999224925757577,
+                    "meanMargin": 16.28437909090906
                 },
                 {
                     "label": "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Blade P1",
                     "visits": 20,
-                    "meanReward": 0.4810133837833333,
-                    "meanMargin": -19.32739910000003
+                    "meanReward": 0.48123674393333327,
+                    "meanMargin": -18.880678800000037
                 }
             ]
         }
     },
     "depletion land: spends the last charge because it": {
         "root": {
-            "evaluate": 226.86357900000002,
-            "materialMargin": 226.86357900000002,
-            "reward": 0.6134317895
+            "evaluate": 226.810117,
+            "materialMargin": 226.810117,
+            "reward": 0.6134050584999999
         },
         "terminals": {
             "bot wins": {
-                "evaluate": 1000226.863579,
-                "materialMargin": 226.86357900000002,
-                "reward": 0.9317158947499993,
+                "evaluate": 1000226.810117,
+                "materialMargin": 226.810117,
+                "reward": 0.9317025292500039,
                 "leaf": {
-                    "reward": 0.9317158947499993,
-                    "margin": 226.86357900000002
+                    "reward": 0.9317025292500039,
+                    "margin": 226.810117
                 }
             },
             "bot loses": {
-                "evaluate": -999773.136421,
-                "materialMargin": 226.86357900000002,
-                "reward": 0.18171589474999927,
+                "evaluate": -999773.189883,
+                "materialMargin": 226.810117,
+                "reward": 0.18170252925000385,
                 "leaf": {
-                    "reward": 0.18171589474999927,
-                    "margin": 226.86357900000002
+                    "reward": 0.18170252925000385,
+                    "margin": 226.810117
                 }
             },
             "draw": {
                 "evaluate": 0,
-                "materialMargin": 226.86357900000002,
+                "materialMargin": 226.810117,
                 "reward": 0.5,
                 "leaf": {
                     "reward": 0.5,
-                    "margin": 226.86357900000002
+                    "margin": 226.810117
                 }
             },
             "opponent at 0 life": {
-                "evaluate": 1000250.863579,
-                "materialMargin": 250.86357900000002,
-                "reward": 0.9377158947499993,
+                "evaluate": 1000250.810117,
+                "materialMargin": 250.810117,
+                "reward": 0.9377025292500039,
                 "leaf": {
-                    "reward": 0.9377158947499993,
-                    "margin": 250.86357900000002
+                    "reward": 0.9377025292500039,
+                    "margin": 250.810117
                 }
             },
             "bot at 0 life": {
-                "evaluate": -999933.136421,
-                "materialMargin": 66.863579,
-                "reward": 0.1417158947499993,
+                "evaluate": -999933.189883,
+                "materialMargin": 66.810117,
+                "reward": 0.14170252925000387,
                 "leaf": {
-                    "reward": 0.1417158947499993,
-                    "margin": 66.863579
+                    "reward": 0.14170252925000387,
+                    "margin": 66.810117
                 }
             }
         },
         "rollouts": [
             {
-                "reward": 0.9300436937499907,
-                "margin": 220.17477500000004
+                "reward": 0.930030234750011,
+                "margin": 220.12093900000002
             },
             {
-                "reward": 0.9300436937499907,
-                "margin": 220.17477500000004
+                "reward": 0.930030234750011,
+                "margin": 220.12093900000002
             },
             {
-                "reward": 0.9300436937499907,
-                "margin": 220.17477500000004
+                "reward": 0.930030234750011,
+                "margin": 220.12093900000002
             },
             {
-                "reward": 0.9300436937499907,
-                "margin": 220.17477500000004
+                "reward": 0.930030234750011,
+                "margin": 220.12093900000002
             },
             {
-                "reward": 0.9300436937499907,
-                "margin": 220.17477500000004
+                "reward": 0.930030234750011,
+                "margin": 220.12093900000002
             }
         ],
         "search": {
@@ -187,145 +187,145 @@
                 {
                     "label": "cast Fireball (X=3) → Blade P2",
                     "visits": 15,
-                    "meanReward": 0.9300436937499904,
-                    "meanMargin": 220.17477499999998
+                    "meanReward": 0.9300302347500113,
+                    "meanMargin": 220.12093899999994
                 },
                 {
                     "label": "pass",
                     "visits": 11,
-                    "meanReward": 0.7755825571363585,
-                    "meanMargin": 202.1218710909091
+                    "meanReward": 0.7755611325454607,
+                    "meanMargin": 202.06433936363635
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P2",
                     "visits": 8,
-                    "meanReward": 0.593566954,
-                    "meanMargin": 187.13390800000002
+                    "meanReward": 0.5935360455,
+                    "meanMargin": 187.072091
                 },
                 {
                     "label": "cast Fireball (X=2) → Blade P2",
                     "visits": 8,
-                    "meanReward": 0.592722552,
-                    "meanMargin": 185.44510400000001
+                    "meanReward": 0.5926914565,
+                    "meanMargin": 185.38291299999997
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P2",
                     "visits": 8,
-                    "meanReward": 0.588722552,
-                    "meanMargin": 177.44510400000001
+                    "meanReward": 0.5886914565,
+                    "meanMargin": 177.38291299999997
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P1",
                     "visits": 8,
-                    "meanReward": 0.585566954,
-                    "meanMargin": 171.13390800000002
+                    "meanReward": 0.5855360455,
+                    "meanMargin": 171.072091
                 },
                 {
                     "label": "cast Fireball (X=0) → Blade P1",
                     "visits": 8,
-                    "meanReward": 0.584722552,
-                    "meanMargin": 169.44510400000001
+                    "meanReward": 0.5846914565,
+                    "meanMargin": 169.382913
                 },
                 {
                     "label": "cast Fireball (X=0) → Blade P2",
                     "visits": 8,
-                    "meanReward": 0.584722552,
-                    "meanMargin": 169.44510400000001
+                    "meanReward": 0.5846914565,
+                    "meanMargin": 169.382913
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P1",
                     "visits": 8,
-                    "meanReward": 0.580722552,
-                    "meanMargin": 161.44510400000001
+                    "meanReward": 0.5806914565,
+                    "meanMargin": 161.382913
                 },
                 {
                     "label": "cast Fireball (X=2) → Blade P1",
                     "visits": 8,
-                    "meanReward": 0.576722552,
-                    "meanMargin": 153.44510400000001
+                    "meanReward": 0.5766914565,
+                    "meanMargin": 153.382913
                 },
                 {
                     "label": "cast Fireball (X=3) → Blade P1",
                     "visits": 7,
-                    "meanReward": 0.5742746713571429,
-                    "meanMargin": 148.54934271428573
+                    "meanReward": 0.5742441726428572,
+                    "meanMargin": 148.4883452857143
                 }
             ]
         }
     },
     "redirection shield: shields ITS OWN side and point": {
         "root": {
-            "evaluate": 111.15155200000004,
-            "materialMargin": 111.15155200000004,
-            "reward": 0.555575776
+            "evaluate": 110.92290199999997,
+            "materialMargin": 110.92290199999997,
+            "reward": 0.555461451
         },
         "terminals": {
             "bot wins": {
-                "evaluate": 1000111.151552,
-                "materialMargin": 111.15155200000004,
-                "reward": 0.9027878879999917,
+                "evaluate": 1000110.922902,
+                "materialMargin": 110.92290199999997,
+                "reward": 0.902730725500005,
                 "leaf": {
-                    "reward": 0.9027878879999917,
-                    "margin": 111.15155200000004
+                    "reward": 0.902730725500005,
+                    "margin": 110.92290199999997
                 }
             },
             "bot loses": {
-                "evaluate": -999888.848448,
-                "materialMargin": 111.15155200000004,
-                "reward": 0.15278788799999166,
+                "evaluate": -999889.077098,
+                "materialMargin": 110.92290199999997,
+                "reward": 0.15273072550000505,
                 "leaf": {
-                    "reward": 0.15278788799999166,
-                    "margin": 111.15155200000004
+                    "reward": 0.15273072550000505,
+                    "margin": 110.92290199999997
                 }
             },
             "draw": {
                 "evaluate": 0,
-                "materialMargin": 111.15155200000004,
+                "materialMargin": 110.92290199999997,
                 "reward": 0.5,
                 "leaf": {
                     "reward": 0.5,
-                    "margin": 111.15155200000004
+                    "margin": 110.92290199999997
                 }
             },
             "opponent at 0 life": {
-                "evaluate": 1000271.151552,
-                "materialMargin": 271.15155200000004,
-                "reward": 0.9427878879999916,
+                "evaluate": 1000270.922902,
+                "materialMargin": 270.92290199999997,
+                "reward": 0.942730725500005,
                 "leaf": {
-                    "reward": 0.9427878879999916,
-                    "margin": 271.15155200000004
+                    "reward": 0.942730725500005,
+                    "margin": 270.92290199999997
                 }
             },
             "bot at 0 life": {
-                "evaluate": -1000048.848448,
-                "materialMargin": -48.84844800000002,
-                "reward": 0.11278788799999165,
+                "evaluate": -1000049.077098,
+                "materialMargin": -49.07709799999998,
+                "reward": 0.11273072550000507,
                 "leaf": {
-                    "reward": 0.11278788799999165,
-                    "margin": -48.84844800000002
+                    "reward": 0.11273072550000507,
+                    "margin": -49.07709799999998
                 }
             }
         },
         "rollouts": [
             {
-                "reward": 0.2798812803571428,
-                "margin": -375.95172500000007
+                "reward": 0.2795403558571429,
+                "margin": -376.63357399999995
             },
             {
-                "reward": 0.4068685395,
-                "margin": -186.262921
+                "reward": 0.40652780200000005,
+                "margin": -186.94439599999987
             },
             {
-                "reward": 0.3988685395,
-                "margin": -202.262921
+                "reward": 0.39852780200000004,
+                "margin": -202.94439599999987
             },
             {
-                "reward": 0.3988685395,
-                "margin": -202.262921
+                "reward": 0.39852780200000004,
+                "margin": -202.94439599999987
             },
             {
-                "reward": 0.2798812803571428,
-                "margin": -375.95172500000007
+                "reward": 0.2795403558571429,
+                "margin": -376.63357399999995
             }
         ],
         "search": {
@@ -335,224 +335,224 @@
                 {
                     "label": "cast Captain's Maneuver (X=3) → Grizzly Bears, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.4328685395,
-                    "meanMargin": -134.262921
+                    "meanReward": 0.4325278020000001,
+                    "meanMargin": -134.9443959999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P1, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.4068685395,
-                    "meanMargin": -186.262921
+                    "meanReward": 0.40652780200000005,
+                    "meanMargin": -186.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P1, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.4068685395,
-                    "meanMargin": -186.262921
+                    "meanReward": 0.40652780200000005,
+                    "meanMargin": -186.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P1, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.4068685395,
-                    "meanMargin": -186.262921
+                    "meanReward": 0.40652780200000005,
+                    "meanMargin": -186.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P1, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.4068685395,
-                    "meanMargin": -186.262921
+                    "meanReward": 0.40652780200000005,
+                    "meanMargin": -186.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P1, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.40153520616666666,
-                    "meanMargin": -196.92958766666666
+                    "meanReward": 0.4011944686666667,
+                    "meanMargin": -197.61106266666653
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P2, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Grizzly Bears, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Craw Wurm, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P1, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Grizzly Bears, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Craw Wurm, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P2, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P2, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.3988685395,
-                    "meanMargin": -202.262921
+                    "meanReward": 0.39852780200000004,
+                    "meanMargin": -202.94439599999987
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Craw Wurm, Grizzly Bears",
                     "visits": 3,
-                    "meanReward": 0.3784204055,
-                    "meanMargin": -228.15918900000005
+                    "meanReward": 0.3780796056666667,
+                    "meanMargin": -228.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P2, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.3784204055,
-                    "meanMargin": -228.15918900000005
+                    "meanReward": 0.3780796056666667,
+                    "meanMargin": -228.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P2, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.3704204055,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.3700796056666667,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Grizzly Bears, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.3704204055,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.3700796056666667,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Grizzly Bears, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.3704204055,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.3700796056666667,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Grizzly Bears, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.3704204055,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.3700796056666667,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Craw Wurm, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.369872786452381,
-                    "meanMargin": -238.8258556666667
+                    "meanReward": 0.3695319866190476,
+                    "meanMargin": -239.50745533333324
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P1, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.3672061197857143,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.366865319952381,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P2, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.3672061197857143,
-                    "meanMargin": -244.15918900000005
+                    "meanReward": 0.366865319952381,
+                    "meanMargin": -244.84078866666655
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Craw Wurm, Blade P2",
                     "visits": 3,
-                    "meanReward": 0.3605394531190476,
-                    "meanMargin": -257.4925223333334
+                    "meanReward": 0.36019865328571427,
+                    "meanMargin": -258.1741219999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Blade P2, Craw Wurm",
                     "visits": 3,
-                    "meanReward": 0.3592061197857143,
-                    "meanMargin": -260.159189
+                    "meanReward": 0.35886531995238097,
+                    "meanMargin": -260.8407886666666
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Craw Wurm, Blade P1",
                     "visits": 3,
-                    "meanReward": 0.32860047662820513,
-                    "meanMargin": -304.72212366666673
+                    "meanReward": 0.3282596144615385,
+                    "meanMargin": -305.4038479999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Craw Wurm, Blade P2",
                     "visits": 2,
-                    "meanReward": 0.3561963385,
-                    "meanMargin": -265.10732300000006
+                    "meanReward": 0.35585550750000006,
+                    "meanMargin": -265.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Craw Wurm, Grizzly Bears",
                     "visits": 2,
-                    "meanReward": 0.35137490992857145,
-                    "meanMargin": -265.10732300000006
+                    "meanReward": 0.35103407892857147,
+                    "meanMargin": -265.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Grizzly Bears, Blade P2",
                     "visits": 2,
-                    "meanReward": 0.34137490992857145,
-                    "meanMargin": -285.10732300000006
+                    "meanReward": 0.34103407892857146,
+                    "meanMargin": -285.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P2, Grizzly Bears",
                     "visits": 2,
-                    "meanReward": 0.33937490992857144,
-                    "meanMargin": -289.10732300000006
+                    "meanReward": 0.33903407892857146,
+                    "meanMargin": -289.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Blade P2, Blade P1",
                     "visits": 2,
-                    "meanReward": 0.33937490992857144,
-                    "meanMargin": -289.10732300000006
+                    "meanReward": 0.33903407892857146,
+                    "meanMargin": -289.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P1, Craw Wurm",
                     "visits": 2,
-                    "meanReward": 0.33937490992857144,
-                    "meanMargin": -289.10732300000006
+                    "meanReward": 0.33903407892857146,
+                    "meanMargin": -289.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Grizzly Bears, Craw Wurm",
                     "visits": 2,
-                    "meanReward": 0.33937490992857144,
-                    "meanMargin": -289.10732300000006
+                    "meanReward": 0.33903407892857146,
+                    "meanMargin": -289.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=1) → Grizzly Bears, Blade P1",
                     "visits": 2,
-                    "meanReward": 0.3361386461923077,
-                    "meanMargin": -293.107323
+                    "meanReward": 0.3357978151923077,
+                    "meanMargin": -293.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=2) → Craw Wurm, Blade P1",
                     "visits": 2,
-                    "meanReward": 0.3326963385,
-                    "meanMargin": -297.107323
+                    "meanReward": 0.33235550750000004,
+                    "meanMargin": -297.7889849999999
                 },
                 {
                     "label": "cast Captain's Maneuver (X=3) → Blade P1, Blade P2",
                     "visits": 2,
-                    "meanReward": 0.2967027089285714,
-                    "meanMargin": -351.95172500000007
+                    "meanReward": 0.2963617844285714,
+                    "meanMargin": -352.63357399999995
                 },
                 {
                     "label": "pass",
                     "visits": 2,
-                    "meanReward": 0.2798812803571428,
-                    "meanMargin": -375.95172500000007
+                    "meanReward": 0.2795403558571429,
+                    "meanMargin": -376.63357399999995
                 }
             ]
         }
