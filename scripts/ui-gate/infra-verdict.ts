@@ -35,8 +35,8 @@ import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 /** The failure shapes the machine produces. Stable ids: they are printed on
  *  the receipt. */
 export type InfraSignature =
-    | "function-timeout"
-    | "server-error"
+    | "deployment"
+    | "deployment-down"
     | "navigation-timeout"
     | "step-timeout"
     | "unsettled"
@@ -48,6 +48,8 @@ export interface WalkFailure {
     message: string;
     /** Every console error the page logged during THIS attempt. */
     consoleErrors: readonly string[];
+    /** A deployment probe failed during THIS attempt (issue #6081). */
+    deploymentDown?: boolean;
 }
 
 export type FailureClass =
@@ -79,11 +81,15 @@ interface SignatureRule {
  * console is where the machine left its fingerprint.
  *
  * `Server Error` is how the Convex client logs a function that failed on the
- * server (`[CONVEX Q(module:fn)] [Request ID: …] Server Error`).
+ * server (`[CONVEX Q(module:fn)] [Request ID: …] Server Error`); a function
+ * past its execution limit says `Function execution timed out`. Both are the
+ * DEPLOYMENT's failure, one signature (issue #6081): the cell is never
+ * `unsettled`, a word that reads as the screen's.
  */
+export const FUNCTION_TIMEOUT_PATTERN = /Function execution timed out/i;
 const CONSOLE_RULES: readonly SignatureRule[] = [
-    { signature: "function-timeout", pattern: /Function execution timed out/i },
-    { signature: "server-error", pattern: /\bServer Error\b/ },
+    { signature: "deployment", pattern: FUNCTION_TIMEOUT_PATTERN },
+    { signature: "deployment", pattern: /\bServer Error\b/ },
 ];
 
 /**
@@ -117,6 +123,12 @@ const MESSAGE_RULES: readonly SignatureRule[] = [
 const DEADLINE_PATTERN = new RegExp(`^${CELL_DEADLINE_MESSAGE_PREFIX}`);
 
 export function classifyWalkFailure(failure: WalkFailure): FailureClass {
+    // The probe saw the deployment fail while this attempt ran (issue #6081):
+    // whatever the attempt then threw — a deadline, an unsettled screen — the
+    // backend is the cause, and the cell is not the tree's.
+    if (failure.deploymentDown) {
+        return { kind: "INFRA", signature: "deployment-down" };
+    }
     if (DEADLINE_PATTERN.test(failure.message)) {
         return { kind: "INFRA", signature: "cell-deadline" };
     }
@@ -192,17 +204,22 @@ export function retryStep(
  * names was observed at load 2–10 on 8 cpus with the renderers idle — an
  * await in the lane that never settled, not a screen the walk could not
  * reach. Reporting it UNWALKED would put the lane's own hang on the surface.
+ * `deployment-down` stands as INFRA at any load for the same reason (issue
+ * #6081): a failed probe is a fact about the backend, not about the screen.
+ * `deployment` — a console line only — stays load-gated: a quiet machine's
+ * `Server Error` can be the tree's own function throwing.
  */
 export function standingVerdict(
     load: number,
     policy: Pick<RetryPolicy, "loadThreshold">,
     signature?: InfraSignature
 ): "INFRA" | "UNWALKED" {
-    if (signature === "cell-deadline") return "INFRA";
+    if (signature === "cell-deadline" || signature === "deployment-down")
+        return "INFRA";
     return load >= policy.loadThreshold ? "INFRA" : "UNWALKED";
 }
 
-/** `function-timeout, load 23.4` — the signature and the load, as the receipt
+/** `deployment, load 23.4` — the signature and the load, as the receipt
  *  prints them after `INFRA —`. */
 export function infraDetail(signature: InfraSignature, load: number): string {
     return `${signature}, load ${load.toFixed(1)}`;
