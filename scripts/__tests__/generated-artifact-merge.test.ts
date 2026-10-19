@@ -12,13 +12,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     CORPUS_CACHE_REL,
+    APPEND_ONLY_MERGE_DRIVER_NAME,
     LEDGER_MERGE_DRIVER_NAME,
     MERGE_DRIVER_NAME,
     OTHER_MERGE_DRIVERS,
     planResolution,
     REGENERATE_MARKER,
     REGENERATED_ARTIFACTS,
-    UNION_MERGED_LISTS,
 } from "../lib/generated-artifacts";
 import { CORPUS_PATH } from "../oracle-corpus";
 import {
@@ -71,25 +71,7 @@ describe("generated-artifact class — wiring", () => {
                 (a) => `${a.path} merge=${MERGE_DRIVER_NAME}`
             ),
             ...OTHER_MERGE_DRIVERS.map((a) => `${a.path} merge=${a.driver}`),
-            ...UNION_MERGED_LISTS.map((a) => `${a.path} merge=union`),
         ]);
-    });
-
-    // `union` resolves EVERY conflict in the file by keeping both sides, which
-    // is only harmless where each conflicting hunk is a whole entry. A function
-    // or a second value in the file would let a union splice two versions of
-    // logic together, so the file holds the list and nothing else (issue #5942).
-    it("a union-merged file declares its one list and no other top-level value", () => {
-        for (const { path, list } of UNION_MERGED_LISTS) {
-            const text = readFileSync(join(REPO_ROOT, path), "utf8");
-            const values = text
-                .split("\n")
-                .filter((l) =>
-                    /^(export )?(const|let|var|function|class|enum) /.test(l)
-                );
-            expect(values, `${path} must declare only ${list}`).toHaveLength(1);
-            expect(values[0]).toMatch(new RegExp(`^export const ${list}\\b`));
-        }
     });
 
     it("an artifact with its own driver is NOT in the regenerated class", () => {
@@ -168,6 +150,12 @@ describe("generated-artifact class — wiring", () => {
         // registered under which key, not about how prettier wrapped it.
         expect(src.replace(/\s+/g, " ")).toMatch(
             /installMergeDriver\( LEDGER_MERGE_DRIVER_NAME, "[^"]*", LEDGER_MERGE_DRIVER_COMMAND \)/
+        );
+        expect(src).toContain(
+            `const APPEND_ONLY_MERGE_DRIVER_NAME = "${APPEND_ONLY_MERGE_DRIVER_NAME}"`
+        );
+        expect(src.replace(/\s+/g, " ")).toContain(
+            "`merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.driver`, APPEND_ONLY_MERGE_DRIVER_COMMAND"
         );
     });
 
