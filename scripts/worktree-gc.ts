@@ -102,6 +102,10 @@ export function classify(w: WorktreeFacts): Verdict {
         };
     if (w.dirty) return { action: "keep", reason: "uncommitted changes" };
     if (w.openPr) return { action: "keep", reason: "PR still open" };
+    // A claimed issue worktree is a session's, even on a branch an earlier PR
+    // merged from (a reopened issue resumed on `fix/issue-N`).
+    if (isIssueBranch(w.branch) && w.liveClaim === true)
+        return { action: "keep", reason: "issue claimed (in-progress)" };
 
     // A SQUASH merge — which is how every PR lands here — puts the branch's
     // CONTENT into main under a brand-new commit. The branch's own commit is
@@ -334,7 +338,14 @@ export function worktreeGc(
         // Read before `git status`, which may refresh the index it dates.
         const idleMinutes =
             issue === null ? null : worktreeQuietMinutes(issue, now, runner);
-        const dirty = git(["status", "--porcelain"], e.path) !== "";
+        // A `git status` that FAILED (a lock, a corrupt index) is dirty:
+        // `git()` reads a failure as "", which would be a clean tree.
+        const status = spawnSync("git", ["status", "--porcelain"], {
+            encoding: "utf8",
+            cwd: e.path,
+            env: NET_ENV,
+        });
+        const dirty = status.status !== 0 || status.stdout.trim() !== "";
         const unmergedOut = git(
             ["rev-list", "--count", `${ORIGIN_BASE}..HEAD`],
             e.path

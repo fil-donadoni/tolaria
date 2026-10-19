@@ -110,15 +110,19 @@ describe("worktree-gc — classify", () => {
 
 describe("worktree-gc — classify, issue worktrees no merge cleans up (issue #6083)", () => {
     it("removes a merged PR's worktree", () => {
-        // Its claim (`pr-open`) stands until housekeeping releases it.
+        expect(classify({ ...orphan, mergedPr: true, unpushed: 3 })).toEqual({
+            action: "remove",
+            reason: "PR merged",
+        });
+    });
+
+    it("keeps a merged branch's worktree while its issue is claimed again (a reopened issue resumed on it)", () => {
+        // `sync` removes a merged PR's worktree at merge, before any claim;
+        // the sweep meets a claim on a merged branch only when a session took
+        // the issue up again.
         expect(
-            classify({
-                ...orphan,
-                mergedPr: true,
-                liveClaim: true,
-                unpushed: 3,
-            })
-        ).toEqual({ action: "remove", reason: "PR merged" });
+            classify({ ...orphan, mergedPr: true, liveClaim: true })
+        ).toEqual({ action: "keep", reason: "issue claimed (in-progress)" });
     });
 
     it("removes a closed-unmerged PR's worktree when clean and fully pushed, idle or not", () => {
