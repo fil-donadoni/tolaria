@@ -8340,6 +8340,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cabal Pit",
+        "scryfallId": "848d686a-e2f7-488d-947f-a555099b74b1",
+        "oracleId": "92392467-a22f-4dd7-a0eb-393bef956dc0",
+        "firstSet": "ody",
+        "firstPrintId": "848d686a-e2f7-488d-947f-a555099b74b1",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cabal Ritual",
         "scryfallId": "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
         "oracleId": "5b5bf1fa-6502-4790-b66b-f0f8504ebc7c",
@@ -8374,6 +8384,16 @@
         "firstSet": "jud",
         "firstPrintId": "0a5df970-c6ba-4824-b8ba-67244aec2b82",
         "firstPrintSet": "jud"
+    },
+    {
+        "name": "Cabal Torturer",
+        "scryfallId": "ebcf8dd7-f45c-4ac2-9507-fa175fe89887",
+        "oracleId": "fbd295ee-545a-4eab-b000-c0b228dd412d",
+        "firstSet": "tor",
+        "firstPrintId": "ebcf8dd7-f45c-4ac2-9507-fa175fe89887",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Cabal Trainee",
@@ -9510,6 +9530,16 @@
         "source": "compiled"
     },
     {
+        "name": "Centaur Garden",
+        "scryfallId": "ca041d5e-c65f-4e7e-ae4f-9c748a069aa3",
+        "oracleId": "5cf92fd4-7c0b-4d8e-92f1-53dc2e0476fc",
+        "firstSet": "ody",
+        "firstPrintId": "ca041d5e-c65f-4e7e-ae4f-9c748a069aa3",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Centaur Glade",
         "scryfallId": "1c75f9c8-9640-4f64-b32a-916436e461fc",
         "oracleId": "369c3b6c-6715-4b6a-89d2-e7542400ba8f",
@@ -9711,6 +9741,16 @@
         "firstPrintId": "014af391-3b4a-4aab-a3e9-f60e61016985",
         "firstPrintSet": "tor",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Chainflinger",
+        "scryfallId": "670a5bba-a10f-41f6-88cd-cef1dfe4bfa9",
+        "oracleId": "cfaf4871-2157-495d-bca8-d169bd1f7ae3",
+        "firstSet": "ody",
+        "firstPrintId": "670a5bba-a10f-41f6-88cd-cef1dfe4bfa9",
+        "firstPrintSet": "ody",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -27600,6 +27640,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Hallowed Healer",
+        "scryfallId": "254d5bf0-f985-4919-a142-d4578ae9a38e",
+        "oracleId": "b92f6adb-64c6-4692-af9d-af4241203722",
+        "firstSet": "ody",
+        "firstPrintId": "254d5bf0-f985-4919-a142-d4578ae9a38e",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Halls of Mist",
         "scryfallId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
         "oracleId": "57d7deaf-ee08-49ab-b239-1c77a1f65225",
@@ -30659,6 +30709,16 @@
         "firstPrintId": "0350470b-feea-4e15-bdf0-850b71dbeea6",
         "firstPrintSet": "vis",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Infected Vermin",
+        "scryfallId": "00615487-3526-4b4c-bb06-8f2af1f101d0",
+        "oracleId": "448396b8-b691-457a-8569-1282c3fca65a",
+        "firstSet": "ody",
+        "firstPrintId": "00615487-3526-4b4c-bb06-8f2af1f101d0",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -33970,6 +34030,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krosan Avenger",
+        "scryfallId": "0afd6911-32b5-410a-afb0-fd3d2996fe59",
+        "oracleId": "8991b367-6fc1-4de7-a1ee-4edb57c44fc2",
+        "firstSet": "ody",
+        "firstPrintId": "0afd6911-32b5-410a-afb0-fd3d2996fe59",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Krosan Beast",
         "scryfallId": "af822507-fd4c-454b-ab07-106c81c535bf",
         "oracleId": "042a665d-2f63-4f7e-ac89-0d560da68085",
@@ -36814,6 +36884,16 @@
         "firstSet": "ori",
         "firstPrintId": "70861692-1eb2-4cb1-8d7f-b881386c37d1",
         "firstPrintSet": "ori",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Malakir Soothsayer",
+        "scryfallId": "72cb3c2c-5d5a-4c9b-a381-ab4dd477d84d",
+        "oracleId": "6ebfce76-82a2-4168-bd64-99cf16882dee",
+        "firstSet": "ogw",
+        "firstPrintId": "72cb3c2c-5d5a-4c9b-a381-ab4dd477d84d",
+        "firstPrintSet": "ogw",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -41906,6 +41986,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nomad Stadium",
+        "scryfallId": "64300b71-050f-47a3-83be-f24480bdc01d",
+        "oracleId": "4034bec6-e3c7-4d3f-81df-7c903977a606",
+        "firstSet": "ody",
+        "firstPrintId": "64300b71-050f-47a3-83be-f24480bdc01d",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Nomadic Elf",
         "scryfallId": "3b69e57a-5b19-450c-9cf5-c189e8505781",
         "oracleId": "025bbfc8-bccd-4062-b758-7f9e1f8ad420",
@@ -42858,6 +42948,16 @@
         "firstSet": "eld",
         "firstPrintId": "4034e5ba-9974-43e3-bde7-8d9b4586c3a4",
         "firstPrintSet": "eld"
+    },
+    {
+        "name": "Ondu War Cleric",
+        "scryfallId": "9b255d34-04fa-4d3b-9fc1-8f980ef1f054",
+        "oracleId": "d011153e-d12a-4eb1-b105-64729e37be12",
+        "firstSet": "ogw",
+        "firstPrintId": "9b255d34-04fa-4d3b-9fc1-8f980ef1f054",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "One With the Wind",
@@ -58024,6 +58124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spawnbinder Mage",
+        "scryfallId": "5677bd49-69eb-41dc-8e64-2df3b7f5c45f",
+        "oracleId": "2d49c50b-3e2d-4e74-9b8a-c2f9a495e470",
+        "firstSet": "ogw",
+        "firstPrintId": "5677bd49-69eb-41dc-8e64-2df3b7f5c45f",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spawning Grounds",
         "scryfallId": "356f0766-2cdc-469e-8488-27e528871dd5",
         "oracleId": "1961dd92-db0b-4f02-b9c8-08f760f4051b",
@@ -73116,6 +73226,16 @@
         "firstSet": "tle",
         "firstPrintId": "3959cf4e-57a5-4355-9837-56f70b321874",
         "firstPrintSet": "tle",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Zulaport Chainmage",
+        "scryfallId": "92461f3c-21dc-48a8-b532-9c4e2e1e80b5",
+        "oracleId": "017f4471-db5a-4ad0-97b3-b1f12b52578a",
+        "firstSet": "ogw",
+        "firstPrintId": "92461f3c-21dc-48a8-b532-9c4e2e1e80b5",
+        "firstPrintSet": "ogw",
         "rarity": "common",
         "source": "compiled"
     },

@@ -2137,7 +2137,10 @@ export interface ActivatedAbility {
      *  false rejects the activation with a generic error. Used by
      *  Clockwork Beast ("Activate only if it has fewer than seven +1/+0
      *  counters on it"). The signature accepts a structurally-typed state
-     *  view to keep card defs decoupled from the engine state shape. */
+     *  view to keep card defs decoupled from the engine state shape.
+     *
+     *  Only for a restriction the predicate grammar cannot express: one it
+     *  can is `activationCondition` (data, issue #3685). */
     canActivate?: (source: PermanentView, state: TriggerStateView) => boolean;
     /** CR 602.1b (issue #3685) — a printed "Activate only if …" restriction
      *  carried as DATA: an `EffectPredicate` that must hold at activation time

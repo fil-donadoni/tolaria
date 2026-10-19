@@ -80,8 +80,8 @@ function activationConditionValue(
         return undefined;
     }
     const spec = (value as { count: Record<string, unknown> }).count;
-    // CR 404 / 402 — a graveyard's contents and a hand's SIZE are what every
-    // player can see (CR 402.3 hides a hand's cards, not how many there are).
+    // CR 404.2 / 402.3 — a graveyard's contents and a hand's SIZE are what
+    // every player can see (a hand's cards are hidden, not how many there are).
     const sizeOf = (p: TriggerStateView["players"][number]): number =>
         spec.zone === "graveyard" ? (p.graveyard?.length ?? 0) : p.hand.length;
     const players =
