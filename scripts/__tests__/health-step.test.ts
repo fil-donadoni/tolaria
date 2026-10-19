@@ -302,7 +302,7 @@ describe("healthGateEnv — who holds the mutex for a health run", () => {
 });
 
 describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", () => {
-    it("is worktree:init, check:all, the cheap guards and test offline, then the walk", () => {
+    it("is worktree:init, check:all, the cheap guards and test offline, then the browser steps", () => {
         expect(splitHealthGates(HEALTH_SCRIPTS)).toEqual({
             offline: [
                 "worktree:init",
@@ -312,7 +312,9 @@ describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", 
                 "check:test-hygiene",
                 "test",
             ],
-            walk: ["check:ui --all"],
+            // The per-game download after the walk (issue #5618): a red
+            // there never hides the walk's own state.
+            walk: ["check:ui --all", "check:game-download"],
         });
     });
 
