@@ -39,8 +39,16 @@ export interface RegressionAcknowledgement {
     readonly name: string;
     /** Why the pool is allowed to shrink here. Free text, read by review. */
     readonly reason: string;
-    /** The issue that will undo it, when there is one. */
-    readonly issue?: string;
+    /*
+     * Where the loss goes next — exactly one of the two (the Guard B pattern,
+     * issue #962/#1900). A reason that says "fix it on its own" is a promise
+     * nothing keeps unless it names the issue that holds it (issue #6061).
+     */
+    /** The issue that will undo the loss. Shape only: whether it is open is
+     *  health's question, never the lane's. */
+    readonly trackedBy?: number;
+    /** A deliberate drop: the `reason` is the whole justification. */
+    readonly intended?: true;
 }
 
 export interface RegressionLedger {
@@ -74,8 +82,102 @@ export function parseRegressionLedger(
                 `${path}: \`${entry.name ?? entry.oracleId}\` has no \`reason\` — ` +
                     `an acknowledgement whose only content is a card id explains nothing`
             );
+        const name = entry.name ?? entry.oracleId;
+        const hasTracker = entry.trackedBy !== undefined;
+        const hasIntent = entry.intended !== undefined;
+        if (hasTracker === hasIntent)
+            throw new Error(
+                `${path}: \`${name}\` must carry exactly one of \`trackedBy: <issue number>\` ` +
+                    `(the issue that will undo the loss) or \`intended: true\` (a deliberate drop) — ` +
+                    (hasTracker ? "it carries both" : "it carries neither")
+            );
+        if (
+            hasTracker &&
+            !(
+                Number.isInteger(entry.trackedBy) &&
+                (entry.trackedBy as number) > 0
+            )
+        )
+            throw new Error(
+                `${path}: \`${name}\` has a \`trackedBy\` that is not a positive issue number`
+            );
+        if (hasIntent && entry.intended !== true)
+            throw new Error(
+                `${path}: \`${name}\` has \`intended\` other than \`true\``
+            );
     }
     return doc;
+}
+
+/**
+ * The ledger without the entries that match no current regression. Stale
+ * entries never red a PR (after every landing they would red unrelated ones);
+ * an automated post-merge step deletes them instead (issue #6061).
+ */
+export function pruneStaleAcknowledgements(
+    regressions: readonly ReadyRegression[],
+    ledger: RegressionLedger
+): RegressionLedger {
+    const live = new Set(regressions.map((r) => r.oracleId));
+    return {
+        ...ledger,
+        acknowledged: ledger.acknowledged.filter((a) => live.has(a.oracleId)),
+    };
+}
+
+/** The ledger with one more acknowledgement; a card already in it is replaced. */
+export function withAcknowledgement(
+    ledger: RegressionLedger,
+    entry: RegressionAcknowledgement
+): RegressionLedger {
+    return {
+        ...ledger,
+        acknowledged: [
+            ...ledger.acknowledged.filter((a) => a.oracleId !== entry.oracleId),
+            entry,
+        ],
+    };
+}
+
+/**
+ * An acknowledgement from `oracle:mark-regressions --acknowledge` flags:
+ * `--acknowledge <card name> --reason <text>` plus exactly one of
+ * `--tracked-by <issue number>` / `--intended`. Returns the refusal text
+ * rather than throwing, so the CLI prints it and exits 2.
+ */
+export function acknowledgementFromFlags(
+    argv: readonly string[],
+    oracleIdOf: (name: string) => string | undefined
+): RegressionAcknowledgement | string {
+    const value = (flag: string): string | undefined => {
+        const i = argv.indexOf(flag);
+        return i === -1 ? undefined : argv[i + 1];
+    };
+    const name = value("--acknowledge");
+    if (name === undefined || name.startsWith("--"))
+        return "--acknowledge needs a card name";
+    const oracleId = oracleIdOf(name);
+    if (oracleId === undefined)
+        return `no card named "${name}" in the lockfile`;
+    const reason = value("--reason");
+    if (reason === undefined || reason.trim().length === 0)
+        return "--acknowledge needs --reason <why the pool may shrink here>";
+    const tracked = value("--tracked-by");
+    const intended = argv.includes("--intended");
+    if ((tracked !== undefined) === intended)
+        return "--acknowledge needs exactly one of --tracked-by <issue number> or --intended";
+    if (intended) return { oracleId, name, reason, intended: true };
+    const trackedBy = Number(tracked?.replace(/^#/, ""));
+    if (!Number.isInteger(trackedBy) || trackedBy <= 0)
+        return `--tracked-by "${tracked}" is not an issue number`;
+    return { oracleId, name, reason, trackedBy };
+}
+
+/** The ledger text as it is written: one serialisation, so two writers agree. */
+export function renderRegressionLedger(
+    ledger: RegressionLedger & { readonly note?: string }
+): string {
+    return `${JSON.stringify(ledger, null, 4)}\n`;
 }
 
 /**
@@ -151,6 +253,7 @@ export function regressionMessage(
             .map((r) => `    - ${r.name} (${r.oracleId}) ready -> ${r.to}`)
             .join("\n") +
         `\n\n    If the loss is intended, acknowledge each one in ${REGRESSION_LEDGER_PATH}\n` +
-        `    with a \`reason\` (and an \`issue\` when one will undo it).`
+        `    with a \`reason\` and its disposition: \`trackedBy: <issue number>\` or\n` +
+        `    \`intended: true\` (\`bun run oracle:mark-regressions --acknowledge\`).`
     );
 }

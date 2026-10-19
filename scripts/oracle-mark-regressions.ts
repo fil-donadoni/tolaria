@@ -29,12 +29,21 @@
  * diff that can regress a card, and step 8 is where that run first reads Guard
  * C's red.
  *
+ * `--acknowledge` is the other half (issue #6061): a card that left `ready`
+ * ON PURPOSE, or whose fix is another issue's, is written into
+ * `data/oracle-state-regressions.json` with its disposition — `--tracked-by`
+ * the issue that will undo it, or `--intended` — which `check:oracle` demands
+ * of every entry. Stale entries are pruned after merge, never by hand
+ * (`oracle:prune-regressions`).
+ *
  * Usage:
  *   bun run oracle:mark-regressions             # write the markers
  *   bun run oracle:mark-regressions --dry-run   # print the plan, write nothing
+ *   bun run oracle:mark-regressions --acknowledge "<card>" --reason "<why>" \
+ *       (--tracked-by <issue number> | --intended)
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import { getAllCards } from "../convex/cards/catalogue";
 import { COMPILER_ROUND_TRIP_BASELINE } from "../convex/cards/__tests__/compilerRoundTrip.baseline";
@@ -47,6 +56,15 @@ import {
     scanFilesForCompilerGaps,
     type RegressedCard,
 } from "./lib/compiler-gap-markers";
+import { parseLockfile } from "./lib/oracle-lockfile";
+import {
+    REGRESSION_LEDGER_PATH,
+    acknowledgementFromFlags,
+    emptyRegressionLedger,
+    parseRegressionLedger,
+    renderRegressionLedger,
+    withAcknowledgement,
+} from "./lib/oracle-state-regressions";
 import { SETS_DIR, collectSetFiles } from "./lib/divergence-markers";
 import { gapOf } from "./lib/grammar-gaps";
 import { matchingClusterIssues } from "./lib/gap-issues";
@@ -54,7 +72,37 @@ import { parseClaimRows, parseClusterRows } from "./lib/targets";
 
 const ALLOWLIST = "data/grammar-gaps.json";
 
+/** `--acknowledge`: add one disposition-bearing entry to the ledger. */
+function acknowledge(argv: readonly string[]): number {
+    const lock = parseLockfile(
+        readFileSync("data/oracle-compiled.json", "utf8")
+    );
+    const entry = acknowledgementFromFlags(
+        argv,
+        (name) => lock.cards.find((c) => c.name === name)?.oracleId
+    );
+    if (typeof entry === "string") {
+        console.error(`oracle:mark-regressions: ${entry}`);
+        return 2;
+    }
+    const text = existsSync(REGRESSION_LEDGER_PATH)
+        ? readFileSync(REGRESSION_LEDGER_PATH, "utf8")
+        : null;
+    const ledger =
+        text === null ? emptyRegressionLedger() : parseRegressionLedger(text);
+    const doc = {
+        ...(text === null ? {} : JSON.parse(text)),
+        ...withAcknowledgement(ledger, entry),
+    };
+    writeFileSync(REGRESSION_LEDGER_PATH, renderRegressionLedger(doc));
+    console.log(
+        `oracle:mark-regressions: acknowledged ${entry.name} in ${REGRESSION_LEDGER_PATH} (${entry.intended ? "intended" : `trackedBy #${entry.trackedBy}`})`
+    );
+    return 0;
+}
+
 function main(argv: readonly string[]): number {
+    if (argv.includes("--acknowledge")) return acknowledge(argv);
     const dryRun = argv.includes("--dry-run");
     const files = collectSetFiles(SETS_DIR);
     const exempt = new Set([

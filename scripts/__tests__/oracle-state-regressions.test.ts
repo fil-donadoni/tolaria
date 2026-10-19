@@ -12,10 +12,13 @@ import { describe, it, expect } from "vitest";
 import type { CardRow } from "../lib/oracle-lockfile";
 import {
     parseRegressionLedger,
+    acknowledgementFromFlags,
+    pruneStaleAcknowledgements,
     readyRegressions,
     regressionMessage,
     staleAcknowledgements,
     unacknowledgedRegressions,
+    withAcknowledgement,
     type RegressionLedger,
 } from "../lib/oracle-state-regressions";
 
@@ -118,7 +121,7 @@ describe("unacknowledgedRegressions", () => {
                 oracleId: "id-smother",
                 name: "Smother",
                 reason: "the destroy-with-no-regeneration clause moved behind a slot rewrite",
-                issue: "#2699",
+                trackedBy: 2699,
             },
         ]);
         expect(unacknowledgedRegressions(regressions, acked)).toEqual([]);
@@ -166,7 +169,7 @@ describe("parseRegressionLedger", () => {
     it("refuses an entry with no reason — an id alone explains nothing", () => {
         expect(() =>
             parseRegressionLedger(
-                '{"acknowledged": [{"oracleId": "id-x", "name": "X"}]}'
+                '{"acknowledged": [{"oracleId": "id-x", "name": "X", "intended": true}]}'
             )
         ).toThrow(/has no `reason`/);
     });
@@ -174,9 +177,46 @@ describe("parseRegressionLedger", () => {
     it("refuses a blank reason", () => {
         expect(() =>
             parseRegressionLedger(
-                '{"acknowledged": [{"oracleId": "id-x", "name": "X", "reason": "   "}]}'
+                '{"acknowledged": [{"oracleId": "id-x", "name": "X", "reason": "   ", "intended": true}]}'
             )
         ).toThrow(/has no `reason`/);
+    });
+
+    const entry = (extra: string) =>
+        `{"acknowledged": [{"oracleId": "id-x", "name": "X", "reason": "r"${extra}}]}`;
+
+    it("refuses an entry naming neither `trackedBy` nor `intended`", () => {
+        expect(() => parseRegressionLedger(entry(""))).toThrow(
+            /carries neither/
+        );
+    });
+
+    it("refuses an entry naming both dispositions", () => {
+        expect(() =>
+            parseRegressionLedger(entry(', "trackedBy": 12, "intended": true'))
+        ).toThrow(/carries both/);
+    });
+
+    it("refuses a `trackedBy` that is not an issue number", () => {
+        for (const bad of ['"#12"', "0", "1.5", "-3"])
+            expect(() =>
+                parseRegressionLedger(entry(`, "trackedBy": ${bad}`))
+            ).toThrow(/positive issue number/);
+    });
+
+    it("refuses `intended: false`", () => {
+        expect(() =>
+            parseRegressionLedger(entry(', "intended": false'))
+        ).toThrow(/other than `true`/);
+    });
+
+    it("accepts either disposition", () => {
+        expect(
+            parseRegressionLedger(entry(', "trackedBy": 6060')).acknowledged
+        ).toHaveLength(1);
+        expect(
+            parseRegressionLedger(entry(', "intended": true')).acknowledged
+        ).toHaveLength(1);
     });
 
     it("refuses a document with no `acknowledged` array", () => {
@@ -195,5 +235,103 @@ describe("regressionMessage", () => {
         expect(message).toContain("Smother (id-smother) ready -> unparsed");
         expect(message).toContain("Rishadan Port (id-port) ready -> absent");
         expect(message).toContain("data/oracle-state-regressions.json");
+    });
+});
+
+describe("pruneStaleAcknowledgements", () => {
+    const acked = ledger([
+        {
+            oracleId: "id-port",
+            name: "Rishadan Port",
+            reason: "r",
+            intended: true,
+        },
+        { oracleId: "id-smother", name: "Smother", reason: "r", trackedBy: 1 },
+    ]);
+
+    it("drops every entry when nothing regressed (base == tip after a landing)", () => {
+        expect(pruneStaleAcknowledgements([], acked).acknowledged).toEqual([]);
+    });
+
+    it("keeps an entry still covering a live regression", () => {
+        const regressions = readyRegressions(
+            BASELINE,
+            BASELINE.filter((r) => r.oracleId !== "id-port")
+        );
+        expect(
+            pruneStaleAcknowledgements(regressions, acked).acknowledged.map(
+                (a) => a.name
+            )
+        ).toEqual(["Rishadan Port"]);
+    });
+});
+
+describe("withAcknowledgement", () => {
+    it("replaces the entry of the same card instead of duplicating it", () => {
+        const next = withAcknowledgement(
+            ledger([
+                { oracleId: "id-x", name: "X", reason: "old", intended: true },
+            ]),
+            { oracleId: "id-x", name: "X", reason: "new", trackedBy: 7 }
+        );
+        expect(next.acknowledged).toEqual([
+            { oracleId: "id-x", name: "X", reason: "new", trackedBy: 7 },
+        ]);
+    });
+});
+
+describe("acknowledgementFromFlags (the oracle:mark-regressions writer)", () => {
+    const ids = (name: string) =>
+        name === "Smother" ? "id-smother" : undefined;
+    const flags = (...rest: string[]) => [
+        "--acknowledge",
+        "Smother",
+        "--reason",
+        "why",
+        ...rest,
+    ];
+
+    it("writes `trackedBy` from --tracked-by, `#` tolerated", () => {
+        expect(
+            acknowledgementFromFlags(flags("--tracked-by", "#6060"), ids)
+        ).toEqual({
+            oracleId: "id-smother",
+            name: "Smother",
+            reason: "why",
+            trackedBy: 6060,
+        });
+    });
+
+    it("writes `intended: true` from --intended", () => {
+        expect(
+            acknowledgementFromFlags(flags("--intended"), ids)
+        ).toMatchObject({
+            intended: true,
+        });
+    });
+
+    it("refuses neither disposition, both, a bad number, an unknown card, no reason", () => {
+        expect(acknowledgementFromFlags(flags(), ids)).toMatch(/exactly one/);
+        expect(
+            acknowledgementFromFlags(
+                flags("--intended", "--tracked-by", "1"),
+                ids
+            )
+        ).toMatch(/exactly one/);
+        expect(
+            acknowledgementFromFlags(flags("--tracked-by", "x"), ids)
+        ).toMatch(/not an issue number/);
+        expect(
+            acknowledgementFromFlags(
+                ["--acknowledge", "Nope", "--intended"],
+                ids
+            )
+        ).toMatch(/no card named/);
+        expect(
+            acknowledgementFromFlags(
+                ["--acknowledge", "Smother", "--intended"],
+                ids
+            )
+        ).toMatch(/needs --reason/);
     });
 });

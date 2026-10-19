@@ -559,7 +559,7 @@ function checkStateRegressions(): void {
     if (stale.length > 0) {
         process.stdout.write(
             `${DIM}  ${stale.length} stale acknowledgement(s) in ${REGRESSION_LEDGER_PATH} ` +
-                `matching no current regression — safe to delete: ` +
+                `matching no current regression — pruned after merge by oracle:prune-regressions: ` +
                 `${stale.map((a) => a.name).join(", ")}${RESET}\n`
         );
     }
