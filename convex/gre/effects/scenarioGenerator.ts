@@ -327,6 +327,12 @@ const COUNT_SET_SIZE = 3;
  *  wrong source would mispredict; below the filler's toughness and
  *  `LIBRARY_DEPTH`, so no outcome is clamped. */
 const SMOKE_CHOSEN_X = 4;
+/** How many counters of a read type the canned scenario seeds on the ability's
+ *  `$source` when a script's amount reads that count (issue #5265). Distinct
+ *  from `COUNT_SET_SIZE` and `SMOKE_CHOSEN_X`, so an assertion that read the
+ *  amount off the wrong source would mispredict; below the filler's toughness
+ *  and `LIBRARY_DEPTH`, so no outcome is clamped. */
+const SMOKE_SOURCE_COUNTERS = 6;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -350,6 +356,9 @@ export interface Scenario {
      *  (issue #4022); absent otherwise. The caller snapshots it onto the stack
      *  item as `chosenX`, the field `getX()` reads at resolution. */
     chosenX?: number;
+    /** The counters seeded on the source permanent, by type, when an amount
+     *  reads a `$source` counter count (issue #5265); absent otherwise. */
+    sourceCounters?: Readonly<Record<string, number>>;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -605,6 +614,11 @@ interface Requirements {
     sourceTapAction?: "tap" | "untap";
     /** An amount reads the chosen-cost X: announce `SMOKE_CHOSEN_X`. */
     readsChosenX?: boolean;
+    /** Counter types an amount reads off `$source`: seeded on the source. */
+    sourceCounterReads: Set<string>;
+    /** Counter types an Op of the same script puts on `$source` — a read of
+     *  one of them would see a count the static prediction cannot size. */
+    sourceCounterWrites: Set<string>;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -743,13 +757,26 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
-    // counters (issue #1015, CR 122.6): the amount reads the LIVE count of a
-    // counter type on a selected permanent. The canned generator does not
-    // pre-seed counters on its filler permanents, so the count would be 0 and
-    // the declared outcome can't be asserted deterministically. Skip-with-reason
-    // — the construct's interpreter test (across $source / $each / target) is
+    // counters (issue #1015): the amount reads the LIVE count of a counter
+    // type on a selected permanent — CR 608.2h, "If the effect requires
+    // information from a specific object, including the source of the ability
+    // itself, the effect uses the current information of that object". At an
+    // ability site whose source is still a permanent at resolution, the
+    // scenario seeds `SMOKE_SOURCE_COUNTERS` of the read type on `$source`
+    // and predicts that count (issue #5265). A sacrifice cost is not paid by
+    // the canned run, so the read is the live count the engine's last-known
+    // re-read would return. An announced target or a `$each` member carries no
+    // seeded counters: skip-with-reason — the construct's interpreter test is
     // the behavioural guarantor (per DSL-first authoring, new-construct regime).
     if ("counters" in value) {
+        if (
+            isSourceRef(value.counters.of) &&
+            seedableSource(req) !== undefined
+        ) {
+            req.sourceSubject = true;
+            req.sourceCounterReads.add(value.counters.type);
+            return;
+        }
         skipBecause(
             req,
             "runtime-amount",
@@ -2289,6 +2316,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             recordSubject(req, op.target);
+            if (isSourceRef(op.target)) req.sourceCounterWrites.add(op.counter);
             return;
         case "setLevel":
             // `setLevel` (issue #3234) sets a permanent's class level
@@ -2755,6 +2783,28 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // bank size and reading one more.
     let sourcePermanentId: string | undefined;
     const source = seedableSource(req);
+    // A count the same script changes before reading it would resolve to the
+    // seed plus whatever the Op put on — the static prediction reads the seed.
+    for (const type of req.sourceCounterReads) {
+        if (!req.sourceCounterWrites.has(type)) continue;
+        return {
+            skip: [
+                {
+                    code: "runtime-amount",
+                    reason: `amount reads a $source "${type}" counter count an Op of the same script changes — the predicted count would be a guess`,
+                },
+            ],
+        };
+    }
+    const sourceCounters =
+        req.sourceCounterReads.size === 0
+            ? undefined
+            : Object.fromEntries(
+                  [...req.sourceCounterReads].map((type) => [
+                      type,
+                      SMOKE_SOURCE_COUNTERS,
+                  ])
+              );
     if (req.sourceSubject && source !== undefined) {
         for (const spec of req.countSets) {
             if (sourceContributesTo(source, spec) !== "undecidable") continue;
@@ -2776,6 +2826,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                 zone: "battlefield",
                 isSummoningSick: false,
                 isTapped: req.sourceTapAction === "untap",
+                ...(sourceCounters === undefined
+                    ? {}
+                    : { counters: sourceCounters }),
             })
         );
     }
@@ -2803,6 +2856,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             ? {}
             : { sourcePermanentId, sourceSpec: source }),
         ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
+        ...(sourceCounters === undefined ? {} : { sourceCounters }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -2879,7 +2933,11 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
     if ("X" in value) return scenario.chosenX ?? null; // announced by the scenario
-    if ("counters" in value) return null; // skipped earlier — defensive
+    // Seeded on the source by the scenario; any other subject skipped earlier.
+    if ("counters" in value)
+        return isSourceRef(value.counters.of)
+            ? (scenario.sourceCounters?.[value.counters.type] ?? null)
+            : null;
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
@@ -4054,6 +4112,8 @@ function emptyRequirements(host: SmokeHost): Requirements {
         skips: [],
         host,
         sourceSubject: false,
+        sourceCounterReads: new Set(),
+        sourceCounterWrites: new Set(),
     };
 }
 

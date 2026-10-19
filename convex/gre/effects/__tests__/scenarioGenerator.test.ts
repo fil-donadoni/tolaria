@@ -909,3 +909,110 @@ describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
         expect(plan.scenario.chosenX).toBeUndefined();
     });
 });
+
+describe("$source counter-count amounts (CR 608.2h, issue #5265)", () => {
+    // Ratchet Bomb's shape, reduced to an amount the sweep can assert: the
+    // ability reads the number of charge counters on its own source.
+    const readsCharge: EffectOp[] = [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { counters: { of: { ref: "$source" }, type: "charge" } },
+        },
+    ];
+    const ARTIFACT_HOST = abilityHost({ types: ["Artifact"] }, true, true);
+
+    function seededSource(plan: Extract<Plan, { kind: "run" }>) {
+        return plan.scenario.state.players
+            .find((p) => p.id === CASTER_ID)!
+            .battlefield.find((c) => c.id === SOURCE_PERMANENT_ID);
+    }
+
+    it("seeds the read counters on the source and predicts that count", () => {
+        const plan = planSmokeTest(readsCharge, ARTIFACT_HOST);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.sourceCounters).toEqual({ charge: 6 });
+        expect(seededSource(plan)?.counters).toEqual({ charge: 6 });
+        expect(plan.assertions.map((a) => a.label)).toEqual([
+            expect.stringContaining("gainLife 6"),
+        ]);
+    });
+
+    it("the seeded count resolves to the predicted outcome", () => {
+        const plan = planSmokeTest(readsCharge, ARTIFACT_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveOnSeededSource(plan, readsCharge, "smoke-counters-seeded");
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("a source without the seeded counters fails the assertion", () => {
+        const plan = planSmokeTest(readsCharge, ARTIFACT_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        const source = seededSource(plan)!;
+        source.counters = {};
+        resolveOnSeededSource(plan, readsCharge, "smoke-counters-unseeded");
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it("a count read off a spell, a departed source, a target or $each stays a card-dependent skip", () => {
+        const of = (subject: unknown): EffectOp[] =>
+            [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { counters: { of: subject, type: "charge" } },
+                },
+            ] as EffectOp[];
+        for (const [script, host] of [
+            [readsCharge, SPELL_HOST],
+            [readsCharge, abilityHost({ types: ["Artifact"] }, false, true)],
+            [of({ target: 0 }), ARTIFACT_HOST],
+            [of({ ref: "$each" }), ARTIFACT_HOST],
+        ] as const) {
+            const plan = planSmokeTest(script, host);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.reason)).toContain(
+                `amount reads a permanent's "charge" counter count — the canned generator does not pre-seed counters`
+            );
+        }
+    });
+
+    it("a count the same script changes on $source is not predicted", () => {
+        const plan = planSmokeTest(
+            [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "charge",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+                ...readsCharge,
+            ],
+            ARTIFACT_HOST
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual(["runtime-amount"]);
+    });
+
+    it("a script reading no counter count seeds none", () => {
+        const plan = planSmokeTest(
+            [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "charge",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+            ARTIFACT_HOST
+        );
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        expect(plan.scenario.sourceCounters).toBeUndefined();
+        expect(seededSource(plan)?.counters).toBeUndefined();
+    });
+});
