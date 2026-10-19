@@ -64,9 +64,16 @@ export const NOTICE_FILE = join(
     "notice.json"
 );
 
-function git(args: string[], cwd: string): { ok: boolean; out: string } {
+function git(
+    args: string[],
+    cwd: string
+): { ok: boolean; out: string; err: string } {
     const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-    return { ok: r.status === 0, out: (r.stdout ?? "").trim() };
+    return {
+        ok: r.status === 0,
+        out: (r.stdout ?? "").trim(),
+        err: (r.stderr ?? "").trim(),
+    };
 }
 
 function bun(args: string[], cwd: string): boolean {
@@ -97,6 +104,38 @@ export function strandedAllowlistOnly(
                 c.files[0] === ALLOWLIST_PATH
         )
     );
+}
+
+/** The first non-blank line of git's stderr — its own reason. */
+export function gitErrorLine(stderr: string): string {
+    return (
+        stderr
+            .split("\n")
+            .map((l) => l.trim())
+            .find((l) => l !== "") ?? "git printed no error"
+    );
+}
+
+/**
+ * Why a `merge --ff-only` was refused, for the red the owner reads (issue
+ * #6018). "Diverged" only when HEAD really is not an ancestor of the base —
+ * checked, never inferred from an empty local-commit list: a branch with no
+ * commits of its own cannot diverge, and its refusal is git's (an untracked
+ * file in the way, a dirty tree, a lock). Git's own line rides along always.
+ * Pure.
+ */
+export function fastForwardRefusal(r: {
+    gitError: string;
+    headOnBase: boolean;
+    local: ReadonlyArray<{ subject: string }>;
+}): string {
+    const why = `git: ${gitErrorLine(r.gitError)}`;
+    if (r.headOnBase) return `no local commits, yet git refused (${why})`;
+    const held =
+        r.local.length === 0
+            ? ""
+            : `: it holds ${r.local.length} local commit(s) not on the base: ${r.local.map((c) => JSON.stringify(c.subject)).join(", ")}`;
+    return `it diverged from the base${held} (${why})`;
 }
 
 /** The primary checkout's commits not on `origin/<base>`, with their files. */
@@ -137,8 +176,8 @@ export function fastForward(primary: string): boolean {
         );
         return false;
     }
-    if (git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary).ok)
-        return true;
+    const merged = git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary);
+    if (merged.ok) return true;
     const local = localCommits(primary);
     if (strandedAllowlistOnly(local)) {
         if (
@@ -156,11 +195,16 @@ export function fastForward(primary: string): boolean {
         return false;
     }
     console.error(
-        `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} — ${
-            local.length === 0
-                ? "it diverged from the base"
-                : `it holds ${local.length} local commit(s) not on the base: ${local.map((c) => JSON.stringify(c.subject)).join(", ")}`
-        } — pull it by hand`
+        `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} — ${fastForwardRefusal(
+            {
+                gitError: merged.err,
+                headOnBase: git(
+                    ["merge-base", "--is-ancestor", "HEAD", ORIGIN_BASE],
+                    primary
+                ).ok,
+                local,
+            }
+        )} — pull it by hand`
     );
     return false;
 }
