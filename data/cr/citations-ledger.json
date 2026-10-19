@@ -34145,6 +34145,7 @@
         {"id":"614.10a","line":"// check fires against the popped player (CR 614.10a): the skip","sites":1,"status":"baseline"},
         {"id":"614.10a","line":"// rather than collapsing to one (CR 614.10a).","sites":1,"status":"baseline"},
         {"id":"614.10a","line":"// this suite covers only the new Op's player-ref resolution, its CR 614.10a","sites":1,"status":"baseline"},
+        {"id":"614.10a","line":"// under it (CR 614.10a would hold the mark for the next unskipped","sites":1,"status":"confirmed","ruleHash":"c79bfdde30fe6d3b"},
         {"id":"614.10a","line":"it(\"a queued extra turn that is itself skipped: popped then skipped, next active is the opponent (CR 500.7 / 614.10a)\", () => {","sites":1,"status":"baseline"},
         {"id":"614.10a","line":"it(\"accumulates across two resolutions against the same player (CR 614.10a)\", () => {","sites":1,"status":"baseline"},
         {"id":"614.10a","line":"it(\"round-trips a count of 2 (two accumulated skips, CR 614.10a)\", async () => {","sites":1,"status":"baseline"},
