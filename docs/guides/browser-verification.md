@@ -243,13 +243,13 @@ deployment-down` at any load (`scripts/ui-gate/deployment-watch.ts`).
   it was on, tears down its accounts, and exits 2 with no receipt
   (`scripts/ui-gate/cell-deadline.ts`).
 - **Live progress** (issue #6072). The cell lines stay buffered per viewport
-  and print in matrix order at the end, but the walk is never silent:
-  each finished cell prints `ui-gate: [17/155] <viewport> <surface>
-<outcome> <time>`, and a heartbeat every 30s
-  (`TOLARIA_UI_GATE_HEARTBEAT_MS`) prints `ui-gate: ♥ <elapsed> · <done>/<total>
-cells · <viewport> <surface> <time on it> · load <n>`. A viewport on one
+  and print in matrix order at the end, but the walk is never silent. Each
+  finished cell prints one `ui-gate: [i/total]` line (viewport, surface,
+  outcome, time). Every 30s (`TOLARIA_UI_GATE_HEARTBEAT_MS`) a `ui-gate: ♥`
+  line names the elapsed time, the cells done over the matrix, the surface
+  each open viewport is on and for how long, and the load. A viewport on one
   activity past half the cell deadline carries `STALL?`. These are live
-  diagnostics: `land` never reads them (`scripts/ui-gate/heartbeat.ts`).
+  diagnostics that `land` never reads (`scripts/ui-gate/heartbeat.ts`).
 - **UNWALKED** — the lane could not measure the surface at all: the
   debug-scenario row is absent from this deployment, an active game blocks the
   route, a walk timed out. This also exits non-zero. Coverage is the thing
