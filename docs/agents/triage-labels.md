@@ -37,7 +37,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 | `pr-open`     | `land:ready`, beside `in-progress` | the same release paths, at merge (`housekeeping`) or abort |
 
 `pr-open` is the board's view of the claim journal's `pr-open` row (issue
-#5562): the PR is with the land-runner. It never replaces `in-progress`, which
+#5562): the PR is with its merger (the Mergify queue or the land-runner). It never replaces `in-progress`, which
 every queue reader keys "claimed" on. The PR itself carries `ready-to-land` /
 `land-failed`. Both label sets live in `scripts/lib/claim-labels.ts`.
 
