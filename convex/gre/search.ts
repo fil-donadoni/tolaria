@@ -1493,12 +1493,7 @@ export function rollout(
             applyMoveInSearch(state, pid, FORCED_PASS, true);
             continue;
         }
-        // Issue #5951 — the rollout's defender never draws a dominated
-        // multi-block either (`ai/blockDominance.ts`).
-        const enumerated = pruneDominatedBlocks(
-            state,
-            enumerateMoves(state, pid)
-        );
+        const enumerated = enumerateMoves(state, pid);
         if (enumerated.length === 0) break;
         // Issue #5445 — neither policy plays a mana-base sacrifice: the root
         // weighs it NOW, and a rollout that takes it later is the `pass`

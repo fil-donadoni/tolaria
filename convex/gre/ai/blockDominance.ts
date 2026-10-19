@@ -30,6 +30,13 @@
 // Bot paths only, like every other pruning: a dominated block is LEGAL, and
 // the human affordance surface (`legalActions`) keeps the whole set. It is
 // blocker-declaration policy, so it governs the Bot's own blocks too.
+//
+// Tree and root only (`keyedMovesFor`, `enumerateRootMoves`), never the
+// rollout: the defect is the tree node's mean backup over the replies it
+// EXPLORES, while a rollout draws one reply per ply in the hot loop. Pruning
+// there too shifted the rollout's random stream and flipped two noise-pinned
+// Bot-play sweep verdicts (Imperial Seal, Gerrard's Wisdom: `played` on 15
+// and 17 of 24 seat-seeds with it, 19 and 20 without) for no `must` gain.
 import type { GameState } from "../state";
 import { getOpponentId } from "../state";
 import type { Move } from "../moves";
