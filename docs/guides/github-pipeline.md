@@ -1062,15 +1062,15 @@ that is not truncated, no path under `.github/` or `.mergify/` and no
 `.mergify.yml`, a rename counting both names). Green, it adds `queue:shadow`
 beside `ready-to-land` and the queue lands the PR. Otherwise it removes any
 `queue:shadow` and the land-runner lands it, so no PR is ever left with no
-merger. A PR the runner failed and that carries no `queue:shadow` stays the
-runner's on repair. The command's last line names the merger. It also makes
+merger. A repair goes to the queue too, a PR the runner failed included
+(issue #5986). The command's last line names the merger. It also makes
 sure GitHub links the PR as closing the issue its branch names (a bare
 `Closes #N`, appended when `closingIssuesReferences` lacks it), so the issue
 closes at merge whoever merges. The fallback, should the queue stall, is a
 label:
 
 ```bash
-gh pr edit <N> --remove-label queue:shadow   # this PR back to the land-runner
+gh pr edit <N> --remove-label queue:shadow   # back to the runner, until its next land:ready
 gh pr list --label queue:shadow --state open --limit 500 --json number \
     --jq '.[].number' | xargs -I{} gh pr edit {} --remove-label queue:shadow
 ```
