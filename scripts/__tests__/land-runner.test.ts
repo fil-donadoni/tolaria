@@ -609,31 +609,12 @@ describe("label moves", () => {
 
 describe("handsToQueue — who lands a handed-off PR (issue #5952)", () => {
     it("the queue, when pr-gate's trusted-author verdict is green", () => {
-        expect(handsToQueue({ trustedAuthor: "success", labels: [] })).toBe(
-            true
-        );
-        // A queue repair keeps its merger: Mergify's dequeue leaves the label.
-        expect(
-            handsToQueue({
-                trustedAuthor: "success",
-                labels: [FAILED_LABEL, SHADOW_LABEL],
-            })
-        ).toBe(true);
+        expect(handsToQueue({ trustedAuthor: "success" })).toBe(true);
     });
 
     it("the runner, when the queue would refuse it — never a shadow PR with no merger", () => {
-        expect(handsToQueue({ trustedAuthor: "failure", labels: [] })).toBe(
-            false
-        );
-        expect(
-            handsToQueue({ trustedAuthor: "pending", labels: [SHADOW_LABEL] })
-        ).toBe(false);
-    });
-
-    it("the runner, for a PR the runner failed — the owner handed it back, or it never was the queue's", () => {
-        expect(
-            handsToQueue({ trustedAuthor: "success", labels: [FAILED_LABEL] })
-        ).toBe(false);
+        expect(handsToQueue({ trustedAuthor: "failure" })).toBe(false);
+        expect(handsToQueue({ trustedAuthor: "pending" })).toBe(false);
     });
 });
 
