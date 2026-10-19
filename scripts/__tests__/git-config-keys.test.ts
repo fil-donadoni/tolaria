@@ -30,7 +30,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(repo, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("ensureGitConfig (issue #5958)", () => {
