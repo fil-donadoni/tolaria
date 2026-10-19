@@ -202,7 +202,7 @@ describe("base-health", () => {
         for (const kind of ["green", "amber"] as const) {
             const s = baseHealthStatus({
                 lineage: lineage(kind),
-                prBody: "",
+                pr: pr({ body: "" }),
                 repairIssues: [],
             });
             expect(s.context).toBe(BASE_HEALTH_CONTEXT);
@@ -213,7 +213,7 @@ describe("base-health", () => {
     it("is green with no verdict yet", () => {
         const s = baseHealthStatus({
             lineage: lineage("none"),
-            prBody: "",
+            pr: pr({ body: "" }),
             repairIssues: [],
         });
         expect(s.state).toBe("success");
@@ -223,7 +223,7 @@ describe("base-health", () => {
     it("under RED is red for a non-repair PR and names the declared repairs", () => {
         const s = baseHealthStatus({
             lineage: lineage("red"),
-            prBody: "Closes #12",
+            pr: pr({ body: "Closes #12" }),
             repairIssues: [777],
         });
         expect(s.state).toBe("failure");
@@ -234,7 +234,7 @@ describe("base-health", () => {
     it("under RED is green for the declared repair", () => {
         const s = baseHealthStatus({
             lineage: lineage("red"),
-            prBody: "Closes #777",
+            pr: pr({ body: "Closes #777" }),
             repairIssues: [777],
         });
         expect(s.state).toBe("success");
@@ -244,7 +244,7 @@ describe("base-health", () => {
     it("a second RED holds a non-repair PR too", () => {
         const s = baseHealthStatus({
             lineage: lineage("second-red"),
-            prBody: "",
+            pr: pr({ body: "" }),
             repairIssues: [],
         });
         expect(s.state).toBe("failure");
@@ -253,7 +253,7 @@ describe("base-health", () => {
     });
 
     it("a GREEN after the RED flips the same held PR back", () => {
-        const input = { prBody: "Closes #12", repairIssues: [777] };
+        const input = { pr: pr({ body: "Closes #12" }), repairIssues: [777] };
         expect(
             baseHealthStatus({ ...input, lineage: lineage("red") }).state
         ).toBe("failure");
@@ -265,17 +265,66 @@ describe("base-health", () => {
     it("an unreadable store holds the PR pending — never a green that outlives the outage", () => {
         const s = baseHealthStatus({
             lineage: { kind: "none", verdict: null, error: "HTTP 502" },
-            prBody: "",
+            pr: pr({ body: "" }),
             repairIssues: [],
         });
         expect(s.state).toBe("pending");
         expect(s.description).toMatch(/unreadable/);
     });
 
+    it("a Mergify queue draft is green under RED, second RED and an unreadable store (issue #5978)", () => {
+        // Through `gatePrOf`, as `pr-gate.ts` builds it from the REST payload.
+        const draft = gatePrOf(
+            rest({
+                user: { login: "mergify[bot]" },
+                head: {
+                    sha: "d".repeat(40),
+                    ref: "mergify/merge-queue/1dcc8ee081",
+                    repo: { full_name: REPO },
+                },
+            }),
+            []
+        );
+        const lineages = [
+            lineage("red"),
+            lineage("second-red"),
+            { kind: "none" as const, verdict: null, error: "HTTP 502" },
+        ];
+        for (const l of lineages) {
+            const s = baseHealthStatus({
+                lineage: l,
+                pr: draft,
+                repairIssues: [777],
+            });
+            expect(s.state).toBe("success");
+            expect(s.description).toMatch(/Mergify queue PR/);
+        }
+    });
+
+    it("a queue-draft lookalike is still judged on health", () => {
+        const lookalikes = [
+            pr({ headRef: "mergify/merge-queue/x" }),
+            pr({ author: "mergify[bot]", headRef: "feat/x" }),
+            pr({
+                author: "mergify[bot]",
+                headRef: "mergify/merge-queue/x",
+                headRepo: "someone/tolaria",
+            }),
+        ];
+        for (const p of lookalikes) {
+            const s = baseHealthStatus({
+                lineage: lineage("red"),
+                pr: p,
+                repairIssues: [],
+            });
+            expect(s.state).toBe("failure");
+        }
+    });
+
     it("every description fits GitHub's 140 characters", () => {
         const s = baseHealthStatus({
             lineage: lineage("red"),
-            prBody: "",
+            pr: pr({ body: "" }),
             repairIssues: Array.from({ length: 40 }, (_, i) => 1000 + i),
         });
         expect(s.description.length).toBeLessThanOrEqual(140);

@@ -11,7 +11,10 @@
  *  - `base-health` — the RED rule the land-runner applies (issue #4964):
  *    green unless a RED (or second RED) stands on the base's lineage, and
  *    under a RED green only for a PR closing a declared repair issue.
- *    `healthAdmission` is that rule, and `planTick` reads it too.
+ *    `healthAdmission` is that rule, and `planTick` reads it too. Mergify's
+ *    queue PRs are exempt on the same ground (issue #5978): Mergify re-checks
+ *    `queue_conditions` on its draft while a PR is queued, and a draft that
+ *    fails one dequeues the PR for good — no GREEN requeues it.
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
 import { READY_LABEL } from "./land-labels";
@@ -221,10 +224,16 @@ const short = (sha: string | undefined) => (sha ?? "?").slice(0, 8);
  * re-reads every tick, but a status stands until the next event, so a green
  * posted through a 502 would admit a PR onto a RED base for hours. The
  * scheduled sweep decides again. `repairIssues` is only consulted under RED.
+ *
+ * A Mergify queue PR (`isMergifyQueuePr`) is always green, so the RED hold
+ * acts at entry, on the PR's own head (issue #5978): Mergify judges a queued
+ * PR's conditions on its draft and requeues none it dequeued, and the
+ * draft's body is Mergify's, so judging it would dequeue a declared repair
+ * too.
  */
 export function baseHealthStatus(input: {
     lineage: Lineage & { error?: string };
-    prBody: string;
+    pr: Pick<GatePr, "author" | "body" | "headRef" | "headRepo" | "baseRepo">;
     repairIssues: readonly number[];
 }): GateStatus {
     const { lineage } = input;
@@ -233,10 +242,15 @@ export function baseHealthStatus(input: {
         state,
         description: clipDescription(description),
     });
+    if (isMergifyQueuePr(input.pr))
+        return status(
+            "success",
+            "Mergify queue PR — the gates were its queued PRs' entry conditions"
+        );
     const red = lineageBlocks(lineage.kind);
     const admission = healthAdmission({
         red,
-        prBody: input.prBody,
+        prBody: input.pr.body,
         repairIssues: input.repairIssues,
     });
     const where = `@ ${short(lineage.verdict?.sha)}`;
