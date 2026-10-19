@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +15,12 @@ import {
     seedPlan,
     syncNotice,
 } from "../lib/post-merge";
-import { fastForward, strandedAllowlistOnly } from "../post-merge";
+import {
+    fastForward,
+    fastForwardRefusal,
+    gitErrorLine,
+    strandedAllowlistOnly,
+} from "../post-merge";
 
 describe("strandedAllowlistOnly (issue #5873)", () => {
     it("is true only for gaps:sync's own allowlist commits, all of them", () => {
@@ -37,6 +42,41 @@ describe("strandedAllowlistOnly (issue #5873)", () => {
         expect(
             strandedAllowlistOnly([{ ...sync, subject: "gaps:sync — other" }])
         ).toBe(false);
+    });
+});
+
+describe("fastForwardRefusal (issue #6018)", () => {
+    const untracked =
+        "error: The following untracked working tree files would be overwritten by merge:\n\tc\nPlease move or remove them before you merge.\nAborting";
+
+    it("reports git's own line, never 'diverged', when HEAD is on the base", () => {
+        const msg = fastForwardRefusal({
+            gitError: untracked,
+            headOnBase: true,
+            local: [],
+        });
+        expect(msg).not.toMatch(/diverged/);
+        expect(msg).toContain(
+            "git: error: The following untracked working tree files would be overwritten by merge:"
+        );
+    });
+
+    it("says 'diverged' when HEAD is not an ancestor of the base, naming the local commits", () => {
+        const msg = fastForwardRefusal({
+            gitError: "fatal: Not possible to fast-forward, aborting.",
+            headOnBase: false,
+            local: [{ subject: "wip" }],
+        });
+        expect(msg).toMatch(/^it diverged from the base/);
+        expect(msg).toContain('1 local commit(s) not on the base: "wip"');
+        expect(msg).toContain(
+            "git: fatal: Not possible to fast-forward, aborting."
+        );
+    });
+
+    it("gitErrorLine takes the first non-blank line, with a fallback for silence", () => {
+        expect(gitErrorLine("\n  fatal: x\nmore")).toBe("fatal: x");
+        expect(gitErrorLine("")).toBe("git printed no error");
     });
 });
 
@@ -213,6 +253,22 @@ describe("fastForward", () => {
                 primary
             ).stdout.trim()
         ).toBe("");
+    });
+
+    it("names git's refusal, not 'diverged', when an untracked file blocks a clean fast-forward (issue #6018)", () => {
+        const primary = join(dir, "primary");
+        writeFileSync(join(primary, "c"), "in the way");
+        const errors: string[] = [];
+        const spy = vi
+            .spyOn(console, "error")
+            .mockImplementation((m: string) => void errors.push(m));
+        try {
+            expect(fastForward(primary)).toBe(false);
+        } finally {
+            spy.mockRestore();
+        }
+        expect(errors.join("\n")).not.toMatch(/diverged/);
+        expect(errors.join("\n")).toMatch(/untracked working tree files/);
     });
 
     it("refuses — and leaves standing — any other local commit", () => {
