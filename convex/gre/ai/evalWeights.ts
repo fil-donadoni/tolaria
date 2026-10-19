@@ -202,6 +202,17 @@ export type EvalWeights = {
      *  gradient is shallow where decking is theoretical and steep where it
      *  decides the game — the same shape the danger clock uses for life. */
     deckingWeight: number;
+    /** Poison counters a player can still take before the CR 704.5c loss
+     *  (`POISON_LOSS_COUNTERS` minus those held) at or above which the poison
+     *  term is EXACTLY ZERO (`poisonTerm`, evaluate.ts) — `libraryTerm`'s
+     *  horizon, for the other alternate loss. At the loss threshold itself
+     *  (10) the term's support is "holds any poison at all", so a game with
+     *  no infect in it is byte-identical. */
+    poisonHorizon: number;
+    /** Per squared counter of deficit below `poisonHorizon`. Quadratic for the
+     *  reason `deckingWeight` is: the first counter is a chip, the ninth is
+     *  one hit from losing. */
+    poisonWeight: number;
     /** Per spell a graveyard-play ENGINE can still cast out of its
      *  controller's graveyard (`graveyardEngineTerm`, evaluate.ts). Zero
      *  contribution unless such an engine is on the battlefield, so the term
@@ -388,6 +399,14 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     lifeWeight: 8,
     deckingHorizon: 12,
     deckingWeight: 1.5,
+    // Issue #5153 — 2 × deficit², so the term's whole range (200 at the
+    // loss) stays inside `materialFull` the way `deckingWeight`'s does. The
+    // ten counters together cost 25 life points' worth; front-loaded the
+    // other way from the poison Op valuer's flat `POISON_PER_COUNTER`
+    // (`ai/opValuers.ts`, 2 × `lifeWeight` a counter): the first counter is
+    // a chip (2), the tenth the game (38).
+    poisonHorizon: 10,
+    poisonWeight: 2,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
     graveyardReachFraction: 0.15,
@@ -535,36 +554,37 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.688804,
-    manaWeight: 13.158545,
-    tappedManaWeight: 11.658545,
+    permanentWeight: 5.692764,
+    manaWeight: 13.154037,
+    tappedManaWeight: 11.654037,
     finiteManaUseWeight: 4,
-    manaDevWeight: 14.597755,
-    colorCoverageWeight: 21.764644,
-    flexWeight: 7.149115,
+    manaDevWeight: 14.532061,
+    colorCoverageWeight: 21.795381,
+    flexWeight: 7.127058,
     deckingWeight: 1.5,
+    poisonWeight: 2,
     graveyardEngineWeight: 60,
-    graveyardReachFraction: 0.160839,
+    graveyardReachFraction: 0.160676,
     recoverableSweepFraction: 0.8,
     heldDifferentialFraction: 0.25,
-    latentCreatureDiscount: 0.693695,
-    latentFlashCreatureDiscount: 0.805701,
+    latentCreatureDiscount: 0.696321,
+    latentFlashCreatureDiscount: 0.80649,
     cannotAttackShare: 0.75,
     cannotBlockShare: 0.75,
     latent: Object.freeze({
-        damage: 25.882951,
-        cardAdvantage: 47.768689,
-        lifeSwing: 7.519818,
-        boardRemoval: 168.647079,
+        damage: 25.826122,
+        cardAdvantage: 47.4922,
+        lifeSwing: 7.52688,
+        boardRemoval: 160.515056,
         ramp: 12,
         evasion: 40,
-        tempo: 53.509256,
-        disruption: 110.413244,
+        tempo: 53.532384,
+        disruption: 110.641308,
         recursion: 140,
-        tokens: 0.443706,
-        pump: 9.907877,
+        tokens: 0.445249,
+        pump: 9.904921,
         protection: 60,
-        recurrence: 6.021133,
+        recurrence: 6.042857,
     }),
 });
 

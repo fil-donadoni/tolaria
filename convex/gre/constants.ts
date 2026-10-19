@@ -188,6 +188,11 @@ export const LAND_DROPS_PER_TURN = 1;
  *  to "unlimited"). */
 export const MAX_HAND_SIZE = 7;
 
+/** Poison counters at which a player loses the game (CR 704.5c, the SBA in
+ *  `sba.ts`). The Bot's poison term and its poison-aware lethality read the
+ *  same number, so the evaluator's loss horizon is the engine's. */
+export const POISON_LOSS_COUNTERS = 10;
+
 /** Engine ceiling on a number a player NOMINATES mid-resolution (issue #1421).
  *
  *  CR 107.1c — "If a rule or ability instructs a player to choose 'any

@@ -550,6 +550,10 @@ export const EXTRA_PLAINS: Discriminant = {
     kind: "card",
     detail: "one extra Plains",
 };
+export const SEVEN_POISON: Discriminant = {
+    kind: "other",
+    detail: "the bot at seven poison counters, two infect hits from losing",
+};
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
  *  server would accept, and the game moved on" (issue #2283).
