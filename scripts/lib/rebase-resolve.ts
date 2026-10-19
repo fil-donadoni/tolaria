@@ -14,6 +14,7 @@ const RESOLVE_ARTIFACTS = resolve(
     "..",
     "resolve-generated-artifacts.ts"
 );
+const ENSURE_DEPS = resolve(__dirname, "..", "ensure-deps.ts");
 const REFRESH_GENERATED_API = resolve(
     __dirname,
     "..",
@@ -48,6 +49,18 @@ export function rebaseStep(): string {
         `rm -f "$(git rev-parse --git-path ${REGENERATE_MARKER})"; ` +
         "exit 1; })"
     );
+}
+
+/**
+ * Reinstall the worktree's dependencies when the rebased tree's `bun.lock` /
+ * `package.json` are not the ones its `node_modules/` was installed from
+ * (issue #6000) — a base that added a dependency, or a reused worktree that
+ * never re-ran `worktree:init`. Right after the rebase, before every step
+ * that imports a dependency; a no-op when the stamp matches. A failed install
+ * exits 77: INFRA, nothing was gated, the runner re-queues.
+ */
+export function ensureDepsStep(): string {
+    return `bun ${shQuote(ENSURE_DEPS)}`;
 }
 
 /**
@@ -86,6 +99,7 @@ export function refreshGeneratedApiStep(): string {
 export function rebaseAndResolveSteps(): string[] {
     return [
         rebaseStep(),
+        ensureDepsStep(),
         resolveGeneratedArtifactsStep(),
         refreshGeneratedApiStep(),
     ];
