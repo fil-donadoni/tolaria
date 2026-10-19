@@ -220,6 +220,9 @@ baseline edit is a pure deletion — anything else needs a reason in the PR
 (the file's own SHRINK-ONLY header). `bun run oracle:triage` prints the class
 counts after.
 
+A card the rule REGRESSED (`unparsed`, unmarked) → `regressions.md`:
+`bun run oracle:mark-regressions` writes its marker, never a baseline row.
+
 **Every graduate with an open Hand Tail claim closes it.** For each card the
 rule makes `ready`, look up its `claims` row of kind `hand-tail` in the Grammar
 Gap allowlist (`data/grammar-gaps.json`, key = the card's lockfile name); if the
