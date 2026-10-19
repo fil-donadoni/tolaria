@@ -463,15 +463,24 @@ async function main(): Promise<void> {
     const budgetLine = `budget ${reading.pct.toFixed(1)}% of ${budget.budget} over ${budget.hours} h (other machines ${Math.round(reading.remote)})`;
     if (hold) {
         say(`hold (${hold.kind}): ${hold.message}`);
-        const aged = agedRepairNotice(
-            hold,
-            hold.kind === "disabled" ? [] : repairPicks(slug),
-            dispatchRuns,
-            parseAfkDispatchConfig(
-                JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
-            ),
-            now
-        );
+        // An unreadable repair list is no aged pick: a crash here would fail
+        // the run with no PR named, and that failure would spend the one
+        // email the condition owes (`agedRepairNotice`).
+        let repairs: RepairPick[] = [];
+        let config = parseAfkDispatchConfig(null);
+        if (hold.kind !== "disabled") {
+            try {
+                config = parseAfkDispatchConfig(
+                    JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+                );
+                repairs = repairPicks(slug);
+            } catch (err) {
+                say(
+                    `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no aged-repair check this run`
+                );
+            }
+        }
+        const aged = agedRepairNotice(hold, repairs, dispatchRuns, config, now);
         const agedLines = agedRepairLines(aged.aged, hold);
         for (const l of agedLines) say(l);
         summary([
