@@ -222,6 +222,31 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
 ] as const;
 
 /**
+ * A hand-written source file that is a single append-only list of
+ * self-contained entries, merged by git's built-in `union` driver (issue
+ * #5942). Two PRs that each append an entry at the end of the list conflict
+ * under the default text merge although neither disagrees with the other;
+ * `union` keeps both sides instead. Built-in, so the bootstrap registers
+ * nothing; the lane's `tsc` and tests still judge the merged result.
+ *
+ * The cost of `union` is that it applies to EVERY conflict in the file, so a
+ * row here holds exactly one top-level value — the list — and no function: a
+ * helper shared by the entries lives in a sibling file under the ordinary
+ * merge. Pinned by `generated-artifact-merge.test.ts`.
+ */
+export interface UnionMergedList {
+    /** Repo-relative POSIX path, exactly as `.gitattributes` names it. */
+    readonly path: string;
+    /** The one top-level value the file declares. */
+    readonly list: string;
+}
+
+export const UNION_MERGED_LISTS: readonly UnionMergedList[] = [
+    { path: "convex/gre/ai/blade/scenarios.ts", list: "BLADE_SCENARIOS" },
+    { path: "convex/oracle/grammar/fixtures.ts", list: "GOLDEN_FIXTURES" },
+] as const;
+
+/**
  * Marker the merge driver appends resolved paths to, resolved through
  * `git rev-parse --git-path` so it lands in the right per-worktree git dir.
  */
