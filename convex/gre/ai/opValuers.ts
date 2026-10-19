@@ -733,9 +733,10 @@ export function eachStepDifferentialValue(
  *  reads: a non-empty script whose every Op is attributable to the scoped
  *  player alone (`isStepSideOp`) — a draw, a life Op, (issue #5575) an
  *  edict on that player's own permanents, (issue #5624) a discard at
- *  random from its hand, or (issue #5628) a return to hand of its own
- *  permanents — beyond the edict's or the bounce's bare `choice` and (issue
- *  #5627) a "may"'s bare `mayPay`, which read nothing by themselves. */
+ *  random from its hand, (issue #5628) a return to hand of its own
+ *  permanents, or (issue #5625) a mill — beyond the edict's or the bounce's
+ *  bare `choice` and (issue #5627) a "may"'s bare `mayPay`, which read
+ *  nothing by themselves. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return (
         script.length > 0 &&
@@ -776,7 +777,8 @@ function namesStepPlayer(node: unknown): boolean {
  *  Issue #5575 — an edict's `sacrifice` off the side's own permanents
  *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before.
  *  Issue #5624 — a discard at random off the side's hand. Issue #5628 — a
- *  bounce's `forEach` off the side's own permanents (`sideBounceLoss`). */
+ *  bounce's `forEach` off the side's own permanents (`sideBounceLoss`).
+ *  Issue #5625 — a mill off the side's library (`stepSideMill`). */
 function stepSideOpValue(
     op: EffectOp,
     script: readonly EffectOp[],
@@ -798,6 +800,8 @@ function stepSideOpValue(
         }
         case "discardAtRandom":
             return stepSideRandomDiscard(op.count, side, ctx);
+        case "mill":
+            return stepSideMill(op.count, side, ctx);
         case "gainLife":
             return stepSideLife(op.amount, 1, side, ctx);
         case "loseLife":
@@ -907,6 +911,22 @@ function stepSideLife(
     return { points: priced(ctx, "lifeSwing", signed), tags: ["lifeSwing"] };
 }
 
+/** Issue #5625 — the scoped player milling `count` cards, the count
+ *  grounded on THAT player's board: the decking term it loses
+ *  (`EachPlayerSide.millLoss`), signed by whose side it is. */
+function stepSideMill(
+    count: EffectValue,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    const n = Math.max(0, side.groundCount(count, isStepPlayerRef) ?? 0);
+    const loss = side.millLoss(n);
+    return {
+        points: side.own ? -loss : loss,
+        tags: ["cardAdvantage"],
+    };
+}
+
 /** Issue #5164 — one side's draw of `count` cards, priced off its board at
  *  the `draw` valuer's own unit. Issue #5573 — `before`: the hand steps a
  *  one-shot body's earlier Ops took (`HandStep`); a standing engine's
@@ -931,7 +951,9 @@ function sideDraw(
  *  `sacrifice` of its picks, CR 701.21a: only a permanent's controller can
  *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`);
  *  issue #5624 — a discard at random from that player's hand (CR 701.9b),
- *  priced off its hand (`EachPlayerSide.randomDiscardUnits`).
+ *  priced off its hand (`EachPlayerSide.randomDiscardUnits`); issue #5625 —
+ *  that player milling cards (CR 701.17a), priced off its library
+ *  (`EachPlayerSide.millLoss`).
  *  Every Op must name the scoped player — one naming a fixed player would be
  *  counted once per side; anything else is fail-closed. Issue #5574 — a life
  *  amount may be a board count (`isStepGroundableAmount`), grounded per side.
@@ -979,6 +1001,14 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
         case "discardAtRandom":
             return (
                 isStepPlayerRef(op.player) && isStepGroundableAmount(op.count)
+            );
+        case "mill":
+            // A bound mill feeds a later Op this reading does not price.
+            return (
+                isStepPlayerRef(op.player) &&
+                isStepGroundableAmount(op.count) &&
+                op.bind === undefined &&
+                op.bindAll === undefined
             );
         case "gainLife":
         case "loseLife":
