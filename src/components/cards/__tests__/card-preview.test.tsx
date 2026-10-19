@@ -210,6 +210,29 @@ describe("CardPreview — Arena click model (#332)", () => {
         expect(dock()).toBeNull();
     });
 
+    it("a board re-render with a NEW context value inside the grace does not strand the dock open (issue #5587)", () => {
+        const tree = (ctx: typeof GAME_CTX) => (
+            <GameContext value={ctx}>
+                <CardPreview cardId="bolt" cardName="Lightning Bolt">
+                    <div>face</div>
+                </CardPreview>
+            </GameContext>
+        );
+        const { container, rerender } = render(tree({ ...GAME_CTX }));
+        const root = container.firstElementChild as HTMLElement;
+
+        hoverEnter(root);
+        dwellPast();
+        expect(dock()).toBeTruthy();
+
+        hoverLeave(root);
+        // Board re-render (fresh context identity) lands inside the grace.
+        rerender(tree({ ...GAME_CTX }));
+        expect(dock()).toBeTruthy();
+        gracePast();
+        expect(dock()).toBeNull();
+    });
+
     it("a pinned anchored preview supersedes hover (and the pin wins over an open dock)", () => {
         const { container } = renderOnBoard();
         const root = container.firstElementChild as HTMLElement;
