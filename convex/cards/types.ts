@@ -2139,6 +2139,33 @@ export interface ActivatedAbility {
      *  counters on it"). The signature accepts a structurally-typed state
      *  view to keep card defs decoupled from the engine state shape. */
     canActivate?: (source: PermanentView, state: TriggerStateView) => boolean;
+    /** CR 602.1b (issue #3685) — a printed "Activate only if …" restriction
+     *  carried as DATA: an `EffectPredicate` that must hold at activation time
+     *  for the ability to be activated. Threshold's "Activate only if there
+     *  are seven or more cards in your graveyard" is
+     *  `{ left: { count: { zone: "graveyard", controller: "controller" } }, op: "ge", right: 7 }`.
+     *
+     *  THE DEFAULT for a restriction the predicate grammar expresses;
+     *  `canActivate` is for the restrictions it cannot. A closure is opaque to
+     *  every consumer that cannot call it — the Oracle compiler's gold
+     *  comparison reads it as `incomparable`, and the client affordability
+     *  sweep (`activation-affordability.catalogue.test.ts`) skips it — the
+     *  reason `requiresAttackedThisTurn` and `classLevelBar` are declarative
+     *  too. Both may sit on one ability; both must hold.
+     *
+     *  Evaluated with NO `SpellContext` (nothing is announced or bound yet), so
+     *  only the activation-time subset of the grammar is accepted, and
+     *  `validateAbilityEffectScript` rejects the rest at authoring time:
+     *  `activationConditionErrors` (`convex/gre/activationPrecondition.ts`)
+     *  states that subset, `activationConditionHolds` evaluates it.
+     *
+     *  ONE evaluator, every consumer: `activationPreconditionViolation` is read
+     *  by the activation mutations (`gre/activation.ts`, `game.ts`), the Bot
+     *  (`enumerateAbilityMoves`, `hasFlexibleActivation`) and the client
+     *  affordance (`getStackAbilities` and its graveyard / opponent-permanent
+     *  siblings in `src/lib/card-utils.ts`). Not accepted on a mana ability
+     *  (`useStack: false`): the mana-tap sites read `canActivate` only. */
+    activationCondition?: EffectPredicate;
     /** Restrict activation to the controller's own turn (CR 602.5b — "activate
      *  only during your turn"). Distinct from `activationPhaseRestriction`
      *  which is phase-keyed and turn-independent. Used by Instill Energy's

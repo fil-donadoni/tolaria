@@ -32,11 +32,14 @@ export const barbarianRing = defineCard(() => ({
             cost: { mana: { R: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            canActivate: (_source, state) => {
-                const graveyard = state.players.find(
-                    (p) => p.id === _source.controllerId
-                )?.graveyard;
-                return (graveyard?.length ?? 0) >= 7;
+            // CR 602.1b — "Activate only if …" is an activation instruction;
+            // "your graveyard" is the source's controller's (CR 109.5).
+            activationCondition: {
+                left: {
+                    count: { zone: "graveyard", controller: "controller" },
+                },
+                op: "ge",
+                right: 7,
             },
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
@@ -52,8 +55,8 @@ export const barbarianRing = defineCard(() => ({
 //
 // Threshold is an ABILITY WORD (CR 207.2c) — italic flavour with no rules
 // meaning of its own, so it is not a `staticAbilities[]` keyword and earns no
-// Mechanics Registry row; the whole clause lives in `canActivate`, which is
-// where "Activate only if …" (CR 602.1b) belongs.
+// Mechanics Registry row; the whole clause lives in `activationCondition`,
+// the data form of "Activate only if …" (CR 602.1b, issue #3685).
 //
 // The draw-then-discard pair is Dack Fayden's shape (`sets/cns/multicolor.cards.ts`):
 // CR 701.9b makes the DISCARDING player choose which cards go, so the discard
@@ -90,12 +93,14 @@ export const cephalidColiseum = defineCard(() => ({
             // "target player" names any player, the controller included.
             targetRequirement: { type: "player", count: 1 },
             // CR 602.1b — activation instructions may restrict WHEN a player
-            // can activate; "your graveyard" is the ACTIVATING player's (CR 109.5).
-            canActivate: (source, state) => {
-                const graveyard = state.players.find(
-                    (p) => p.id === source.controllerId
-                )?.graveyard;
-                return (graveyard?.length ?? 0) >= 7;
+            // can activate; "your graveyard" is the source's controller's
+            // (CR 109.5).
+            activationCondition: {
+                left: {
+                    count: { zone: "graveyard", controller: "controller" },
+                },
+                op: "ge",
+                right: 7,
             },
             effects: [
                 { op: "draw", player: { target: 0 }, count: 3 },

@@ -37,6 +37,7 @@ import {
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
+import { activationConditionErrors } from "../activationPrecondition";
 import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
 import {
     isReservedTargetBinding,
@@ -9037,6 +9038,14 @@ export type AbilityEffectScriptHost = {
      *  own scripts are validated as separate synthetic sites
      *  (`cards/__tests__/effectSites.helper.ts`). */
     modes?: unknown;
+    /** CR 602.1b (issue #3685) — an ACTIVATED ability's declarative
+     *  "Activate only if …" restriction. Validated against the activation-time
+     *  subset `activationConditionErrors` states. */
+    activationCondition?: unknown;
+    /** Read only by the `activationCondition` gate: a mana ability
+     *  (`useStack: false`) may not carry one — the mana-tap sites read
+     *  `canActivate` only. */
+    useStack?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -9078,6 +9087,22 @@ export function validateAbilityEffectScript(
                     `${label}: declares both modes[] and ${field} — a modal ability's body lives on its modes`
                 );
             }
+        }
+    }
+
+    // CR 602.1b (issue #3685) — checked BEFORE the `effects === undefined`
+    // early return: the restriction gates activation, whatever authoring mode
+    // the ability's body uses.
+    if (ability.activationCondition !== undefined) {
+        for (const e of activationConditionErrors(
+            ability.activationCondition
+        )) {
+            errors.push(`${label}: ${e}`);
+        }
+        if (ability.useStack === false) {
+            errors.push(
+                `${label}: declares activationCondition on a mana ability (useStack: false) — the mana-tap sites read canActivate only, so the restriction would be silently ignored there`
+            );
         }
     }
 

@@ -33,6 +33,7 @@ import type {
     AlternativeCost,
     CardDefinition,
     EffectCardFilter,
+    EffectPredicate,
     EmblemInstance,
     KickerCost,
     MayPayCost,
@@ -50,6 +51,7 @@ import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
 import { findTriggeredAbility } from "@convex/gre/copy";
 import type { UnblockedAttackerScope } from "@convex/gre/combat";
 import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
+import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
 // CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
 // STATE-ONLY clauses from it; the timing clause stays a documented narrowing
 // (this view has no stack length / priority holder), with the server the gate.
@@ -2250,6 +2252,10 @@ export function getStackAbilities(
             source: PermanentView,
             state: TriggerStateView
         ) => boolean;
+        /** CR 602.1b (issue #3685) — the declarative "Activate only if …"
+         *  restriction, weighed with `canActivate` by the shared
+         *  `activationPreconditionViolation`. */
+        activationCondition?: EffectPredicate;
     }): boolean => {
         if (!a.useStack || !a.oracleText) return false;
         // CR 602.1 / 605.1a (issue #1124) — Abeyance's "can't activate abilities
@@ -2509,9 +2515,19 @@ export function getStackAbilities(
         // (Library of Alexandria, Pestilence) needs the populated view to judge
         // correctly (#436); server-side validation against the full GameState
         // is authoritative regardless.
-        if (a.canActivate !== undefined) {
-            const view: TriggerStateView = stateView ?? { players: [] };
-            if (!a.canActivate(card as PermanentView, view)) return false;
+        //
+        // `activationPreconditionViolation` is the engine's ONE authority for
+        // both the `activationCondition` data form (issue #3685) and the
+        // `canActivate` closure — the predicate the server gate and the Bot
+        // read (ADR 0074: shared pure module, no client authority).
+        if (
+            activationPreconditionViolation(
+                stateView ?? { players: [] },
+                card as PermanentView,
+                a
+            ) !== null
+        ) {
+            return false;
         }
         // CR 602.2b — a targeting ability with NO legal target can't be
         // activated, so offering it is offering a move the server will reject
@@ -2637,9 +2653,16 @@ export function getGraveyardStackAbilities(
                     return false;
                 }
             }
-            if (a.canActivate) {
-                if (!a.canActivate(card as unknown as PermanentView, stateView))
-                    return false;
+            // CR 602.1b — the shared precondition authority (data condition
+            // and closure alike), see `getStackAbilities`.
+            if (
+                activationPreconditionViolation(
+                    stateView,
+                    card as unknown as PermanentView,
+                    a
+                ) !== null
+            ) {
+                return false;
             }
             return true;
         })
@@ -2727,9 +2750,16 @@ export function getHandStackAbilities(
                     return false;
                 }
             }
-            if (a.canActivate) {
-                if (!a.canActivate(card as unknown as PermanentView, stateView))
-                    return false;
+            // CR 602.1b — the shared precondition authority (data condition
+            // and closure alike), see `getStackAbilities`.
+            if (
+                activationPreconditionViolation(
+                    stateView,
+                    card as unknown as PermanentView,
+                    a
+                ) !== null
+            ) {
+                return false;
             }
             return true;
         })
