@@ -390,7 +390,13 @@ export function readLaneVerdict(
     }
     const reason = log
         .split("\n")
-        .filter((l) => l.startsWith("check:lane: "))
+        .filter(
+            (l) =>
+                l.startsWith("check:lane: ") &&
+                // `--retry-flaky`'s progress lines share the prefix; they
+                // name a re-run, never why the lane stopped.
+                !/^check:lane: (flaky — |.* — re-running )/.test(l)
+        )
         .at(-1)
         ?.slice("check:lane: ".length)
         .trim();

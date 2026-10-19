@@ -475,6 +475,17 @@ describe("readLaneVerdict — a refusal is reported, never a parse error (issue 
         });
     });
 
+    it("never reports a --retry-flaky progress line as the refusal", () => {
+        const log = [
+            moved,
+            "check:lane: app failed (assertion) — re-running 1 file(s) once (issue #5640)",
+            "check:lane: flaky — green on the re-run: a.test.ts",
+        ].join("\n");
+        expect(readLaneVerdict("", log)).toEqual({
+            refused: moved.slice("check:lane: ".length),
+        });
+    });
+
     it("a truncated blob is no verdict either", () => {
         expect(readLaneVerdict('{"ok":fa', moved)).toHaveProperty("refused");
     });
