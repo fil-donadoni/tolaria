@@ -9,6 +9,7 @@ import {
 } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const abrade = getDefinition("84319dfb-eaf7-4b98-8c4f-30f5e779591b");
 
@@ -42,6 +43,7 @@ describe("Abrade (CR 700.2 modal — damage a creature or destroy an artifact)",
             targets: [{ type: "permanent", id: "creature-1" }],
         });
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // 2 toughness, 3 damage marked → SBA destroys it (CR 704.5g).
         expect(
             state.players[1].battlefield.some((c) => c.id === "creature-1")

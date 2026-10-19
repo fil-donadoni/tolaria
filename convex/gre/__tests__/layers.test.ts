@@ -33,6 +33,7 @@ import {
     bogWraith,
 } from "../../cards/sets/lea/index.cards";
 import { opalescence } from "../../cards/sets/uds/index.cards";
+import { checkStateBasedActions } from "../sba";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -365,6 +366,7 @@ describe("Castle + damage", () => {
         state.stack.push(makeBoltOnStack("elf"));
 
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         expect(
             getPlayer(state, "p1").battlefield.find((c) => c.id === "elf")

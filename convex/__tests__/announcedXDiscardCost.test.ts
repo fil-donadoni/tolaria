@@ -50,6 +50,7 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { checkStateBasedActions } from "../gre/sba";
 
 type AnnounceCastArgs = {
     gameId: Id<"games">;
@@ -257,6 +258,7 @@ describe("Sickening Dreams — the announced X is what resolves (CR 120.3a / 608
         const harness = await announce(board(2), 2);
         const state = harness.state();
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // 2 damage to a 2/2 is lethal — SBAs bin the Bears (CR 704.5g).
         expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
         // …and to EACH player, the caster included.

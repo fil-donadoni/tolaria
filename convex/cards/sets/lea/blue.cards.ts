@@ -295,8 +295,11 @@ export const creatureBond = defineCard(() => ({
             oracleText:
                 "When enchanted creature dies, Creature Bond deals damage equal to that creature's toughness to the creature's controller.",
             scope: "any",
+            // CR 603.10a — the attachment as it was when the host died: the
+            // Aura SBA (CR 704.5m) may already have binned this Aura in the
+            // same sweep, clearing `attachedTo` (issue #5784).
             condition: (event, self) =>
-                event.creatureInstanceId === self.attachedTo,
+                event.attachmentsBeforeLeave?.includes(self.id) ?? false,
             resolve: (ctx, _event, dead) => {
                 ctx.dealDamage(
                     { type: "player", id: dead.controllerId },

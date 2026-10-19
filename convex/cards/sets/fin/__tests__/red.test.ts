@@ -9,6 +9,7 @@ import {
 } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const suplex = getDefinition("f61693a2-7042-44e0-85ba-9bf12ab94e7e");
 
@@ -42,6 +43,7 @@ describe("Suplex (CR 700.2 modal — damage-then-exile a creature or exile an ar
             targets: [{ type: "permanent", id: "creature-1" }],
         });
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(
             state.players[1].battlefield.some((c) => c.id === "creature-1")
         ).toBe(false);

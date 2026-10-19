@@ -1883,6 +1883,12 @@ export function policyProbeState(
     ) {
         announcedDepth = probe.stack.length - 1;
         resolveTopOfStack(probe);
+        // CR 704.3 (issue #5784) — a completed resolution is followed by the
+        // SBA check before anyone gets priority; lethal damage (CR 704.5g)
+        // only dies there, so a probe scored without it reads a Bolted
+        // creature as alive. A suspended resolution is no priority window.
+        if ((probe.pendingChoices?.length ?? 0) === 0 && !probe.pendingTarget)
+            checkStateBasedActions(probe);
     }
     // Issue #3293 — a SUSPENDED resolution is not a ply boundary, and scoring
     // one is how the policy learns to want a body that is already dead.

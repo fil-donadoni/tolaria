@@ -693,6 +693,7 @@ import { giantGrowth } from "../../cards/sets/lea/index.cards";
 import { ancestralRecall } from "../../cards/sets/lea/index.cards";
 import { drawCard } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { checkStateBasedActions } from "../sba";
 
 describe("spell resolution: Lightning Bolt", () => {
     function makeBoltOnStack(
@@ -741,6 +742,7 @@ describe("spell resolution: Lightning Bolt", () => {
         state.stack.push(bolt);
 
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         expect(getPlayer(state, "p2").battlefield).toHaveLength(0);
         expect(getPlayer(state, "p2").graveyard).toHaveLength(1);
@@ -873,6 +875,7 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
         );
         state.stack.push(bolt);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         // Elf dies: 3 damage >= 1 toughness
         expect(getPlayer(state, "p1").battlefield).toHaveLength(0);

@@ -38,6 +38,7 @@ import {
 } from "../state";
 import { applyAllCombatDamage, finalizeCleanup } from "../phases";
 import { compactState, expandState } from "../serialize";
+import { checkStateBasedActions } from "../sba";
 
 /** p1 holds `mine`, p2 holds `theirs`; both are 6/4 Craw Wurms so a lethal
  *  scan never fires mid-test and the marked damage stays readable. */
@@ -158,6 +159,7 @@ describe("CR 615.1a — prevent all damage dealt to creatures a player controls"
         const state = twoBoards();
         castDivineLight(state, "p1");
         resolveFight(state, "mine", "theirs");
+        checkStateBasedActions(state);
         // Craw Wurm is 6/4 both ways: unshielded, BOTH die. p1's shield keeps
         // its own Wurm undamaged and alive while the opponent's still dies.
         expect(permanentOf(state, "mine")?.damageMarked).toBeUndefined();
@@ -431,6 +433,7 @@ describe("CR 614.9 — the next N damage dealt to one recipient is dealt to anot
             { type: "player", id: "p2" }
         );
         resolveFight(state, "theirs", "mine");
+        checkStateBasedActions(state);
         // Craw Wurm is 6/4. Of the 6 aimed at "mine", 2 go to p2 and 4 stay —
         // still lethal, so the fight destroys it rather than leaving it for
         // the SBA pass; "theirs" takes its own 6 and dies with it.

@@ -41,6 +41,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const activeVolcano = getDefinition("ad402e65-6fac-4005-a2d4-592983df0c30");
 const aerathiBerserker = getDefinition("06673800-22a7-4ee3-92fa-7c7cd4865d30");
@@ -1053,6 +1054,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         ]);
 
         expect(() => resolveTopOfStack(state)).not.toThrow();
+        checkStateBasedActions(state);
 
         // The creature died to the damage.
         expect(

@@ -91,6 +91,7 @@ import {
     type ScenarioSpec,
 } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup.helper";
+import { checkStateBasedActions } from "../sba";
 
 /** A live position at DECLARE_BLOCKERS with the attack declared and confirmed
  *  and one blocker locked in (CR 508.1 / 509.1) — the class of board
@@ -2553,6 +2554,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
             { type: "permanent", id: bear.id },
         ]);
         resolveTopOfStack(built);
+        checkStateBasedActions(built);
         // 13 + 4 life, and the 2-toughness bear took 4 and died to SBAs.
         expect(built.players[0].life).toBe(17);
         expect(
@@ -4629,6 +4631,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
             (c) => (c.card as { id?: string }).id === grizzlyBears().id
         )!;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(p1.battlefield.some((c) => c.id === bears.id)).toBe(false);
         expect(
             p1.graveyard.some(

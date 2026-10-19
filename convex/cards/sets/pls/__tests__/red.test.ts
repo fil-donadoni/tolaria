@@ -48,6 +48,7 @@ import { additionalCostPaidCondition } from "../../../abilities/triggers/shared"
 import { getEffectiveColors } from "../../../effectiveColors";
 import type { PermanentView } from "../../../types";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const calderaKavu = getDefinition("fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b");
 const insolence = getDefinition("d8009a37-f966-4a71-9a2a-469127758dc6");
@@ -334,6 +335,7 @@ describe("Tahngarth, Talruum Hero — mutual power-for-power damage (CR 701.14, 
         resolveActivated(state, tahngarth, "tahngarth-fight", [
             { type: "permanent", id: "target" },
         ]);
+        checkStateBasedActions(state);
         // The 2/2 took 4 damage — lethal, destroyed.
         expect(
             state.players[1].battlefield.some((c) => c.id === "target")

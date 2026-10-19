@@ -7,6 +7,7 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 import { makeInstance, makeState } from "../../../__tests__/setup.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const GLORYBRINGER = "3277ad99-5682-4baa-b106-de15721876a6";
 /** Grizzly Bears — 2/2 vanilla, the non-Dragon victim. */
@@ -73,6 +74,7 @@ describe("Glorybringer (CR 701.43d — exert as an optional attack cost)", () =>
         });
 
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain(
             victim.id
