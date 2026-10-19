@@ -817,8 +817,9 @@ const FILLER_ENCHANTMENT = "Castle";
  *  Castle's +0/+2 is a buff the sweep itself removes, so under CR 704.5g a
  *  Castle-propped blocker that took damage dies when the sweep resolves after
  *  combat — casting after an attack into the walls tied casting now in the
- *  rollouts, and the root took `pass` (18/40 seat-seeds played; with this
- *  filler 38/40). Its trigger counters an ENCHANTMENT spell, so it is posed
+ *  rollouts, and the root took `pass` (Tranquility, 20 ad-hoc search seeds
+ *  x 2 seats at this budget's iterations: 18/40 played; with this filler
+ *  38/40). Its trigger counters an ENCHANTMENT spell, so it is posed
  *  only when the card itself is not one: nothing else in the position is. */
 const FILLER_INERT_ENCHANTMENT = "Presence of the Master";
 /** A vanilla 1/1 — a body that dies to ANY toughness shrink, the surplus a

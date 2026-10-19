@@ -677,10 +677,11 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     // Issue #6030 — the verdict above reads `played` if ANY seed at ANY seat
     // chose the card, so it held for Tranquility by noise alone once the CR
     // 704.5g SBA made a Castle-propped blocker die to the sweep after combat
-    // (seed 0xb07 passed at both seats). Each seed on its own, at both seats,
-    // is the claim the pose makes: posed against an enchantment whose loss
-    // reaches no creature, casting now strictly beats attacking first.
-    it("an enchantment sweep is played on every seed at both seats, with no Castle in its position", () => {
+    // (seed 0xb07 passed at both seats). Each BUDGET seed on its own, at both
+    // seats, is the claim the pose makes: posed against an enchantment whose
+    // loss reaches no creature, casting now beats attacking first. Not every
+    // seed: over 20 ad-hoc seeds 2 of 40 seat-seeds still pass.
+    it("an enchantment sweep is played on each budget seed at both seats, with no Castle in its position", () => {
         const tranquility = getCardByName("Tranquility");
         expect(castleCount(tranquility, 0)).toBe(0);
         expect(castleCount(tranquility, 1)).toBe(0);
