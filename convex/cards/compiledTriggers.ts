@@ -123,7 +123,29 @@ export type CompiledTriggerCondition =
      * heads only: the record is a fact fixed as the spell was cast
      * (CR 601.2b), read off the permanent that spell became (CR 702.33f).
      */
-    | { readonly kind: "kicker-paid"; readonly kickerId: string };
+    | { readonly kind: "kicker-paid"; readonly kickerId: string }
+    /**
+     * CR 400.7d + CR 603.4 — "if you cast it any time a sorcery couldn't have
+     * been cast": the cast-time snapshot `castOffSorceryTiming` the spell
+     * stamped on the permanent it became (CR 307.1 / 117.1a), decided from the
+     * source alone. Entered heads only, for the reason `kicker-paid` gives.
+     */
+    | { readonly kind: "cast-off-sorcery-timing" };
+
+/**
+ * The predicate of a condition decided from the SOURCE permanent alone — a
+ * fact fixed as the spell that became it was cast (CR 400.7d) — or
+ * `undefined` for a condition that reads the board or the firing event.
+ */
+function selfDecidedGate(
+    condition: CompiledTriggerCondition
+): ((self: PermanentView) => boolean) | undefined {
+    if (condition.kind === "kicker-paid")
+        return additionalCostPaidCondition(condition.kickerId);
+    if (condition.kind === "cast-off-sorcery-timing")
+        return (self) => self.castOffSorceryTiming === true;
+    return undefined;
+}
 
 /** CR 205.2 — "to a creature": the damaged permanent's type. */
 const CREATURE_FILTER: PermanentFilter = { types: ["Creature"] };
@@ -268,10 +290,11 @@ function conditionHolds(
     self: PermanentView,
     state: TriggerStateView | undefined
 ): boolean {
-    // A kicker gate rides the factory's `conditionOnSelf` and never reaches
-    // here; answering it keeps the union exhaustive and the answer honest.
-    if (condition.kind === "kicker-paid")
-        return additionalCostPaidCondition(condition.kickerId)(self);
+    // A self-decided gate rides the factory's `conditionOnSelf` and never
+    // reaches here; answering it keeps the union exhaustive and the answer
+    // honest.
+    const onSelf = selfDecidedGate(condition);
+    if (onSelf !== undefined) return onSelf(self);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
@@ -344,22 +367,23 @@ export function resolveCompiledTrigger(
     // and a `basic-land-types` condition reads "that player" off it, so one
     // closure
     // serves every head without a per-factory copy that could drift.
-    // CR 702.33f — a per-kicker gate is decided from the permanent alone, so it
-    // rides the factory's `conditionOnSelf` (a DECIDED gate the bot's value
-    // model can evaluate) instead of an opaque `condition` closure.
-    const kickerId =
-        descriptor.condition?.kind === "kicker-paid"
-            ? descriptor.condition.kickerId
+    // CR 702.33f / CR 400.7d — a cast-time fact (a kicker paid, the timing
+    // used) is decided from the permanent alone, so it rides the factory's
+    // `conditionOnSelf` (a DECIDED gate the bot's value model can evaluate)
+    // instead of an opaque `condition` closure.
+    const onSelf =
+        descriptor.condition !== undefined
+            ? selfDecidedGate(descriptor.condition)
             : undefined;
     if (
-        kickerId !== undefined &&
+        onSelf !== undefined &&
         !(head.kind === "entered" && head.scope === "self")
     )
         throw new Error(
-            `compiled trigger ${descriptor.id}: a kicker-paid condition needs a head that fires when this permanent enters`
+            `compiled trigger ${descriptor.id}: a ${descriptor.condition!.kind} condition needs a head that fires when this permanent enters`
         );
     const gating =
-        descriptor.condition === undefined || kickerId !== undefined
+        descriptor.condition === undefined || onSelf !== undefined
             ? {}
             : (() => {
                   const condition = descriptor.condition;
@@ -385,9 +409,7 @@ export function resolveCompiledTrigger(
         case "entered":
             return enteredTrigger({
                 ...common,
-                ...(kickerId !== undefined
-                    ? { conditionOnSelf: additionalCostPaidCondition(kickerId) }
-                    : {}),
+                ...(onSelf !== undefined ? { conditionOnSelf: onSelf } : {}),
                 scope: head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });

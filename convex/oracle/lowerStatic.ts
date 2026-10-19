@@ -45,6 +45,7 @@ import {
     MATERIALISED_FILTER_FIELDS,
     type CompiledStaticEffect,
 } from "../cards/compiledStatics";
+import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { PERMANENT_TYPES } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type { CardDefinition, CardType, KickerCost } from "../cards/types";
@@ -92,6 +93,10 @@ export interface LoweredStatic {
     readonly asEntersDiscard?: { readonly filter: { readonly type: CardType } };
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
+    /** CR 702.8a — "You may cast this spell as though it had flash." */
+    readonly castAsThoughFlash?: true;
+    /** CR 603.7a — triggered abilities the clause arms, as descriptors. */
+    readonly triggeredAbilities?: readonly CompiledTriggeredAbility[];
     /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
     readonly damagePreventionCounterRemoval?: true;
     readonly entersWithCounters?: {
@@ -602,6 +607,14 @@ export function lowerStaticClause(
             };
         case "shuffle-from-anywhere":
             return { ok: true, lowered: { shuffleFromAnywhere: true } };
+        case "flash-cast-cleanup-sacrifice":
+            return {
+                ok: true,
+                lowered: {
+                    castAsThoughFlash: true,
+                    triggeredAbilities: [flashCastCleanupSacrifice(nextId)],
+                },
+            };
         case "damage-prevention-counter-removal":
             return {
                 ok: true,
@@ -617,6 +630,40 @@ export function lowerStaticClause(
             };
         }
     }
+}
+
+/**
+ * CR 603.7a + CR 400.7d — the price of the flash permission: when the
+ * permanent this spell became enters, if the spell was cast when a sorcery
+ * couldn't have been (the `castOffSorceryTiming` snapshot it carries), a
+ * delayed trigger sacrifices it at the beginning of the next cleanup step
+ * (CR 514.3a). Armed from an entered trigger because a permanent spell runs no
+ * script of its own as it resolves — the hand-written Necromancy's shape
+ * (`vis/black.cards.ts`). `$source` is captured now and re-bound when the
+ * delayed trigger fires; gone by then, the body skips (CR 608.2b). To
+ * sacrifice it is its controller's act (CR 701.21a): "the controller of the
+ * permanent it becomes" is the Op's default, so no player is named.
+ */
+function flashCastCleanupSacrifice(
+    nextId: (suffix: string) => string
+): CompiledTriggeredAbility {
+    return {
+        id: nextId("cleanup-sacrifice"),
+        oracleText:
+            "If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step.",
+        head: { kind: "entered", scope: "self" },
+        condition: { kind: "cast-off-sorcery-timing" },
+        effects: [
+            {
+                op: "delayedTrigger",
+                timing: "next-cleanup-step",
+                oracleText:
+                    "At the beginning of the next cleanup step, the controller of this permanent sacrifices it.",
+                capture: { $becomes: { ref: "$source" } },
+                effects: [{ op: "sacrifice", target: { ref: "$becomes" } }],
+            },
+        ],
+    };
 }
 
 /**
