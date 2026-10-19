@@ -6,7 +6,7 @@ import {
 } from "~/hooks/arrowHighlightContext";
 
 /** Holds the current arrow hover state (see {@link ArrowHighlightContext}):
- *  the hovered `seed` (written by the arrow overlay and by battlefield cards)
+ *  the hovered `seed` (written by battlefield cards and stack items)
  *  and the resolved highlighted `nodes` (written by the arrow overlay, read by
  *  cards). Wraps the spatial board so publisher and subscribers share one
  *  channel; state only flips on hover enter/leave. */
