@@ -30,6 +30,9 @@ import {
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
 import { isEachStepEngineScript } from "../opValuers";
+import { dslStandingAbilityScriptValue } from "../cardScriptValue";
+import { contextFreeGrounding } from "../grounding";
+import { PLACEHOLDER_CARD_ID } from "../../constants";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
 
@@ -94,14 +97,25 @@ function engineValue(state: GameState): number {
 }
 
 describe("a standing each-step mana engine reads the board (issue #5626)", () => {
-    it("the family is read by the Differential", () => {
-        for (const id of [VINEYARD, MAGUS]) {
-            const def = registeredDefinitions().find((d) => d.id === id)!;
-            const t = def.triggeredAbilities!.find(
-                (a) => a.phaseScope === "each"
-            )!;
-            expect(isEachStepEngineScript(t.effects!), def.name).toBe(true);
+    it("the family is read by the Differential, and every member fires in the first main phase", () => {
+        // The side reader prices the mana as spent off the hand in a main
+        // phase (`EachPlayerSide.manaUnits`): an engine adding mana in any
+        // other step would read casts it cannot make.
+        const family = new Set<string>();
+        for (const def of registeredDefinitions()) {
+            for (const t of def.triggeredAbilities ?? []) {
+                const script = t.effects ?? t.aiEffects;
+                if (t.phaseScope !== "each" || !script) continue;
+                if (!isEachStepEngineScript(script)) continue;
+                if (!script.some((op) => op.op === "addMana")) continue;
+                family.add(def.name);
+                expect(t.phaseStep, def.name).toBe("PRECOMBAT_MAIN");
+            }
         }
+        expect([...family].sort()).toEqual([
+            "Eladamri's Vineyard",
+            "Magus of the Vineyard",
+        ]);
     });
 
     it("Eladamri's Vineyard is worth what it lets the opponent cast, and the sign flips on the mirror", () => {
@@ -180,5 +194,53 @@ describe("a standing each-step mana engine reads the board (issue #5626)", () =>
         const hurts = faces("castable", "stuck");
         expect(hurts.handFace).toBeLessThan(0);
         expect(hurts.handFace).toBeCloseTo(hurts.boardFace, 6);
+    });
+
+    it("the card being valued is not its own stuck card: a landless hand holding only the Vineyard reads nothing spent", () => {
+        // Casting the Vineyard takes it out of the hand; read against itself
+        // ({G}, out of reach of no lands) it would be the card its own mana
+        // pays for.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cards("p1", VINEYARD, 1, "hand"),
+                    library: cards("p1", BEAR, 20, "library"),
+                }),
+                makePlayer("p2", { library: cards("p2", BEAR, 20, "library") }),
+            ],
+        });
+        const inHand = state.players[0].hand[0];
+        expect(
+            cardValue(state, inHand, handLatentLens(state, "p1", inHand))
+        ).toBeCloseTo(0, 9);
+    });
+
+    it("a hidden hand voids the reading: the engine reads nothing, never a guess", () => {
+        // A blind seat's hand is placeholders: no cost to read, so the side
+        // is unreadable and the Differential falls back (ADR 0151 §1).
+        const def = byName("Eladamri's Vineyard");
+        const read = (hidden: boolean) => {
+            const state = board(
+                { holds: "stuck", engine: { id: VINEYARD, where: "hand" } },
+                { holds: "castable" }
+            );
+            if (hidden) {
+                const opp = state.players[1];
+                opp.hand = opp.hand.map((c) => ({
+                    ...c,
+                    card: { ...c.card, id: PLACEHOLDER_CARD_ID },
+                }));
+            }
+            const anchor = state.players[0].hand.find(
+                (c) => String(c.card.id) === VINEYARD
+            )!;
+            return dslStandingAbilityScriptValue(
+                def,
+                contextFreeGrounding(),
+                handLatentLens(state, "p1", anchor)!
+            );
+        };
+        expect(read(false)).toBeGreaterThan(0);
+        expect(read(true)).toBeUndefined();
     });
 });

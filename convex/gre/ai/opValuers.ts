@@ -829,8 +829,8 @@ function sideDraw(
  *  amount may be a board count (`isStepGroundableAmount`), grounded per side.
  *  Issue #5626 — mana added to that player's pool, of the CR 106.4 default
  *  lifetime, priced off its hand (`EachPlayerSide.manaUnits`) as mana spent
- *  in its main phase: every shipped shape fires at the beginning of one
- *  (CR 505.1). */
+ *  in its first main phase, where every shipped shape fires (pinned by the
+ *  census in `eachStepMana.bot.test.ts`). */
 function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "addMana":

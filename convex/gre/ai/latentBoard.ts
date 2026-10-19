@@ -594,8 +594,14 @@ function boardSide(
 
 /** Issue #5626 — the units of `mana` (`EachPlayerSide.manaUnits`) one card
  *  of `player`'s hand spends on top of its whole mana base: for each card
- *  the base cannot pay for alone, the fewest units of the extra that let it;
- *  the largest such count over the hand. */
+ *  the base cannot pay for alone, the fewest units of the extra that let it
+ *  (any subset of them: one {G} of a {R}{G} pool is one unit); the largest
+ *  such count over the hand.
+ *
+ *  An under-read, by design (the safe direction): one card at a time — two
+ *  cards each castable alone but together only with the extra read 0; an
+ *  {X} cost is read at X = 0; the base is every source the player controls,
+ *  this turn's land drop not added and an untap lock not subtracted. */
 function spendableExtraMana(
     state: GameState,
     player: PlayerState,
@@ -615,12 +621,17 @@ function spendableExtraMana(
         if (c.id === valuedCardId) continue;
         const cost = getInstanceManaCost(c);
         if (canPayCost(base, cost, life)) continue;
-        for (let k = 1; k <= extra.length; k++) {
-            if (canPayCost([...base, ...extra.slice(0, k)], cost, life)) {
-                spent = Math.max(spent, k);
-                break;
+        let fewest = Infinity;
+        for (let mask = 1; mask < 1 << extra.length; mask++) {
+            const subset = extra.filter((_, i) => (mask >> i) & 1);
+            if (
+                subset.length < fewest &&
+                canPayCost([...base, ...subset], cost, life)
+            ) {
+                fewest = subset.length;
             }
         }
+        if (fewest !== Infinity) spent = Math.max(spent, fewest);
     }
     return spent;
 }
