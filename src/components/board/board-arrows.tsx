@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StackItem } from "~/types/game";
 import {
     buildCombatArrows,
     buildManualArrows,
     buildTargetArrows,
     emptyAnchorMap,
+    hitTestArrows,
     resolveArrowHighlight,
+    type AnchorPoint,
     type ManualArrowPair,
     type TargetArrow,
 } from "~/lib/target-arrow-geometry";
 import { useArrowAnchors } from "~/hooks/arrowAnchorContext";
-import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
+import {
+    useArrowHighlight,
+    type ArrowHoverSeed,
+} from "~/hooks/arrowHighlightContext";
 import { useDomAnchorPublisher } from "~/hooks/useDomAnchorPublisher";
 import type { Combat } from "~/types/game";
 
@@ -60,8 +65,11 @@ const DIM = 0.14;
  * placements for permanents, DOM rects for the discrete stack / player /
  * graveyard panels), so arrows stay glued to continuously-animating cards.
  *
- * Hover disambiguates crossing arrows: only the arrows are hoverable (a wide
- * invisible hit-stroke per path; the rest of every card stays clickable).
+ * Hover disambiguates crossing arrows. The whole layer is `pointer-events:
+ * none` — an arrow is never a click target, so a left/right click or drag on a
+ * card it crosses reaches the card (issue #5853). Arrow hover is a passive
+ * proximity hit-test ({@link hitTestArrows}) run by a `pointermove` listener on
+ * the board root; within reach of an arrow it wins over the card-hover seed.
  * Hovering an arrow lights the WHOLE relationship at once — arrows AND the
  * cards / nameplates at their endpoints (published via
  * {@link useArrowHighlight} so the cards illuminate too) — and dims everything
@@ -104,10 +112,52 @@ export default function BoardArrows({
         [stack, combat, anchors, defenderId, extraArrows]
     );
 
-    // The hover seed (an arrow `key` or a card `nodeId`) is shared via the
-    // channel so battlefield cards can light their own cluster too; resolve it
-    // here, where the arrow set + geometry live.
-    const seed = channel?.seed ?? null;
+    // Passive arrow hover (issue #5853): the board root's pointer position is
+    // hit-tested against the arrow curves. The last pointer point is kept in a
+    // ref (not state) so moving the mouse re-renders only when the hovered
+    // arrow changes; the arrow set changing under a still pointer re-tests it,
+    // so a resolved stack item / ended combat never leaves a stuck seed.
+    const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+    const pointerRef = useRef<AnchorPoint | null>(null);
+    const arrowsRef = useRef(arrows);
+    useEffect(() => {
+        arrowsRef.current = arrows;
+        const p = pointerRef.current;
+        setHoveredKey(p ? hitTestArrows(arrows, p) : null);
+    }, [arrows]);
+    useEffect(() => {
+        const root = svgRef.current?.parentElement;
+        if (!root) return;
+        const onMove = (e: PointerEvent) => {
+            // Touch has no hover and no leave on lift: a drag would light an
+            // arrow and leave it lit.
+            if (e.pointerType === "touch") return;
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            pointerRef.current = p;
+            setHoveredKey(hitTestArrows(arrowsRef.current, p));
+        };
+        const onLeave = () => {
+            pointerRef.current = null;
+            setHoveredKey(null);
+        };
+        root.addEventListener("pointermove", onMove);
+        root.addEventListener("pointerleave", onLeave);
+        return () => {
+            root.removeEventListener("pointermove", onMove);
+            root.removeEventListener("pointerleave", onLeave);
+        };
+    }, []);
+
+    // The hover seed: a hovered arrow wins; otherwise the channel's seed (a
+    // card `nodeId`, shared so battlefield cards can light their own cluster
+    // too). Resolved here, where the arrow set + geometry live.
+    const channelSeed = channel?.seed ?? null;
+    const seed = useMemo<ArrowHoverSeed>(
+        () => (hoveredKey ? { key: hoveredKey } : channelSeed),
+        [hoveredKey, channelSeed]
+    );
     const highlight = useMemo(
         () => resolveArrowHighlight(arrows, seed),
         [arrows, seed]
@@ -119,8 +169,6 @@ export default function BoardArrows({
     useEffect(() => {
         publishNodes?.(highlight ? highlight.nodes : null);
     }, [publishNodes, highlight]);
-
-    const setSeed = channel?.setSeed;
 
     return (
         <svg
@@ -181,17 +229,6 @@ export default function BoardArrows({
                         style={{ transition: "opacity 140ms ease" }}
                         filter="url(#board-arrow-shadow)"
                     >
-                        {/* Wide invisible hit-stroke: only the line grabs hover;
-                            the rest of every card underneath stays clickable. */}
-                        <path
-                            d={arrow.path}
-                            fill="none"
-                            stroke="transparent"
-                            strokeWidth={18}
-                            className="pointer-events-auto cursor-pointer"
-                            onPointerEnter={() => setSeed?.({ key: arrow.key })}
-                            onPointerLeave={() => setSeed?.(null)}
-                        />
                         {/* Soft gold aura (no dark channel, no heavy glow). */}
                         <path
                             d={arrow.path}
