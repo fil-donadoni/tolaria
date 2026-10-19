@@ -411,23 +411,105 @@ export function resolveArrowHighlight(
 const ARROW_BOW_FRACTION = 0.18;
 
 /**
+ * Control point of the arrow's quadratic bezier: the chord midpoint, bowed
+ * perpendicular to the chord by {@link ARROW_BOW_FRACTION} × |chord|. `null`
+ * for a zero-length chord (drawn as a degenerate straight segment).
+ */
+function arrowControlPoint(
+    from: AnchorPoint,
+    to: AnchorPoint
+): AnchorPoint | null {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (len === 0) return null;
+    // Perpendicular unit vector (-dy, dx) / len, scaled by the bow distance.
+    const bow = len * ARROW_BOW_FRACTION;
+    return {
+        x: (from.x + to.x) / 2 + (-dy / len) * bow,
+        y: (from.y + to.y) / 2 + (dx / len) * bow,
+    };
+}
+
+/**
  * Quadratic-bezier path from `from` to `to`, bowed perpendicular to the chord
  * so overlapping arrows separate visually. Pure function of the two endpoints —
  * recomputed every time a placement changes, which is what keeps the arrow
  * glued to a continuously-animating card with no DOM sampling.
  */
 export function arrowPath(from: AnchorPoint, to: AnchorPoint): string {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const len = Math.hypot(dx, dy);
-    const mx = (from.x + to.x) / 2;
-    const my = (from.y + to.y) / 2;
-    if (len === 0) {
+    const c = arrowControlPoint(from, to);
+    if (!c) {
         return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
     }
-    // Perpendicular unit vector (-dy, dx) / len, scaled by the bow distance.
-    const bow = len * ARROW_BOW_FRACTION;
-    const cx = mx + (-dy / len) * bow;
-    const cy = my + (dx / len) * bow;
-    return `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`;
+    return `M ${from.x} ${from.y} Q ${c.x} ${c.y} ${to.x} ${to.y}`;
+}
+
+/** Hover radius around an arrow's stroke (px): half the width of the old
+ *  invisible hit-stroke, so hover reaches as far as it did (issue #5853). */
+export const ARROW_HOVER_RADIUS = 9;
+
+/** Segments the bezier is flattened into for the proximity test — enough that
+ *  the polyline stays within a fraction of a pixel of the curve at board
+ *  scale. */
+const ARROW_HIT_SEGMENTS = 24;
+
+function distanceToSegment(p: AnchorPoint, a: AnchorPoint, b: AnchorPoint) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t =
+        len2 === 0
+            ? 0
+            : Math.max(
+                  0,
+                  Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)
+              );
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/** Shortest distance from `p` to the arrow's drawn curve (same geometry as
+ *  {@link arrowPath}). */
+export function distanceToArrow(
+    arrow: Pick<TargetArrow, "from" | "to">,
+    p: AnchorPoint
+): number {
+    const { from, to } = arrow;
+    const c = arrowControlPoint(from, to);
+    if (!c) return Math.hypot(p.x - from.x, p.y - from.y);
+    let best = Infinity;
+    let prev = from;
+    for (let i = 1; i <= ARROW_HIT_SEGMENTS; i++) {
+        const t = i / ARROW_HIT_SEGMENTS;
+        const u = 1 - t;
+        const next = {
+            x: u * u * from.x + 2 * u * t * c.x + t * t * to.x,
+            y: u * u * from.y + 2 * u * t * c.y + t * t * to.y,
+        };
+        best = Math.min(best, distanceToSegment(p, prev, next));
+        prev = next;
+    }
+    return best;
+}
+
+/**
+ * Passive hover hit-test (issue #5853): the key of the arrow whose stroke is
+ * nearest `p`, if within `radius`; else `null`. Replaces the event-capturing
+ * hit-stroke, so arrows never swallow a click on the card beneath them.
+ */
+export function hitTestArrows(
+    arrows: readonly TargetArrow[],
+    p: AnchorPoint,
+    radius: number = ARROW_HOVER_RADIUS
+): string | null {
+    let hit: string | null = null;
+    let best = radius;
+    for (const arrow of arrows) {
+        const d = distanceToArrow(arrow, p);
+        if (d <= best) {
+            best = d;
+            hit = arrow.key;
+        }
+    }
+    return hit;
 }
