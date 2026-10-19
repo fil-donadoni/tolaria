@@ -197,6 +197,7 @@ import {
     admitUiMachine,
     gateLockRoot,
     heavyHolderLive,
+    stampUiLaneProgress,
     MachineSaturatedError,
     type UiMachineAdmission,
 } from "../lib/ui-admission.ts";
@@ -1577,21 +1578,26 @@ async function main(): Promise<number> {
                 });
                 const stopHeartbeat = startHeartbeat(
                     HEARTBEAT_MS,
-                    () =>
-                        log(
-                            heartbeatLine({
-                                nowMs: Date.now(),
-                                startedAtMs: startedAt,
-                                cellsDone,
-                                cellsTotal,
-                                open: VIEWPORT_IDS.filter(
-                                    (id) =>
-                                        !reported.has(id) && activity.has(id)
-                                ).map((id) => [id, activity.get(id)!] as const),
-                                load: loadAverage(),
-                                stallAfterMs: CELL_DEADLINE_MS / 2,
-                            })
-                        ),
+                    () => {
+                        const line = heartbeatLine({
+                            nowMs: Date.now(),
+                            startedAtMs: startedAt,
+                            cellsDone,
+                            cellsTotal,
+                            open: VIEWPORT_IDS.filter(
+                                (id) => !reported.has(id) && activity.has(id)
+                            ).map((id) => [id, activity.get(id)!] as const),
+                            load: loadAverage(),
+                            stallAfterMs: CELL_DEADLINE_MS / 2,
+                        });
+                        log(line);
+                        // What every session queued on the lane sees.
+                        stampUiLaneProgress(
+                            gateLockRoot(),
+                            process.pid,
+                            line.replace(/^ui-gate: /, "")
+                        );
+                    },
                     {
                         setInterval,
                         clearInterval: (handle) =>
