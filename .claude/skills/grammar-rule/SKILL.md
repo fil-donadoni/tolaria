@@ -220,17 +220,8 @@ baseline edit is a pure deletion — anything else needs a reason in the PR
 (the file's own SHRINK-ONLY header). `bun run oracle:triage` prints the class
 counts after.
 
-**A card the rule REGRESSED gets its marker written, never a baseline row**
-(the baseline cannot grow, issue #5942). A red listing a card `unparsed` with
-nothing said about it → `bun run oracle:mark-regressions` (issue #5988): it
-writes `// compiler-gap: <fragment> (#issue)` into the card's doc paragraph,
-the issue being the Grammar Gap the gap's key is filed under (its `grammar`
-claim row, else a Cluster Signature). Idempotent; `--dry-run` prints the plan.
-It refuses to invent: a `mismatch` (the rule mis-reads the card — fix the rule
-or the card), a gap with no filed issue, and a card without Oracle text are
-printed `NOT MARKED` and the run exits 1. Re-run Guard C after. Wired here, not
-as a `pr-fixup` row: a grammar change is the one diff that regresses a card,
-and this step is where its red is first read.
+A card the rule REGRESSED (`unparsed`, unmarked) → `regressions.md`:
+`bun run oracle:mark-regressions` writes its marker, never a baseline row.
 
 **Every graduate with an open Hand Tail claim closes it.** For each card the
 rule makes `ready`, look up its `claims` row of kind `hand-tail` in the Grammar
