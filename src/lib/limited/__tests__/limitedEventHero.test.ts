@@ -89,7 +89,7 @@ describe("limitedEventHero — CTA per phase and role", () => {
         Record<keyof typeof VIEWERS, [string, string]>
     > = {
         waiting: {
-            creator: ["start", "Start now · 2 bots fill in"],
+            creator: ["start", "Start now · 2 bots fill in"], // seated creator
             seated: ["waiting", "Waiting for the host to start"],
             visitor: ["join", "Join this event"],
         },
@@ -128,13 +128,20 @@ describe("limitedEventHero — CTA per phase and role", () => {
         }
     }
 
-    it("offers an unseated creator Join as the quieter second action", () => {
+    it("leads an unseated creator with Join, Start as the quieter second action (issue #5665)", () => {
         const hero = limitedEventHero(event("waiting"), {
             isCreator: true,
             seat: undefined,
         });
+        expect(hero.role).toBe("creator");
+        expect(hero.cta.kind).toBe("join");
+        expect(hero.secondary?.kind).toBe("start");
+    });
+
+    it("keeps Start primary, with no second action, for a seated creator", () => {
+        const hero = limitedEventHero(event("waiting"), VIEWERS.creator);
         expect(hero.cta.kind).toBe("start");
-        expect(hero.secondary?.kind).toBe("join");
+        expect(hero.secondary).toBeNull();
     });
 
     it("drops the bots from the Start label once the table is full", () => {
@@ -182,7 +189,7 @@ describe("limitedEventHero — CTA per phase and role", () => {
         );
     });
 
-    it("always yields exactly one CTA, with no second action outside the unseated-creator Start", () => {
+    it("always yields exactly one CTA, with no second action outside the unseated creator's Start", () => {
         for (const phase of LIMITED_EVENT_PHASES) {
             for (const viewer of Object.values(VIEWERS)) {
                 const hero = limitedEventHero(event(phase), viewer);
