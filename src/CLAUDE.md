@@ -42,6 +42,12 @@ components, copy, handlers, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all` (release walk) stays the full proof.
 
+**A new screen or overlay owes a measurement** (`ui-census.test.ts`, issue
+#3420): a surface's `entries`/`mounts` in `scripts/ui-gate/surfaces.ts` when a
+walk opens it; else a fixture-prop specimen on `/admin/design-system` (§ 17
+`sections-overlays.tsx`) + its `dlg-*` row (issue #6066); `EXEMPT` only if it
+paints no layout. Same PR as the component.
+
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
 runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
