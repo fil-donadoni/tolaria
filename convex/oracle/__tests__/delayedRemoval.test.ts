@@ -348,6 +348,51 @@ describe("delayed removal — refusals (fail-closed)", () => {
     });
 });
 
+// Constructed neighbours (no corpus card prints them): each puts a SECOND
+// candidate antecedent between the object and "it" / "that creature", and the
+// referent must be refused rather than bound to the older object (CR 608.2h).
+describe("delayed removal — refusals of an ambiguous referent (CR 608.2h)", () => {
+    const sorcery = (oracleText: string) =>
+        compileCard(
+            oracleCard({
+                typeLine: "Sorcery",
+                oracleText,
+                power: undefined,
+                toughness: undefined,
+            })
+        ).state;
+
+    it('a later multi-token creation makes "it" stale', () => {
+        expect(
+            sorcery(
+                "Create a 1/1 white Soldier creature token. Create two 2/2 green Wolf creature tokens. Sacrifice it at the beginning of the next end step."
+            )
+        ).toBe("unparsed");
+    });
+
+    it("control: the same creation without the intervening sentence compiles", () => {
+        expect(
+            sorcery(
+                "Create a 1/1 white Soldier creature token. Sacrifice it at the beginning of the next end step."
+            )
+        ).not.toBe("unparsed");
+    });
+
+    it('"that creature" on a head that names a creature of its own is refused', () => {
+        expect(
+            compileCard(
+                oracleCard({
+                    typeLine: "Enchantment",
+                    oracleText:
+                        "Whenever a creature you control attacks, create a 1/1 white Soldier creature token. That creature gets +1/+1 until end of turn.",
+                    power: undefined,
+                    toughness: undefined,
+                })
+            ).state
+        ).toBe("unparsed");
+    });
+});
+
 describe("cast-off-sorcery-timing — the compiled condition's gate (CR 400.7d)", () => {
     const ability = resolveCompiledTrigger(
         CLEANUP_SACRIFICE("parapet-cleanup-sacrifice") as never

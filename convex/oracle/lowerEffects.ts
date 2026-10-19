@@ -190,6 +190,13 @@ export interface SiteAntecedents {
      * nearer one. Absent = 0, the head's own creature.
      */
     readonly creatureAfterSlots?: number;
+    /**
+     * CR 608.2h — the head named an `object`, withheld from every sentence
+     * after the first (`lowerTriggered.ts`). Not a referent: a marker that a
+     * later "that creature" or "it" has the head's object as a second
+     * candidate, so binding it to an earlier sentence's object is a guess.
+     */
+    readonly headNamedObject?: true;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
@@ -1615,13 +1622,30 @@ export function lowerSentence(
         walk.actedOn === actedOn
     )
         walk.actedOn = null;
-    // The same for the object an earlier sentence put onto the battlefield.
+    // CR 608.2h — the object an earlier sentence put onto the battlefield is
+    // the nearest antecedent only until some OTHER sentence intervenes: one
+    // that creates several tokens, returns other cards, announces a target or
+    // sits behind a gate may each have introduced a nearer one. So the
+    // referent survives only the sentence that set it and the sentences that
+    // read it; every other sentence forgets it, and a later "it" is refused
+    // rather than bound to a guess.
     if (
-        walk.targets.requirements().length !== announced &&
-        walk.introduced === introduced
+        walk.introduced === introduced &&
+        (walk.targets.requirements().length !== announced ||
+            !readsIntroduced(sentence, introduced))
     )
         walk.introduced = null;
     return out;
+}
+
+/** The sentences that name `SentenceWalk.introduced` and so keep it alive. */
+function readsIntroduced(
+    sentence: EffectSentenceIR,
+    introduced: SentenceWalk["introduced"]
+): boolean {
+    if (introduced === null) return false;
+    if (sentence.kind === "delayed-removal") return true;
+    return introduced.creature && mentionsThatCreature(sentence);
 }
 
 /**
@@ -1645,6 +1669,14 @@ function introducedCreatureSite(
         !mentionsThatCreature(sentence)
     )
         return site;
+    // A head that names a creature or object of its own ("Whenever a creature
+    // you control attacks, create a token. That creature …") leaves two
+    // candidates. Refused rather than guessed: the site loses its creature,
+    // so the subject finds none.
+    if (headNamesAnObject(site)) {
+        const { creature: _headCreature, ...rest } = site.antecedents;
+        return { ...site, antecedents: rest };
+    }
     const bind = introduced.op.bind ?? walk.nextBind("that");
     introduced.op.bind = bind;
     return {
@@ -1655,6 +1687,17 @@ function introducedCreatureSite(
             creatureAfterSlots: introduced.slots,
         },
     };
+}
+
+/** CR 608.2h — the site's own text named a creature or object a later
+ *  pronoun may still mean, beside the one an earlier sentence introduced. */
+function headNamesAnObject(site: SiteOptions): boolean {
+    const named = site.antecedents;
+    return (
+        named?.creature !== undefined ||
+        named?.object !== undefined ||
+        named?.headNamedObject === true
+    );
 }
 
 /** True when a `that-creature` subject sits anywhere in the sentence's IR. */
@@ -3189,6 +3232,12 @@ function lowerSentenceBody(
                 return unlowerable(
                     '"it" follows an announced target, which is the nearer antecedent (CR 608.2h)'
                 );
+            // The site's own object (a head whose subject is the source, a
+            // per-creature combat head) is a second candidate: refused.
+            if (headNamesAnObject(site))
+                return unlowerable(
+                    '"it" may name the site\'s own object or the one an earlier sentence put onto the battlefield (CR 608.2h)'
+                );
             const bind = introduced.op.bind ?? walk.nextBind("that");
             introduced.op.bind = bind;
             const verb = sentence.verb === "exile" ? "Exile" : "Sacrifice";
@@ -3855,12 +3904,12 @@ function gatedSentence(
 ): Lowered<EffectOp[]> {
     const antecedent = walk.libraryLookedAt;
     const actedOn = walk.actedOn;
-    const introduced = walk.introduced;
     const inner = lowerSentence(sentence, walk, site);
     walk.libraryLookedAt = antecedent;
-    // An object put onto the battlefield behind the gate may not exist, so no
-    // later sentence names it.
-    walk.introduced = introduced;
+    // An object put onto the battlefield behind the gate may not exist, and
+    // one put there before it may no longer be the nearest antecedent: no
+    // later sentence names either.
+    walk.introduced = null;
     // A removal behind the gate may or may not have happened, and the restore
     // below forgets it: remember that the announced object's fate is unknown.
     if (walk.actedOn !== actedOn) walk.gatedRemoval = true;
