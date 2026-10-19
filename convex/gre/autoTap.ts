@@ -211,7 +211,7 @@ export function buildAutoTapSources(
 
         // Side-effect mana abilities stay manual (sacrifice, e.g. Black Lotus).
         if (ability?.cost.sacrifice === true) continue;
-        // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.1) —
+        // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.6) —
         // nor can an animated land whose mana is intrinsic (CR 305.6: a typed
         // dual under Kormus Bell has no printed ability, issue #5623).
         if (
