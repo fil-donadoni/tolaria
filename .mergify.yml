@@ -1,11 +1,12 @@
 # The merge queue (ADR 0156 §3 and §8, Amendment I; issue #5642) — SHADOW
-# phase: Mergify queues only a PR the owner labelled `queue:shadow`; the
-# land-runner skips those (`planTick`), so each PR has exactly one merger.
-# Cut-over drops the `queue:shadow` condition and retires the land-runner.
+# phase: Mergify queues only a PR labelled `queue:shadow`, which `land:ready`
+# adds whenever this queue would admit the PR (issue #5952); the land-runner
+# skips those (`planTick`), so each PR has exactly one merger. Cut-over drops
+# the `queue:shadow` condition and retires the land-runner.
 #
 # Mergify reads this file from the BASE branch: a PR cannot loosen the rules
 # it is judged by, and a PR touching `.github/` or this file never enters the
-# queue (the owner merges it by hand). The structure guard pins the shape:
+# queue (`land:ready` hands it to the land-runner). The structure guard pins the shape:
 # scripts/ci/workflow-structure.ts, rules `queue-entry`, `queue-merge`,
 # `queue-shape`, `queue-dequeue`. docs/guides/github-pipeline.md § The merge
 # queue.
@@ -37,8 +38,9 @@ queue_rules:
           - -files~=^\.github/
           - -files=.mergify.yml
       # The queue's draft (the PR rebased onto the tip) owes only the lane;
-      # the entry gates were proven on the PR itself, and Mergify's draft PRs
-      # carry no `trusted-author` of their own.
+      # the entry gates were proven on the PR itself. Mergify re-checks the
+      # entry conditions' checks on the draft while a PR is queued, so
+      # `pr-gate` posts both green on a draft (issue #5978).
       merge_conditions:
           - check-success=queue-lane
       # No batches: at a 15 % red rate a batch holds a bad PR more often than
@@ -63,3 +65,29 @@ pull_request_rules:
                   **merge queue: dequeued (`{{ queue_dequeue_reason }}`)** — labelled `land-failed`.
 
                   The failing check: [`queue-lane` runs on the queue's drafts](https://github.com/fil-donadoni/tolaria/actions/workflows/queue-lane.yml?query=branch%3Amergify%2Fmerge-queue) — the run on this PR's draft is the one linked from Mergify's dequeue comment above.
+    # `land`'s refusals cannot be queue conditions: Mergify judges those on
+    # the queue's draft, whose body is Mergify's, so the four that read the
+    # PR body would dequeue every PR (issue #5978). `land:ready` runs them
+    # before the hand-off (issue #5956); one red after it (a body edit, a
+    # push) is the same repair pick as a dequeue (issue #5960).
+    - name: a red land refusal on a queue PR is a repair pick
+      conditions:
+          - label=queue:shadow
+          - label=ready-to-land
+          - or:
+                - check-failure=ui-receipt
+                - check-failure=scenario
+                - check-failure=retired-rows
+                - check-failure=robustness-baseline
+                - check-failure=repair-proof
+      actions:
+          label:
+              add:
+                  - land-failed
+              remove:
+                  - ready-to-land
+          comment:
+              message: |
+                  **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
+
+                  The red check is one of `pr-check`'s refusal jobs (see the PR's checks). Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
