@@ -74,7 +74,15 @@ export default function CardPreviewDock({
                 onPointerEnter={onPointerEnter}
                 onPointerLeave={onPointerLeave}
             >
-                <CardPreviewBody {...props} />
+                {/* Capped by `max-h-full`: the body shrinks and scrolls
+                    instead of being clipped by `overflow-hidden` (issue
+                    #5664). */}
+                <div
+                    data-card-preview-scroll
+                    className="min-h-0 overflow-y-auto"
+                >
+                    <CardPreviewBody {...props} />
+                </div>
             </div>
         </div>,
         document.body
