@@ -48,6 +48,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { refreshGeneratedApi, refreshReceipt } from "./lib/generated-api";
+import { ensureGitConfig } from "./lib/git-config-keys";
 import { copyFromPrimary } from "./lib/worktree-copies";
 import { seedWorktreeCaches } from "./lib/worktree-seed";
 
@@ -169,6 +170,24 @@ if (!existsSync(join(cwd, ".husky", "_")) || force) {
     skipped.push(".husky/_ (present)");
 }
 
+function installMergeDriver(
+    name: string,
+    description: string,
+    command: string
+): void {
+    try {
+        const outcomes = [
+            ensureGitConfig(`merge.${name}.name`, description, { cwd }),
+            ensureGitConfig(`merge.${name}.driver`, command, { cwd }),
+        ];
+        if (outcomes.includes("written"))
+            done.push(`merge.${name} driver (git config)`);
+        else skipped.push(`merge.${name} driver (present)`);
+    } catch (err) {
+        failed.push(`git config merge.${name}.driver — ${String(err)}`);
+    }
+}
+
 // ── merge driver for regenerated artifacts (issue #3069) ────────────────────
 // `.gitattributes` marks the generated `data/` artifacts that carry whole-file
 // state with `merge=regenerated`; git resolves that name against LOCAL config,
@@ -177,7 +196,10 @@ if (!existsSync(join(cwd, ".husky", "_")) || force) {
 //
 // Written to the COMMON config on purpose (no `--worktree`): the object store
 // and `config` are shared by every linked worktree, so bootstrapping any one of
-// them arms all of them. Idempotent — `git config` overwrites the key.
+// them arms all of them. Shared, hence raced: jobs started together on one
+// machine bootstrap concurrently, so a key already holding its value is never
+// rewritten and a held `.git/config.lock` is retried (issue #5958,
+// `lib/git-config-keys.ts`).
 //
 // The name is hand-typed here rather than imported from
 // `scripts/lib/generated-artifacts.ts` because this script is node-builtins-only
@@ -186,19 +208,11 @@ if (!existsSync(join(cwd, ".husky", "_")) || force) {
 const MERGE_DRIVER_NAME = "regenerated";
 const MERGE_DRIVER_COMMAND =
     "bun scripts/merge-driver-regenerated.ts %O %A %B %P";
-try {
-    git(
-        "config",
-        `merge.${MERGE_DRIVER_NAME}.name`,
-        "regenerate generated data/ artifacts instead of merging them (issue #3069)"
-    );
-    git("config", `merge.${MERGE_DRIVER_NAME}.driver`, MERGE_DRIVER_COMMAND);
-    done.push(`merge.${MERGE_DRIVER_NAME} driver (git config)`);
-} catch (err) {
-    failed.push(
-        `git config merge.${MERGE_DRIVER_NAME}.driver — ${String(err)}`
-    );
-}
+installMergeDriver(
+    MERGE_DRIVER_NAME,
+    "regenerate generated data/ artifacts instead of merging them (issue #3069)",
+    MERGE_DRIVER_COMMAND
+);
 
 // ── merge driver for the CR citation ledger (issue #3768) ───────────────────
 // A SECOND, independent driver, for the same reason: `.gitattributes` names
@@ -213,23 +227,11 @@ try {
 const LEDGER_MERGE_DRIVER_NAME = "cr-ledger";
 const LEDGER_MERGE_DRIVER_COMMAND =
     "bun scripts/merge-driver-cr-ledger.ts %O %A %B %P";
-try {
-    git(
-        "config",
-        `merge.${LEDGER_MERGE_DRIVER_NAME}.name`,
-        "merge the CR citation ledger as a keyed set of facts (issue #3768)"
-    );
-    git(
-        "config",
-        `merge.${LEDGER_MERGE_DRIVER_NAME}.driver`,
-        LEDGER_MERGE_DRIVER_COMMAND
-    );
-    done.push(`merge.${LEDGER_MERGE_DRIVER_NAME} driver (git config)`);
-} catch (err) {
-    failed.push(
-        `git config merge.${LEDGER_MERGE_DRIVER_NAME}.driver — ${String(err)}`
-    );
-}
+installMergeDriver(
+    LEDGER_MERGE_DRIVER_NAME,
+    "merge the CR citation ledger as a keyed set of facts (issue #3768)",
+    LEDGER_MERGE_DRIVER_COMMAND
+);
 
 // ── receipt ─────────────────────────────────────────────────────────────────
 const label = primary ? `worktree of ${primary}` : "primary checkout";
