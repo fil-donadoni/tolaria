@@ -764,7 +764,7 @@ function stepSideOpValue(
         case "discardAtRandom":
             return stepSideRandomDiscard(op.count, side, ctx);
         case "mill":
-            return stepSideMill(op.count, side, ctx);
+            return stepSideMill(op.count, side);
         case "gainLife":
             return stepSideLife(op.amount, 1, side, ctx);
         case "loseLife":
@@ -877,11 +877,7 @@ function stepSideLife(
 /** Issue #5625 — the scoped player milling `count` cards, the count
  *  grounded on THAT player's board: the decking term it loses
  *  (`EachPlayerSide.millLoss`), signed by whose side it is. */
-function stepSideMill(
-    count: EffectValue,
-    side: EachPlayerSide,
-    ctx: GroundingContext
-): OpValue {
+function stepSideMill(count: EffectValue, side: EachPlayerSide): OpValue {
     const n = Math.max(0, side.groundCount(count, isStepPlayerRef) ?? 0);
     const loss = side.millLoss(n);
     return {
