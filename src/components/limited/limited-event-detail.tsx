@@ -31,6 +31,7 @@ import LimitedEventHeader from "./limited-event-header";
 import LimitedEventStepper from "./limited-event-stepper";
 import LimitedEventMenu from "./limited-event-menu";
 import LimitedEventHeroCard from "./limited-event-hero";
+import LimitedStartUnseatedDialog from "./limited-start-unseated-dialog";
 import LimitedEventDraftProgress from "./limited-event-draft-progress";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
@@ -82,6 +83,8 @@ export default function LimitedEventDetail({
     // delete-preset `GameDialog` confirmation).
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
+    // Starting without a Seat must be deliberate (issue #5665).
+    const [confirmStartUnseated, setConfirmStartUnseated] = useState(false);
     // Computed before the loading/deleted early returns because the auto-open
     // effect below must run on every render (hooks can't sit behind a return).
     const viewerSeat =
@@ -216,6 +219,14 @@ export default function LimitedEventDetail({
 
     const handleJoin = () => runMutation(() => join({ eventId }));
     const handleStart = () => runMutation(() => start({ eventId }));
+    const handleStartRequest = () => {
+        if (viewerSeat) void handleStart();
+        else setConfirmStartUnseated(true);
+    };
+    const handleConfirmStartUnseated = () => {
+        setConfirmStartUnseated(false);
+        void handleStart();
+    };
     // The confirm dialogs close themselves before firing — `runMutation`'s own
     // pending/error state (already the disable-while-in-flight source of
     // truth for every other action button here) drives the rest.
@@ -296,11 +307,13 @@ export default function LimitedEventDetail({
                         hero={hero}
                         pending={pending}
                         onJoin={handleJoin}
-                        onStart={handleStart}
+                        onStart={handleStartRequest}
                         hint={
-                            canStart
-                                ? "You can start the event at any time. The free seats will be managed by bots, both for draft and for gameplay"
-                                : undefined
+                            canStart && !viewerSeat
+                                ? "Join a seat first, then start — or start without playing. The free seats will be managed by bots, both for draft and for gameplay"
+                                : canStart
+                                  ? "You can start the event at any time. The free seats will be managed by bots, both for draft and for gameplay"
+                                  : undefined
                         }
                     />
                 )}
@@ -414,6 +427,13 @@ export default function LimitedEventDetail({
                     </PanelBody>
                 )}
             </div>
+
+            <LimitedStartUnseatedDialog
+                open={confirmStartUnseated}
+                onOpenChange={setConfirmStartUnseated}
+                onConfirm={handleConfirmStartUnseated}
+                pending={pending}
+            />
 
             <GameDialog
                 open={confirmLeave}

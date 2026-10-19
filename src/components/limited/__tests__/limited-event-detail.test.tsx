@@ -5,7 +5,13 @@
 // through the real `LimitedEventDetail` render, mirroring
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import {
+    render,
+    cleanup,
+    screen,
+    fireEvent,
+    waitFor,
+} from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -75,13 +81,14 @@ vi.mock("~/hooks/useUserDecks", () => ({
 }));
 
 const eventMock = vi.fn();
+const startMock = vi.fn();
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useLimitedEvent: () => eventMock(),
     usePackSources: () => [],
     useLimitedEventMutations: () => ({
         join: vi.fn(),
-        start: vi.fn(),
+        start: (...args: unknown[]) => startMock(...args),
     }),
 }));
 
@@ -194,6 +201,61 @@ describe("LimitedEventDetail — start hint follows the Start button", () => {
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
         expect(screen.queryByText(HINT)).toBe(null);
+    });
+});
+
+describe("LimitedEventDetail — unseated creator Start (issue #5665)", () => {
+    const unseated = () =>
+        makeEvent({
+            status: "open",
+            createdBy: "user-1",
+            seats: [],
+        });
+
+    it("shows the join-first hint and confirms before starting unseated", async () => {
+        eventMock.mockReturnValue(unseated());
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        expect(screen.getByText(/Join a seat first, then start/)).toBeTruthy();
+        fireEvent.click(
+            document.querySelector('[data-hero-secondary="start"]')!
+        );
+
+        expect(screen.getByText("Start without playing?")).toBeTruthy();
+        expect(startMock).not.toHaveBeenCalled();
+    });
+
+    it("cancel (Join first) does not start", () => {
+        eventMock.mockReturnValue(unseated());
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(
+            document.querySelector('[data-hero-secondary="start"]')!
+        );
+        fireEvent.click(screen.getByText("Join first"));
+
+        expect(startMock).not.toHaveBeenCalled();
+    });
+
+    it("confirm starts the event", async () => {
+        eventMock.mockReturnValue(unseated());
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(
+            document.querySelector('[data-hero-secondary="start"]')!
+        );
+        fireEvent.click(screen.getByText("Start without playing"));
+
+        await waitFor(() => expect(startMock).toHaveBeenCalledTimes(1));
+    });
+
+    it("a seated creator starts immediately, no dialog", async () => {
+        eventMock.mockReturnValue(
+            makeEvent({ status: "open", createdBy: "user-1" })
+        );
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(document.querySelector('[data-hero-cta="start"]')!);
+
+        await waitFor(() => expect(startMock).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText("Start without playing?")).toBe(null);
     });
 });
 
