@@ -955,6 +955,10 @@ async function main(): Promise<number> {
     // the outer `finally`'s read to `never`.
     let server = null as AppServer | null;
     let browser: Browser | null = null;
+    /** Set when the deployment watch aborted the walk (issue #6081): the
+     *  abandoned cells may hold the renderers, and the lane is released only
+     *  once the browser close returns. */
+    let deploymentAborted = false;
     const startedAt = Date.now();
     const uninstallSignals = installSignalTeardown(
         process,
@@ -1576,6 +1580,7 @@ async function main(): Promise<number> {
                         );
                         for (const line of open) log(line);
                         fleet.abandon("the deployment is down");
+                        deploymentAborted = true;
                         throw new DeploymentDownError(
                             `${err.message} — the run is aborted with no receipt; ` +
                                 `restart the backend (\`bun run convex:ensure\`) and re-run.`
@@ -1648,7 +1653,7 @@ async function main(): Promise<number> {
                     const closing = browser;
                     await withDeadline(
                         () => closing.close(),
-                        CELL_DEADLINE_MS,
+                        deploymentAborted ? 10_000 : CELL_DEADLINE_MS,
                         "closing the browser"
                     ).catch(() => {});
                 }
