@@ -1,7 +1,8 @@
 # Land and release
 
 **The whole delivery path, in order: a worktree off the [base branch](#g-base-branch),
-a PR handed to the land-runner, whose `land` pays the [lane gate](#g-lane-gate),
+a PR handed to its merger (the Mergify queue, or the land-runner for a PR the
+queue would refuse, issue #5952), which pays the [lane gate](#g-lane-gate),
 once — and, when a human decides, `release`.** Six commands. Everything else in the repository's workflow tooling serves one of
 them or is history.
 
@@ -11,7 +12,7 @@ cd "$(bun run --silent wt:new <N>)"   # 1. worktree off origin/<base>   (--fix f
 git add -A && git commit               # 3. commit
 git push -u origin feat/issue-<N>      # 4. no pre-PR gate (ADR 0136 §1)
 gh pr create                           # 5. base = the base branch (GitHub default), no --base
-bun run land:ready <PR#>               # 6. hand off: the land-runner rebases, gates, merges
+bun run land:ready <PR#>               # 6. hand off: the queue (or the land-runner) rebases, gates, merges
 ```
 
 Since issue #5469 a session never runs step 6's `land` itself (`deny-guard.sh`

@@ -9,6 +9,7 @@
 export const READY_LABEL = "ready-to-land";
 /** The label the runner puts on a PR whose `land` went red. */
 export const FAILED_LABEL = "land-failed";
-/** The shadow-phase label (issue #5642, ADR 0156 Phase 1): the owner moves
- *  a `ready-to-land` PR to the Mergify queue with it, and the runner skips it. */
+/** The shadow-phase label (issue #5642, ADR 0156 Phase 1): a `ready-to-land`
+ *  PR carrying it is the Mergify queue's, and the runner skips it.
+ *  `land:ready` adds it when the queue would admit the PR (issue #5952). */
 export const SHADOW_LABEL = "queue:shadow";

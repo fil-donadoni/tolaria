@@ -994,9 +994,10 @@ Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 
 `.mergify.yml` (ADR 0156 §3 and §8, Amendment I; issue #5642). Mergify reads
 it from the **base** branch, so a PR is judged by the rules already merged,
-never by its own. It is in [shadow](#g-shadow): it acts only on PRs the owner
-labels `queue:shadow`; every other `ready-to-land` PR still goes through the
-land-runner.
+never by its own. It is in [shadow](#g-shadow): it acts only on PRs labelled
+`queue:shadow`, and since issue #5952 `land:ready` adds that label to every PR
+the queue admits. The land-runner lands the rest: a PR touching `.github/` or
+`.mergify.yml`, and any PR handed back to it.
 
 | Rule                       | Value                                                                                                                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1015,13 +1016,27 @@ label is off (`dequeued_label: null`): any other dequeue — the PR updated, a
 conflict ([`pr-refresh`](#pr-refresh) handles those), a manual dequeue —
 leaves the PR queued again as soon as its conditions hold.
 
-**Moving a PR to shadow** — the owner, by label, on a PR already
-`ready-to-land`:
+**Who lands a PR** is decided at hand-off (issue #5952). `land:ready`
+computes the PR's [`trusted-author`](#g-trusted-author) verdict exactly as
+`pr-gate` posts it (`trustedAuthorStatus`: a trusted author, a file list
+that is not truncated, no path under `.github/` or `.mergify/` and no
+`.mergify.yml`, a rename counting both names). Green, it adds `queue:shadow`
+beside `ready-to-land` and the queue lands the PR. Otherwise it removes any
+`queue:shadow` and the land-runner lands it, so no PR is ever left with no
+merger. A PR the runner failed and that carries no `queue:shadow` stays the
+runner's on repair. The command's last line names the merger. It also makes
+sure GitHub links the PR as closing the issue its branch names (a bare
+`Closes #N`, appended when `closingIssuesReferences` lacks it), so the issue
+closes at merge whoever merges. The fallback, should the queue stall, is a
+label:
 
 ```bash
-gh pr edit <N> --add-label queue:shadow   # Mergify queues it
-gh pr edit <N> --remove-label queue:shadow   # back to the land-runner
+gh pr edit <N> --remove-label queue:shadow   # this PR back to the land-runner
+gh pr list --label queue:shadow --state open --limit 500 --json number \
+    --jq '.[].number' | xargs -I{} gh pr edit {} --remove-label queue:shadow
 ```
+
+To stop new hand-offs going to the queue, revert PR #5953.
 
 The land-runner never touches a `queue:shadow` PR — not to land it, not to
 unlabel it once Mergify merged it: its `gh pr list` excludes the label and
@@ -1029,7 +1044,10 @@ unlabel it once Mergify merged it: its `gh pr list` excludes the label and
 pinned by `scripts/__tests__/land-runner.test.ts`). So a PR has exactly one
 merger. What the land-runner does after a merge — closing the issue,
 releasing the claim, seeding the preset scenario — it does not do for a
-shadow PR; that moves with the cut-over.
+shadow PR: GitHub closes the issue through the closing ref `land:ready`
+ensured, and [`post-merge`](#post-merge) does the rest for every merge,
+whoever merged (`housekeeping` releases the claim, `seed` seeds the preset
+scenario).
 
 The [structure guard](#the-structure-guard) pins the entry, merge,
 parallel-check, batch and dequeue rows (`queue-entry`, `queue-merge`,
@@ -1275,7 +1293,7 @@ of its own sha.
 | a `sync` leg red: `could not fast-forward …`  | that machine's primary checkout diverged by the owner's own commits (the notice names them); `gaps:sync` strandings heal themselves. Pull it by hand                                  |
 | `housekeeping` red: `shared state … moved`    | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
 | `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
-| `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                                          |
+| `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml`: `land:ready` gave it to the land-runner; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                    |
 | `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
 | `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
 | an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
@@ -1389,9 +1407,10 @@ machine are not in it: set the budget with that headroom.
 
 ### <a id="g-shadow"></a>Shadow
 
-Phase 1 of the queue (ADR 0156 § Migration): Mergify lands only the PRs the
-owner labels `queue:shadow`, the land-runner the rest, so the two run side by
-side on real PRs before the cut-over drops the label.
+Phase 1 of the queue (ADR 0156 § Migration): Mergify lands only the PRs
+labelled `queue:shadow` (since issue #5952, every PR `land:ready` hands off
+whose `trusted-author` verdict is green) and the land-runner the rest, so the
+two run side by side on real PRs before the cut-over drops the label.
 
 ### <a id="g-trusted-authors"></a>`TRUSTED_AUTHORS`
 
