@@ -175,13 +175,22 @@ function scriptOf(step: string | undefined): string {
     return (step ?? "").split(/\s+/)[0];
 }
 
-/** Whether a `HEALTH_SCRIPTS` entry is the browser walk. */
+/** The scripts that drive a browser against the deployment: the walk, and
+ *  the per-game card-data download (issue #5618). Both speak `check:ui`'s
+ *  exit contract — 0 pass, 1 red, `WALK_FATAL_EXIT` / `DEPLOYMENT_DOWN_EXIT`
+ *  the run could not measure — and run off the heavy mutex, after it. */
+const BROWSER_STEP_SCRIPTS: ReadonlySet<string> = new Set([
+    "check:ui",
+    "check:game-download",
+]);
+
+/** Whether a `HEALTH_SCRIPTS` entry is a browser step of the walk phase. */
 export function isWalkStep(step: string | undefined): boolean {
-    return scriptOf(step) === "check:ui";
+    return BROWSER_STEP_SCRIPTS.has(scriptOf(step));
 }
 
 /** Why a FAILED step is not the tree's fault, or null when it is. The
- *  deployment-down code counts only on the `check:ui` step: another script
+ *  deployment-down code counts only on a browser step: another script
  *  exiting 3 says nothing about the backend. */
 export function infraCause(input: StepOutcome): InfraCause | null {
     if (input.ok) return null;

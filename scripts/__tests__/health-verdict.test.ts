@@ -177,6 +177,14 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
         ).toBe("convex-down");
     });
 
+    it("reads check:game-download on check:ui's exit contract (issue #5618)", () => {
+        expect(failed("check:game-download", DEPLOYMENT_DOWN_EXIT)).toBe(
+            "infra"
+        );
+        expect(failed("check:game-download", 2)).toBe("infra");
+        expect(failed("check:game-download", 1)).toBe("red");
+    });
+
     it("is RED for a genuine check:ui failure — a non-PASS verdict it cannot attribute, or a signal", () => {
         expect(failed("check:ui --all", 1)).toBe("red");
         expect(failed("check:ui --all", null)).toBe("red");

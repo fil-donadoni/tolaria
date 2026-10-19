@@ -91,6 +91,7 @@ beforeEach(async () => {
                 "check:convex-heap": ok,
                 test: ok,
                 "blade:robustness": ok,
+                "check:game-download": ok,
                 "check:ui": "bun fake-ui.ts",
             },
         })
