@@ -288,10 +288,7 @@ function main(): void {
         if (body !== null) gh(["pr", "edit", String(pr), "--body", body]);
     }
     const admission = queueAdmission(pr);
-    const shadow = handsToQueue({
-        trustedAuthor: admission.state,
-        labels: view.labels.map((l) => l.name),
-    });
+    const shadow = handsToQueue({ trustedAuthor: admission.state });
     gh(labelArgs.ready(pr, { shadow }));
 
     if (issue !== null) {
@@ -316,7 +313,7 @@ function main(): void {
     console.log(
         (shadow
             ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${SHADOW_LABEL}\` — the Mergify queue lands it`
-            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it (${admission.state === "success" ? "a PR the runner failed stays the runner's" : `the queue would refuse it: ${admission.description}`})`) +
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it (the queue would refuse it: ${admission.description})`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
