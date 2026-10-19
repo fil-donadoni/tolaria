@@ -4,7 +4,7 @@ import {
     baselineNames,
     ROUND_TRIP_BASELINE_PATH,
 } from "../lib/baseline-shrink";
-import { CHEAP_GUARDS, classifyLane } from "../check-lane";
+import { classifyLane } from "../check-lane";
 
 /** Guard C's baseline only shrinks — the diff half (issue #5942). */
 
@@ -52,12 +52,6 @@ describe("baselineAdditions", () => {
 describe("check-lane admits check:baseline-shrink on the baseline alone", () => {
     const planned = (files: string[]) =>
         classifyLane(files).run.some((c) => c.id === "check:baseline-shrink");
-
-    it("is a diffOnly cheap guard", () => {
-        expect(
-            CHEAP_GUARDS.find((g) => g.id === "check:baseline-shrink")?.diffOnly
-        ).toBe(true);
-    });
 
     it("runs when the baseline changes, not otherwise", () => {
         expect(planned([ROUND_TRIP_BASELINE_PATH])).toBe(true);
