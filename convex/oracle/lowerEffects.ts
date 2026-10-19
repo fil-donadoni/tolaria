@@ -1674,8 +1674,10 @@ function introducedCreatureSite(
     // candidates. Refused rather than guessed: the site loses its creature,
     // so the subject finds none.
     if (headNamesAnObject(site)) {
-        const { creature: _headCreature, ...rest } = site.antecedents;
-        return { ...site, antecedents: rest };
+        return {
+            ...site,
+            antecedents: { ...site.antecedents, creature: undefined },
+        };
     }
     const bind = introduced.op.bind ?? walk.nextBind("that");
     introduced.op.bind = bind;
