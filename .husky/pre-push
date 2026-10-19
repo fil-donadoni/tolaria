@@ -112,6 +112,12 @@ if [ -n "$pushes_default" ]; then
         printf '\033[32m✓ %s already verified green — skipping the full gate\033[0m\n' "$default_sha"
     else
         printf '\033[33m⏳ pushing %s — running the full gate (no other gate covers this route)\033[0m\n' "$default_branch"
+        # git exports these to every hook; the gate would inherit them, and a
+        # test's throwaway `git init` under an inherited GIT_DIR re-initialises
+        # THIS repository as bare (issue #6017). A gate run from this hook must
+        # behave exactly like one run from a shell. Same keys as
+        # scripts/lib/git-repo-env.ts.
+        unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
         if ! TOLARIA_ALLOW_FULL_SUITE=1 bun run check:all; then
             printf '\033[31m✗ check:all failed — not pushing to %s\033[0m\n' "$default_branch"
             exit 1
