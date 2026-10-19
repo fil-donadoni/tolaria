@@ -812,6 +812,16 @@ const FILLER_ARTIFACT = "Ornithopter";
  *  untapped creatures +0/+2, so it is not inert to a toughness shrink and the
  *  shrink pose leaves it out ({@link shrinksEveryCreature}). */
 const FILLER_ENCHANTMENT = "Castle";
+/** The global enchantment an ENCHANTMENT sweep is posed against instead
+ *  (issue #6030): one whose loss changes nothing but the permanent itself.
+ *  Castle's +0/+2 is a buff the sweep itself removes, so under CR 704.5g a
+ *  Castle-propped blocker that took damage dies when the sweep resolves after
+ *  combat — casting after an attack into the walls tied casting now in the
+ *  rollouts, and the root took `pass` (Tranquility, 20 ad-hoc search seeds
+ *  x 2 seats at this budget's iterations: 18/40 played; with this filler
+ *  38/40). Its trigger counters an ENCHANTMENT spell, so it is posed
+ *  only when the card itself is not one: nothing else in the position is. */
+const FILLER_INERT_ENCHANTMENT = "Presence of the Master";
 /** A vanilla 1/1 — a body that dies to ANY toughness shrink, the surplus a
  *  shrinking sweep is posed against. */
 const FILLER_SMALL_CREATURE = "Mons's Goblin Raiders";
@@ -823,6 +833,7 @@ const FILLER_TYPES: Readonly<Record<string, readonly SweepableType[]>> = {
     [FILLER_CREATURE]: ["Creature"],
     [FILLER_ARTIFACT]: ["Artifact", "Creature"],
     [FILLER_ENCHANTMENT]: ["Enchantment"],
+    [FILLER_INERT_ENCHANTMENT]: ["Enchantment"],
 };
 
 /** The opponent's declared attack a card is posed against in {@link AMBUSH_WINDOW}:
@@ -871,6 +882,11 @@ export function botReachSpec(
     const blocked =
         window === BLOCKED_ATTACK_WINDOW ? blockedAttackPose(def) : null;
     const edicted = edictedTypes(def);
+    const swept = sweptTypes(def);
+    const enchantment =
+        swept.has("Enchantment") && !def.types.includes("Enchantment")
+            ? FILLER_INERT_ENCHANTMENT
+            : FILLER_ENCHANTMENT;
     // A symmetric edict is posed where the holder has nothing of the edicted
     // type to give up: every filler of that type stays on the opponent's side
     // only, so the opponent sacrifices one and the holder gives up nothing
@@ -889,10 +905,10 @@ export function botReachSpec(
             !shrinks &&
             !target.omitToughnessBoost &&
             !blocked?.omitToughnessBoost &&
-            stands(FILLER_ENCHANTMENT)
+            stands(enchantment)
         )
             cards.push({
-                name: FILLER_ENCHANTMENT,
+                name: enchantment,
                 owner,
                 zone: "battlefield",
             });
@@ -917,11 +933,10 @@ export function botReachSpec(
             zone: "battlefield",
             count: SWEEP_SURPLUS,
         });
-    const swept = sweptTypes(def);
     const surplus: Record<Exclude<SweepableType, "Land">, string> = {
         Creature: FILLER_CREATURE,
         Artifact: FILLER_ARTIFACT,
-        Enchantment: FILLER_ENCHANTMENT,
+        Enchantment: enchantment,
     };
     if (swept.size > 0 && !swept.has("Creature")) {
         // What the sweep leaves standing is the holder's: a wipe of lands or
