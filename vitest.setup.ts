@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { scrubGitRepoEnv } from "./scripts/lib/git-repo-env";
+
+// Inherited git repository env (issue #6017) — same scrub, same reason as
+// `vitest.setup.node.ts`: no test reaches a repo through `GIT_DIR`.
+scrubGitRepoEnv();
 
 // base-ui renders overlays (Dialog, Popover, Tooltip, Select, …) through a
 // `data-base-ui-portal` root attached to `document.body`, OUTSIDE the React
