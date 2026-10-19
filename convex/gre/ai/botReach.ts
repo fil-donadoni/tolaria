@@ -1039,7 +1039,11 @@ export function botReachSpec(
         activePlayer: window === OPPONENT_END_STEP_WINDOW ? "opp" : "me",
         priority: "me",
         ...target.position,
-        ...(race ? { life: race.life } : {}),
+        ...(race
+            ? { life: race.life }
+            : target.life
+              ? { life: target.life }
+              : {}),
         ...(window === TRICK_WINDOW ? combatTrickPosition(def) : null),
         ...(window === AMBUSH_WINDOW ? ambushPosition(def) : null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),

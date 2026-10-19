@@ -45,6 +45,18 @@ const SAVED_ATTACKER = "Hill Giant";
 /** The opposing blocker that kills {@link SAVED_ATTACKER} and survives it
  *  (6/4 against 3/3). */
 const KILLING_BLOCKER = "Craw Wurm";
+const LETHAL_ATTACKER = KILLING_BLOCKER;
+const LETHAL_ATTACKER_POWER = 6;
+
+/** Is the spell's whole script a shield over the damage its first target
+ *  would deal? */
+function preventsTargetDamage(def: CardDefinition): boolean {
+    return (def.effects ?? []).some(
+        (op) =>
+            op.op === "preventDamage" &&
+            (op as { mode?: string }).mode === "all-from-source"
+    );
+}
 /** A land card is a legal thing to discard for any cost that does not name a
  *  type, and, unlike a creature, never competes with the spell for the mana
  *  the position gives the holder. */
@@ -506,6 +518,9 @@ export type TargetPose = {
         ScenarioSpec,
         "phase" | "activePlayer" | "priority" | "combat"
     >;
+    /** Starting life the pose pins (CR 119.1), when the spell's worth is a
+     *  life total it keeps from running out. */
+    readonly life?: NonNullable<ScenarioSpec["life"]>;
 };
 
 const NO_POSE: TargetPose = {
@@ -850,6 +865,24 @@ function requirementPose(
                     blockersConfirmed: true,
                 },
             },
+        };
+    }
+    if (roles.includes("attacking") && preventsTargetDamage(def)) {
+        // CR 615.1 — a shield over its attacking target's damage is worth the
+        // damage it stops: the attacker is the position's big body, the
+        // holder is at exactly its power, so letting it connect is lethal.
+        return {
+            cards: [
+                { name: LETHAL_ATTACKER, owner: "opp", zone: "battlefield" },
+            ],
+            omitToughnessBoost,
+            position: {
+                phase: "DECLARE_ATTACKERS",
+                activePlayer: "opp",
+                priority: "me",
+                combat: { attackers: [LETHAL_ATTACKER], confirmed: true },
+            },
+            life: { me: LETHAL_ATTACKER_POWER },
         };
     }
     if (roles.includes("attacking")) {
