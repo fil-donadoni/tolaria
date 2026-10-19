@@ -9,6 +9,8 @@
 //     usage-limit reset time has not passed, the token budget is spent, or
 //     three consecutive passes failed (the one hold that fails the run, once,
 //     so GitHub sends one email rather than one per sweep);
+//   * an AGED REPAIR notice — under a hold, a `land-failed` PR waiting past
+//     `afkDispatch.repairAgeHours` fails the run once too (issue #5957);
 //   * the CLAIM FACTS the picker (`lib/picker.ts`) judges claims by — which
 //     claims a live `afk-pass` run, an open PR in the queue or a session
 //     outside the pipeline still holds;
@@ -373,6 +375,112 @@ export function holdFor(input: HoldInput): Hold | null {
             message: `token budget spent: ${reading.pct.toFixed(1)}% of ${budget.budget} over ${budget.hours} h (ceiling ${budget.maxPct}%)`,
         };
     return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Aged repair picks (issue #5957)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The dispatcher's own `tolaria.config.json` block, read by this module
+ *  ONLY. */
+export interface AfkDispatchConfig {
+    /** Hours a repair pick (an open PR labelled `land-failed`) may wait under
+     *  a hold before the run fails once, for the email. */
+    repairAgeHours: number;
+}
+
+export const DEFAULT_REPAIR_AGE_HOURS = 4;
+
+export function parseAfkDispatchConfig(raw: unknown): AfkDispatchConfig {
+    const block = (raw as { afkDispatch?: Record<string, unknown> } | null)
+        ?.afkDispatch;
+    const h = block?.repairAgeHours;
+    return {
+        repairAgeHours:
+            typeof h === "number" && Number.isFinite(h) && h > 0
+                ? h
+                : DEFAULT_REPAIR_AGE_HOURS,
+    };
+}
+
+/** An open `land-failed` PR and when it was labelled so. */
+export interface RepairPick {
+    pr: number;
+    /** The newest `land-failed` label event; `null` when unreadable. */
+    failedAt: string | null;
+    /** The PR's creation — the age's floor when `failedAt` is unknown (it
+     *  over-states the wait: the email errs toward sent). */
+    createdAt: string;
+}
+
+export interface AgedRepair {
+    pr: number;
+    ageHours: number;
+    /** When this pick crossed the threshold. */
+    agedAtMs: number;
+}
+
+export interface AgedRepairNotice {
+    /** Repair picks past the threshold, oldest first. */
+    aged: AgedRepair[];
+    /** THIS run fails, so GitHub sends the one email for the condition. */
+    notify: boolean;
+}
+
+/**
+ * The aged-repair condition: while the dispatcher holds (the kill switch
+ * aside — the owner stopped it on purpose), at least one repair pick has
+ * waited longer than `repairAgeHours`. Nothing repairs it: the hold keeps
+ * every pass from starting, and a hold exits 0, so without this the work
+ * waits in silence (2026-10-18: six PRs, 3–20 h, under `no-pass-workflow`).
+ *
+ * Once per condition, the failure streak's rule: the condition holds since
+ * the earliest moment one of the CURRENT aged picks crossed the threshold;
+ * a dispatcher run that FAILED (completed) since then is the email. Once
+ * every aged pick is repaired the condition clears, and the next pick to age
+ * crosses after that failure — a new condition, a new email.
+ */
+export function agedRepairNotice(
+    hold: Hold | null,
+    repairs: readonly RepairPick[],
+    dispatchRuns: readonly WorkflowRun[],
+    config: AfkDispatchConfig,
+    nowMs: number
+): AgedRepairNotice {
+    if (hold === null || hold.kind === "disabled")
+        return { aged: [], notify: false };
+    const thresholdMs = config.repairAgeHours * 3_600_000;
+    const aged: AgedRepair[] = [];
+    for (const r of repairs) {
+        const since =
+            r.failedAt !== null && Number.isFinite(ms(r.failedAt))
+                ? ms(r.failedAt)
+                : ms(r.createdAt);
+        if (!Number.isFinite(since) || nowMs - since <= thresholdMs) continue;
+        aged.push({
+            pr: r.pr,
+            ageHours: (nowMs - since) / 3_600_000,
+            agedAtMs: since + thresholdMs,
+        });
+    }
+    aged.sort((a, b) => a.agedAtMs - b.agedAtMs);
+    if (aged.length === 0) return { aged, notify: false };
+    const reachedMs = aged[0].agedAtMs;
+    const notified = dispatchRuns.some(
+        (r) => r.conclusion === "failure" && ms(r.updatedAt) >= reachedMs
+    );
+    return { aged, notify: !notified };
+}
+
+/** One line per aged pick, for the job summary: PR, age, the hold. */
+export function agedRepairLines(
+    aged: readonly AgedRepair[],
+    hold: Hold
+): string[] {
+    return aged.map(
+        (a) =>
+            `PR #${a.pr} \`${FAILED_LABEL}\` for ${a.ageHours.toFixed(1)} h, unrepaired under hold \`${hold.kind}\``
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────

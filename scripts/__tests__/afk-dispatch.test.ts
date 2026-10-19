@@ -4,12 +4,15 @@ import { join } from "node:path";
 import { parse } from "yaml";
 import {
     ACK_MARKER,
+    agedRepairLines,
+    agedRepairNotice,
     budgetReading,
     claimFacts,
     failureStreak,
     holdFor,
     hostOfRunnerName,
     mayClaim,
+    parseAfkDispatchConfig,
     parsePassRecord,
     parseTrustedAuthors,
     passRunIssue,
@@ -17,6 +20,7 @@ import {
     planDispatch,
     usageLimitResetAt,
     type FailureStreak,
+    type Hold,
     type HoldInput,
     type PassRecord,
     type RunnerRow,
@@ -311,6 +315,121 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
             passRun(3, 3, { status: "in_progress", conclusion: null }),
         ];
         expect(failureStreak(runs, []).runs).toHaveLength(2);
+    });
+});
+
+describe("afk-dispatch aged repair picks (issue #5957)", () => {
+    const CONFIG = { repairAgeHours: 4 };
+    const HOLD: Hold = {
+        kind: "no-pass-workflow",
+        message: "afk-pass.yml is absent",
+    };
+    const hoursAgo = (h: number) => iso(h * 60);
+    const repair = (pr: number, failedHoursAgo: number | null) => ({
+        pr,
+        failedAt: failedHoursAgo === null ? null : hoursAgo(failedHoursAgo),
+        createdAt: hoursAgo(30),
+    });
+    const failedDispatch = (id: number, minutesAgo: number) =>
+        run(id, "afk-dispatch", {
+            conclusion: "failure",
+            createdAt: iso(minutesAgo + 1),
+            updatedAt: iso(minutesAgo),
+        });
+
+    it("a hold with a land-failed PR past the threshold fails the run, naming the PR, its age and the hold", () => {
+        const n = agedRepairNotice(
+            HOLD,
+            [repair(10, 20), repair(11, 1)],
+            [],
+            CONFIG,
+            NOW
+        );
+        expect(n.notify).toBe(true);
+        expect(n.aged.map((a) => a.pr)).toEqual([10]);
+        const [line] = agedRepairLines(n.aged, HOLD);
+        expect(line).toContain("PR #10");
+        expect(line).toContain("20.0 h");
+        expect(line).toContain("no-pass-workflow");
+    });
+
+    it("the following runs, with the same condition, exit 0", () => {
+        // The first run failed 2 h ago, after PR #10 crossed (16 h ago).
+        const n = agedRepairNotice(
+            HOLD,
+            [repair(10, 20)],
+            [failedDispatch(70, 120)],
+            CONFIG,
+            NOW
+        );
+        expect(n.aged).toHaveLength(1);
+        expect(n.notify).toBe(false);
+        // A second pick ageing while the first still waits is the same
+        // condition: no second email.
+        expect(
+            agedRepairNotice(
+                HOLD,
+                [repair(10, 20), repair(12, 5)],
+                [failedDispatch(70, 120)],
+                CONFIG,
+                NOW
+            ).notify
+        ).toBe(false);
+    });
+
+    it("the condition clears and returns: a pick ageing after the last email notifies again", () => {
+        // The email 10 h ago was for an older condition; PR #13 crossed 1 h ago.
+        expect(
+            agedRepairNotice(
+                HOLD,
+                [repair(13, 5)],
+                [failedDispatch(71, 600)],
+                CONFIG,
+                NOW
+            ).notify
+        ).toBe(true);
+    });
+
+    it("without an aged repair pick, or without a hold, nothing fails", () => {
+        expect(
+            agedRepairNotice(HOLD, [repair(11, 1)], [], CONFIG, NOW)
+        ).toEqual({ aged: [], notify: false });
+        expect(agedRepairNotice(HOLD, [], [], CONFIG, NOW).notify).toBe(false);
+        expect(
+            agedRepairNotice(null, [repair(10, 20)], [], CONFIG, NOW).notify
+        ).toBe(false);
+        // The kill switch is the owner's own stop: no email for it.
+        expect(
+            agedRepairNotice(
+                { kind: "disabled", message: "off" },
+                [repair(10, 20)],
+                [],
+                CONFIG,
+                NOW
+            ).notify
+        ).toBe(false);
+    });
+
+    it("an unreadable label time counts from the PR's creation", () => {
+        const n = agedRepairNotice(HOLD, [repair(14, null)], [], CONFIG, NOW);
+        expect(n.aged.map((a) => a.pr)).toEqual([14]);
+        expect(n.aged[0].ageHours).toBeCloseTo(30);
+    });
+
+    it("the threshold is config, with a default for a missing block", () => {
+        expect(
+            parseAfkDispatchConfig({ afkDispatch: { repairAgeHours: 9 } })
+        ).toEqual({ repairAgeHours: 9 });
+        expect(parseAfkDispatchConfig({})).toEqual({ repairAgeHours: 4 });
+        expect(
+            agedRepairNotice(
+                HOLD,
+                [repair(10, 20)],
+                [],
+                { repairAgeHours: 24 },
+                NOW
+            ).notify
+        ).toBe(false);
     });
 });
 
