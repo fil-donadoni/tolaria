@@ -35,6 +35,7 @@ import {
 import {
     baseHealthStatus,
     gatePrOf,
+    isMergifyQueuePr,
     parseTrustedAuthors,
     PR_FILES_JQ,
     prFilesApiPath,
@@ -157,6 +158,7 @@ function main(): number {
                     lineage,
                     prBody: raw.body ?? "",
                     repairIssues,
+                    queuePr: isMergifyQueuePr(gatePrOf(raw, [])),
                 }),
             () =>
                 trustedAuthorStatus(

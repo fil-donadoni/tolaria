@@ -272,6 +272,50 @@ describe("base-health", () => {
         expect(s.description).toMatch(/unreadable/);
     });
 
+    it("a Mergify queue draft is green under RED, second RED and an unreadable store (issue #5978)", () => {
+        const draft = pr({
+            author: "mergify[bot]",
+            headRef: "mergify/merge-queue/1dcc8ee081",
+            body: "",
+        });
+        const lineages = [
+            lineage("red"),
+            lineage("second-red"),
+            { kind: "none" as const, verdict: null, error: "HTTP 502" },
+        ];
+        for (const l of lineages) {
+            const s = baseHealthStatus({
+                lineage: l,
+                prBody: draft.body,
+                repairIssues: [777],
+                queuePr: isMergifyQueuePr(draft),
+            });
+            expect(s.state).toBe("success");
+            expect(s.description).toMatch(/Mergify queue PR/);
+        }
+    });
+
+    it("a queue-draft lookalike is still judged on health", () => {
+        const lookalikes = [
+            pr({ headRef: "mergify/merge-queue/x" }),
+            pr({ author: "mergify[bot]", headRef: "feat/x" }),
+            pr({
+                author: "mergify[bot]",
+                headRef: "mergify/merge-queue/x",
+                headRepo: "someone/tolaria",
+            }),
+        ];
+        for (const p of lookalikes) {
+            const s = baseHealthStatus({
+                lineage: lineage("red"),
+                prBody: "",
+                repairIssues: [],
+                queuePr: isMergifyQueuePr(p),
+            });
+            expect(s.state).toBe("failure");
+        }
+    });
+
     it("every description fits GitHub's 140 characters", () => {
         const s = baseHealthStatus({
             lineage: lineage("red"),

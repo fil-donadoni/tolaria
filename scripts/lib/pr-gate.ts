@@ -11,7 +11,10 @@
  *  - `base-health` — the RED rule the land-runner applies (issue #4964):
  *    green unless a RED (or second RED) stands on the base's lineage, and
  *    under a RED green only for a PR closing a declared repair issue.
- *    `healthAdmission` is that rule, and `planTick` reads it too.
+ *    `healthAdmission` is that rule, and `planTick` reads it too. Mergify's
+ *    queue PRs are exempt on the same ground (issue #5978): Mergify re-checks
+ *    `queue_conditions` on its draft while a PR is queued, and a draft that
+ *    fails one dequeues the PR for good — no GREEN requeues it.
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
 import { READY_LABEL } from "./land-labels";
@@ -221,11 +224,17 @@ const short = (sha: string | undefined) => (sha ?? "?").slice(0, 8);
  * re-reads every tick, but a status stands until the next event, so a green
  * posted through a 502 would admit a PR onto a RED base for hours. The
  * scheduled sweep decides again. `repairIssues` is only consulted under RED.
+ *
+ * `queuePr` (`isMergifyQueuePr`): a queue draft is always green, so the RED
+ * hold acts at entry, on the PR's own head (issue #5978). A PR already in
+ * the queue finishes, as a `land` in flight does; the draft's body is
+ * Mergify's, so judging it would also dequeue a declared repair.
  */
 export function baseHealthStatus(input: {
     lineage: Lineage & { error?: string };
     prBody: string;
     repairIssues: readonly number[];
+    queuePr?: boolean;
 }): GateStatus {
     const { lineage } = input;
     const status = (state: GateState, description: string): GateStatus => ({
@@ -233,6 +242,11 @@ export function baseHealthStatus(input: {
         state,
         description: clipDescription(description),
     });
+    if (input.queuePr)
+        return status(
+            "success",
+            "Mergify queue PR — the gates were its queued PRs' entry conditions"
+        );
     const red = lineageBlocks(lineage.kind);
     const admission = healthAdmission({
         red,
