@@ -437,7 +437,10 @@ import {
     payExertActivationCost,
     restoreExertOnUntap,
 } from "./gre/exert";
-import { restoreReturnMarkOnUntap } from "./gre/untapReturn";
+import {
+    applyManaAbilityEffects,
+    reverseManaAbilityEffectsOnUntap,
+} from "./gre/manaAbilityEffects";
 import {
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
@@ -1851,6 +1854,7 @@ function activateFixedSacrificeManaAbility(
     applyManaAbilityLifeCost(state, ability, player.id);
     applyManaAbilityDiscardCost(state, ability, player.id);
     applyDrawCardOnTap(state, ability, player.id);
+    applyManaAbilityEffects(state, ability, card, player.id);
 }
 
 export function tapSourceIntoPayment(
@@ -2076,6 +2080,8 @@ export function tapSourceIntoPayment(
         // spell/ability cost (here). Unlike the riders above, this one is NOT
         // gated on `!isSacrifice` — it must fire on Sphere's own sacrifice.
         applyDrawCardOnTap(state, effAbility, player.id);
+        // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect Script.
+        applyManaAbilityEffects(state, effAbility, card, player.id);
         // CR 106.4 / 605.1a — record the life paid to the inline riders so
         // untapForPayment can restore it. Real delta (post CR 614/615), and 0
         // on the sacrifice path (the painland rider no-ops on a sacrificed
@@ -2234,6 +2240,8 @@ export function tapSourceIntoPayment(
     // while paying a spell/ability cost (here). Unlike the riders above, this
     // one is NOT gated on `!isSacrifice` — it must fire on a sacrifice cost.
     applyDrawCardOnTap(state, acting, player.id);
+    // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect Script.
+    applyManaAbilityEffects(state, acting, card, player.id);
     // CR 106.4 / 605.1a — record the life paid to the inline riders (Ancient
     // Tomb, Mana Confluence) so untapForPayment can restore it. Skip on the
     // sacrifice path: the source is gone and has no untap branch.
@@ -2309,7 +2317,7 @@ function untapSourceFromPayment(
     restoreLifePaidOnUntap(player, card);
     // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
     restoreExertOnUntap(state, card);
-    restoreReturnMarkOnUntap(card);
+    reverseManaAbilityEffectsOnUntap(card);
     // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
     // Star's {1}). Same reversal, cost side.
     restoreManaPaidOnUntap(player, card);
@@ -2735,7 +2743,7 @@ function rollbackPendingCast(state: GameState): void {
         // own inline copy of the untap and must restate it, or a cancelled cast
         // leaves the land not untapping for a spell that was never cast.
         restoreExertOnUntap(state, card);
-        restoreReturnMarkOnUntap(card);
+        reverseManaAbilityEffectsOnUntap(card);
         // CR 106.4 / 118.3 / 122.1 — and the counters the tap's own
         // `removeCounter` leg took (a depletion land, a Mana Battery's scaling
         // cost). Same reversal-symmetry class as the exert leg above: this
@@ -8080,7 +8088,7 @@ export const untapForPayment = mutation({
         // is what exerted it, the same reversal `untapSourceFromPayment` runs on
         // the activation side (Arena of Glory).
         restoreExertOnUntap(state, card);
-        restoreReturnMarkOnUntap(card);
+        reverseManaAbilityEffectsOnUntap(card);
         // CR 106.4 / 601.2f / 118.4 (issue #3354) — and the COST legs the
         // activation took: the ability's own mana (Arena of Glory's {R},
         // Chromatic Star's {1}) and the life an inline rider paid (Mana
@@ -13933,7 +13941,7 @@ export const tapUntap = mutation({
             restoreManaCounterRemovalOnUntap(state, card);
             // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
             restoreExertOnUntap(state, card);
-            restoreReturnMarkOnUntap(card);
+            reverseManaAbilityEffectsOnUntap(card);
             // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
             // activation's own mana cost took (Mana Cylix's {1}), or the untap
             // toggle burns it. Same window/guards as the life refund above.
@@ -14000,6 +14008,9 @@ export const tapUntap = mutation({
         // (Sheoldred, Underworld Dreams) sees the draw land first.
         if (producedThisActivation) {
             applyDrawCardOnTap(state, tapAbility, args.playerId);
+            // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect
+            // Script ("during your next untap step, return this land …").
+            applyManaAbilityEffects(state, tapAbility, card, args.playerId);
         }
 
         // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana

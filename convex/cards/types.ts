@@ -1922,6 +1922,23 @@ export interface ActivatedAbility {
      *  by both tap-for-mana paths (`tapUntap` priority tap +
      *  `tapSourceIntoPayment` payment tap). */
     drawsCardOnTap?: number;
+    /** Stackless Effect Script on a TAP mana ability (CR 605.1a / 605.3b,
+     *  `useStack: false`, issue #5509): a non-mana additional effect that
+     *  runs through the interpreter as part of the SAME mana ability
+     *  resolving — no stack, no priority — with the activator as
+     *  `ctx.controller` and the source bound as `$source`. Run after the mana
+     *  is added, by the tap-for-mana paths only (`tapUntap` priority tap +
+     *  `tapSourceIntoPayment` payment tap), beside the fixed riders above.
+     *
+     *  Admits only the Ops in `MANA_ABILITY_EFFECT_OPS`
+     *  (`gre/manaAbilityEffects.ts`, validator-enforced): each raises no
+     *  resolution choice, names no target (CR 605.1a — a mana ability never
+     *  requires one) and has a reversal the untap-toggle can run, so undoing
+     *  the tap (CR 106.4 refund) undoes the effect too. Distinct from
+     *  `effects` (the stack site, `useStack: true`). Used by Undiscovered
+     *  Paradise's "during your next untap step … return this land to its
+     *  owner's hand" (`returnToHandAtNextUntap`). */
+    manaAbilityEffects?: EffectOp[];
     /** Rider on a TAP mana ability (CR 605.1a, CR 118.3, `useStack: false`):
      *  once this activation's `cost.removeCounter` leg has been paid, the
      *  source is sacrificed (CR 701.21) if no counters of the named type

@@ -47,6 +47,7 @@ import {
 } from "./targetRef";
 import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
 import type { BindingFieldName } from "./bindingFields";
+import { isManaAbilityEffectOp } from "./manaAbilityEffectOps";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -9054,6 +9055,9 @@ export type AbilityEffectScriptHost = {
      *  (`useStack: false`) may not carry one — the mana-tap sites read
      *  `canActivate` only. */
     useStack?: unknown;
+    /** CR 605.1a / 605.3b (issue #5509) — a mana ability's stackless Effect
+     *  Script. Validated by `manaAbilityEffectsErrors`. */
+    manaAbilityEffects?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -9114,6 +9118,12 @@ export function validateAbilityEffectScript(
         }
     }
 
+    // CR 605.1a / 605.3b (issue #5509) — checked BEFORE the `effects ===
+    // undefined` early return: a mana ability carries no stack `effects[]`.
+    if (ability.manaAbilityEffects !== undefined) {
+        manaAbilityEffectsErrors(ability, label, errors);
+    }
+
     if (ability.effects === undefined) return errors;
 
     if (ability.resolve) {
@@ -9135,6 +9145,46 @@ export function validateAbilityEffectScript(
         eventTypeList(triggerEventType)
     );
     return errors;
+}
+
+/** CR 605.1a / 605.3b (issue #5509) — a mana ability's stackless Effect
+ *  Script (`ActivatedAbility.manaAbilityEffects`). It runs as the mana
+ *  ability resolves, off the stack, so: only a mana ability (`useStack:
+ *  false`) may carry one; every top-level Op is one of
+ *  `MANA_ABILITY_EFFECT_OPS` (no construct, no resolution choice, a reversal
+ *  for the untap-toggle); and no Op names an announced target, which a mana
+ *  ability never has (CR 605.1a). The Op list itself gets the ability-site
+ *  checks (`$source` bound, no `$event`). */
+function manaAbilityEffectsErrors(
+    ability: AbilityEffectScriptHost,
+    label: string,
+    errors: string[]
+): void {
+    const site = `${label} manaAbilityEffects`;
+    if (ability.useStack !== false) {
+        errors.push(
+            `${site}: declared on an ability that is not a mana ability (useStack: false) — only the tap-for-mana paths run it`
+        );
+    }
+    const ops = ability.manaAbilityEffects;
+    if (!Array.isArray(ops) || ops.length === 0) {
+        errors.push(`${site}: must be a non-empty EffectOp[]`);
+        return;
+    }
+    for (const [i, entry] of ops.entries()) {
+        const op = (entry as { op?: unknown } | null)?.op;
+        if (typeof op !== "string" || !isManaAbilityEffectOp(op)) {
+            errors.push(
+                `${site}[${i}]: op ${JSON.stringify(op)} is not admitted at the mana-ability site (MANA_ABILITY_EFFECT_OPS)`
+            );
+        }
+    }
+    if (maxAnnouncedTargetSlot(ops) >= 0) {
+        errors.push(
+            `${site}: names an announced target — a mana ability never requires one (CR 605.1a)`
+        );
+    }
+    validateEffectOpList(ops, site, ABILITY_BINDINGS, errors, undefined);
 }
 
 // ─── AI-only shadow scripts (`aiEffects`, PRD #1423, issue #1431) ──────────

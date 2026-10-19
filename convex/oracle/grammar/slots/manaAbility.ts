@@ -325,9 +325,20 @@ const NO_COUNTERS_SACRIFICE_RIDER =
     /^If there are no (\S+) counters on this land, sacrifice it$/;
 
 /**
+ * CR 502.3 / 605.1a — "During your next untap step, as you untap your
+ * permanents, return this land to its owner's hand" (Undiscovered Paradise):
+ * the return is part of the activator's next untap turn-based action, armed
+ * by the stackless mana-ability script (`manaAbilityEffects`,
+ * `returnToHandAtNextUntap`; issue #5509). Read as one fixed sentence: the
+ * object is the land itself, the hand its owner's, the step its activator's.
+ */
+const NEXT_UNTAP_RETURN_RIDER =
+    "During your next untap step, as you untap your permanents, return this land to its owner's hand";
+
+/**
  * CR 605.1a — the rider sentence after a production this grammar reads, for
  * the production it follows. Fail-closed: the sentence must be one of the
- * three printed forms below; the painland damage form is owned by the CHOICE
+ * four printed forms below; the painland damage form is owned by the CHOICE
  * production (`readPainlandDamage`), the unconditional form by the FIXED one.
  */
 function readManaRider(
@@ -336,6 +347,8 @@ function readManaRider(
 ): ManaProductionIR | null {
     const rider = ((): ManaRiderIR | null => {
         if (span === DRAW_RIDER) return { kind: "draw-card" };
+        if (span === NEXT_UNTAP_RETURN_RIDER)
+            return { kind: "return-source-at-next-untap" };
         const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);
         if (sacrifice !== null)
             return {

@@ -441,6 +441,16 @@ export function lowerManaAbility(input: {
             case "draw-card":
                 ability.drawsCardOnTap = 1;
                 break;
+            // CR 502.3 / 605.3b (issue #5509) — the stackless script arms the
+            // return; the activator's next untap step performs it.
+            case "return-source-at-next-untap":
+                ability.manaAbilityEffects = [
+                    {
+                        op: "returnToHandAtNextUntap",
+                        target: { ref: "$source" },
+                    },
+                ];
+                break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a
             // sentence naming a kind the cost never removes would read a
