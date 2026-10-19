@@ -405,6 +405,9 @@ export function resolveTarget(
                       return card.oracleId;
                   })
               );
+    // A front face and its full name are two strings and one card.
+    if (closedTail !== undefined && closedTail.size !== row.closedTail!.length)
+        throw new Error(`${where}: \`closedTail\` names one card twice`);
     return {
         row,
         ...(closedTail === undefined ? {} : { closedTail }),

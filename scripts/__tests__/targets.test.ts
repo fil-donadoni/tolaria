@@ -159,6 +159,20 @@ describe("the resolver is fail-closed", () => {
         expect(() => resolveTarget(tailed(["No Such Card"]), ctx)).toThrow(
             /not a card of this Target/
         );
+        const split = nameList("split", "Ajani, Nacatl Pariah\n");
+        expect(() =>
+            resolveTarget(
+                {
+                    ...split,
+                    completion: "closed-tail",
+                    closedTail: [
+                        "Ajani, Nacatl Pariah",
+                        "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+                    ],
+                },
+                ctx
+            )
+        ).toThrow(/`closedTail` names one card twice/);
     });
 
     it("resolves exact names and front faces", () => {
