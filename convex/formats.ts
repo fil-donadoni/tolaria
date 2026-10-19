@@ -76,6 +76,34 @@ export interface ValidatableDeck {
  */
 export type ResolveCard = (cardId: string) => DeckCardMeta | null;
 
+/**
+ * `resolve` extended by the `definitionId` a deck's own entries carry (Card
+ * Prints, ADR 0140, issue #5550): a Print ID `resolve` does not know (the
+ * registry knows Card IDs only) resolves as its entry's Card Definition — the
+ * same Basic flag and canonical Card ID a `cardPrints` row yields
+ * (`makeResolveCardFromRows`), so Pool membership and the free-basic
+ * exemption agree with the server. Set and Rarity degrade to the definition's
+ * own printing, exactly as for an id with no row. For a boundary that holds
+ * no rows (the deck list fallback) or has not loaded them yet (the builders).
+ */
+export function resolveCardViaDefinitionIds(
+    entries: Iterable<{ cardId: string; definitionId?: string }>,
+    resolve: ResolveCard = resolveDeckCardMeta
+): ResolveCard {
+    const definitionIds = new Map<string, string>();
+    for (const { cardId, definitionId } of entries) {
+        if (definitionId !== undefined && definitionId !== cardId) {
+            definitionIds.set(cardId, definitionId);
+        }
+    }
+    return (cardId) => {
+        const meta = resolve(cardId);
+        if (meta !== null) return meta;
+        const definitionId = definitionIds.get(cardId);
+        return definitionId === undefined ? null : resolve(definitionId);
+    };
+}
+
 // --- Limited: pool-scoped legality (ADR 0054/0055, issue #1109) -----------
 //
 // A Limited seat's authoritative Pool is the whole set of non-basic cards it

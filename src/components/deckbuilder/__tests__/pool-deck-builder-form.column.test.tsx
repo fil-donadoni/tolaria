@@ -35,6 +35,11 @@ vi.mock("~/lib/useScryfallSetNames", async () => ({
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
     ).useScryfallSetNamesStub,
 }));
+vi.mock("~/lib/useDeckPrintResolver", async () => ({
+    useDeckPrintResolver: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useDeckPrintResolverStub,
+}));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
