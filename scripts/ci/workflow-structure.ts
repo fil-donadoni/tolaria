@@ -71,8 +71,8 @@
  *     no `land-failed`, `trusted-author`, `base-health` and the exclusion of
  *     `.github/` and `.mergify.yml` (ADR 0156 §8 barriers 3–4).
  *   - `queue-merge` — a queue rule whose merge conditions are anything but
- *     the queue lane alone (Amendment I: Mergify's draft PRs carry no
- *     `trusted-author`; the entry gates were proven on the PR).
+ *     the queue lane alone (Amendment I: the entry gates were proven on the
+ *     PR, and `pr-gate` posts both green on Mergify's draft, issue #5978).
  *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 2, or a
  *     queue rule with a `batch_size` other than 1 (ADR 0156 §3).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the

@@ -972,17 +972,19 @@ author, body, file list — through the API, never its tree.
 land-runner reads an unreadable verdict store as no RED for one 60 s tick,
 but a commit status stands until something re-posts it — so `pr-gate`
 posts `base-health` **`pending`** instead (held, not blamed) and the run
-goes red; the next sweep decides again. A queue PR passes both by
-construction (issue #5978): Mergify re-checks `queue_conditions` on its draft
-while a PR is queued, the draft's body is Mergify's (no repair declared), and
-a PR dequeued that way stays out — see [the merge queue](#the-merge-queue).
-Each status is decided on its own:
+goes red; the next sweep decides again. Each status is decided on its own:
 a failed file-list read never leaves an old `base-health` standing. A PR
 touching `.github/` — this workflow's own PRs included — is never
 queueable: the owner merges it by hand. **Known gap:** the gate's own code
 outside `.github/` (`scripts/pr-gate.ts`, `scripts/lib/pr-gate.ts`, the
 health modules it imports, `tolaria.config.json`) is queueable today, as
 ADR 0156 §8 names only `.github/` and `.mergify.yml`.
+
+**Mergify's queue PRs pass both.** Mergify judges a queued PR's entry
+conditions on its draft ([the merge queue](#the-merge-queue)), so a red there
+dequeues the PR. `trusted-author` would be red because the draft's author,
+`mergify[bot]`, is no trusted author; `base-health` under a RED because the
+draft's body is Mergify's and declares no repair (issue #5978).
 
 **Re-gate.** A `health` or `health-fix` commit status — a verdict written,
 or a repair issue recorded on the pivot — fires the workflow's `status`
@@ -1036,11 +1038,14 @@ the queue"), and a PR dequeued because one stopped holding is not requeued by
 itself: Mergify's lifecycle says it "must be fixed and requeued". So a check
 in `queue_conditions` must be an entry gate a draft passes by construction:
 `pr-gate` posts both of its statuses green on a queue PR (issue #5978). A RED
-holds a PR at entry, on its own head; a PR already queued finishes, as a
-`land` in flight does. A check that reads the PR's body (the `land`
-refusals) can never be one: `land:ready` runs those before the hand-off. A PR
-stranded anyway — `queue:shadow` and `ready-to-land`, no `land-failed`, both
-gates green, no `queued` label — re-enters with a comment:
+holds a PR at entry, on its own head. A PR already in the queue is not
+stopped by it: it finishes, unless its own head's re-gate dequeues it first —
+which of the two happens to a PR not yet drafted (third or later) is not
+observed yet. A check that reads the PR's body (the `land` refusals) can
+never be one: `land:ready` runs those before the hand-off. A PR stranded
+anyway — `queue:shadow` and `ready-to-land`, no `land-failed`, both gates
+green, no `queued` label (Mergify's own), its "Mergify Merge Queue" check
+stuck on "conditions under evaluation" — re-enters with a comment:
 
 ```bash
 gh pr comment <N> --body "@mergifyio requeue"
@@ -1262,7 +1267,6 @@ rebased (`classifyRed`, issue #5955).
 | The PR's own defect               | ~15      | the session's targeted runs, then step 2  | the land-runner lands a PR whose `pr-check` is already red                                                                                  | cut-over: `-check-failure=pr-check` in `queue_conditions` (issue #5643)                                         |
 | Tree moved under the lane         | 8        | —                                         | the land-runner lands inside the session's own worktree                                                                                     | cut-over: `queue-lane` runs in a [job worktree](#g-job-worktree) (issue #5643, issue #5654)                     |
 | Load-sensitive tooling test       | ~7       | —                                         | tests asserting on wall-clock time or machine load                                                                                          | issue #5874; the loop driver and gate mutex tests go with issue #5656                                           |
-| Queued PR stranded by a hold      | 1        | the queue's requeue at GREEN              | `base-health` red on the queue's draft dequeued the PR, and Mergify requeues no PR whose queue conditions stopped holding                   | issue #5978: a queue draft passes `base-health`, so the hold acts at entry                                      |
 | Defect inherited from the base    | ~6       | the culprit's own lane                    | a whole-tree guard the culprit's lane never runs: the blade-index drift test (`bot-node`), a CR ledger stale entry its merge driver revives | issue #5940 (an admitted cheap guard, 1.9 s, which also makes `pr-fixup`'s `blade-index` row live); issue #5677 |
 | RED base written as `land-failed` | 5        | the land-runner's hold                    | the land-runner process ran 3-day-old code                                                                                                  | restarted on 2026-10-18; issue #5941 makes it restart itself                                                    |
 | Environment                       | ~3       | the [job setup](#g-job-setup)'s toolchain | `node` missing from a service's `PATH`                                                                                                      | closed (the pinned toolchain)                                                                                   |
@@ -1281,6 +1285,11 @@ Two defects distort the numbers above rather than add to them:
   line stopped, and the bisect, run under the same load, blamed a PR already
   reverted. Fix: issue #5939, which samples on the liveness ticks and
   names why a retry was refused.
+
+A hold is no failure, but one stranded a PR. On 2026-10-18 PR #5854 sat
+14 h with no merger: the RED reddened `base-health` on its queue draft,
+Mergify dequeued it, and no GREEN requeued it (`@mergifyio requeue` did).
+Fix: issue #5978.
 
 The [shadow](#g-shadow) comparison that decides the cut-over (issue #5643)
 counts episodes, not attempts, and leaves out holds.
@@ -1325,7 +1334,7 @@ of its own sha.
 | `housekeeping` red: `shared state … moved`    | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
 | `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
 | `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml`: `land:ready` gave it to the land-runner; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                    |
-| a shadow PR sits unqueued, its gates green    | Mergify dropped it when a queue condition failed on its draft: `@mergifyio requeue` on the PR ([the merge queue](#the-merge-queue))                                                   |
+| a shadow PR sits unqueued, its gates green    | Mergify dropped it when a queue condition failed on its draft or its own head: `@mergifyio requeue` ([the merge queue](#the-merge-queue))                                             |
 | `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
 | `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
 | an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
@@ -1459,7 +1468,7 @@ The commit status [`pr-gate`](#pr-gate) posts: green for a PR by a
 
 The commit status [`pr-gate`](#pr-gate) posts: green unless a RED stands on
 the base branch's health lineage and the PR closes none of that RED's
-declared repair issues.
+declared repair issues; always green for a Mergify queue PR.
 
 ### <a id="g-infra"></a>INFRA
 
