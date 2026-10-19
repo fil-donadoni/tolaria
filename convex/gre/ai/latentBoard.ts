@@ -67,6 +67,9 @@ import {
 } from "../phases";
 import type { Phase } from "../types";
 import type { EvalWeights } from "./evalWeights";
+import { libraryTerm } from "./decking";
+import { tryGetDefinition } from "../../cards";
+import { hasGraveyardRecursionAccess } from "./graveyardReach";
 import type {
     EachPlayerSide,
     HandStep,
@@ -603,6 +606,19 @@ function boardSide(
             const cap = effectiveMaxHandSize(player, state);
             return cleanupKeptGain(landing, withDraws, cap) / scale;
         },
+        millLoss(count) {
+            if (creditsGraveyard(player)) {
+                unreadable = true;
+                return 0;
+            }
+            answered = true;
+            const left = player.library.length;
+            const milled = Math.min(Math.max(0, count), left);
+            return (
+                libraryTerm(state, player, weights) -
+                libraryTerm(state, player, weights, left - milled)
+            );
+        },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
             if (filter === UNREADABLE_SWEEP_FILTER) {
@@ -765,6 +781,21 @@ function spendableExtraMana(
         if (fewest !== Infinity) spent = Math.max(spent, fewest);
     }
     return spent;
+}
+
+/** Issue #5625 — whether the evaluator credits a card `player` puts into its
+ *  graveyard: recursion access (`hasGraveyardRecursionAccess`, issue #3042)
+ *  or a permanent granting its graveyard escape (CR 702.138,
+ *  `graveyardEngineTerm`). */
+function creditsGraveyard(player: PlayerState): boolean {
+    if (hasGraveyardRecursionAccess(player)) return true;
+    return player.battlefield.some((perm) => {
+        const id = (perm.card as { id?: string }).id;
+        return (
+            id !== undefined &&
+            !!tryGetDefinition(id)?.grantsEscapeToOwnGraveyard
+        );
+    });
 }
 
 /** Issue #5559 — `value` grounded on the board with `$each` bound to
