@@ -6,10 +6,12 @@
 //   resume  [--dry-run]     start them again
 //   status                  local service state + GitHub's online/busy view
 //   remove  <name> [--dry-run]   stop, unregister and delete one runner
+//   prune   [--dry-run]     delete installed Tolaria units whose script is gone
 //
 // Observes the machine, asks scripts/lib/github-runner.ts for the plan, and
 // runs it — or prints it under `--dry-run`. `install` is idempotent: a second
-// run plans nothing. Guide: docs/guides/github-pipeline.md.
+// run plans nothing. It prunes dead units too (issue #6019). Guide:
+// docs/guides/github-pipeline.md.
 import { execFileSync, spawnSync } from "node:child_process";
 import {
     existsSync,
@@ -52,6 +54,11 @@ import {
     type Step,
 } from "./lib/github-runner";
 import { renderLaunchdUnit } from "./lib/launchd-render";
+import {
+    planPruneStale,
+    readInstalledUnits,
+    staleUnits,
+} from "./lib/stale-units";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 const HOME = homedir();
@@ -166,6 +173,15 @@ function observe(
                 "--value",
             ]).stdout.trim() === "yes",
     };
+}
+
+/** Stop and delete the installed units whose script left the checkout. */
+function planPrune(platform: RunnerPlatform, uid: number): Step[] {
+    const units = readInstalledUnits(platform, {
+        systemdUserDir: SYSTEMD_USER,
+        launchAgentsDir: LAUNCH_AGENTS,
+    });
+    return planPruneStale(staleUnits(units, existsSync), platform, uid);
 }
 
 function repoSlug(repo: string): string {
@@ -396,8 +412,8 @@ function main(): void {
             console.log(
                 `runner: ${host} (${platform}) declares ${runners.map((r) => r.name).join(", ") || "no runner"} on ${slug}`
             );
-            run(
-                planInstall(
+            run([
+                ...planInstall(
                     {
                         platform,
                         uid,
@@ -417,10 +433,14 @@ function main(): void {
                         notifyCmd: process.env.TOLARIA_NOTIFY_CMD,
                     },
                     seen
-                )
-            );
+                ),
+                ...planPrune(platform, uid),
+            ]);
             break;
         }
+        case "prune":
+            run(planPrune(platform, uid));
+            break;
         case "pause":
         case "resume":
             run(
@@ -481,7 +501,7 @@ function main(): void {
         }
         default:
             die(
-                "usage: bun run runner <install|pause|resume|status|remove> [--dry-run] — docs/guides/github-pipeline.md"
+                "usage: bun run runner <install|pause|resume|status|remove|prune> [--dry-run] — docs/guides/github-pipeline.md"
             );
     }
 }
