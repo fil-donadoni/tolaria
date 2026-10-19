@@ -47,6 +47,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { writeDepsStamp } from "./lib/deps-stamp";
 import { refreshGeneratedApi, refreshReceipt } from "./lib/generated-api";
 import { ensureGitConfig } from "./lib/git-config-keys";
 import { copyFromPrimary } from "./lib/worktree-copies";
@@ -110,11 +111,13 @@ if (!existsSync(join(cwd, "node_modules")) || force) {
     // A CI job never rewrites the lockfile: a drifted `bun.lock` is a red
     // install, not a dirty tree `check:lane` refuses later (issue #5636).
     const frozen = process.env.CI ? ["--frozen-lockfile"] : [];
-    if (run("bun", ["install", ...frozen]))
+    if (run("bun", ["install", ...frozen])) {
+        // What `land`'s `ensure-deps` step compares against (issue #6000).
+        writeDepsStamp(cwd);
         done.push(
             `node_modules (bun install${frozen.length ? " --frozen-lockfile" : ""})`
         );
-    else failed.push("bun install");
+    } else failed.push("bun install");
 } else {
     skipped.push("node_modules (present)");
 }

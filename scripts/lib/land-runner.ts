@@ -166,7 +166,8 @@ export type LandOutcome =
 
 /**
  * `land`'s exit code read as a labelling decision. 0 merged. 77 is the
- * machine staying saturated — `land` ran NOTHING (issue #4966), so the PR
+ * machine staying saturated (issue #4966) or a failed post-rebase
+ * dependency install (issue #6000) — `land` gated NOTHING, so the PR
  * stays queued, never `land-failed`. A `null` status is `land` killed by a
  * signal (the runner stopped mid-landing): nothing proves the PR red, so it
  * stays queued too. Anything else is a red landing, read by `classifyRed`
@@ -190,7 +191,7 @@ export function outcomeOf(
     if (status === SATURATED_EXIT)
         return {
             action: "requeue",
-            reason: "machine stayed saturated — land ran nothing",
+            reason: "infra (exit 77) — machine stayed saturated or the dependency install failed; land gated nothing",
         };
     if (status === null)
         return { action: "requeue", reason: "land was killed by a signal" };
@@ -493,21 +494,60 @@ export interface LandFailure {
 
 const ERROR_LINE =
     /error|fail|refus|no such file|not found|cannot|denied|✗|exited \d/i;
+/** A `check:lane` receipt row for a red step: `✗ tsc[all]   76.8s`. */
+const FAILED_STEP = /^✗\s+(\S+)/;
+/** A line of the lane's PLAN header (`lane:`, `run:`, `skip:` and the
+ *  indented rows under `skip:`), or a `$ cmd` echo: they say what the lane
+ *  WILL do, so their prose ("cannot drift", "fail") is never a cause — PR
+ *  #5932's notice quoted a skip reason (issue #6000). */
+const PLAN_HEAD = /^(lane|run|skip):\s/;
+/** Progress noise a cause is never read from: a passing vitest row, a
+ *  vitest section rule (`⎯⎯ Failed Tests 1 ⎯⎯`). */
+const NOT_A_CAUSE = /^(✓|⎯)/;
+
+/** The excerpt's non-empty lines, each flagged when it belongs to the plan. */
+function excerptLines(excerpt: string): { text: string; plan: boolean }[] {
+    const out: { text: string; plan: boolean }[] = [];
+    let inPlan = false;
+    for (const raw of excerpt.replace(ANSI, "").split("\n")) {
+        const text = raw.trim();
+        if (text === "" || text === "…") continue;
+        if (PLAN_HEAD.test(text)) inPlan = true;
+        else if (!/^\s/.test(raw)) inPlan = false;
+        out.push({ text, plan: inPlan || text.startsWith("$ ") });
+    }
+    return out;
+}
 
 /**
- * The one line naming why a `land` went red: the first error-looking line of
- * its excerpt (its `land: refusing` line sorts first by construction), else
- * the last non-empty line — a receipt's tail. Same cause on two PRs yields
- * the same string, which is what `describeLandFailures` coalesces on.
+ * The one line naming why a `land` went red. A `land: refusing` line wins
+ * (nothing ran). Else the lane receipt's `✗ <step>` row, joined to the
+ * first error-looking line printed before it (the failing step's own
+ * output, plan lines excluded) — issue #6000. Else the first error-looking
+ * line, else the last non-empty line. Same cause on two PRs yields the same
+ * string, which is what `describeLandFailures` coalesces on.
  */
 export function failureReason(excerpt: string): string {
-    const lines = excerpt
-        .replace(ANSI, "")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l !== "" && l !== "…");
-    const line = lines.find((l) => ERROR_LINE.test(l)) ?? lines.at(-1);
-    return (line ?? "no output").slice(0, 160);
+    const lines = excerptLines(excerpt);
+    const refusal = lines.find((l) => l.text.startsWith("land: refusing"));
+    if (refusal !== undefined) return refusal.text.slice(0, 160);
+    const failedAt = lines.findIndex((l) => FAILED_STEP.test(l.text));
+    if (failedAt >= 0) {
+        const step = `✗ ${FAILED_STEP.exec(lines[failedAt].text)![1]}`;
+        const cause = lines
+            .slice(0, failedAt)
+            .find(
+                (l) =>
+                    !l.plan &&
+                    !NOT_A_CAUSE.test(l.text) &&
+                    ERROR_LINE.test(l.text)
+            );
+        return (cause ? `${step} — ${cause.text}` : step).slice(0, 160);
+    }
+    const prose = lines.filter((l) => !l.plan);
+    const line =
+        prose.find((l) => ERROR_LINE.test(l.text)) ?? lines.at(-1) ?? null;
+    return (line?.text ?? "no output").slice(0, 160);
 }
 
 /**
