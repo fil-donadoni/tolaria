@@ -152,7 +152,7 @@ export const DRIFT_LABELS: readonly string[] = [
 export const NO_VERDICT_TITLE = "Blade robustness audit reached no verdict";
 
 const BASELINE = "convex/gre/ai/blade/robustnessBaseline.ts";
-const REGISTRY = "convex/gre/ai/blade/registry.ts";
+const REGISTRY = "convex/gre/ai/blade/scenarios.ts";
 
 function driftTitle(d: RobustnessDrift): string {
     if (d.kind === "unlisted")

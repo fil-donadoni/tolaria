@@ -54,7 +54,7 @@ export const ROBUSTNESS_ROOTS: readonly string[] = [
 ];
 
 /** The file whose entries an incremental audit is cut from. */
-export const REGISTRY_PATH = "convex/gre/ai/blade/registry.ts";
+export const REGISTRY_PATH = "convex/gre/ai/blade/scenarios.ts";
 
 /** Env var the shard runner reads: a JSON array of `must` labels to audit. */
 export const ROBUSTNESS_LABELS_ENV = "BLADE_ROBUSTNESS_LABELS";
