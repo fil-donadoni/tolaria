@@ -1902,13 +1902,15 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
 ];
 
 /**
- * The four cross-cutting overlays (issue #4423, slice of the census debt issue
+ * The cross-cutting overlays (issue #4423, slice of the census debt issue
  * #4402): the legal disclaimer, the bug-report form, the Inspect overlay and
  * the Scenarios page's active-game confirm. Each belongs to no one page and
  * sits behind an opener the lane cannot reach with the state it has (a fresh
  * account, an active game at launch time), so `/admin/design-system` § 17
  * mounts each from fixture props (`src/routes/design-system/sections-overlays.tsx`)
  * and the lane walks them exactly as it walks § 16: one row per overlay.
+ * A fifth (issue #6066), the Limited unseated-Start confirm, rides along: the
+ * `open` fixture seats the lane, so the real antechamber never shows it.
  */
 const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
     {
@@ -1977,6 +1979,24 @@ const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
         entry: {
             label: "confirm: Concede & Start",
             locator: { role: "button", name: "Concede & Start" },
+            check: "reachable",
+        },
+    },
+    {
+        // Issue #6066: the `open` fixture seats the lane, so the real
+        // antechamber never offers an unseated creator this confirm.
+        slug: "limited-start-unseated",
+        module: "limited/limited-start-unseated-dialog.tsx",
+        label: "Start without playing?",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Start without playing?",
+            locator: { role: "dialog", name: "Start without playing?" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Start without playing",
+            locator: { role: "button", name: "Start without playing" },
             check: "reachable",
         },
     },
