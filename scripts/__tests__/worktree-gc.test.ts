@@ -165,6 +165,9 @@ describe("worktree-gc — classify, issue worktrees no merge cleans up (issue #6
             classify({ ...orphan, idleMinutes: ORPHAN_IDLE_MINUTES - 1 }).action
         ).toBe("keep");
         expect(classify({ ...orphan, idleMinutes: null }).action).toBe("keep");
+        expect(classify({ ...orphan, idleMinutes: undefined }).action).toBe(
+            "keep"
+        );
     });
 
     it("keeps a fresh no-PR worktree with no commits until it is idle (a pass between claim and first commit)", () => {
