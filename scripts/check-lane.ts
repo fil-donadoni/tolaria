@@ -765,6 +765,10 @@ export function classifyLane(
  *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
  *     landed with a stale index and the base went RED (PR #5868); with it
  *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
+ *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
+ *     baseline — a graduated card coming back — which only the diff can see.
+ *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
+ *     `diffOnly` guard: on the base tip there is no diff, so no health step.
  *
  * Wide on purpose: each costs seconds, and a missed input is a violation
  * that slips back to `health` — the failure this exists to remove.
@@ -780,6 +784,9 @@ export const CHEAP_GUARDS: readonly {
     lacks: string;
     /** The command, when it is not `bun run <id>`. */
     command?: string;
+    /** It compares the PR to its merge base, so on the base tip — where
+     *  health runs — it has nothing to compare and is no health step. */
+    diffOnly?: true;
 }[] = [
     {
         id: "check:gaps",
@@ -801,6 +808,12 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/gre\/ai\/blade\/|data\/blade-(card-index|reproducers)\.json$|scripts\/lib\/blade-card-index\.ts$|scripts\/__tests__\/blade-card-index-drift\.bot\.test\.ts$)/,
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
+    },
+    {
+        id: "check:baseline-shrink",
+        admits: /^convex\/cards\/__tests__\/compilerRoundTrip\.baseline\.ts$/,
+        lacks: "Guard C's baseline did not change — it cannot have gained a row",
+        diffOnly: true,
     },
 ];
 

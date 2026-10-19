@@ -566,6 +566,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:targets",
             "check:test-hygiene",
             "blade-index",
+            "check:baseline-shrink",
         ]);
         expect(plan.rationale).toContain("spanning src/**");
         expect(plan.rationale).not.toContain("prose");
@@ -780,6 +781,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
+            "check:baseline-shrink",
         ]);
     });
 
@@ -952,6 +954,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bundle",
             // The engine module is not a blade registry input (issue #5940).
             "blade-index",
+            "check:baseline-shrink",
         ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
@@ -984,6 +987,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "node-engine+node-tooling",
             "dom",
             "blade-index",
+            "check:baseline-shrink",
         ]);
         const out = renderPlan(cards, "4f2a91c");
         expect(out).toMatch(/^lane:\s+cards\b/);
@@ -1000,6 +1004,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:targets",
             "check:test-hygiene",
             "blade-index",
+            "check:baseline-shrink",
         ]);
         expect(full.skip).toEqual([]);
     });
@@ -2149,6 +2154,7 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
         const botNode = vitestProjects.find((p) => p.name === "bot-node");
         expect(botNode).toBeDefined();
         for (const guard of CHEAP_GUARDS) {
+            if (guard.diffOnly) continue;
             if (guard.command === undefined) {
                 expect(HEALTH_SCRIPTS, guard.id).toContain(guard.id);
                 continue;
