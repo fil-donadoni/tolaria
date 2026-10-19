@@ -11,6 +11,10 @@
 // fresh account; an active game at the moment a scenario is launched). All four
 // render from plain props, which is what this section hands them.
 //
+// A FIFTH, ON THE SAME TERMS (issue #6066): the Limited antechamber's
+// unseated-Start confirm sits behind a state the lane's `open` fixture never
+// holds (a creator with no Seat), so it is mounted here too.
+//
 // ONE AT A TIME, BY DESIGN — the same rule as § 16 Board dialogs
 // (`sections-board-dialogs.tsx`): each of these is a portal overlay at
 // `position: fixed`, so the page mounts exactly the one its opener selected,
@@ -26,6 +30,7 @@ import BugReportDialog from "~/components/bug-report/bug-report-dialog";
 import DisclaimerDialog from "~/components/legal/disclaimer-dialog";
 import InspectOverlay from "~/components/editing/inspect-overlay";
 import ScenarioActiveGameDialog from "~/components/admin/scenario-active-game-dialog";
+import LimitedStartUnseatedDialog from "~/components/limited/limited-start-unseated-dialog";
 import { Section } from "./lib";
 import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
 
@@ -111,6 +116,24 @@ const SPECIMENS: readonly OverlaySpecimen[] = [
             />
         ),
     },
+    {
+        // The Limited antechamber's Start confirm for a creator with no Seat
+        // (issue #5665): the `open` fixture seats the lane, so no walk of the
+        // real page reaches it (issue #6066).
+        slug: "limited-start-unseated",
+        label: "Start without playing?",
+        file: "limited/limited-start-unseated-dialog.tsx",
+        render: (close) => (
+            <LimitedStartUnseatedDialog
+                open
+                onOpenChange={(next) => {
+                    if (!next) close();
+                }}
+                onConfirm={close}
+                pending={false}
+            />
+        ),
+    },
 ];
 
 export function OverlaysSection() {
@@ -122,9 +145,10 @@ export function OverlaysSection() {
             blurb={
                 <>
                     The overlays that belong to no one page — the legal
-                    disclaimer, the bug-report form, the Inspect overlay and the
-                    Scenarios page&apos;s active-game confirm — mounted from
-                    fixture props (issue #4423). One at a time, as § 16:
+                    disclaimer, the bug-report form, the Inspect overlay, the
+                    Scenarios page&apos;s active-game confirm and the Limited
+                    unseated-Start confirm — mounted from fixture props (issue
+                    #4423). One at a time, as § 16:
                     <code>check:ui</code> walks one <code>dlg-*</code> surface
                     per opener.
                 </>
