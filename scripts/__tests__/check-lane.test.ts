@@ -1830,50 +1830,46 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
     });
 
     /**
-     * A racing `lint-staged` PUSHES its backup and then DROPS it, so the
-     * stack differs between two snapshots — the observed failure, where the
-     * lint-staged banner appeared inside the lane's own log. Both directions
-     * count: the entry may land after the start snapshot or vanish before
-     * the end one, depending on where the run falls inside the commit.
+     * The stash stack is shared by every worktree of the checkout, so a
+     * session committing elsewhere on the machine pushes and drops its
+     * lint-staged backup under this run (issue #5993: PR #5987's queue
+     * draft, a job worktree nobody commits in). The backup changes nothing
+     * on disk; when lint-staged rewrites THIS tree, status moves.
      */
-    it("refuses a lint-staged stash that was DROPPED under the run", () => {
-        const moved = treeMoved(
-            { ...quiet, stash: "lint-staged automatic backup" },
-            quiet
-        );
-        expect(moved).toContain("lint-staged automatic backup");
-        expect(moved).toContain("pushed or dropped under the run");
+    it("passes a stash-only change — another worktree's commit (issue #5993)", () => {
+        const backup = "lint-staged automatic backup";
+        expect(treeMoved({ ...quiet, stash: backup }, quiet)).toBeNull();
+        expect(treeMoved(quiet, { ...quiet, stash: backup })).toBeNull();
+        expect(
+            treeMoved(quiet, {
+                ...quiet,
+                stash: "On staging: someone else's wip",
+            })
+        ).toBeNull();
     });
 
-    it("refuses a lint-staged stash that was PUSHED under the run", () => {
+    it("names lint-staged when the tree moved with its backup on the stack", () => {
         const moved = treeMoved(quiet, {
             ...quiet,
+            status: " M src/app.tsx\n",
             stash: "lint-staged automatic backup",
         });
+        expect(moved).toContain("src/app.tsx");
         expect(moved).toContain("lint-staged automatic backup");
+        expect(
+            treeMoved(quiet, { ...quiet, status: " M src/app.tsx\n" })
+        ).not.toContain("automatic backup");
     });
 
     /**
-     * The stash stack is shared by every worktree, and a `lint-staged` that
-     * dies between its stash and its restore leaves the entry behind for
-     * good — one dated 2026-09-17 was on this repo's stack when the guard
-     * was first run. Refusing on PRESENCE, which is what issue #4379 asked
-     * for, would therefore have refused every `check:lane` (and every
-     * `land`) on the machine until a human dropped it. A stale entry changes
-     * nothing and is applied to nothing, so it is inert here.
+     * A `lint-staged` that dies between its stash and its restore leaves the
+     * entry behind for good — one dated 2026-09-17 was on this repo's stack
+     * when the guard was first run. It changes nothing and is applied to
+     * nothing, so it is inert here.
      */
     it("passes a stale lint-staged entry that was already on the stack and did not move", () => {
         const stale = { ...quiet, stash: "lint-staged automatic backup" };
         expect(treeMoved(stale, { ...stale })).toBeNull();
-    });
-
-    it("refuses any other change to the stash stack, without naming lint-staged", () => {
-        const moved = treeMoved(quiet, {
-            ...quiet,
-            stash: "On staging: someone else's wip",
-        });
-        expect(moved).toContain("the stash stack changed under the run");
-        expect(moved).not.toContain("lint-staged automatic backup");
     });
 
     it("recognises the lint-staged entry with and without the stash@{N} prefix, and nothing else", () => {
