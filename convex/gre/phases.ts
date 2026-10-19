@@ -1,4 +1,5 @@
 import { findPermanent } from "./lookup";
+import { checkStateBasedActions } from "./sba";
 import type { Phase } from "./types";
 import { clearCardFieldsAt } from "./state/cardFieldLifecycle";
 import type {
@@ -4164,6 +4165,31 @@ export function drainAutoPasses(state: GameState): void {
             !singleShot
         )
             break;
+
+        // CR 704.3 — this seat WOULD get priority, so state-based actions are
+        // checked before its pass is taken, exactly as the mutation path checks
+        // them before a human holder acts. Without it a run of auto-passed
+        // resolutions saw no SBA until the run ended: a creature dealt lethal
+        // damage by the first resolution stayed on the battlefield through the
+        // next one (issue #5784; finding 3026). A check that raised input (a
+        // legend-rule keep, a targeted trigger) ends the drain; one that put
+        // triggers on the stack re-seated priority (CR 117.3b), so the loop
+        // re-reads the holder rather than passing on a stale one.
+        const holderBefore = state.priorityPlayerId;
+        const passCountBefore = state.passCount;
+        checkStateBasedActions(state);
+        if (state.gameOver) return;
+        // Through a local, as `owesInput` above: no narrowing of
+        // `state.pendingChoices` for the resolution guards below.
+        const sbaRaisedInput: boolean =
+            state.pendingTarget !== undefined ||
+            (state.pendingChoices?.length ?? 0) > 0;
+        if (sbaRaisedInput) return;
+        if (
+            state.priorityPlayerId !== holderBefore ||
+            state.passCount !== passCountBefore
+        )
+            continue;
         if (singleShot) state.singleShotAutoPass = undefined;
 
         // Auto-confirm attackers with current selection when auto-passing
