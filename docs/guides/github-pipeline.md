@@ -594,9 +594,10 @@ abandoned PR's work stays recoverable.
   classifier (`scripts/worktree-gc.ts` § `classify`) over this machine's
   `feat|fix/issue-N` worktrees only, every one listed with its verdict. It
   removes one only when nothing is inside it (`lsof`), it is not locked, its
-  tree is clean, and either its PR merged — or, with no `in-progress` /
-  `pr-open` claim on its issue and every commit on `origin/<branch>` or in
-  the base, its PR was closed unmerged, or it has no PR and has not changed
+  tree is clean (a `git status` that fails counts as dirty), its issue
+  carries no `in-progress` / `pr-open` claim, and either its PR merged — or,
+  with every commit on `origin/<branch>` or in the base, its PR was closed
+  unmerged, or it has no PR and has not changed
   for `ORPHAN_IDLE_MINUTES` (24 h). A claim is read off the labels: a dead
   pass's label is released by the dispatcher, after which the sweep sees the
   worktree as unclaimed. Any reading it cannot make keeps the worktree; a PR
