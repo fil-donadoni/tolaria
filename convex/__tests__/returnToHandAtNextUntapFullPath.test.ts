@@ -124,7 +124,7 @@ describe("Undiscovered Paradise — priority tap (CR 605.1a / 605.3b / 502.3)", 
         expect(land.returnToHandAtUntapOf).toBe("p1");
         // Wire format — the projection keeps the land (and the mark is
         // server-side bookkeeping the client never needs to read).
-        const view = projectPublicState(after, "p1");
+        const view = projectPublicState(after, 1, "p1");
         expect(
             view.players[0]!.battlefield.some((c) => c.id === PARADISE)
         ).toBe(true);
