@@ -76,10 +76,14 @@ const FILES: Record<string, string> = {
     // specimens one at a time behind openers, in two sections: the page's own
     // frame (`lib`), a section with two rows and a fixture module, a section
     // with one row. The pause dialog is also a board dialog the game renders.
-    "src/routes/census.route.tsx": `import { Frame } from "./census/lib";\nimport { SectionA } from "./census/section-a";\nimport { SectionB } from "./census/section-b";\n`,
+    "src/routes/census.route.tsx": `import { Frame } from "./census/lib";\nimport { SectionA } from "./census/section-a";\nimport { SectionB } from "./census/section-b";\nimport { SectionPlain } from "./census/section-plain";\n`,
     "src/routes/census/lib.tsx": `export const Frame = 1;\n`,
     "src/routes/census/section-a.tsx": `import { Frame } from "./lib";\nimport { FIXTURES } from "./fixtures-a";\nimport { PauseDialog } from "~/components/dialogs/pause";\nimport { ConcedeDialog } from "~/components/dialogs/concede";\n`,
     "src/routes/census/fixtures-a.ts": `export const FIXTURES = [];\n`,
+    // A section with no specimen rows (swatches, inline panels): only the
+    // census surface renders it — never under a row's open layer.
+    "src/routes/census/section-plain.tsx": `import { Frame } from "./lib";\nimport { Swatch } from "~/components/swatch";\n`,
+    "src/components/swatch.tsx": `export const Swatch = 1;\n`,
     "src/routes/census/section-b.tsx": `import { Frame } from "./lib";\nimport { ReportDialog } from "~/components/dialogs/report";\n`,
     "src/components/dialogs/pause.tsx": `import { PauseBody } from "./pause-body";\nexport const PauseDialog = 1;\n`,
     "src/components/dialogs/pause-body.tsx": `export const PauseBody = 1;\n`,
@@ -326,6 +330,17 @@ describe("computeUiScope — specimen rows (issue #4913)", () => {
         expect(scopeOf(SECTION_B)).toEqual({
             kind: "scoped",
             surfaces: ["census", "dlg-report"],
+        });
+    });
+
+    it("a section with no specimen rows is not the rows' scaffolding — only the page surface walks it (issue #6073)", () => {
+        expect(scopeOf("src/routes/census/section-plain.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["census"],
+        });
+        expect(scopeOf("src/components/swatch.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["census"],
         });
     });
 

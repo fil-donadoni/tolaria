@@ -41,3 +41,31 @@ describe("the real app shell (issue #5379)", () => {
         }
     );
 });
+
+describe("the real design-system census page (issue #6073)", () => {
+    const scopeOf = (changed: string) =>
+        computeUiScope({ changed: [changed], surfaces: SURFACES, graph });
+    const specimenRows = (section: string) =>
+        SURFACES.filter((s) => s.specimen?.section === section).map(
+            (s) => s.id
+        );
+
+    it("a section with no specimen rows selects only the page's own surfaces", () => {
+        expect(
+            scopeOf("src/routes/design-system/sections-panels-dialogs.tsx")
+        ).toEqual({
+            kind: "scoped",
+            surfaces: ["design-system", "design-system-dialog"],
+        });
+    });
+
+    it("a specimen section still selects every row it opens", () => {
+        const section = "src/routes/design-system/sections-overlays.tsx";
+        const rows = specimenRows(section);
+        expect(rows.length).toBeGreaterThan(0);
+        const scope = scopeOf(section);
+        expect(scope.kind).toBe("scoped");
+        if (scope.kind !== "scoped") return;
+        expect(scope.surfaces).toEqual(expect.arrayContaining(rows));
+    });
+});
