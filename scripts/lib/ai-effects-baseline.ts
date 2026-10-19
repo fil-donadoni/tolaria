@@ -37,9 +37,7 @@
  *
  *   - It NEVER adds a row. A live offender missing from the baseline is a
  *     hard refusal, with the same message the guard prints - a NEW resolve()
- *     card ships `aiEffects`/`aiValue`, it does not buy a baseline slot. This
- *     is strictly STRONGER than Guard C's `BASELINE_CEILING`, which a diff can
- *     satisfy by deleting a graduating row and spending the freed slot.
+ *     card ships `aiEffects`/`aiValue`, it does not buy a baseline slot.
  *   - It NEVER writes a `note`. The disposition is human prose; a surviving
  *     row keeps the one it was authored with, verbatim.
  *   - It NEVER repairs a drifted `name`. An id that has moved onto a different

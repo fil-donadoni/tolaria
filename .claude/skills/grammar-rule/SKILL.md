@@ -214,10 +214,10 @@ bunx vitest run convex/cards/__tests__/compilerRoundTrip.test.ts >"$L" 2>&1; ech
 
 A red here listing `round-trips now` is the graduation list. Delete each row
 from `convex/cards/__tests__/compilerRoundTrip.baseline.ts` (arrays stay
-sorted), lower `BASELINE_CEILING` in `compilerRoundTrip.test.ts` by EXACTLY
-that many, and delete any `compiler-gap:` marker the guard reports stale. The
-baseline edit is a pure deletion — anything else needs a reason in the PR
-(the file's own SHRINK-ONLY header). `bun run oracle:triage` prints the class
+sorted) and delete any `compiler-gap:` marker the guard reports stale. The
+baseline edit is a pure deletion; there is no count to lower and no log to
+append (issue #5942 — the frozen `compilerRoundTrip.amnesty.ts` holds it
+shrink-only). `bun run oracle:triage` prints the class
 counts after.
 
 **Every graduate with an open Hand Tail claim closes it.** For each card the
@@ -301,7 +301,7 @@ Graduated to `ready`: <names>. Quarantined instead: <names — reason>.
 
 `check:oracle` · `catalogue:check` · `check:index` · `check:gaps` · `cr:lint` — <each: green / what it said>.
 Artefacts regenerated: `oracle-compiled.json`, `card-index.json` (+N compiled rows), `data/catalogue/*`.
-Guard C: <names> round-trip → baseline rows removed, `BASELINE_CEILING` <old> → <new>.
+Guard C: <names> round-trip → baseline rows removed.
 Gold: <no new divergence | adjudication>.
 
 ## Bot reachability
