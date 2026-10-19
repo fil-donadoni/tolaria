@@ -155,7 +155,7 @@ function main(): number {
             () =>
                 baseHealthStatus({
                     lineage,
-                    prBody: raw.body ?? "",
+                    pr: gatePrOf(raw, []),
                     repairIssues,
                 }),
             () =>

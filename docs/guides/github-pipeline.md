@@ -962,10 +962,10 @@ the **base's** workflow and code that run, with a token that can write
 statuses: the job checks out the base only and reads the PR as data —
 author, body, file list — through the API, never its tree.
 
-| Status                                | Green when                                                                                                                                             | Red when                                                                                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always    | the author is not, or the PR touches `.github/`, `.mergify/` or `.mergify.yml` (a rename counts both names), or its file list is truncated (over 3000 files) |
-| [`base-health`](#g-base-health)       | no RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet), or the PR closes a repair issue declared on the pivot (`health-fix`) | a RED or second RED stands and the PR closes none of its declared repair issues                                                                              |
+| Status                                | Green when                                                                                                                                                                             | Red when                                                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always                                    | the author is not, or the PR touches `.github/`, `.mergify/` or `.mergify.yml` (a rename counts both names), or its file list is truncated (over 3000 files) |
+| [`base-health`](#g-base-health)       | no RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet), or the PR closes a repair issue declared on the pivot (`health-fix`); Mergify's own queue PRs always | a RED or second RED stands and the PR closes none of its declared repair issues                                                                              |
 
 `base-health` is the land-runner's RED rule — `healthAdmission`, which
 `planTick` reads too, so the two cannot drift. One difference: the
@@ -979,6 +979,12 @@ queueable: the owner merges it by hand. **Known gap:** the gate's own code
 outside `.github/` (`scripts/pr-gate.ts`, `scripts/lib/pr-gate.ts`, the
 health modules it imports, `tolaria.config.json`) is queueable today, as
 ADR 0156 §8 names only `.github/` and `.mergify.yml`.
+
+**Mergify's queue PRs pass both.** Mergify judges a queued PR's entry
+conditions on its draft ([the merge queue](#the-merge-queue)), so a red there
+dequeues the PR. `trusted-author` would be red because the draft's author,
+`mergify[bot]`, is no trusted author; `base-health` under a RED because the
+draft's body is Mergify's and declares no repair (issue #5978).
 
 **Re-gate.** A `health` or `health-fix` commit status — a verdict written,
 or a repair issue recorded on the pivot — fires the workflow's `status`
@@ -1014,7 +1020,7 @@ the queue admits. The land-runner lands the rest: a PR touching `.github/` or
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=queue:shadow` and `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                         |
 | Entry (`queue_conditions`) | `queue:shadow`, `ready-to-land`, no `land-failed`, [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                                                                   |
-| Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR, and Mergify's draft PRs carry no `trusted-author` of their own                                                                  |
+| Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR                                                                                                                                  |
 | Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                         |
 | Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                           |
 | Merge method               | `squash`, as `land` merges                                                                                                                                                                                                                        |
@@ -1023,9 +1029,27 @@ the queue admits. The land-runner lands the rest: a PR touching `.github/` or
 `land-failed` is the repair pick's trigger (`afk-dispatch` re-fires the PR's
 issue), and `-label=land-failed` keeps the PR out of the queue until the
 repair's `land:ready` swaps the labels back. Mergify's default `dequeued`
-label is off (`dequeued_label: null`): any other dequeue — the PR updated, a
-conflict ([`pr-refresh`](#pr-refresh) handles those), a manual dequeue —
-leaves the PR queued again as soon as its conditions hold.
+label is off (`dequeued_label: null`).
+
+**Where Mergify judges the entry conditions.** While a PR is queued, Mergify
+re-checks the check conditions of `queue_conditions` on the queue's **draft**,
+not on the PR (the draft's body lists them as "Required conditions to stay in
+the queue"), and a PR dequeued because one stopped holding is not requeued by
+itself: Mergify's lifecycle says it "must be fixed and requeued". So a check
+in `queue_conditions` must be an entry gate a draft passes by construction:
+`pr-gate` posts both of its statuses green on a queue PR (issue #5978). A RED
+holds a PR at entry, on its own head. A PR already in the queue is not
+stopped by it: it finishes, unless its own head's re-gate dequeues it first —
+which of the two happens to a PR not yet drafted (third or later) is not
+observed yet. A check that reads the PR's body (the `land` refusals) can
+never be one: `land:ready` runs those before the hand-off. A PR stranded
+anyway — `queue:shadow` and `ready-to-land`, no `land-failed`, both gates
+green, no `queued` label (Mergify's own), its "Mergify Merge Queue" check
+stuck on "conditions under evaluation" — re-enters with a comment:
+
+```bash
+gh pr comment <N> --body "@mergifyio requeue"
+```
 
 **Who lands a PR** is decided at hand-off (issue #5952). `land:ready`
 computes the PR's [`trusted-author`](#g-trusted-author) verdict exactly as
@@ -1262,6 +1286,11 @@ Two defects distort the numbers above rather than add to them:
   reverted. Fix: issue #5939, which samples on the liveness ticks and
   names why a retry was refused.
 
+A hold is no failure, but one stranded a PR. On 2026-10-18 PR #5854 sat
+14 h with no merger: the RED reddened `base-health` on its queue draft,
+Mergify dequeued it, and no GREEN requeued it (`@mergifyio requeue` did).
+Fix: issue #5978.
+
 The [shadow](#g-shadow) comparison that decides the cut-over (issue #5643)
 counts episodes, not attempts, and leaves out holds.
 
@@ -1293,7 +1322,7 @@ of its own sha.
 
 | Symptom                                       | Look at                                                                                                                                                                               |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| the land-runner acts on stale rules           | its process predates the change: `launchctl kickstart -k gui/$(id -u)/com.tolaria.land-runner` while no landing is in flight (automatic once issue #5941 lands)                       |
+| the land-runner acts on stale rules           | its process predates the change: it exits 75 between ticks when its sources change (issue #5941); if not, `launchctl kickstart -k gui/$(id -u)/com.tolaria.land-runner`               |
 | `could not get a registration token`          | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
 | `node not resolvable on the rendered PATH`    | run `install` from a shell where `command -v node` resolves                                                                                                                           |
 | a [runner](#g-runner) offline on GitHub       | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
@@ -1305,6 +1334,7 @@ of its own sha.
 | `housekeeping` red: `shared state … moved`    | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
 | `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
 | `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml`: `land:ready` gave it to the land-runner; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                    |
+| a shadow PR sits unqueued, its gates green    | Mergify dropped it when a queue condition failed on its draft or its own head: `@mergifyio requeue` ([the merge queue](#the-merge-queue))                                             |
 | `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
 | `health` red, `health:status` names a flake   | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
 | an early RED, no `ladder` run                 | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
@@ -1438,7 +1468,7 @@ The commit status [`pr-gate`](#pr-gate) posts: green for a PR by a
 
 The commit status [`pr-gate`](#pr-gate) posts: green unless a RED stands on
 the base branch's health lineage and the PR closes none of that RED's
-declared repair issues.
+declared repair issues; always green for a Mergify queue PR.
 
 ### <a id="g-infra"></a>INFRA
 
