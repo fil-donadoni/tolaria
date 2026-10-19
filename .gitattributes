@@ -28,3 +28,12 @@ data/catalogue/search-index.json merge=regenerated
 # nothing to regenerate at the rebased tip. Pinned to OTHER_MERGE_DRIVERS by
 # the same test, and registered by the same `bun run worktree:init`.
 data/cr/citations-ledger.json merge=cr-ledger
+
+# Hand-written source files that are ONE append-only list of self-contained
+# entries (issue #5942): git's built-in `union` driver keeps both sides of a
+# conflict, so two PRs appending at the same end no longer collide. Built-in —
+# nothing to register. Pinned to UNION_MERGED_LISTS by the same test, which
+# also holds each file to its one list: `union` applies to every conflict in
+# the file, so a helper there could be spliced, never merged.
+convex/gre/ai/blade/scenarios.ts merge=union
+convex/oracle/grammar/fixtures.ts merge=union
