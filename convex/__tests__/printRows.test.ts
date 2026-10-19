@@ -9,6 +9,7 @@ import {
     checkAlpha40CopyCaps,
     checkSets,
     FORMAT_RULES,
+    resolveCardViaDefinitionIds,
     validateDeck,
 } from "../formats";
 import { tryGetCardByName } from "../cards";
@@ -275,5 +276,82 @@ describe("a chosen printing becomes a Card Definition at the server boundary (is
         expect(() => buildInitialGameState(seats, "p1")).toThrow(
             "Card not found: p-none"
         );
+    });
+});
+
+// The Limited builder's live legality and the server's agree on a reprinted
+// Basic (issue #5550): rows on both sides, and the `definitionId` fallback the
+// client uses while rows load (and the deck list uses with none) yields the
+// SAME Basic flag and canonical Card ID — Pool membership keys on those two.
+describe("Limited Pool check over a reprinted print (issue #5550)", () => {
+    const mountain = tryGetCardByName("Mountain")!;
+    const MOUNTAIN_PRINT = "p-ice-mountain";
+    const BOLT_PRINT = "p-m10-bolt";
+    const rows = [
+        row(MOUNTAIN_PRINT, mountain.id, "ice", "common"),
+        row(BOLT_PRINT, bolt.id, "m10", "common"),
+    ];
+    const entries = [
+        {
+            cardId: MOUNTAIN_PRINT,
+            cardName: "Mountain",
+            definitionId: mountain.id,
+        },
+        {
+            cardId: BOLT_PRINT,
+            cardName: "Lightning Bolt",
+            definitionId: bolt.id,
+        },
+    ];
+    const poolOf =
+        (...cards: { cardId: string; cardName: string }[]) =>
+        () => ({
+            cards: cards.map((c) => ({ ...c, count: 1 })),
+        });
+    const limitedDeck = (cards: { cardId: string; cardName: string }[]) => ({
+        cards,
+        limitedEventId: "e",
+        limitedSeatId: "0",
+    });
+    const poolCodes = (
+        deck: ReturnType<typeof limitedDeck>,
+        resolve: Parameters<typeof validateDeck>[2],
+        pool: ReturnType<typeof poolOf>
+    ) =>
+        validateDeck(deck, "limited", resolve, undefined, pool)
+            .reasons.map((r) => r.code)
+            .filter(
+                (c) => c === "pool-not-granted" || c === "pool-excess-copies"
+            );
+
+    it("the rows resolver and the definitionId resolver agree on a basic reprint", () => {
+        const server = resolverOf(...rows)(MOUNTAIN_PRINT);
+        const client = resolveCardViaDefinitionIds(entries)(MOUNTAIN_PRINT);
+        expect(server).toMatchObject({ cardId: mountain.id, isBasic: true });
+        expect(client).toMatchObject({ cardId: mountain.id, isBasic: true });
+    });
+
+    it("a reprinted basic is Pool-exempt on both resolvers", () => {
+        const deck = limitedDeck([entries[0]]);
+        const pool = poolOf({ cardId: bolt.id, cardName: bolt.name });
+        expect(poolCodes(deck, resolverOf(...rows), pool)).toEqual([]);
+        expect(
+            poolCodes(deck, resolveCardViaDefinitionIds(entries), pool)
+        ).toEqual([]);
+    });
+
+    it("a reprinted non-basic counts against its canonical Pool entry, and is not granted without one", () => {
+        const deck = limitedDeck([entries[1]]);
+        const granted = poolOf({ cardId: bolt.id, cardName: bolt.name });
+        const empty = poolOf();
+        for (const resolve of [
+            resolverOf(...rows),
+            resolveCardViaDefinitionIds(entries),
+        ]) {
+            expect(poolCodes(deck, resolve, granted)).toEqual([]);
+            expect(poolCodes(deck, resolve, empty)).toEqual([
+                "pool-not-granted",
+            ]);
+        }
     });
 });
