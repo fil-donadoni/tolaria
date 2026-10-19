@@ -37,7 +37,7 @@ import {
 
 const GAME_ID = "game-1" as Id<"games">;
 const PARADISE = "paradise";
-/** CR 605.1a — the first of the five colour options (`{W}`). */
+/** The first of the five colour options (`{W}`). */
 const WHITE = 0;
 
 type TapArgs = {

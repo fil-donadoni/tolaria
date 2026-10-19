@@ -4,7 +4,7 @@ import type { CardInstanceState, GameState } from "./state";
 /** CR 502.3 — returns every battlefield permanent marked
  *  `returnToHandAtUntapOf === playerId` to its OWNER's hand. The mark is
  *  deleted first so the one-shot cannot recur, even if an exileOnLeave
- *  replacement redirects the departure (CR 614.1c). */
+ *  replacement redirects the departure (CR 614.6). */
 export function returnMarkedPermanentsToHand(
     state: GameState,
     playerId: string
