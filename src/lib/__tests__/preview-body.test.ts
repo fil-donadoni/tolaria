@@ -16,6 +16,7 @@ import {
     computeEngineViewBadge,
 } from "~/lib/preview-body";
 import { modalBackFaceDefinitionId } from "@convex/cards/modalDfc";
+import { splitHalfDefinitionId } from "@convex/cards/splitCard";
 import { backFaceDefinitionIdOf } from "@convex/gre/transform";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance, TokenSpec } from "@convex/cards/types";
@@ -771,6 +772,63 @@ describe("buildPreviewBody — the inset half of a two-part frame (CR 715.2)", (
 
     it("is null for an ordinary card", () => {
         expect(buildPreviewBody(SERRA.id).insetHalf).toBeNull();
+    });
+});
+
+// CR 709 (issue #5490) — a SPLIT card's two halves. Before this the combined
+// definition's oracle text reached the face as one merged paragraph list, so
+// Deliver's sentence read as part of Stand's {W}. This suite pins the DATA;
+// `card-preview-body.test.tsx` pins that each half reaches the DOM.
+describe("buildPreviewBody — the halves of a split card (CR 709)", () => {
+    const STAND_DELIVER = getCardByName("Stand // Deliver");
+
+    it("keeps the combined header (CR 709.4) and prints no merged oracle list", () => {
+        const body = buildPreviewBody(STAND_DELIVER.id);
+
+        expect(body.displayName).toBe("Stand // Deliver");
+        expect(body.manaCost).toBe("{2}{W}{U}");
+        expect(body.oracleParagraphs).toBeNull();
+    });
+
+    it("carries each half under its own name, cost, type line and text", () => {
+        const halves = buildPreviewBody(STAND_DELIVER.id).splitHalves;
+
+        expect(halves).toHaveLength(2);
+        const [stand, deliver] = halves!;
+        expect(stand.label).toBe("Left half");
+        expect(stand.name).toBe("Stand");
+        expect(stand.manaCost).toBe("{W}");
+        expect(stand.typeLine).toBe("Instant");
+        expect(stand.oracleParagraphs).toEqual([
+            "Prevent the next 2 damage that would be dealt to target creature this turn.",
+        ]);
+        expect(deliver.label).toBe("Right half");
+        expect(deliver.name).toBe("Deliver");
+        expect(deliver.manaCost).toBe("{2}{U}");
+        expect(deliver.typeLine).toBe("Instant");
+        expect(deliver.oracleParagraphs).toEqual([
+            "Return target permanent to its owner's hand.",
+        ]);
+    });
+
+    it("a half on the stack is only that half (CR 709.3b), the other one labelled apart", () => {
+        const body = buildPreviewBody(
+            splitHalfDefinitionId(STAND_DELIVER.id, "right")
+        );
+
+        expect(body.displayName).toBe("Deliver");
+        expect(body.manaCost).toBe("{2}{U}");
+        expect(body.typeLine).toBe("Instant");
+        expect(body.oracleParagraphs).toEqual([
+            "Return target permanent to its owner's hand.",
+        ]);
+        expect(body.splitHalves).toHaveLength(1);
+        expect(body.splitHalves![0].label).toBe("Other half");
+        expect(body.splitHalves![0].name).toBe("Stand");
+    });
+
+    it("is null for an ordinary card", () => {
+        expect(buildPreviewBody(SERRA.id).splitHalves).toBeNull();
     });
 });
 
