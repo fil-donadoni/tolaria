@@ -60,8 +60,10 @@
  * A specimen row (`ScopeSurface.specimen`) is selected by the closure of what
  * it measures instead — three parts, each taken from the same graph:
  *   1. the PAGE scaffolding: its entries' closure, not descending into any
- *      specimen SECTION module (the frame every row shares — the layout, the
- *      census page's own controls);
+ *      SECTION module of the page — a specimen section, or a sibling module
+ *      named like one (`sections-*.tsx` beside `sections-overlays.tsx`):
+ *      the frame every row shares is the layout and the census page's own
+ *      controls, never the swatches another section renders (issue #6073);
  *   2. its SECTION's closure, not descending into any row's mount (the openers
  *      and fixture props of that section: a change there selects every row of
  *      the section, and no other section's);
@@ -340,24 +342,40 @@ export function computeUiScope({
     };
 }
 
-/** Every specimen section module, and the union of the mounts its rows open. */
+/** Whether a module is a SECTION of a specimen page — a specimen section, or
+ *  a sibling named like one — and the union of the mounts each specimen
+ *  section's rows open. */
 interface SpecimenIndex {
-    sections: ReadonlySet<string>;
+    isPageSection: (path: string) => boolean;
     mountsBySection: ReadonlyMap<string, ReadonlySet<string>>;
+}
+
+/** `src/routes/design-system/sections-overlays.tsx` → the family every
+ *  `src/routes/design-system/sections-*` module belongs to: its directory and
+ *  the basename up to and including the first `-`. */
+function sectionFamily(path: string): string {
+    const slash = path.lastIndexOf("/");
+    const dash = path.indexOf("-", slash + 1);
+    return dash === -1 ? path : path.slice(0, dash + 1);
 }
 
 function specimenIndex(surfaces: readonly ScopeSurface[]): SpecimenIndex {
     const sections = new Set<string>();
+    const families = new Set<string>();
     const mountsBySection = new Map<string, Set<string>>();
     for (const surface of surfaces) {
         if (!surface.specimen) continue;
         const { section } = surface.specimen;
         sections.add(section);
+        families.add(sectionFamily(section));
         const mounts = mountsBySection.get(section) ?? new Set<string>();
         for (const mount of surface.mounts ?? []) mounts.add(mount);
         mountsBySection.set(section, mounts);
     }
-    return { sections, mountsBySection };
+    return {
+        isPageSection: (p) => sections.has(p) || families.has(sectionFamily(p)),
+        mountsBySection,
+    };
 }
 
 /**
@@ -368,7 +386,7 @@ function specimenIndex(surfaces: readonly ScopeSurface[]): SpecimenIndex {
 function surfaceClosure(
     surface: ScopeSurface,
     graph: ImportGraph,
-    { sections, mountsBySection }: SpecimenIndex
+    { isPageSection, mountsBySection }: SpecimenIndex
 ): Set<string> {
     const files = new Set<string>();
     const add = (closure: Iterable<string>) => {
@@ -380,7 +398,7 @@ function surfaceClosure(
     }
     const { section } = surface.specimen;
     for (const entry of surface.entries) {
-        add(graph.closureOf(entry, { prune: (p) => sections.has(p) }));
+        add(graph.closureOf(entry, { prune: isPageSection }));
     }
     const rowMounts = mountsBySection.get(section) ?? new Set<string>();
     add(graph.closureOf(section, { prune: (p) => rowMounts.has(p) }));
