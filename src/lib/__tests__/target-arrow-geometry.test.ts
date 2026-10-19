@@ -8,6 +8,9 @@ import {
     buildManualArrows,
     resolveArrowHighlight,
     arrowPath,
+    hitTestArrows,
+    distanceToArrow,
+    ARROW_HOVER_RADIUS,
     emptyAnchorMap,
     type AnchorMap,
 } from "../target-arrow-geometry";
@@ -478,5 +481,52 @@ describe("buildManualArrows — permanent → permanent pairs (#2171)", () => {
             map
         );
         expect(arrows).toEqual([]);
+    });
+});
+
+describe("hitTestArrows — passive hover proximity (issue #5853)", () => {
+    // (0,0) → (200,0) bows to y = +36 at its control point: curve midpoint
+    // (100, 18), i.e. NOT on the chord.
+    const arrows = buildManualArrows(
+        [
+            { key: "ab", fromId: "a", toId: "b" },
+            { key: "cd", fromId: "c", toId: "d" },
+        ],
+        anchors({
+            permanent: {
+                a: { x: 0, y: 0 },
+                b: { x: 200, y: 0 },
+                c: { x: 0, y: 100 },
+                d: { x: 200, y: 100 },
+            },
+        })
+    );
+
+    it("measures distance to the bowed curve, not the chord", () => {
+        expect(distanceToArrow(arrows[0], { x: 100, y: 18 })).toBeLessThan(0.5);
+        expect(distanceToArrow(arrows[0], { x: 100, y: 0 })).toBeCloseTo(18, 0);
+    });
+
+    it("hits the arrow within the hover radius and nothing beyond it", () => {
+        expect(
+            hitTestArrows(arrows, { x: 100, y: 18 + ARROW_HOVER_RADIUS - 1 })
+        ).toBe(arrows[0].key);
+        expect(
+            hitTestArrows(arrows, { x: 100, y: 18 + ARROW_HOVER_RADIUS + 2 })
+        ).toBeNull();
+    });
+
+    it("picks the nearest arrow when two are in reach", () => {
+        expect(hitTestArrows(arrows, { x: 100, y: 118 }, 200)).toBe(
+            arrows[1].key
+        );
+    });
+
+    it("handles a zero-length arrow as a point", () => {
+        const [dot] = buildManualArrows(
+            [{ key: "ab", fromId: "a", toId: "b" }],
+            anchors({ permanent: { a: { x: 5, y: 5 }, b: { x: 5, y: 5 } } })
+        );
+        expect(distanceToArrow(dot, { x: 8, y: 9 })).toBe(5);
     });
 });

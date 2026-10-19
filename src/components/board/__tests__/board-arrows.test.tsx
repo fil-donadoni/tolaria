@@ -7,7 +7,9 @@
 // stack-item→target with endpoints at those points, and the path re-targets
 // when a placement moves — proving the arrow tracks an animating card.
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { render, cleanup, act, fireEvent } from "@testing-library/react";
+import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
+import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useEffect } from "react";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import {
@@ -241,5 +243,157 @@ describe("BoardArrows — sibling zone-chip anchor wiring (#1815 review fixup ro
         // published unchanged — a valid, non-degenerate rect reaching the
         // registry from OUTSIDE the board root.
         expect(anchors.graveyard.me).toEqual({ x: 200, y: 270 });
+    });
+});
+
+// Issue #5853 — arrows never capture a pointer event: the old invisible
+// hit-stroke (`pointer-events-auto`, 18px) sat above the battlefield and
+// swallowed left/right clicks on any card it crossed. Hover is now a passive
+// proximity hit-test on the board root's `pointermove`.
+function NodesProbe() {
+    const channel = useArrowHighlight();
+    const nodes = channel?.nodes;
+    return (
+        <output data-testid="nodes">
+            {nodes ? [...nodes].sort().join(",") : "none"}
+        </output>
+    );
+}
+
+function CardSeeder({ id }: { id: string }) {
+    const channel = useArrowHighlight();
+    return (
+        <div
+            data-testid={`card-${id}`}
+            onPointerEnter={() => channel?.setSeed({ nodeId: id })}
+            onPointerLeave={() => channel?.setSeed(null)}
+        />
+    );
+}
+
+function renderHoverBoard(stack: StackItem[], entries: Published[]) {
+    const ui = (s: StackItem[], e: Published[] = entries) => (
+        <div data-board-root data-testid="board-root">
+            <ArrowAnchorProvider>
+                <ArrowHighlightProvider>
+                    <Publisher entries={e} />
+                    <CardSeeder id="bear" />
+                    <NodesProbe />
+                    <BoardArrows stack={s} />
+                </ArrowHighlightProvider>
+            </ArrowAnchorProvider>
+        </div>
+    );
+    const result = render(ui(stack));
+    return {
+        ...result,
+        rerenderStack: (s: StackItem[]) => result.rerender(ui(s)),
+        rerenderAnchors: (e: Published[]) => result.rerender(ui(stack, e)),
+    };
+}
+
+// s1 (0,0) → perm (200,0): the bezier bows to y = +36 at its control point,
+// so the curve's midpoint is (100, 18).
+const HOVER_STACK = [stackItem("s1", [{ type: "permanent", id: "perm" }])];
+const HOVER_ANCHORS: Published[] = [
+    { kind: "stack", id: "s1", point: { x: 0, y: 0 } },
+    { kind: "permanent", id: "perm", point: { x: 200, y: 0 } },
+];
+
+describe("BoardArrows — arrows never capture pointer events (issue #5853)", () => {
+    beforeEach(() => cleanup());
+
+    it("no element of the arrow layer opts back into pointer events or shows a pointer cursor", () => {
+        const { container } = renderArrows(HOVER_STACK, HOVER_ANCHORS);
+        const svg = container.querySelector("[data-testid='board-arrows']")!;
+        expect(svg.querySelectorAll("path[data-arrow-key]")).toHaveLength(1);
+        for (const el of svg.querySelectorAll("*")) {
+            const cls = el.getAttribute("class") ?? "";
+            expect(cls).not.toMatch(/pointer-events-(auto|all|stroke)/);
+            expect(cls).not.toContain("cursor-pointer");
+            expect(el.getAttribute("pointer-events")).toBeNull();
+        }
+    });
+
+    it("lights the relationship when the pointer is within reach of the curve, clears it away from it and on leave", () => {
+        const { getByTestId } = renderHoverBoard(HOVER_STACK, HOVER_ANCHORS);
+        const root = getByTestId("board-root");
+        expect(getByTestId("nodes").textContent).toBe("none");
+
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 25 });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 40 });
+        expect(getByTestId("nodes").textContent).toBe("none");
+
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        fireEvent.pointerLeave(root);
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("arrow hover wins over a hovered card; away from the arrow the card seed is back", () => {
+        // A second, far-away relationship s2 → bear, seeded by hovering bear.
+        const { getByTestId } = renderHoverBoard(
+            [
+                ...HOVER_STACK,
+                stackItem("s2", [{ type: "permanent", id: "bear" }]),
+            ],
+            [
+                ...HOVER_ANCHORS,
+                { kind: "stack", id: "s2", point: { x: 0, y: 500 } },
+                { kind: "permanent", id: "bear", point: { x: 200, y: 500 } },
+            ]
+        );
+        const root = getByTestId("board-root");
+        fireEvent.pointerEnter(getByTestId("card-bear"));
+        expect(getByTestId("nodes").textContent).toBe("bear,s2");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
+        expect(getByTestId("nodes").textContent).toBe("bear,s2");
+    });
+
+    it("ignores touch moves (no hover on touch, no stuck highlight on lift)", () => {
+        const { getByTestId } = renderHoverBoard(HOVER_STACK, HOVER_ANCHORS);
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+            pointerType: "touch",
+        });
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("does not leave a stuck highlight when the hovered arrow disappears (stack item resolved)", () => {
+        const { getByTestId, rerenderStack } = renderHoverBoard(
+            HOVER_STACK,
+            HOVER_ANCHORS
+        );
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+        });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        act(() => rerenderStack([]));
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("re-tests a still pointer when the arrow moves away from it (card animating)", () => {
+        const { getByTestId, rerenderAnchors } = renderHoverBoard(
+            HOVER_STACK,
+            HOVER_ANCHORS
+        );
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+        });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        act(() =>
+            rerenderAnchors([
+                HOVER_ANCHORS[0],
+                { kind: "permanent", id: "perm", point: { x: 0, y: 300 } },
+            ])
+        );
+        expect(getByTestId("nodes").textContent).toBe("none");
     });
 });

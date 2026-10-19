@@ -7,13 +7,13 @@ export type ArrowHoverSeed = { key: string } | { nodeId: string } | null;
 
 /**
  * Shared hover-highlight channel for the spatial board's arrow layer
- * (PRD #249, combat-read). Two writers feed the SAME seed:
- *
- * - the **arrow overlay** — each path has a wide invisible hit-stroke; hovering
- *   it seeds `{ key }`;
- * - **battlefield cards** — hovering a permanent seeds `{ nodeId }` (so a
- *   creature lights its own combat cluster / target relationship, on top of its
- *   existing tilt + card-preview, which are untouched).
+ * (PRD #249, combat-read). **Battlefield cards** (and stack items) write the
+ * seed — hovering a permanent seeds `{ nodeId }` (so a creature lights its own
+ * combat cluster / target relationship, on top of its existing tilt +
+ * card-preview, which are untouched). Arrow hover is NOT written here: the
+ * arrow overlay hit-tests the pointer against its own curves (issue #5853 —
+ * the layer captures no events) and a hovered arrow's `{ key }` takes
+ * precedence over this seed.
  *
  * The arrow overlay reads the seed, resolves it into the highlighted set
  * (direct 1-hop for target arrows, the whole transitive cluster for combat),
