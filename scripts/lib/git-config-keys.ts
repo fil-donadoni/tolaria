@@ -28,7 +28,7 @@ export interface EnsureConfigOptions {
     sleep?: (ms: number) => void;
 }
 
-/** Backoff before attempt n+1 (ms): 50, 100, 200, … — ~3 s over 7 waits. */
+/** Backoff before attempt n+1 (ms): 50, 100, 200, … — ~6.4 s over 7 waits. */
 export const LOCK_RETRY_BASE_MS = 50;
 export const LOCK_RETRY_ATTEMPTS = 8;
 
@@ -38,16 +38,21 @@ function sleepSync(ms: number): void {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-/** The key's current value, or null when unset. Takes no lock. */
+/**
+ * The key's value in the repository config — the scope `git config <key>`
+ * writes to — or null when unset. Takes no lock.
+ */
 function readKey(cwd: string, key: string): string | null {
-    const r = spawnSync("git", ["config", "--get", key], {
+    const r = spawnSync("git", ["config", "--local", "--get", key], {
         encoding: "utf8",
         cwd,
     });
     // `git config --get` exits 1 for an unset key; anything else is real.
     if (r.status === 1) return null;
     if (r.status !== 0) {
-        throw new Error(`git config --get ${key} failed: ${r.stderr.trim()}`);
+        throw new Error(
+            `git config --get ${key} failed: ${r.error ?? r.stderr.trim()}`
+        );
     }
     return r.stdout.replace(/\n$/, "");
 }
