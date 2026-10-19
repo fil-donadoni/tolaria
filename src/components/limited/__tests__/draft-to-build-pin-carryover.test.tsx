@@ -81,6 +81,8 @@ vi.mock("~/hooks/useLimitedEvent", () => ({
 
 vi.mock("convex/react", () => ({
     useMutation: (...args: unknown[]) => useMutationMock(...args),
+    // The build view's print resolver rows (issue #5550): still loading.
+    useQuery: () => undefined,
 }));
 
 vi.mock("@convex/_generated/api", () => {

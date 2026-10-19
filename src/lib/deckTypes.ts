@@ -9,6 +9,7 @@ import {
     type FormatId,
     isDeckAdmitted,
     type Reason,
+    resolveCardViaDefinitionIds,
     validateDeck,
 } from "@convex/formats";
 import type { StoredDeckColumnLayout } from "@convex/deckLayout";
@@ -91,7 +92,15 @@ export function toPresetLobbyDeck(
     const legality =
         d.isLegal !== undefined && d.reasons !== undefined
             ? { isLegal: d.isLegal, reasons: d.reasons }
-            : validateDeck(d, d.format, undefined, banlist);
+            : validateDeck(
+                  d,
+                  d.format,
+                  resolveCardViaDefinitionIds([
+                      ...d.cards,
+                      ...(d.sideboard ?? []),
+                  ]),
+                  banlist
+              );
     // Prefer the server-resolved Featured Card when present (the lobby query
     // resolves it); otherwise resolve here via the same pure resolver (PRD
     // #589, issue #593).
@@ -141,7 +150,17 @@ export function toUserLobbyDeck(
     const legality =
         d.isLegal !== undefined && d.reasons !== undefined
             ? { isLegal: d.isLegal, reasons: d.reasons }
-            : validateDeck(d, d.format, undefined, banlist);
+            : validateDeck(
+                  d,
+                  d.format,
+                  // A stored entry's `definitionId` resolves a Print ID the
+                  // registry does not know (issue #5550), as the builders do.
+                  resolveCardViaDefinitionIds([
+                      ...d.cards,
+                      ...(d.sideboard ?? []),
+                  ]),
+                  banlist
+              );
     return {
         kind: "user",
         userDeckId: d._id,
