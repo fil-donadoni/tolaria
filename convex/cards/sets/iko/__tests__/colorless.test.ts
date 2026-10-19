@@ -2,11 +2,13 @@
 // exercised end-to-end in convex/gre/__tests__/cycling.test.ts (built once,
 // reused); these tests lock the `makeTriome` factory output for each card:
 // three basic land subtypes in printed order, always-tapped entry (CR 603.6d),
-// a three-colour mana ability, and Cycling {3} (CR 702.29).
+// three intrinsic mana options (CR 305.6), and Cycling {3} (CR 702.29).
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";
+import { getManaTapOptions } from "../../../../gre/constants";
+import { makeInstance } from "../../../__tests__/setup.helper";
 
 const raugrinTriome = getDefinition("02138fbb-3962-4348-8d31-faaefba0b8b2");
 const indathaTriome = getDefinition("2b74bb81-fb9a-40e5-a941-e517430b52f5");
@@ -23,9 +25,13 @@ function expectTriome(
     expect(card.subtypes).toEqual(subtypes);
     // CR 603.6d — Triomes always enter tapped.
     expect(card.entersTapped).toBe(true);
-    const mana = card.activatedAbilities?.find((a) => a.id.endsWith("-mana"));
-    expect(mana?.useStack).toBe(false);
-    expect(mana?.manaChoices).toEqual(colors.map((c) => ({ [c]: 1 })));
+    // CR 305.6 — no printed mana ability: each basic land type is an
+    // intrinsic "{T}: Add" the engine offers as its own tap option, in
+    // printed order (issue #5623).
+    expect(card.activatedAbilities?.some((a) => !a.useStack)).toBe(false);
+    expect(getManaTapOptions(makeInstance(card.id))).toEqual(
+        colors.map((c) => ({ [c]: 1 }))
+    );
     // CR 702.29 — Cycling {3}.
     const cycling = card.activatedAbilities?.find((a) => a.id === "cycling");
     expect(cycling?.activateFromHand).toBe(true);

@@ -736,11 +736,6 @@
         },
         {
             "kind": "grammar",
-            "key": "(card) › land with two or more basic land types — the intrinsic mana ability reads one type only (CR 305.6)",
-            "issue": 5623
-        },
-        {
-            "kind": "grammar",
             "key": "(no slot) › Forestwalk",
             "issue": 4540
         },

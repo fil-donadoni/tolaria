@@ -326,16 +326,40 @@ function hybridPipsEqual(
     return true;
 }
 
-/** Returns the mana color a land produces via basic land subtype, or null.
- *  Reads the text-change-rewritten subtypes (CR 612 / CR 305.6) so a land
- *  whose type was changed (Magical Hack) taps for the new color. */
-export function getBasicLandMana(card: CardInstanceState): Color | null {
+/** CR 305.6 — every colour a land's INTRINSIC "{T}: Add [mana symbol]"
+ *  abilities produce: one per basic land type, distinct, in subtype order.
+ *  Reads the text-change-rewritten subtypes (CR 612) so a land whose type was
+ *  changed (Magical Hack) or added to (Urborg, Kudzu-style "in addition")
+ *  reports every type it has now. Empty for a land with no basic land type.
+ *  `?? []` tolerates a slim client `CardInstance` with no `subtypes`. */
+export function getBasicLandManaColors(card: CardInstanceState): Color[] {
     const { subtypes } = applySubstitution(card);
-    for (const subtype of subtypes) {
+    const colors: Color[] = [];
+    for (const subtype of subtypes ?? []) {
         const color = LAND_SUBTYPE_MANA[subtype];
-        if (color) return color;
+        if (color && !colors.includes(color)) colors.push(color);
     }
-    return null;
+    return colors;
+}
+
+/** CR 305.6 — does this permanent have at least one intrinsic basic-land mana
+ *  ability? The existence probe (summoning sickness, sacrifice-only payment,
+ *  "is a mana source") — never which colour. */
+export function hasBasicLandMana(card: CardInstanceState): boolean {
+    return getBasicLandManaColors(card).length > 0;
+}
+
+/** The ONE colour a land's intrinsic mana abilities produce, or null — the
+ *  FIXED-tap read (issue #5623). Null both when the land has no basic land
+ *  type and when it has two or more of different colours (Badlands, a
+ *  Mountain under Urborg): CR 305.6 gives such a land one "{T}: Add" per type,
+ *  so tapping it is a choice (`manaTapNeedsChoice`), never a fixed output, and
+ *  answering with the first type would silently drop the others. "Every
+ *  colour it could produce" is {@link getBasicLandManaColors}; "has one at
+ *  all" is {@link hasBasicLandMana}. */
+export function getBasicLandMana(card: CardInstanceState): Color | null {
+    const colors = getBasicLandManaColors(card);
+    return colors.length === 1 ? colors[0] : null;
 }
 
 export function isCreature(card: CardInstanceState): boolean {
@@ -756,7 +780,10 @@ export function getFixedManaAmount(
     // fixed tap is the INTRINSIC "{T}: Add [symbol]", one mana; a scaled
     // activated ability beside it (Gaea's Cradle under Urborg) is a different
     // ability and never sets this amount.
-    if (controllerBattlefield && getBasicLandMana(card) === null) {
+    if (
+        controllerBattlefield &&
+        !getBasicLandManaColors(card).includes(color)
+    ) {
         const dynamic = getDynamicManaProduced(
             card,
             controllerBattlefield,
@@ -1107,10 +1134,12 @@ export function getProducibleColors(
 ): Set<Color> {
     const colors = new Set<Color>();
     if (abilitiesSuppressed(card)) return colors;
-    // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
-    const intrinsic = getBasicLandMana(card);
-    if (intrinsic && (includeColorless || intrinsic !== "C"))
-        colors.add(intrinsic);
+    // CR 305.6 — intrinsic basic-land subtype abilities, one per basic land
+    // type (text-change aware). Every type, never the first only (issue
+    // #5623): a Badlands could produce {B} AND {R} (CR 106.4 / 106.7).
+    for (const intrinsic of getBasicLandManaColors(card)) {
+        if (includeColorless || intrinsic !== "C") colors.add(intrinsic);
+    }
     for (const c of producibleColorsFromAbilities(
         getEffectiveActivatedAbilities(card).map(({ ability }) => ability),
         resolveManaColorSource,
@@ -2968,7 +2997,7 @@ export function manaAbilityPaidWithoutTapping(
     return (
         ability?.cost.sacrifice === true &&
         ability.cost.tap !== true &&
-        getBasicLandMana(card) === null
+        !hasBasicLandMana(card)
     );
 }
 
@@ -2997,7 +3026,7 @@ export function hasManaAbility(
     controllerBattlefield?: readonly CardInstanceState[],
     continuousEffects?: readonly ContinuousEffect[]
 ): boolean {
-    if (getBasicLandMana(card) !== null) return true;
+    if (hasBasicLandMana(card)) return true;
     const ability = getActivatedManaAbility(card, state);
     if (!ability) return false;
     // CR 608.2h (issue #5195) — a `manaAmountSource` count is gated the same
