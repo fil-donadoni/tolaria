@@ -44,6 +44,22 @@ describe("selectRefreshCandidates", () => {
         expect(got[0].overlap).toEqual(["b.ts"]);
     });
 
+    it("takes a queue PR only when CONFLICTING — a push dequeues it (issue #5983)", () => {
+        const shadow = ["ready-to-land", "queue:shadow"];
+        const got = selectRefreshCandidates(
+            [
+                pr({ number: 1, labels: shadow }),
+                pr({ number: 2, labels: shadow, mergeable: "CONFLICTING" }),
+                pr({ number: 3 }),
+            ],
+            new Set(["a.ts"])
+        );
+        expect(got.map((c) => [c.pr.number, c.reason])).toEqual([
+            [2, "conflicting"],
+            [3, "base-touched"],
+        ]);
+    });
+
     it("leaves a clean, untouched PR alone", () => {
         expect(selectRefreshCandidates([pr({})], new Set(["z.ts"]))).toEqual(
             []

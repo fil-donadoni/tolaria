@@ -354,7 +354,11 @@ generated artefact the moment the base moves. On every push to the base, a
 (`scripts/pr-refresh.ts`). It lists the open `ready-to-land` PRs of this
 repository (never a fork) and refreshes each one that GitHub reports
 `CONFLICTING`, or whose files the push touched (`git diff --name-only
-<before> <after>`). Per PR:
+<before> <after>`). A `queue:shadow` PR only when `CONFLICTING` (issue
+#5983): a push to it dequeues it ("manually updated"), and the queue's draft
+already tests it on the moved base, where a generated artefact a clean merge
+left stale reds `queue-lane`'s drift guards and [`pr-fixup`](#pr-fixup)
+regenerates it. Per PR:
 
 1. rebase its head onto the base in a throwaway worktree of the
    [primary checkout](#g-primary-checkout), with **the same step `land` runs**
