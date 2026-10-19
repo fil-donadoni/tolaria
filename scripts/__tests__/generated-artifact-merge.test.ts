@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     CORPUS_CACHE_REL,
+    APPEND_ONLY_MERGE_DRIVER_NAME,
     LEDGER_MERGE_DRIVER_NAME,
     MERGE_DRIVER_NAME,
     OTHER_MERGE_DRIVERS,
@@ -140,6 +141,12 @@ describe("generated-artifact class — wiring", () => {
         // registered under which key, not about how prettier wrapped it.
         expect(src.replace(/\s+/g, " ")).toContain(
             "`merge.${LEDGER_MERGE_DRIVER_NAME}.driver`, LEDGER_MERGE_DRIVER_COMMAND"
+        );
+        expect(src).toContain(
+            `const APPEND_ONLY_MERGE_DRIVER_NAME = "${APPEND_ONLY_MERGE_DRIVER_NAME}"`
+        );
+        expect(src.replace(/\s+/g, " ")).toContain(
+            "`merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.driver`, APPEND_ONLY_MERGE_DRIVER_COMMAND"
         );
     });
 

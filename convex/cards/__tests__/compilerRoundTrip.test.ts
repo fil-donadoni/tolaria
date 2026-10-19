@@ -48,6 +48,7 @@
 // guards, and the breaks are named there.
 
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import { getAllCards } from "../catalogue";
@@ -76,182 +77,21 @@ import {
     COMPILER_ROUND_TRIP_BASELINE,
     UNDETERMINED_ROWS,
 } from "./compilerRoundTrip.baseline";
+import { ORIGINAL_AMNESTY } from "./compilerRoundTrip.amnesty";
 import {
     describeInconsistent,
     triageBaseline,
 } from "../../../scripts/lib/baseline-triage";
 
 /**
- * The size the baseline was born at. LOWER it when cards graduate; never raise
- * it. This literal is the whole "never grows" mechanism: the stale-row check
- * below already forces a graduating card OUT, and this stops a new failing card
- * being parked IN — together they make the list one-directional without
- * pinning its exact contents, which would red every unrelated grammar
- * improvement (see the baseline file's header).
+ * sha256 of `ORIGINAL_AMNESTY` joined by newlines. The list is the whole "never
+ * grows" mechanism (issue #5942): the stale-row check below forces a graduating
+ * card OUT, and membership in the frozen list stops a new failing card being
+ * parked IN. Pinning its hash makes the list as immovable as the literal
+ * ceiling it replaces, without a number every graduating PR has to lower.
  */
-// Lowered 1756 -> 1719 by issue #2699 (the instant/sorcery spell slot): 37
-// cards graduated — Lightning Bolt, Ancestral Recall, Giant Growth, Firebolt,
-// Terminate, … — and Guard C's stale-row check is what named every one of
-// them. The ceiling only ever comes down.
-//
-// Lowered 1718 -> 1703 by issue #3075 (the `oracleText` backfill): the 15
-// genuinely vanilla cards of the `no-oracle-text` class round-trip the moment
-// they HAVE an input — Grizzly Bears, Craw Wurm, Scathe Zombies, … The other 8
-// moved to `COMPILER_GAP_ROWS`, which buys no slot: the ceiling is taken on the
-// union, so it comes down by the graduates alone.
-//
-// Lowered 1703 -> 1697 by issue #3826 (the kicker line): Ardent Soldier,
-// Dismantling Blow, Llanowar Elite, Phyrexian Scuta, Pincer Spider and Urborg
-// Skeleton round-trip once "Kicker …" and its read-backs are grammar.
-//
-// Lowered 1697 -> 1688 by issue #3827 (folding multi-line spell text into one
-// body): Cremate and 8 others (Aggressive Urge, Annihilate, Aura Blast,
-// Implode, Repulse, Reviving Dose, Slay, Zap) round-trip once a second
-// Oracle-printed line is read as a second sentence of the same spell, not a
-// second declaration.
-//
-// Lowered 1688 -> 1683 by issue #3828 (the painland rider): Adarkar Wastes,
-// Brushland, Karplusan Forest, Sulfurous Springs and Underground River
-// round-trip once the mana-ability slot reads "This land deals N damage to
-// you" on a CHOICE production and the colourless line merges into it.
-//
-// Lowered 1653 -> 1648 by issue #3864 (kicked entry riders that also grant an
-// ability): Benalish Lancer, Duskwalker, Faerie Squadron, Kavu Titan and
-// Pouncing Kavu round-trip once "… and with <keyword>" lowers to a
-// `self-if-kicked` keyword grant.
-//
-// Lowered 1648 -> 1644 by issue #3073 / #3046 ("target permanent" encoded as
-// CR 115.4 "any", or narrowed to one card type): Active Volcano, Desert
-// Twister, Flash Flood and Northern Paladin round-trip once their
-// `targetRequirement.type` is the permanent-type list (CR 110.4).
-//
-// Lowered 1613 -> 1606 by issue #4128 (mass object selectors): Acid Rain,
-// Armageddon, Day of Judgment, Nevinyrral's Disk, Tivadar's Crusade, Tranquility
-// and Tsunami round-trip once "Destroy all …" reads as a sweep. Nevinyrral's
-// Disk and Tivadar's Crusade were corrected to the compiler's CR-faithful shape
-// (one destroy per permanent; a subtype filter with no card type beside it).
-//
-// Lowered 1606 -> 1602 by issue #4130 (player verbs with a count): Disrupting
-// Scepter, Mind Rot, Ravenous Rats and Zuran Enchanter round-trip once "target
-// player discards N cards" reads as the affected player's choice.
-//
-// Lowered 1602 -> 1598 by issue #4129 (counterspell forms): Absorb,
-// Counterspell, Dromar's Charm and Ertai, the Corrupted round-trip once
-// "Counter target spell" reads.
-//
-// Lowered 1598 -> 1593 by issue #4131 (damage trigger heads): Armadillo Cloak,
-// El-Hajjâj, Horned Cheetah, Hypnotic Specter and Spirit Link round-trip once
-// "whenever [this / enchanted] creature deals damage" reads, with "that much"
-// and "that player" bound to the damage event.
-//
-// Lowered 1593 -> 1583 by issue #4133 (target selectors): Adun Oakenshield,
-// Argivian Archaeologist, Darigaaz's Charm, Eternal Witness, Raise Dead,
-// Reconstruction, Recover, Regrowth, Rushing River and Skull of Orm round-trip
-// once "up to two target", "another target" and a graveyard return "to your
-// hand" read.
-//
-// Lowered 1583 -> 1569 by issue #4134 ("Add one mana of any color"):
-// Archaeological Dig, Birds of Paradise, Celestial Prism, Lotus Guardian,
-// Lotus Petal, Mana Confluence, Mana Cylix, Multani's Harmony, Nomadic Elf,
-// Phyrexian Altar, Phyrexian Lens, Standing Stones, Sylvan Caryatid and Utopia
-// Tree round-trip once the five-colour production reads — the shape they all
-// already ship as `manaChoices` (CR 106.1a).
-//
-// Lowered 1569 -> 1563 by issue #4132 (mass P/T): Bone Flute, Gaea's Might,
-// Hell Swarm, Marsh Gas, Shield Wall and Sunscape Master round-trip once a
-// group "get" reads as a sweep and "for each basic land type among lands you
-// control" scales a pump by the controller's Domain.
-//
-// Lowered 1563 -> 1557 by issue #4137 (colour change): Alchor's Tomb, Blind
-// Seer, Caldera Kavu, Rainbow Crow, Sisay's Ingenuity and Tidal Visionary
-// round-trip once "becomes the color of your choice" reads, with and without
-// a duration, on a permanent, on a spell and on the source itself.
-//
-// Lowered 1557 -> 1555 by issue #4136 (life quantities): Tendrils of Agony and
-// Thunderscape Master round-trip once "Target player loses N life and you gain
-// N life" reads as a drain.
-//
-// Lowered 1555 -> 1551 by issue #4138 (land-type change): Dream Thrush, Kavu
-// Recluse, Sea Snidd and Slimy Kavu round-trip once "becomes <basic land
-// types> until end of turn" reads at all three printed arities — the free
-// choice among CR 305.6's five, a named pair, and one named type. Slimy Kavu
-// is in the list because the same change retired its `resolve()` closure to
-// the `setSubtype` Op its sibling Kavu Recluse had been using since issue
-// #1083.
-//
-// Lowered 1534 -> 1528 by issue #4303 ("Enchanted creature" on an Aura's own
-// activated ability): Armor of Faith, Blessing, Crown of Flames, Firebreathing,
-// Holy Armor and Stonehands round-trip once the pump on the host reads as a
-// `$host` script.
-//
-// Lowered 1507 -> 1506 by issue #4315 (self-shuffle replacement): Blightsteel
-// Colossus round-trips once "If <self> would be put into a graveyard from
-// anywhere, reveal <self> and shuffle it into its owner's library instead"
-// reads as the `shuffleFromAnywhere` flag its hand-written entry expands from.
-//
-// Lowered 1487 -> 1484 by issue #4529 (mana and cost sentences): Dark Ritual
-// ("Add {B}{B}{B}.") and North Star ("For one spell this turn, you may spend
-// mana as though it were mana of any type …") round-trip through the new
-// `addMana` / `grantSpellManaSubstitution` sentences, and Su-Chi's "When this
-// creature dies, add {C}{C}{C}{C}." compiles (its hand-written side is a
-// `diedTrigger` closure, hence `incomparable`).
-//
-// Lowered 1446 -> 1441 by issue #4526 (linked exile and return): Banishing
-// Light, Portable Hole ("exile … until this leaves the battlefield"), Phyrexian
-// Bloodstock (the "leaves the battlefield" head) and Yawgmoth's Will round-trip;
-// Suplex's "If that creature would die this turn, exile it instead" compiles
-// (its hand-written side is a `resolve()` closure, hence `incomparable`).
-//
-// Lowered 1441 -> 1438 by issue #4530 (gain control and attach): Aladdin,
-// Empress Galina and Thrull Champion round-trip through the new
-// `gain-control` sentence ("Gain control of target …", with or without
-// "for as long as you control this creature").
-//
-// Lowered 1430 -> 1426 by issue #4542 (mana ability riders and entry counters):
-// Ancient Tomb, Chromatic Sphere, Icatian Javelineers and Triskelion round-trip.
-//
-// Lowered 1426 -> 1423 by issue #4545 (phase and step trigger heads): Essence
-// Flare, Unstable Mutation and Wanderlust round-trip through the
-// host-controller upkeep head.
-//
-// Lowered 1423 -> 1421 by issue #4546 (zone-change trigger heads): Chromatic
-// Star ("when this artifact is put into a graveyard from the battlefield")
-// and Sacred Ground round-trip through the new `left-to-graveyard` head.
-//
-// Lowered 1408 -> 1391 by issue #4555 (stack target filters and the flat
-// counter tax): Annul, Blue Elemental Blast, Disrupt, Force Spike, Gainsay,
-// Hydroblast, Lifeforce, Mana Leak, Mana Tithe, Metallic Rebuke,
-// Miscalculation, Order of the Sacred Torch, Prohibit, Pyroblast, Red
-// Elemental Blast, Stifle and Vodalian Mage round-trip.
-// Lowered 1391 -> 1378 by issue #4556 (permanent target filters): Cavern
-// Harpy, Fleetfoot Panther, Fumarole, Horned Kavu, Hull Breach, Lava Zombie,
-// Overload, Razing Snidd, Shivan Wurm, Silver Drake, Steel Leaf Paladin,
-// Terror and Tormod's Crypt round-trip.
-//
-// Lowered 1378 -> 1364 by issue #4557 (mass subjects): Anarchy, Cleanse,
-// Damnation, Earthquake, Hibernation, Jokulhaups, Nemata Grove Guardian
-// (its sweep gained the `type: "Creature"` the Oracle's "Saproling creatures"
-// names), Powder Keg, Pyroclasm, Riptide, Shatterstorm, Simoon, Upheaval and
-// Wrath of God round-trip.
-//
-// Lowered 1358 -> 1354 by issue #4560 (cost taxes): Aura of Silence, Gloom,
-// Mana Matrix and Thalia, Guardian of Thraben round-trip.
-//
-// Lowered 1354 -> 1351 by issue #4561 (untap locks): Curse of Marit Lage,
-// Tsabo's Web and Winter Orb round-trip.
-//
-// Lowered 1351 -> 1348 by issue #4566 (hand reveal and pick): Duress,
-// Forsaken City and Thoughtseize round-trip.
-//
-// Lowered 1347 -> 1346 by issue #4547 (tap and cycle trigger heads): City of
-// Brass round-trips through the self "becomes tapped" head.
-//
-// Lowered 1346 -> 1332 by issue #4548 (sacrifice it unless you <payment>);
-// Stasis joins the thirteen — its untap-step line landed with issue #4561.
-//
-// Lowered 1329 -> 1327 by issue #4565 (characteristic-setting statics);
-// Opalescence and Water Wurm round-trip.
-const BASELINE_CEILING = 1280;
+const ORIGINAL_AMNESTY_SHA256 =
+    "43b1e6f3232aaa2621d237bb9a98d2cb4474d3be9d51130b428019f2b3c30242";
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
@@ -352,19 +192,26 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
             "baseline rows that no longer describe anything. The baseline is SHRINK-ONLY " +
                 "(convex/cards/__tests__/compilerRoundTrip.baseline.ts): a card that starts " +
                 "round-tripping, or whose gap gets documented with a marker, leaves the " +
-                "list in the same change — and BASELINE_CEILING comes down with it."
+                "list in the same change."
         ).toEqual([]);
     });
 
     it("the baseline never grows", () => {
         expect(
-            COMPILER_ROUND_TRIP_BASELINE.length,
-            "the baseline gained rows. It is a one-time amnesty for the cards that predate " +
-                "Guard C, not a parking space: a new failing card carries a compiler-gap " +
-                "marker instead. BASELINE_CEILING is lowered as cards graduate, never raised. " +
-                "The ceiling is taken on the UNION of the three direction arrays, so moving a " +
-                "row between them cannot buy a slot."
-        ).toBeLessThanOrEqual(BASELINE_CEILING);
+            createHash("sha256")
+                .update(ORIGINAL_AMNESTY.join("\n"))
+                .digest("hex"),
+            "compilerRoundTrip.amnesty.ts changed. It is the frozen list of the names the " +
+                "baseline held when Guard C was introduced — never edited, never regenerated."
+        ).toBe(ORIGINAL_AMNESTY_SHA256);
+        const amnesty = new Set(ORIGINAL_AMNESTY);
+        expect(
+            COMPILER_ROUND_TRIP_BASELINE.filter((name) => !amnesty.has(name)),
+            "baseline rows outside the original amnesty. It is a one-time amnesty for the " +
+                "cards that predate Guard C, not a parking space: a new failing card carries " +
+                "a compiler-gap marker instead. Membership is checked on the UNION of the " +
+                "three direction arrays, so moving a row between them is free."
+        ).toEqual([]);
         // Sortedness is asserted PER ARRAY, not on the union: the union is
         // DERIVED (`BASELINE_ROWS` sorts it), so asserting it sorted would
         // assert `sort()` works. The three arrays are what a human edits, and

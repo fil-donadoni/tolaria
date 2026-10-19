@@ -100,11 +100,6 @@
         "reason": "Floor guard that the kicked/non-kicked partition below is non-vacuous."
     },
     {
-        "file": "convex/cards/__tests__/compilerRoundTrip.test.ts",
-        "test": "Guard C — hand-written cards round-trip or declare a compiler gap (issue #2701) > the baseline never grows",
-        "reason": "Ratchet guard: baseline list may only shrink, never regrow past its ceiling."
-    },
-    {
         "file": "convex/cards/__tests__/drawPrimitiveGuard.test.ts",
         "test": "Guard C -- draw-in-closure guard (issue #1264, closes #1250) > every planned-migratable DRAW_PRIMITIVE_ALLOWLIST entry carries a real open tracking issue",
         "reason": "Coverage: every planned-migratable allowlist entry carries a real tracking issue."

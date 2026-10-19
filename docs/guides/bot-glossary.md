@@ -281,7 +281,7 @@ a fixed seed, a fixed iteration budget and the move expected of the Bot, or
 the move it must avoid. The lineage is the chess engine's EPD test position
 (`bm` best move / `am` avoid move). The correctness FLOOR: every blunder seen
 in play becomes one. Fixed iterations and seeds ⇒ the chosen move is
-byte-identical on any machine. Code: `convex/gre/ai/blade/registry.ts`;
+byte-identical on any machine. Code: `convex/gre/ai/blade/scenarios.ts` (entries) and `registry.ts`;
 admission criterion ADR 0070.
 
 <a id="must-stretch"></a>**`must` / `stretch` tier** — a `must` test position

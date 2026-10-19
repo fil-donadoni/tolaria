@@ -28,3 +28,13 @@ data/catalogue/search-index.json merge=regenerated
 # nothing to regenerate at the rebased tip. Pinned to OTHER_MERGE_DRIVERS by
 # the same test, and registered by the same `bun run worktree:init`.
 data/cr/citations-ledger.json merge=cr-ledger
+
+# Hand-written append-only lists (issue #5942): two branches appending an entry
+# at the same end conflict without disagreeing. The `append-only` driver merges
+# in diff3 style and concatenates only the hunks where both sides purely
+# inserted; any hunk touching an existing line stays a conflict. (git's built-in
+# `union` is NOT that: it keeps lines both sides share once, fusing two appended
+# entries into one object.) Pinned to OTHER_MERGE_DRIVERS by the same test and
+# registered by the same `bun run worktree:init`.
+convex/gre/ai/blade/scenarios.ts merge=append-only
+convex/oracle/grammar/fixtures.ts merge=append-only
