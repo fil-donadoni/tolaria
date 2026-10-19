@@ -19,7 +19,9 @@ import {
     fastForward,
     fastForwardRefusal,
     gitErrorLine,
+    removeMergedWorktree,
     strandedAllowlistOnly,
+    type MergedWorktreeIo,
 } from "../post-merge";
 
 describe("strandedAllowlistOnly (issue #5873)", () => {
@@ -139,8 +141,74 @@ describe("mergedWorktree", () => {
             "/w/tolaria-issue-7"
         );
     });
+    it("reads a head branch as `gh()` prints it, trailing newline and all (issue #6083)", () => {
+        // `gh()` keeps the newline; `issue-(\d+)$` did not match before it, so
+        // every merged PR's worktree was silently skipped.
+        expect(mergedWorktree("/w/tolaria", "fix/issue-6066\n")).toBe(
+            "/w/tolaria-issue-6066"
+        );
+    });
     it("is null for a branch naming no issue", () => {
         expect(mergedWorktree("/w/tolaria", "hand-made-branch")).toBeNull();
+    });
+});
+
+describe("removeMergedWorktree (issue #6083)", () => {
+    const io = (head: string, exists = true) => {
+        const lines: string[] = [];
+        const calls: string[][] = [];
+        const fake: MergedWorktreeIo = {
+            headOf: () => head,
+            exists: () => exists,
+            cwds: () => "",
+            git: (args) => {
+                calls.push(args);
+                return { ok: true };
+            },
+            log: (l) => lines.push(l),
+        };
+        return { fake, lines, calls };
+    };
+
+    it("removes the issue worktree of a head branch read with its trailing newline", () => {
+        const { fake, lines, calls } = io("fix/issue-6066\n");
+        expect(removeMergedWorktree("/w/tolaria", 6074, fake)).toBe(true);
+        expect(calls).toContainEqual([
+            "worktree",
+            "remove",
+            "--force",
+            "/w/tolaria-issue-6066",
+        ]);
+        expect(lines).toEqual([
+            "post-merge: PR #6074: worktree /w/tolaria-issue-6066 removed",
+        ]);
+    });
+
+    it("logs a branch that maps to no issue worktree — never a silent success", () => {
+        const { fake, lines, calls } = io("docs/some-slug\n");
+        expect(removeMergedWorktree("/w/tolaria", 7, fake)).toBe(true);
+        expect(calls).toEqual([]);
+        expect(lines).toEqual([
+            'post-merge: PR #7: head branch "docs/some-slug" maps to no issue worktree — nothing to remove',
+        ]);
+    });
+
+    it("logs a worktree this machine does not hold", () => {
+        const { fake, lines } = io("feat/issue-9", false);
+        expect(removeMergedWorktree("/w/tolaria", 8, fake)).toBe(true);
+        expect(lines).toEqual([
+            "post-merge: PR #8: worktree /w/tolaria-issue-9 not on this machine",
+        ]);
+    });
+
+    it("is red when the head branch cannot be read", () => {
+        const { fake } = io("");
+        fake.headOf = () => {
+            throw new Error("gh: HTTP 502");
+        };
+        const err = vi.spyOn(console, "error").mockImplementation(() => {});
+        expect(removeMergedWorktree("/w/tolaria", 9, fake)).toBe(false);
+        err.mockRestore();
     });
 });
 

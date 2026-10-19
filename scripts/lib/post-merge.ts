@@ -52,13 +52,14 @@ export function mergedWorktree(
     primary: string,
     headRefName: string
 ): string | null {
-    const issue = issueOfBranch(headRefName);
+    const head = headRefName.trim();
+    const issue = issueOfBranch(head);
     return issue === null
         ? null
         : issueWorktree(
               primary,
               issue,
-              headRefName.startsWith("fix/") ? "fix" : "feat"
+              head.startsWith("fix/") ? "fix" : "feat"
           ).worktree;
 }
 

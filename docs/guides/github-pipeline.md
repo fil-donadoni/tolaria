@@ -526,11 +526,12 @@ decision sees the same `outcomes` the queue's lane does.
 ### post-merge
 
 `.github/workflows/post-merge.yml`: what a merge to the base obliges, now that
-`land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Four jobs:
+`land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Five jobs:
 
 | Job            | When                    | Runner                                    | Does                                                                                                                                                  |
 | -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout), remove the merged PR's worktree, telemetry ingest                |
+| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                   |
 | `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**` |
 | `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, grammar residue, claim release, umbrella detach — in a worktree of its own                  |
 | `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                         |
@@ -576,6 +577,31 @@ installing shell's `TOLARIA_NOTIFY_CMD` into each runner's `.env`
 desktop fallback reaches nobody, so set it there. A runner that is fully
 offline notifies nobody by itself: its `sync` leg waits in the queue and
 GitHub's failed-run mail, after 24 h, is the signal.
+
+#### Worktree removal
+
+Worktrees are machine-local, so both removers run on every machine (issue
+#6083). Neither ever deletes a branch, local or remote: a closed or
+abandoned PR's work stays recoverable.
+
+- **`sync`, per merge.** The merged PR's head branch, trimmed (`gh` prints
+  it with a trailing newline, which once made every merge skip its
+  worktree), names the `wt:new` worktree. Every outcome is one line —
+  `post-merge: PR #N: worktree … removed`, `… not on this machine`,
+  `… is in use`, or `head branch "…" maps to no issue worktree`; a failed
+  lookup or removal reds the leg and reaches the owner's notice.
+- **`sweep`, hourly.** `wt:gc --issues-only` by another name: the same
+  classifier (`scripts/worktree-gc.ts` § `classify`) over this machine's
+  `feat|fix/issue-N` worktrees only, every one listed with its verdict. It
+  removes one only when nothing is inside it (`lsof`), it is not locked, its
+  tree is clean, and either its PR merged — or, with no `in-progress` /
+  `pr-open` claim on its issue and every commit on `origin/<branch>` or in
+  the base, its PR was closed unmerged, or it has no PR and has not changed
+  for `ORPHAN_IDLE_MINUTES` (24 h). A claim is read off the labels: a dead
+  pass's label is released by the dispatcher, after which the sweep sees the
+  worktree as unclaimed. Any reading it cannot make keeps the worktree; a PR
+  list or claim list it cannot read removes nothing and reds the leg. Like
+  `housekeeping`, it fires from the default branch's copy of the workflow.
 
 Orders that hold:
 

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { classify, parseWorktreeList } from "../worktree-gc";
+import {
+    classify,
+    ORPHAN_IDLE_MINUTES,
+    parseWorktreeList,
+    type WorktreeFacts,
+} from "../worktree-gc";
 import { ORIGIN_BASE } from "../lib/branches";
 
 /**
@@ -10,12 +15,29 @@ import { ORIGIN_BASE } from "../lib/branches";
  * a test that only checked the happy path.
  */
 
-const base = {
-    path: "/repo-issue-1851",
-    branch: "fix/issue-1851",
+/** A hand-made branch: the ancestry rules, not the issue-worktree ones. */
+const base: WorktreeFacts = {
+    path: "/repo-wip",
+    branch: "wip/refactor",
     dirty: false,
     unmerged: 0,
     locked: false,
+    inUse: false,
+    unpushed: 0,
+};
+
+/** An issue worktree with no PR, no claim, idle, everything pushed — the
+ *  one shape the orphan sweep removes without a PR verdict (issue #6083). */
+const orphan: WorktreeFacts = {
+    path: "/repo-issue-5509",
+    branch: "fix/issue-5509",
+    dirty: false,
+    unmerged: 2,
+    locked: false,
+    inUse: false,
+    unpushed: 0,
+    liveClaim: false,
+    idleMinutes: ORPHAN_IDLE_MINUTES + 1,
 };
 
 describe("worktree-gc — classify", () => {
@@ -83,6 +105,89 @@ describe("worktree-gc — classify", () => {
         expect(classify({ ...base, branch: null, unmerged: 1 }).action).toBe(
             "keep"
         );
+    });
+});
+
+describe("worktree-gc — classify, issue worktrees no merge cleans up (issue #6083)", () => {
+    it("removes a merged PR's worktree", () => {
+        // Its claim (`pr-open`) stands until housekeeping releases it.
+        expect(
+            classify({
+                ...orphan,
+                mergedPr: true,
+                liveClaim: true,
+                unpushed: 3,
+            })
+        ).toEqual({ action: "remove", reason: "PR merged" });
+    });
+
+    it("removes a closed-unmerged PR's worktree when clean and fully pushed, idle or not", () => {
+        expect(classify({ ...orphan, closedPr: true, idleMinutes: 1 })).toEqual(
+            {
+                action: "remove",
+                reason: "PR closed unmerged, every commit pushed",
+            }
+        );
+    });
+
+    it("keeps a closed-unmerged PR's worktree holding a local-only commit", () => {
+        const v = classify({ ...orphan, closedPr: true, unpushed: 1 });
+        expect(v.action).toBe("keep");
+        expect(v.reason).toMatch(/only on this disk/);
+    });
+
+    it("keeps an unpushed-count it could not read", () => {
+        expect(
+            classify({ ...orphan, closedPr: true, unpushed: null }).action
+        ).toBe("keep");
+    });
+
+    it("keeps a no-PR worktree whose issue carries a live claim", () => {
+        const v = classify({ ...orphan, liveClaim: true });
+        expect(v).toEqual({
+            action: "keep",
+            reason: "issue claimed (in-progress)",
+        });
+        expect(
+            classify({ ...orphan, liveClaim: true, closedPr: true }).action
+        ).toBe("keep");
+        expect(classify({ ...orphan, liveClaim: null }).action).toBe("keep");
+    });
+
+    it("removes a no-PR, no-claim worktree idle past the threshold, clean and pushed", () => {
+        const v = classify(orphan);
+        expect(v.action).toBe("remove");
+        expect(v.reason).toMatch(/^no PR, no claim, idle/);
+    });
+
+    it("keeps a no-PR worktree changed within the threshold, or of unknown age", () => {
+        expect(
+            classify({ ...orphan, idleMinutes: ORPHAN_IDLE_MINUTES - 1 }).action
+        ).toBe("keep");
+        expect(classify({ ...orphan, idleMinutes: null }).action).toBe("keep");
+    });
+
+    it("keeps a fresh no-PR worktree with no commits until it is idle (a pass between claim and first commit)", () => {
+        expect(
+            classify({ ...orphan, unmerged: 0, idleMinutes: 5 }).action
+        ).toBe("keep");
+    });
+
+    it("keeps a dirty, locked, or in-use worktree whatever its PR says", () => {
+        for (const pr of [{}, { closedPr: true }, { mergedPr: true }]) {
+            expect(classify({ ...orphan, ...pr, dirty: true }).action).toBe(
+                "keep"
+            );
+            expect(classify({ ...orphan, ...pr, locked: true }).action).toBe(
+                "keep"
+            );
+            expect(classify({ ...orphan, ...pr, inUse: true }).action).toBe(
+                "keep"
+            );
+            expect(classify({ ...orphan, ...pr, inUse: null }).action).toBe(
+                "keep"
+            );
+        }
     });
 });
 
