@@ -3,8 +3,8 @@
 // and Triomes carry no printed mana ability: every reader must see every
 // type, on every surface — the "could produce" read (CR 106.7) behind
 // Fellwar Stone and the castability census, the Bot's payment planner, the
-// game.ts tap primitive, and the client's tap-choice prompt through the wire
-// projection.
+// game.ts tap primitive. The client's tap-choice prompt through the wire
+// projection: `src/lib/__tests__/multi-basic-type-land-mana.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -16,15 +16,8 @@ import {
     manaGateBattlefields,
 } from "../constants";
 import { getProducibleManaOptions } from "../rules";
-import { beginApplyingStaticEffects, type CardInstanceState } from "../state";
+import { beginApplyingStaticEffects } from "../state";
 import { tapSourceIntoPayment } from "../../game";
-import { projectPublicState } from "../../gameProjections";
-import {
-    getManaChoices,
-    hasIntrinsicLandMana,
-    manaActivationRequiresTap,
-} from "../../../src/lib/card-utils";
-import type { CardInstance } from "../../../src/types/game";
 import {
     makeInstance,
     makePlayer,
@@ -152,55 +145,5 @@ describe("game.ts tap primitive on a typed dual (CR 305.6 / 605.3a)", () => {
             tapSourceIntoPayment(state, player, badlands, undefined, [])
         ).toThrow(/choose/i);
         expect(badlands.isTapped).toBe(false);
-    });
-});
-
-describe("client tap surface through the wire projection (CR 305.6)", () => {
-    function slimBadlands(): { slim: CardInstance; players: CardInstance[][] } {
-        const badlands = makeInstance(BADLANDS, {
-            id: "badlands",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [badlands] }),
-                makePlayer("p2"),
-            ],
-        });
-        const projected = projectPublicState(state, 1, "p1");
-        const slim = projected.players[0].battlefield.find(
-            (c) => c.id === "badlands"
-        ) as unknown as CardInstance;
-        return {
-            slim,
-            players: projected.players.map(
-                (p) => p.battlefield as unknown as CardInstance[]
-            ),
-        };
-    }
-
-    it("is a tappable mana source paying {T} with no printed ability", () => {
-        const { slim } = slimBadlands();
-        expect(hasIntrinsicLandMana(slim)).toBe(true);
-        expect(manaActivationRequiresTap(slim)).toBe(true);
-    });
-
-    it("prompts for {B} or {R}", () => {
-        const { slim, players } = slimBadlands();
-        expect(
-            getManaChoices(slim, [
-                { id: "p1", battlefield: players[0] },
-                { id: "p2", battlefield: players[1] },
-            ])
-        ).toEqual([{ B: 1 }, { R: 1 }]);
-    });
-
-    it("keeps both subtypes on the slim instance", () => {
-        const { slim } = slimBadlands();
-        expect((slim as unknown as CardInstanceState).subtypes).toEqual([
-            "Swamp",
-            "Mountain",
-        ]);
     });
 });
