@@ -48,8 +48,8 @@ const KILLING_BLOCKER = "Craw Wurm";
 const LETHAL_ATTACKER = KILLING_BLOCKER;
 const LETHAL_ATTACKER_POWER = 6;
 
-/** Is the spell's whole script a shield over the damage its first target
- *  would deal? */
+/** Does the spell's top-level script carry a source-scoped damage shield
+ *  (any source; the pose reads it with an attacking target)? */
 function preventsTargetDamage(def: CardDefinition): boolean {
     return (def.effects ?? []).some(
         (op) =>
