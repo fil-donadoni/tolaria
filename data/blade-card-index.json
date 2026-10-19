@@ -76,6 +76,13 @@
             "needsSetup": false
         }
     ],
+    "Charging Troll": [
+        {
+            "label": "regeneration shield: regenerates against a destroy spell on the stack",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Containment Priest": [
         {
             "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
