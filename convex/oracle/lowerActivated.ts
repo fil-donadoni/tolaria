@@ -60,6 +60,16 @@ function applyRestrictions(
             case "activate-from-graveyard":
                 ability.activateFromGraveyard = true;
                 break;
+            case "own-graveyard-at-least":
+                // CR 602.1b / 109.5 — "your graveyard" is the controller's.
+                ability.activationCondition = {
+                    left: {
+                        count: { zone: "graveyard", controller: "controller" },
+                    },
+                    op: "ge",
+                    right: restriction.count,
+                };
+                break;
             default: {
                 const never: never = restriction;
                 return `no lowering for restriction ${JSON.stringify(never)}`;

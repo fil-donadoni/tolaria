@@ -89,7 +89,8 @@ import { GOLDEN_FIXTURES, type GoldenFixture } from "./grammar/fixtures";
  * right }`, `EffectComparisonPredicate`), and a predicate holds values, never
  * Effect Ops. Walking it recorded `"ge"` as an Op the Mechanics Registry does
  * not implement, quarantining every kicked spell for a reason that was not
- * about the card (issue #3826).
+ * about the card (issue #3826). An activated ability's `activationCondition`
+ * is the same predicate grammar for the same reason (issue #3685).
  */
 export function collectOps(definition: CompiledDefinition): string[] {
     const found = new Set<string>();
@@ -103,6 +104,7 @@ export function collectOps(definition: CompiledDefinition): string[] {
         if (typeof record.op === "string") found.add(record.op);
         for (const [key, value] of Object.entries(record)) {
             if (record.op === "if" && key === "predicate") continue;
+            if (key === "activationCondition") continue;
             walk(value);
         }
     };
