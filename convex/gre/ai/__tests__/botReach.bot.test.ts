@@ -657,12 +657,12 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // Issue #4781 — one card per family the hand term now reads off the
         // board: a colour-filtered bounce, a damage sweep, a subtype-filtered
         // destroy.
-        // Tranquility left out, tracked-by: #6030 — since the CR 704.5g
-        // lethal-damage SBA (issue #5784) a Castle-buffed blocker dies when
-        // the sweep removes Castle after combat, so cast-now and
-        // cast-after-combat tie in the rollouts and the root takes `pass`.
+        // Issue #6030 — an enchantment sweep is posed against an inert
+        // enchantment, not Castle: a buff the sweep itself removes made
+        // casting after an attack tie casting now.
         for (const name of [
             "Day of Judgment",
+            "Tranquility",
             "Armageddon",
             "Hibernation",
             "Pyroclasm",
@@ -671,6 +671,29 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             expect(playTwice(getCardByName(name)), name).toEqual({
                 outcome: "played",
             });
+        }
+    });
+
+    // Issue #6030 — the verdict above reads `played` if ANY seed at ANY seat
+    // chose the card, so it held for Tranquility by noise alone once the CR
+    // 704.5g SBA made a Castle-propped blocker die to the sweep after combat
+    // (seed 0xb07 passed at both seats). Each BUDGET seed on its own, at both
+    // seats, is the claim the pose makes: posed against an enchantment whose
+    // loss reaches no creature, casting now beats attacking first. Not every
+    // seed: over 20 ad-hoc seeds 2 of 40 seat-seeds still pass.
+    it("an enchantment sweep is played on each budget seed at both seats, with no Castle in its position", () => {
+        const tranquility = getCardByName("Tranquility");
+        expect(castleCount(tranquility, 0)).toBe(0);
+        expect(castleCount(tranquility, 1)).toBe(0);
+        for (const seed of BOT_REACH_BUDGET.seeds) {
+            const seats = playBotReachSeats(tranquility, {
+                iterations: BOT_REACH_BUDGET.iterations,
+                seeds: [seed],
+            });
+            expect(
+                seats.map((s) => s.verdict.outcome),
+                `seed ${seed}`
+            ).toEqual(["played", "played"]);
         }
     });
 
