@@ -44,9 +44,19 @@ export type TargetKind = (typeof TARGET_KINDS)[number];
  * is stricter: EVERY card `ready`, so the floor does not apply — a gap that
  * holds one of the Target's cards owes a `grammar` claim however few corpus
  * cards carry it, and a `hand-tail` claim or marker never settles the card.
+ * `closed-tail` (issue #6085) is `ready`'s floorless coverage with a
+ * `playable` exit over a CLOSED set of hand-written cards: every card `ready`
+ * or named in the row's `closedTail` — the hand-written cards accepted on the
+ * day the list was written, so a card written by hand later never counts.
  */
-export const COMPLETION_MODES = ["playable", "ready"] as const;
+export const COMPLETION_MODES = ["playable", "ready", "closed-tail"] as const;
 export type CompletionMode = (typeof COMPLETION_MODES)[number];
+
+/** Whether the hand-tail floor applies to a Target's cards — it does not
+ *  once a mode refuses NEW hand-written cards (`ready`, `closed-tail`). */
+export function isFloorless(completion: CompletionMode | undefined): boolean {
+    return completion === "ready" || completion === "closed-tail";
+}
 
 /**
  * One registered Target List.
@@ -79,6 +89,13 @@ export interface TargetRow {
     readonly enforced?: boolean;
     /** How the Target completes — absent means `"playable"` (issue #4519). */
     readonly completion?: CompletionMode;
+    /**
+     * The hand-written cards a `closed-tail` Target accepts, by name — present
+     * iff `completion` is `"closed-tail"` (issue #6085). Each must be a card
+     * of the Target ({@link resolveTarget} throws otherwise) and hand-written
+     * ({@link targetCoverage} reds otherwise).
+     */
+    readonly closedTail?: readonly string[];
 }
 
 export interface TargetRegistry {
@@ -173,6 +190,23 @@ export function parseTargetRegistry(
             fail(
                 `${row.id}: unknown \`completion\` \`${String(row.completion)}\` (one of: ${COMPLETION_MODES.join(", ")})`
             );
+        if (row.completion === "closed-tail") {
+            const tail: unknown = row.closedTail;
+            if (
+                !Array.isArray(tail) ||
+                tail.some((n) => typeof n !== "string" || n.length === 0)
+            )
+                fail(
+                    `${row.id}: \`completion: closed-tail\` needs \`closedTail\`, an array of card names`
+                );
+            const names = tail as string[];
+            const twice = names.find((n, i) => names.indexOf(n) !== i);
+            if (twice !== undefined)
+                fail(`${row.id}: \`closedTail\` names \`${twice}\` twice`);
+        } else if (row.closedTail !== undefined)
+            fail(
+                `${row.id}: \`closedTail\` is read only under \`completion: closed-tail\``
+            );
     }
     return doc;
 }
@@ -195,6 +229,8 @@ export interface ResolvedTarget {
     readonly row: TargetRow;
     /** Distinct cards, sorted by name. */
     readonly cards: readonly TargetCard[];
+    /** Oracle ids of the row's `closedTail` — present iff it has one. */
+    readonly closedTail?: ReadonlySet<string>;
 }
 
 /** Everything a resolution reads, built once per lockfile. */
@@ -354,8 +390,24 @@ export function resolveTarget(
         }
     }
     if (rows.size === 0) throw new Error(`${where}: resolves to no cards`);
+    // Fail closed like the list itself: a tail name that does not resolve, or
+    // resolves outside the Target, would accept a card nobody plays.
+    const closedTail =
+        row.closedTail === undefined
+            ? undefined
+            : new Set(
+                  row.closedTail.map((name) => {
+                      const card = ctx.byName.get(name);
+                      if (card === undefined || !rows.has(card.oracleId))
+                          throw new Error(
+                              `${where}: \`closedTail\` names \`${name}\`, which is not a card of this Target`
+                          );
+                      return card.oracleId;
+                  })
+              );
     return {
         row,
+        ...(closedTail === undefined ? {} : { closedTail }),
         cards: [...rows.values()]
             .map((c) => ({ oracleId: c.oracleId, name: c.name }))
             .sort((a, b) =>
@@ -886,8 +938,9 @@ export function coverageVerdict(
     ctx: CoverageContext,
     completion: CompletionMode = "playable"
 ): CoverageVerdict {
-    // A `ready` Target has no Hand Tail: the floor does not apply (issue #4519).
-    const floor = completion === "ready" ? 1 : ctx.floor;
+    // A `ready` or `closed-tail` Target has no NEW Hand Tail: the floor does
+    // not apply (issues #4519, #6085).
+    const floor = isFloorless(completion) ? 1 : ctx.floor;
     const marked = ctx.handTail.has(row.oracleId);
     if (marked && ctx.closure.has(row.oracleId)) return { state: "hand-tail" };
     if (row.state === "ready") return { state: "ready" };
@@ -924,7 +977,7 @@ export function coverageVerdict(
                   why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${floor}) has no \`grammar\` claim`,
               };
     }
-    if (completion === "ready") {
+    if (isFloorless(completion)) {
         const settledByHandTail =
             marked || ctx.claims.has(claimId("hand-tail", row.name));
         return {
@@ -934,9 +987,9 @@ export function coverageVerdict(
                     ? "no Grammar Gap attributed"
                     : "no gap holds it that a `grammar` claim covers") +
                 (settledByHandTail
-                    ? "; its `hand-tail` claim or marker does not satisfy a `ready` Target"
+                    ? `; its \`hand-tail\` claim or marker does not satisfy a \`${completion}\` Target`
                     : "") +
-                " — a `ready` Target completes at 100 % ready, so it owes a Grammar Rule, never Hand Tail",
+                ` — a \`${completion}\` Target takes no new hand-written card, so it owes a Grammar Rule, never Hand Tail`,
         };
     }
     if (marked || ctx.claims.has(claimId("hand-tail", row.name)))
@@ -982,6 +1035,12 @@ export interface TargetCoverage {
     /** Every card whose state is not `ready`, in list order — what a `ready`
      *  Target still owes (issue #4519). */
     readonly notReady: readonly string[];
+    /** Under `closed-tail`, every card neither `ready` nor in `closedTail`, in
+     *  list order — what the Target still owes (issue #6085); else empty. */
+    readonly outsideTail: readonly string[];
+    /** `closedTail` cards with no hand-written definition: the list accepts
+     *  only cards written by hand, so each is a Coverage Invariant red. */
+    readonly tailNotHandWritten: readonly string[];
     readonly migrable: readonly MigrableCard[];
     /** Every `unclaimed` card with the claim it lacks, in list order. */
     readonly unclaimed: readonly MigrableCard[];
@@ -1026,6 +1085,8 @@ export function targetCoverage(
     const completion = target.row.completion ?? "playable";
     const unplayable: string[] = [];
     const notReady: string[] = [];
+    const outsideTail: string[] = [];
+    const tailNotHandWritten: string[] = [];
     const migrable: MigrableCard[] = [];
     const unclaimed: MigrableCard[] = [];
     const closureCompiles: string[] = [];
@@ -1034,15 +1095,21 @@ export function targetCoverage(
         const { state, why: missing } = coverageVerdict(row, ctx, completion);
         byState[state].push(card.name);
         if (state !== "ready") notReady.push(card.name);
+        const inTail = target.closedTail?.has(card.oracleId) === true;
+        if (completion === "closed-tail" && state !== "ready" && !inTail)
+            outsideTail.push(card.name);
+        if (inTail && !ctx.handWritten.has(card.oracleId))
+            tailNotHandWritten.push(card.name);
         if (missing !== undefined)
             unclaimed.push({ name: card.name, why: missing });
         if (ctx.closure.has(card.oracleId)) closureCompiles.push(card.name);
         if (state !== "ready" && !ctx.handWritten.has(card.oracleId))
             unplayable.push(card.name);
-        // A `ready` Target has no Hand Tail to migrate: its hand-tail marker is
-        // already an `unclaimed` red (issue #4519).
-        const why =
-            completion === "ready" ? undefined : migrableReason(row, ctx);
+        // A floorless Target has no Hand Tail to migrate: its hand-tail marker
+        // is already an `unclaimed` red (issue #4519).
+        const why = isFloorless(completion)
+            ? undefined
+            : migrableReason(row, ctx);
         if (why !== undefined) migrable.push({ name: card.name, why });
     }
     return {
@@ -1058,6 +1125,8 @@ export function targetCoverage(
         playable: target.cards.length - unplayable.length,
         unplayable,
         notReady,
+        outsideTail,
+        tailNotHandWritten,
         migrable,
         unclaimed,
         closureCompiles,
@@ -1077,6 +1146,10 @@ export function coverageReds(coverage: TargetCoverage): string[] {
         ...coverage.migrable.map(
             ({ name, why }) =>
                 `${coverage.id}: ${name} — hand-tail marker: ${why}`
+        ),
+        ...coverage.tailNotHandWritten.map(
+            (name) =>
+                `${coverage.id}: ${name} — in \`closedTail\` but not hand-written: drop it from the list`
         ),
     ];
 }

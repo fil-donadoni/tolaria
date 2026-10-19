@@ -260,8 +260,12 @@ function coverageLines(coverage: TargetCoverage): string {
             ? // A `ready` Target counts no hand-written card (issue #4519).
               `  ${"ready".padEnd(12)}${`${coverage.byState.ready.length}/${coverage.total}`.padStart(12)}  ` +
               `${pct(coverage.byState.ready.length, coverage.total).trim()} — every card must be ready, the completion mode of this Target\n`
-            : `  ${"playable".padEnd(12)}${`${coverage.playable}/${coverage.total}`.padStart(12)}  ` +
-              `${pct(coverage.playable, coverage.total).trim()} — ready or hand-written, the v1 gate\n`);
+            : coverage.completion === "closed-tail"
+              ? // Only the hand-written cards the row lists count (issue #6085).
+                `  ${"playable".padEnd(12)}${`${coverage.total - coverage.outsideTail.length}/${coverage.total}`.padStart(12)}  ` +
+                `${pct(coverage.total - coverage.outsideTail.length, coverage.total).trim()} — ready or in \`closedTail\`, the completion mode of this Target\n`
+              : `  ${"playable".padEnd(12)}${`${coverage.playable}/${coverage.total}`.padStart(12)}  ` +
+                `${pct(coverage.playable, coverage.total).trim()} — ready or hand-written, the v1 gate\n`);
     const states = COVERAGE_STATES.map((state) => {
         const names = coverage.byState[state];
         return (
