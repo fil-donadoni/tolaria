@@ -40,6 +40,7 @@ import {
     STIFLE_BACKUP,
     TITANIA_PAYOFF,
     EXTRA_PLAINS,
+    SEVEN_POISON,
     answersRaisedTargetLegally,
     submitsSoleTarget,
 } from "./scenarioPredicates";
@@ -1531,6 +1532,159 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             forbidden: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
         },
         note: "life-dependent negative control (issue #2147): same board as charter scenario 4 (4 x Craw Wurm vs. lone Grizzly Bears), only `life.opp` raised from the default 20 to 40. 24 unblocked damage no longer kills, so blocking (which trades the 2/2 for nothing against a 6/4) is pure material loss with zero survival benefit — the bot must decline. Measured 5/5 seeds: blocks at life 20 (scenario 4), declines at life 40 (this entry). Proves the ScenarioSpec `life` field actually reaches the built board and changes the bot's decision, not just the definition.",
+    },
+    {
+        // POISON-LETHAL (issue #5153) — charter scenario 4's question, block or
+        // die, asked of the OTHER loss: the bot holds 8 poison counters and the
+        // attacker is a 2/2 with infect, so the 2 unblocked damage arrives as
+        // the ninth and tenth counter (CR 702.90b) and loses the game at the
+        // next SBA check (CR 704.5c). Life is irrelevant — the bot is at 20 and
+        // the attack takes none of it, which is exactly why a life-only
+        // `lethalUnblockedDelta` read "take it" as a 2-point chip. The 1/1
+        // chump trades nothing (it cannot kill a 2/2), so the block is the
+        // materially losing move survival requires.
+        label: "poison-lethal: chump-blocks the infect attacker whose damage is the tenth poison counter (issue #5153)",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "other", detail: "the bot at 8 poison" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { me: ["Grizzly Bears"] },
+                    controller: "me",
+                    payload: { kind: "keyword-grant", keyword: "infect" },
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            poison: { opp: 8 },
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Savannah Lions" }],
+        },
+        note: "PLACEHOLDER",
+    },
+    {
+        // POISON CLOCK, HALF 1 of 2 (issue #5153) — a Terror and two targets: a
+        // vanilla Hill Giant (3/3) and a Grizzly Bears granted infect (2/2).
+        // With no poison on the bot the bigger body is the bigger threat (3
+        // of 20 life a turn against 2 of 10 counters) and the bigger loss to
+        // the opponent, so Terror takes the Giant.
+        label: "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)",
+        classification: { kind: "conditional", discriminant: SEVEN_POISON },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Grizzly Bears"] },
+                    controller: "opp",
+                    payload: { kind: "keyword-grant", keyword: "infect" },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Hill Giant",
+                }),
+            describe: "Terror is cast on the Hill Giant",
+        },
+        note: "NOTE_Hill_Giant",
+    },
+    {
+        // POISON CLOCK, HALF 2 of 2 (issue #5153) — the same board with the bot
+        // at seven poison counters: the infect 2/2 now kills in two attacks
+        // (7 → 9 → 11, CR 704.5c) where the Giant needs seven, so it is the
+        // creature to answer.
+        label: "poison clock: Terror takes the infect Grizzly Bears over the bigger Hill Giant at seven poison (issue #5153)",
+        pairOf: {
+            anchor: "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)",
+            discriminant: SEVEN_POISON,
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Grizzly Bears"] },
+                    controller: "opp",
+                    payload: { kind: "keyword-grant", keyword: "infect" },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+            poison: { me: 7 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Grizzly Bears",
+                }),
+            describe: "Terror is cast on the Grizzly Bears",
+        },
+        note: "NOTE_Grizzly_Bears",
     },
     {
         // RECIPIENT-KEYED SOURCE SHIELD (issue #5410) — charter scenario 4's
