@@ -6,6 +6,7 @@ import {
     formatViolation,
     isSelfHosted,
     JOB_SETUP_FILE,
+    SUPERSEDED_GROUP,
     type RuleId,
     type SourceFile,
     type StructureInput,
@@ -471,6 +472,48 @@ describe("workflow structure guard", () => {
                 )
             )
         ).toEqual(["concurrency-group", "dispatcher-serialised"]);
+    });
+
+    it("requires the queue's lane to be superseded by its PR's newer draft, and admits exactly that (issue #6020)", () => {
+        const group = (cancel: boolean, key = SUPERSEDED_GROUP) =>
+            `    concurrency:\n      group: "${key}"\n      cancel-in-progress: ${cancel}\n`;
+        const withGroup = (g: string) =>
+            edit(
+                SELF_HOSTED,
+                "    timeout-minutes: 30\n",
+                `    timeout-minutes: 30\n${g}`
+            ).replace("  lane:\n", "  queue-lane:\n");
+        const queueLane = (text: string): StructureInput => ({
+            ...fixture(),
+            workflows: [
+                ...fixture().workflows,
+                { path: ".github/workflows/queue-lane.yml", text },
+            ],
+        });
+        expect(rules(queueLane(withGroup(group(true))))).toEqual([]);
+        // No group: the superseded draft's run holds a lane runner.
+        expect(
+            rules(
+                queueLane(SELF_HOSTED.replace("  lane:\n", "  queue-lane:\n"))
+            )
+        ).toEqual(["queue-superseded"]);
+        // Keyed by the branch: every draft is a new one, nothing supersedes.
+        expect(
+            rules(
+                queueLane(
+                    withGroup(group(true, "queue-lane-${{ github.ref }}"))
+                )
+            )
+        ).toEqual(["concurrency-group", "queue-superseded"]);
+        // Keeping the running one: the orphan still holds its runner.
+        expect(rules(queueLane(withGroup(group(false))))).toEqual([
+            "concurrency-group",
+            "queue-superseded",
+        ]);
+        // The same group on any other self-hosted job keeps the ban.
+        expect(rules(fixture({ self: withGroup(group(true)) }))).toEqual([
+            "concurrency-group",
+        ]);
     });
 
     it("refuses a self-hosted job pinned to one host by a literal label; a matrix or input expression is not a pin (issue #5873)", () => {

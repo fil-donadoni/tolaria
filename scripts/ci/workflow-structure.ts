@@ -32,8 +32,8 @@
  *   - `concurrency-group` — a `concurrency` key on a self-hosted job or on a
  *     workflow holding one: a group keeps one pending job and CANCELS the
  *     older pending one; heavy work is serialised by runner labels. The
- *     exceptions are the `SERIALISED_DISPATCHERS` and `SERIALISED_JOBS`
- *     below.
+ *     exceptions are the `SERIALISED_DISPATCHERS`, `SERIALISED_JOBS` and
+ *     `SUPERSEDED_JOBS` below.
  *   - `dispatcher-serialised` — a job of a `SERIALISED_DISPATCHERS` workflow,
  *     or a `SERIALISED_JOBS` job, without a JOB-level
  *     `concurrency: { group, cancel-in-progress: false }`. The dispatcher
@@ -45,6 +45,13 @@
  *     level, so a run whose job is skipped (a label event that is not
  *     `ready-for-agent`, a push that fires no nightly) never displaces a
  *     pending one.
+ *   - `queue-superseded` — a `SUPERSEDED_JOBS` job without exactly
+ *     `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }`
+ *     (issue #6020). Mergify re-creates a PR's draft on a new branch and
+ *     deletes the old one; without the group the old draft's lane keeps a
+ *     `lane` runner the live draft waits for. The group is keyed by the PR
+ *     the draft checks (its head commit, `Merge of #N`, batch size 1), the
+ *     sha its fallback so a missing message never groups two PRs.
  *   - `host-pinned` — a self-hosted job whose `runs-on` names ONE machine by
  *     a literal `host:<name>` label (issue #5873): that machine offline or
  *     broken holds the job for 24 h, then fails it. A per-machine duty is a
@@ -115,6 +122,7 @@ export type RuleId =
     | "queue-dequeue"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
+    | "queue-superseded"
     | "host-pinned"
     | "local-action-unscanned"
     | "unparseable";
@@ -148,6 +156,17 @@ export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
     ".github/workflows/post-merge.yml#nightly",
 ]);
 
+/** Jobs whose newer run makes the older one worthless, RUNNING included
+ *  (rule `queue-superseded`, issue #6020): `<workflow path>#<job id>`. */
+export const SUPERSEDED_JOBS: ReadonlySet<string> = new Set([
+    ".github/workflows/queue-lane.yml#queue-lane",
+]);
+
+/** The one group a `SUPERSEDED_JOBS` job may declare: the PR behind the
+ *  queue's draft, never a branch (each draft is a new one). */
+export const SUPERSEDED_GROUP =
+    "queue-lane-${{ github.event.head_commit.message || github.sha }}";
+
 /** A `runs-on` label that names one machine: `host:<name>` spelled out. An
  *  expression (`host:${{ matrix.host }}`) is a matrix or an input, not a
  *  pin. */
@@ -169,6 +188,15 @@ function isSerialisingGroup(c: unknown): boolean {
         typeof c.group === "string" &&
         c.group.trim() !== "" &&
         c["cancel-in-progress"] === false
+    );
+}
+/** `{ group: SUPERSEDED_GROUP, cancel-in-progress: true }` — the newer
+ *  draft of one PR cancels the older one's run, running or pending. */
+function isSupersedingGroup(c: unknown): boolean {
+    return (
+        isObj(c) &&
+        c.group === SUPERSEDED_GROUP &&
+        c["cancel-in-progress"] === true
     );
 }
 export const JOB_SETUP_FILE = ".github/actions/job-setup/action.yml";
@@ -308,8 +336,20 @@ function checkJob(
         v("no-timeout", "no positive `timeout-minutes`");
     const mustSerialise = wf.dispatcher || SERIALISED_JOBS.has(`${file}#${id}`);
     const serialised = mustSerialise && isSerialisingGroup(job.concurrency);
-    if (selfHosted && job.concurrency !== undefined && !serialised)
+    const mustSupersede = SUPERSEDED_JOBS.has(`${file}#${id}`);
+    const supersedes = mustSupersede && isSupersedingGroup(job.concurrency);
+    if (
+        selfHosted &&
+        job.concurrency !== undefined &&
+        !serialised &&
+        !supersedes
+    )
         v("concurrency-group", "self-hosted job declares `concurrency`");
+    if (mustSupersede && !supersedes)
+        v(
+            "queue-superseded",
+            `the queue's lane must declare \`concurrency: { group: "${SUPERSEDED_GROUP}", cancel-in-progress: true }\` — a superseded draft's run holds a \`lane\` runner the live draft waits for (issue #6020)`
+        );
     if (mustSerialise && !serialised)
         v(
             "dispatcher-serialised",
