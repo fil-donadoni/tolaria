@@ -16,7 +16,9 @@
 // session decision (`lib/machine-admission.ts`).
 
 import { spawn, spawnSync } from "node:child_process";
-import { cpus, totalmem } from "node:os";
+import { existsSync } from "node:fs";
+import { cpus, homedir, platform, totalmem } from "node:os";
+import { join } from "node:path";
 import {
     admitSessionNow,
     consumerLines,
@@ -36,6 +38,26 @@ import {
     sustainedSample,
 } from "./lib/machine-admission";
 import { sessionCap } from "./lib/branches";
+import { readInstalledUnits, staleUnits } from "./lib/stale-units";
+
+/** Installed Tolaria units naming a script the checkout no longer has
+ *  (issue #6019) — `bun run runner prune` removes them. */
+function staleUnitLines(): string[] {
+    const p = platform();
+    if (p !== "darwin" && p !== "linux") return [];
+    const stale = staleUnits(
+        readInstalledUnits(p, {
+            systemdUserDir: join(homedir(), ".config/systemd/user"),
+            launchAgentsDir: join(homedir(), "Library/LaunchAgents"),
+        }),
+        existsSync
+    );
+    if (stale.length === 0) return ["  dead units       none"];
+    return [
+        `  dead units       ${stale.length} — \`bun run runner prune\` removes them`,
+        ...stale.map((s) => `    ${s.unit.name} → ${s.missing} missing`),
+    ];
+}
 
 function report(): number {
     const t0 = performance.now();
@@ -97,6 +119,7 @@ function report(): number {
     console.log(
         `  a claim/worktree ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
     );
+    for (const line of staleUnitLines()) console.log(line);
     return 0;
 }
 
