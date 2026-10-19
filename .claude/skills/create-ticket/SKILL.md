@@ -85,7 +85,7 @@ What should happen after the fix. Be specific about edge cases.
 **Durability rules:**
 
 - NO file paths or line numbers in the descriptive sections — they go stale
-- Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo). Name a hot shared logic file (e.g. `convex/gre/ai/opValuers.ts`) explicitly, never under a glob — the planner keeps overlapping picks apart only by what this section names (issue #5942). It is the one section written as a `## Target files` HEADING, not as a bold label: the planner reads a bold `**Target files:**` too (issue #3535), but the heading is canonical and is what the queue lint's fix hint names.
+- Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo). Name a hot logic file explicitly, never via a glob (issue #5942). It is the one section written as a `## Target files` HEADING, not as a bold label: the planner reads a bold `**Target files:**` too (issue #3535), but the heading is canonical and is what the queue lint's fix hint names.
 - **`## Cards` only when the issue is ABOUT specific cards** (issue #4086) — a
   bug a card shows, an enhancement a card waits on: one lockfile card name per
   list item, no prose. It is what `backlog:triage` bands the issue by
