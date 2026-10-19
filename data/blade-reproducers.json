@@ -1339,6 +1339,27 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "multi-block split: swings a 6/4 into two 3/3s that can only trade both for it": {
+        "cards": [
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false,
+                "count": 2
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "ninjutsu: swaps its unblocked attacker for Fallen Shinobi": null,
     "oath: declines the dig when its library holds no creature": null,
     "oath: takes the free body when its library is creature-dense": null,
