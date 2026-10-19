@@ -686,7 +686,14 @@ export function renderAllowlist(allowlist: Allowlist): string {
 export function commitAndPushAllowlist(
     root: string,
     render: (base: string) => string,
-    netTimeoutMs: number = GIT_NET_TIMEOUT_MS
+    netTimeoutMs: number = GIT_NET_TIMEOUT_MS,
+    /** The one file and commit subject this write-back owns; `land` tells the
+     *  commit from a foreign push by both (`VERIFY_MERGED_TIP`). Default: the
+     *  allowlist. `oracle:prune-regressions` reuses the machinery (issue #6061). */
+    target: { path: string; subject: string } = {
+        path: ALLOWLIST_PATH,
+        subject: ALLOWLIST_COMMIT_SUBJECT,
+    }
 ): boolean {
     const git = (
         args: string[],
@@ -708,10 +715,10 @@ export function commitAndPushAllowlist(
     /** The allowlist commit on `base`, or "unchanged" when `render` changes
      *  nothing there, or null (reported) when it cannot be built. */
     const build = (base: string): string | "unchanged" | null => {
-        const shown = git(["show", `${base}:${ALLOWLIST_PATH}`]);
+        const shown = git(["show", `${base}:${target.path}`]);
         if (shown.status !== 0) {
             console.error(
-                `gaps:sync: could not read ${ALLOWLIST_PATH} at ${base}: ${why(shown)}`
+                `gaps:sync: could not read ${target.path} at ${base}: ${why(shown)}`
             );
             return null;
         }
@@ -720,7 +727,7 @@ export function commitAndPushAllowlist(
             next = render(shown.stdout);
         } catch (err) {
             console.error(
-                `gaps:sync: could not apply the update to ${ALLOWLIST_PATH} at ${base}: ${err instanceof Error ? err.message : String(err)}`
+                `gaps:sync: could not apply the update to ${target.path} at ${base}: ${err instanceof Error ? err.message : String(err)}`
             );
             return null;
         }
@@ -740,7 +747,7 @@ export function commitAndPushAllowlist(
                         "update-index",
                         "--add",
                         "--cacheinfo",
-                        `100644,${blob.stdout.trim()},${ALLOWLIST_PATH}`,
+                        `100644,${blob.stdout.trim()},${target.path}`,
                     ],
                     { env }
                 ),
@@ -754,7 +761,7 @@ export function commitAndPushAllowlist(
                           "-p",
                           base,
                           "-m",
-                          ALLOWLIST_COMMIT_SUBJECT,
+                          target.subject,
                       ])
                     : tree;
             const failed = [...steps, tree, commit].find((r) => r.status !== 0);

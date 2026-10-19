@@ -42,6 +42,7 @@ import {
     VERIFY_MERGED_TIP,
 } from "../land";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
+import { PRUNE_COMMIT_SUBJECT } from "../oracle-prune-regressions";
 import {
     admissionOrder,
     waiterSince,
@@ -1430,6 +1431,18 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         const old2 = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#2)");
         commit("c.txt", ALLOWLIST_COMMIT_SUBJECT);
+        expect(verify(old2)).not.toBe(0);
+    });
+
+    it("tolerates oracle:prune-regressions' ledger commit (issue #6061), and nothing else under its subject", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#1)");
+        commit("data/oracle-state-regressions.json", PRUNE_COMMIT_SUBJECT);
+        expect(verify(old)).toBe(0);
+
+        const old2 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#2)");
+        commit("c.txt", PRUNE_COMMIT_SUBJECT);
         expect(verify(old2)).not.toBe(0);
     });
 
