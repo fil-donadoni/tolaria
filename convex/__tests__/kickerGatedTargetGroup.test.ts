@@ -49,6 +49,7 @@ import {
     type GameState,
 } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
+import { checkStateBasedActions } from "../gre/sba";
 
 /** Orim's Thunder's announcement, with its out-of-scope back-reference
  *  ("damage equal to that permanent's mana value") replaced by a fixed 2 —
@@ -380,6 +381,7 @@ describe("a target group announced only if kicked (CR 702.33g)", () => {
                 { type: "permanent", id: "bears" },
             ]);
             resolveTopOfStack(state);
+            checkStateBasedActions(state);
             // The artifact was destroyed and the 2/2 took the 2 damage, so
             // both are gone (CR 704.5g lethal damage).
             expect(bothBattlefields(state).map((c) => c.id)).toEqual([

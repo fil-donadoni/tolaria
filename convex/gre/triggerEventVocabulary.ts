@@ -98,6 +98,7 @@ export const EVENT_FIELD_KINDS: {
         creaturePower: "scalar",
         creatureToughness: "scalar",
         combatPartnerIds: "objectList",
+        attachmentsBeforeLeave: "objectList",
     },
     // CR 603.6a — a permanent entered.
     PERMANENT_ENTERED: {

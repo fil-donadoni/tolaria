@@ -111,6 +111,7 @@ import {
     resolveActivatedNoting,
     answerMayPay,
 } from "./set.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");
@@ -1321,6 +1322,7 @@ describe("Time Bomb (time counters + scaled board wipe, CR 122 / 119)", () => {
             targets: [],
         });
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[0].life).toBe(18);
         expect(state.players[1].life).toBe(18);
         // The 1/1 took 2 damage → dies (SBA); the 3/3 survives with 2 marked.

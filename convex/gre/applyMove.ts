@@ -1778,18 +1778,17 @@ export function applyMoveForSearch(
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
-                // CR 704.3 — SBAs between two resolutions, the same timing
-                // `drainAutoPasses` (the ISMCTS side) and the mutation path
-                // keep: a storm-copied pinger's third copy fizzles once the
-                // first two killed its target (CR 608.2b), and a creature dealt
-                // lethal damage dies before the next item resolves (issue
-                // #5784, finding 3026). Skipped while a resolution is
-                // suspended — that is no priority window.
-                if (
-                    (next.pendingChoices?.length ?? 0) === 0 &&
-                    !next.pendingTarget
-                )
-                    checkStateBasedActions(next);
+                // NOT `checkStateBasedActions` here, deliberately (CR 704.3).
+                // SBAs are checked whenever a player WOULD receive priority, so
+                // a storm-copied pinger's third copy ought to fizzle once the
+                // first two killed its target (CR 608.2b) — but neither
+                // `drainAutoPasses` (`gre/phases.ts`, the ISMCTS side) nor the
+                // mutation path checks between two resolutions either. Running
+                // them HERE alone would make this sandbox the only one of the
+                // three with that timing, which is precisely the greedy-vs-
+                // ISMCTS divergence this issue exists to close. Drafted as an
+                // engine-wide finding instead:
+                // `docs/findings/3026-sbas-not-checked-between-resolutions.md`.
                 // CR 614.12 / ADR 0051 — a spell that puts a shock land onto
                 // the battlefield (tutor / reanimation) enqueues a stackless
                 // `land-entry-tapped` pay-choice; drain it so the search leaf
@@ -1903,13 +1902,6 @@ export function applyMoveForSearch(
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
-                // CR 704.3 — SBAs between two resolutions, as the cast leg
-                // above checks them (issue #5784).
-                if (
-                    (next.pendingChoices?.length ?? 0) === 0 &&
-                    !next.pendingTarget
-                )
-                    checkStateBasedActions(next);
                 if (
                     next.stack.length === depthBefore &&
                     next.stack[next.stack.length - 1]?.id === topIdBefore

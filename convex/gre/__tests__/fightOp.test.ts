@@ -23,6 +23,7 @@ import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green.cards";
 import type { CardDefinition, EffectOp } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import type { CardInstanceState, GameState } from "../state";
+import { checkStateBasedActions } from "../sba";
 
 const SOURCE_ID = "fight-op-test-source";
 const ABILITY_ID = "fight-op-test-ability";
@@ -109,6 +110,7 @@ describe("fight Op (CR 701.14)", () => {
         withTemporaryDefinition(fightSource(SLOT_FIGHT), () => {
             const { state, source } = board();
             resolveActivated(state, source, ABILITY_ID, TARGETS);
+            checkStateBasedActions(state);
             // The 6-power Wurm kills the 2/2 Bears; the Bears deal 2 back.
             expect(onBattlefield(state, "mine")?.damageMarked).toBe(2);
             expect(onBattlefield(state, "theirs")).toBeUndefined();
@@ -123,6 +125,7 @@ describe("fight Op (CR 701.14)", () => {
         withTemporaryDefinition(fightSource(effects, ["Creature"]), () => {
             const { state, source } = board();
             resolveActivated(state, source, ABILITY_ID, TARGETS);
+            checkStateBasedActions(state);
             expect(onBattlefield(state, "src")?.damageMarked).toBe(2);
             expect(inGraveyard(state, "theirs")).toBe(true);
             // Slot 0 was announced but is no combatant in this script.
@@ -173,6 +176,7 @@ describe("fight Op (CR 701.14)", () => {
         withTemporaryDefinition(fightSource(effects), () => {
             const { state, source } = board();
             resolveActivated(state, source, ABILITY_ID, TARGETS);
+            checkStateBasedActions(state);
             expect(onBattlefield(state, "mine")?.damageMarked).toBe(2);
             expect(inGraveyard(state, "theirs")).toBe(true);
         });

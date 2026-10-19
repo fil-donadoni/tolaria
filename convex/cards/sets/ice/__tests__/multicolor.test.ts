@@ -56,6 +56,7 @@ import {
     makeTargetCreature,
     library,
 } from "./set.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const fireCovenant = getDefinition("6a0139c2-ad86-4c71-ab6d-4840c37d5d20");
@@ -904,6 +905,7 @@ describe("Fire Covenant ({1}{B}{R} — pay X life, X damage divided as you choos
         ]);
         item.chosenX = 4;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // 4 damage ≥ toughness 3 → dies.
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard).toHaveLength(1);

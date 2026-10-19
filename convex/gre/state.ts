@@ -6787,6 +6787,9 @@ export function removePermanentTo(
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
                 combatPartnerIds: snapshotCombatPartners,
+                ...(lkiAttachments.length > 0
+                    ? { attachmentsBeforeLeave: lkiAttachments }
+                    : {}),
             },
         ];
         // Running tally of creatures that have died this turn. Read by

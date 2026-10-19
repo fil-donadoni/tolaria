@@ -103,6 +103,7 @@ describe("Bloodfire Infusion (APC, issue #4319)", () => {
         checkStateBasedActions(state);
         expect(onBattlefield(state, "aura")).toBeUndefined();
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         // 3 damage: kills the 2/2 foe, marks the 2/5 bystander (survives).
         expect(onBattlefield(state, "foe")).toBeUndefined();

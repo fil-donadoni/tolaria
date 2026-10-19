@@ -48,6 +48,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
 const antiMagicAura = getDefinition("ff78eef1-efaa-4a12-bf5d-fec83c14aff8");
@@ -101,6 +102,7 @@ describe("Psionic Entity ({T}: 2 to any target, 3 to itself, CR 120.1)", () => {
             targets: [{ type: "player", id: "p2" }],
         } as StackItem);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].life).toBe(18); // 20 - 2
         // 3 damage marked on itself (CR 120.3) — lethal vs toughness 2 → dies.
         const self = state.players[0].battlefield.find((c) => c.id === "pe");

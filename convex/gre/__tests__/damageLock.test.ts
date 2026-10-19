@@ -39,6 +39,7 @@ import { applyAllCombatDamage, finalizeCleanup } from "../phases";
 import type { GameState } from "../state";
 import type { TargetSelection } from "../../cards/types";
 import { compactState, expandState } from "../serialize";
+import { checkStateBasedActions } from "../sba";
 
 /** Casts Lava Burst at `target` with X = `x` and resolves it. */
 function castLavaBurst(
@@ -350,6 +351,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
         ]);
         item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // 10 damage on a 6/4 is lethal, so the proof is that it DIED — with the
         // prevention half honoured nothing is marked at all and the Craw Wurm
         // stays on the battlefield.
