@@ -1534,11 +1534,12 @@ async function main(): Promise<void> {
             ...(mode === "housekeeping" ? { [GATE_OVERRIDE_ENV]: "1" } : {}),
         },
     });
-    // The gate held the mutex and the machine never calmed (issue #4966):
-    // nothing was rebased, gated or merged, so this is not a failed land.
+    // The gate held the mutex and the machine never calmed (issue #4966), or
+    // the post-rebase dependency install failed (issue #6000): nothing was
+    // gated, pushed or merged, so this is not a failed land.
     if (result.status === MACHINE_SATURATED_EXIT)
         console.error(
-            `land: NOT landed, and NOT failed — the machine stayed saturated past the bound, so no gate ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
+            `land: NOT landed, and NOT failed — INFRA (exit ${MACHINE_SATURATED_EXIT}): the machine stayed saturated past the bound, or the dependency install failed, so no gate ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
         );
     process.exit(result.status ?? 1);
 }
