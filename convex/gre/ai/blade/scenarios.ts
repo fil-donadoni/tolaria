@@ -11695,9 +11695,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
             ],
-            // The last main phase: Stingcaster Mage has haste, not flash, so
-            // a precombat pass reached the postcombat main with the same cast
-            // open (issue #4981's shape).
+            // The last main phase: Stingcaster Mage is a creature without
+            // flash, castable in either main phase, so a precombat pass
+            // reached the postcombat main with the same cast open (issue
+            // #4981's shape).
             phase: "POSTCOMBAT_MAIN",
             turn: 5,
             landCount: 4,
