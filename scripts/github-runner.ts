@@ -175,12 +175,21 @@ function observe(
     };
 }
 
-/** Stop and delete the installed units whose script left the checkout. */
-function planPrune(platform: RunnerPlatform, uid: number): Step[] {
+/** Stop and delete the installed units whose script left the checkout —
+ *  never one the same plan rewrites (`rewritten`: its fresh text runs the
+ *  live script). */
+function planPrune(
+    platform: RunnerPlatform,
+    uid: number,
+    rewritten: Step[] = []
+): Step[] {
+    const written = new Set(
+        rewritten.flatMap((s) => (s.kind === "write" ? [s.path] : []))
+    );
     const units = readInstalledUnits(platform, {
         systemdUserDir: SYSTEMD_USER,
         launchAgentsDir: LAUNCH_AGENTS,
-    });
+    }).filter((u) => !written.has(u.path));
     return planPruneStale(staleUnits(units, existsSync), platform, uid);
 }
 
@@ -412,30 +421,28 @@ function main(): void {
             console.log(
                 `runner: ${host} (${platform}) declares ${runners.map((r) => r.name).join(", ") || "no runner"} on ${slug}`
             );
-            run([
-                ...planInstall(
-                    {
-                        platform,
-                        uid,
-                        slug,
-                        runners,
-                        plists,
-                        systemdTemplate,
-                        convexPlist,
-                        launchAgentsDir: LAUNCH_AGENTS,
-                        systemdUserDir: SYSTEMD_USER,
-                        logDir: LOG_DIR,
-                        convexLogDir: CONVEX_LOG_DIR,
-                        machineFile: {
-                            path: MACHINE_FILE,
-                            content: serializeDeclaration({ host, counts }),
-                        },
-                        notifyCmd: process.env.TOLARIA_NOTIFY_CMD,
+            const installSteps = planInstall(
+                {
+                    platform,
+                    uid,
+                    slug,
+                    runners,
+                    plists,
+                    systemdTemplate,
+                    convexPlist,
+                    launchAgentsDir: LAUNCH_AGENTS,
+                    systemdUserDir: SYSTEMD_USER,
+                    logDir: LOG_DIR,
+                    convexLogDir: CONVEX_LOG_DIR,
+                    machineFile: {
+                        path: MACHINE_FILE,
+                        content: serializeDeclaration({ host, counts }),
                     },
-                    seen
-                ),
-                ...planPrune(platform, uid),
-            ]);
+                    notifyCmd: process.env.TOLARIA_NOTIFY_CMD,
+                },
+                seen
+            );
+            run([...installSteps, ...planPrune(platform, uid, installSteps)]);
             break;
         }
         case "prune":
