@@ -181,7 +181,8 @@ export interface EachPlayerSide {
      *  most the whole hand, over the board's mean library card (the
      *  `drawUnits` scale), so a random discard of an average card is one
      *  unit, the mirror of a draw. An empty hand loses nothing. A hand
-     *  holding a hidden placeholder is unreadable (0, the side voided). */
+     *  holding a hidden placeholder, or a board with no readable library
+     *  card to scale by, is unreadable (0, the side voided). */
     randomDiscardUnits(count: number): number;
     /** Issue #5559 — `value` read off the board with `$each` bound to this
      *  player: a literal, a `count` of this player's (or the fewest / all
