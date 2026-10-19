@@ -4173,8 +4173,9 @@ export function drainAutoPasses(state: GameState): void {
         // damage by the first resolution stayed on the battlefield through the
         // next one (issue #5784; finding 3026). A check that raised input (a
         // legend-rule keep, a targeted trigger) ends the drain; one that put
-        // triggers on the stack re-seated priority (CR 117.3b), so the loop
-        // re-reads the holder rather than passing on a stale one.
+        // triggers on the stack (CR 117.5) re-seated priority
+        // (`placeTriggersOnStack`), so the loop re-reads the holder rather
+        // than passing on a stale one.
         const holderBefore = state.priorityPlayerId;
         const passCountBefore = state.passCount;
         checkStateBasedActions(state);

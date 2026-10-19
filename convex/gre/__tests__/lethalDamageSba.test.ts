@@ -67,7 +67,7 @@ describe("lethal spell damage dies at the SBA check, after the whole script (CR 
         expect(state.players[1].graveyard).toHaveLength(0);
     });
 
-    it("kicked Scorching Lava on a shielded 2/2 — exiled, the shield is not used (CR 701.19c)", () => {
+    it("kicked Scorching Lava on a shielded 2/2 — exiled, the Regenerate shield is not applied (CR 701.19c)", () => {
         const state = boardWith(grizzlyBears().id, { regenerationShields: 1 });
         castAtVictim(state, scorchingLava().id, true);
         checkStateBasedActions(state);

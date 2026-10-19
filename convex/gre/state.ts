@@ -5742,8 +5742,8 @@ export function removeLoyaltyForDamage(
  *  the damage it deals. Damage is *marked only* here (CR 120.3); lethal /
  *  destroy (CR 704.5g) is the SBA pass's (`checkLethalDamageSBA`, issue
  *  #5784), so two halves of a fight are both marked before either creature
- *  is destroyed (CR 701.14 — the damage is dealt simultaneously). No-op if
- *  the source or target has left the battlefield or the target isn't
+ *  dies (CR 701.14 fight — the damage is dealt simultaneously). No-op if the
+ *  source or target has left the battlefield or the target isn't
  *  damageable. */
 function markDamageFromPermanentSource(
     state: GameState,
