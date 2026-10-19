@@ -272,11 +272,11 @@ function CardSeeder({ id }: { id: string }) {
 }
 
 function renderHoverBoard(stack: StackItem[], entries: Published[]) {
-    const ui = (s: StackItem[]) => (
+    const ui = (s: StackItem[], e: Published[] = entries) => (
         <div data-board-root data-testid="board-root">
             <ArrowAnchorProvider>
                 <ArrowHighlightProvider>
-                    <Publisher entries={entries} />
+                    <Publisher entries={e} />
                     <CardSeeder id="bear" />
                     <NodesProbe />
                     <BoardArrows stack={s} />
@@ -288,6 +288,7 @@ function renderHoverBoard(stack: StackItem[], entries: Published[]) {
     return {
         ...result,
         rerenderStack: (s: StackItem[]) => result.rerender(ui(s)),
+        rerenderAnchors: (e: Published[]) => result.rerender(ui(stack, e)),
     };
 }
 
@@ -353,6 +354,25 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
         });
         expect(getByTestId("nodes").textContent).toBe("perm,s1");
         act(() => rerenderStack([]));
+        expect(getByTestId("nodes").textContent).toBe("none");
+    });
+
+    it("re-tests a still pointer when the arrow moves away from it (card animating)", () => {
+        const { getByTestId, rerenderAnchors } = renderHoverBoard(
+            HOVER_STACK,
+            HOVER_ANCHORS
+        );
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+        });
+        expect(getByTestId("nodes").textContent).toBe("perm,s1");
+        act(() =>
+            rerenderAnchors([
+                HOVER_ANCHORS[0],
+                { kind: "permanent", id: "perm", point: { x: 0, y: 300 } },
+            ])
+        );
         expect(getByTestId("nodes").textContent).toBe("none");
     });
 });
