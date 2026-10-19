@@ -6,8 +6,9 @@ import { describe, it, expect } from "vitest";
 import { advancePhase, untapStep } from "../phases";
 import { removePermanentTo } from "../state";
 import { compactState, expandState } from "../serialize";
-import { restoreReturnMarkOnUntap } from "../untapReturn";
+import { reverseManaAbilityEffectsOnUntap } from "../manaAbilityEffects";
 import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
+import { goblinShrine } from "../../cards/sets/drk/red.cards";
 
 /** Grizzly Bears — any vanilla permanent will do. */
 const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
@@ -49,7 +50,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
         expect(land.returnToHandAtUntapOf).toBe("p1");
     });
 
-    it("CR 502.3 / 502.4 — no stack item, no priority; the leaves-the-battlefield event is held for the next priority window", () => {
+    it("CR 502.3 / 502.4 — the return uses no stack item and grants no priority", () => {
         const land = markedLand();
         const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
         state.players[0].battlefield = [land];
@@ -58,9 +59,27 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
         expect(state.players[0].hand.map((c) => c.id)).toContain("marked");
         expect(state.stack).toHaveLength(0);
         expect(state.priorityPlayerId).toBe(priorityBefore);
-        expect(
-            (state.pendingEvents ?? []).some((e) => e.type === "PERMANENT_LEFT")
-        ).toBe(true);
+    });
+
+    it("CR 502.4 / 503.1a — a leaves-the-battlefield trigger the return causes is on the stack when the upkeep priority window opens", () => {
+        // Goblin Shrine — "When this Aura leaves the battlefield, it deals 1
+        // damage to each Goblin creature." Marked, attached to a land.
+        const host = makeInstance(BEARS, { id: "host" });
+        const shrine = makeInstance(goblinShrine().id, {
+            id: "shrine",
+            attachedTo: "host",
+            returnToHandAtUntapOf: "p1",
+        });
+        const state = makeState({ phase: "CLEANUP", activePlayerId: "p2" });
+        state.players[0].battlefield = [host, shrine];
+        const traversed = advancePhase(state);
+        expect(traversed).toContain("UNTAP");
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("shrine");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0]!.triggerSourceId ?? state.stack[0]!.id).toBe(
+            "shrine"
+        );
     });
 
     it("CR 502.3 — unconditional: fires even when the permanent would not untap (skipNextUntap)", () => {
@@ -103,7 +122,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("CR 106.4 — reversing the mana tap that armed the mark drops it", () => {
         const land = markedLand();
-        restoreReturnMarkOnUntap(land);
+        reverseManaAbilityEffectsOnUntap(land);
         expect(land.returnToHandAtUntapOf).toBeUndefined();
     });
 });

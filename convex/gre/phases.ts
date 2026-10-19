@@ -445,6 +445,17 @@ export function untapStep(state: GameState): void {
     // for the controller's NEXT untap step, not the same turn's.
     if ((state.pendingUntapStep?.restrictionCursor ?? 0) === 0) {
         phaseInUntapCycleBundles(state, state.activePlayerId);
+        // CR 502.3 / 502.4 (issue #5509) — "during your next untap step, as
+        // you untap your permanents, return it to its owner's hand": part of
+        // the untap turn-based action itself (no stack, no priority; the
+        // leaves-the-battlefield event is drained with the step's untap
+        // events below and waits on the stack for the upkeep window, CR
+        // 503.1a). Unconditional — whether or not the permanent would untap —
+        // so it runs before any restriction is collected, and first entry
+        // only (a restriction-prompt re-entry must not repeat it). The mark is
+        // consumed here; the other player's untap step never matches it, and
+        // a zone change already cleared it from a new object (CR 400.7).
+        returnMarkedPermanentsToHand(state, state.activePlayerId);
     }
 
     // Data-driven dispatcher loop. `state.pendingUntapStep.restrictionCursor`
@@ -475,16 +486,6 @@ export function untapStep(state: GameState): void {
         for (const card of player.battlefield) {
             card.startedTurnUntapped = !card.isTapped;
         }
-
-        // CR 502.3 / 502.4 (issue #5509) — "during your next untap step,
-        // return it to its owner's hand": a turn-based action of the untap
-        // step itself (no stack, no priority; a leaves-the-battlefield trigger
-        // waits for the next priority window). Unconditional — it fires
-        // whether or not the permanent would untap, so it runs before any
-        // restriction is consulted. The mark is consumed here; the other
-        // player's untap step never matches it (CR 400.7: a zone change
-        // already cleared it from a new object).
-        returnMarkedPermanentsToHand(state, state.activePlayerId);
 
         for (const card of player.battlefield) {
             if (card.staticAbilities.includes("does-not-untap")) {
@@ -793,12 +794,18 @@ export function untapStep(state: GameState): void {
     // its PERMANENT_UNTAPPED events are never drained by a resolveTopOfStack
     // pass (unlike untap effects during a spell's resolution). Collect the
     // "becomes untapped" triggers (Tawnos's Coffin's return) now and push them;
-    // they sit on the stack until the upkeep priority window. Non-untap events
-    // (none expected during untap) are left in the queue.
+    // they sit on the stack until the upkeep priority window. So do the
+    // departure events of the untap-step return above (CR 502.4 / 503.1a,
+    // issue #5509: PERMANENT_LEFT, and CARDS_EXILED when a replacement
+    // redirects it). Any other event is left in the queue.
     const pending = state.pendingEvents ?? [];
-    const untapEvents = pending.filter((e) => e.type === "PERMANENT_UNTAPPED");
+    const isUntapStepEvent = (e: (typeof pending)[number]): boolean =>
+        e.type === "PERMANENT_UNTAPPED" ||
+        e.type === "PERMANENT_LEFT" ||
+        e.type === "CARDS_EXILED";
+    const untapEvents = pending.filter(isUntapStepEvent);
     if (untapEvents.length > 0) {
-        const rest = pending.filter((e) => e.type !== "PERMANENT_UNTAPPED");
+        const rest = pending.filter((e) => !isUntapStepEvent(e));
         state.pendingEvents = rest.length > 0 ? rest : undefined;
         // CR 603.3b (ADR 0058) — order same-controller simultaneous triggers.
         // UNTAP grants no priority: on LANDED the triggers just sit until the

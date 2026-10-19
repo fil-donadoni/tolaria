@@ -17,7 +17,7 @@ import { restoreReturnMarkOnUntap } from "./untapReturn";
  *
  *  Shared by every tap-for-mana path, beside `applyDrawCardOnTap`. No-op when
  *  the ability has no such script; an Op naming a source that has left (a
- *  sacrifice cost) skips itself (CR 608.2b). */
+ *  sacrifice cost) skips itself (CR 609.3). */
 export function applyManaAbilityEffects(
     state: GameState,
     ability: ActivatedAbility | undefined | null,

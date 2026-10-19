@@ -16384,7 +16384,7 @@ export type EffectOp =
      *  untap. One-shot; the mark dies with the object (CR 400.7). `target`
      *  names the permanent: an announced slot, the resolving source
      *  (`$source` — a land returning itself), or a forEach `$each`. Skipped
-     *  when the permanent is gone (CR 608.2b). Deliberately NOT a delayed
+     *  when the permanent is gone (CR 609.3). Deliberately NOT a delayed
      *  triggered ability (CR 603.7) and NOT generalised to other steps. */
     | {
           op: "returnToHandAtNextUntap";
