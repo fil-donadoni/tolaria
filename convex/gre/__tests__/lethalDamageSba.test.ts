@@ -103,4 +103,19 @@ describe("lethal spell damage dies at the SBA check, after the whole script (CR 
         // resolve onto a 2/2 with 3 damage marked and leave a surviving 5/5.
         expect(zoneOf(state, "victim")).toBe("graveyard");
     });
+    it("a drain that hands priority back after a resolution checks SBAs first — the Bolted 2/2 is not left alive at the stable point (CR 704.3)", () => {
+        const state = boardWith(grizzlyBears().id);
+        pushSpell(state, lightningBolt().id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        // The caster's one parked pass, the opponent on Pass Turn: the Bolt
+        // resolves inside the drain and priority returns to the caster, who
+        // keeps it — the drain ends there, and the state is what persists.
+        state.singleShotAutoPass = "p1";
+        state.autoPassPlayers = ["p2"];
+        drainAutoPasses(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.priorityPlayerId).toBe("p1");
+        expect(zoneOf(state, "victim")).toBe("graveyard");
+    });
 });
