@@ -293,8 +293,11 @@ function conditionHolds(
     // A self-decided gate rides the factory's `conditionOnSelf` and never
     // reaches here; answering it keeps the union exhaustive and the answer
     // honest.
-    const onSelf = selfDecidedGate(condition);
-    if (onSelf !== undefined) return onSelf(self);
+    if (
+        condition.kind === "kicker-paid" ||
+        condition.kind === "cast-off-sorcery-timing"
+    )
+        return selfDecidedGate(condition)!(self);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);

@@ -22,18 +22,18 @@
 import { describe, expect, it } from "vitest";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { resolveCompiledTrigger } from "../../cards/compiledTriggers";
-import type {
-    CardDefinition,
-    PermanentView,
-    StackItem,
-} from "../../cards/types";
+import type { CardDefinition, PermanentView } from "../../cards/types";
 import {
     makeInstance,
     makePlayer,
     makeState,
     resolveTriggerOrder,
 } from "../../cards/__tests__/setup.helper";
-import { resolveTopOfStack, type GameState } from "../../gre/state";
+import {
+    resolveTopOfStack,
+    type GameState,
+    type StackItem,
+} from "../../gre/state";
 import { advancePhase } from "../../gre/phases";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -449,7 +449,7 @@ describe("delayed removal — behaviour through the real stack and phases", () =
     }
 
     const battlefield = (state: GameState) =>
-        state.players[0].battlefield.map((c) => c.name ?? c.cardId);
+        state.players[0].battlefield.map((c) => c.id);
 
     it("Tidal Wave's Wall is sacrificed at the beginning of the next end step", () => {
         const def = asDefinition(TIDAL_WAVE, "test-tidal-wave");
