@@ -15,6 +15,7 @@ import type { BotReachVerdict } from "../../convex/gre/ai/botReach";
 import type { CompiledDefinition } from "../../convex/oracle/types";
 import {
     buildLockfile as buildLockfileRaw,
+    sweepWhenMissing,
     type BuildLockfileOptions,
 } from "../oracle-compile";
 import type { CorpusCard } from "../oracle-corpus";
@@ -24,12 +25,17 @@ import {
     carriedBotReach,
     isBotSourceFile,
     playingBotReach,
+    probingBotReach,
     rankBotGaps,
     replayingCardsBotReach,
     resolveReplayCards,
     type BotReachSource,
 } from "../lib/oracle-bot-reach";
-import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
+import {
+    serializeLockfile,
+    type CardRow,
+    type Lockfile,
+} from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
 import { botSweepInputs } from "../bot-sweep-inputs";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
@@ -463,6 +469,94 @@ describe("--carry-bot --replay-card: play only the named cards (issue #4957)", (
     });
 });
 
+describe("a bare run queues for the heavy mutex only on a cache miss (issue #6069)", () => {
+    const previous = buildLockfile(CORPUS, {
+        botReach: fixedSource({
+            [BEAR_ID]: { outcome: "played" },
+            [BOLT_ID]: {
+                outcome: "ignored",
+                cause: "never-chosen",
+                form: "Instant target:any",
+            },
+        }),
+    });
+    const build = (source: BotReachSource) =>
+        serializeLockfile(buildLockfile(CORPUS, { botReach: source }));
+    /** `previous` with the Bolt row's definition moved — one miss. */
+    const bolted: Lockfile = {
+        ...previous,
+        cards: previous.cards.map((c) =>
+            c.oracleId === BOLT_ID
+                ? {
+                      ...c,
+                      definition: {
+                          ...c.definition!,
+                          name: "Stale Bolt",
+                      } as CompiledDefinition,
+                  }
+                : c
+        ),
+    };
+
+    /** Records admission and plays in call order; `admitCode` is the
+     *  re-executed child's exit code (null = already under the hold). */
+    function run(
+        prev: Lockfile,
+        replay = false,
+        admitCode: number | null = null
+    ) {
+        const events: string[] = [];
+        const spy = spyPlayer({ outcome: "played" });
+        const result = sweepWhenMissing({
+            previous: prev,
+            currentBotHash: "sha256:fixed",
+            replay,
+            build,
+            admit: async () => {
+                events.push("admit");
+                return admitCode;
+            },
+            sweep: async () =>
+                playingBotReach(prev, "sha256:fixed", spy.play, {
+                    replay,
+                    onPlay: (id) => events.push(`play:${id}`),
+                }),
+        });
+        return { events, result };
+    }
+
+    it("zero misses never reaches admission and writes the --carry-bot lockfile", async () => {
+        const { events, result } = run(previous);
+        const done = await result;
+        expect(events).toEqual([]);
+        expect(done).toEqual({
+            text: build(carriedBotReach(previous)),
+            played: 0,
+        });
+    });
+
+    it("a miss takes the mutex BEFORE playing, and plays exactly the misses", async () => {
+        const probe = probingBotReach(bolted, "sha256:fixed");
+        build(probe);
+        expect([...probe.misses()]).toEqual([BOLT_ID]);
+        const { events, result } = run(bolted);
+        expect(await result).toMatchObject({ played: 1 });
+        expect(events).toEqual(["admit", `play:${BOLT_ID}`]);
+    });
+
+    it("a run re-executed under the mutex returns the child's code and plays nothing here", async () => {
+        const { events, result } = run(bolted, false, 3);
+        expect(await result).toEqual({ exit: 3 });
+        expect(events).toEqual(["admit"]);
+    });
+
+    it("--replay-bot takes the mutex even with a valid cache", async () => {
+        const { events, result } = run(previous, true);
+        await result;
+        expect(events).toEqual(["admit", `play:${BEAR_ID}`, `play:${BOLT_ID}`]);
+    });
+});
+
 describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
     const pkg = JSON.parse(
         readFileSync(join(ROOT, "package.json"), "utf8")
@@ -536,7 +630,7 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
             "utf8"
         );
         expect(driver).toMatch(
-            /check \|\| carry \? null : await sweepingBotReach/
+            /check \|\| carry\s*\?\s*null\s*:\s*await sweepWhenMissing/
         );
     });
 

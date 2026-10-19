@@ -24,8 +24,11 @@
  * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
  * definition and the Bot hash are unchanged (`lib/oracle-bot-reach.ts`).
  * `--check` never plays; it carries the committed verdicts forward.
- * A run that plays (bare or `--replay-bot`) first takes the heavy gate's mutex
- * (`gate.ts job`, issue #4941); `--check` and `--carry-bot` take nothing.
+ * A bare run first counts its cache misses with no lock (issue #6069): zero
+ * misses → it writes the carried lockfile and never queues; one or more → it
+ * takes the heavy gate's mutex (`gate.ts job`, issue #4941) and plays only
+ * the misses. `--replay-bot` always takes the mutex; `--check` and
+ * `--carry-bot` take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
  * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
@@ -71,6 +74,7 @@ import {
     botHash,
     carriedBotReach,
     playingBotReach,
+    probingBotReach,
     rankBotGaps,
     replayingCardsBotReach,
     resolveReplayCards,
@@ -508,6 +512,35 @@ async function sweepingBotReach(
 }
 
 /**
+ * The bare / `--replay-bot` write path (issue #6069): the heavy mutex only
+ * when there is something to play. A bare run probes the cache first — a
+ * compile, seconds, no lock — and with zero misses returns the probe's
+ * lockfile, which is the one the sweep would write. A miss (or a replay,
+ * which ignores the cache) waits on `admit`; a non-null code means the run
+ * was re-executed under the mutex and that child's exit code is the run's.
+ * The child probes again after acquiring, so a lockfile that moved during
+ * the wait is read fresh, and the sweep plays exactly the misses.
+ */
+export async function sweepWhenMissing(options: {
+    readonly previous: Lockfile | null;
+    readonly currentBotHash: string;
+    readonly replay: boolean;
+    readonly build: (source: BotReachSource) => string;
+    readonly admit: () => Promise<number | null>;
+    readonly sweep: () => Promise<BotReachSource & { played: () => number }>;
+}): Promise<{ exit: number } | { text: string; played: number }> {
+    if (!options.replay) {
+        const probe = probingBotReach(options.previous, options.currentBotHash);
+        const text = options.build(probe);
+        if (probe.misses().size === 0) return { text, played: 0 };
+    }
+    const code = await options.admit();
+    if (code !== null) return { exit: code };
+    const sweep = await options.sweep();
+    return { text: options.build(sweep), played: sweep.played() };
+}
+
+/**
  * `--replay-card`'s source over the corpus: refuses an unknown name before
  * anything plays, and — once the lockfile is built — a named card the build
  * never offered to the Bot (it did not compile `ready`), so a replay never
@@ -594,28 +627,38 @@ async function main(): Promise<void> {
         );
         process.exit(2);
     }
-    // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
-    // waits for the heavy gate's mutex instead of racing a `land`. `--check`
-    // and `--carry-bot` never play and never queue.
-    if (!check && !carry) {
-        const code = await runUnderHeavyAdmission(
-            process.argv[1],
-            process.argv.slice(2)
-        );
-        if (code !== null) process.exit(code);
-    }
     const previous = readCommittedLockfile();
     const corpus = readCorpus();
-    // `--check` never plays: it is the drift guard's question, asked from a
-    // script (ADR 0105 § 7.2 — the sweep never runs inside a gate).
-    const sweep =
-        check || carry ? null : await sweepingBotReach(previous, replay);
+    const build = (source: BotReachSource) =>
+        serializeLockfile(buildLockfile(corpus, { botReach: source }));
+    // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
+    // waits for the heavy gate's mutex instead of racing a `land` — but only
+    // once it knows it has a miss to play (issue #6069). `--check` never
+    // plays: it is the drift guard's question, asked from a script (ADR 0105
+    // § 7.2 — the sweep never runs inside a gate); `--carry-bot` never
+    // queues.
+    const swept =
+        check || carry
+            ? null
+            : await sweepWhenMissing({
+                  previous,
+                  currentBotHash: botHash(ROOT),
+                  replay,
+                  build,
+                  admit: () =>
+                      runUnderHeavyAdmission(
+                          process.argv[1],
+                          process.argv.slice(2)
+                      ),
+                  sweep: () => sweepingBotReach(previous, replay),
+              });
+    if (swept !== null && "exit" in swept) process.exit(swept.exit);
     const narrowed =
         replayNames.length > 0
             ? await replayingNamedCards(previous, corpus, replayNames)
             : null;
-    const source = sweep ?? narrowed?.source ?? carriedBotReach(previous);
-    const text = serializeLockfile(buildLockfile(corpus, { botReach: source }));
+    const text =
+        swept?.text ?? build(narrowed?.source ?? carriedBotReach(previous));
     if (narrowed !== null) narrowed.refuseUnplayed();
     if (check) {
         const current = existsSync(LOCKFILE_PATH)
@@ -634,7 +677,7 @@ async function main(): Promise<void> {
     const lock = JSON.parse(text) as Lockfile;
     const reach = { played: 0, ignored: 0, frozen: 0 };
     for (const row of lock.cards) if (row.botReach) reach[row.botReach] += 1;
-    const playedNow = sweep?.played() ?? narrowed?.source.playedIds().size ?? 0;
+    const playedNow = swept?.played ?? narrowed?.source.playedIds().size ?? 0;
     process.stderr.write(
         `\noracle:compile — ${lock.header.counts.total} cards: ` +
             `${lock.header.counts.ready} ready, ${lock.header.counts.quarantine} quarantine, ` +

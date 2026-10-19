@@ -178,6 +178,17 @@ function rowsById(lock: Lockfile | null): Map<string, CardRow> {
     return new Map((lock?.cards ?? []).map((row) => [row.oracleId, row]));
 }
 
+/** The rows a sweep may reuse: none on a replay or a moved Bot hash. */
+function sweepCache(
+    previous: Lockfile | null,
+    currentBotHash: string,
+    replay = false
+): Map<string, CardRow> {
+    return !replay && previous?.header.botHash === currentBotHash
+        ? rowsById(previous)
+        : new Map<string, CardRow>();
+}
+
 /**
  * The write path's source: reuse a verdict when the definition AND the Bot
  * are unchanged, play the card otherwise. `replay` ignores the cache.
@@ -189,10 +200,7 @@ export function playingBotReach(
     play: BotPlayer,
     options: { replay?: boolean; onPlay?: (oracleId: string) => void } = {}
 ): BotReachSource & { readonly played: () => number } {
-    const cache =
-        !options.replay && previous?.header.botHash === currentBotHash
-            ? rowsById(previous)
-            : new Map<string, CardRow>();
+    const cache = sweepCache(previous, currentBotHash, options.replay);
     let played = 0;
     return {
         hash: currentBotHash,
@@ -203,6 +211,30 @@ export function playingBotReach(
             played += 1;
             options.onPlay?.(oracleId);
             return play(oracleId, definition);
+        },
+    };
+}
+
+/**
+ * The sweep's dry run (issue #6069): the same cache as
+ * {@link playingBotReach}, but a miss is RECORDED, never played — so the
+ * write path learns whether the sweep has anything to play before it queues
+ * for the heavy mutex. With no miss, the lockfile it builds is the one the
+ * sweep would write: every verdict a hit, the header on the current Bot hash.
+ */
+export function probingBotReach(
+    previous: Lockfile | null,
+    currentBotHash: string
+): BotReachSource & { readonly misses: () => ReadonlySet<string> } {
+    const cache = sweepCache(previous, currentBotHash);
+    const misses = new Set<string>();
+    return {
+        hash: currentBotHash,
+        misses: () => misses,
+        verdictFor(oracleId, definition) {
+            const hit = cachedVerdict(cache, oracleId, definition);
+            if (hit === undefined) misses.add(oracleId);
+            return hit;
         },
     };
 }
