@@ -94,7 +94,7 @@ describe("a standing each-step discard at random reads the board (issue #5624)",
     });
 
     it("Bottomless Pit is worth what it takes from the side holding cards, and the sign flips on the mirror", () => {
-        // CR 701.9b — an empty hand discards nothing.
+        // An empty hand discards nothing.
         const theirs = board({ hand: 0, pit: "board" }, { hand: 3 });
         const mine = board({ hand: 3, pit: "board" }, { hand: 0 });
         expect(pitWorth(theirs)).toBeGreaterThan(0);
