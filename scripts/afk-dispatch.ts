@@ -10,7 +10,9 @@
 //
 //   1. a HOLD (no pass workflow, failure streak, RED, usage limit, budget, no
 //      free runner) dispatches nothing and exits 0 — "nothing to do"; the
-//      first run that sees a failure streak exits 1, once, for the email;
+//      first run that sees a failure streak exits 1, once, for the email —
+//      and so does the first that sees a repair pick (a `land-failed` PR)
+//      waiting past `afkDispatch.repairAgeHours` under a hold (issue #5957);
 //   2. orphan claims (a dead pass that pushed nothing) are released;
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
@@ -37,10 +39,14 @@ import {
     verdictStore,
 } from "./lib/health-verdict-store";
 import { readUsageWindow, DEFAULT_PROJECTS_DIR } from "./usage-window";
+import { CONFIG_PATH } from "./lib/branches";
+import { FAILED_LABEL } from "./lib/land-labels";
 import {
     ACK_MARKER,
     PASS_RECORD_ARTIFACT,
     PASS_WORKFLOW,
+    agedRepairLines,
+    agedRepairNotice,
     budgetReading,
     claimFacts,
     failureStreak,
@@ -48,6 +54,7 @@ import {
     hostOfRunnerName,
     lastPassRun,
     mayClaim,
+    parseAfkDispatchConfig,
     parsePassRecord,
     parseTrustedAuthors,
     passSlots,
@@ -57,6 +64,7 @@ import {
     type Dispatch,
     type OpenPr,
     type PassRecord,
+    type RepairPick,
     type RunnerRow,
     type WorkflowRun,
 } from "./lib/afk-dispatch";
@@ -266,6 +274,44 @@ function openPrs(): OpenPr[] {
     }));
 }
 
+/** The repair picks: open PRs labelled `land-failed`, each with the time of
+ *  its newest `land-failed` label event (`null` when unreadable — the age
+ *  then counts from the PR's creation). */
+function repairPicks(slug: string): RepairPick[] {
+    const rows = JSON.parse(
+        gh([
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--label",
+            FAILED_LABEL,
+            "--limit",
+            "100",
+            "--json",
+            "number,createdAt",
+        ])
+    ) as { number: number; createdAt: string }[];
+    return rows.map((r) => {
+        let failedAt: string | null = null;
+        try {
+            const times = gh([
+                "api",
+                "--paginate",
+                `repos/${slug}/issues/${r.number}/events`,
+                "--jq",
+                `.[] | select(.event == "labeled" and .label.name == "${FAILED_LABEL}") | .created_at`,
+            ])
+                .split("\n")
+                .filter((l) => l.trim() !== "");
+            failedAt = times.length ? times[times.length - 1] : null;
+        } catch {
+            failedAt = null;
+        }
+        return { pr: r.number, failedAt, createdAt: r.createdAt };
+    });
+}
+
 /** Who opened each queued issue; who applied `ready-for-agent` is read only
  *  for an issue whose author the policy does not already trust. */
 function provenance(
@@ -417,13 +463,47 @@ async function main(): Promise<void> {
     const budgetLine = `budget ${reading.pct.toFixed(1)}% of ${budget.budget} over ${budget.hours} h (other machines ${Math.round(reading.remote)})`;
     if (hold) {
         say(`hold (${hold.kind}): ${hold.message}`);
-        summary([`**hold** \`${hold.kind}\`: ${hold.message}`, "", budgetLine]);
+        // An unreadable repair list is no aged pick: a crash here would fail
+        // the run with no PR named, and that failure would spend the one
+        // email the condition owes (`agedRepairNotice`).
+        let repairs: RepairPick[] = [];
+        let config = parseAfkDispatchConfig(null);
+        if (hold.kind !== "disabled") {
+            try {
+                config = parseAfkDispatchConfig(
+                    JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+                );
+                repairs = repairPicks(slug);
+            } catch (err) {
+                say(
+                    `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no aged-repair check this run`
+                );
+            }
+        }
+        const aged = agedRepairNotice(hold, repairs, dispatchRuns, config, now);
+        const agedLines = agedRepairLines(aged.aged, hold);
+        for (const l of agedLines) say(l);
+        summary([
+            `**hold** \`${hold.kind}\`: ${hold.message}`,
+            "",
+            ...agedLines.map((l) => `- ${l}`),
+            ...(agedLines.length ? [""] : []),
+            budgetLine,
+        ]);
+        let fail = false;
         if (hold.kind === "failure-streak" && hold.notify) {
             say(
                 `failing this run once so GitHub emails the owner; acknowledge with "${ACK_MARKER}" (ack_failures=true)`
             );
-            process.exit(1);
+            fail = true;
         }
+        if (aged.notify) {
+            say(
+                `failing this run once so GitHub emails the owner: ${aged.aged.length} repair pick(s) wait under the hold`
+            );
+            fail = true;
+        }
+        if (fail) process.exit(1);
         return;
     }
 

@@ -6,7 +6,10 @@
 # "nothing to do" — while afk-pass.yml is absent or disabled, after three
 # consecutive failed passes (the first such run fails, once, for the email),
 # while the base is RED, until a usage-limit reset, and while the token budget
-# is spent. The decisions are `scripts/lib/afk-dispatch.ts`.
+# is spent. Under any hold but the kill switch, a `land-failed` PR waiting past
+# `afkDispatch.repairAgeHours` (tolaria.config.json) fails the first run that
+# sees it, once, for the email (issue #5957). The decisions are
+# `scripts/lib/afk-dispatch.ts`.
 #
 # ONE RUN AT A TIME, on both machines: the job-level concurrency group is the
 # structure guard's one allowed group on a self-hosted job (rule
