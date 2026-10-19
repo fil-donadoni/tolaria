@@ -43,17 +43,14 @@ describe("ensureGitConfig (issue #5958)", () => {
 
     it("performs no write when the key already holds the value", () => {
         git("config", "merge.x.driver", "cmd %A");
-        // Any write would hit the held lock and retry; none may happen.
-        fs.writeFileSync(lock, "");
-        let slept = 0;
-        expect(
-            ensureGitConfig("merge.x.driver", "cmd %A", {
-                cwd: repo,
-                sleep: () => slept++,
-            })
-        ).toBe("present");
-        expect(slept).toBe(0);
-        expect(fs.existsSync(lock)).toBe(true);
+        // git writes config through `config.lock` + rename, even for an
+        // unchanged value, so any write replaces the file's inode.
+        const config = path.join(repo, ".git", "config");
+        const before = fs.statSync(config).ino;
+        expect(ensureGitConfig("merge.x.driver", "cmd %A", { cwd: repo })).toBe(
+            "present"
+        );
+        expect(fs.statSync(config).ino).toBe(before);
     });
 
     it("retries a held lock and succeeds once it is released", () => {
