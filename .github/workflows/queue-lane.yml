@@ -30,6 +30,16 @@ jobs:
         name: queue-lane
         runs-on: [self-hosted, lane]
         timeout-minutes: 60
+        # A PR's newer draft cancels its older draft's run, running included:
+        # Mergify re-creates the draft on a new branch and deletes the old
+        # one, whose run would otherwise hold a `lane` runner the live draft
+        # waits for (issue #6020). Keyed by the PR (the draft's head commit is
+        # `Merge of #N`, batch size 1), never the branch; the sha is the
+        # fallback, so a missing message never groups two PRs. Pinned by the
+        # structure guard, rule `queue-superseded`.
+        concurrency:
+            group: queue-lane-${{ github.event.head_commit.message || github.sha }}
+            cancel-in-progress: true
         # `actions: write` only to dispatch pr-fixup below, `pull-requests:
         # read` to find the PR behind the draft (issue #5955) — the same
         # pattern as pr-check's fixup step, on a same-repository draft whose

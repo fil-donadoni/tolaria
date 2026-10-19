@@ -245,7 +245,9 @@ machines and lose nothing when a pending run is dropped: the
 [dispatcher](#g-dispatcher) ([§ afk-dispatch](#afk-dispatch)) and the shared
 post-merge duties `housekeeping` and `nightly` ([§ post-merge](#post-merge)),
 listed in `SERIALISED_DISPATCHERS` / `SERIALISED_JOBS` of the
-[structure guard](#g-structure-guard).
+[structure guard](#g-structure-guard). One self-hosted job cancels instead:
+[`queue-lane`](#queue-lane), whose older run is worthless once its PR has a
+newer draft (`SUPERSEDED_JOBS`, issue #6020).
 
 ## Workflows
 
@@ -417,6 +419,16 @@ re-run once, narrowed to the failed projects and the failing test **files**.
 
 The hosted [`pr-check`](#pr-check) lane runs the same flags, so its summary
 records flakes too. Locally: `bun run check:lane --retry-flaky`.
+
+**A PR's newer draft cancels its older draft's run** (issue #6020). Mergify
+re-creates a PR's draft on a new branch and deletes the old one; the old run,
+running or pending, would keep a [`lane`](#g-lane) runner the live draft waits
+for. The job-level group `queue-lane-${{ github.event.head_commit.message ||
+github.sha }}` with `cancel-in-progress: true` is keyed by the PR — the draft's
+head commit is `Merge of #N`, batch size 1 — never by the branch, which is new
+on every draft; the sha is the fallback, so a missing message never groups two
+PRs. Drafts of different PRs run side by side. The structure guard pins the
+group exactly (rule `queue-superseded`).
 
 **A red draft costs no pass when nothing in the PR is wrong** (issue #5955).
 On failure the job runs `bun run pr:fixup classify --lane lane.json --draft
@@ -1179,7 +1191,8 @@ lane, issue #4963). Each line it prints names a rule:
 | `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                                                                              |
 | `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                                                                                    |
 | `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                                                                             |
-| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the job-level group of a job `dispatcher-serialised` requires                                                                                                                                                |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the job-level group of a job `dispatcher-serialised` or `queue-superseded` requires                                                                                                                          |
+| `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                               |
 | `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, or move one watermark twice |
 | `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host                                                |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                  |
