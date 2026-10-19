@@ -660,13 +660,6 @@
             "needsSetup": true
         }
     ],
-    "Warning": [
-        {
-            "label": "prevention shield: casts Warning on the opponent's attacker that kills its blocker",
-            "tier": "must",
-            "needsSetup": false
-        }
-    ],
     "Wheel of Fortune": [
         {
             "label": "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand",
