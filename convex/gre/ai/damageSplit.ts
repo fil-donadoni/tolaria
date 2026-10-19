@@ -14,10 +14,10 @@
 // `setDamageAssignment` before `confirmDamage` (ADR 0074: the server
 // re-validates it, no client authority).
 //
-// The SEARCH does not simulate this split yet: `buildAutoDamageAssignments`
-// still drops a multi-target source's damage there. Pricing it honestly
-// exposes the search's defender exploring dominated multi-blocks (issue
-// #5951), which is why that half was split off issue #5662.
+// The SEARCH deals the same split (issue #5951): `searchCombatDamageAssignments`
+// tops `buildAutoDamageAssignments` (which omits every multi-target source)
+// with this policy's choice per manual source, so a multi-block is no longer
+// free for the defender inside the tree.
 //
 // The policy, general over every source (ADR 0102, no per-card knowledge):
 //   * hostile targets (the assigner's opponent's creatures): kill the most
@@ -35,7 +35,12 @@ import type { CardInstanceState, GameState } from "../state";
 import { getOpponentId } from "../state";
 import { findPermanent } from "../lookup";
 import { beginLayer7Pass, getEffectivePower } from "../layers";
-import { getEffectiveBlockGraph } from "../banding";
+import { getDamageAssignerId, getEffectiveBlockGraph } from "../banding";
+import {
+    buildAutoDamageAssignments,
+    getManualAssignmentSourceIds,
+    type DamageKind,
+} from "../phases";
 import {
     attackTargetExcessSink,
     lethalThresholdsForSource,
@@ -60,13 +65,19 @@ type SplitTarget = {
 };
 
 /** The player who assigns `sourceId`'s combat damage: the recorded assigner
- *  of the step (CR 702.22j-k), else the source's controller (CR 510.1c-d). */
+ *  of the step, else the one CR 702.22j-k names over `targetIds` (the
+ *  source's controller unless a banding target shifts it, CR 510.1c-d) — a
+ *  search probe resolves combat without ever opening the step. */
 function assignerOf(
     state: GameState,
     sourceId: string,
-    source: CardInstanceState
+    source: CardInstanceState,
+    targetIds: string[]
 ): string {
-    return state.combat?.damageAssignerIds?.[sourceId] ?? source.controllerId;
+    return (
+        state.combat?.damageAssignerIds?.[sourceId] ??
+        getDamageAssignerId(state, source, targetIds)
+    );
 }
 
 /** The kill set of hostile targets worth the most, within `power`. Ties keep
@@ -231,7 +242,7 @@ export function chooseDamageSplit(
     }
     if (targets.length === 0) return undefined;
 
-    const assignerId = assignerOf(state, sourceId, source);
+    const assignerId = assignerOf(state, sourceId, source, rawTargets);
     if (controllers.size === 1 && controllers.has(assignerId)) {
         return splitOntoFriendly(targets, power);
     }
@@ -244,6 +255,31 @@ export function chooseDamageSplit(
               )
             : undefined;
     return splitOntoHostile(targets, power, excessSinkId);
+}
+
+/**
+ * The search's whole damage map for one combat damage step (issue #5951):
+ * the engine's automatic assignments for every single-target source, plus
+ * `chooseDamageSplit`'s split for every source that has 2+ targets (CR
+ * 510.1c / 510.1d) — the split the driver submits, so the tree prices a
+ * multi-block at what it costs in the real game. Each split is chosen
+ * against the map as built so far, the way `damageSplitsFor` chains them.
+ */
+export function searchCombatDamageAssignments(
+    state: GameState,
+    kind: DamageKind
+): StepAssignments {
+    const step = buildAutoDamageAssignments(state, kind);
+    const manual = getManualAssignmentSourceIds(
+        state,
+        kind,
+        getEffectiveBlockGraph(state)
+    );
+    for (const sourceId of manual) {
+        const split = chooseDamageSplit(state, sourceId, step);
+        if (split) step[sourceId] = split;
+    }
+    return step;
 }
 
 /** One source's chosen split, and whether the step map already holds it. */

@@ -48,6 +48,7 @@ import {
     repetitionMoveKey,
     type RepetitionHistory,
 } from "./ai/repetition";
+import { searchCombatDamageAssignments } from "./ai/damageSplit";
 import type {
     CardInstanceState,
     GameState,
@@ -71,7 +72,6 @@ import {
     emitAttackersDeclaredEvents,
     emitBlockersConfirmedEvents,
     applyAllCombatDamage,
-    buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
 } from "./phases";
@@ -699,8 +699,9 @@ function passInSearch(
     // A pass during the combat-damage step first resolves the turn-based
     // combat damage (CR 510.2) — the real engine applies it via the
     // damage-assignment confirm / auto-pass path, which this search-side pass
-    // stands in for. Single-block / unblocked positions need no manual
-    // assignment, so the auto assignments are authoritative.
+    // stands in for. A multi-target source (CR 510.1c / 510.1d) deals the
+    // split the Bot's driver submits (`searchCombatDamageAssignments`,
+    // issue #5951), never nothing.
     const combat = state.combat;
     if (
         combat &&
@@ -712,7 +713,7 @@ function passInSearch(
             state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
         applyAllCombatDamage(
             state,
-            buildAutoDamageAssignments(state, kind),
+            searchCombatDamageAssignments(state, kind),
             kind
         );
         combat.damageConfirmed = true;

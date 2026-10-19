@@ -149,7 +149,6 @@ import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
     applyAllCombatDamage,
-    buildAutoDamageAssignments,
     emitAttackersDeclaredEvents,
     wasCastOffSorceryTiming,
 } from "./phases";
@@ -191,6 +190,7 @@ import { consumeMadnessCastChoice, declineMadness } from "./madness";
 import { consumeReboundCastChoice, declineRebound } from "./rebound";
 import { phyrexianPipCount } from "./phyrexian";
 import { announcedModeFields } from "./modeSelection";
+import { searchCombatDamageAssignments } from "./ai/damageSplit";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
  *  pay-choice (a shock land played OR put onto the battlefield by an effect)
@@ -1114,20 +1114,20 @@ export function applyActivationCostsForSearch(
 
 /** Resolve all combat damage for a fully-declared combat to a stable point,
  *  reusing the exact pipeline the phase machine runs (first-strike step, then
- *  regular, with SBA between/after). Single-block / no-banding positions need
- *  no manual assignment, so the auto assignments are authoritative here. */
+ *  regular, with SBA between/after). A multi-target source deals the split
+ *  the Bot's driver submits (`searchCombatDamageAssignments`, issue #5951). */
 function resolveCombatDamage(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
     applyAllCombatDamage(
         state,
-        buildAutoDamageAssignments(state, "first-strike"),
+        searchCombatDamageAssignments(state, "first-strike"),
         "first-strike"
     );
     checkStateBasedActions(state);
     if (state.combat) {
         applyAllCombatDamage(
             state,
-            buildAutoDamageAssignments(state, "regular"),
+            searchCombatDamageAssignments(state, "regular"),
             "regular"
         );
     }
