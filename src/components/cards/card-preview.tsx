@@ -80,6 +80,10 @@ export default function CardPreview({
     // lobby alike). Mobile long-press overlay (`showOverlay`) is a separate,
     // untouched surface.
     const gameCtx = useContext(GameContext);
+    // Presence only: the hover binding must not depend on the context's
+    // IDENTITY — the board builds it inline per render, and a re-bind inside
+    // the close grace would drop the pending close (issue #5587).
+    const onBoard = gameCtx != null;
     const tokenPrints = useTokenPrints();
     const [showAnchored, setShowAnchored] = useState(false);
     const [showHoverDock, setShowHoverDock] = useState(false);
@@ -354,7 +358,7 @@ export default function CardPreview({
     // ignored (the long-press overlay owns touch).
     useEffect(() => {
         const container = containerRef.current;
-        if (!container || !gameCtx) return;
+        if (!container || !onBoard) return;
         const cardEl =
             container.closest<HTMLElement>("[data-card-tilt-root]") ??
             container;
@@ -403,7 +407,7 @@ export default function CardPreview({
             window.clearTimeout(dwellRef.current);
             window.clearTimeout(graceRef.current);
         };
-    }, [gameCtx, scheduleHoverClose]);
+    }, [onBoard, scheduleHoverClose]);
 
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();
