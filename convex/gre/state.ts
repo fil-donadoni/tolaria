@@ -11975,6 +11975,18 @@ export function buildSpellContext(
             if (!found) return;
             found.card.skipNextUntap = true;
         },
+        // CR 502.3 / 400.7 (issue #5509): mark a permanent to be returned to
+        // its owner's hand by `playerId`'s next untap step. `untapStep`
+        // consumes the mark; a zone change clears it (new object).
+        returnToHandAtNextUntap(
+            target: TargetSelection,
+            playerId: string
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.returnToHandAtUntapOf = playerId;
+        },
         allowAttackDespiteDefender(target: TargetSelection): void {
             // CR 508.1a override — "can attack this turn as though it didn't
             // have defender" (FEM Vodalian War Machine). Cleared at CLEANUP.

@@ -2897,6 +2897,14 @@ const skipNextUntap: Valuer<"skipNextUntap"> = (op) => ({
     tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
 });
 
+// CR 502.3 (issue #5509) — the permanent goes back to its owner's hand at the
+// controller's next untap step: a delayed COST (the land is lost for a turn
+// cycle), so it prices as a tempo hit at the same magnitude as a lock.
+const returnToHandAtNextUntap: Valuer<"returnToHandAtNextUntap"> = (op) => ({
+    points: SKIP_UNTAP_VALUE,
+    tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
+});
+
 // CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your draw
 // step this turn"). Signs by direction, same discipline as `sacrifice`
 // (issue #1521): the one shipped card self-targets via the plain
@@ -3050,6 +3058,7 @@ export const OP_VALUERS: {
     shuffleSelfIntoLibrary,
     tapUntap,
     skipNextUntap,
+    returnToHandAtNextUntap,
     skipDrawStepThisTurn,
     transform,
     exileAndReturnTransformed,
@@ -3380,6 +3389,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     restrictCasting: "harmful",
     markAssignsNoCombatDamage: "harmful",
     skipNextUntap: "harmful",
+    returnToHandAtNextUntap: "harmful",
     skipNextTurn: "harmful",
     skipDrawStepThisTurn: "harmful",
     unattach: "harmful",
