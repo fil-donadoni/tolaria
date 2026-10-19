@@ -311,19 +311,11 @@ export function owesPresetSeed(paths: readonly string[]): boolean {
  * owner's decision of 2026-10-18), else to the runner. The queue admits only
  * a PR whose `trusted-author` status is green — `pr-gate`'s own decision,
  * read whole (`trustedAuthorStatus`): a PR it refuses, labelled
- * `queue:shadow`, would have no merger. A PR the runner failed that carries no
- * `queue:shadow` stays the runner's: the owner handed it back, or it was
- * never the queue's, and a repair re-queues it to the same merger.
+ * `queue:shadow`, would have no merger. A repair of a PR the runner failed
+ * goes to the queue too (issue #5986): the shadow count needs every merge.
  */
-export function handsToQueue(input: {
-    trustedAuthor: GateState;
-    labels: readonly string[];
-}): boolean {
-    if (input.trustedAuthor !== "success") return false;
-    return !(
-        input.labels.includes(FAILED_LABEL) &&
-        !input.labels.includes(SHADOW_LABEL)
-    );
+export function handsToQueue(input: { trustedAuthor: GateState }): boolean {
+    return input.trustedAuthor === "success";
 }
 
 /**
