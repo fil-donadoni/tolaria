@@ -13788,4 +13788,46 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5496. CR 603.3d — `loseLife` is signed harmful to its player. Life loss is margin-visible, so `resolvedMarginDelta` alone already ranks it once `submit-target` reaches the announcement-variant tie-break; the guard here is the SEARCH half. Proof-of-failure: with `submit-target` dropped from that tie-break's move-kind gate (`selectRootMove`), the Bot pings its own face on seed 2. The two Battlemage entries red under either half.",
     },
+    {
+        // Issue #5951 — the search prices a multi-block's damage split. Craw
+        // Wurm (6/4) swings into two Hill Giants (3/3) with nothing else on
+        // either side. Every reply the defender has is good for the attacker:
+        // no block takes 6, one Giant blocking dies to 6 and deals 3 (< 4),
+        // and the double block kills the Wurm only by losing BOTH Giants —
+        // CR 510.1c lets the Wurm divide its 6 as 3 + 3. Until the search dealt
+        // that split it dealt a multi-blocked attacker's damage as NOTHING, so
+        // the double block read as a free kill of the Wurm and the swing as a
+        // blunder.
+        label: "multi-block split: swings a 6/4 into two 3/3s that can only trade both for it",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 2,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Craw Wurm" }],
+        },
+        note: "Issue #5951. Proof-of-failure: `searchCombatDamageAssignments` (`gre/ai/damageSplit.ts`) returning `buildAutoDamageAssignments` alone — the multi-blocked Wurm deals nothing — and the Bot holds the Wurm back.",
+    },
 ];
