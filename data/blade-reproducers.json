@@ -982,13 +982,20 @@
                 "name": "Lightning Bolt",
                 "owner": "me",
                 "zone": "graveyard"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
             }
         ],
-        "phase": "PRECOMBAT_MAIN",
+        "phase": "POSTCOMBAT_MAIN",
         "turn": 5,
         "landCount": 4,
         "libraryCount": 20,
         "life": {
+            "me": 3,
             "opp": 3
         }
     },
