@@ -37,6 +37,7 @@ describe("the /admin/design-system cross-cutting overlay specimens", () => {
             "bug-report",
             "inspect-overlay",
             "scenario-active-game",
+            "limited-start-unseated",
         ]);
         expect(document.body.querySelector(LAYER)).toBeNull();
     });

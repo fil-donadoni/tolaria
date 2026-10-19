@@ -1909,6 +1909,8 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
  * account, an active game at launch time), so `/admin/design-system` § 17
  * mounts each from fixture props (`src/routes/design-system/sections-overlays.tsx`)
  * and the lane walks them exactly as it walks § 16: one row per overlay.
+ * A fifth (issue #6066), the Limited unseated-Start confirm, rides along: the
+ * `open` fixture seats the lane, so the real antechamber never shows it.
  */
 const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
     {
@@ -1977,6 +1979,24 @@ const OVERLAY_SPECIMENS: readonly DialogSpecimen[] = [
         entry: {
             label: "confirm: Concede & Start",
             locator: { role: "button", name: "Concede & Start" },
+            check: "reachable",
+        },
+    },
+    {
+        // Issue #6066: the `open` fixture seats the lane, so the real
+        // antechamber never offers an unseated creator this confirm.
+        slug: "limited-start-unseated",
+        module: "limited/limited-start-unseated-dialog.tsx",
+        label: "Start without playing?",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Start without playing?",
+            locator: { role: "dialog", name: "Start without playing?" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Start without playing",
+            locator: { role: "button", name: "Start without playing" },
             check: "reachable",
         },
     },

@@ -439,6 +439,10 @@ describe("check:ui surface table — Named Assertions", () => {
                 "visible role=dialog name=Concede active game?",
                 "reachable role=button name=Concede & Start",
             ],
+            "dlg-limited-start-unseated": [
+                "visible role=dialog name=Start without playing?",
+                "reachable role=button name=Start without playing",
+            ],
         });
     });
 
