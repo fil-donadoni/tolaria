@@ -1478,6 +1478,47 @@
         "turn": 3,
         "libraryCount": 20
     },
+    "prevention shield: casts Warning on the opponent's attacker that kills its blocker": {
+        "cards": [
+            {
+                "name": "Warning",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_BLOCKERS",
+        "activePlayer": "opp",
+        "priority": "me",
+        "combat": {
+            "attackers": ["Hill Giant"],
+            "confirmed": true,
+            "blockers": [
+                {
+                    "blocker": "Grizzly Bears",
+                    "blocking": [0]
+                }
+            ],
+            "blockersConfirmed": true
+        },
+        "turn": 3,
+        "libraryCount": 20
+    },
     "protection colour choice: Mother of Runes picks the opponent's shown colour": null,
     "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
     "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,

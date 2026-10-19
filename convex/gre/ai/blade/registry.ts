@@ -14116,6 +14116,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5493, position B — the discriminating twin of the entry above: the same board with Vindicate (destroy target permanent, regenerable) aimed at the Troll. The shield is the only answer that keeps the creature (CR 701.19a), so the prune must leave it standing and the search must take it.",
     },
+    {
+        label: "prevention shield: casts Warning on the opponent's attacker that kills its blocker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the holder's creature does not block the attacker",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Warning", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: {
+                attackers: ["Hill Giant"],
+                confirmed: true,
+                blockers: [{ blocker: "Grizzly Bears", blocking: [0] }],
+                blockersConfirmed: true,
+            },
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Warning", target: "Hill Giant" },
+            ],
+        },
+        note: "Issue #5816, Bot Gap `never-chosen › Instant target:Creature › preventDamage`. CR 615.1a + CR 510.1: the opponent's 3/3 is blocked by the holder's 2/2, so preventing the attacker's combat damage saves the blocker. The Bot-play sweep's `BLOCKED_ATTACK` window poses this board; before blocks the Bot rightly holds the shield.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
