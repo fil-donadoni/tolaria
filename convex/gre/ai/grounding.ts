@@ -175,6 +175,14 @@ export interface EachPlayerSide {
      *  cards of its choice: the CHEAPEST `count` of the cards `handWorth`
      *  sums, since the chooser keeps its best. Points. */
     discardWorth(count: number): number;
+    /** Issue #5624 — what this player loses when it discards `count` cards
+     *  AT RANDOM (CR 701.9b), in `cardAdvantage` units: the MEAN of the cards
+     *  `handWorth` sums, times the count — no chooser keeps its best — at
+     *  most the whole hand, over the board's mean library card (the
+     *  `drawUnits` scale), so a random discard of an average card is one
+     *  unit, the mirror of a draw. An empty hand loses nothing. A hand
+     *  holding a hidden placeholder is unreadable (0, the side voided). */
+    randomDiscardUnits(count: number): number;
     /** Issue #5559 — `value` read off the board with `$each` bound to this
      *  player: a literal, a `count` of this player's (or the fewest / all
      *  players') battlefield or hand members, or a `difference` of two of

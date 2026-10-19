@@ -502,6 +502,21 @@ function boardSide(
             for (const w of worths.slice(0, count)) worth += w;
             return worth;
         },
+        randomDiscardUnits(count) {
+            const scale = boardDraw();
+            const hand = handValues(player.hand, valuedCardId, returnedWorth);
+            if (scale === undefined || !hand) {
+                unreadable = true;
+                return 0;
+            }
+            answered = true;
+            if (hand.length === 0 || count <= 0 || scale <= 0) return 0;
+            let sum = 0;
+            for (const w of hand) sum += w;
+            // CR 701.9b — each card is as likely as any other to go.
+            const discarded = Math.min(count, hand.length);
+            return ((sum / hand.length) * discarded) / scale;
+        },
         groundCount(value, namesSide = isEachPlayerRef) {
             const n = groundSideCount(
                 state,
