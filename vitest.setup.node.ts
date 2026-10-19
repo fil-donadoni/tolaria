@@ -30,6 +30,13 @@ import {
 } from "./convex/oracle/behavioural";
 import { deepFreeze, freezeCatalogueOnce } from "./vitest.freeze-catalogue";
 import { applyMachinePins } from "./scripts/lib/machine-pins";
+import { scrubGitRepoEnv } from "./scripts/lib/git-repo-env";
+
+// Inherited git repository env (issue #6017): a hook in a linked worktree
+// exports `GIT_DIR`, and a test's throwaway `git init` under it re-initialises
+// the SHARED repository as bare. Every git a test spawns finds its repo from
+// its cwd, never from the environment. The keys and the incident: the module.
+scrubGitRepoEnv();
 
 // Machine pins (issue #5590): every gate, claim, worktree, hook and health run
 // a test spawns reads the SAME machine — calm, file store, no runner, a gating
