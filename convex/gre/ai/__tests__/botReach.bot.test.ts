@@ -657,12 +657,12 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // Issue #4781 — one card per family the hand term now reads off the
         // board: a colour-filtered bounce, a damage sweep, a subtype-filtered
         // destroy.
-        // Tranquility left out, tracked-by: #6030 — since the CR 704.5g
-        // lethal-damage SBA (issue #5784) a Castle-buffed blocker dies when
-        // the sweep removes Castle after combat, so cast-now and
-        // cast-after-combat tie in the rollouts and the root takes `pass`.
+        // Issue #6030 — an enchantment sweep is posed against an inert
+        // enchantment, not Castle: a buff the sweep itself removes made
+        // casting after an attack tie casting now.
         for (const name of [
             "Day of Judgment",
+            "Tranquility",
             "Armageddon",
             "Hibernation",
             "Pyroclasm",
