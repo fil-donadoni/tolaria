@@ -161,6 +161,8 @@ export const CARD_FIELD_LIFECYCLE = {
     untapLockedBy:              { codec: "list",    reset: ZONE },
     // Consumed at the untap step it skips.
     skipNextUntap:              { codec: "flag",    reset: ["custom:turn", "zone-change"] },
+    // Consumed (deleted) by the untap step it names; a zone change is a new object.
+    returnToHandAtUntapOf:      { codec: "scalar",  reset: ZONE },
     // Cleared when the permanent untaps (untap step or otherwise).
     exertedThisTap:             { codec: "flag",    reset: ["custom:turn", "zone-change"] },
     canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN },

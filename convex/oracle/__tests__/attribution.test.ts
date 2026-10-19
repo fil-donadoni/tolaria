@@ -98,25 +98,25 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("mana-ability: a rider sentence the grammar has no rule for (Undiscovered Paradise)", () => {
-        // CR 605.1a — the rider grammar reads a tap ping, a draw and the
-        // depletion sacrifice (issue #4542); a delayed return of the land at
-        // the next untap step has no rule (and no engine surface), so the
+    it("mana-ability: a rider sentence the grammar has no rule for (a delayed upkeep return)", () => {
+        // CR 605.1a — the rider grammar reads a tap ping, a draw, the
+        // depletion sacrifice (issue #4542) and the return at the next untap
+        // step (issue #5509); a return at the next UPKEEP has no rule, so the
         // diagnostic still names the rider.
         expect(
             attributionOf({
-                name: "Undiscovered Paradise",
+                name: "Upkeep Paradise",
                 manaCost: "",
                 typeLine: "Land",
                 oracleText:
-                    "{T}: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand.",
+                    "{T}: Add one mana of any color. At the beginning of your next upkeep, return this land to its owner's hand.",
                 power: undefined,
                 toughness: undefined,
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_ABILITY_RIDER],
-            span: "During your next untap step, as you untap your permanents, return this land to its owner's hand",
+            span: "At the beginning of your next upkeep, return this land to its owner's hand",
         });
     });
 

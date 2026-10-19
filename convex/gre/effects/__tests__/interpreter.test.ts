@@ -36780,3 +36780,57 @@ describe("random hand reveal gated on the revealed card's name (CR 701.20a, issu
         expect(state.players[0].hand).toHaveLength(1);
     });
 });
+
+// `returnToHandAtNextUntap` (CR 502.3, issue #5509) — the Op's permanent test.
+// The untap-step consumption lives in
+// `gre/__tests__/returnToHandAtNextUntap.test.ts`; here: the Op marks the
+// permanent with the RESOLVING controller (not the permanent's), through a
+// `forEach` + `$each` combination, and the mark survives `projectPublicState`.
+describe("returnToHandAtNextUntap (CR 502.3, issue #5509)", () => {
+    function setup(name: string) {
+        const id = registerScript(name, [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    { op: "returnToHandAtNextUntap", target: { ref: "$each" } },
+                ],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            id: `${name}-bear`,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return { state, bearId: bear.id };
+    }
+
+    it("marks the permanent with the resolving controller's id (forEach construct)", () => {
+        const { state, bearId } = setup("test-return-untap-mark");
+        const bear = state.players[1].battlefield.find((c) => c.id === bearId)!;
+        expect(bear.returnToHandAtUntapOf).toBe("p1");
+        // Nothing moves at resolution (CR 502.3 — only the untap step does).
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+
+    it("wire format — the mark survives projectPublicState", () => {
+        const { state, bearId } = setup("test-return-untap-wire");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === bearId
+        )!;
+        expect(slim.returnToHandAtUntapOf).toBe("p1");
+    });
+});

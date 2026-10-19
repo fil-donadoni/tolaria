@@ -115,7 +115,12 @@ export type ManaRiderIR =
     /** CR 122.1 / 701.21 — "If there are no <kind> counters on this land,
      *  sacrifice it" (`sacrificesSourceWhenNoCountersRemain`, the depletion
      *  lands). */
-    | { readonly kind: "sacrifice-without-counters"; readonly counter: string };
+    | { readonly kind: "sacrifice-without-counters"; readonly counter: string }
+    /** CR 502.3 — "During your next untap step, as you untap your
+     *  permanents, return this land to its owner's hand"
+     *  (`manaAbilityEffects` → `returnToHandAtNextUntap $source`, Undiscovered
+     *  Paradise; issue #5509). */
+    | { readonly kind: "return-source-at-next-untap" };
 
 export type ManaProductionIR =
     | {

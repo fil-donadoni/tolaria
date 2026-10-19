@@ -706,6 +706,14 @@ export type CardInstanceState = {
      *  following untap step proceeds normally. Set by
      *  `SpellContext.skipNextUntap` (Barl's Cage, The Dark). */
     skipNextUntap?: boolean;
+    /** The player whose NEXT untap step returns this permanent to its OWNER's
+     *  hand (CR 502.3 — a turn-based action inside the untap step, no stack).
+     *  Set by `SpellContext.returnToHandAtNextUntap` (the resolver of "during
+     *  your next untap step, return this to its owner's hand"); consumed
+     *  exactly once, by that player's untap step, whether or not the
+     *  permanent would untap. Cleared on any zone change: the permanent that
+     *  comes back is a new object (CR 400.7). */
+    returnToHandAtUntapOf?: string;
     /** When true, this permanent may attack this turn as though it didn't have
      *  defender (CR 508.1a override — FEM Vodalian War Machine). Set by
      *  `SpellContext.allowAttackDespiteDefender`; cleared at CLEANUP (until end
