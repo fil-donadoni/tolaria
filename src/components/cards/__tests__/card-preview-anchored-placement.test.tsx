@@ -60,10 +60,15 @@ beforeEach(() => {
     vi.stubGlobal(
         "ResizeObserver",
         class {
+            cb: () => void;
             constructor(cb: () => void) {
-                observers.push(cb);
+                this.cb = cb;
             }
-            observe() {}
+            // Only an OBSERVED panel re-clamps: the callback is reachable
+            // from the test solely through `observe`.
+            observe() {
+                observers.push(this.cb);
+            }
             disconnect() {}
         }
     );

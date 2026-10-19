@@ -12,9 +12,7 @@ export type Viewport = { width: number; height: number };
 
 /** Clamp the preview so it sits next to the anchored card without ever
  *  overflowing the viewport. Prefers the right side, falls back to the left,
- *  and otherwise picks whichever side has more room. A panel taller than the
- *  viewport is treated as capped to it (the panel's own `maxHeight` caps it and
- *  its body scrolls), so the returned top always keeps the bottom on screen. */
+ *  and otherwise picks whichever side has more room. */
 export function clampAnchoredPreviewPosition(
     cardRect: AnchorRect,
     width: number,
@@ -42,10 +40,11 @@ export function clampAnchoredPreviewPosition(
     }
     left = Math.max(pad, Math.min(left, vw - pad - width));
 
-    const cappedHeight = Math.min(height, vh - pad * 2);
+    // Bottom clamp first, top clamp last: a panel taller than the viewport
+    // pins to the top pad and its `maxHeight` cap keeps the bottom on screen.
     const cardCenterY = cardRect.top + cardRect.height / 2;
-    const maxTop = vh - pad - cappedHeight;
-    const top = Math.max(pad, Math.min(cardCenterY - cappedHeight / 2, maxTop));
+    const maxTop = vh - pad - height;
+    const top = Math.max(pad, Math.min(cardCenterY - height / 2, maxTop));
 
     return { top, left };
 }
