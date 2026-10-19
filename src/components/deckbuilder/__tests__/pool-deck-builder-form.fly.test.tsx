@@ -34,6 +34,8 @@ vi.mock("~/hooks/useLimitedEvent", () => ({
 }));
 vi.mock("convex/react", () => ({
     useMutation: (...args: unknown[]) => useMutationMock(...args),
+    // The print resolver's rows query (issue #5550): still loading.
+    useQuery: () => undefined,
 }));
 vi.mock("@convex/_generated/api", () => {
     const apiProxy: unknown = new Proxy({}, { get: () => apiProxy });
