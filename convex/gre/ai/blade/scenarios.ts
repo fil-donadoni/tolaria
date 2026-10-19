@@ -1585,7 +1585,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "declare-blockers", card: "Savannah Lions" }],
         },
-        note: "PLACEHOLDER",
+        note: "Issue #5153. The 2/2 infect attacker's 2 unblocked damage is the bot's ninth and tenth poison counter (CR 702.90b / 704.5c); the 1/1 chump is the only way to live. Guards the correct play, NOT the poison branch of `lethalUnblockedDelta`: measured 5/5 seeds blocking at 400 iterations on the base before that branch existed and with it removed — the rollout reaches the real damage step and the SBA records the loss. The discriminating entries are the `poison clock` pair below. Side measurement: the bot also chumps a VANILLA 2/2 with this 1/1 at 20 life (5/5), so no `does not chump at 0 poison` control is written here (docs/findings).",
     },
     {
         // POISON CLOCK, HALF 1 of 2 (issue #5153) — a Terror and two targets: a
@@ -1633,7 +1633,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 }),
             describe: "Terror is cast on the Hill Giant",
         },
-        note: "NOTE_Hill_Giant",
+        note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body, 5/5 seeds at 400 iterations, on the base and with the poison model alike. The anchor proves the 7-poison half below flips on the poison counters alone.",
     },
     {
         // POISON CLOCK, HALF 2 of 2 (issue #5153) — the same board with the bot
@@ -1684,7 +1684,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 }),
             describe: "Terror is cast on the Grizzly Bears",
         },
-        note: "NOTE_Grizzly_Bears",
+        note: "Issue #5153, half 2 of the poison-clock pair. At seven poison the infect 2/2 kills in two attacks, past the rollout's one-round horizon, so only the evaluation can see it. Measured 5/5 seeds at 400 iterations: Terror on Grizzly Bears with the poison model; on the base (no poison term, life-only danger clock) Terror on Hill Giant 5/5. Proof of failure: `poisonWeight` 0 → the bot passes 5/5; the danger clock's poison fraction removed → Hill Giant 5/5.",
     },
     {
         // RECIPIENT-KEYED SOURCE SHIELD (issue #5410) — charter scenario 4's
