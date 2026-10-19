@@ -78,7 +78,7 @@ export interface LimitedEventHero {
      *  is the disabled `waiting` shape, so a phase always has exactly one. */
     cta: LimitedHeroCta;
     /** A quieter second action, only where one viewer legitimately has two
-     *  (an unseated creator may Start or take a seat). */
+     *  (an unseated creator may take a seat or Start without playing). */
     secondary: LimitedHeroCta | null;
 }
 
@@ -132,12 +132,11 @@ export function limitedEventHero(
     switch (phase) {
         case "waiting":
             if (role === "creator") {
-                return {
-                    phase,
-                    role,
-                    cta: startCta(event),
-                    secondary: seat ? null : JOIN,
-                };
+                // Starting unseated is legitimate but must be deliberate: Join
+                // leads, Start is the quieter second action (issue #5665).
+                return seat
+                    ? act(startCta(event))
+                    : { phase, role, cta: JOIN, secondary: startCta(event) };
             }
             if (role === "visitor") return act(JOIN);
             return waiting("Waiting for the host to start");
