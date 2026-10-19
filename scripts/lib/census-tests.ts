@@ -245,6 +245,14 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/verdict-store-credentials.test.ts",
         admits: /^(scripts|src)\//,
     },
+    // src/ screens and overlays vs the check:ui surfaces and design-system
+    // specimens. Its walk lives in `lib/ui-census.ts`, so `DIRECTORY_WALK`
+    // never saw this file: PR #6038's unmeasured dialog passed the lane and
+    // turned the base red (issue #6066)
+    {
+        test: "scripts/__tests__/ui-census.test.ts",
+        admits: /^(src|scripts\/ui-gate)\//,
+    },
     // convex/, src/ — the catalogue is the only importer of a card Set module
     {
         test: "scripts/__tests__/vite-card-sets-dev-bundle.test.ts",

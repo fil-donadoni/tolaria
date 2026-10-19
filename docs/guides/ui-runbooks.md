@@ -382,6 +382,8 @@ Four overlays that belong to no one page, walked since issue #4423 (slice of
 the census debt issue #4402): each sits behind an opener on another surface,
 and two of those openers need state the lane does not have (a fresh account
 for the disclaimer, an active game at scenario-launch time for the confirm).
+A fifth rides along since issue #6066: the Limited unseated-Start confirm,
+behind a creator with no Seat, a state the `open` fixture never holds.
 `/admin/design-system` § **17 Cross-cutting overlays** mounts each from
 fixture props (`src/routes/design-system/sections-overlays.tsx`), one at a
 time exactly as § 16.
@@ -390,12 +392,13 @@ time exactly as § 16.
 Each opener carries `data-overlay-specimen="<slug>"`, and the lane's row for it
 is `dlg-<slug>`:
 
-| Slug                   | Layer                              | Module                                  |
-| ---------------------- | ---------------------------------- | --------------------------------------- |
-| `disclaimer`           | `role=dialog` Legal & Disclaimer   | `legal/disclaimer-dialog.tsx`           |
-| `bug-report`           | `role=dialog` Report a bug         | `bug-report/bug-report-dialog.tsx`      |
-| `inspect-overlay`      | `[data-inspect-overlay]` (Bolt)    | `editing/inspect-overlay.tsx`           |
-| `scenario-active-game` | `role=dialog` Concede active game? | `admin/scenario-active-game-dialog.tsx` |
+| Slug                     | Layer                                | Module                                      |
+| ------------------------ | ------------------------------------ | ------------------------------------------- |
+| `disclaimer`             | `role=dialog` Legal & Disclaimer     | `legal/disclaimer-dialog.tsx`               |
+| `bug-report`             | `role=dialog` Report a bug           | `bug-report/bug-report-dialog.tsx`          |
+| `inspect-overlay`        | `[data-inspect-overlay]` (Bolt)      | `editing/inspect-overlay.tsx`               |
+| `scenario-active-game`   | `role=dialog` Concede active game?   | `admin/scenario-active-game-dialog.tsx`     |
+| `limited-start-unseated` | `role=dialog` Start without playing? | `limited/limited-start-unseated-dialog.tsx` |
 
 **`Submit` is DISABLED** on the bug-report form until a description is typed,
 so `dlg-bug-report` promises it `visible`, not `reachable`. The bug-report
