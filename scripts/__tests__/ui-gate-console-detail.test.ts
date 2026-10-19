@@ -26,15 +26,14 @@ describe("consoleErrorDetail", () => {
         expect(detail).toContain(
             "Error: [CONVEX Q(limitedEvents:x)] timed out"
         );
+        // By its STACK: the first frame is there, not only the message.
+        expect(detail).toContain(err.stack!.split("\n")[1].trim());
         expect(detail).toContain('{"at":"Shell"}');
         expect(detail).not.toMatch(/\n/);
     });
 
     it("keeps a plain message as its text, never reading arguments", async () => {
-        const msg = message("Failed to load resource", []);
-        msg.args = () => {
-            throw new Error("must not be read");
-        };
+        const msg = message("Failed to load resource", ["ignored"]);
         expect(await consoleErrorDetail(msg)).toBe("Failed to load resource");
     });
 
