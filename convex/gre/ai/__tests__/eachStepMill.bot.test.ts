@@ -35,17 +35,21 @@ import { isEachStepEngineScript } from "../opValuers";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { raiseDead } from "../../../cards/sets/lea/black.cards";
+import { underworldBreach } from "../../../cards/sets/thb/red.cards";
 
 const BEADS = registeredDefinitions().find((d) => d.name === "Worry Beads")!;
 const BASIC = forest().id;
 const BEAR = grizzlyBears().id;
 const RAISE_DEAD = raiseDead().id;
+const BREACH = underworldBreach().id;
 
 interface Side {
     library: number;
     beads?: "board" | "hand";
     /** A card in hand that returns a creature from the graveyard. */
     recursion?: boolean;
+    /** A permanent granting escape to its controller's graveyard. */
+    escape?: boolean;
 }
 
 function cards(
@@ -75,6 +79,7 @@ function board(own: Side, opp: Side): GameState {
                     ? cards(pid, BEADS.id, 1, "battlefield")
                     : []),
                 ...cards(pid, BASIC, 3, "battlefield"),
+                ...(s.escape ? cards(pid, BREACH, 1, "battlefield") : []),
             ],
         });
     return makeState({ players: [side("p1", own), side("p2", opp)] });
@@ -156,16 +161,20 @@ describe("a standing each-step mill reads the board (issue #5625)", () => {
         expect(costs.handFace).toBeCloseTo(costs.boardFace, 6);
     });
 
-    it("a side whose graveyard the evaluator credits reads nothing", () => {
-        // Raise Dead in hand is recursion access: a milled creature may be
-        // a gain this reader does not price — fail-closed, ADR 0151 §1.
+    it("a side whose graveyard the evaluator credits reads nothing, whichever side it is", () => {
+        // A milled card may be a gain this reader does not price — Raise Dead
+        // in hand (recursion access) or a CR 702.138 escape grant on the
+        // battlefield: fail-closed, ADR 0151 §1.
         expect(
             standingReading(board({ library: 30 }, { library: 5 }))
         ).toBeGreaterThan(0);
-        expect(
-            standingReading(
-                board({ library: 30 }, { library: 5, recursion: true })
-            )
-        ).toBeUndefined();
+        for (const credited of [
+            board({ library: 30 }, { library: 5, recursion: true }),
+            board({ library: 30, recursion: true }, { library: 5 }),
+            board({ library: 30 }, { library: 5, escape: true }),
+            board({ library: 30, escape: true }, { library: 5 }),
+        ]) {
+            expect(standingReading(credited)).toBeUndefined();
+        }
     });
 });
