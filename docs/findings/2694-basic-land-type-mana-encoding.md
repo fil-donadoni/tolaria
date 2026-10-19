@@ -1,7 +1,8 @@
 ---
 title: getBasicLandMana returns only the FIRST basic subtype's colour, so a dual land's mana ability must be hand-written while a basic's must not
 discoveredBy: 2694
-status: draft
+status: triaged
+issue: 5623
 confidence: high
 ---
 
