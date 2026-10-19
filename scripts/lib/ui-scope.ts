@@ -352,7 +352,9 @@ interface SpecimenIndex {
 
 /** `src/routes/design-system/sections-overlays.tsx` → the family every
  *  `src/routes/design-system/sections-*` module belongs to: its directory and
- *  the basename up to and including the first `-`. */
+ *  the basename up to and including the first `-`. The convention assumes a
+ *  specimen section's stem names sections only: a section named `use-foo.tsx`
+ *  would prune every `use-*` sibling from its rows' scaffolding. */
 function sectionFamily(path: string): string {
     const slash = path.lastIndexOf("/");
     const dash = path.indexOf("-", slash + 1);
