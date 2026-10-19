@@ -62,7 +62,12 @@ describe("git repository env scrub (issue #6017)", () => {
     });
 
     afterAll(() => {
-        fs.rmSync(tmp, { recursive: true, force: true });
+        fs.rmSync(tmp, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("the canary is live: an unscrubbed hook env turns it bare", () => {
