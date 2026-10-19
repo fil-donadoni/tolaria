@@ -561,6 +561,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     colorCoverageWeight: 21.764644,
     flexWeight: 7.149115,
     deckingWeight: 1.5,
+    poisonWeight: 2,
     graveyardEngineWeight: 60,
     graveyardReachFraction: 0.160839,
     recoverableSweepFraction: 0.8,
