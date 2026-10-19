@@ -433,6 +433,13 @@ export type Node = {
      *  for THAT key only. Bot-perspective, like `policyValue` itself; the
      *  mover-side flip happens at normalisation. */
     policyValues?: Map<string, number>;
+    /** Tree keys of the dominated multi-blocks this declare-blockers node
+     *  never explores (issue #5951, `withoutDominatedBlocks`). Decided ONCE,
+     *  on the node's first visit: the probe simulates a whole combat per
+     *  declaration (~6 ms on a 2-attacker, 4-blocker node), and the verdict
+     *  reads only the public board, which a later determinization at the same
+     *  node does not resample. `undefined` off a block node. */
+    dominatedBlockKeys?: ReadonlySet<string>;
 };
 
 function newNode(): Node {
@@ -2345,18 +2352,42 @@ export function keyedMovesFor(
     // `priorityMoveKey`, which folds a non-observer's HAND card to its
     // definition id (hidden information) and leaves the bot's own duplicates
     // fully distinct.
-    // Issue #5951 — a dominated multi-block is no reply the defender's node
-    // explores (`ai/blockDominance.ts`); a no-op off a block declaration.
-    for (const move of pruneDominatedBlocks(
-        state,
-        enumerateMoves(state, pid)
-    )) {
+    for (const move of enumerateMoves(state, pid)) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
         keyed.push({ move, key, prior: 0 });
     }
     return keyed;
+}
+
+/** `keyed` without the multi-blocks `pruneDominatedBlocks` judges dominated
+ *  (issue #5951): the defender's node stops exploring blocks that only feed
+ *  the attacker a creature, whose mean backup otherwise credited the attack
+ *  with the defender's mistakes. Memoized on `node` (see
+ *  `Node.dominatedBlockKeys`); never emptying. Tree only — the rollout keeps
+ *  every block (`ai/blockDominance.ts` header). */
+function withoutDominatedBlocks(
+    node: Node,
+    world: GameState,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    if (!keyed.some((k) => k.move.kind === "declare-blockers")) return keyed;
+    if (!node.dominatedBlockKeys) {
+        const kept = new Set(
+            pruneDominatedBlocks(
+                world,
+                keyed.map((k) => k.move)
+            )
+        );
+        node.dominatedBlockKeys = new Set(
+            keyed.filter((k) => !kept.has(k.move)).map((k) => k.key)
+        );
+    }
+    const denied = node.dominatedBlockKeys;
+    if (denied.size === 0) return keyed;
+    const kept = keyed.filter((k) => !denied.has(k.key));
+    return kept.length > 0 ? kept : keyed;
 }
 
 /** The steps where a transient payoff can matter: once blocks are declared, a
@@ -2949,7 +2980,11 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = advanceToDecision(world);
         if (!pid) break;
-        let keyed = keyedMovesFor(world, pid, botId);
+        let keyed = withoutDominatedBlocks(
+            node,
+            world,
+            keyedMovesFor(world, pid, botId)
+        );
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
         // never a dominance candidate so the floor always holds.
@@ -6146,7 +6181,7 @@ export function enumerateRootMoves(
     } = {}
 ): Move[] {
     // Issue #5951 — the Bot's own blocks drop a dominated multi-block too,
-    // the same filter its tree applies (`keyedMovesFor`).
+    // the same filter its tree applies (`withoutDominatedBlocks`).
     return pruneDominatedBlocks(
         state,
         enumerateMoves(state, playerId, {

@@ -35,7 +35,7 @@
 // the human affordance surface (`legalActions`) keeps the whole set. It is
 // blocker-declaration policy, so it governs the Bot's own blocks too.
 //
-// Tree and root only (`keyedMovesFor`, `enumerateRootMoves`), never the
+// Tree and root only (`withoutDominatedBlocks`, `enumerateRootMoves`), never the
 // rollout: the defect is the tree node's mean backup over the replies it
 // EXPLORES, while a rollout draws one reply per ply in the hot loop. Pruning
 // there too shifted the rollout's random stream and flipped two noise-pinned
