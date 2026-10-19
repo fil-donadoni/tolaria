@@ -1521,6 +1521,7 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "regeneration shield: regenerates against a destroy spell on the stack": null,
     "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)": {
         "cards": [
             {
