@@ -814,9 +814,10 @@ function main(): void {
     // Step 3: per PR.
     const failed = new Set<number>();
     for (const pr of pending) {
-        let own = true;
+        // A failed prune keeps every PR of the batch in retry, like the sync.
+        let own = pruned;
         for (const step of prSteps(pr)) own = run(step) && own;
-        const retry = prRetried(synced && pruned, own);
+        const retry = prRetried(synced, own);
         if (retry) failed.add(pr.number);
         say(
             `PR #${pr.number} (${pr.headRefName}): ${retry ? "retry" : "done"}`
