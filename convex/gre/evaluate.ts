@@ -25,6 +25,7 @@
 import { hasCastPermissionFlash } from "./castPermissions";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
+    hasInfect,
     isCombatDamageImmune,
     isDamageUnpreventableThisTurn,
     sourcePreventionShieldApplies,
@@ -48,6 +49,7 @@ import {
     manaValue,
     finiteManaUsesRemaining,
     hasManaAbility,
+    POISON_LOSS_COUNTERS,
 } from "./constants";
 import type { ActivatedAbility } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -508,6 +510,11 @@ export type EvalTerms = {
      *  position that is not near decking; steeply negative as the library
      *  runs out. See `libraryTerm`. */
     library: number;
+    /** CR 704.5c (issue #5153) — how close this player is to LOSING to poison
+     *  counters. Zero (exactly) with no poison, so a game with no infect in it
+     *  is untouched; steeply negative as the counters near ten. See
+     *  `poisonTerm`. */
+    poison: number;
     /** CR 702.138 — worth of the cards in this player's own graveyard while a
      *  permanent they control makes that graveyard castable. Zero (exactly)
      *  with no such engine on the battlefield. See `graveyardEngineTerm`. */
@@ -1279,6 +1286,44 @@ function libraryTerm(
     const deficit = weights.deckingHorizon - effective;
     return -weights.deckingWeight * deficit * deficit;
 }
+
+/** CR 704.5c (issue #5153) — the cost of poison counters, `libraryTerm`'s
+ *  shape for the other alternate loss: quadratic in the deficit below
+ *  `poisonHorizon` of the counters this player can still take before the
+ *  tenth. Before it the evaluator never read `poisonCounters` at all, so a
+ *  Bot at nine poison blocked and raced exactly as it did at zero.
+ *
+ *  NARROW SUPPORT (ADR 0070 §5): exactly zero at the horizon, which at its
+ *  default (the loss threshold itself) means "holds no poison". Negative for
+ *  the poisoned player, so — through `evaluate`'s my-score-minus-theirs — the
+ *  opponent's poison is the Bot's own infect pressure with no special case.
+ *  Takes the counter count rather than the player so the combat deltas can
+ *  price poison not yet dealt (`facePrice`). */
+function poisonTerm(poisonCounters: number, weights: EvalWeights): number {
+    const remaining = Math.max(0, POISON_LOSS_COUNTERS - poisonCounters);
+    if (remaining >= weights.poisonHorizon) return 0;
+    const deficit = weights.poisonHorizon - remaining;
+    return -weights.poisonWeight * deficit * deficit;
+}
+
+/** The defender's loss, in margin points, from combat damage reaching them:
+ *  `lifeDamage` priced linearly at `lifeWeight` (the `life` term's slope),
+ *  `poison` — damage from an infect source (CR 702.90b) — as the drop it
+ *  makes in their `poisonTerm`. Shared by both combat deltas so a declared
+ *  infect attack is never read as life loss. */
+function facePrice(
+    defender: PlayerState,
+    lifeDamage: number,
+    poison: number,
+    weights: EvalWeights
+): number {
+    const held = defender.poisonCounters ?? 0;
+    return (
+        lifeDamage * weights.lifeWeight +
+        poisonTerm(held, weights) -
+        poisonTerm(held + poison, weights)
+    );
+}
 // CALIBRATION. `deckingWeight` is sized so this term's whole range —
 // `deckingHorizon² · deckingWeight` ≈ 216 — stays well inside
 // `weights.materialFull` (500), the cap `materialSignal` (`search.ts`) clips
@@ -1749,6 +1794,7 @@ function playerTerms(
         colorCoverage: 0,
         flexibility: 0,
         library: libraryTerm(state, player, weights),
+        poison: poisonTerm(player.poisonCounters ?? 0, weights),
         graveyard: graveyardEngineTerm(player, weights),
         graveyardReach: graveyardReachTerm(state, player, weights),
     };
@@ -1850,6 +1896,7 @@ function sumTerms(t: EvalTerms): number {
         t.colorCoverage +
         t.flexibility +
         t.library +
+        t.poison +
         t.graveyard +
         t.graveyardReach
     );
@@ -1947,8 +1994,9 @@ function valueFromMargin(
         if (state.gameOver.loserId === playerId)
             return -weights.winScore + margin;
     }
-    const oppLost = opp.life <= 0;
-    const meLost = me.life <= 0;
+    // CR 704.5c — ten poison counters is the same loss, read the same way.
+    const oppLost = hasLostByLifeOrPoison(opp);
+    const meLost = hasLostByLifeOrPoison(me);
     if (oppLost && !meLost) return weights.winScore + margin;
     if (meLost && !oppLost) return -weights.winScore + margin;
 
@@ -1963,6 +2011,14 @@ function valueFromMargin(
         declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass) +
         deckOutDelta(me, opp, weights)
+    );
+}
+
+/** CR 704.5a / 704.5c — a player at 0 or less life, or with ten or more
+ *  poison counters, has lost; the SBA may not have run on a sandbox state. */
+function hasLostByLifeOrPoison(player: PlayerState): boolean {
+    return (
+        player.life <= 0 || (player.poisonCounters ?? 0) >= POISON_LOSS_COUNTERS
     );
 }
 
@@ -2091,14 +2147,21 @@ function blockersByAttacker(
     return out;
 }
 
-/** The combat damage a CONFIRMED block leaves headed at the defending PLAYER's
- *  life, plus who that player is. `null` when no block is confirmed — the one
- *  shape both consumers below need, so "which attacker is unblocked" is
- *  computed in exactly one place. Pure. */
+/** The combat damage a CONFIRMED block leaves headed at the defending PLAYER,
+ *  plus who that player is: `damage` reaches their life, `poison` is the part
+ *  dealt by infect sources, which reaches their poison counters instead
+ *  (CR 702.90b). `null` when no block is confirmed — the one shape both
+ *  consumers below need, so "which attacker is unblocked" is computed in
+ *  exactly one place. Pure. */
 function declaredFaceDamage(
     state: GameState,
     pass: Layer7Pass
-): { defender: PlayerState; attacker: PlayerState; damage: number } | null {
+): {
+    defender: PlayerState;
+    attacker: PlayerState;
+    damage: number;
+    poison: number;
+} | null {
     // PHASE GUARD (mandatory). `state.combat` — `confirmed`, `blockersConfirmed`
     // and `attackerIds` included — SURVIVES the damage steps: it is torn down
     // only as END_OF_COMBAT *ends* (`endCombatStep`, phases.ts, CR 511.3).
@@ -2141,6 +2204,7 @@ function declaredFaceDamage(
 
     const byAttacker = blockersByAttacker(combat, defender);
     let damage = 0;
+    let poison = 0;
     for (const atkId of combat.attackerIds) {
         // CR 508.1a — an attacker aimed at a planeswalker never reaches the
         // player's life (issue #1220).
@@ -2192,9 +2256,12 @@ function declaredFaceDamage(
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.
         if (!unpreventable && isCombatDamageImmune(state, atk.id)) continue;
-        damage += toPlayer;
+        // CR 702.90b — an infect source's damage to a player is poison
+        // counters, never life loss (`markInfectPoisonDamage`, state.ts).
+        if (hasInfect(atk)) poison += toPlayer;
+        else damage += toPlayer;
     }
-    return { defender, attacker, damage };
+    return { defender, attacker, damage, poison };
 }
 
 /** The combat damage ONE declared attacker sends at the player it attacks,
@@ -2285,7 +2352,7 @@ export function lethalUnblockedDelta(
 ): number {
     const declared = declaredFaceDamage(state, pass);
     if (!declared) return 0;
-    const { defender, attacker, damage } = declared;
+    const { defender, attacker, damage, poison } = declared;
     // CR 615.1 — a live per-player prevention shield (Dark Sphere, Scarecrow)
     // can cut or erase the damage headed at the defender. Whether it MATCHES
     // depends on the source and its mode, and resolving that would mean running
@@ -2311,7 +2378,13 @@ export function lethalUnblockedDelta(
     }
     // CR 704.5a — a player at 0 or less life loses. Damage already locked in
     // that takes the defender there is a loss, one SBA sweep early.
-    if (damage <= 0 || damage < defender.life) return 0;
+    const lethalByLife = damage > 0 && damage >= defender.life;
+    // CR 704.5c (issue #5153) — so does infect damage that takes the
+    // defender's poison counters to ten.
+    const lethalByPoison =
+        poison > 0 &&
+        (defender.poisonCounters ?? 0) + poison >= POISON_LOSS_COUNTERS;
+    if (!lethalByLife && !lethalByPoison) return 0;
     if (viewerId === defender.id) return -weights.winScore;
     if (viewerId === attacker.id) return weights.winScore;
     return 0;
@@ -2469,7 +2542,7 @@ export function declaredCombatDelta(
     const attackerDelta =
         value(outcome.deadBlockerIds, defender) -
         value(outcome.deadAttackerIds, attacker) +
-        outcome.faceDamage * weights.lifeWeight;
+        facePrice(defender, outcome.faceDamage, outcome.facePoison, weights);
 
     return ownView ? attackerDelta : -attackerDelta;
 }
@@ -2529,6 +2602,8 @@ export function declaredBlockDelta(
     // material terms still exclude the buff: a +X/+X is never lasting board
     // material, only a one-combat swing, which this combat delta is.)
     let faceDamage = 0;
+    // CR 702.90b — the infect share of it, which lands as poison.
+    let facePoison = 0;
     const deadAttackers: CardInstanceState[] = [];
     const deadBlockers: CardInstanceState[] = [];
     // One layer-7 pass for the whole exchange (issue #4462) — see
@@ -2541,8 +2616,10 @@ export function declaredBlockDelta(
         if (!atk) continue;
         const blockers = byAttacker.get(atkId) ?? [];
         const atkPT = ptOf(atk);
+        const infect = hasInfect(atk);
         if (blockers.length === 0) {
-            faceDamage += Math.max(0, atkPT.power);
+            if (infect) facePoison += Math.max(0, atkPT.power);
+            else faceDamage += Math.max(0, atkPT.power);
             continue;
         }
         const atkPower = Math.max(0, atkPT.power);
@@ -2592,7 +2669,9 @@ export function declaredBlockDelta(
         // blocker it cannot kill, but trample owes lethal to all of them
         // first. An attacker aimed at a planeswalker (CR 508.1b) is excluded.
         if (combat.attackTargets?.[atkId] === undefined) {
-            faceDamage += playerDamageOf(state, atk, true, blockers, pass);
+            const overflow = playerDamageOf(state, atk, true, blockers, pass);
+            if (infect) facePoison += overflow;
+            else faceDamage += overflow;
         }
     }
 
@@ -2618,7 +2697,7 @@ export function declaredBlockDelta(
     const defenderDelta =
         value(deadAttackers) -
         value(deadBlockers) -
-        faceDamage * weights.lifeWeight;
+        facePrice(defender, faceDamage, facePoison, weights);
 
     // Cautious multi-block (ADR 0021, issue #229). If the ATTACKER holds castable
     // interaction (a pump or instant removal), a block that only WINS when the
@@ -2802,6 +2881,7 @@ export function evaluateBreakdown(
         colorCoverage: 0,
         flexibility: 0,
         library: 0,
+        poison: 0,
         graveyard: 0,
         graveyardReach: 0,
     };

@@ -8161,6 +8161,15 @@ export function hasInfectOrWither(
     );
 }
 
+/** CR 702.90b — combat or other damage from this source reaches a player as
+ *  poison counters, not life loss. The one infect read the Bot's combat
+ *  predictors share with `markInfectPoisonDamage` below. */
+export function hasInfect(card: {
+    staticAbilities: ReadonlyArray<string>;
+}): boolean {
+    return card.staticAbilities.includes("infect");
+}
+
 /** CR 702.90a — Infect (player half): a source with infect deals damage to a
  *  PLAYER in the form of poison counters (CR 122.1, `PlayerState.poisonCounters`)
  *  instead of life loss. Wither does NOT change player damage (CR 702.80a is

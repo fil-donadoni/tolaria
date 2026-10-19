@@ -30,6 +30,7 @@ const TERM_KEYS = Object.keys({
     colorCoverage: true,
     flexibility: true,
     library: true,
+    poison: true,
     graveyard: true,
     graveyardReach: true,
 } satisfies Record<keyof EvalTerms, true>) as (keyof EvalTerms)[];
