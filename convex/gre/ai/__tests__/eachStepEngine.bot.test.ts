@@ -269,23 +269,39 @@ describe("an animated each-step engine keeps its Differential Reading (issue #55
         );
     });
 
-    it("a PRINTED creature's each-step trigger takes no lens: its board face is the body alone (issue #5151's scope)", () => {
-        // The same trigger on an artifact creature printed 2/2: the realized
-        // reader keeps weight 1 and no board, so the engine reads nothing
-        // (ADR 0151 §1) — unchanged by the animated face's lens.
+    it("a PRINTED creature's each-step trigger reads the board at weight 1 (issue #5626; issue #5151's scope)", () => {
+        // The same trigger on an artifact creature printed 2/2 (Magus of the
+        // Vineyard's shape): the realized reader takes the board lens, so the
+        // engine reads per side, but keeps weight 1 — one firing, not the
+        // recurring stream the non-creature face reads.
         const golem = {
             ...howlingMine(),
             types: ["Artifact", "Creature"],
             power: 2,
             toughness: 2,
         } as ReturnType<typeof howlingMine>;
+        const recurring = {
+            feeds: mineWorth(board({ hand: 1, mine: "board" }, { hand: 7 })),
+            starves: mineWorth(board({ hand: 7, mine: "board" }, { hand: 1 })),
+        };
         withTemporaryDefinition(golem, () => {
-            const state = board({ hand: 1, mine: "board" }, { hand: 7 });
-            const mine = state.players[0].battlefield[0];
-            expect(evaluateCreature(state, mine)).toBeCloseTo(
-                creatureValueRaw(2, 2, 2, []),
-                9
-            );
+            const half = (own: number, opp: number) => {
+                const state = board(
+                    { hand: own, mine: "board" },
+                    { hand: opp }
+                );
+                const mine = state.players[0].battlefield[0];
+                return (
+                    evaluateCreature(state, mine) -
+                    creatureValueRaw(2, 2, 2, [])
+                );
+            };
+            const feeds = half(1, 7);
+            expect(feeds).toBeGreaterThan(0);
+            expect(feeds).toBeLessThan(recurring.feeds);
+            const starves = half(7, 1);
+            expect(starves).toBeLessThan(0);
+            expect(starves).toBeGreaterThan(recurring.starves);
         });
     });
 

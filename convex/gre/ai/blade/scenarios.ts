@@ -12786,6 +12786,138 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5575. The discriminating position (the entry above is the anchor reading). Guards the edict branch of `eachStepDifferentialValue` (`sideEdictLoss`, `ai/opValuers.ts`) and the widened read-nothing rule (`isEachStepScopedScript`, `cardScriptValue.ts`). Measured at 400 iterations over 20 seeds: the Flow never (Aeolipile 20). Before issue #5575: Disenchant on the Flow 20/20. Proof of failure — the per-side edict loss skipped (`valueOp` on each side's `sacrifice`, the representative edict): the Flow 20/20.",
     },
+    {
+        // EACH-STEP MANA (issue #5626, ADR 0151) — the opponent's Eladamri's
+        // Vineyard has the player whose first main phase it is add {G}{G}.
+        // The bot holds a Craw Wurm ({4}{G}{G}) its four lands cannot cast
+        // alone; the opponent's hand is empty. The Vineyard ramps only the
+        // bot, so Disenchant answers the Aeolipile and leaves the Vineyard
+        // standing.
+        label: "each-step mana: Disenchant leaves the Eladamri's Vineyard that ramps only the bot into its Craw Wurm (issue #5626)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Eladamri's Vineyard only the bot's hand can spend",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Eladamri's Vineyard",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Aeolipile",
+                },
+            ],
+        },
+        note: "Issue #5626. The anchor reading of the Eladamri's Vineyard pair (two unpaired `conditional` Test Positions — the hands differ on both sides, so no `pairOf`): the Vineyard is worth to each player the extra mana its hand spends beyond its own mana base (`EachPlayerSide.manaUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Aeolipile 20/20. NOT discriminating on its own — before issue #5626 (the Vineyard read nothing, ADR 0151 §1) the Aeolipile is 20/20 here too; the mirror entry below is the one that reds.",
+    },
+    {
+        // EACH-STEP MANA, MIRROR (issue #5626, ADR 0151) — the board above
+        // with the hands swapped: the bot holds a Grizzly Bears its lands
+        // already cast, the opponent the Craw Wurm its four Forests cannot.
+        // Now the Vineyard ramps only the opponent, into a 6/4 on its next
+        // main phase: Disenchant spent on the Aeolipile leaves it standing.
+        //
+        // This is the position that discriminates: read as nothing (the
+        // pre-#5626 Latent Floor, the same on every board), the Vineyard is
+        // no threat and Disenchant takes the Aeolipile.
+        label: "each-step mana: Disenchant does not spend itself on the Aeolipile while the Eladamri's Vineyard ramps only the opponent (issue #5626)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Eladamri's Vineyard only the opponent's hand can spend",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Craw Wurm", owner: "opp", zone: "hand" },
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Eladamri's Vineyard",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Aeolipile",
+                },
+            ],
+        },
+        note: "Issue #5626. The discriminating position (the entry above is the anchor reading). Guards the mana branch of `eachStepDifferentialValue` (`stepSideMana`, `ai/opValuers.ts`) and its side reader (`EachPlayerSide.manaUnits`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: the Aeolipile never (Disenchant on the Vineyard 10, pass 10). Before issue #5626 (the family read nothing): Disenchant on the Aeolipile 11/20, on seeds 0xb1ade and 2 of this entry's four. Proof of failure — the side reader skipped (`valueOp` on each side's `addMana`, the representative ramp): the Aeolipile on seeds 0xb1ade and 2.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
