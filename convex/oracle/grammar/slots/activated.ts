@@ -54,6 +54,7 @@ import {
     assemblyTrace,
     sentenceRule,
     sourcePronounListRule,
+    withoutAbilityWord,
     type SentenceIR,
 } from "../shared/effectClause";
 import type { SlotIR } from "../ir";
@@ -167,8 +168,12 @@ export const activatedSlot: Rule<SlotIR> = rule(ACTIVATED_SLOT, (span, ctx) => {
     // HOST's type line (`hostTypeOnly`, no subtypes), so it never names an
     // Aura and never raises the flag.
     const auraHost = context.typeLine.subtypes.includes("Aura");
+    // CR 207.2c (issue #3685) — an ability word heading the ability
+    // ("Threshold — {R}, {T}, …") has no rules meaning; the condition it names
+    // is spelled out in the ability's own text, so it is dropped before the
+    // cost is read, exactly as the effect-clause grammar drops it.
     return terminated(".", activatedBody).run(
-        span,
+        withoutAbilityWord(span),
         auraHost ? { ...context, auraHost: true as const } : ctx
     );
 });

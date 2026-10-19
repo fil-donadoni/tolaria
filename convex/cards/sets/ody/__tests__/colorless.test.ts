@@ -7,6 +7,7 @@ import {
     makeState,
 } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { activationPreconditionViolation } from "../../../../gre/activationPrecondition";
 import type {
     CardInstanceState,
     GameState,
@@ -77,7 +78,9 @@ describe("Cephalid Coliseum — threshold gate (CR 602.1b activation restriction
                 makePlayer("p2", { graveyard: pile("p2", "graveyard", 7) }),
             ],
         });
-        return threshold.canActivate!(source, state);
+        return (
+            activationPreconditionViolation(state, source, threshold) === null
+        );
     };
 
     it("is closed below seven cards in the ACTIVATING player's graveyard", () => {

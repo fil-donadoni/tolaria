@@ -5365,10 +5365,17 @@ function enumerateGrantedAbilityMoves(
             grant.sourceCardId
         )?.activatedAbilities?.find((a) => a.id === grant.abilityId);
         if (!template) continue;
-        // A `canActivate` closure reads a source permanent, which a
-        // player-scoped grant does not have; targeted abilities would need a
-        // target selection the move shape does not carry.
-        if (template.canActivate || template.getTargetRequirement) continue;
+        // A `canActivate` closure or an `activationCondition` (issue #3685)
+        // reads a source permanent, which a player-scoped grant does not have;
+        // targeted abilities would need a target selection the move shape
+        // does not carry.
+        if (
+            template.canActivate ||
+            template.activationCondition ||
+            template.getTargetRequirement
+        ) {
+            continue;
+        }
         if (template.targetRequirement) continue;
         // Player-scoped grants have no source permanent, so tap/sacrifice
         // costs are not meaningful — the mutation rejects them, and offering
