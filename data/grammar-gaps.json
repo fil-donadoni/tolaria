@@ -776,6 +776,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › activation cost › Put three cards from your graveyard on the bottom of your library",
+            "issue": 6056
+        },
+        {
+            "kind": "grammar",
             "key": "activated › activation cost › Return a Forest you control to its owner's hand",
             "issue": 5329
         },
