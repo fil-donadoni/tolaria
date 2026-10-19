@@ -225,16 +225,16 @@ const short = (sha: string | undefined) => (sha ?? "?").slice(0, 8);
  * posted through a 502 would admit a PR onto a RED base for hours. The
  * scheduled sweep decides again. `repairIssues` is only consulted under RED.
  *
- * `queuePr` (`isMergifyQueuePr`): a queue draft is always green, so the RED
- * hold acts at entry, on the PR's own head (issue #5978). A PR already in
- * the queue finishes, as a `land` in flight does; the draft's body is
- * Mergify's, so judging it would also dequeue a declared repair.
+ * A Mergify queue PR (`isMergifyQueuePr`) is always green, so the RED hold
+ * acts at entry, on the PR's own head (issue #5978): Mergify judges a queued
+ * PR's conditions on its draft and requeues none it dequeued, and the
+ * draft's body is Mergify's, so judging it would dequeue a declared repair
+ * too.
  */
 export function baseHealthStatus(input: {
     lineage: Lineage & { error?: string };
-    prBody: string;
+    pr: Pick<GatePr, "author" | "body" | "headRef" | "headRepo" | "baseRepo">;
     repairIssues: readonly number[];
-    queuePr?: boolean;
 }): GateStatus {
     const { lineage } = input;
     const status = (state: GateState, description: string): GateStatus => ({
@@ -242,7 +242,7 @@ export function baseHealthStatus(input: {
         state,
         description: clipDescription(description),
     });
-    if (input.queuePr)
+    if (isMergifyQueuePr(input.pr))
         return status(
             "success",
             "Mergify queue PR — the gates were its queued PRs' entry conditions"
@@ -250,7 +250,7 @@ export function baseHealthStatus(input: {
     const red = lineageBlocks(lineage.kind);
     const admission = healthAdmission({
         red,
-        prBody: input.prBody,
+        prBody: input.pr.body,
         repairIssues: input.repairIssues,
     });
     const where = `@ ${short(lineage.verdict?.sha)}`;
