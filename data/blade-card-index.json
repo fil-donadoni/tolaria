@@ -95,6 +95,13 @@
             "needsSetup": false
         }
     ],
+    "Craw Wurm": [
+        {
+            "label": "multi-block split: swings a 6/4 into two 3/3s that can only trade both for it",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Damnation": [
         {
             "label": "dominance NEGATIVE CONTROL: still casts Damnation into a real board",

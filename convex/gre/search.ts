@@ -48,6 +48,8 @@ import {
     repetitionMoveKey,
     type RepetitionHistory,
 } from "./ai/repetition";
+import { searchCombatDamageAssignments } from "./ai/damageSplit";
+import { pruneDominatedBlocks } from "./ai/blockDominance";
 import type {
     CardInstanceState,
     GameState,
@@ -71,7 +73,6 @@ import {
     emitAttackersDeclaredEvents,
     emitBlockersConfirmedEvents,
     applyAllCombatDamage,
-    buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
 } from "./phases";
@@ -432,6 +433,13 @@ export type Node = {
      *  for THAT key only. Bot-perspective, like `policyValue` itself; the
      *  mover-side flip happens at normalisation. */
     policyValues?: Map<string, number>;
+    /** Tree keys of the dominated multi-blocks this declare-blockers node
+     *  never explores (issue #5951, `withoutDominatedBlocks`). Decided ONCE,
+     *  on the node's first visit: the probe simulates a whole combat per
+     *  declaration (~6 ms on a 2-attacker, 4-blocker node), and the verdict
+     *  reads only the public board, which a later determinization at the same
+     *  node does not resample. `undefined` off a block node. */
+    dominatedBlockKeys?: ReadonlySet<string>;
 };
 
 function newNode(): Node {
@@ -699,8 +707,9 @@ function passInSearch(
     // A pass during the combat-damage step first resolves the turn-based
     // combat damage (CR 510.2) — the real engine applies it via the
     // damage-assignment confirm / auto-pass path, which this search-side pass
-    // stands in for. Single-block / unblocked positions need no manual
-    // assignment, so the auto assignments are authoritative.
+    // stands in for. A multi-target source (CR 510.1c / 510.1d) deals the
+    // split the Bot's driver submits (`searchCombatDamageAssignments`,
+    // issue #5951), never nothing.
     const combat = state.combat;
     if (
         combat &&
@@ -712,7 +721,7 @@ function passInSearch(
             state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
         applyAllCombatDamage(
             state,
-            buildAutoDamageAssignments(state, kind),
+            searchCombatDamageAssignments(state, kind),
             kind
         );
         combat.damageConfirmed = true;
@@ -2352,6 +2361,35 @@ export function keyedMovesFor(
     return keyed;
 }
 
+/** `keyed` without the multi-blocks `pruneDominatedBlocks` judges dominated
+ *  (issue #5951): the defender's node stops exploring blocks that only feed
+ *  the attacker a creature, whose mean backup otherwise credited the attack
+ *  with the defender's mistakes. Memoized on `node` (see
+ *  `Node.dominatedBlockKeys`); never emptying. Tree only — the rollout keeps
+ *  every block (`ai/blockDominance.ts` header). */
+function withoutDominatedBlocks(
+    node: Node,
+    world: GameState,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    if (!keyed.some((k) => k.move.kind === "declare-blockers")) return keyed;
+    if (!node.dominatedBlockKeys) {
+        const kept = new Set(
+            pruneDominatedBlocks(
+                world,
+                keyed.map((k) => k.move)
+            )
+        );
+        node.dominatedBlockKeys = new Set(
+            keyed.filter((k) => !kept.has(k.move)).map((k) => k.key)
+        );
+    }
+    const denied = node.dominatedBlockKeys;
+    if (denied.size === 0) return keyed;
+    const kept = keyed.filter((k) => !denied.has(k.key));
+    return kept.length > 0 ? kept : keyed;
+}
+
 /** The steps where a transient payoff can matter: once blocks are declared, a
  *  pump or shrink decides the exchange. BEFORE blocks it is premature (ADR
  *  0021 slice 3, case (c) of `isDiscouragedRolloutMove`), and outside combat it
@@ -2942,7 +2980,11 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = advanceToDecision(world);
         if (!pid) break;
-        let keyed = keyedMovesFor(world, pid, botId);
+        let keyed = withoutDominatedBlocks(
+            node,
+            world,
+            keyedMovesFor(world, pid, botId)
+        );
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
         // never a dominance candidate so the floor always holds.
@@ -6138,13 +6180,18 @@ export function enumerateRootMoves(
         onCollapsed?: (move: Move) => void;
     } = {}
 ): Move[] {
-    return enumerateMoves(state, playerId, {
-        onTruncated: hooks.onTruncated,
-        pruneDominatedNoOps: true,
-        onPruned: hooks.onPruned,
-        collapseInterchangeable: true,
-        onCollapsed: hooks.onCollapsed,
-    });
+    // Issue #5951 — the Bot's own blocks drop a dominated multi-block too,
+    // the same filter its tree applies (`withoutDominatedBlocks`).
+    return pruneDominatedBlocks(
+        state,
+        enumerateMoves(state, playerId, {
+            onTruncated: hooks.onTruncated,
+            pruneDominatedNoOps: true,
+            onPruned: hooks.onPruned,
+            collapseInterchangeable: true,
+            onCollapsed: hooks.onCollapsed,
+        })
+    );
 }
 
 /** Choose a move for `playerId` by ISMCTS, and surface a DecisionTrace of what
