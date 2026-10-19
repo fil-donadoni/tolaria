@@ -415,7 +415,7 @@ describe("check:ui surface table — Named Assertions", () => {
     });
 
     /**
-     * Issue #4423: the four cross-cutting overlays on `/admin/design-system`
+     * Issue #4423: the cross-cutting overlays on `/admin/design-system`
      * § 17. The disclaimer has no action but reading it, so it promises its
      * text is legible (`contrast` over the dialog); the bug-report `Submit`
      * is disabled until a description is typed, so it is promised `visible`

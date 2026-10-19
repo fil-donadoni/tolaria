@@ -1902,7 +1902,7 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
 ];
 
 /**
- * The four cross-cutting overlays (issue #4423, slice of the census debt issue
+ * The cross-cutting overlays (issue #4423, slice of the census debt issue
  * #4402): the legal disclaimer, the bug-report form, the Inspect overlay and
  * the Scenarios page's active-game confirm. Each belongs to no one page and
  * sits behind an opener the lane cannot reach with the state it has (a fresh

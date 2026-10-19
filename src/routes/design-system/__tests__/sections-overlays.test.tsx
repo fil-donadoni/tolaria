@@ -2,7 +2,7 @@
 //
 // The census reads a specimen from the design-system page's IMPORTS
 // (`scripts/lib/ui-census.ts`), so an import that renders nothing would report
-// the four overlays censused while the lane photographed an empty page. The
+// the overlays censused while the lane photographed an empty page. The
 // lane's `dlg-*` surfaces are the real proof, but they need a deployment and a
 // browser; this is the offline half, and it reds when an overlay's props drift
 // out from under its fixture. Same shape as `sections-board-dialogs.test.tsx`.
