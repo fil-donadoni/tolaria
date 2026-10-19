@@ -262,6 +262,7 @@
         "code": "card-paired-mechanism",
         "reason": "Op \"returnExiledForSource\" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests"
     },
+    "returnToHandAtNextUntap": "runs",
     "reveal": {
         "code": "visibility-only",
         "reason": "Op \"reveal\" changes card visibility (knownTo) — not a state change the canned generator asserts"

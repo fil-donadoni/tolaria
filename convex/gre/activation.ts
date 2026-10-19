@@ -1387,13 +1387,15 @@ export function commitNonStackActivation(
     // coloured-tap ping (`applyColoredTapSelfDamage`), Ancient Tomb's
     // unconditional one (`applyUnconditionalTapSelfDamage`), the depletion
     // counter (`applyDepletionCounterOnTap`), Chromatic Sphere's draw
-    // (`applyDrawCardOnTap`) and Rainbow Vale's control-change arm
-    // (`armDelayedTriggerOnTap`). No card on this shape declares any of them —
+    // (`applyDrawCardOnTap`), Rainbow Vale's control-change arm
+    // (`armDelayedTriggerOnTap`) and the stackless Effect Script
+    // (`applyManaAbilityEffects`, issue #5509). No card on this shape declares
+    // any of them —
     // the other cost-side riders (exert, life, discard-at-random, counter
     // removal) are already paid by the shared chain ABOVE the split, and the
     // undo bookkeeping (`recordLifePaidOnTap`, `chosenMana`, the tap-bonus
     // stamp) is unreachable because `manaCommitted` refuses the untap. A card
-    // that ever combines one of the five with a filtered give-up cost needs
+    // that ever combines one of the six with a filtered give-up cost needs
     // them wired here; this comment is so that is not discovered silently.
     //
     // CR 605.3a (issue #2420) — this activation may itself have been FUNDING a
