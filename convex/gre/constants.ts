@@ -1131,7 +1131,7 @@ export function getProducibleColors(
     if (abilitiesSuppressed(card)) return colors;
     // CR 305.6 — intrinsic basic-land subtype abilities, one per basic land
     // type (text-change aware). Every type, never the first only (issue
-    // #5623): a Badlands could produce {B} AND {R} (CR 106.4 / 106.7).
+    // #5623): a Badlands could produce {B} AND {R} (CR 106.7).
     for (const intrinsic of getBasicLandManaColors(card)) {
         if (includeColorless || intrinsic !== "C") colors.add(intrinsic);
     }

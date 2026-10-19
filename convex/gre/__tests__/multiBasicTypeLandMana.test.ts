@@ -1,7 +1,7 @@
 // CR 305.6 — a land with TWO OR MORE basic land types has one intrinsic
 // "{T}: Add [mana symbol]" per type (issue #5623). The catalogue's typed duals
 // and Triomes carry no printed mana ability: every reader must see every
-// type, on every surface — the "could produce" read (CR 106.4 / 106.7) behind
+// type, on every surface — the "could produce" read (CR 106.7) behind
 // Fellwar Stone and the castability census, the Bot's payment planner, the
 // game.ts tap primitive, and the client's tap-choice prompt through the wire
 // projection.
@@ -57,7 +57,7 @@ describe("intrinsic mana of a land with two or more basic land types (CR 305.6)"
         expect(getManaTapOptions(badlands)).toEqual([{ B: 1 }, { R: 1 }]);
     });
 
-    it("could produce every type's colour (CR 106.4)", () => {
+    it("could produce every type's colour (CR 106.7)", () => {
         expect([...getProducibleColors(makeInstance(BADLANDS))]).toEqual([
             "B",
             "R",
@@ -89,7 +89,7 @@ describe("intrinsic mana of a land with two or more basic land types (CR 305.6)"
         expect([...getProducibleColors(mountain)]).toEqual(["R", "B"]);
     });
 
-    it("Fellwar Stone reads both colours of an opponent's Badlands (CR 106.4)", () => {
+    it("Fellwar Stone reads both colours of an opponent's Badlands (CR 106.7)", () => {
         const stone = makeInstance(FELLWAR_STONE, {
             id: "stone",
             controllerId: "p1",
