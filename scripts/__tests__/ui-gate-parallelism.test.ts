@@ -198,7 +198,7 @@ describe("collectRun (the receipt cannot tell what N was)", () => {
             surface: "game-board",
             cell: {
                 viewport,
-                signature: "function-timeout" as const,
+                signature: "deployment" as const,
                 load: 9,
                 reason: "backend timed out",
             },

@@ -49,7 +49,7 @@ bun run check:ui -- --serve=dev               # walk the Vite dev server instead
 
 **One browser run per machine** (issue #4687). Two `check:ui` runs on one
 machine share one local Convex backend, and contention there reads as UI
-failures (`function-timeout` cells, walks that fail on screens that render
+failures (`deployment` cells, walks that fail on screens that render
 fine). The lane takes a machine-wide lane lock before it boots a browser —
 `--scope-only` and an empty scope never queue — prints who it is waiting on
 and for how long, reclaims a dead or silent holder, and releases on every exit
@@ -199,12 +199,15 @@ deployment.
   the machine, not by the tree — a backend function past its execution limit,
   a server error, a navigation that never answered — recognised by its
   signature in the console and named on its verdict line by that signature
-  (`INFRA … function-timeout`), with the machine load and the reason in the
-  diagnostic block (`function-timeout, load 23.4 — …`). The lane retries
+  (`INFRA … deployment`), with the machine load and the reason in the
+  diagnostic block (`deployment, load 23.4 — …`). The lane retries
   the surface, waiting for the load to drop, before it stands; when it stands
   the surface is unproven, never failed, and never green — `land` refuses the
-  receipt. The signatures are `function-timeout`, `server-error`,
-  `navigation-timeout`, `step-timeout`, `unsettled` and `cell-deadline`
+  receipt. The signatures are `deployment` (a Convex `Server Error` or
+  `Function execution timed out` in the console: the backend failed, never
+  `unsettled`), `deployment-down` (a deployment probe failed while the
+  attempt ran — below), `navigation-timeout`, `step-timeout`, `unsettled` and
+  `cell-deadline`
   (`scripts/ui-gate/infra-verdict.ts`); each cell gets three attempts, and
   before each retry the lane waits for the 1-minute load average to drop
   under the CPU count (`TOLARIA_UI_GATE_LOAD_THRESHOLD` overrides it) — one
@@ -213,7 +216,22 @@ deployment.
   never moved) — ending and re-dealing its own game first when the surface
   plays in one. A
   signature that still fails with the load under that threshold is the walk's
-  own failure, and is reported as UNWALKED — except `cell-deadline`.
+  own failure, and is reported as UNWALKED — except `cell-deadline` and
+  `deployment-down`.
+- **Deployment down mid-run** (issue #6081). The lane probes the deployment
+  for the whole walk, not only at start: every 15s
+  (`TOLARIA_UI_GATE_PROBE_MS`) it asks `/version` and round-trips the
+  `users:currentUser` query, because an HTTP server can answer while the
+  function runner is wedged. One failed probe is logged
+  (`ui-gate: convex probe failed (1/2) — …`) and a success clears it; **two
+  consecutive** failed probes abort the run: the lane prints the viewports
+  still open, skips the account teardown (every `convex run` against a dead
+  backend would hold the lane up to 180s per account; the next run's sweep
+  collects them), and exits `3` (`DEPLOYMENT_DOWN_EXIT`) with no receipt —
+  the code the health gate already reads as `infra`. A backend that dies
+  mid-walk costs about two probe intervals, never 155 `unsettled` cells. A
+  cell attempt that failed while a probe did stands as `INFRA —
+deployment-down` at any load (`scripts/ui-gate/deployment-watch.ts`).
 - **Deadlines** (issue #4912). Every cell ATTEMPT — walk, settle, probe, axe,
   screenshot, assertions — runs under a wall-clock deadline (180s,
   `TOLARIA_UI_GATE_CELL_DEADLINE_MS`); past it the lane closes the page and
