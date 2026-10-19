@@ -47,7 +47,10 @@ jobs:
                   git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
             - uses: ./.github/actions/job-setup
             - name: check:lane (one flaky re-run)
-              run: bun run check:lane --json --retry-flaky > "$RUNNER_TEMP/lane.json"
+              # stderr teed to lane.log: a refusal leaves lane.json empty and
+              # its reason there, for the fixup step (issue #6003).
+              shell: bash
+              run: bun run check:lane --json --retry-flaky 2>&1 >"$RUNNER_TEMP/lane.json" | tee "$RUNNER_TEMP/lane.log"
             - name: Flakes in the job summary
               if: always()
               run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
@@ -57,7 +60,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   DRAFT: ${{ github.ref_name }}
-              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --draft "$DRAFT"
+              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --log "$RUNNER_TEMP/lane.log" --draft "$DRAFT"
             - name: Remove the job worktree
               if: always()
               shell: bash

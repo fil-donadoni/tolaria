@@ -427,6 +427,10 @@ dequeues the PR as `land-failed` meanwhile; the fixup's push hands it back
 (`ready-to-land`), and the queue re-checks it. Any other red stays a repair
 pick.
 
+A lane that REFUSES (a dirty or moved tree) exits before its JSON. The step
+tees its stderr to `lane.log`, and `classify --log lane.log` prints the
+refusal and dispatches nothing (issue #6003).
+
 ### pr-fixup
 
 `.github/workflows/pr-fixup.yml` + `scripts/pr-fixup.ts` (`bun run pr:fixup`):

@@ -15,6 +15,7 @@ import {
     outsideLane,
     parseFixes,
     queuedPrOfDraft,
+    readLaneVerdict,
     type PrFacts,
 } from "../pr-fixup";
 
@@ -451,5 +452,46 @@ describe("FIXUP_PUSHED_RE — what the land-runner reads back", () => {
         expect(FIXUP_PUSHED_RE.test("pr:fixup: PR #7 untouched — a fork")).toBe(
             false
         );
+    });
+});
+
+describe("readLaneVerdict — a refusal is reported, never a parse error (issue #6003)", () => {
+    const moved =
+        "check:lane: the tree moved under the lane — a lint-staged stash or a concurrent commit; re-run on a quiet tree (HEAD abc1234 → def5678)";
+
+    it("reads the JSON a lane that ran wrote", () => {
+        expect(readLaneVerdict('{"ok":false,"outcomes":[]}', "")).toEqual({
+            lane: { ok: false, outcomes: [] },
+        });
+    });
+
+    it("names the refusal from the lane's stderr when its JSON is empty", () => {
+        const v = readLaneVerdict(
+            "",
+            `$ bun scripts/check-lane.ts\n${moved}\n`
+        );
+        expect(v).toEqual({
+            refused: moved.slice("check:lane: ".length),
+        });
+    });
+
+    it("never reports a --retry-flaky progress line as the refusal", () => {
+        const log = [
+            moved,
+            "check:lane: app failed (assertion) — re-running 1 file(s) once (issue #5640)",
+            "check:lane: flaky — green on the re-run: a.test.ts",
+        ].join("\n");
+        expect(readLaneVerdict("", log)).toEqual({
+            refused: moved.slice("check:lane: ".length),
+        });
+    });
+
+    it("a truncated blob is no verdict either", () => {
+        expect(readLaneVerdict('{"ok":fa', moved)).toHaveProperty("refused");
+    });
+
+    it("with no log it still refuses by name, pointing at the step log", () => {
+        const v = readLaneVerdict("", "");
+        expect("refused" in v && v.refused).toMatch(/no JSON verdict/);
     });
 });

@@ -1311,12 +1311,31 @@ export function contentClasses(
     return out;
 }
 
+/**
+ * The stash list from one `git stash list` run, "" when the read failed
+ * (issue #6003). The stash only NAMES a cause in `treeMoved`, and another
+ * worktree dropping the last entry races this read into `fatal: bad
+ * revision 'refs/stash'` — a crash there redded a job worktree's lane as
+ * surely as the stash comparison #5993 removed.
+ */
+export function stashListOf(r: {
+    status: number | null;
+    stdout: string;
+}): string {
+    return r.status === 0 ? r.stdout : "";
+}
+
 /** One instant of the working tree. Thin plumbing; `treeMoved` decides. */
 function snapshotTree(cwd: string): TreeSnapshot {
     return {
         head: git(["rev-parse", "--short", "HEAD"], cwd).trim(),
         status: git(["status", "--porcelain"], cwd),
-        stash: git(["stash", "list", "--format=%gs"], cwd),
+        stash: stashListOf(
+            spawnSync("git", ["stash", "list", "--format=%gs"], {
+                encoding: "utf8",
+                cwd,
+            })
+        ),
     };
 }
 
