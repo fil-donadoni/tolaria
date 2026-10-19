@@ -7,6 +7,7 @@
 // the canonical LEA Mountain are the 15 the art grid shows:
 // `lea×2, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3`.
 import { type BasicLandPrintRow } from "~/components/deckbuilder/basicLands";
+import { resolveCardViaDefinitionIds } from "@convex/formats";
 
 export const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56";
 export const LEB_MOUNTAIN_PRINT = "7af9c715-8d72-4eae-b412-fc89138ff588";
@@ -78,4 +79,38 @@ export function useBasicLandPreferenceRowsStub(
         rows: MOUNTAIN_PRINT_ROWS.filter((row) => stored.has(row.printId)),
         loading: false,
     };
+}
+
+const printRowsByQuery = new Map<string, unknown[]>();
+
+/** Stands in for `useQuery(api.cardPrints.getByPrintIds, …)` — the deck
+ *  builders' print resolver (`useDeckPrintResolver`, issue #5550): the
+ *  Mountain rows the asked-for Print IDs name, as full `cardPrints` rows;
+ *  `undefined` (loading / skipped) for any other query. One array per id set,
+ *  like Convex's stable query results — a fresh one per render would re-arm
+ *  the hook's `lastRows` state on every render. */
+export function getByPrintIdsStub(_query: unknown, args: unknown) {
+    if (typeof args !== "object" || args === null || !("printIds" in args)) {
+        return undefined;
+    }
+    const printIds = (args as { printIds: string[] }).printIds;
+    const key = [...printIds].sort().join(",");
+    let rows = printRowsByQuery.get(key);
+    if (rows === undefined) {
+        const wanted = new Set(printIds);
+        rows = MOUNTAIN_PRINT_ROWS.filter((row) => wanted.has(row.printId)).map(
+            (row) => ({ ...row, rarity: "common" as const })
+        );
+        printRowsByQuery.set(key, rows);
+    }
+    return rows;
+}
+
+/** Stands in for `useDeckPrintResolver` in a test that mocks hooks, not
+ *  `convex/react`: the rows query still loading, so the resolver is the
+ *  hook's own fallback over the entries' `definitionId`s. */
+export function useDeckPrintResolverStub(
+    entries: readonly { cardId: string; definitionId?: string }[]
+) {
+    return resolveCardViaDefinitionIds(entries);
 }
