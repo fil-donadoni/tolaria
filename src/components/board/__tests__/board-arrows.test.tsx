@@ -333,13 +333,34 @@ describe("BoardArrows — arrows never capture pointer events (issue #5853)", ()
     });
 
     it("arrow hover wins over a hovered card; away from the arrow the card seed is back", () => {
-        const { getByTestId } = renderHoverBoard(HOVER_STACK, HOVER_ANCHORS);
+        // A second, far-away relationship s2 → bear, seeded by hovering bear.
+        const { getByTestId } = renderHoverBoard(
+            [
+                ...HOVER_STACK,
+                stackItem("s2", [{ type: "permanent", id: "bear" }]),
+            ],
+            [
+                ...HOVER_ANCHORS,
+                { kind: "stack", id: "s2", point: { x: 0, y: 500 } },
+                { kind: "permanent", id: "bear", point: { x: 200, y: 500 } },
+            ]
+        );
         const root = getByTestId("board-root");
-        // "bear" has no relationship: its own seed resolves to nothing.
         fireEvent.pointerEnter(getByTestId("card-bear"));
+        expect(getByTestId("nodes").textContent).toBe("bear,s2");
         fireEvent.pointerMove(root, { clientX: 100, clientY: 18 });
         expect(getByTestId("nodes").textContent).toBe("perm,s1");
         fireEvent.pointerMove(root, { clientX: 100, clientY: 60 });
+        expect(getByTestId("nodes").textContent).toBe("bear,s2");
+    });
+
+    it("ignores touch moves (no hover on touch, no stuck highlight on lift)", () => {
+        const { getByTestId } = renderHoverBoard(HOVER_STACK, HOVER_ANCHORS);
+        fireEvent.pointerMove(getByTestId("board-root"), {
+            clientX: 100,
+            clientY: 18,
+            pointerType: "touch",
+        });
         expect(getByTestId("nodes").textContent).toBe("none");
     });
 

@@ -129,6 +129,9 @@ export default function BoardArrows({
         const root = svgRef.current?.parentElement;
         if (!root) return;
         const onMove = (e: PointerEvent) => {
+            // Touch has no hover and no leave on lift: a drag would light an
+            // arrow and leave it lit.
+            if (e.pointerType === "touch") return;
             const rect = svgRef.current?.getBoundingClientRect();
             if (!rect) return;
             const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
