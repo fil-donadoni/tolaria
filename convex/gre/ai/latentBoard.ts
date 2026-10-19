@@ -30,15 +30,20 @@
 // requirements, board contents and the fitted weights.
 import type {
     CardDefinition,
+    Color,
     EffectCardFilter,
     EffectCountSpec,
     EffectForEachSelector,
+    EffectManaPool,
     EffectPlayerRef,
     EffectValue,
     PermanentView,
     TargetRequirement,
 } from "../../cards/types";
 import { countDomain } from "../../cards/types";
+import { getInstanceManaCost } from "../../cards";
+import { boardCensusFor, canPayCost } from "../manaAvailability";
+import { MANA_COLORS } from "../manaColors";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import {
     matchesPermanentFilter,
@@ -575,7 +580,49 @@ function boardSide(
             for (const loss of losses.slice(0, count)) taken += loss;
             return taken / denominator;
         },
+        manaUnits(mana) {
+            // A hidden hand has no costs to read: the side is unreadable.
+            if (player.hand.some(isPlaceholder)) {
+                unreadable = true;
+                return 0;
+            }
+            answered = true;
+            return spendableExtraMana(state, player, valuedCardId, mana);
+        },
     };
+}
+
+/** Issue #5626 — the units of `mana` (`EachPlayerSide.manaUnits`) one card
+ *  of `player`'s hand spends on top of its whole mana base: for each card
+ *  the base cannot pay for alone, the fewest units of the extra that let it;
+ *  the largest such count over the hand. */
+function spendableExtraMana(
+    state: GameState,
+    player: PlayerState,
+    valuedCardId: string,
+    mana: EffectManaPool
+): number {
+    const base = boardCensusFor(state, player).base;
+    const extra: ReadonlySet<Color>[] = [];
+    for (const color of MANA_COLORS) {
+        for (let i = 0; i < (mana[color] ?? 0); i++) {
+            extra.push(new Set<Color>([color]));
+        }
+    }
+    const life = { life: player.life };
+    let spent = 0;
+    for (const c of player.hand) {
+        if (c.id === valuedCardId) continue;
+        const cost = getInstanceManaCost(c);
+        if (canPayCost(base, cost, life)) continue;
+        for (let k = 1; k <= extra.length; k++) {
+            if (canPayCost([...base, ...extra.slice(0, k)], cost, life)) {
+                spent = Math.max(spent, k);
+                break;
+            }
+        }
+    }
+    return spent;
 }
 
 /** Issue #5559 — `value` grounded on the board with `$each` bound to

@@ -599,17 +599,16 @@ export function dslRealizedAbilityValueById(
      *  Machines): its creature face then reads the engine by the same
      *  Differential Reading its non-creature board face takes
      *  (`dslLatentPieces` → `engineLensOf`), so animating it never makes the
-     *  engine vanish. A printed creature's triggers take no lens (issue
-     *  #5151's scope). Lazy: building the lens is a board walk every other
-     *  creature at every leaf must not pay. */
+     *  engine vanish. Issue #5626 — a PRINTED creature's engine (Magus of
+     *  the Vineyard) reads the board too: without it the engine reads
+     *  nothing on the creature face (ADR 0151 §1); its firings keep weight 1
+     *  (issue #5151's scope). Lazy: building the lens is a board walk every
+     *  other creature at every leaf must not pay. */
     board?: () => LatentLens | undefined
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def) return 0;
-    const lens =
-        board && !def.types.includes("Creature") && carriesEachStepEngine(def)
-            ? board()
-            : undefined;
+    const lens = board && carriesEachStepEngine(def) ? board() : undefined;
     return dslRealizedAbilityScriptValue(
         def,
         contextFreeGrounding(latent),

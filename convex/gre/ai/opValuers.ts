@@ -29,6 +29,7 @@
 
 import type {
     EffectOp,
+    EffectManaPool,
     EffectMoveZone,
     EffectPlayerRef,
     EffectPredicate,
@@ -762,9 +763,26 @@ function stepSideOpValue(
         case "dealDamage":
             // CR 120.3a — damage dealt to a player causes that much life loss.
             return stepSideLife(op.amount, -1, side, ctx);
+        case "addMana":
+            return stepSideMana(op.mana, side, ctx);
         default:
             return valueOp(op, ctx);
     }
+}
+
+/** Issue #5626 — mana added to the scoped player's pool, priced at the
+ *  `addMana` valuer's own `ramp` unit for the part of it that player's hand
+ *  spends (`EachPlayerSide.manaUnits`), signed by whose side it is. */
+function stepSideMana(
+    mana: EffectManaPool,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    const units = side.manaUnits(mana);
+    return {
+        points: priced(ctx, "ramp", side.own ? units : -units),
+        tags: ["ramp"],
+    };
 }
 
 /** Issue #5574 — life gained (`direction` 1) or lost (-1) by the scoped
@@ -808,9 +826,19 @@ function sideDraw(
  *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`).
  *  Every Op must name the scoped player — one naming a fixed player would be
  *  counted once per side; anything else is fail-closed. Issue #5574 — a life
- *  amount may be a board count (`isStepGroundableAmount`), grounded per side. */
+ *  amount may be a board count (`isStepGroundableAmount`), grounded per side.
+ *  Issue #5626 — mana added to that player's pool, of the CR 106.4 default
+ *  lifetime, priced off its hand (`EachPlayerSide.manaUnits`) as mana spent
+ *  in its main phase: every shipped shape fires at the beginning of one
+ *  (CR 505.1). */
 function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
+        case "addMana":
+            return (
+                op.player !== undefined &&
+                isStepPlayerRef(op.player) &&
+                op.persistsUntil === undefined
+            );
         case "choice":
             return isEachPlayerEdictChoice(op, isStepPlayerRef);
         case "sacrifice":
