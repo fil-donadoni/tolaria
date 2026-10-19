@@ -104,6 +104,7 @@ const ZERO_TERMS: Record<keyof EvalTerms, number> = {
     colorCoverage: 0,
     flexibility: 0,
     library: 0,
+    poison: 0,
     graveyard: 0,
     graveyardReach: 0,
 };

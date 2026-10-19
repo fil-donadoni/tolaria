@@ -495,6 +495,13 @@
             "needsSetup": false
         }
     ],
+    "Savannah Lions": [
+        {
+            "label": "poison-lethal: chump-blocks the infect attacker whose damage is the tenth poison counter (issue #5153)",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Seal of Doom": [
         {
             "label": "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
@@ -632,6 +639,18 @@
             "label": "reachability: counters an opponent's land-targeting activation with Teferi's Response",
             "tier": "stretch",
             "needsSetup": true
+        }
+    ],
+    "Terror": [
+        {
+            "label": "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "poison clock: Terror takes the infect Grizzly Bears over the bigger Hill Giant at seven poison (issue #5153)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Thassa's Oracle": [

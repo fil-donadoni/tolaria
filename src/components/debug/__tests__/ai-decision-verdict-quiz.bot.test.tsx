@@ -72,6 +72,7 @@ const ZERO_TERMS: EvalTerms = {
     colorCoverage: 0,
     flexibility: 0,
     library: 0,
+    poison: 0,
     graveyard: 0,
     graveyardReach: 0,
 };
