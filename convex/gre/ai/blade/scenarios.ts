@@ -6281,8 +6281,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // with the opponent at 2 life where it would be lethal.
         //
         // What it guards: `enumerateAbilityMoves` (`gre/moves.ts`) evaluates
-        // the `canActivate` closure through `activationPreconditionViolation`,
-        // the predicate the mutation reads. Drop that evaluation and the move is
+        // the printed restriction — since issue #3685 the declarative
+        // `activationCondition`, before it a `canActivate` closure — through
+        // `activationPreconditionViolation`, the predicate the mutation reads. Drop that evaluation and the move is
         // offered with the restriction failing — a move the server refuses.
         label: "activation restriction: does not sacrifice Barbarian Ring below threshold",
         classification: {
