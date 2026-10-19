@@ -4138,36 +4138,6 @@ export function drainAutoPasses(state: GameState): void {
             (state.pendingChoices?.length ?? 0) > 0;
         if (owesInput) return;
 
-        // CR 704.3 / 117.5 — this seat WOULD get priority, so state-based
-        // actions are checked first, whether it then passes (an auto-pass
-        // below) or keeps the window (every `break` below hands it back to a
-        // caller that may persist the state). Without it a creature dealt
-        // lethal damage by a resolution — the caller's, or one this loop ran —
-        // stayed on the battlefield at that stable point (issue #5784; finding
-        // 3026). A check that raised input (a legend-rule keep, a targeted
-        // trigger) ends the drain; one that put triggers on the stack re-seated
-        // priority (`placeTriggersOnStack`), so the loop re-reads the holder,
-        // and a single-shot pass parked for the old one is spent: it was for
-        // the window before those triggers existed.
-        const holderBefore = state.priorityPlayerId;
-        const passCountBefore = state.passCount;
-        checkStateBasedActions(state);
-        if (state.gameOver) return;
-        // Through a local, as `owesInput` above: no narrowing of
-        // `state.pendingChoices` for the resolution guards below.
-        const sbaRaisedInput: boolean =
-            state.pendingTarget !== undefined ||
-            (state.pendingChoices?.length ?? 0) > 0;
-        if (sbaRaisedInput) return;
-        if (
-            state.priorityPlayerId !== holderBefore ||
-            state.passCount !== passCountBefore
-        ) {
-            if (state.singleShotAutoPass === holderBefore)
-                state.singleShotAutoPass = undefined;
-            continue;
-        }
-
         // Pass Until Action stop (issue #5782): priority has reached a seat
         // whose soft pass was waiting for the opponent to act, and a new
         // opponent-controlled object (CR 113.8 — a spell, an activated
@@ -4196,6 +4166,36 @@ export function drainAutoPasses(state: GameState): void {
         )
             break;
 
+        // CR 704.3 — this seat WOULD get priority, so state-based actions are
+        // checked before its pass is taken, exactly as the mutation path checks
+        // them before a human holder acts. Without it a run of auto-passed
+        // resolutions saw no SBA until the run ended: a creature dealt lethal
+        // damage by the first resolution stayed on the battlefield through the
+        // next one (issue #5784; finding 3026). A check that raised input (a
+        // legend-rule keep, a targeted trigger) ends the drain; one that put
+        // triggers on the stack (CR 117.5) re-seated priority
+        // (`placeTriggersOnStack`), so the loop re-reads the holder rather
+        // than passing on a stale one.
+        const holderBefore = state.priorityPlayerId;
+        const passCountBefore = state.passCount;
+        checkStateBasedActions(state);
+        if (state.gameOver) return;
+        // Through a local, as `owesInput` above: no narrowing of
+        // `state.pendingChoices` for the resolution guards below.
+        const sbaRaisedInput: boolean =
+            state.pendingTarget !== undefined ||
+            (state.pendingChoices?.length ?? 0) > 0;
+        if (sbaRaisedInput) return;
+        if (
+            state.priorityPlayerId !== holderBefore ||
+            state.passCount !== passCountBefore
+        ) {
+            // The parked single-shot pass was for the window before these
+            // triggers existed; it is spent, never carried over them.
+            if (state.singleShotAutoPass === holderBefore)
+                state.singleShotAutoPass = undefined;
+            continue;
+        }
         if (singleShot) state.singleShotAutoPass = undefined;
 
         // Auto-confirm attackers with current selection when auto-passing
@@ -4325,6 +4325,14 @@ export function drainAutoPasses(state: GameState): void {
             }
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;
+            // CR 704.3 — the active player would get priority now. The check
+            // before an auto-pass (above) never runs for a holder who KEEPS
+            // the window, and the drain then hands this state back to a
+            // caller that may persist it: a creature this resolution dealt
+            // lethal damage must already be gone (issue #5784). Input it
+            // raises stops the next iteration at its `owesInput` guard.
+            checkStateBasedActions(state);
+            if (state.gameOver) return;
         } else if (state.passCount >= 2 && state.stack.length === 0) {
             advancePhase(state);
             // An auto-phase entry may have suspended on a pending choice (CR
