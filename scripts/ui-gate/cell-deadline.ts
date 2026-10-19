@@ -129,6 +129,12 @@ export interface CellAttemptDeps<T> {
     sleep: (ms: number) => Promise<void>;
     /** Printed in the deadline message: `<surface> @ <viewport>`. */
     where: string;
+    /** The deployment watch (issue #6081): did a probe fail at or after this
+     *  instant? An attempt that failed while one did is `deployment-down`. */
+    deployment?: {
+        now: () => number;
+        failedSince: (sinceMs: number) => boolean;
+    };
 }
 
 /**
@@ -142,6 +148,7 @@ export async function runCellAttempts<T>(
 ): Promise<CellOutcome<T>> {
     const { policy } = deps;
     for (let attempts = 1; ; attempts++) {
+        const startedAt = deps.deployment?.now() ?? 0;
         try {
             const result = await withDeadline(
                 deps.attempt,
@@ -158,6 +165,8 @@ export async function runCellAttempts<T>(
             const failure = classifyWalkFailure({
                 message,
                 consoleErrors: deps.attemptConsole(),
+                deploymentDown:
+                    deps.deployment?.failedSince(startedAt) ?? false,
             });
             if (failure.kind === "UNWALKED") {
                 return { kind: "UNWALKED", reason };
