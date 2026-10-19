@@ -140,6 +140,11 @@
             "needsSetup": false
         },
         {
+            "label": "each-step mill: Disenchant takes the Worry Beads milling the bot's four-card library, not the 2-MV artifact (issue #5625)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "each-step random discard: Disenchant takes the Bottomless Pit that empties only the bot's hand, not the 2-MV artifact (issue #5624)",
             "tier": "must",
             "needsSetup": false
