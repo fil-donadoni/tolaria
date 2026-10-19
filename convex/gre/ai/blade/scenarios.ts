@@ -11684,22 +11684,32 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             cards: [
                 { name: "Stingcaster Mage", owner: "me", zone: "hand" },
                 { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                // Issue #5083 — the opponent's lethal attacker. Without it a
+                // pass lost nothing: the next turn's main phase held the same
+                // cast for the same win, so the edges tied and the pick was
+                // `material-tiebreak` by rollout order.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
-            phase: "PRECOMBAT_MAIN",
+            // The last main phase: Stingcaster Mage has haste, not flash, so
+            // a precombat pass reached the postcombat main with the same cast
+            // open (issue #4981's shape).
+            phase: "POSTCOMBAT_MAIN",
             turn: 5,
             landCount: 4,
             libraryCount: 20,
-            life: { opp: 3 },
+            life: { me: 3, opp: 3 },
         },
         bot: "me",
         budget: { iterations: 400 },
-        // Re-seeded 3 → 5 on issue #4896's refit: a noise pin (17/20 seeds
-        // cast on the refit vector, 19/20 on the one before; every miss is a
-        // `material-tiebreak` — a flash body can equally be cast later).
-        seeds: [0xb1ade, 1, 2, 5, 4],
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Stingcaster Mage" }] },
-        note: "Issue #4895 (issue #4758 review). The ETB grants the graveyard Bolt flashback (CR 702.34a); the Bolt is lethal. Measured cast on 5/5 seeds. The hold-with-an-empty-graveyard half of the Snapcaster family is issue #4217.",
+        note: "Issue #4895 (issue #4758 review). The ETB grants the graveyard Bolt flashback (CR 702.34a); the Bolt is lethal. Re-cut on issue #5083 onto a position decided by mean reward: the last main phase, with the opponent's Hill Giant lethal on its own turn, so passing loses and only the cast wins. The hold-with-an-empty-graveyard half of the Snapcaster family is issue #4217.",
     },
     {
         label: "pay-to-keep ETB: holds Mold Demon with one Swamp",
