@@ -16,6 +16,7 @@ import {
     manaGateBattlefields,
 } from "../constants";
 import { getProducibleManaOptions } from "../rules";
+import { buildAutoTapSources } from "../autoTap";
 import { beginApplyingStaticEffects } from "../state";
 import { tapSourceIntoPayment } from "../../game";
 import {
@@ -145,5 +146,26 @@ describe("game.ts tap primitive on a typed dual (CR 305.6 / 605.3a)", () => {
             tapSourceIntoPayment(state, player, badlands, undefined, [])
         ).toThrow(/choose/i);
         expect(badlands.isTapped).toBe(false);
+    });
+});
+
+describe("auto-tap planner on an animated typed dual (CR 302.6 / 305.6)", () => {
+    // Kormus Bell / Living Lands make a dual a creature; its mana is intrinsic
+    // (no printed ability), and a summoning-sick creature cannot pay {T}.
+    function animatedBadlands(isSummoningSick: boolean) {
+        return makeInstance(BADLANDS, {
+            id: "badlands",
+            controllerId: "p1",
+            types: ["Land", "Creature"],
+            isSummoningSick,
+        });
+    }
+
+    it("never offers a summoning-sick animated dual", () => {
+        expect(buildAutoTapSources([animatedBadlands(true)])).toEqual([]);
+    });
+
+    it("offers it once it is no longer summoning sick", () => {
+        expect(buildAutoTapSources([animatedBadlands(false)])).toHaveLength(1);
     });
 });
