@@ -35,19 +35,12 @@ queue_rules:
           - -label=land-failed
           - check-success=trusted-author
           - check-success=base-health
-          # `land`'s refusals, one `pr-check` job each (issue #5639): they pass
-          # on a PR they do not concern, so requiring them costs nothing
-          # (issue #5960).
-          - check-success=ui-receipt
-          - check-success=scenario
-          - check-success=retired-rows
-          - check-success=robustness-baseline
-          - check-success=repair-proof
           - -files~=^\.github/
           - -files=.mergify.yml
       # The queue's draft (the PR rebased onto the tip) owes only the lane;
-      # the entry gates were proven on the PR itself, and Mergify's draft PRs
-      # carry no `trusted-author` of their own.
+      # the entry gates were proven on the PR itself. Mergify re-checks the
+      # entry conditions' checks on the draft while a PR is queued, so
+      # `pr-gate` posts both green on a draft (issue #5978).
       merge_conditions:
           - check-success=queue-lane
       # No batches: at a 15 % red rate a batch holds a bad PR more often than
@@ -72,9 +65,11 @@ pull_request_rules:
                   **merge queue: dequeued (`{{ queue_dequeue_reason }}`)** — labelled `land-failed`.
 
                   The failing check: [`queue-lane` runs on the queue's drafts](https://github.com/fil-donadoni/tolaria/actions/workflows/queue-lane.yml?query=branch%3Amergify%2Fmerge-queue) — the run on this PR's draft is the one linked from Mergify's dequeue comment above.
-    # An unmet queue condition is no dequeue — Mergify only waits — so a PR
-    # whose `land` refusal is red would sit with no merger and no signal
-    # (issue #5960). The same repair pick as a dequeue.
+    # `land`'s refusals cannot be queue conditions: Mergify judges those on
+    # the queue's draft, whose body is Mergify's, so the four that read the
+    # PR body would dequeue every PR (issue #5978). `land:ready` runs them
+    # before the hand-off (issue #5956); one red after it (a body edit, a
+    # push) is the same repair pick as a dequeue (issue #5960).
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=queue:shadow

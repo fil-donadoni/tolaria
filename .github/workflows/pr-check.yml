@@ -6,8 +6,9 @@
 # The `land` refusals run here too, one job per check (issue #5639): the
 # check:ui receipt, the preset scenario, the retired rows, the robustness
 # baseline and the repair proof — `scripts/pr-checks.ts`, the same pure
-# functions `land` calls. The Mergify queue requires them (`queue_conditions`,
-# issue #5960); four read the PR body, so an `edited` event re-runs them.
+# functions `land` calls. A red one on a queue PR makes it a repair pick
+# (`.mergify.yml`, issue #5960); four read the PR body, so an `edited` event
+# re-runs them.
 #
 # GitHub-hosted on purpose: a `pull_request` can come from a fork, and no job
 # an outsider can trigger ever reaches the owner's machines (the structure

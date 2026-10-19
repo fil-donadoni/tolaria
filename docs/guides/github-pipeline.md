@@ -329,13 +329,17 @@ was moved or deleted by the repair — it cannot decide, and `land` stays the
 authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
 (closing none of the ledger's `/health-fix` issues) owes nothing to it.
 
-The Mergify queue requires the five (`queue_conditions`, issue #5960); their
-contexts are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
-`robustness-baseline` and `repair-proof`. Four read the PR body, so `pr-check`
-also runs on `edited`: fixing a body re-runs them. An unmet queue condition is
-no dequeue (Mergify only waits), so a refusal red on a `queue:shadow` PR
-labels it `land-failed` through its own `pull_request_rules` entry, the same
-repair pick as a dequeue. The refusals judge the PR's merge ref at its last
+The five are not queue conditions: Mergify judges those on the queue's
+draft, whose body is Mergify's, so the four that read the PR body would be
+red there and dequeue every PR ([the merge queue](#the-merge-queue), issue
+#5978). They hold at two points instead. `land:ready` runs them before the
+hand-off (issue #5956). After it, a refusal red on a `queue:shadow` PR (its
+body edited, a push) labels it `land-failed` through `.mergify.yml`'s own
+`pull_request_rules` entry, the same repair pick as a dequeue, and
+`-label=land-failed` takes it out of the queue (issue #5960). Their contexts
+are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
+`robustness-baseline` and `repair-proof`; four read the PR body, so
+`pr-check` also runs on `edited`. The refusals judge the PR's merge ref at its last
 push or edit, never the queue's rebased draft: against a base that moved
 since, `repair-proof` and `robustness-baseline` can be stale, which the
 migration accepts (`land`, on the land-runner path, still checks the rebased
@@ -1009,7 +1013,7 @@ the queue admits. The land-runner lands the rest: a PR touching `.github/` or
 | Rule                       | Value                                                                                                                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=queue:shadow` and `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                         |
-| Entry (`queue_conditions`) | `queue:shadow`, `ready-to-land`, no `land-failed`, [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, `land`'s five [refusals](#required-checks) green, no file under `.github/`, no `.mergify.yml`                 |
+| Entry (`queue_conditions`) | `queue:shadow`, `ready-to-land`, no `land-failed`, [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                                                                   |
 | Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR, and Mergify's draft PRs carry no `trusted-author` of their own                                                                  |
 | Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                         |
 | Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                           |
