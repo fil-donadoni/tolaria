@@ -5740,11 +5740,11 @@ export function removeLoyaltyForDamage(
  *  CR 615 prevention pipeline but uses an arbitrary creature as the source —
  *  the building block a "fight" needs, where each creature is the source of
  *  the damage it deals. Damage is *marked only* here (CR 120.3); lethal /
- *  destroy (CR 704.5g) is deliberately deferred to the caller so two halves
- *  of a fight can both be marked before either creature is destroyed
- *  (CR 701.14 — the damage is dealt simultaneously). Returns the target id if
- *  it now has lethal marked damage, else null. No-op (returns null) if the
- *  source or target has left the battlefield or the target isn't damageable. */
+ *  destroy (CR 704.5g) is the SBA pass's (`checkLethalDamageSBA`, issue
+ *  #5784), so two halves of a fight are both marked before either creature
+ *  dies (CR 701.14 fight — the damage is dealt simultaneously). No-op if the
+ *  source or target has left the battlefield or the target isn't
+ *  damageable. */
 function markDamageFromPermanentSource(
     state: GameState,
     source: CardInstanceState,
@@ -5755,8 +5755,8 @@ function markDamageFromPermanentSource(
     forcedUnredirectable: boolean = false,
     /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
     replacementsSpent: boolean = false
-): string | null {
-    if (amount <= 0) return null;
+): void {
+    if (amount <= 0) return;
     // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's target-bound lock. ORed
     // with whatever the CALLER already locked (Lava Burst's rider arriving via
     // a redirect, say): the two are independent sources of the same override
@@ -5781,18 +5781,12 @@ function markDamageFromPermanentSource(
         unredirectable,
         replacementsSpent
     );
-    if (replaced === null) return null;
+    if (replaced === null) return;
     // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
-    // redirect, dealt as their own events from the same permanent source. A
-    // remainder that turns out to be lethal is reported when the PRIMARY half
-    // is not itself lethal: the contract is one id, so when both halves kill
-    // something the caller destroys the primary's and the other creature dies
-    // at the next SBA pass instead of simultaneously (CR 701.14, CR 704.5g).
-    // Reachable only with a redirect shield up during a fight.
-    let residualLethal: string | null = null;
+    // redirect, dealt as their own events from the same permanent source.
     for (const rest of replaced.residuals ?? []) {
         if (rest.target.type === "permanent") {
-            const lethal = markDamageFromPermanentSource(
+            markDamageFromPermanentSource(
                 state,
                 source,
                 sourceControllerId,
@@ -5803,7 +5797,6 @@ function markDamageFromPermanentSource(
                 // CR 614.5 — the CR 614 layer is spent on this event.
                 true
             );
-            if (lethal !== null) residualLethal = lethal;
         } else {
             dealDamageFromPermanentToPlayer(
                 state,
@@ -5819,7 +5812,7 @@ function markDamageFromPermanentSource(
     }
     const finalTarget = replaced.target;
     const finalAmount = replaced.amount;
-    if (finalAmount <= 0) return residualLethal;
+    if (finalAmount <= 0) return;
     if (finalTarget.type !== "permanent") {
         // A replacement redirected the damage to a player (e.g. Personal
         // Incarnation). Apply it through the same player-damage shaping the
@@ -5831,7 +5824,7 @@ function markDamageFromPermanentSource(
             !unpreventable &&
             consumePreventionIfAny(state, source.id, finalTarget.id)
         )
-            return residualLethal;
+            return;
         let reduced = unpreventable
             ? finalAmount
             : applyPlayerDamagePrevention(
@@ -5841,11 +5834,11 @@ function markDamageFromPermanentSource(
                   desc.staticAbilities,
                   finalAmount
               );
-        if (reduced <= 0) return residualLethal;
+        if (reduced <= 0) return;
         reduced = unpreventable
             ? reduced
             : applyTargetPrevention(state, "player", finalTarget.id, reduced);
-        if (reduced <= 0) return residualLethal;
+        if (reduced <= 0) return;
         // CR 702.90b — infect turns the redirected player damage into poison
         // counters (issue #1565: this sink used to lose the infect leg outright).
         if (
@@ -5886,11 +5879,11 @@ function markDamageFromPermanentSource(
             desc.staticAbilities,
             reduced
         );
-        return residualLethal;
+        return;
     }
     const found = findOnBattlefield(state, finalTarget.id);
-    if (!found) return residualLethal;
-    if (!isDamageablePermanent(found.card)) return residualLethal;
+    if (!found) return;
+    if (!isDamageablePermanent(found.card)) return;
     // CR 702.16e: damage from a source with the named quality to a permanent
     // with protection is prevented.
     // The source is an explicit BATTLEFIELD PERMANENT (a fight combatant, a
@@ -5900,7 +5893,7 @@ function markDamageFromPermanentSource(
     // leg is bypassed; can't-be-blocked / can't-be-targeted / can't-be-attached
     // (CR 702.16b–d) are enforced elsewhere and untouched.
     if (!unpreventable && isProtectedFromSource(found.card, source, false))
-        return residualLethal;
+        return;
     const reduced = unpreventable
         ? finalAmount
         : applyTargetPrevention(
@@ -5909,11 +5902,10 @@ function markDamageFromPermanentSource(
               finalTarget.id,
               finalAmount
           );
-    if (reduced <= 0) return residualLethal;
+    if (reduced <= 0) return;
     // CR 120.3 / 704.5i — damage dealt to a planeswalker removes that many
     // loyalty counters instead of being marked (a planeswalker has no
-    // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`),
-    // never a lethal-damage return here.
+    // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`).
     const pw = isPlaneswalker(found.card);
     const desc = describeDamageSource(state, source.id);
     if (pw) {
@@ -5960,14 +5952,10 @@ function markDamageFromPermanentSource(
         desc.staticAbilities,
         reduced
     );
-    if (pw) return residualLethal;
+    if (pw) return;
     // CR 702.2b — deathtouch: nonzero damage from a deathtouch source marks the
     // creature for destruction as an SBA (CR 704.5h).
     markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
-    return (found.card.damageMarked ?? 0) >=
-        getEffectiveToughness(state, found.card)
-        ? finalTarget.id
-        : residualLethal;
 }
 
 /** Generic Fight primitive (CR 701.14-style mutual damage). Two creatures
@@ -5979,9 +5967,9 @@ function markDamageFromPermanentSource(
  *  in the existing toolkit was that `dealDamage` always sources damage from
  *  the resolving stack item, so this composes `markDamageFromPermanentSource`
  *  (the new arbitrary-source damage helper) twice. Both powers are snapshotted
- *  BEFORE any damage is marked, and lethal/destroy is run only AFTER both
- *  halves are marked — so a creature that dies to the fight still deals its
- *  full damage (CR 701.14, 510.4-style simultaneity; CR 704.5g lethal).
+ *  BEFORE any damage is marked, and lethal/destroy is the SBA pass's, after
+ *  both halves are marked — so a creature that dies to the fight still deals
+ *  its full damage (CR 701.14, 510.4-style simultaneity; CR 704.5g lethal).
  *
  *  CR 701.14b — a no-op WHOLE (neither half) when either creature has left
  *  the battlefield or is no longer a creature (last-known information is
@@ -6002,25 +5990,21 @@ export function resolveFight(
     // so neither power is affected by the other's damage.
     const powerA = getEffectivePower(state, a.card);
     const powerB = getEffectivePower(state, b.card);
-    // Mark both halves before any lethal SBA so simultaneity holds.
-    const lethalB = markDamageFromPermanentSource(
+    // Mark both halves; CR 704.5g lethal is the SBA pass's (issue #5784).
+    markDamageFromPermanentSource(
         state,
         a.card,
         a.card.controllerId,
         creatureBId,
         powerA
     );
-    const lethalA = markDamageFromPermanentSource(
+    markDamageFromPermanentSource(
         state,
         b.card,
         b.card.controllerId,
         creatureAId,
         powerB
     );
-    // CR 704.5g — now resolve lethal for whichever creature(s) took lethal
-    // damage, through the destroy replacement (regeneration, ADR 0125).
-    if (lethalB !== null) destroyWithReplacements(state, lethalB);
-    if (lethalA !== null) destroyWithReplacements(state, lethalA);
 }
 
 /** Replacement-aware tap (CR 701.26a, 614). Runs the tap replacement loop
@@ -6803,6 +6787,9 @@ export function removePermanentTo(
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
                 combatPartnerIds: snapshotCombatPartners,
+                ...(lkiAttachments.length > 0
+                    ? { attachmentsBeforeLeave: lkiAttachments }
+                    : {}),
             },
         ];
         // Running tally of creatures that have died this turn. Read by
@@ -11517,8 +11504,7 @@ export function buildSpellContext(
                 ) {
                     // CR 120.3: damage is marked on the creature and accumulates
                     // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
-                    // applied inline using the post-accumulation marked total
-                    // compared to effective toughness (layer 7c).
+                    // the SBA pass's, never this sink's (issue #5784).
                     found.card.damageMarked =
                         (found.card.damageMarked ?? 0) + reduced;
                 }
@@ -11556,19 +11542,11 @@ export function buildSpellContext(
                 // with deathtouch marks the damaged creature for destruction as
                 // an SBA (CR 704.5h) regardless of the damage total vs toughness.
                 markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
-                if (
-                    (found.card.damageMarked ?? 0) >=
-                    getEffectiveToughness(state, found.card)
-                ) {
-                    // CR 704.5g lethal → destroy replacement (CR 614, ADR
-                    // 0020) then regen shield gets a chance to replace the
-                    // destroy (CR 614.5, 701.19a). issue #1054 — this lethal
-                    // damage was dealt by the resolving item, so its
-                    // controller is the causer.
-                    destroyWithReplacements(state, target.id, {
-                        causerControllerId: item.controllerId,
-                    });
-                }
+                // CR 704.3 / 704.5g (issue #5784) — damage is MARKED only; a
+                // lethal total is destroyed by `checkLethalDamageSBA` when the
+                // resolution ends, so a rider later in the same script
+                // ("can't be regenerated", "exile it instead") applies to
+                // that death whatever order its Ops run in.
             }
         },
         dealDamageFromPermanent(
@@ -11627,13 +11605,10 @@ export function buildSpellContext(
                 return;
             }
             // Permanent recipient (creature / planeswalker / battle, CR 120.1a).
-            // `markDamageFromPermanentSource` is marks-only by contract so a
-            // fight can mark both halves before either creature dies; a single
-            // damage event has no such simultaneity to protect, so the CR 704.5g
-            // lethal → destroy step runs here, exactly as `dealDamage` runs it
-            // for the stack-item source. CR 702.2b deathtouch is already marked
-            // inside the helper and is collected by the SBA pass.
-            const lethalId = markDamageFromPermanentSource(
+            // Marks only: CR 704.5g lethal and CR 702.2b deathtouch are both
+            // collected by the SBA pass once the resolution ends (CR 704.3,
+            // issue #5784).
+            markDamageFromPermanentSource(
                 state,
                 found.card,
                 found.card.controllerId,
@@ -11642,20 +11617,6 @@ export function buildSpellContext(
                 unpreventable,
                 unredirectable
             );
-            if (lethalId) {
-                // CR 704.5g lethal → destroy replacement (CR 614, ADR 0125),
-                // then the regeneration shield gets its chance (CR 614.5,
-                // 701.19a). issue #1054 — the CAUSER is the controller of the
-                // resolving spell/ability, which is not necessarily the damage
-                // source's controller (Backlash points an opponent's creature at
-                // its own controller): its one consumer (`leftTrigger.ts`, the
-                // Karmic Justice shape) keys on who CAUSED the destruction, not
-                // on the damage source. `resolveFight` deliberately passes none
-                // — the three destroy sites differ on purpose.
-                destroyWithReplacements(state, lethalId, {
-                    causerControllerId: item.controllerId,
-                });
-            }
         },
         fight(target: TargetSelection, fighter?: TargetSelection) {
             // CR 701.14 mutual damage: the resolving ability's source permanent
@@ -14353,9 +14314,8 @@ export function buildSpellContext(
             }
         },
         // CR 120.3: damage is dealt simultaneously to every matching entity.
-        // Snapshot creature ids before iterating — dealDamage may remove them
-        // from the battlefield (SBA lethal) and players have not yet taken
-        // damage at that moment.
+        // Snapshot creature ids before iterating — the set is fixed before
+        // any damage is dealt (CR 704.5g lethal waits for the SBA pass).
         dealDamageToEach(
             amount: number,
             filter: {

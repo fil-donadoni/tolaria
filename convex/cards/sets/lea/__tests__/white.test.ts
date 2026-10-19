@@ -1898,6 +1898,7 @@ describe("CREATURE_DIED emission (combat + non-combat death paths)", () => {
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // The bear is in p1's graveyard.
         expect(
             state.players[0].graveyard.find((c) => c.id === "bear")

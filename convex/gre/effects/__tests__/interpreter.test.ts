@@ -35185,6 +35185,7 @@ describe("Effect Script Op: dealDamage { source } — a PERMANENT recipient (CR 
             { type: "permanent", id: "victimL" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // BEAR_ID is a 2/5; 5 damage is lethal (CR 704.5g).
         expect(
             state.players[1].battlefield.find((c) => c.id === "victimL")

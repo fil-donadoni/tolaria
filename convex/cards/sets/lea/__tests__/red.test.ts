@@ -112,6 +112,7 @@ import {
     grantedKeywordRows,
     removedKeywordRows,
 } from "../../../__tests__/setup.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
     it("kills a 1/1 creature (damage >= toughness)", () => {
@@ -132,6 +133,7 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
             { type: "permanent", id: "lion" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard).toHaveLength(1);
         expect(state.players[1].graveyard[0].id).toBe("lion");
@@ -232,6 +234,7 @@ describe("Fireball ({X}{R} — X damage divided, +{1}/target, CR 107.3 / 120.1 /
         ]);
         item.chosenX = 6;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard).toHaveLength(2);
     });
@@ -276,6 +279,7 @@ describe("Fireball ({X}{R} — X damage divided, +{1}/target, CR 107.3 / 120.1 /
         // Resolve against the live state (the source of truth) and assert
         // that the per-target damage (4/2 = 2) clears both 1-toughness lions.
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield).toHaveLength(0);
     });
 });
@@ -306,6 +310,7 @@ describe("Earthquake ({X}{R} — X damage to each non-flying creature and each p
         const item = pushSpell(state, earthquake.id, "p1");
         item.chosenX = 2;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "ground")
         ).toBeUndefined();
@@ -331,6 +336,7 @@ describe("Earthquake ({X}{R} — X damage to each non-flying creature and each p
         const item = pushSpell(state, earthquake.id, "p1");
         item.chosenX = 10;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // Only the flier survives; both players take 10.
         expect(state.players[1].battlefield).toHaveLength(1);
         expect(state.players[1].battlefield[0].id).toBe("flier");
@@ -343,6 +349,7 @@ describe("Earthquake ({X}{R} — X damage to each non-flying creature and each p
         const item = pushSpell(state, earthquake.id, "p1");
         item.chosenX = 2;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const projected = projectPublicState(state, 1, "p1");
         const p2 = projected.players.find((p) => p.id === "p2")!;
         const ids = p2.battlefield.map((c) => c.id);
@@ -1845,6 +1852,7 @@ describe("Rock Hydra (CR 107.3 — enters with X +1/+1 counters)", () => {
             { type: "permanent", id: "hydra" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // Hydra should be in the graveyard — 0/0 with 1 excess damage is lethal
         expect(
             state.players[0].battlefield.find((c) => c.id === "hydra")
@@ -2006,6 +2014,7 @@ describe("Disintegrate ({X}{R} Sorcery — exile-on-death, CR 614.1a)", () => {
         ]);
         item.chosenX = 3;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // Bear had 2 toughness, took 3 damage → lethal → exiled
         expect(
             state.players[1].graveyard.find((c) => c.id === "bear")
@@ -2034,6 +2043,7 @@ describe("Disintegrate ({X}{R} Sorcery — exile-on-death, CR 614.1a)", () => {
         ]);
         item.chosenX = 3;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // Regen shield should not have saved the creature
         expect(
             state.players[1].exile.find((c) => c.id === "bear")

@@ -437,6 +437,7 @@ describe("SpellContext.dealDamage — infect/wither non-combat damage", () => {
 
         const ctx = buildSpellContext(state, item);
         ctx.dealDamage({ type: "permanent", id: "bear" }, 2);
+        checkStateBasedActions(state);
 
         // Two -1/-1 counters take the 2/2 Bears to 0/0, so the SBA sweep
         // (CR 704.5a) kills it in the same call. Counters cease to exist on the

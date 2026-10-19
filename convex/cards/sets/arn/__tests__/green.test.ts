@@ -78,6 +78,7 @@ describe("Sandstorm (1 damage to each attacking creature)", () => {
         });
         pushSpell(state, sandstorm.id, "p1");
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const p2 = state.players[1];
         expect(p2.battlefield.find((c) => c.id === "atk")).toBeUndefined();
         expect(p2.battlefield.find((c) => c.id === "idle")).toBeDefined();
@@ -765,6 +766,7 @@ describe("Ifh-Bíff Efreet (any-player-activatable mass flyer damage, CR 113.3c 
             targets: [],
         });
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
     }
 
     function bf(state: GameState, playerIdx: number, id: string) {

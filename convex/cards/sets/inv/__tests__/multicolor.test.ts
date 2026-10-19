@@ -55,6 +55,7 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveTrigger } from "./set.helper";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const orderedMigration = getDefinition("04d83a07-6054-45f1-bdf9-07f2006238d2");
 const coalitionVictory = getDefinition("dd8ad3aa-3225-45ae-8343-5991f5b52269");
@@ -1181,6 +1182,7 @@ describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.21 sacrific
         resolveActivated(state, tar, "smoldering-tar-detonate", [
             { type: "permanent", id: "foe" },
         ]);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
             false
         );

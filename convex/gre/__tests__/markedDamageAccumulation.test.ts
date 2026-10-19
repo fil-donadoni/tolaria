@@ -8,6 +8,7 @@ import {
 import { resolveTopOfStack } from "../state";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { serraAngel } from "../../cards/sets/lea/white.cards";
+import { checkStateBasedActions } from "../sba";
 
 /**
  * Noncombat damage ACCUMULATES on a creature across events (issue #4490).
@@ -63,6 +64,7 @@ describe("marked damage accumulates across noncombat events (CR 120.3e, 704.5g)"
         const state = boardWithAngel();
         bolt(state);
         bolt(state);
+        checkStateBasedActions(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "angel")
         ).toBeUndefined();

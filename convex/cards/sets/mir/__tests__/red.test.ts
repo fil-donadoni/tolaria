@@ -18,6 +18,7 @@ import type { TargetSelection } from "../../../types";
 import { finalizeTargetSelection } from "../../../../game";
 import { getDefinition } from "../../../index";
 import { projectPublicState } from "../../../../gameProjections";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const goblinTinkerer = getDefinition("e6529852-8b3e-4a70-a4a1-029e012231c6");
 const JAYEMDAE_TOME = "cac8c421-5b92-481d-b2de-560c0231ab58"; // {4}, mana value 4
@@ -72,6 +73,7 @@ describe("Goblin Tinkerer — destroy an artifact, then take its mana value back
         activateTinkererOn(state, "tinkerer", "art");
         expect(state.stack).toHaveLength(1);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         // CR 701.8 — the artifact is destroyed.
         expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(

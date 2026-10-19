@@ -174,6 +174,7 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         ]);
         item.chosenX = 2;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         // Two Mountains gone from p2's battlefield.
         const p2 = state.players[1];
@@ -261,6 +262,7 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         ]);
         item.chosenX = 2;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         // Only mtn-1 was destroyed → damage = 1.
         expect(p2.battlefield.find((c) => c.id === "mtn-1")).toBeUndefined();
@@ -303,6 +305,7 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         ]);
         item.chosenX = 2;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         const projected = projectPublicState(state, 2, "p2");
         const p2 = projected.players.find((p) => p.id === "p2")!;
@@ -1861,6 +1864,7 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             targets: [{ type: "permanent", id: "lion" }],
         });
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
             "lion"
         );
@@ -1999,6 +2003,7 @@ describe("Creature Bond (aura, on host death deal damage = toughness to controll
             { type: "permanent", id: "host" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // The death trigger landed on the stack.
         expect(state.stack.length).toBe(1);
         expect(state.stack[0].triggeredAbilityId).toBe("creature-bond-death");

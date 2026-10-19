@@ -79,6 +79,7 @@ import {
     answerMayPayHead,
     collectAndStack,
 } from "./set.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const abyssalSpecter = getDefinition("fc26f19c-bcf7-4bd8-af42-4757dbe47fb1");
@@ -2827,6 +2828,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
         resolveTopOfStack(state);
         // Suspends on the target-creature choice; pick the victim.
         submitChoice(state, ["victim"]);
+        checkStateBasedActions(state);
         // 2 damage (attacker power) is lethal to the 2/2 victim (CR 704.5g),
         // which is destroyed — proving the power-based damage landed.
         expect(

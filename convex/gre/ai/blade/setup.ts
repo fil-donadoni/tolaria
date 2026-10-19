@@ -54,6 +54,7 @@ import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
 import { enumerateMoves } from "../../moves";
 import type { Move } from "../../moves";
 import { applyMoveInSearch } from "../../search";
+import { checkStateBasedActions } from "../../sba";
 import { eligibleZonePickCards } from "../../zonePickEligibility";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -236,8 +237,11 @@ function applyResolveTop(
         );
     }
     // CR 608 — the real resolution path, the same one the engine runs when
-    // both players pass priority.
+    // both players pass priority, followed by the CR 704.3 SBA check that
+    // precedes the next priority (issue #5784 — lethal damage dies there).
     resolveTopOfStack(state);
+    if ((state.pendingChoices?.length ?? 0) === 0 && !state.pendingTarget)
+        checkStateBasedActions(state);
 }
 
 /** Pass priority as `seat` through the search's own pass machinery (issue

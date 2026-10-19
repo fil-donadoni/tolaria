@@ -23,6 +23,7 @@ import type {
     TriggerStateView,
 } from "../../../types";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const pyrogoyf = getDefinition("f60be310-4461-4b84-95f0-b2095108bd79");
 
@@ -216,6 +217,7 @@ describe("Pyrogoyf (CR 604.3 all-graveyards CDA P/T, CR 603.3d targeted enter-da
             type: "permanent",
             id: "bear",
         });
+        checkStateBasedActions(state);
         const p2 = state.players[1];
         expect(p2.battlefield.find((c) => c.id === "bear")).toBeUndefined();
         expect(p2.graveyard.map((c) => c.id)).toContain("bear");
