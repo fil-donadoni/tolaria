@@ -22,6 +22,7 @@ import {
     beginLayer7Pass,
     getEffectivePower,
     getEffectivePT,
+    getEffectiveToughness,
     isSourceTappedLive,
 } from "./layers";
 import { checkAscendCityBlessing } from "./cityBlessing";
@@ -483,6 +484,43 @@ export function checkZeroLoyaltySBA(state: GameState): boolean {
     return removedAny;
 }
 
+/** CR 704.5g — a creature with toughness greater than 0 whose marked damage
+ *  is greater than or equal to its toughness has been dealt lethal damage and
+ *  is destroyed (regeneration can replace it — routed through
+ *  `destroyWithReplacements`, so `exileOnDeath` and
+ *  `cantBeRegeneratedThisTurn` riders armed later in the SAME resolution
+ *  apply, issue #5784). CR 704.3 — a resolving spell or ability only MARKS
+ *  damage; the death waits for this check. Zero toughness is the separate
+ *  CR 704.5f sweep, which runs first. Indestructible / regenerated creatures
+ *  survive; `attempted` keeps an indestructible lethal-marked creature from
+ *  looping the scan. */
+export function checkLethalDamageSBA(state: GameState): boolean {
+    let destroyedAny = false;
+    const attempted = new Set<string>();
+    for (;;) {
+        let destroyed = false;
+        for (const player of state.players) {
+            const victim = player.battlefield.find((c) => {
+                if (!isCreature(c) || attempted.has(c.id)) return false;
+                const marked = c.damageMarked ?? 0;
+                if (marked <= 0) return false;
+                const toughness = getEffectiveToughness(state, c);
+                return toughness > 0 && marked >= toughness;
+            });
+            if (victim) {
+                attempted.add(victim.id);
+                if (destroyWithReplacements(state, victim.id)) {
+                    destroyedAny = true;
+                }
+                destroyed = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!destroyed) break;
+    }
+    return destroyedAny;
+}
+
 /** CR 704.5h / 702.2b — a creature that has been dealt damage this turn by a
  *  source with deathtouch is destroyed as a state-based action. Unlike the
  *  zero-toughness sweep (a direct zone change), this IS a "destroy", so
@@ -861,6 +899,9 @@ export function checkStateBasedActions(state: GameState): void {
         // at 0 toughness leaves via the direct move first) and respects
         // indestructible.
         acted = checkDeathtouchDestroySBA(state) || acted;
+        // CR 704.5g — lethal marked damage destroys. Beside deathtouch: both
+        // are damage-driven destroys through the same replacement pipeline.
+        acted = checkLethalDamageSBA(state) || acted;
         acted = checkTokenExistenceSBA(state) || acted;
         // CR 714.4 — a Saga past its final chapter with no chapter ability of
         // its own still on the stack is sacrificed. Placed after the
