@@ -378,3 +378,168 @@ export function handTailClaimMismatches(
         a.card < b.card ? -1 : a.card > b.card ? 1 : 0
     );
 }
+
+// ── Writing a regression's marker (issue #5988) ────────────────────────────
+//
+// A grammar change that makes a hand-written card stop round-tripping reds
+// Guard C, and the baseline is shrink-only (issue #5942), so the only exits
+// are fixing the regression or writing the marker. For an `unparsed` verdict
+// the marker is pure transcription — the fragment is the compiler's own `Gap`,
+// the issue is the Grammar Gap `gaps:sync` already filed for that gap's key —
+// so `oracle:mark-regressions` writes it. Everything that is NOT transcription
+// is reported for a person, never marked: a `mismatch` (the compiler read the
+// card and disagrees — `misfiledMarkers` refuses a marker there anyway), a
+// fragment whose gap has no filed issue yet (a marker names a REAL issue), and
+// a card with no Oracle text.
+
+/** One fragment the grammar refused, in the compiler's `Gap` shape —
+ *  structural, so this source scanner stays free of engine imports. */
+export interface RegressionGap {
+    readonly fragment: string;
+    readonly reason: string;
+    readonly attribution?: {
+        readonly slot: string;
+        readonly path: readonly string[];
+        readonly span: string;
+    };
+}
+
+/** A card Guard C would red, with what its verdict carries. */
+export interface RegressedCard {
+    readonly name: string;
+    readonly kind: "no-oracle-text" | "unparsed" | "mismatch";
+    readonly detail: string;
+    /** The compiler's gaps — present for `unparsed`. */
+    readonly gaps?: readonly RegressionGap[];
+}
+
+/** One marker to write: the fragment and the Grammar Gap issue it names. */
+export interface PlannedMarker {
+    readonly fragment: string;
+    readonly issue: number;
+}
+
+/** A card the script will not mark, and why — a person's queue. */
+export interface UnmarkedRegression {
+    readonly card: string;
+    readonly problem: "mismatch" | "no-oracle-text" | "unfiled" | "unwritable";
+    readonly detail: string;
+}
+
+export interface RegressionPlan {
+    /** card → its markers, one per distinct Grammar Gap key, source order. */
+    readonly mark: ReadonlyMap<string, readonly PlannedMarker[]>;
+    readonly report: readonly UnmarkedRegression[];
+}
+
+/** The marker line for `m` — the ONE writer of {@link COMPILER_GAP}'s shape. */
+export function compilerGapLine(m: PlannedMarker): string {
+    return `// compiler-gap: ${m.fragment} (#${m.issue})`;
+}
+
+/**
+ * Plan the markers for the cards Guard C would red. `keyOf` is the Grammar Gap
+ * key of a gap (`gapOf(…).key`), `issueOf` the filed issue for a key (the
+ * allowlist's `grammar` claim row) — both injected, so the plan is pure.
+ *
+ * A card is marked WHOLE or not at all: one exempting marker exempts the card,
+ * so marking the filed fragments of a card with an unfiled one would hide the
+ * unfiled one from Guard C. Such a card is reported, every gap unmarked.
+ */
+export function planRegressionMarkers(
+    cards: readonly RegressedCard[],
+    keyOf: (gap: RegressionGap) => string,
+    issueOf: (key: string) => number | undefined
+): RegressionPlan {
+    const mark = new Map<string, PlannedMarker[]>();
+    const report: UnmarkedRegression[] = [];
+    for (const card of cards) {
+        if (card.kind !== "unparsed") {
+            report.push({
+                card: card.name,
+                problem: card.kind,
+                detail: card.detail,
+            });
+            continue;
+        }
+        const markers: PlannedMarker[] = [];
+        const keys = new Set<string>();
+        const unfiled: string[] = [];
+        const unwritable: string[] = [];
+        for (const gap of card.gaps ?? []) {
+            const key = keyOf(gap);
+            if (keys.has(key)) continue;
+            keys.add(key);
+            const issue = issueOf(key);
+            if (issue === undefined) {
+                unfiled.push(key);
+                continue;
+            }
+            const marker = { fragment: gap.fragment.trim(), issue };
+            if (!writesBack(marker)) {
+                unwritable.push(JSON.stringify(gap.fragment));
+                continue;
+            }
+            markers.push(marker);
+        }
+        if (unfiled.length > 0) {
+            report.push({
+                card: card.name,
+                problem: "unfiled",
+                detail: `no Grammar Gap issue (claim row or Cluster Signature) for ${unfiled.map((k) => JSON.stringify(k)).join("; ")}`,
+            });
+        } else if (unwritable.length > 0 || markers.length === 0) {
+            report.push({
+                card: card.name,
+                problem: "unwritable",
+                detail:
+                    unwritable.length > 0
+                        ? `fragment does not read back as a marker: ${unwritable.join("; ")}`
+                        : "an `unparsed` verdict with no gap",
+            });
+        } else {
+            mark.set(card.name, markers);
+        }
+    }
+    return { mark, report };
+}
+
+/** The line `compilerGapLine(m)` writes reads back as `m` — the guard's own
+ *  regex is the judge, so a fragment it would mis-split is never written. */
+function writesBack(m: PlannedMarker): boolean {
+    if (m.fragment === "" || /[\r\n]/.test(m.fragment)) return false;
+    const read = COMPILER_GAP.exec(compilerGapLine(m));
+    return (
+        read !== null && read[1] === m.fragment && Number(read[2]) === m.issue
+    );
+}
+
+/**
+ * Write each card's markers into its own doc paragraph: directly above its
+ * anchor, so they extend the paragraph the anchor already owns, or open a
+ * one-line one when the anchor has none. Pure over `lines`; returns the cards
+ * it wrote (in `mark`'s order) and leaves a card whose anchor `lines` lacks to
+ * the caller.
+ */
+export function insertCompilerGapMarkers(
+    lines: readonly string[],
+    mark: ReadonlyMap<string, readonly PlannedMarker[]>
+): { readonly lines: string[]; readonly written: string[] } {
+    const { anchors } = scanCardAnchors([...lines]);
+    const at = anchors
+        .filter((a) => mark.has(a.name))
+        .sort((a, b) => b.line - a.line);
+    const out = [...lines];
+    for (const anchor of at) {
+        out.splice(
+            anchor.line - 1,
+            0,
+            ...mark.get(anchor.name)!.map(compilerGapLine)
+        );
+    }
+    const wrote = new Set(at.map((a) => a.name));
+    return {
+        lines: out,
+        written: [...mark.keys()].filter((c) => wrote.has(c)),
+    };
+}
