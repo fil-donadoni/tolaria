@@ -83,7 +83,7 @@ export const mirrorwoodTreefolk = defineCard(() => ({
     // Calibrated against `creatureValueRaw` and the committed
     // `latentCreatureDiscount` (`gre/creatureBody.ts` / `gre/ai/evalWeights.ts`,
     // issue #5012): a vanilla 2/4 for MV4 latents at ~143
-    // (`(100 + 2*15 + 4*14 + 4*5) * 0.6957`); +25 for the
+    // (`(100 + 2*15 + 4*14 + 4*5) * 0.6963`); +25 for the
     // repeatable defensive redirect (a fraction of `PREVENT_DAMAGE_FLAT_VALUE`
     // = 70, `gre/ai/opValuers.ts`, since it costs 4 mana and a stack action
     // per use rather than being a free static shield). Latent worth only —
