@@ -41,8 +41,8 @@
 // immediately (deleted) while 8 became `unparsed` (Berserk, Channel,
 // Conservator, Dwarven Warriors, Fear, Samite Healer, The Hive, Tireless
 // Tracker) and moved to `COMPILER_GAP_ROWS`. That is the shape such a move
-// takes: the union shrinks by the graduates alone, the ceiling comes down by
-// exactly that many, and the 8 are now ranked with every other grammar gap.
+// takes: the union shrinks by the graduates alone, and the 8 are now ranked
+// with every other grammar gap.
 //
 // The limit, stated rather than overclaimed: on a `mismatch` the table
 // constrains nothing — all three directions are legal — so a card defect
@@ -81,19 +81,19 @@
 //   2. A card whose gap gets DOCUMENTED must leave — a valid `compiler-gap:`
 //      marker and a baseline row are mutually exclusive, so writing the marker
 //      is what removes the row.
-//   3. It may never GROW — `BASELINE_CEILING` is a literal a human has to
-//      lower, never raise. A new hand-written card cannot be APPENDED here; it
-//      round-trips or it carries a marker. The ceiling is taken on the UNION,
-//      so moving a row between the three arrays cannot buy a slot.
+//   3. It may never GROW (issue #5942), in two halves. Every row must be a
+//      name in the frozen `compilerRoundTrip.amnesty.ts` (the names this file
+//      held at birth, hash-pinned), so a new hand-written card cannot be
+//      parked here, neither appended nor swapped into a graduating row's
+//      freed slot. And `check:baseline-shrink`, in the lane, refuses a diff
+//      that adds ANY name — the one case the amnesty cannot see, a graduated
+//      card coming back after a compiler regression; that card carries a
+//      marker naming the fragment instead. Both read names on the UNION, so
+//      moving a row between the three arrays is free.
 //
-// What mechanism 3 does NOT stop, stated plainly rather than overclaimed: a
-// diff that deletes a graduating row and spends the freed slot on a new failing
-// card. The count does not grow, nothing reads as stale, and the guard stays
-// green. No in-repo artifact can close that — a frozen snapshot to diff against
-// would be just as editable as this file — so what catches it is the same thing
-// that catches a bogus `KEYWORD_ALLOWLIST` row: the deletion and the insertion
-// are both in the diff, on adjacent lines, under review. Treat a baseline edit
-// that is not a pure deletion as a change that needs a reason in the PR body.
+// A graduation is therefore a pure deletion here and nothing else: no count to
+// lower, no log to append, so two grammar PRs graduating different cards touch
+// disjoint lines.
 //
 // Each array is sorted by name (code-unit order), one per line, so a diff reads
 // as the list of cards a change graduated.

@@ -393,8 +393,8 @@ build` ("run `/grammar-rule #<this issue>`" — the rule family, one golden
   pinned by refusal tests) · `## Acceptance criteria` (the rules land; `ready`
   delta ≥ the summed `compiles` or the shortfall explained by quarantine
   `reason.kind`, a member gap left refused named with why;
-  `lost` = 0; Guard C graduates removed from the baseline with
-  `BASELINE_CEILING` lowered by exactly that many; the artefact checks green) ·
+  `lost` = 0; Guard C graduates removed from the baseline; the artefact
+  checks green) ·
   `## Blocked by` (T0, plus any shared sub-grammar gap it routes through, and
   the `/new-op` note when the verdict says so) · `## Related` ·
   `## Target files` (the slot/sub-grammar file, `convex/oracle/lower*.ts`, the
@@ -495,8 +495,8 @@ nothing.
   0, and a `delta` far below the gap's `compiles` means the graduates stopped
   in `quarantine` — read their `reason.kind` before calling the rule done.
 - **Guard C graduation** — hand-written cards that now round-trip leave
-  `compilerRoundTrip.baseline.ts` (a pure deletion) with `BASELINE_CEILING`
-  lowered by exactly that many, and their stale markers deleted.
+  `compilerRoundTrip.baseline.ts` (a pure deletion), and their stale markers
+  deleted.
 - **Bot reachability is still a WALK, not a computation.** ADR 0137 says it is
   computed, but the Bot-play sweep is issue #3830, open — nothing writes
   `botReach` today. A graduated card owes the manual three-seam walk of

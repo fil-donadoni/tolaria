@@ -23,7 +23,8 @@
  *
  * It also registers the ONE piece of repo behaviour git refuses to take from a
  * committed file: the merge drivers `.gitattributes` names — `merge=regenerated`
- * (issue #3069) and `merge=cr-ledger` (issue #3768). Merge drivers live in local
+ * (issue #3069), `merge=cr-ledger` (issue #3768) and `merge=append-only` (issue
+ * #5942). Merge drivers live in local
  * config by design, so `.gitattributes` can name one but nothing in the repo can
  * define it — this is the only repo-controlled place that can.
  *
@@ -235,6 +236,32 @@ installMergeDriver(
     "merge the CR citation ledger as a keyed set of facts (issue #3768)",
     LEDGER_MERGE_DRIVER_COMMAND
 );
+
+// ── merge driver for the append-only lists (issue #5942) ────────────────────
+// A THIRD driver: `.gitattributes` names `merge=append-only` for the blade
+// entries and the grammar golden fixtures. It concatenates only hunks where
+// both sides purely inserted lines; without it, two branches appending at the
+// same end fall back to a conflict under the default text merge.
+const APPEND_ONLY_MERGE_DRIVER_NAME = "append-only";
+const APPEND_ONLY_MERGE_DRIVER_COMMAND =
+    "bun scripts/merge-driver-append-only.ts %O %A %B %P";
+try {
+    git(
+        "config",
+        `merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.name`,
+        "concatenate pure-insertion hunks of an append-only list (issue #5942)"
+    );
+    git(
+        "config",
+        `merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.driver`,
+        APPEND_ONLY_MERGE_DRIVER_COMMAND
+    );
+    done.push(`merge.${APPEND_ONLY_MERGE_DRIVER_NAME} driver (git config)`);
+} catch (err) {
+    failed.push(
+        `git config merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.driver — ${String(err)}`
+    );
+}
 
 // ── receipt ─────────────────────────────────────────────────────────────────
 const label = primary ? `worktree of ${primary}` : "primary checkout";

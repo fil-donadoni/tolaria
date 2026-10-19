@@ -120,7 +120,8 @@ Do NOT close or modify any parent issue.
 
 **Blocked by:** the numbers/titles of the tickets that gate this one, or "None — can start immediately".
 
-**Target files:** module/glob-level file set this ticket touches (scheduling metadata for the processing loop, not spec). `- *` if it touches everything. Omit append-only registration points.
+**Target files:** module/glob-level file set this ticket touches (scheduling metadata for the processing loop, not spec). `- *` if it touches everything. Omit append-only registration points. Name a
+hot logic file explicitly, never via a glob (issue #5942).
 
 **Status:** ready-for-agent
 
