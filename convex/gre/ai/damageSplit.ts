@@ -263,7 +263,9 @@ export function chooseDamageSplit(
  * `chooseDamageSplit`'s split for every source that has 2+ targets (CR
  * 510.1c / 510.1d) — the split the driver submits, so the tree prices a
  * multi-block at what it costs in the real game. Each split is chosen
- * against the map as built so far, the way `damageSplitsFor` chains them.
+ * against the map as built so far, as `damageSplitsFor` chains one
+ * assigner's sources (with two banding assigners the driver's map still
+ * holds the other's seed, which this map never does).
  */
 export function searchCombatDamageAssignments(
     state: GameState,

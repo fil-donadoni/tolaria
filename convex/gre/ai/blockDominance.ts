@@ -23,9 +23,13 @@
 // The verdict is SIMULATED, never derived: both declarations are applied to a
 // clone and resolved through the real combat-damage pipeline (first strike,
 // deathtouch, banding's assigner, the lethal thresholds — all the engine's).
-// It fails CLOSED to "keep": a declaration whose blocking puts a trigger on
-// the stack or raises a choice ("whenever blocks" payoffs,
-// which the probe cannot resolve) is never judged dominated.
+// It fails CLOSED to "keep": a declaration whose blocking or whose combat
+// damage puts a trigger on the stack or raises a choice (a "whenever blocks"
+// payoff, a dies trigger, persist), which the probe cannot resolve, is never
+// judged dominated. Damage marked on a survivor is NOT compared: it leaves at
+// cleanup (CR 514.2), so a block that only adds damage to the attacker reads
+// as no better — a post-combat burn spell that would finish it is the one
+// line this approximation gives up.
 //
 // Bot paths only, like every other pruning: a dominated block is LEGAL, and
 // the human affordance surface (`legalActions`) keeps the whole set. It is
@@ -95,6 +99,16 @@ function simulateBlocks(
     }
     checkStateBasedActions(probe);
     resolveCombatDamage(probe);
+    // The same fail-closed rule after damage: a dies or damage trigger
+    // ("when this dies, deal 1 damage…", persist) is still on the stack here,
+    // and the board below would read without it.
+    if (
+        probe.stack.length !== stackBefore ||
+        (probe.pendingChoices?.length ?? 0) > 0 ||
+        probe.pendingTarget
+    ) {
+        return undefined;
+    }
     const defenderId = getOpponentId(probe, probe.activePlayerId);
     const defender = probe.players.find((p) => p.id === defenderId);
     const attacking = probe.players.find((p) => p.id === probe.activePlayerId);

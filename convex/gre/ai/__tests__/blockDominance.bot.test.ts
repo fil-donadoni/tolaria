@@ -22,6 +22,7 @@ import {
     ironrootTreefolk,
 } from "../../../cards/sets/lea/green.cards";
 import { hypnoticSpecter } from "../../../cards/sets/lea/black.cards";
+import { suChi } from "../../../cards/sets/atq/colorless.cards";
 import type { CardInstanceState, GameState } from "../../state";
 import { enumerateBlockerMoves, type Move } from "../../moves";
 import { resolveCombatDamage } from "../../applyMove";
@@ -156,6 +157,24 @@ describe("pruneDominatedBlocks — the defender's node", () => {
         const all = blocksFor(state);
         expect(blockKeys(pruneDominatedBlocks(state, all))).toEqual(
             blockKeys(all)
+        );
+    });
+
+    it("keeps a multi-block whose combat damage puts a dies trigger on the stack", () => {
+        // Craw Wurm (6/4) into Su-Chi (4/4) + Grizzly Bears: the 6 kills both
+        // and the Wurm dies either way, so Su-Chi alone would dominate on the
+        // board — but Su-Chi's dies trigger is still on the stack when the
+        // probe reads it, so the pair is never judged (fail closed).
+        const state = declareBlockersStep(
+            permanent(crawWurm().id, "wurm", "p1"),
+            [
+                permanent(suChi().id, "suchi", "p2"),
+                permanent(grizzlyBears().id, "bears", "p2"),
+            ]
+        );
+        const all = blocksFor(state);
+        expect(blockKeys(pruneDominatedBlocks(state, all))).toContain(
+            "bears+suchi"
         );
     });
 
