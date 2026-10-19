@@ -5,6 +5,7 @@
 // reach the surface on a quiet machine".
 import { describe, expect, it } from "vitest";
 import {
+    CELL_DEADLINE_MESSAGE_PREFIX,
     UNSETTLED_MESSAGE_PREFIX,
     classifyWalkFailure,
     infraDetail,
@@ -26,16 +27,16 @@ const HUMAN_REASON =
     "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?";
 
 describe("classifyWalkFailure — a signature is recognised, never guessed", () => {
-    it("a backend function past its execution limit in the console is INFRA function-timeout, whatever the walk threw", () => {
+    it("a backend function past its execution limit in the console is INFRA deployment, whatever the walk threw", () => {
         expect(
             classifyWalkFailure({
                 message: HUMAN_REASON,
                 consoleErrors: [CONVEX_TIMEOUT_CONSOLE],
             })
-        ).toEqual({ kind: "INFRA", signature: "function-timeout" });
+        ).toEqual({ kind: "INFRA", signature: "deployment" });
     });
 
-    it("a Convex server error in the console is INFRA server-error", () => {
+    it("a Convex server error in the console is INFRA deployment", () => {
         expect(
             classifyWalkFailure({
                 message: HUMAN_REASON,
@@ -44,16 +45,46 @@ describe("classifyWalkFailure — a signature is recognised, never guessed", () 
                     CONVEX_SERVER_ERROR_CONSOLE,
                 ],
             })
-        ).toEqual({ kind: "INFRA", signature: "server-error" });
+        ).toEqual({ kind: "INFRA", signature: "deployment" });
     });
 
-    it("the console outranks the message: a timed-out function behind a click timeout is function-timeout", () => {
+    it("the console outranks the message: a timed-out function behind a click timeout is deployment", () => {
         expect(
             classifyWalkFailure({
                 message: CLICK_TIMEOUT,
                 consoleErrors: [CONVEX_TIMEOUT_CONSOLE],
             })
-        ).toEqual({ kind: "INFRA", signature: "function-timeout" });
+        ).toEqual({ kind: "INFRA", signature: "deployment" });
+    });
+
+    // Issue #6081: a screen that never settled because the backend's
+    // functions failed read as `unsettled` — the screen's word, not the
+    // deployment's.
+    it("a screen that never settled beside a Convex server-error console line is deployment, never unsettled", () => {
+        expect(
+            classifyWalkFailure({
+                message: `${UNSETTLED_MESSAGE_PREFIX} within 30000ms`,
+                consoleErrors: [
+                    "[CONVEX Q(limitedEvents:myCurrentLimitedEvents)] [Request ID: 1f2e] Server Error Function execution timed out (maximum duration: 1s)",
+                ],
+            })
+        ).toEqual({ kind: "INFRA", signature: "deployment" });
+    });
+
+    it("a failed deployment probe during the attempt is deployment-down, whatever the attempt threw", () => {
+        for (const message of [
+            `${UNSETTLED_MESSAGE_PREFIX} within 30000ms`,
+            `${CELL_DEADLINE_MESSAGE_PREFIX}: attempt 1 did not finish within 180s`,
+            HUMAN_REASON,
+        ]) {
+            expect(
+                classifyWalkFailure({
+                    message,
+                    consoleErrors: [],
+                    deploymentDown: true,
+                })
+            ).toEqual({ kind: "INFRA", signature: "deployment-down" });
+        }
     });
 
     it("a navigation that never answered is INFRA navigation-timeout", () => {
@@ -151,12 +182,17 @@ describe("standingVerdict — UNWALKED keeps its meaning", () => {
     it("is UNWALKED when the last attempt failed on a quiet machine", () => {
         expect(standingVerdict(7.99, POLICY)).toBe("UNWALKED");
     });
+
+    it("deployment-down stands as INFRA on a quiet machine: a failed probe is the backend's fact (issue #6081)", () => {
+        expect(standingVerdict(0.5, POLICY, "deployment-down")).toBe("INFRA");
+        // A console line alone stays load-gated: the tree's own function
+        // can throw on a quiet machine.
+        expect(standingVerdict(0.5, POLICY, "deployment")).toBe("UNWALKED");
+    });
 });
 
 describe("infraDetail", () => {
     it("prints the signature and the load to one decimal", () => {
-        expect(infraDetail("function-timeout", 23.437)).toBe(
-            "function-timeout, load 23.4"
-        );
+        expect(infraDetail("deployment", 23.437)).toBe("deployment, load 23.4");
     });
 });

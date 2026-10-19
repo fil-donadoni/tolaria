@@ -312,7 +312,7 @@ describe("the verdict block is deterministic; the diagnostic block is not part o
                     infra: [
                         {
                             viewport: "390x844x3",
-                            signature: "function-timeout",
+                            signature: "deployment",
                             load: 23.4,
                             reason: "first attempt",
                         },
@@ -339,7 +339,7 @@ describe("the verdict block is deterministic; the diagnostic block is not part o
                     infra: [
                         {
                             viewport: "390x844x3",
-                            signature: "function-timeout",
+                            signature: "deployment",
                             load: 31.9,
                             reason: "another attempt",
                         },

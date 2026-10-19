@@ -107,7 +107,7 @@ function run(
                     .filter(([, c]) => c === "infra")
                     .map(([viewport]) => ({
                         viewport,
-                        signature: "function-timeout" as const,
+                        signature: "deployment" as const,
                         load: 21.7,
                         reason: "timed out",
                     })),
@@ -259,7 +259,7 @@ describe("verify-receipt — any line that is not PASS refuses", () => {
         const result = verify(text);
         expect(result.ok).toBe(false);
         expect(result.problems[0]).toMatch(
-            /^the receipt carries 1 INFRA line\(s\) \(deck-builder @ 844x390x3: function-timeout\)/
+            /^the receipt carries 1 INFRA line\(s\) \(deck-builder @ 844x390x3: deployment\)/
         );
     });
 

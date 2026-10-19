@@ -204,7 +204,13 @@ import {
     MACHINE_SATURATED_EXIT,
     readMachineConfig,
 } from "../lib/machine-admission.ts";
-import { classifyWalkFailure, type RetryPolicy } from "./infra-verdict.ts";
+import { FUNCTION_TIMEOUT_PATTERN, type RetryPolicy } from "./infra-verdict.ts";
+import {
+    convexProbe,
+    DeploymentDownAbort,
+    untilDeploymentDown,
+    watchDeployment,
+} from "./deployment-watch.ts";
 import {
     DeadlineExpired,
     deadlineFromEnv,
@@ -273,6 +279,15 @@ const CELL_DEADLINE_MS = deadlineFromEnv(
 const RUN_DEADLINE_MS = deadlineFromEnv(
     process.env.TOLARIA_UI_GATE_RUN_DEADLINE_MS,
     60 * 60_000
+);
+/**
+ * The deployment watch's cadence (issue #6081): two consecutive failed probes
+ * abort the run as `DEPLOYMENT_DOWN_EXIT`, so a backend that dies mid-walk
+ * costs about two of these, never the run deadline.
+ */
+const DEPLOYMENT_PROBE_MS = deadlineFromEnv(
+    process.env.TOLARIA_UI_GATE_PROBE_MS,
+    15_000
 );
 
 /** One cell's measurement, as an attempt returns it. */
@@ -940,6 +955,10 @@ async function main(): Promise<number> {
     // the outer `finally`'s read to `never`.
     let server = null as AppServer | null;
     let browser: Browser | null = null;
+    /** Set when the deployment watch aborted the walk (issue #6081): the
+     *  abandoned cells may hold the renderers, and the lane is released only
+     *  once the browser close returns. */
+    let deploymentAborted = false;
     const startedAt = Date.now();
     const uninstallSignals = installSignalTeardown(
         process,
@@ -950,6 +969,21 @@ async function main(): Promise<number> {
         },
         (code) => process.exit(code)
     );
+
+    // Probed for the whole walk, not only at start (issue #6081); stopped on
+    // every path out. Only the walk races its verdict: a fleet bootstrap
+    // against a dead backend already fails on its own.
+    const deployment = watchDeployment({
+        probe: convexProbe(convexUrl, Math.min(5_000, DEPLOYMENT_PROBE_MS)),
+        intervalMs: DEPLOYMENT_PROBE_MS,
+        now: Date.now,
+        timer: {
+            setInterval,
+            clearInterval: (handle) =>
+                clearInterval(handle as ReturnType<typeof setInterval>),
+        },
+        note: (line) => log(`ui-gate: ${line}`),
+    });
 
     try {
         return await withLaneFleet(fleet, async () => {
@@ -1171,16 +1205,9 @@ async function main(): Promise<number> {
                         // this signature: a `Server Error` can be logged
                         // harmlessly on a quiet machine.
                         await p.evaluate("0").catch(() => {});
-                        const timedOut = attemptConsole.find((line) => {
-                            const c = classifyWalkFailure({
-                                message: "",
-                                consoleErrors: [line],
-                            });
-                            return (
-                                c.kind === "INFRA" &&
-                                c.signature === "function-timeout"
-                            );
-                        });
+                        const timedOut = attemptConsole.find((line) =>
+                            FUNCTION_TIMEOUT_PATTERN.test(line)
+                        );
                         if (timedOut) {
                             throw new Error(
                                 `the screen settled, but a backend function timed out while it loaded: ${timedOut.split("\n").slice(-1)[0]}`
@@ -1311,6 +1338,10 @@ async function main(): Promise<number> {
                             loadAverage,
                             sleep,
                             where: `${surface.id} @ ${viewport.id}`,
+                            deployment: {
+                                now: Date.now,
+                                failedSince: deployment.failedSince,
+                            },
                         });
                         /** The measured cell's line body and its failed
                          *  assertions, written after the cleanup (below). */
@@ -1505,33 +1536,56 @@ async function main(): Promise<number> {
                     now: Date.now,
                     startedAtMs: startedAt,
                 });
-                const results = await withDeadline(
+                const results = await untilDeploymentDown(
                     () =>
-                        runPool(
-                            VIEWPORTS,
-                            poolSize.limit,
-                            async (viewport, _index, lane) => {
-                                progress.set(
-                                    viewport.id,
-                                    "opening its context"
-                                );
-                                const walked = await walkViewport(
-                                    viewport,
-                                    fleet.members[lane]
-                                );
-                                reported.add(viewport.id);
-                                finished.push(walked);
-                                // The only live progress a parallel run can honestly
-                                // give: its cells are printed in matrix order below.
-                                log(
-                                    `ui-gate: ${viewport.id} (${viewport.label}) — walked`
-                                );
-                                return walked;
-                            }
+                        withDeadline(
+                            () =>
+                                runPool(
+                                    VIEWPORTS,
+                                    poolSize.limit,
+                                    async (viewport, _index, lane) => {
+                                        progress.set(
+                                            viewport.id,
+                                            "opening its context"
+                                        );
+                                        const walked = await walkViewport(
+                                            viewport,
+                                            fleet.members[lane]
+                                        );
+                                        reported.add(viewport.id);
+                                        finished.push(walked);
+                                        // The only live progress a parallel run can honestly
+                                        // give: its cells are printed in matrix order below.
+                                        log(
+                                            `ui-gate: ${viewport.id} (${viewport.label}) — walked`
+                                        );
+                                        return walked;
+                                    }
+                                ),
+                            RUN_DEADLINE_MS,
+                            "the run"
                         ),
-                    RUN_DEADLINE_MS,
-                    "the run"
+                    deployment
                 ).catch((err: unknown) => {
+                    if (err instanceof DeploymentDownAbort) {
+                        // No receipt: no cell was judged against a live
+                        // backend. The open cells say where the walk was.
+                        const open = openCellsLines(
+                            VIEWPORT_IDS,
+                            progress,
+                            reported
+                        );
+                        log(
+                            `ui-gate: deployment down — ${open.length} viewport(s) still open:`
+                        );
+                        for (const line of open) log(line);
+                        fleet.abandon("the deployment is down");
+                        deploymentAborted = true;
+                        throw new DeploymentDownError(
+                            `${err.message} — the run is aborted with no receipt; ` +
+                                `restart the backend (\`bun run convex:ensure\`) and re-run.`
+                        );
+                    }
                     if (!(err instanceof DeadlineExpired)) throw err;
                     const minutes = Math.round(RUN_DEADLINE_MS / 60_000);
                     for (const id of VIEWPORT_IDS) {
@@ -1599,13 +1653,14 @@ async function main(): Promise<number> {
                     const closing = browser;
                     await withDeadline(
                         () => closing.close(),
-                        CELL_DEADLINE_MS,
+                        deploymentAborted ? 10_000 : CELL_DEADLINE_MS,
                         "closing the browser"
                     ).catch(() => {});
                 }
             }
         });
     } finally {
+        deployment.stop();
         if (server) {
             server.child.kill("SIGTERM");
             server.dispose();

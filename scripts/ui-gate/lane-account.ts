@@ -397,6 +397,11 @@ export interface LaneFleet {
      *  Destroys EVERY member, and a member whose destroy throws never stops
      *  the next one: the sweep is the backstop for whatever is left. */
     teardown(): void;
+    /** The deployment is down (issue #6081): every `convex run` the teardown
+     *  would issue fails or hangs up to its 180s bound, per account, while
+     *  the run holds the UI lane. Turns the teardown into a no-op that says
+     *  what it left — the next run's sweep collects it. Idempotent. */
+    abandon(reason: string): void;
 }
 
 /**
@@ -522,6 +527,15 @@ export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
                     );
                 }
             }
+        },
+
+        abandon(reason) {
+            if (registering.size === 0 || tornDown) return;
+            tornDown = true;
+            log(
+                `ui-gate: teardown skipped (${reason}) — ${registering.size} lane account(s) left in place; ` +
+                    `the next run's sweep collects them after two hours`
+            );
         },
     };
 }

@@ -38,7 +38,7 @@ const INFRA_WALK: SurfaceWalk = {
     infra: [
         {
             viewport: "390x844x3",
-            signature: "function-timeout",
+            signature: "deployment",
             load: 23.44,
             reason: "the lobby offered neither Resume nor a selectable Deck Shelf tile",
         },
@@ -83,13 +83,13 @@ describe("evaluateRun — an Infra Verdict cell", () => {
             surface: "lobby",
             viewport: "390x844x3",
             verdict: "INFRA",
-            detail: "function-timeout",
+            detail: "deployment",
         });
     });
 
     it("carries the load and the reason into the diagnostic block", () => {
         expect(diagnosticLines(ev)).toContain(
-            "infra    lobby                390x844x3    function-timeout, load 23.4 — the lobby offered neither Resume nor a selectable Deck Shelf tile"
+            "infra    lobby                390x844x3    deployment, load 23.4 — the lobby offered neither Resume nor a selectable Deck Shelf tile"
         );
     });
 
@@ -101,7 +101,7 @@ describe("evaluateRun — an Infra Verdict cell", () => {
 
     it("is never green: the run fails, and the surface is not counted as measured", () => {
         expect(ev.failures).toEqual([
-            "lobby @ 390x844x3: INFRA — function-timeout, load 23.4 — the machine cut the walk short, so this cell is unproven",
+            "lobby @ 390x844x3: INFRA — deployment, load 23.4 — the machine cut the walk short, so this cell is unproven",
         ]);
         expect(ev.measuredSurfaces).toBe(0);
     });
@@ -125,7 +125,7 @@ describe("verify-receipt — an INFRA line is parsed, then refused", () => {
         );
         expect(result.ok).toBe(false);
         expect(result.problems[0]).toBe(
-            "the receipt carries 1 INFRA line(s) (lobby @ 390x844x3: function-timeout) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped"
+            "the receipt carries 1 INFRA line(s) (lobby @ 390x844x3: deployment) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped"
         );
     });
 

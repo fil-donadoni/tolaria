@@ -179,6 +179,23 @@ describe("the lane account lifecycle (issue #3626)", () => {
         expect(h.destroys()).toBe(1);
     });
 
+    // Issue #6081: a run aborted on a dead deployment must release the UI lane
+    // now, not after a `convex run` per account against that dead backend.
+    it("an abandoned fleet issues no destroy, and says what it left", async () => {
+        const h = harness();
+        await expect(
+            withLaneFleet(h.lane, async () => {
+                h.lane.abandon("the deployment is down");
+                throw new Error("deployment down");
+            })
+        ).rejects.toThrow("deployment down");
+        expect(h.destroys()).toBe(0);
+        expect(h.hostDestroys()).toBe(0);
+        expect(h.logs.join("\n")).toMatch(
+            /teardown skipped \(the deployment is down\) — 2 lane account\(s\) left in place/
+        );
+    });
+
     it("tears down when a walk fails", async () => {
         const h = harness();
         await expect(
