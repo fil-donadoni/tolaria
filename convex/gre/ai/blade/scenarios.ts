@@ -2,12 +2,12 @@
  * The blade entries (issue #5942). See `registry.ts` for the tier discipline
  * and how to add an entry.
  *
- * This file merges with git's `union` driver (`.gitattributes`): two PRs that
- * each append an entry at the end both keep theirs instead of conflicting. Keep
- * each entry self-contained — a helper or constant SHARED by entries belongs in
- * `scenarioPredicates.ts`, which merges normally, so a union never splices two
- * versions of shared logic together. The lane's `tsc` and the blade suite still
- * judge every merged result.
+ * This file merges with the `append-only` driver (`.gitattributes`): two PRs
+ * that each append an entry at the end both keep theirs, whole, instead of
+ * conflicting; an edit to an existing line still conflicts. Append new entries
+ * at the END. A helper or constant SHARED by entries belongs in
+ * `scenarioPredicates.ts`. The lane's `tsc` and the blade suite still judge
+ * every merged result.
  */
 
 import type { RegistryBladeScenario } from "./types";

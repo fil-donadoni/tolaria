@@ -29,11 +29,12 @@ data/catalogue/search-index.json merge=regenerated
 # the same test, and registered by the same `bun run worktree:init`.
 data/cr/citations-ledger.json merge=cr-ledger
 
-# Hand-written source files that are ONE append-only list of self-contained
-# entries (issue #5942): git's built-in `union` driver keeps both sides of a
-# conflict, so two PRs appending at the same end no longer collide. Built-in —
-# nothing to register. Pinned to UNION_MERGED_LISTS by the same test, which
-# also holds each file to its one list: `union` applies to every conflict in
-# the file, so a helper there could be spliced, never merged.
-convex/gre/ai/blade/scenarios.ts merge=union
-convex/oracle/grammar/fixtures.ts merge=union
+# Hand-written append-only lists (issue #5942): two branches appending an entry
+# at the same end conflict without disagreeing. The `append-only` driver merges
+# in diff3 style and concatenates only the hunks where both sides purely
+# inserted; any hunk touching an existing line stays a conflict. (git's built-in
+# `union` is NOT that: it keeps lines both sides share once, fusing two appended
+# entries into one object.) Pinned to OTHER_MERGE_DRIVERS by the same test and
+# registered by the same `bun run worktree:init`.
+convex/gre/ai/blade/scenarios.ts merge=append-only
+convex/oracle/grammar/fixtures.ts merge=append-only

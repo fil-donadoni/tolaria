@@ -210,6 +210,9 @@ export interface DrivenArtifact {
 /** The merge-driver name of the CR citation ledger (issue #3768). */
 export const LEDGER_MERGE_DRIVER_NAME = "cr-ledger";
 
+/** The merge-driver name of the hand-written append-only lists (issue #5942). */
+export const APPEND_ONLY_MERGE_DRIVER_NAME = "append-only";
+
 export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
     {
         path: LEDGER_PATH,
@@ -219,31 +222,20 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
             "not re-derivable (`cr:ledger` upserts and prunes, it never regenerates), " +
             "but a keyed set of independent facts — merged by (id, line) against the base",
     },
-] as const;
-
-/**
- * A hand-written source file that is a single append-only list of
- * self-contained entries, merged by git's built-in `union` driver (issue
- * #5942). Two PRs that each append an entry at the end of the list conflict
- * under the default text merge although neither disagrees with the other;
- * `union` keeps both sides instead. Built-in, so the bootstrap registers
- * nothing; the lane's `tsc` and tests still judge the merged result.
- *
- * The cost of `union` is that it applies to EVERY conflict in the file, so a
- * row here holds exactly one top-level value — the list — and no function: a
- * helper shared by the entries lives in a sibling file under the ordinary
- * merge. Pinned by `generated-artifact-merge.test.ts`.
- */
-export interface UnionMergedList {
-    /** Repo-relative POSIX path, exactly as `.gitattributes` names it. */
-    readonly path: string;
-    /** The one top-level value the file declares. */
-    readonly list: string;
-}
-
-export const UNION_MERGED_LISTS: readonly UnionMergedList[] = [
-    { path: "convex/gre/ai/blade/scenarios.ts", list: "BLADE_SCENARIOS" },
-    { path: "convex/oracle/grammar/fixtures.ts", list: "GOLDEN_FIXTURES" },
+    // Hand-written, append-only lists (issue #5942): two branches appending at
+    // the same end conflict without disagreeing. The driver concatenates only
+    // pure-insertion hunks and leaves every other conflict to a human.
+    ...[
+        "convex/gre/ai/blade/scenarios.ts",
+        "convex/oracle/grammar/fixtures.ts",
+    ].map((path) => ({
+        path,
+        driver: APPEND_ONLY_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-append-only.ts",
+        why:
+            "hand-written input, not an artifact, but an append-only list — a hunk where " +
+            "both sides only inserted is concatenated, anything else stays a conflict",
+    })),
 ] as const;
 
 /**
