@@ -36,3 +36,8 @@ through it. Still open: the greedy sandbox's cast-segment and attack-trigger
 drains (`applyMoveForSearch`, `gre/applyMove.ts`) chain resolutions with no
 check between them; a Bot-glob change, owed through `/bot-change` with its
 blade entry.
+
+Also open (review of issue #5784): a mana ability resolves with no SBA after it
+(`activation.ts`, `game.ts` granted mana ability — CR 605.3b keeps it off the
+stack), so one that damages a creature leaves it alive until the next priority
+check of the action it was activated inside. Rare; pre-existing policy.
