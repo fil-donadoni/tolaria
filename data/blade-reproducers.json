@@ -2308,6 +2308,49 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "Warning: shields a lethal attacker it cannot block": {
+        "cards": [
+            {
+                "name": "Warning",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "activePlayer": "opp",
+        "priority": "me",
+        "combat": {
+            "attackers": ["Craw Wurm"],
+            "confirmed": true
+        },
+        "life": {
+            "me": 6
+        },
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm": {
         "cards": [
             {

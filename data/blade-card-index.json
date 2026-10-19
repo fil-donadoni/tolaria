@@ -660,6 +660,13 @@
             "needsSetup": true
         }
     ],
+    "Warning": [
+        {
+            "label": "Warning: shields a lethal attacker it cannot block",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
     "Wheel of Fortune": [
         {
             "label": "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand",
