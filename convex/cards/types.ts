@@ -1927,11 +1927,13 @@ export interface ActivatedAbility {
      *  runs through the interpreter as part of the SAME mana ability
      *  resolving — no stack, no priority — with the activator as
      *  `ctx.controller` and the source bound as `$source`. Run after the mana
-     *  is added, by the tap-for-mana paths only (`tapUntap` priority tap +
-     *  `tapSourceIntoPayment` payment tap), beside the fixed riders above.
+     *  is added, by the tap-for-mana paths only (`tapUntap` priority tap,
+     *  `tapSourceIntoPayment` payment tap, `activateFixedSacrificeManaAbility`),
+     *  beside the fixed riders above; the validator requires a `{T}` or
+     *  sacrifice cost leg.
      *
      *  Admits only the Ops in `MANA_ABILITY_EFFECT_OPS`
-     *  (`gre/manaAbilityEffects.ts`, validator-enforced): each raises no
+     *  (`gre/effects/manaAbilityEffectOps.ts`, validator-enforced): each raises no
      *  resolution choice, names no target (CR 605.1a — a mana ability never
      *  requires one) and has a reversal the untap-toggle can run, so undoing
      *  the tap (CR 106.4 refund) undoes the effect too. Distinct from

@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    cancelActivation,
     cancelCast,
     tapSourceIntoPayment,
     tapUntap,
@@ -201,6 +202,35 @@ describe("Undiscovered Paradise — payment tap and its reversals (CR 605.3a / 1
             untapForPayment as unknown as Handler<TapArgs, void>,
             stub.ctx,
             { gameId: GAME_ID, playerId: "p1", cardInstanceId: PARADISE }
+        );
+
+        const land = stub.state().players[0]!.battlefield[0]!;
+        expect(land.isTapped).toBe(false);
+        expect(land.returnToHandAtUntapOf).toBeUndefined();
+    });
+
+    it("cancelling an ACTIVATION it paid for drops it (`untapSourceFromPayment`)", async () => {
+        const state = board();
+        const player = state.players[0]!;
+        tapSourceIntoPayment(state, player, player.battlefield[0]!, WHITE, []);
+        state.pendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "artifact",
+            abilityId: "artifact-ability",
+            manaCost: { W: 2 },
+            tappedLandIds: [PARADISE],
+            tapSource: false,
+            sacrificeSource: false,
+        };
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+
+        await runMutation<{ gameId: Id<"games">; playerId: string }, void>(
+            cancelActivation as unknown as Handler<
+                { gameId: Id<"games">; playerId: string },
+                void
+            >,
+            stub.ctx,
+            { gameId: GAME_ID, playerId: "p1" }
         );
 
         const land = stub.state().players[0]!.battlefield[0]!;

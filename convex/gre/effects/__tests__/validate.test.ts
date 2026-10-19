@@ -8331,8 +8331,9 @@ describe("EffectCardFilter.excludeSubtype — shape (issue #4557)", () => {
 describe("manaAbilityEffects — the stackless mana-ability site (CR 605.1a / 605.3b)", () => {
     const paradise = (
         manaAbilityEffects: unknown,
-        useStack: boolean | undefined = false
-    ) => ({ id: "paradise-mana", useStack, manaAbilityEffects });
+        useStack: boolean | undefined = false,
+        cost: unknown = { tap: true }
+    ) => ({ id: "paradise-mana", useStack, cost, manaAbilityEffects });
     const ret: EffectOp = {
         op: "returnToHandAtNextUntap",
         target: { ref: "$source" },
@@ -8368,6 +8369,16 @@ describe("manaAbilityEffects — the stackless mana-ability site (CR 605.1a / 60
             "Test Card"
         );
         expect(errors.some((e) => /announced target/.test(e))).toBe(true);
+    });
+
+    it("rejects a mana ability with neither a tap nor a sacrifice cost leg — no tap-for-mana path runs it", () => {
+        const errors = validateAbilityEffectScript(
+            paradise([ret], false, { mana: { X: 1 } }),
+            "Test Card"
+        );
+        expect(errors.some((e) => /tap or sacrifice cost leg/.test(e))).toBe(
+            true
+        );
     });
 
     it("rejects an empty script", () => {

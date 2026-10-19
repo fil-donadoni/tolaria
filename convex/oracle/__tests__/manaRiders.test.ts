@@ -296,6 +296,13 @@ describe("refusals — the neighbours of each rider form", () => {
             ),
         ],
         [
+            "a next-untap return of a source its own sacrifice cost already ate",
+            land(
+                "Sacrificed Paradise",
+                "{T}, Sacrifice this land: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand."
+            ),
+        ],
+        [
             "a delayed return of a land the rider does not name as itself",
             land(
                 "Other Paradise",

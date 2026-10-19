@@ -455,6 +455,10 @@ export function untapStep(state: GameState): void {
         // only (a restriction-prompt re-entry must not repeat it). The mark is
         // consumed here; the other player's untap step never matches it, and
         // a zone change already cleared it from a new object (CR 400.7).
+        // Known divergence, tracked-by: #6088 — Stasis is modelled as a
+        // `maxUntap: 0` restriction, not a skipped step, so this still runs
+        // under it (CR 614.10a would hold the mark for the next unskipped
+        // untap step).
         returnMarkedPermanentsToHand(state, state.activePlayerId);
     }
 

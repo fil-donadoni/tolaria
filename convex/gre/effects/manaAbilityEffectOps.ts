@@ -7,8 +7,12 @@ import type { EffectOp } from "../../cards/types";
  *  reads no announced slot; each also has a reversal in
  *  `MANA_ABILITY_EFFECT_REVERSALS` (`gre/manaAbilityEffects.ts`), so the
  *  untap-toggle that refunds the mana (CR 106.4) undoes the effect too. The
- *  constructs (`bind`, `if`, `forEach`) are not admitted. Pure data, so the
- *  validator reads it without importing the engine. */
+ *  constructs (`bind`, `if`, `forEach`) are not admitted. An admitted Op
+ *  must also be safe on the throwaway StackItem `applyManaAbilityEffects`
+ *  builds (a shallow copy of the source with no `abilityId`): it may write
+ *  only the live permanent it resolves through the SpellContext, never a
+ *  nested field of the item. Pure data, so the validator reads it without
+ *  importing the engine. */
 export const MANA_ABILITY_EFFECT_OPS = [
     "returnToHandAtNextUntap",
 ] as const satisfies readonly EffectOp["op"][];

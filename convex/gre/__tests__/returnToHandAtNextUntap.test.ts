@@ -63,7 +63,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("CR 502.4 / 503.1a — a leaves-the-battlefield trigger the return causes is on the stack when the upkeep priority window opens", () => {
         // Goblin Shrine — "When this Aura leaves the battlefield, it deals 1
-        // damage to each Goblin creature." Marked, attached to a land.
+        // damage to each Goblin creature." Marked, attached to a host.
         const host = makeInstance(BEARS, { id: "host" });
         const shrine = makeInstance(goblinShrine().id, {
             id: "shrine",

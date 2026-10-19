@@ -9058,6 +9058,9 @@ export type AbilityEffectScriptHost = {
     /** CR 605.1a / 605.3b (issue #5509) — a mana ability's stackless Effect
      *  Script. Validated by `manaAbilityEffectsErrors`. */
     manaAbilityEffects?: unknown;
+    /** Read only by the `manaAbilityEffects` gate: the tap-for-mana paths
+     *  that run that script are reached by a `{T}` or sacrifice cost leg. */
+    cost?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -9164,6 +9167,14 @@ function manaAbilityEffectsErrors(
     if (ability.useStack !== false) {
         errors.push(
             `${site}: declared on an ability that is not a mana ability (useStack: false) — only the tap-for-mana paths run it`
+        );
+    }
+    const cost = ability.cost as
+        | { tap?: unknown; sacrifice?: unknown }
+        | undefined;
+    if (cost?.tap !== true && cost?.sacrifice !== true) {
+        errors.push(
+            `${site}: needs a tap or sacrifice cost leg — only the tap-for-mana paths run it`
         );
     }
     const ops = ability.manaAbilityEffects;
