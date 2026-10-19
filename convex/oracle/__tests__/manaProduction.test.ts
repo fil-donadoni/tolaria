@@ -124,9 +124,31 @@ describe("land with exactly one basic land type (CR 305.6)", () => {
         );
         expect(outcome.state).toBe("unparsed");
     });
+});
 
-    it("still refuses a land with two basic land types", () => {
-        const outcome = compileCard(BADLANDS);
+describe("land with two or more basic land types (CR 305.6, issue #5623)", () => {
+    it("compiles to its bare definition — one intrinsic ability per type", () => {
+        expect(sortKeys(compiled(BADLANDS))).toEqual(
+            sortKeys({
+                name: "Badlands",
+                types: ["Land"],
+                subtypes: ["Swamp", "Mountain"],
+                oracleText: BADLANDS.oracleText,
+            })
+        );
+    });
+
+    it("refuses a printed tap-mana line beside the intrinsic abilities", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Dual",
+                manaCost: "",
+                typeLine: "Land — Swamp Mountain",
+                oracleText: "{T}: Add {B} or {R}.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
         expect(outcome.state).toBe("unparsed");
         if (outcome.state !== "unparsed") return;
         expect(outcome.gaps[0]!.reason).toContain("CR 305.6");

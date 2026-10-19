@@ -5,12 +5,12 @@
 import { defineCard } from "../../types";
 import { makeDualLand } from "../../abilities";
 
-// The RAV/GPT/DIS "shock land" cycle — "As this land enters, you may pay 2
-// life. If you don't, it enters tapped. ({T}: Add <c1> or <c2>.)". The
+// The RAV/GPT/DIS "shock land" cycle — "({T}: Add <c1> or <c2>.) As this land
+// enters, you may pay 2 life. If you don't, it enters tapped.". The
 // land-entry pay-choice is a stackless PendingChoice suspended by
 // `applyPlayLand` (CR 614.12, ADR 0051); the shared `makeDualLand({ shockLand })`
-// factory carries the basic land subtypes, the dual mana ability, and the
-// `entersTappedUnlessPay: { life: 2 }` clause.
+// factory carries the basic land subtypes (whose intrinsic abilities are the
+// mana, CR 305.6) and the `entersTappedUnlessPay: { life: 2 }` clause.
 export const steamVents = defineCard(() =>
     makeDualLand({
         id: "054f2276-2dd5-43da-bb26-c57c560861fe",
