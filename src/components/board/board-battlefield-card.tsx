@@ -505,22 +505,72 @@ export default function BoardBattlefieldCard({
             onPointerLeave={onPointerLeave}
             {...clickHandlers}
         >
-            {/* Cards held in exile by this permanent (Parallax Wave / Banishing
-                Light) render as a corner peek-stack BEHIND the host, with a pile
-                dialog on click; cast-from-exile (Ice Cauldron / Dauthi) rides on
-                each dialog card. Deliberately OUTSIDE `data-tap-visual` below —
-                it stays upright and clickable regardless of the host's tap
-                state. NOT the same treatment as the counter/summoning-sickness
-                badges: those render INSIDE `inner` (i.e. inside
-                `data-tap-visual`) and DO rotate with a tapped host on this
-                board — this peek-stack is a deliberate exception, chosen so
-                the held-card pile stays legible and clickable while tapped,
-                at the cost of visually detaching from the rotated art on a
-                tapped Ice Cauldron / Banishing Light. See
-                `board-battlefield-card.test.tsx`'s
-                "peek-stack placement" describe block for the regression
-                guard. */}
-            {associatedExiled.length > 0 && (
+            {/* CR 116.2b / 702.37e (issue #2705) — the morph turn-face-up
+                special action. Rendered from the server-derived
+                `canTurnFaceUp` wire flag, which is only ever set on the
+                controller's own projection, and OUTSIDE `data-tap-visual` so
+                it stays upright and clickable on a tapped permanent — turning
+                up a tapped attacker mid-combat is a normal line. Not part of
+                the activated-ability menu below: a special action is not an
+                ability (CR 116), and a face-down permanent has no abilities
+                for that menu to show. */}
+            {!phased && card.canTurnFaceUp && (
+                <TurnFaceUpButton cardInstanceId={card.id} />
+            )}
+            {/* A plain stacking wrapper, NOT the rotation layer itself (issue
+                #1994 round 4): `[data-tap-visual]` now lives one level deeper,
+                INSIDE `inner`'s `CardTilt3D`, so `[data-card-tilt-root]` sits
+                outside the inert layer and keeps receiving pointer events on
+                a tapped permanent — see the `tapTransform` comment above for
+                the full rationale. */}
+            <div className="relative z-10 w-full h-full">{inner}</div>
+        </div>
+    );
+
+    const host = (
+        <ActivatableAbilityMenu
+            abilities={abilities}
+            onActivate={activate}
+            sheetOpen={ability.sheetOpen}
+            onSheetClose={ability.onSheetClose}
+        >
+            {cardContent}
+        </ActivatableAbilityMenu>
+    );
+    if (associatedExiled.length === 0) return host;
+
+    // Cards held in exile by this permanent (CR 607.2a linked exile — Parallax
+    // Wave, Banishing Light, Agatha's Soul Cauldron) render as a corner
+    // peek-stack BEHIND the host, with a pile dialog on click; cast-from-exile
+    // (Ice Cauldron / Dauthi) rides on each dialog card. Mounted the way
+    // `renderHostWithAuras` mounts the Aura cluster: as a SIBLING of the host's
+    // interactive box, never inside it (issue #5515). Inside `cardContent` —
+    // and so inside `ActivatableAbilityMenu`'s trigger — a sliver click and
+    // every click in the pile dialog (React events bubble through the portal)
+    // also reached the host's tap/payment `onClick` and synthesized the
+    // ability menu's `contextmenu`, which then stole the dialog.
+    //
+    // Also OUTSIDE `data-tap-visual`: it stays upright and clickable
+    // regardless of the host's tap state, unlike the counter/summoning-
+    // sickness badges that rotate with a tapped host — chosen so the held-card
+    // pile stays legible while tapped, at the cost of visually detaching from
+    // the rotated art on a tapped Ice Cauldron / Banishing Light. See
+    // `board-battlefield-card.test.tsx`'s "peek-stack placement" and "issue
+    // #5515" describe blocks for the regression guards.
+    //
+    // Being a sibling, the cluster no longer inherits the host box's combat
+    // lift or phased / unlit dimming — its own layer re-applies the same
+    // values so the pile still moves and dims with its host.
+    return (
+        <div className="relative w-full h-full">
+            <div
+                className={`absolute inset-0 ${combatOffsetClassName} transition duration-250`}
+                style={{
+                    translate: compactLiftTranslate,
+                    opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
+                    filter: phased ? "grayscale(0.85)" : undefined,
+                }}
+            >
                 <AttachedCardsCluster
                     cards={associatedExiled}
                     renderMember={(exiled) => <CardImage card={exiled} />}
@@ -535,38 +585,9 @@ export default function BoardBattlefieldCard({
                         ) : null
                     }
                 />
-            )}
-            {/* CR 116.2b / 702.37e (issue #2705) — the morph turn-face-up
-                special action. Rendered from the server-derived
-                `canTurnFaceUp` wire flag, which is only ever set on the
-                controller's own projection, and OUTSIDE `data-tap-visual` so
-                it stays upright and clickable on a tapped permanent — turning
-                up a tapped attacker mid-combat is a normal line. Not part of
-                the activated-ability menu below: a special action is not an
-                ability (CR 116), and a face-down permanent has no abilities
-                for that menu to show. */}
-            {!phased && card.canTurnFaceUp && (
-                <TurnFaceUpButton cardInstanceId={card.id} />
-            )}
-            {/* Host paints above the peek-stack (which is z-0) — a plain
-                stacking wrapper, NOT the rotation layer itself (issue #1994
-                round 4): `[data-tap-visual]` now lives one level deeper,
-                INSIDE `inner`'s `CardTilt3D`, so `[data-card-tilt-root]` sits
-                outside the inert layer and keeps receiving pointer events on
-                a tapped permanent — see the `tapTransform` comment above for
-                the full rationale. */}
-            <div className="relative z-10 w-full h-full">{inner}</div>
+            </div>
+            {/* Host paints above the peek-stack (which is z-0). */}
+            <div className="relative z-10 w-full h-full">{host}</div>
         </div>
-    );
-
-    return (
-        <ActivatableAbilityMenu
-            abilities={abilities}
-            onActivate={activate}
-            sheetOpen={ability.sheetOpen}
-            onSheetClose={ability.onSheetClose}
-        >
-            {cardContent}
-        </ActivatableAbilityMenu>
     );
 }
