@@ -25,6 +25,7 @@
 import { hasCastPermissionFlash } from "./castPermissions";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import {
+    hasInfect,
     isCombatDamageImmune,
     isDamageUnpreventableThisTurn,
     sourcePreventionShieldApplies,
@@ -2257,7 +2258,7 @@ function declaredFaceDamage(
         if (!unpreventable && isCombatDamageImmune(state, atk.id)) continue;
         // CR 702.90b — an infect source's damage to a player is poison
         // counters, never life loss (`markInfectPoisonDamage`, state.ts).
-        if (atk.staticAbilities.includes("infect")) poison += toPlayer;
+        if (hasInfect(atk)) poison += toPlayer;
         else damage += toPlayer;
     }
     return { defender, attacker, damage, poison };
@@ -2615,7 +2616,7 @@ export function declaredBlockDelta(
         if (!atk) continue;
         const blockers = byAttacker.get(atkId) ?? [];
         const atkPT = ptOf(atk);
-        const infect = atk.staticAbilities.includes("infect");
+        const infect = hasInfect(atk);
         if (blockers.length === 0) {
             if (infect) facePoison += Math.max(0, atkPT.power);
             else faceDamage += Math.max(0, atkPT.power);

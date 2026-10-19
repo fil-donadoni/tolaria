@@ -17,7 +17,7 @@
 // `evaluate`, so the Clock shares the legality rules and does its own crude,
 // non-eval assignment, exactly as ADR 0018 specifies.)
 
-import type { CardInstanceState, GameState } from "./state";
+import { hasInfect, type CardInstanceState, type GameState } from "./state";
 import {
     beginLayer7Pass,
     getEffectivePT,
@@ -35,12 +35,6 @@ import type { HeldPump } from "./heldInteraction";
  *  Forge-scale (ADR 0018) but kept below a creature's worth (~170) so the clock
  *  is a positional nudge — defend / press — not an override of material. */
 const W_CLOCK = 150;
-
-/** CR 702.90b — combat damage from an infect source reaches a player as
- *  poison counters, not life loss. */
-function hasInfect(c: CardInstanceState): boolean {
-    return c.staticAbilities.includes("infect");
-}
 
 /** What one combat's unblocked attackers send at the defending player: `damage`
  *  reaches their life, `poison` — the infect attackers' share (CR 702.90b) —
@@ -251,9 +245,10 @@ export function predictCombatOutcome(
 }
 
 /** One player's clock reward: how fast they kill the other, as the fraction of
- *  the defender's life removed per combat — plus, for infect attackers, the
- *  fraction of the poison counters the defender can still take before the
- *  CR 704.5c loss (issue #5153) — capped at one combat = lethal on board. Zero
+ *  the defender's life removed per combat or, for infect attackers, of the
+ *  poison counters the defender can still take before the CR 704.5c loss
+ *  (issue #5153) — whichever is faster, since the two are separate ways to
+ *  lose and never add up to one. Capped at one combat = lethal on board. Zero
  *  when nothing gets through. */
 function clockReward(
     threat: UnblockedThreat,
@@ -266,7 +261,7 @@ function clockReward(
         threat.poison > 0
             ? threat.poison / Math.max(1, POISON_LOSS_COUNTERS - defenderPoison)
             : 0;
-    return W_CLOCK * Math.min(1, lifeFraction + poisonFraction);
+    return W_CLOCK * Math.min(1, Math.max(lifeFraction, poisonFraction));
 }
 
 /** Signed Danger Clock contribution to `evaluate`, from `playerId`'s view:

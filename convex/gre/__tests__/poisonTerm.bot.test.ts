@@ -163,4 +163,25 @@ describe("dangerClock — the poison race (CR 702.90b)", () => {
         expect(near).toBeLessThan(far);
         expect(near).toBeLessThan(vanilla);
     });
+
+    it("takes the faster of the life and poison races, never their sum", () => {
+        // 10 power into 20 life and 5 infect power into 0 poison: each race
+        // is half done per combat, so the board is a two-combat clock, not a
+        // one-combat lethal one.
+        const state = board({ poison: 0, power: 5, infect: true });
+        const attacker = state.players.find((p) => p.id === ATTACKER)!;
+        attacker.battlefield.push(
+            makeInstance(VANILLA, {
+                id: "a1",
+                controllerId: ATTACKER,
+                power: 10,
+                toughness: 2,
+            })
+        );
+        const full = dangerClock(
+            board({ poison: 0, power: 20, infect: false }),
+            DEFENDER
+        );
+        expect(dangerClock(state, DEFENDER)).toBeGreaterThan(full);
+    });
 });

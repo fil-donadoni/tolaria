@@ -400,10 +400,11 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     deckingHorizon: 12,
     deckingWeight: 1.5,
     // Issue #5153 — 2 × deficit², so the term's whole range (200 at the
-    // loss) stays inside `materialFull` the way `deckingWeight`'s does, and
-    // the average counter on the way there costs ~2.25 life points: the
-    // `POISON_PER_COUNTER` (16 = 2 × `lifeWeight`) the poison Op valuer
-    // already charges (`ai/opValuers.ts`).
+    // loss) stays inside `materialFull` the way `deckingWeight`'s does. The
+    // ten counters together cost 25 life points' worth; front-loaded the
+    // other way from the poison Op valuer's flat `POISON_PER_COUNTER`
+    // (`ai/opValuers.ts`, 2 × `lifeWeight` a counter): the first counter is
+    // a chip (2), the tenth the game (38).
     poisonHorizon: 10,
     poisonWeight: 2,
     graveyardEngineWeight: 60,
