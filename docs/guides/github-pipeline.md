@@ -105,6 +105,13 @@ longer declared (you lowered `--pass`) is reported, never removed silently:
 deletes its directory. Changing a registered runner's
 [labels](#g-label) = `remove` it, then `install` again.
 
+**Dead units** (issue #6019): an installed Tolaria unit
+(`~/.config/systemd/user/tolaria-*.{service,timer}`,
+`~/Library/LaunchAgents/com.tolaria.*.plist`) whose script is gone from the
+checkout — the `tolaria-health` / `tolaria-reaper` units PR #5856 left behind
+— is stopped, disabled and deleted (drop-ins with it) by `install`, or alone
+by `bun run runner prune [--dry-run]`. `bun run machine` lists any it finds.
+
 ### MacBook — launchd
 
 - One [launchd agent](#g-user-service) per [runner](#g-runner):
