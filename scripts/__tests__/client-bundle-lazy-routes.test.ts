@@ -269,6 +269,21 @@ describe("asset graph — a game downloads only its own Sets (issue #5615)", () 
         ]);
     });
 
+    it("reds when the Brain worker statically imports a Set chunk (issue #5618)", () => {
+        const dist = fakeDist(ENTRY, {
+            ...SHARDED,
+            "brain.worker-WWWW0000.js": `import"./engine-FFFF6666.js";import"./card-set-drk-KKKK1111.js";`,
+        });
+        expect(setChunkViolations(dist)).toEqual([
+            expect.objectContaining({
+                chunk: "card-set-drk-KKKK1111.js",
+                reason: expect.stringContaining(
+                    "imported statically by brain.worker-WWWW0000.js"
+                ),
+            }),
+        ]);
+    });
+
     it("reds when the catalogue glue statically imports a Set chunk — the pre-#5615 shape", () => {
         const dist = fakeDist(ENTRY, {
             ...SHARDED,
