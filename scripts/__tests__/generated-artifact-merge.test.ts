@@ -119,7 +119,16 @@ describe("generated-artifact class — wiring", () => {
         expect(src).toContain(
             '"bun scripts/merge-driver-regenerated.ts %O %A %B %P"'
         );
-        expect(src).toContain(".driver`, MERGE_DRIVER_COMMAND)");
+        // Whitespace-normalized, like the ledger pin below: WHICH command is
+        // installed under which name, and that the installer writes the
+        // command to the `.driver` key (issue #5958 moved both into one call).
+        const flat = src.replace(/\s+/g, " ");
+        expect(flat).toMatch(
+            /installMergeDriver\( MERGE_DRIVER_NAME, "[^"]*", MERGE_DRIVER_COMMAND \)/
+        );
+        expect(flat).toContain(
+            "ensureGitConfig(`merge.${name}.driver`, command,"
+        );
     });
 
     it("the worktree bootstrap registers the ledger driver too", () => {
@@ -138,8 +147,8 @@ describe("generated-artifact class — wiring", () => {
         }
         // Whitespace-normalized: the assertion is about WHICH command is
         // registered under which key, not about how prettier wrapped it.
-        expect(src.replace(/\s+/g, " ")).toContain(
-            "`merge.${LEDGER_MERGE_DRIVER_NAME}.driver`, LEDGER_MERGE_DRIVER_COMMAND"
+        expect(src.replace(/\s+/g, " ")).toMatch(
+            /installMergeDriver\( LEDGER_MERGE_DRIVER_NAME, "[^"]*", LEDGER_MERGE_DRIVER_COMMAND \)/
         );
     });
 

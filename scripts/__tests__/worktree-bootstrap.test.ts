@@ -98,6 +98,10 @@ describe("worktree bootstrap wiring", () => {
         expect([...seen]).toContain(
             path.join(REPO_ROOT, "scripts", "lib", "worktree-copies.ts")
         );
+        // And the lock-safe config writer (issue #5958).
+        expect([...seen]).toContain(
+            path.join(REPO_ROOT, "scripts", "lib", "git-config-keys.ts")
+        );
     });
 });
 
