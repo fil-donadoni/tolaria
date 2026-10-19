@@ -781,6 +781,11 @@ export function laneStep(
 export const GAPS_SYNC_COMMIT_SUBJECT =
     "gaps:sync — file per-gap issues, record them in the allowlist";
 
+/** `oracle-prune-regressions.ts`'s `PRUNE_COMMIT_SUBJECT`, spelled here for the
+ *  same reason; `land.test.ts` pins the two equal (issue #6061). */
+export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
+    "oracle:prune-regressions — drop acknowledgements that match no regression";
+
 /**
  * Shell fragment that fails the WHOLE locked command (before `green-sha` is
  * written) unless `origin/main` advanced by EXACTLY one commit — our squash
@@ -790,7 +795,10 @@ export const GAPS_SYNC_COMMIT_SUBJECT =
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
  *
- * ONE push is not counted: `gaps:sync`'s own allowlist commit — its subject
+ * Two pushes are not counted (the second, issue #6061: `housekeeping`'s
+ * `oracle:prune-regressions`, subject `PRUNE_REGRESSIONS_COMMIT_SUBJECT` AND a
+ * diff of `data/oracle-state-regressions.json` alone, same reasoning). The
+ * first: `gaps:sync`'s own allowlist commit — its subject
  * (`GAPS_SYNC_COMMIT_SUBJECT`) AND a diff of `data/grammar-gaps.json` alone.
  * It is a computed `issue` number per row (ADR 0137's trust tier), and since
  * issue #5457 it is pushed by the hourly `housekeeping` cron, outside this
@@ -811,7 +819,9 @@ export const VERIFY_MERGED_TIP =
     "{ " +
     `N=0; for C in $(git rev-list "$OLD_TIP..${ORIGIN_BASE}"); do ` +
     `case "$(git log -1 --format=%s "$C")" in ${shQuote(GAPS_SYNC_COMMIT_SUBJECT)}) ` +
-    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; esac; ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; ` +
+    `${shQuote(PRUNE_REGRESSIONS_COMMIT_SUBJECT)}) ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/oracle-state-regressions.json" ] && continue;; esac; ` +
     `N=$((N+1)); done; ` +
     `[ "$N" = "1" ] || ` +
     `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +

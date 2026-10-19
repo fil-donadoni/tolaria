@@ -335,6 +335,14 @@ export const GAPS_SYNC_STEP: Step = {
     timeoutMs: GAPS_SYNC_TIMEOUT_MS,
 };
 
+/** Step 2b: drop the state-regression acknowledgements the merged changes
+ *  made stale (issue #6061). Idempotent; a failure retries the batch. */
+export const PRUNE_REGRESSIONS_STEP: Step = {
+    label: "oracle:prune-regressions",
+    argv: ["bun", "scripts/oracle-prune-regressions.ts"],
+    timeoutMs: GAPS_SYNC_TIMEOUT_MS,
+};
+
 /** Whether a PR's steps left it for retry: the batch's `gaps:sync` failed
  *  (a lost allowlist write-back included, issue #5871), or one of its own
  *  steps did. `done` only when both held. */
@@ -752,6 +760,7 @@ function main(): void {
         );
         for (const step of [
             GAPS_SYNC_STEP,
+            PRUNE_REGRESSIONS_STEP,
             ...pending.flatMap((pr) => prSteps(pr)),
             SWEEP_STEP,
         ])
@@ -800,11 +809,13 @@ function main(): void {
     // Step 2: one sync for the batch. A failure does not hold back the claim
     // releases and detaches below, but every PR is retried for it.
     const synced = run(GAPS_SYNC_STEP);
+    const pruned = run(PRUNE_REGRESSIONS_STEP);
 
     // Step 3: per PR.
     const failed = new Set<number>();
     for (const pr of pending) {
-        let own = true;
+        // A failed prune keeps every PR of the batch in retry, like the sync.
+        let own = pruned;
         for (const step of prSteps(pr)) own = run(step) && own;
         const retry = prRetried(synced, own);
         if (retry) failed.add(pr.number);
