@@ -1625,13 +1625,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            predicate: (move, state) =>
-                matchesMove(state, move, {
-                    kind: "cast-spell",
-                    card: "Terror",
-                    target: "Hill Giant",
-                }),
-            describe: "Terror is cast on the Hill Giant",
+            moves: [
+                { kind: "cast-spell", card: "Terror", target: "Hill Giant" },
+            ],
         },
         note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body, 5/5 seeds at 400 iterations, on the base and with the poison model alike. The anchor proves the 7-poison half below flips on the poison counters alone.",
     },
@@ -1676,13 +1672,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            predicate: (move, state) =>
-                matchesMove(state, move, {
-                    kind: "cast-spell",
-                    card: "Terror",
-                    target: "Grizzly Bears",
-                }),
-            describe: "Terror is cast on the Grizzly Bears",
+            moves: [
+                { kind: "cast-spell", card: "Terror", target: "Grizzly Bears" },
+            ],
         },
         note: "Issue #5153, half 2 of the poison-clock pair. At seven poison the infect 2/2 kills in two attacks, past the rollout's one-round horizon, so only the evaluation can see it. Measured 5/5 seeds at 400 iterations: Terror on Grizzly Bears with the poison model; on the base (no poison term, life-only danger clock) Terror on Hill Giant 5/5. Proof of failure: `poisonWeight` 0 → the bot passes 5/5; the danger clock's poison fraction removed → Hill Giant 5/5.",
     },
