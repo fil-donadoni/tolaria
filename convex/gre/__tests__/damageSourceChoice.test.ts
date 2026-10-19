@@ -213,6 +213,7 @@ describe("pick-source — the CR 609.7a source pool (issue #5601)", () => {
         activate(state, circleOfProtectionRed);
         submit(state, [bolt.id]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(state.players[0].battlefield.some((c) => c.id === "lions")).toBe(
             false
         );

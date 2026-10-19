@@ -79,6 +79,7 @@ import {
     makeTargetCreature,
     makeLand,
 } from "./set.helper";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const meteorShower = getDefinition("50b4851e-677b-468e-9baa-e47a3b4b8339");
@@ -199,6 +200,7 @@ describe("Pyroclasm (CR 120.3 sweep)", () => {
         });
         pushSpell(state, pyroclasm.id, "p1");
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const bf = state.players[1].battlefield.map((c) => c.id);
         expect(bf).not.toContain("small");
         expect(bf).toContain("big");
@@ -485,6 +487,7 @@ describe("Karplusan Yeti (mutual fight damage)", () => {
         resolveActivated(state, yeti, "karplusan-yeti-fight", [
             { type: "permanent", id: "foe" },
         ]);
+        checkStateBasedActions(state);
         // both are 3/3 and deal 3 to each other → both die.
         expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
             "yeti"

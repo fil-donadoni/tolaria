@@ -132,6 +132,7 @@ describe("Hurricane ({X}{G} — X damage to each flying creature and each player
         const item = pushSpell(state, hurricane.id, "p1");
         item.chosenX = 4;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "flier")
         ).toBeUndefined();
@@ -156,6 +157,7 @@ describe("Hurricane ({X}{G} — X damage to each flying creature and each player
         const item = pushSpell(state, hurricane.id, "p1");
         item.chosenX = 4;
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const projected = projectPublicState(state, 1, "p1");
         const p2 = projected.players.find((p) => p.id === "p2")!;
         const ids = p2.battlefield.map((c) => c.id);
@@ -870,6 +872,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const bearAfter = state.players[1].battlefield.find(
             (c) => c.id === "bear"
         );
@@ -891,6 +894,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
         expect(bear.regenerationShields).toBe(1);
         // Second lethal — shield 2 consumed.
@@ -898,6 +902,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
         expect(bear.regenerationShields).toBeUndefined();
         expect(bear.zone).toBe("battlefield");
@@ -906,6 +911,7 @@ describe("Regeneration ({1}{G} Aura — {G}: Regenerate enchanted creature, CR 7
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")
         ).toBeUndefined();
@@ -1319,6 +1325,7 @@ describe("Fungusaur (DAMAGE_DEALT trigger → +1/+1 counter)", () => {
             )
         ).toBe(true);
         while (state.stack.length > 0) resolveTopOfStack(state);
+        checkStateBasedActions(state);
         const dead = state.players[0].graveyard.find((c) => c.id === "fung")!;
         expect(dead).toBeDefined();
         // No counter applied — target was not on battlefield at resolve time.

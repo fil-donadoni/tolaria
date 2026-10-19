@@ -27,6 +27,7 @@ import {
     makeState,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const grimLavamancer = getDefinition("5dd72697-24be-42c7-a6d9-a837bdbd4662");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -171,6 +172,7 @@ describe("Grim Lavamancer ({R},{T}, exile 2 from your graveyard: 2 to any target
             type: "permanent",
             id: "bear",
         });
+        checkStateBasedActions(state);
         expect(
             getPlayer(state, "p2").battlefield.map((c) => c.id)
         ).not.toContain("bear");

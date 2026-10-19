@@ -23,6 +23,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 const moggFanatic = getDefinition("ca2ecfd4-c874-4468-8601-87aa110d5a00");
 const jackalPup = getDefinition("3707ab74-9aec-4d30-86e0-ffa5f72d5b4f");
@@ -48,6 +49,7 @@ function sacrificeSelfActivated(
     removePermanentTo(state, source.id, "graveyard");
     state.stack.push(stackItem);
     resolveTopOfStack(state);
+    checkStateBasedActions(state);
 }
 
 describe("Mogg Fanatic (sacrifice-for-effect, CR 602.1 / 701.21 / 120.1)", () => {
@@ -168,6 +170,7 @@ describe("Jackal Pup (self-damage drawback, CR 120.3 / 603.4)", () => {
         // Controller (p1) takes "that much" (3) damage even though the Pup
         // died from the same damage.
         expect(getPlayer(state, "p1").life).toBe(17);
+        checkStateBasedActions(state);
         expect(
             getPlayer(state, "p1").battlefield.some((c) => c.id === "pup")
         ).toBe(false);

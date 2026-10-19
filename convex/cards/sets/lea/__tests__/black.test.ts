@@ -2345,6 +2345,7 @@ describe("Simulacrum ({X}{B} instant — life + damage based on damage tracking)
             { type: "permanent", id: "tgt" },
         ]);
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
         // Caster gained 4 life (13 → 17), target took 4 damage and was killed
         // (grizzlyBears toughness 2 < 4 → SBA lethal).
         expect(state.players[0].life).toBe(17);

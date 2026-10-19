@@ -10697,6 +10697,14 @@ export interface CreatureDiedEvent {
      *  creature was not in combat. Optional so older event fixtures and
      *  serialized logs without the field deserialize as "no partners". */
     combatPartnerIds?: readonly string[];
+    /** Instance ids of the Auras/Equipment attached to the creature at the
+     *  moment it died (CR 603.10a last known information) — the
+     *  `PermanentLeftEvent.attachmentsBeforeLeave` twin. Read by a death
+     *  trigger living on the ATTACHMENT ("when enchanted creature dies",
+     *  Creature Bond), which cannot test `self.attachedTo`: the attachment SBA
+     *  (CR 704.5m) may detach it in the same sweep that killed the host
+     *  (issue #5784). Omitted when nothing was attached. */
+    attachmentsBeforeLeave?: ReadonlyArray<string>;
 }
 
 /** Enter-the-battlefield event emitted whenever a permanent enters play via

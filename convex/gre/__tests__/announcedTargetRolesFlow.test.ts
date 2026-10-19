@@ -29,6 +29,7 @@ import { announcedTargetRoleFields, applyOneTargetSelection } from "../../game";
 import { projectPublicState } from "../../gameProjections";
 import { getPlayer, resolveTopOfStack, type GameState } from "../state";
 import { pendingTargetFiltersFromRequirement } from "../rules";
+import { checkStateBasedActions } from "../sba";
 
 const JILT = getCardByName("Jilt");
 
@@ -118,6 +119,7 @@ describe("Jilt — the announced targets are told apart, and resolution obeys it
         // Row 2 said "dealt 2 damage" — the second.
         pick(state, "bears");
         resolveTopOfStack(state);
+        checkStateBasedActions(state);
 
         const p2 = getPlayer(state, "p2");
         expect(p2.hand.map((c) => c.id)).toEqual(["angel"]);
