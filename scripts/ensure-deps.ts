@@ -26,7 +26,7 @@ const outcome = ensureDeps(
 );
 if (outcome === "installed")
     console.log(
-        "deps: bun install --frozen-lockfile (node_modules was installed from other manifests than this tree's)"
+        "deps: bun install --frozen-lockfile (node_modules carried no stamp of this tree's bun.lock + package.json)"
     );
 if (outcome === "failed") {
     console.error(
