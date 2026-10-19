@@ -11,9 +11,10 @@
 // restriction failing, every other gate satisfied in both.
 //
 // The cards are FIXTURES, never special cases: nothing under test reads a card
-// name. Barbarian Ring supplies a threshold closure over the controller's
-// graveyard; Phyrexian Battleflies a mana-only closure over its own per-turn
-// activation tally.
+// name. Barbarian Ring supplies a threshold restriction over the controller's
+// graveyard — since issue #3685 the DATA form (`activationCondition`), read by
+// the same predicate, so its pair below pins the Bot on that form; Phyrexian
+// Battleflies a mana-only closure over its own per-turn activation tally.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { enumerateMoves } from "../moves";

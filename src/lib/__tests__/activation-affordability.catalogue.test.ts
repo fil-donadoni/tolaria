@@ -68,7 +68,8 @@ type Shape =
     | "loyalty"
     | "tapOtherFilter"
     | "sacrificeFilter"
-    | "requiresAttackedThisTurn";
+    | "requiresAttackedThisTurn"
+    | "activationCondition";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -383,7 +384,68 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // `canActivate` closure is auto-skipped by `skipReason` below and could
     // never enter this sweep at all.
     if (a.requiresAttackedThisTurn) out.push("requiresAttackedThisTurn");
+    // CR 602.1b (issue #3685) — a declarative "Activate only if …"
+    // restriction. The data form exists so this sweep can reach it: the same
+    // gate as a `canActivate` closure, which `skipReason` can only skip.
+    if (a.activationCondition) out.push("activationCondition");
     return out;
+}
+
+/** CR 107 — number comparison, restated here ON PURPOSE rather than imported:
+ *  the fixture counts must be derived independently of the evaluator under
+ *  test, or a broken evaluator would build the board that agrees with it. */
+function holds(n: number, op: string, lit: number): boolean {
+    return op === "eq"
+        ? n === lit
+        : op === "ne"
+          ? n !== lit
+          : op === "lt"
+            ? n < lit
+            : op === "le"
+              ? n <= lit
+              : op === "gt"
+                ? n > lit
+                : n >= lit;
+}
+
+/** The viewer-zone sizes that satisfy (`ok`) and violate (`broken`) an
+ *  `activationCondition`, for the one shape this sweep builds analytically: a
+ *  `count` of the controller's graveyard or hand compared with a literal.
+ *  `broken` is the violating size NEAREST `ok` — the boundary case. `null` for
+ *  any other shape (reported by `skipReason`). */
+function conditionSizes(
+    a: ActivatedAbility
+): { zone: "graveyard" | "hand"; ok: number; broken: number } | null {
+    const c = a.activationCondition;
+    if (!c || !("op" in c)) return null;
+    const flip: Record<string, string> = {
+        lt: "gt",
+        le: "ge",
+        gt: "lt",
+        ge: "le",
+    };
+    const [side, lit, op] =
+        typeof c.right === "number"
+            ? [c.left, c.right, c.op]
+            : typeof c.left === "number"
+              ? [c.right, c.left, flip[c.op] ?? c.op]
+              : [undefined, 0, c.op];
+    if (typeof side !== "object" || side === null || !("count" in side)) {
+        return null;
+    }
+    const spec = side.count;
+    if (spec.controller !== "controller") return null;
+    if (spec.zone !== "graveyard" && spec.zone !== "hand") return null;
+    const times = spec.times ?? 1;
+    const sizes = Array.from({ length: 41 }, (_, n) => n);
+    const ok = sizes.find((n) => holds(n * times, op, lit));
+    if (ok === undefined) return null;
+    const failing = sizes.filter((n) => !holds(n * times, op, lit));
+    if (failing.length === 0) return null;
+    const broken = failing.reduce((best, n) =>
+        Math.abs(n - ok) < Math.abs(best - ok) ? n : best
+    );
+    return { zone: spec.zone, ok, broken };
 }
 
 /** True when a `useStack: false` mana ability both reaches the mana-ability
@@ -411,6 +473,9 @@ function isManaMenuGated(a: ActivatedAbility): boolean {
  *  generically satisfy — reported as a skip rather than a failure. */
 function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
     if (a.canActivate) return "canActivate predicate";
+    if (a.activationCondition && conditionSizes(a) === null) {
+        return "activationCondition shape the sweep cannot size";
+    }
     if (
         a.cost.tapOtherFilter &&
         findMatchingPermanentCardId(a.cost.tapOtherFilter.filter) === null
@@ -581,6 +646,16 @@ function env(c: Case, broken: boolean) {
                     : true,
         };
     }
+    // CR 602.1b (issue #3685) — size the counted zone so the condition holds
+    // for every case (a closed condition would hide the ability whichever
+    // shape is under test), and to the nearest violating size for its own.
+    const condition = conditionSizes(ability);
+    const conditionSize =
+        condition === null
+            ? 0
+            : broken && shape === "activationCondition"
+              ? condition.broken
+              : condition.ok;
     // Life: the gate is only applied when payerLife is passed.
     let payerLife = 999;
     if (ability.cost.life !== undefined && broken && shape === "life") {
@@ -599,6 +674,20 @@ function env(c: Case, broken: boolean) {
         void owner;
         void oppGrave;
     }
+    if (condition?.zone === "graveyard") {
+        // The condition counts the whole pile, so it is topped up (or cut)
+        // to its size; an exile cost on the same ability already filled it.
+        viewerGrave.length = Math.min(viewerGrave.length, conditionSize);
+        while (viewerGrave.length < conditionSize) {
+            viewerGrave.push(gvCard(`cg${viewerGrave.length}`, VIEWER));
+        }
+    }
+    const viewerHand: CardInstance[] =
+        condition?.zone === "hand"
+            ? Array.from({ length: conditionSize }, (_, i) =>
+                  handCard(`ch${i}`, "condition-hand")
+              )
+            : [];
     // Hand: satisfy every discardFilter gate (Survival of the Fittest —
     // "Discard a creature card"). `hand` here mirrors `getStackAbilities`'
     // `discardFilterHand` param — never `buildTriggerStateView`'s stripped
@@ -704,7 +793,7 @@ function env(c: Case, broken: boolean) {
             {
                 id: VIEWER,
                 life: payerLife,
-                hand: [],
+                hand: viewerHand,
                 battlefield: [
                     ...(ability.activateFromGraveyard ? [] : [source]),
                     // For a tapOtherFilter case the viewer's target dummy is
