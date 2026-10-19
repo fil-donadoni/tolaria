@@ -569,6 +569,42 @@ const EXTRA_PLAINS: Discriminant = { kind: "card", detail: "one extra Plains" };
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
+        // A SHIELD OVER AN ATTACKER'S DAMAGE is worth the damage it stops
+        // (CR 615.1, issue #5926). The opponent swings Craw Wurm (6/4) at a
+        // holder on 6 life with Grizzly Bears home: chump-blocking spends the
+        // Bears, passing is lethal, and Warning — {W}, "prevent all combat
+        // damage that would be dealt by target attacking creature" — keeps
+        // both the body and the life. Casting is the only line that loses
+        // nothing but the card.
+        label: "Warning: shields a lethal attacker rather than chump-blocking",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Warning", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: { attackers: ["Craw Wurm"], confirmed: true },
+            life: { me: 6 },
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Warning" }],
+        },
+        note: "Bot reachability for a combat-damage shield (issue #5926). The Bot-play sweep posed Warning against a bear it could simply block, so the verdict read `never-chosen`; the pose now makes the attack lethal (`botReachTarget.ts`).",
+    },
+    {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
         // requirement and reads them positionally: slot 0 is returned to its

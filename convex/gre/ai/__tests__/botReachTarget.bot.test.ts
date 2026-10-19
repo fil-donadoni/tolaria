@@ -116,6 +116,12 @@ describe("the generated position poses a declared combat (CR 508.1, 509.1)", () 
         });
     });
 
+    it("a shield over an attacker's damage is posed against a lethal attack (CR 615.1, issue #5926)", () => {
+        const def = getCardByName("Warning");
+        expect(targetPose(def).life).toEqual({ me: 6 });
+        expect(playBotReach(def)).toEqual({ outcome: "played" });
+    });
+
     it("blocking creature of the opponent (CR 509.1)", () => {
         const def = instant("blocking-removal", {
             combatRoleFilter: ["blocking"],

@@ -566,6 +566,7 @@ export function targetPose(def: CardDefinition): TargetPose {
         // in a main phase, so an ETB Ability's combat window would be one the
         // card cannot be cast in.
         position: own.position,
+        ...(own.life ? { life: own.life } : {}),
     };
 }
 
