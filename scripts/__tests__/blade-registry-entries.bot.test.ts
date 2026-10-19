@@ -9,7 +9,7 @@ import { entryTier, parseRegistryEntries } from "../lib/blade-registry-entries";
 describe("parseRegistryEntries on the real registry", () => {
     it("reads the real registry: every entry, every must", () => {
         const src = readFileSync(
-            join(__dirname, "../../convex/gre/ai/blade/registry.ts"),
+            join(__dirname, "../../convex/gre/ai/blade/scenarios.ts"),
             "utf8"
         );
         const parsed = parseRegistryEntries(src)!;

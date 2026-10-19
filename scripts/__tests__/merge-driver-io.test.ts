@@ -59,7 +59,11 @@ describe("merge driver stderr survives process.exit (issue #3857)", () => {
             driverSources()
                 .map((d) => d.name)
                 .sort()
-        ).toEqual(["merge-driver-cr-ledger.ts", "merge-driver-regenerated.ts"]);
+        ).toEqual([
+            "merge-driver-append-only.ts",
+            "merge-driver-cr-ledger.ts",
+            "merge-driver-regenerated.ts",
+        ]);
     });
 
     it.each(driverSources())(

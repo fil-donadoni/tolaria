@@ -216,7 +216,7 @@ describe("the audit's closure on the real tree", () => {
 describe("robustnessModeFromGit — against a throwaway repository", () => {
     const REG = `export const BLADE_SCENARIOS: BladeScenario[] = [\n{ label: "A", tier: "must" },\n];\n`;
     const FILES: Record<string, string> = {
-        "convex/gre/ai/blade/__tests__/robustnessShardRunner.helper.ts": `import "../registry";\nimport "../../valuer";\n`,
+        "convex/gre/ai/blade/__tests__/robustnessShardRunner.helper.ts": `import "../scenarios";\nimport "../../valuer";\n`,
         [REGISTRY_PATH]: REG,
         "convex/gre/ai/valuer.ts": "export const v = 1;\n",
         "convex/gre/ai/evalWeights.ts": "export const w = 1;\n",

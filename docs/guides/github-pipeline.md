@@ -4,7 +4,11 @@ ADR 0156 (and its Amendment I) moves everything after the PR — verification
 scheduling, the merge queue, post-merge jobs, health, release — onto GitHub
 Actions and Mergify. Every job runs on a [self-hosted runner](#g-runner) on
 one of the owner's two machines. This guide is the operating manual of that
-stack; **every slice of PRD #5620 updates it in the same PR**. Version 1
+stack; **every slice of PRD #5620 updates it in the same PR, in its own
+section** — a slice appends the section it adds and leaves the shared
+paragraphs (this one included) to the single rewrite in issue #5657, because
+every slice editing one paragraph is what made this file the most conflicted
+in the repo (issue #5942). Version 1
 (issue #5634) covered the [runners](#g-runner): install,
 [labels](#g-label), [pause](#g-pause) / resume, and the repository settings
 checklist. Version 2 (issue #5636) adds the [jobs](#jobs): the
