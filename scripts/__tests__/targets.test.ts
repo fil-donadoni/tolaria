@@ -13,6 +13,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
+import { floorlessCardIds } from "../lib/gap-kinds";
+import { poolOracleIds } from "../oracle-compile";
 import {
     claimId,
     coverageState,
@@ -74,12 +76,29 @@ describe("data/targets.json — the registered Target Lists", () => {
         ).toEqual(["premodern-metagame", "vintage-cube", "format-premodern"]);
     });
 
-    it("flags premodern-metagame as a `ready` Target and no other (issue #4519)", () => {
-        expect(
+    it("flags premodern-metagame as the one `closed-tail` Target, and no Target `ready` (issue #6085)", () => {
+        const ids = (mode: string): string[] =>
             registry.targets
-                .filter((t) => t.completion === "ready")
-                .map((t) => t.id)
-        ).toEqual(["premodern-metagame"]);
+                .filter((t) => t.completion === mode)
+                .map((t) => t.id);
+        expect(ids("closed-tail")).toEqual(["premodern-metagame"]);
+        expect(ids("ready")).toEqual([]);
+    });
+
+    it("lists in `closedTail` only cards hand-written today, and the Target stays floorless (issue #6085)", () => {
+        const metagame = registry.targets.find(
+            (t) => t.id === "premodern-metagame"
+        )!;
+        const resolved = resolveTarget(metagame, ctx);
+        const handWritten = poolOracleIds();
+        const notWritten = [...resolved.closedTail!]
+            .filter((id) => !handWritten.has(id))
+            .map((id) => ctx.byOracleId.get(id)!.name);
+        expect(notWritten).toEqual([]);
+        expect(resolved.closedTail!.size).toBe(metagame.closedTail!.length);
+        const floorless = floorlessCardIds(registry, ctx);
+        for (const card of resolved.cards)
+            expect(floorless.has(card.oracleId), card.name).toBe(true);
     });
 
     it("resolves every registered Target to 100% oracle ids of the pinned corpus", () => {
@@ -121,6 +140,40 @@ describe("the resolver is fail-closed", () => {
         writeFileSync(join(root, `${id}.txt`), text);
         return { id, kind: "name-list", source: `${id}.txt` };
     };
+
+    it("resolves `closedTail` to oracle ids, and throws on a name outside the Target (issue #6085)", () => {
+        const list = nameList("tail", "Lightning Bolt\nGrizzly Bears\n");
+        const tailed = (closedTail: string[]): TargetRow => ({
+            ...list,
+            completion: "closed-tail",
+            closedTail,
+        });
+        expect([
+            ...resolveTarget(tailed(["Grizzly Bears"]), ctx).closedTail!,
+        ]).toEqual(["id-bear"]);
+        expect(() =>
+            resolveTarget(tailed(["Ajani, Nacatl Pariah"]), ctx)
+        ).toThrow(
+            /`closedTail` names `Ajani, Nacatl Pariah`, which is not a card of this Target/
+        );
+        expect(() => resolveTarget(tailed(["No Such Card"]), ctx)).toThrow(
+            /not a card of this Target/
+        );
+        const split = nameList("split", "Ajani, Nacatl Pariah\n");
+        expect(() =>
+            resolveTarget(
+                {
+                    ...split,
+                    completion: "closed-tail",
+                    closedTail: [
+                        "Ajani, Nacatl Pariah",
+                        "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+                    ],
+                },
+                ctx
+            )
+        ).toThrow(/`closedTail` names one card twice/);
+    });
 
     it("resolves exact names and front faces", () => {
         const resolved = resolveTarget(
@@ -240,6 +293,49 @@ describe("parseTargetRegistry rejects a malformed registry", () => {
             })
         );
         expect(registry.targets[0]!.completion).toBe(completion);
+    });
+
+    it("accepts `completion: closed-tail` with its `closedTail` list (issue #6085)", () => {
+        const registry = parseTargetRegistry(
+            doc({
+                targets: [
+                    {
+                        id: "a",
+                        kind: "set",
+                        source: "x",
+                        completion: "closed-tail",
+                        closedTail: ["Grizzly Bears"],
+                    },
+                ],
+            })
+        );
+        expect(registry.targets[0]!.closedTail).toEqual(["Grizzly Bears"]);
+    });
+
+    it.each([
+        [
+            "closed-tail with no list",
+            { completion: "closed-tail" },
+            /a: `completion: closed-tail` needs `closedTail`/,
+        ],
+        [
+            "a name listed twice",
+            { completion: "closed-tail", closedTail: ["X", "X"] },
+            /a: `closedTail` names `X` twice/,
+        ],
+        [
+            "a list under another mode",
+            { completion: "ready", closedTail: ["X"] },
+            /a: `closedTail` is read only under `completion: closed-tail`/,
+        ],
+    ])("rejects %s, naming the row", (_, extra, message) => {
+        expect(() =>
+            parseTargetRegistry(
+                doc({
+                    targets: [{ id: "a", kind: "set", source: "x", ...extra }],
+                })
+            )
+        ).toThrow(message);
     });
 
     it("rejects an unknown `completion`, naming the row", () => {
@@ -366,46 +462,52 @@ describe("coverage states — exactly one per card", () => {
         ]);
     });
 
-    it("a `ready` Target has no floor: a below-floor gap owes a grammar claim, and Hand Tail never settles the card (issue #4519)", () => {
-        const verdict = (id: string, over: Partial<CoverageContext> = {}) =>
-            coverageVerdict(byOracleId.get(id)!, { ...ctx, ...over }, "ready");
-        // "Below" carries a gap of 1 card (floor 3): Hand Tail under `playable`,
-        // unclaimed under `ready` until its `grammar` claim exists.
-        expect(coverageState(byOracleId.get("b")!, ctx)).toBe("unclaimed");
-        const [BELOW] = gaps.gapKeys(byOracleId.get("b")!);
-        expect(verdict("b").state).toBe("unclaimed");
-        expect(verdict("b").why).toContain("`grammar` claim");
-        expect(
-            verdict("b", {
-                claims: new Set([...ctx.claims, claimId("grammar", BELOW!)]),
-            }).state
-        ).toBe("gap-pending");
-        // "Declared" has a marker and a gap of 2 corpus cards: the marker
-        // settles it under `playable`, but under `ready` the gap is grammar owed.
-        expect(coverageState(byOracleId.get("h")!, ctx)).toBe("hand-tail");
-        expect(verdict("h").state).toBe("unclaimed");
-        expect(verdict("h").why).toContain("no `grammar` claim");
-        // A gapless card cannot be owed a grammar claim; its `hand-tail` claim
-        // or marker is reported as not satisfying a `ready` Target.
-        const bare = row("g", "Gapless", "unparsed", { gaps: [] });
-        for (const over of [
-            { handTail: new Set(["g"]) },
-            {
-                claims: new Set([
-                    ...ctx.claims,
-                    claimId("hand-tail", "Gapless"),
-                ]),
-            },
-        ])
-            expect(coverageVerdict(bare, { ...ctx, ...over }, "ready")).toEqual(
+    it.each(["ready", "closed-tail"] as const)(
+        "a `%s` Target has no floor: a below-floor gap owes a grammar claim, and Hand Tail never settles the card (issues #4519, #6085)",
+        (mode) => {
+            const verdict = (id: string, over: Partial<CoverageContext> = {}) =>
+                coverageVerdict(byOracleId.get(id)!, { ...ctx, ...over }, mode);
+            // "Below" carries a gap of 1 card (floor 3): Hand Tail under `playable`,
+            // unclaimed under `ready` until its `grammar` claim exists.
+            expect(coverageState(byOracleId.get("b")!, ctx)).toBe("unclaimed");
+            const [BELOW] = gaps.gapKeys(byOracleId.get("b")!);
+            expect(verdict("b").state).toBe("unclaimed");
+            expect(verdict("b").why).toContain("`grammar` claim");
+            expect(
+                verdict("b", {
+                    claims: new Set([
+                        ...ctx.claims,
+                        claimId("grammar", BELOW!),
+                    ]),
+                }).state
+            ).toBe("gap-pending");
+            // "Declared" has a marker and a gap of 2 corpus cards: the marker
+            // settles it under `playable`, but under `ready` the gap is grammar owed.
+            expect(coverageState(byOracleId.get("h")!, ctx)).toBe("hand-tail");
+            expect(verdict("h").state).toBe("unclaimed");
+            expect(verdict("h").why).toContain("no `grammar` claim");
+            // A gapless card cannot be owed a grammar claim; its `hand-tail` claim
+            // or marker is reported as not satisfying a `ready` Target.
+            const bare = row("g", "Gapless", "unparsed", { gaps: [] });
+            for (const over of [
+                { handTail: new Set(["g"]) },
                 {
+                    claims: new Set([
+                        ...ctx.claims,
+                        claimId("hand-tail", "Gapless"),
+                    ]),
+                },
+            ])
+                expect(
+                    coverageVerdict(bare, { ...ctx, ...over }, mode)
+                ).toEqual({
                     state: "unclaimed",
                     why: expect.stringContaining(
-                        "does not satisfy a `ready` Target"
+                        `does not satisfy a \`${mode}\` Target`
                     ),
-                }
-            );
-    });
+                });
+        }
+    );
 
     it("raises the floor and gap-pending falls to unclaimed", () => {
         expect(coverageState(byOracleId.get("p1")!, { ...ctx, floor: 5 })).toBe(

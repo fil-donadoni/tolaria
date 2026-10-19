@@ -26,6 +26,11 @@ script that may write `P0`, and only by copying it.
 #4158 is retired — `gaps:sync` files every gap under its computed Target
 umbrella, and no run files into a `P0` umbrella.
 
+**Amended 2026-10-19** (issue #6085, Amendment VI): `premodern-metagame`'s
+first clause is 100% playable over a **closed** hand-written set — the cards
+hand-written that day, by name (`completion: "closed-tail"`); no new Hand
+Tail. It supersedes the 100% `ready` exit of issue #4519.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -382,6 +387,31 @@ umbrella of the Target its cards serve, `gaps:sync --band` is refused, and
 no post-merge step derives a band. `issue:inherit-band` (Amendment IV) is
 untouched: it copies a human's band onto an issue a human-directed session
 files, which is not a computed gap.
+
+### The metagame's Hand Tail is closed — Amendment VI (issue #6085, 2026-10-19)
+
+The v1 gate's first clause (§ The v1 gate) admits a Hand Tail declared by
+name. The issue #3838 grill tightened it for `premodern-metagame` to
+**100% `ready`** (`completion: "ready"`, issue #4519), so every hand-written
+card counted as missing. The owner's ruling of 2026-10-19 (on issue #4601,
+the wave's exit) sits between the two:
+
+- **Green = `ready` ∪ the hand-written cards that exist today.** The 29
+  metagame cards that were hand-written and not `ready` on 2026-10-19 are
+  named in the row's `closedTail` (`data/targets.json`). The measure that day:
+  258 of 310 playable, 52 owed.
+- **No new hand-written card.** A card written by hand later is not in the
+  list, so it still counts as missing. The cards still owed close only
+  through grammar: the Target stays floorless, like `ready`. A below-floor gap
+  owes a `grammar` claim, and a `hand-tail` claim or marker never settles a
+  card.
+- **The list only shrinks.** A `closedTail` name that resolves outside the
+  Target throws, and one no longer hand-written (retired once `ready`) is a
+  Coverage Invariant red asking to drop it.
+
+The mechanism is a third completion mode, `closed-tail` (`isFloorless` in
+`scripts/lib/targets.ts`), not a special case for one Target. Clauses 2–4
+are unchanged.
 
 ### Format Tiers
 

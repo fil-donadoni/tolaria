@@ -36,6 +36,7 @@ import type { BotFindingVerdict } from "./bot-findings-merge";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
+    isFloorless,
     quarantineClass,
     resolveTarget,
     type GapKind,
@@ -133,8 +134,8 @@ export function rankedTargetIds(registry: TargetRegistry): Set<string> {
 /**
  * The cards of every ENFORCED Target — the ones `check:targets` reds when
  * unclaimed, so the ones a hand-tail issue is owed for
- * ({@link KindInputs.enforced}). A `completion: "ready"` Target (issue #4519)
- * is owed its claims whether or not it is enforced: enforcing it would red
+ * ({@link KindInputs.enforced}). A floorless Target (`ready`, issue #4519;
+ * `closed-tail`, issue #6085) is owed its claims whether or not it is enforced: enforcing it would red
  * `check:targets` on every card until the filer has run, a standing RED that
  * blocks every pick, so the filer's scope reads the completion mode itself.
  */
@@ -144,7 +145,7 @@ export function enforcedCardIds(
 ): Set<string> {
     const ids = new Set<string>();
     for (const row of registry.targets) {
-        if (row.enforced !== true && row.completion !== "ready") continue;
+        if (row.enforced !== true && !isFloorless(row.completion)) continue;
         for (const card of resolveTarget(row, ctx).cards)
             ids.add(card.oracleId);
     }
@@ -152,8 +153,9 @@ export function enforcedCardIds(
 }
 
 /**
- * The cards of every `completion: "ready"` Target — the ones the hand-tail
- * floor does not apply to (issue #4519): a gap holding one owes a `grammar`
+ * The cards of every floorless Target (`isFloorless`: `ready`, issue #4519;
+ * `closed-tail`, issue #6085) — the ones the hand-tail floor does not apply
+ * to: a gap holding one owes a `grammar`
  * claim however few corpus cards carry it, and the card is never owed a
  * `hand-tail` claim ({@link KindInputs.floorless}).
  */
@@ -163,7 +165,7 @@ export function floorlessCardIds(
 ): Set<string> {
     const ids = new Set<string>();
     for (const row of registry.targets) {
-        if (row.completion !== "ready") continue;
+        if (!isFloorless(row.completion)) continue;
         for (const card of resolveTarget(row, ctx).cards)
             ids.add(card.oracleId);
     }
@@ -207,7 +209,7 @@ export interface KindInputs {
      */
     readonly enforced: ReadonlySet<string>;
     /**
-     * The cards of `completion: "ready"` Targets (issue #4519,
+     * The cards of floorless Targets (issues #4519, #6085,
      * {@link floorlessCardIds}) — the hand-tail floor does not apply to them:
      * every gap owes a `grammar` claim and none owes a `hand-tail` one. Absent
      * means none.
