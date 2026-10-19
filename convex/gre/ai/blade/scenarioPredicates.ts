@@ -602,3 +602,17 @@ export function answersRaisedTargetLegally(
         landed.every((t) => chosen.has(`${t.type}:${t.id}`))
     );
 }
+
+/** The Bot answered a raised target selection naming exactly one player,
+ *  `seat`'s (issue #5496). */
+export function submitsSoleTarget(
+    move: Move | null,
+    state: GameState,
+    seat: BladeSeat
+): boolean {
+    return (
+        move?.kind === "submit-target" &&
+        move.targets.length === 1 &&
+        move.targets[0].id === seatPlayerId(state, seat)
+    );
+}
