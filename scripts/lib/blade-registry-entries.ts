@@ -1,8 +1,9 @@
 /**
  * The blade registry cut into entries, by SOURCE TEXT (issue #5078).
  *
- * `convex/gre/ai/blade/registry.ts` is one array literal of ~200 `BladeScenario`
- * objects between helper code. Health must decide, from two revisions of that
+ * `convex/gre/ai/blade/scenarios.ts` is one array literal of ~270
+ * `BladeScenario` objects (its shared helpers live in `scenarioPredicates.ts`
+ * since issue #5942, so a helper edit is another file in the closure). Health must decide, from two revisions of that
  * file, which `must` entries a batch added or changed — and entries hold
  * predicates, so they cannot be loaded and compared at the old revision
  * (`health-main.ts` runs on builtins only and the old tree is not checked out).
@@ -268,13 +269,13 @@ export function registryChange(
     const b = before === null ? null : parseRegistryEntries(before);
     const a = parseRegistryEntries(after);
     if (a === null)
-        return { kind: "other", why: "registry.ts could not be parsed" };
+        return { kind: "other", why: "scenarios.ts could not be parsed" };
     if (b === null)
-        return { kind: "other", why: "last-GREEN registry.ts not parseable" };
+        return { kind: "other", why: "last-GREEN scenarios.ts not parseable" };
     if (a.residue !== b.residue)
         return {
             kind: "other",
-            why: "registry.ts changed outside its entries",
+            why: "scenarios.ts changed outside its entries",
         };
     const labels: string[] = [];
     for (const [label, block] of a.blocks) {

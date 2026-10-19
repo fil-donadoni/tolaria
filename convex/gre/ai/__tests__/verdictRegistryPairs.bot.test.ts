@@ -156,7 +156,7 @@ describe("the registry's declared Minimal Pairs (ADR 0148)", () => {
 
     it("no PAIRED WITH prose is left for a converted pair", () => {
         const source = readFileSync(
-            new URL("../blade/registry.ts", import.meta.url),
+            new URL("../blade/scenarios.ts", import.meta.url),
             "utf8"
         );
         const converted = new Set(
