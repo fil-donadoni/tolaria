@@ -267,6 +267,12 @@ export type BladeSetupStep =
           by?: BladeSeat;
           target?: BladeSeat | string;
           x?: number;
+          /** CR 702.33 — the Kicker ids (`KickerDefinition.id`) the cast pays,
+           *  each once; the matching cast pays EXACTLY this set. Omitted, the
+           *  kicker axis is unpinned (a kickable card then offers several
+           *  casts and the step throws unless `target`/`x` narrow it). Issue
+           *  #5496 — the only way to reach a per-Kicker ETB trigger. */
+          kickers?: string[];
       }
     /** Declare the active player's attack (CR 508.1) and pass priority forward
      *  until the DEFENDER owes the block declaration — the position a
