@@ -41,8 +41,8 @@
 // immediately (deleted) while 8 became `unparsed` (Berserk, Channel,
 // Conservator, Dwarven Warriors, Fear, Samite Healer, The Hive, Tireless
 // Tracker) and moved to `COMPILER_GAP_ROWS`. That is the shape such a move
-// takes: the union shrinks by the graduates alone, the ceiling comes down by
-// exactly that many, and the 8 are now ranked with every other grammar gap.
+// takes: the union shrinks by the graduates alone, and the 8 are now ranked
+// with every other grammar gap.
 //
 // The limit, stated rather than overclaimed: on a `mismatch` the table
 // constrains nothing — all three directions are legal — so a card defect
@@ -81,12 +81,15 @@
 //   2. A card whose gap gets DOCUMENTED must leave — a valid `compiler-gap:`
 //      marker and a baseline row are mutually exclusive, so writing the marker
 //      is what removes the row.
-//   3. It may never GROW — every row must be a name in the frozen
-//      `compilerRoundTrip.amnesty.ts` (the names this file held at birth,
-//      hash-pinned; issue #5942). A new hand-written card cannot be parked
-//      here, neither appended nor swapped into a graduating row's freed slot;
-//      it round-trips or it carries a marker. Membership is taken on the
-//      UNION, so moving a row between the three arrays is free.
+//   3. It may never GROW (issue #5942), in two halves. Every row must be a
+//      name in the frozen `compilerRoundTrip.amnesty.ts` (the names this file
+//      held at birth, hash-pinned), so a new hand-written card cannot be
+//      parked here, neither appended nor swapped into a graduating row's
+//      freed slot. And `check:baseline-shrink`, in the lane, refuses a diff
+//      that adds ANY name — the one case the amnesty cannot see, a graduated
+//      card coming back after a compiler regression; that card carries a
+//      marker naming the fragment instead. Both read names on the UNION, so
+//      moving a row between the three arrays is free.
 //
 // A graduation is therefore a pure deletion here and nothing else: no count to
 // lower, no log to append, so two grammar PRs graduating different cards touch
