@@ -74,7 +74,7 @@ vi.mock("@convex/_generated/api", () => {
 });
 
 // Controllable card registry. A "Forest" land gets its mana from subtypes
-// (getLandManaColor) so no def is needed; the mana-choice source returns a
+// (hasIntrinsicLandMana) so no def is needed; the mana-choice source returns a
 // Birds-of-Paradise-style activated ability with `manaChoices`.
 const LAND_DEF = { id: "land-def", name: "Forest", activatedAbilities: [] };
 const CHOICE_DEF = {

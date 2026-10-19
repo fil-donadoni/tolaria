@@ -154,7 +154,7 @@ describe("compileCard — states", () => {
         }
     });
 
-    it("a land with a basic land type is unparsed (CR 305.6 intrinsic ability)", () => {
+    it("a land with two basic land types compiles with no mana ability (CR 305.6 intrinsic ability)", () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Test Dual",
@@ -165,9 +165,9 @@ describe("compileCard — states", () => {
                 toughness: undefined,
             })
         );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state === "unparsed")
-            expect(outcome.gaps[0]?.reason).toMatch(/CR 305\.6/);
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state !== "unparsed")
+            expect(outcome.definition.activatedAbilities).toBeUndefined();
     });
 
     it("records EVERY unconsumed line, not just the first", () => {

@@ -200,11 +200,11 @@ const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
 };
 
 /** Builds a non-basic dual land (CR 305.6) that taps for one of two colors.
- *  Subtypes are derived from `colors` so the same factory drives both the
- *  mana-ability shape and the rules-relevant land subtypes (landwalk,
- *  Armageddon, etc.). The mana ability follows the dual pattern from
- *  Birds of Paradise: `effect` produces the first color by default, and the
- *  `manaChoices` array exposes both options to the picker.
+ *  Subtypes are derived from `colors`: the two basic land types ARE the mana
+ *  ability (CR 305.6 — one intrinsic "{T}: Add" per type, issue #5623) as well
+ *  as the rules-relevant land subtypes (landwalk, Armageddon, etc.), so a
+ *  typed dual carries no `activatedAbilities`. Only the typeless fast land
+ *  declares one, in the Birds of Paradise choice shape (`manaChoices`).
  *
  *  `fastLand: true` (issue #675, ADR 0041) turns it into the SOM/KLD "fast
  *  land" cycle instead of a plain ABUR-style dual: "This land enters tapped
@@ -249,9 +249,8 @@ export function makeDualLand(args: {
         "This land enters tapped unless you control two or fewer other lands.\n" +
         `{T}: Add {${c1}} or {${c2}}.`;
     const shockLandOracle =
-        `As ${args.name} enters the battlefield, you may pay 2 life. If you ` +
-        "don't, it enters the battlefield tapped.\n" +
-        `{T}: Add {${c1}} or {${c2}}.`;
+        `({T}: Add {${c1}} or {${c2}}.)\n` +
+        "As this land enters, you may pay 2 life. If you don't, it enters tapped.";
     const surveilLandOracle =
         `({T}: Add {${c1}} or {${c2}}.)\n` +
         "This land enters tapped.\n" +
@@ -305,18 +304,24 @@ export function makeDualLand(args: {
               }
             : undefined,
         entersTappedUnlessPay: args.shockLand ? { life: 2 } : undefined,
-        activatedAbilities: [
-            {
-                id: `${slug}-mana`,
-                oracleText: `{T}: Add {${c1}} or {${c2}}.`,
-                cost: { tap: true },
-                effect: (ctx) => {
-                    ctx.addMana({ [c1]: 1 });
-                },
-                useStack: false,
-                manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
-            },
-        ],
+        // CR 305.6 — a land with basic land types needs no printed mana
+        // ability: each type grants its own intrinsic "{T}: Add [symbol]"
+        // (`getBasicLandManaColors`), offered as one tap option apiece, so
+        // only the typeless fast land carries one (issue #5623).
+        activatedAbilities: args.fastLand
+            ? [
+                  {
+                      id: `${slug}-mana`,
+                      oracleText: `{T}: Add {${c1}} or {${c2}}.`,
+                      cost: { tap: true },
+                      effect: (ctx) => {
+                          ctx.addMana({ [c1]: 1 });
+                      },
+                      useStack: false,
+                      manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
+                  },
+              ]
+            : undefined,
     };
 }
 
@@ -379,7 +384,8 @@ export function modalLandBackFace(args: {
 
 /** Builds a "Triome" (the IKO / SNC triple-typed cycling land cycle, CR 305.6):
  *  a non-basic land with three basic land subtypes that always enters tapped,
- *  taps for one of its three colors, and has Cycling {3} (CR 702.29). The three
+ *  taps for one of its three colors through those subtypes' intrinsic mana
+ *  abilities, and has Cycling {3} (CR 702.29). The three
  *  colors are given in the printed mana-ability order ("Add {c1}, {c2}, or
  *  {c3}") — the subtypes follow the same order, matching the printed type line.
  *  All ten Triomes share this exact shape, so the factory is the single source
@@ -396,7 +402,6 @@ export function makeTriome(args: {
     cyclingCost?: ManaCost;
 }): CardDefinition {
     const [c1, c2, c3] = args.colors;
-    const slug = args.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
     const cyclingCost = args.cyclingCost ?? { generic: 3 };
     return {
         id: args.id,
@@ -414,20 +419,10 @@ export function makeTriome(args: {
         ],
         // CR 603.6d — Triomes always enter the battlefield tapped.
         entersTapped: true,
-        activatedAbilities: [
-            {
-                id: `${slug}-mana`,
-                oracleText: `{T}: Add {${c1}}, {${c2}}, or {${c3}}.`,
-                cost: { tap: true },
-                effect: (ctx) => {
-                    ctx.addMana({ [c1]: 1 });
-                },
-                useStack: false,
-                manaChoices: [{ [c1]: 1 }, { [c2]: 1 }, { [c3]: 1 }],
-            },
-            // CR 702.29 — Cycling {3}. Usable only from hand at instant speed.
-            cyclingAbility(cyclingCost),
-        ],
+        // CR 305.6 — no printed mana ability: the three basic land types are
+        // three intrinsic "{T}: Add" abilities (`getBasicLandManaColors`,
+        // issue #5623). CR 702.29 — Cycling {3}, usable only from hand.
+        activatedAbilities: [cyclingAbility(cyclingCost)],
     };
 }
 

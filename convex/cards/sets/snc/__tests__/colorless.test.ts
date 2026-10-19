@@ -5,6 +5,8 @@
 import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";
+import { getManaTapOptions } from "../../../../gre/constants";
+import { makeInstance } from "../../../__tests__/setup.helper";
 
 const jetmirsGarden = getDefinition("26d40e03-6de4-4373-9fbf-04c1dd79e995");
 const xandersLounge = getDefinition("54f449ff-4025-465e-9ec5-a5cf42c4c9d3");
@@ -24,9 +26,13 @@ function expectTriome(
     expect(card.types).toEqual(["Land"]);
     expect(card.subtypes).toEqual(subtypes);
     expect(card.entersTapped).toBe(true);
-    const mana = card.activatedAbilities?.find((a) => a.id.endsWith("-mana"));
-    expect(mana?.useStack).toBe(false);
-    expect(mana?.manaChoices).toEqual(colors.map((c) => ({ [c]: 1 })));
+    // CR 305.6 — no printed mana ability: each basic land type is an
+    // intrinsic "{T}: Add" the engine offers as its own tap option, in
+    // printed order (issue #5623).
+    expect(card.activatedAbilities?.some((a) => !a.useStack)).toBe(false);
+    expect(getManaTapOptions(makeInstance(card.id))).toEqual(
+        colors.map((c) => ({ [c]: 1 }))
+    );
     const cycling = card.activatedAbilities?.find((a) => a.id === "cycling");
     expect(cycling?.activateFromHand).toBe(true);
     expect(cycling?.cost.discardThis).toBe(true);
