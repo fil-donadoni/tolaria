@@ -3620,7 +3620,7 @@ export function buildTrace(
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
 /** A declared attack that gains NOTHING: every attacker is fully absorbed (no
- *  blocker dies) and no damage reaches the defender's life. From a player's view
+ *  blocker dies) and no damage reaches the defender's life or poison counters. From a player's view
  *  there is no reason to make such an attack even with no risk of losing the
  *  attacker — a creature that attacks without vigilance taps out of defence, so a
  *  neutral attack is already a tempo loss (the only upside, bluffing a trick for
@@ -3637,7 +3637,11 @@ export function isWastefulAttack(state: GameState, move: Move): boolean {
     const probe = cloneGameState(state);
     applyMoveInSearch(probe, attackerId, move);
     const outcome = predictCombatOutcome(probe, attackerId, defender.id);
-    return outcome.deadBlockerIds.length === 0 && outcome.faceDamage === 0;
+    return (
+        outcome.deadBlockerIds.length === 0 &&
+        outcome.faceDamage === 0 &&
+        outcome.facePoison === 0
+    );
 }
 
 /** Whether `move` is the EMPTY block declaration — the defender declining to

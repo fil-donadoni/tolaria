@@ -116,6 +116,7 @@ const EVAL_TERM_PRESENCE: Record<keyof EvalTerms, true> = {
     colorCoverage: true,
     flexibility: true,
     library: true,
+    poison: true,
     graveyard: true,
     graveyardReach: true,
 };
@@ -135,7 +136,7 @@ export const EVAL_TERM_KEYS = Object.keys(
  *     guarantee rather than a preference (ADR 0018). Fitting it would let a
  *     verdict make losing preferable to a creature.
  *   - `flexCardCap`, `graveyardEngineCap`, `graveyardReachCap`,
- *     `deckingHorizon` — counts and thresholds, not prices. The margin is
+ *     `deckingHorizon`, `poisonHorizon` — counts and thresholds, not prices. The margin is
  *     piecewise-constant in them, so a derivative reads zero and means
  *     nothing.
  *   - `sourceBreadthWeight`, `sourceDualPurposeWeight` — `evaluateAutoTapPosition`
@@ -180,6 +181,7 @@ const FITTABLE_TERM_WEIGHTS = [
     "colorCoverageWeight",
     "flexWeight",
     "deckingWeight",
+    "poisonWeight",
     "graveyardEngineWeight",
     "graveyardReachFraction",
     "recoverableSweepFraction",

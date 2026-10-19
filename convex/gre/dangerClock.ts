@@ -24,7 +24,7 @@ import {
     type EffectivePT,
     type Layer7Pass,
 } from "./layers";
-import { isCreature } from "./constants";
+import { isCreature, POISON_LOSS_COUNTERS } from "./constants";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
@@ -36,23 +36,48 @@ import type { HeldPump } from "./heldInteraction";
  *  is a positional nudge — defend / press — not an override of material. */
 const W_CLOCK = 150;
 
+/** CR 702.90b — combat damage from an infect source reaches a player as
+ *  poison counters, not life loss. */
+function hasInfect(c: CardInstanceState): boolean {
+    return c.staticAbilities.includes("infect");
+}
+
+/** What one combat's unblocked attackers send at the defending player: `damage`
+ *  reaches their life, `poison` — the infect attackers' share (CR 702.90b) —
+ *  their poison counters. */
+export type UnblockedThreat = { damage: number; poison: number };
+
 /** Crude, pure prediction of the combat damage `attackerId`'s board pushes
  *  through `defenderId`'s blockers in one combat, assuming the defender blocks to
  *  minimise damage taken (chump the biggest threats first). Forward-looking: it
  *  ignores tapped / summoning-sickness (both transient — the creatures untap and
  *  lose sickness on the relevant future turn), so it reads the steady-state clock
- *  rather than just this turn. Respects keyword evasion via `combatRegistry`. */
+ *  rather than just this turn. Respects keyword evasion via `combatRegistry`.
+ *  Life damage only — see `predictUnblockedThreat` for the infect share. */
 export function predictUnblockedDamage(
+    state: GameState,
+    attackerId: string,
+    defenderId: string,
+    /** See `predictUnblockedThreat`. */
+    pass: Layer7Pass = beginLayer7Pass(state)
+): number {
+    return predictUnblockedThreat(state, attackerId, defenderId, pass).damage;
+}
+
+/** `predictUnblockedDamage`'s assignment, with the unblocked infect attackers'
+ *  power split out as `poison` (issue #5153). */
+export function predictUnblockedThreat(
     state: GameState,
     attackerId: string,
     defenderId: string,
     /** The evaluation's layer-7 pass (issue #4462), when the caller is one;
      *  omitted, this prediction is its own pass. */
     pass: Layer7Pass = beginLayer7Pass(state)
-): number {
+): UnblockedThreat {
+    const threat: UnblockedThreat = { damage: 0, poison: 0 };
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id === defenderId);
-    if (!attacker || !defender) return 0;
+    if (!attacker || !defender) return threat;
     const powerOf = (c: CardInstanceState): number =>
         getEffectivePT(state, c, { pass }).power;
 
@@ -70,7 +95,6 @@ export function predictUnblockedDamage(
     const blockers = defender.battlefield.filter((c) => isCreature(c));
     const usedBlocker = new Set<string>();
 
-    let damage = 0;
     for (const atk of attackers) {
         // The defender spends a blocker on the biggest threats first; one legal,
         // unused blocker stops ALL of an attacker's damage (crude — toughness /
@@ -81,9 +105,10 @@ export function predictUnblockedDamage(
                 evaluateBlockerKeywords(atk, b, defender.battlefield).eligible
         );
         if (blocker) usedBlocker.add(blocker.id);
-        else damage += powerOf(atk);
+        else if (hasInfect(atk)) threat.poison += powerOf(atk);
+        else threat.damage += powerOf(atk);
     }
-    return damage;
+    return threat;
 }
 
 /** The predicted result of a DECLARED combat: the face damage that gets through
@@ -93,6 +118,9 @@ export function predictUnblockedDamage(
 export type CombatOutcome = {
     /** Combat damage reaching the defender's life. */
     faceDamage: number;
+    /** Combat damage from infect attackers reaching the defender, which lands
+     *  as poison counters instead of life loss (CR 702.90b). */
+    facePoison: number;
     /** Ids of the attacking player's creatures expected to die. */
     deadAttackerIds: string[];
     /** Ids of the defending player's blockers expected to die. */
@@ -122,6 +150,7 @@ export function predictCombatOutcome(
 ): CombatOutcome {
     const empty: CombatOutcome = {
         faceDamage: 0,
+        facePoison: 0,
         deadAttackerIds: [],
         deadBlockerIds: [],
     };
@@ -154,6 +183,7 @@ export function predictCombatOutcome(
     const used = new Set<string>();
     const out: CombatOutcome = {
         faceDamage: 0,
+        facePoison: 0,
         deadAttackerIds: [],
         deadBlockerIds: [],
     };
@@ -211,20 +241,32 @@ export function predictCombatOutcome(
             continue;
         }
 
-        // 4. Unblocked — its power reaches the defender's life.
-        out.faceDamage += atkP;
+        // 4. Unblocked — its power reaches the defender's life, or their
+        // poison counters for an infect attacker (CR 702.90b).
+        if (hasInfect(atk)) out.facePoison += atkP;
+        else out.faceDamage += atkP;
     }
 
     return out;
 }
 
 /** One player's clock reward: how fast they kill the other, as the fraction of
- *  the defender's life removed per combat (capped at one combat = lethal on
- *  board). Zero when there is no incoming damage. */
-function clockReward(dmgPerCombat: number, defenderLife: number): number {
-    if (dmgPerCombat <= 0) return 0;
-    const fraction = Math.min(1, dmgPerCombat / Math.max(1, defenderLife));
-    return W_CLOCK * fraction;
+ *  the defender's life removed per combat — plus, for infect attackers, the
+ *  fraction of the poison counters the defender can still take before the
+ *  CR 704.5c loss (issue #5153) — capped at one combat = lethal on board. Zero
+ *  when nothing gets through. */
+function clockReward(
+    threat: UnblockedThreat,
+    defenderLife: number,
+    defenderPoison: number
+): number {
+    const lifeFraction =
+        threat.damage > 0 ? threat.damage / Math.max(1, defenderLife) : 0;
+    const poisonFraction =
+        threat.poison > 0
+            ? threat.poison / Math.max(1, POISON_LOSS_COUNTERS - defenderPoison)
+            : 0;
+    return W_CLOCK * Math.min(1, lifeFraction + poisonFraction);
 }
 
 /** Signed Danger Clock contribution to `evaluate`, from `playerId`'s view:
@@ -242,7 +284,10 @@ export function dangerClock(
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
 
-    const myDamage = predictUnblockedDamage(state, me.id, opp.id, pass);
-    const oppDamage = predictUnblockedDamage(state, opp.id, me.id, pass);
-    return clockReward(myDamage, opp.life) - clockReward(oppDamage, me.life);
+    const mine = predictUnblockedThreat(state, me.id, opp.id, pass);
+    const theirs = predictUnblockedThreat(state, opp.id, me.id, pass);
+    return (
+        clockReward(mine, opp.life, opp.poisonCounters ?? 0) -
+        clockReward(theirs, me.life, me.poisonCounters ?? 0)
+    );
 }

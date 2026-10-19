@@ -202,6 +202,17 @@ export type EvalWeights = {
      *  gradient is shallow where decking is theoretical and steep where it
      *  decides the game — the same shape the danger clock uses for life. */
     deckingWeight: number;
+    /** Poison counters a player can still take before the CR 704.5c loss
+     *  (`POISON_LOSS_COUNTERS` minus those held) at or above which the poison
+     *  term is EXACTLY ZERO (`poisonTerm`, evaluate.ts) — `libraryTerm`'s
+     *  horizon, for the other alternate loss. At the loss threshold itself
+     *  (10) the term's support is "holds any poison at all", so a game with
+     *  no infect in it is byte-identical. */
+    poisonHorizon: number;
+    /** Per squared counter of deficit below `poisonHorizon`. Quadratic for the
+     *  reason `deckingWeight` is: the first counter is a chip, the ninth is
+     *  one hit from losing. */
+    poisonWeight: number;
     /** Per spell a graveyard-play ENGINE can still cast out of its
      *  controller's graveyard (`graveyardEngineTerm`, evaluate.ts). Zero
      *  contribution unless such an engine is on the battlefield, so the term
@@ -388,6 +399,13 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     lifeWeight: 8,
     deckingHorizon: 12,
     deckingWeight: 1.5,
+    // Issue #5153 — 2 × deficit², so the term's whole range (200 at the
+    // loss) stays inside `materialFull` the way `deckingWeight`'s does, and
+    // the average counter on the way there costs ~2.25 life points: the
+    // `POISON_PER_COUNTER` (16 = 2 × `lifeWeight`) the poison Op valuer
+    // already charges (`ai/opValuers.ts`).
+    poisonHorizon: 10,
+    poisonWeight: 2,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
     graveyardReachFraction: 0.15,

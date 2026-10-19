@@ -163,6 +163,16 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "has more cards left to draw",
         loss: "runs closer to decking",
     },
+    poison: {
+        short: "Po",
+        name: "Poison (counters before the ten-counter loss)",
+        // `poisonTerm` is quadratic in the deficit below `poisonHorizon`, the
+        // `library` row's shape: `poisonWeight` is the first counter's step,
+        // the smallest non-zero move the term can make.
+        floor: W.poisonWeight,
+        gain: "sheds poison counters",
+        loss: "takes poison counters",
+    },
     graveyard: {
         short: "Gy",
         name: "Graveyard (spells a play-from-graveyard engine can still cast)",

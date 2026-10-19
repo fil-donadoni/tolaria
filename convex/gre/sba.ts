@@ -15,7 +15,12 @@ import {
     withCardsPutIntoLibraryBatch,
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
-import { isAura, isCreature, isPlaneswalker } from "./constants";
+import {
+    isAura,
+    isCreature,
+    isPlaneswalker,
+    POISON_LOSS_COUNTERS,
+} from "./constants";
 import { revertBestow } from "./bestow";
 import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import {
@@ -65,7 +70,7 @@ function playerLossReason(
     if (player.hasDrawnFromEmpty) {
         return "decked";
     }
-    if ((player.poisonCounters ?? 0) >= 10) {
+    if ((player.poisonCounters ?? 0) >= POISON_LOSS_COUNTERS) {
         // CR 704.5c — a player with ten or more poison counters loses the
         // game. Routed through the same loss-replacement framework as
         // life-zero (CR 614) so a "you don't lose the game" replacement
