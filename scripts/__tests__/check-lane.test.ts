@@ -16,6 +16,7 @@ import {
     shellStdio,
     treeMoved,
     hasLintStagedStash,
+    stashListOf,
     CHEAP_GUARDS,
     WHOLE_PROJECT_AT,
     type LanePlan,
@@ -1841,6 +1842,20 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
                 stash: "On staging: someone else's wip",
             })
         ).toBeNull();
+    });
+
+    /**
+     * Issue #6003: another worktree dropping the LAST entry races `git stash
+     * list` into `fatal: bad revision 'refs/stash'` (reproduced by a churn
+     * loop in a second worktree). The stash only names a cause, so a failed
+     * read is an empty stack, never a crash that reds the lane.
+     */
+    it("reads a failed `git stash list` as an empty stack (issue #6003)", () => {
+        expect(stashListOf({ status: 128, stdout: "" })).toBe("");
+        expect(stashListOf({ status: null, stdout: "partial" })).toBe("");
+        expect(
+            stashListOf({ status: 0, stdout: "lint-staged automatic backup\n" })
+        ).toBe("lint-staged automatic backup\n");
     });
 
     it("names lint-staged when the tree moved with its backup on the stack", () => {
