@@ -21,6 +21,7 @@
 
 import type {
     EffectCardFilter,
+    EffectManaPool,
     EffectValue,
     EffectSignedValue,
     EffectPlayerRef,
@@ -225,6 +226,16 @@ export interface EachPlayerSide {
         filter: EffectCardFilter | undefined,
         count: number
     ): number | undefined;
+    /** Issue #5626 — what `mana` added to this player's pool at the
+     *  beginning of its main phase is worth to it, in `ramp` units: the most
+     *  of it one card of its hand spends that its own mana base (every
+     *  source, untapped in its untap step, CR 502.3) cannot pay for alone —
+     *  0 when its base already pays for everything it holds, or nothing in
+     *  hand uses the extra (CR 106.4: unspent, the mana empties at the end
+     *  of the phase). The card being valued is left out of the hand. A side
+     *  holding a hidden placeholder in hand is unreadable (0, and the
+     *  Differential falls back). */
+    manaUnits(mana: EffectManaPool): number;
 }
 
 /** Issue #5573 — one earlier Op of a one-shot `forEach { set: "players" }`

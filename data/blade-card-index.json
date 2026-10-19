@@ -130,6 +130,11 @@
             "needsSetup": false
         },
         {
+            "label": "each-step mana: Disenchant leaves the Eladamri's Vineyard that ramps only the bot into its Craw Wurm (issue #5626)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
             "tier": "must",
             "needsSetup": false
