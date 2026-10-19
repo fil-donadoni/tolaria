@@ -1,62 +1,27 @@
-import { useCallback, useState, type RefObject } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import CardPreviewBody, {
     type CardPreviewBodyProps,
 } from "./card-preview-body";
 import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
+import {
+    ANCHORED_PREVIEW_VIEWPORT_PAD as VIEWPORT_PAD,
+    clampAnchoredPreviewPosition,
+} from "~/lib/card-preview-placement";
 
 // Beside-the-card preview placement for surfaces that are NOT the in-game board
 // (the lobby and the deck builder). Whereas the board docks the preview in its
 // fixed right column (CardPreviewDock), here there is no board chrome to dodge,
 // so the preview reads better floated next to the hovered card — its original
-// placement before the #332 dock. The position is clamped to the viewport and
-// measured post-mount because the panel's height varies with oracle-text
-// length. Asserted by tests via the `data-card-preview-anchored` marker.
+// placement before the #332 dock. The position is clamped to the viewport
+// (`clampAnchoredPreviewPosition`) and RE-measured whenever the panel's size or
+// the viewport changes (issue #5664): the height varies with oracle-text length,
+// the Live text / Printed card toggle, the engine view and late image loads, so
+// a one-shot mount measurement left a hand card's preview hanging off the
+// bottom edge. Asserted by tests via the `data-card-preview-anchored` marker.
 // Desktop width (QA): 330px, trimmed from 384px alongside the right-column dock
 // (360px) — the preview was taking more of the screen than it needed.
 const DOCK_WIDTH = 330;
-const GAP = 8;
-const VIEWPORT_PAD = 8;
-
-// Clamp the preview so it sits next to the anchored card without ever
-// overflowing the viewport. Prefers the right side, falls back to the left, and
-// otherwise picks whichever side has more room (CR-agnostic — pure layout).
-function clampPosition(
-    cardRect: DOMRect,
-    width: number,
-    height: number
-): { top: number; left: number } {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let left: number;
-    const fitsRight = cardRect.right + GAP + width <= vw - VIEWPORT_PAD;
-    const fitsLeft = cardRect.left - GAP - width >= VIEWPORT_PAD;
-    if (fitsRight) {
-        left = cardRect.right + GAP;
-    } else if (fitsLeft) {
-        left = cardRect.left - GAP - width;
-    } else {
-        const gapRight = vw - cardRect.right;
-        const gapLeft = cardRect.left;
-        left =
-            gapRight >= gapLeft
-                ? cardRect.right + GAP
-                : cardRect.left - GAP - width;
-    }
-    left = Math.max(VIEWPORT_PAD, Math.min(left, vw - VIEWPORT_PAD - width));
-
-    const cardCenterY = cardRect.top + cardRect.height / 2;
-    let top = cardCenterY - height / 2;
-    const maxTop = vh - VIEWPORT_PAD - height;
-    if (maxTop < VIEWPORT_PAD || top < VIEWPORT_PAD) {
-        top = VIEWPORT_PAD;
-    } else if (top > maxTop) {
-        top = maxTop;
-    }
-
-    return { top, left };
-}
 
 type CardPreviewAnchoredProps = CardPreviewBodyProps & {
     /** The hovered card's container, used as the positioning anchor. */
@@ -73,27 +38,43 @@ export default function CardPreviewAnchored({
     // the viewport-clamp below keeps it on screen.
     const width = body.originalBody ? DOCK_WIDTH * 2 : DOCK_WIDTH;
 
-    // Callback ref measures synchronously when the panel mounts, so the first
-    // paint already has the correct (clamped) position. Variable-height oracle
-    // text never overflows the viewport.
-    const measureRef = useCallback(
-        (node: HTMLDivElement | null) => {
-            if (!node) return;
+    // Callback ref stores the panel node; the layout effect measures it
+    // before first paint (no flash at 0,0) and re-clamps on every panel resize
+    // (content toggles, image/text load) and every viewport resize.
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null);
+    useLayoutEffect(() => {
+        if (!panel) return;
+        const place = () => {
             const anchor = anchorRef.current;
             if (!anchor) return;
-            const cardRect = anchor.getBoundingClientRect();
-            const panelRect = node.getBoundingClientRect();
-            setPosition(
-                clampPosition(cardRect, panelRect.width, panelRect.height)
+            const panelRect = panel.getBoundingClientRect();
+            const next = clampAnchoredPreviewPosition(
+                anchor.getBoundingClientRect(),
+                panelRect.width,
+                panelRect.height,
+                { width: window.innerWidth, height: window.innerHeight }
+            );
+            setPosition((prev) =>
+                prev.top === next.top && prev.left === next.left ? prev : next
             );
             setMeasured(true);
-        },
-        [anchorRef]
-    );
+        };
+        place();
+        window.addEventListener("resize", place);
+        const observer =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(place);
+        observer?.observe(panel);
+        return () => {
+            window.removeEventListener("resize", place);
+            observer?.disconnect();
+        };
+    }, [panel, anchorRef]);
 
     return createPortal(
         <div
-            ref={measureRef}
+            ref={setPanel}
             data-card-preview-anchored
             // Interactive: the pinned preview hosts the Live text / Printed
             // card toggle, so it must receive clicks. `CardPreview`'s
@@ -114,7 +95,11 @@ export default function CardPreviewAnchored({
                 opacity: measured ? 1 : 0,
             }}
         >
-            <CardPreviewBody {...body} />
+            {/* Capped by `maxHeight` above: the body shrinks and scrolls
+                instead of being clipped by `overflow-hidden`. */}
+            <div data-card-preview-scroll className="min-h-0 overflow-y-auto">
+                <CardPreviewBody {...body} />
+            </div>
         </div>,
         document.body
     );
