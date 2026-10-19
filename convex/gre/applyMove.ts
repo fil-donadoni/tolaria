@@ -1116,7 +1116,7 @@ export function applyActivationCostsForSearch(
  *  reusing the exact pipeline the phase machine runs (first-strike step, then
  *  regular, with SBA between/after). A multi-target source deals the split
  *  the Bot's driver submits (`searchCombatDamageAssignments`, issue #5951). */
-function resolveCombatDamage(state: GameState): void {
+export function resolveCombatDamage(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
     applyAllCombatDamage(
         state,

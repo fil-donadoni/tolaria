@@ -49,6 +49,7 @@ import {
     type RepetitionHistory,
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
+import { pruneDominatedBlocks } from "./ai/blockDominance";
 import type {
     CardInstanceState,
     GameState,
@@ -1492,7 +1493,12 @@ export function rollout(
             applyMoveInSearch(state, pid, FORCED_PASS, true);
             continue;
         }
-        const enumerated = enumerateMoves(state, pid);
+        // Issue #5951 — the rollout's defender never draws a dominated
+        // multi-block either (`ai/blockDominance.ts`).
+        const enumerated = pruneDominatedBlocks(
+            state,
+            enumerateMoves(state, pid)
+        );
         if (enumerated.length === 0) break;
         // Issue #5445 — neither policy plays a mana-base sacrifice: the root
         // weighs it NOW, and a rollout that takes it later is the `pass`
@@ -2344,7 +2350,12 @@ export function keyedMovesFor(
     // `priorityMoveKey`, which folds a non-observer's HAND card to its
     // definition id (hidden information) and leaves the bot's own duplicates
     // fully distinct.
-    for (const move of enumerateMoves(state, pid)) {
+    // Issue #5951 — a dominated multi-block is no reply the defender's node
+    // explores (`ai/blockDominance.ts`); a no-op off a block declaration.
+    for (const move of pruneDominatedBlocks(
+        state,
+        enumerateMoves(state, pid)
+    )) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -6139,13 +6150,18 @@ export function enumerateRootMoves(
         onCollapsed?: (move: Move) => void;
     } = {}
 ): Move[] {
-    return enumerateMoves(state, playerId, {
-        onTruncated: hooks.onTruncated,
-        pruneDominatedNoOps: true,
-        onPruned: hooks.onPruned,
-        collapseInterchangeable: true,
-        onCollapsed: hooks.onCollapsed,
-    });
+    // Issue #5951 — the Bot's own blocks drop a dominated multi-block too,
+    // the same filter its tree applies (`keyedMovesFor`).
+    return pruneDominatedBlocks(
+        state,
+        enumerateMoves(state, playerId, {
+            onTruncated: hooks.onTruncated,
+            pruneDominatedNoOps: true,
+            onPruned: hooks.onPruned,
+            collapseInterchangeable: true,
+            onCollapsed: hooks.onCollapsed,
+        })
+    );
 }
 
 /** Choose a move for `playerId` by ISMCTS, and surface a DecisionTrace of what
