@@ -2964,6 +2964,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Armor of Thorns",
+        "scryfallId": "dacdb9e7-d79e-4d24-8678-a37ab6e3a413",
+        "oracleId": "31ead5a5-aa01-4601-8d3e-267b65fce3bb",
+        "firstSet": "mir",
+        "firstPrintId": "dacdb9e7-d79e-4d24-8678-a37ab6e3a413",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Armor Thrull",
         "scryfallId": "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
         "oracleId": "35453c9e-e1ae-4fe9-926d-75724deb0555",
@@ -4280,6 +4290,16 @@
         "firstSet": "ice",
         "firstPrintId": "5b616963-fac0-451c-8df4-2cacc9466b17",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Balduvian Dead",
+        "scryfallId": "fac1875a-feab-4213-aa15-69892b7df58b",
+        "oracleId": "18d6b89a-3588-43d9-a247-4747a7d784fc",
+        "firstSet": "all",
+        "firstPrintId": "fac1875a-feab-4213-aa15-69892b7df58b",
+        "firstPrintSet": "all",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Balduvian Hydra",
@@ -35486,6 +35506,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lightning Reflexes",
+        "scryfallId": "271febe5-98ea-403d-87be-7865cf9f426d",
+        "oracleId": "2b0c82f1-078a-4e8b-8e43-407f5c5d8549",
+        "firstSet": "mir",
+        "firstPrintId": "271febe5-98ea-403d-87be-7865cf9f426d",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Lightning Stormkin",
         "scryfallId": "43c6db4e-cc37-4473-b0f5-48d8a0b82f33",
         "oracleId": "126844f5-3a95-48cb-80f2-d7e4b0005350",
@@ -40870,6 +40900,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mystic Veil",
+        "scryfallId": "7ddb640d-5c54-4d0a-b8c2-e22fe04f96c2",
+        "oracleId": "43c88fcd-aac9-4741-8fd6-31ac81c5bb6f",
+        "firstSet": "vis",
+        "firstPrintId": "7ddb640d-5c54-4d0a-b8c2-e22fe04f96c2",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mystical Tutor",
         "scryfallId": "5d98101f-e32a-4a4a-a649-faa920d111ee",
         "oracleId": "fb81f95c-70f8-4eb7-8d15-15d0ae23ec03",
@@ -44232,6 +44272,16 @@
         "firstSet": "lea",
         "firstPrintId": "be33a155-de26-43d1-88f1-c926f1b7cb7c",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Parapet",
+        "scryfallId": "a7bbcaa9-edbf-48ad-bcd2-65e8fb9bb938",
+        "oracleId": "4e73634a-9df8-4c36-b1d2-f366eae902fc",
+        "firstSet": "vis",
+        "firstPrintId": "a7bbcaa9-edbf-48ad-bcd2-65e8fb9bb938",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Parapet Watchers",
@@ -48128,6 +48178,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rakdos Guildmage",
+        "scryfallId": "0e01fef8-5563-4dec-ab8e-e486e19e202c",
+        "oracleId": "650949ca-609b-46c5-bc6b-6f782cdcb6d2",
+        "firstSet": "dis",
+        "firstPrintId": "0e01fef8-5563-4dec-ab8e-e486e19e202c",
+        "firstPrintSet": "dis",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rakdos Locket",
         "scryfallId": "4fd60d9b-2282-4b32-9bff-efb2bcf87d22",
         "oracleId": "ab784412-0722-4501-9aa0-fd68d307f6fd",
@@ -49401,6 +49461,16 @@
         "firstPrintId": "c1cb483f-c567-4cfd-9fe8-1503e7b40542",
         "firstPrintSet": "stx",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Relic Ward",
+        "scryfallId": "f0459667-b7da-43bd-b981-0e515432d147",
+        "oracleId": "c6321de2-80b0-4679-93cf-97df75344e97",
+        "firstSet": "vis",
+        "firstPrintId": "f0459667-b7da-43bd-b981-0e515432d147",
+        "firstPrintSet": "vis",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -57674,6 +57744,16 @@
         "firstPrintSet": "mmq"
     },
     {
+        "name": "Soar",
+        "scryfallId": "bd3666dd-a90e-43c2-bd78-ea9c1af08a0e",
+        "oracleId": "acee6f4f-8b66-495d-bb0e-71c339e7dc49",
+        "firstSet": "mir",
+        "firstPrintId": "bd3666dd-a90e-43c2-bd78-ea9c1af08a0e",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Soaring Drake",
         "scryfallId": "0b0979f9-aae3-4fc7-beae-c8c6637ae596",
         "oracleId": "6bc14f1e-1df8-4e72-b05a-a848faa3b080",
@@ -58601,6 +58681,16 @@
         "firstPrintId": "a290648a-63c3-400b-98d3-5a5aa5505027",
         "firstPrintSet": "m12",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider Climb",
+        "scryfallId": "a1818812-4cb8-4fe1-98c0-b40086b4991c",
+        "oracleId": "2636aafa-83f9-4b72-b729-04e1c3aa0eec",
+        "firstSet": "vis",
+        "firstPrintId": "a1818812-4cb8-4fe1-98c0-b40086b4991c",
+        "firstPrintSet": "vis",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -64523,6 +64613,16 @@
         "firstPrintId": "ab89a30a-ac4d-4a5e-bbff-a02366bc9cf6",
         "firstPrintSet": "sth",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tidal Wave",
+        "scryfallId": "49a9689b-bf1e-404e-ba08-0b04de4288fb",
+        "oracleId": "c5f5b7e5-af1e-4c8a-8d44-3e2152955d4e",
+        "firstSet": "mir",
+        "firstPrintId": "49a9689b-bf1e-404e-ba08-0b04de4288fb",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
