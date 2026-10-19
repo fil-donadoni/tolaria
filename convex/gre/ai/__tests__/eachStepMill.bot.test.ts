@@ -37,7 +37,9 @@ import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { raiseDead } from "../../../cards/sets/lea/black.cards";
 import { underworldBreach } from "../../../cards/sets/thb/red.cards";
 
-const BEADS = registeredDefinitions().find((d) => d.name === "Worry Beads")!;
+const BEADS = [...registeredDefinitions()].find(
+    (d) => d.name === "Worry Beads"
+)!;
 const BASIC = forest().id;
 const BEAR = grizzlyBears().id;
 const RAISE_DEAD = raiseDead().id;
