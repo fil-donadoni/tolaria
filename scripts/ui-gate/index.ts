@@ -226,6 +226,7 @@ import {
     startHeartbeat,
     type ViewportActivity,
 } from "./heartbeat.ts";
+import { consoleErrorDetail } from "./console-detail.ts";
 import {
     NETWORK_INSTRUMENT_SOURCE,
     trackPageRequests,
@@ -1159,10 +1160,23 @@ async function main(): Promise<number> {
                         opened.on("console", (msg) => {
                             if (msg.type() === "error") {
                                 attemptConsole.push(msg.text());
-                                consoleErrors.push(
-                                    `${viewport.id}: ${msg.text().slice(0, 160)}`
+                                // React logs through a format string
+                                // (`%o`), so the text alone names nothing:
+                                // resolve the arguments (issue #6072).
+                                void consoleErrorDetail(msg).then((detail) =>
+                                    consoleErrors.push(
+                                        `${viewport.id}: ${detail.slice(0, 400)}`
+                                    )
                                 );
                             }
+                        });
+                        // An uncaught exception is no console message: it
+                        // was never reported at all.
+                        opened.on("pageerror", (err) => {
+                            attemptConsole.push(err.message);
+                            consoleErrors.push(
+                                `${viewport.id}: uncaught ${(err.stack ?? err.message).slice(0, 400)}`
+                            );
                         });
                         return opened;
                     };
