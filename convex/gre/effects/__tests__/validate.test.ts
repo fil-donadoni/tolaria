@@ -8324,3 +8324,65 @@ describe("EffectCardFilter.excludeSubtype — shape (issue #4557)", () => {
         }
     });
 });
+
+// CR 605.1a / 605.3b (issue #5509) — the stackless mana-ability site
+// (`ActivatedAbility.manaAbilityEffects`): a mana ability only, the admitted
+// Ops only, never an announced target.
+describe("manaAbilityEffects — the stackless mana-ability site (CR 605.1a / 605.3b)", () => {
+    const paradise = (
+        manaAbilityEffects: unknown,
+        useStack: boolean | undefined = false,
+        cost: unknown = { tap: true }
+    ) => ({ id: "paradise-mana", useStack, cost, manaAbilityEffects });
+    const ret: EffectOp = {
+        op: "returnToHandAtNextUntap",
+        target: { ref: "$source" },
+    };
+
+    it("accepts the next-untap return of the source on a mana ability", () => {
+        expect(
+            validateAbilityEffectScript(paradise([ret]), "Test Card")
+        ).toEqual([]);
+    });
+
+    it("rejects the site on an ability that is not a mana ability", () => {
+        const errors = validateAbilityEffectScript(
+            paradise([ret], true),
+            "Test Card"
+        );
+        expect(errors.some((e) => /not a mana ability/.test(e))).toBe(true);
+    });
+
+    it("rejects an Op the site does not admit", () => {
+        const errors = validateAbilityEffectScript(
+            paradise([{ op: "draw", player: "controller", count: 1 }]),
+            "Test Card"
+        );
+        expect(errors.some((e) => /not admitted/.test(e))).toBe(true);
+    });
+
+    it("rejects an announced target — a mana ability never requires one", () => {
+        const errors = validateAbilityEffectScript(
+            paradise([
+                { op: "returnToHandAtNextUntap", target: { target: 0 } },
+            ]),
+            "Test Card"
+        );
+        expect(errors.some((e) => /announced target/.test(e))).toBe(true);
+    });
+
+    it("rejects a mana ability with neither a tap nor a sacrifice cost leg — no tap-for-mana path runs it", () => {
+        const errors = validateAbilityEffectScript(
+            paradise([ret], false, { mana: { X: 1 } }),
+            "Test Card"
+        );
+        expect(errors.some((e) => /tap or sacrifice cost leg/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects an empty script", () => {
+        const errors = validateAbilityEffectScript(paradise([]), "Test Card");
+        expect(errors.some((e) => /non-empty/.test(e))).toBe(true);
+    });
+});

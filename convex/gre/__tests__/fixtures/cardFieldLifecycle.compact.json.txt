@@ -212,6 +212,7 @@
             "src-7"
           ],
           "skipNextUntap": true,
+          "returnToHandAtUntapOf": "p1",
           "exertedThisTap": true,
           "canAttackDespiteDefenderThisTurn": true,
           "counters": {
@@ -602,6 +603,7 @@
         "src-7"
       ],
       "skipNextUntap": true,
+      "returnToHandAtUntapOf": "p1",
       "exertedThisTap": true,
       "canAttackDespiteDefenderThisTurn": true,
       "counters": {

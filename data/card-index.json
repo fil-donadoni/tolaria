@@ -66726,6 +66726,16 @@
         "source": "compiled"
     },
     {
+        "name": "Undiscovered Paradise",
+        "scryfallId": "5f6e8830-5e62-4945-8b73-60f0628d38e7",
+        "oracleId": "76c33d54-ce55-400e-bec5-79d33a5a20fb",
+        "firstSet": "vis",
+        "firstPrintId": "5f6e8830-5e62-4945-8b73-60f0628d38e7",
+        "firstPrintSet": "vis",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Undying Rage",
         "scryfallId": "c3de981b-e274-4a78-816e-7c11341f6c00",
         "oracleId": "622d783d-4201-4769-8a0f-442b358d8bf1",

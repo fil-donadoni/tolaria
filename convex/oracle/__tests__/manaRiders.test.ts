@@ -8,6 +8,9 @@
 //   "Draw a card"                       → drawsCardOnTap
 //   "If there are no <kind> counters on this land, sacrifice it"
 //                                       → sacrificesSourceWhenNoCountersRemain
+//   "During your next untap step, as you untap your permanents, return this
+//    land to its owner's hand"          → manaAbilityEffects
+//                                         (returnToHandAtNextUntap $source)
 //   "This land enters with N <kind> counters on it"
 //                                       → entersWith.counters
 //
@@ -202,6 +205,35 @@ describe("golden — one fixture per accepted rider form", () => {
             })
         );
     });
+
+    it("Undiscovered Paradise (Visions, no hand-written twin) — the return at the activator's next untap step", () => {
+        const text =
+            "{T}: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand.";
+        expect(
+            sortKeys(compiledOf(land("Undiscovered Paradise", text)))
+        ).toEqual(
+            sortKeys({
+                name: "Undiscovered Paradise",
+                oracleText: text,
+                types: ["Land"],
+                activatedAbilities: [
+                    {
+                        id: "undiscovered-paradise-mana",
+                        oracleText: text,
+                        cost: { tap: true },
+                        useStack: false,
+                        manaChoices: ANY_COLOR,
+                        manaAbilityEffects: [
+                            {
+                                op: "returnToHandAtNextUntap",
+                                target: { ref: "$source" },
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+    });
 });
 
 describe("gold — the hand-written twins round-trip through their own text", () => {
@@ -257,10 +289,24 @@ describe("refusals — the neighbours of each rider form", () => {
             ),
         ],
         [
-            "a delayed return of the land (Undiscovered Paradise — no engine surface)",
+            "a delayed return of the land at the next UPKEEP (not the untap turn-based action)",
             land(
-                "Undiscovered Paradise",
-                "{T}: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand."
+                "Upkeep Paradise",
+                "{T}: Add one mana of any color. At the beginning of your next upkeep, return this land to its owner's hand."
+            ),
+        ],
+        [
+            "a next-untap return of a source its own sacrifice cost already ate",
+            land(
+                "Sacrificed Paradise",
+                "{T}, Sacrifice this land: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand."
+            ),
+        ],
+        [
+            "a delayed return of a land the rider does not name as itself",
+            land(
+                "Other Paradise",
+                "{T}: Add one mana of any color. During your next untap step, as you untap your permanents, return target land to its owner's hand."
             ),
         ],
         [

@@ -453,6 +453,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "overloaded",
             "regenerationShields",
             "removedSupertypes",
+            "returnToHandAtUntapOf",
             "skipNextUntap",
             "sourceTappedPTMods",
             "staticSeq",

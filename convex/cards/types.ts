@@ -1922,6 +1922,25 @@ export interface ActivatedAbility {
      *  by both tap-for-mana paths (`tapUntap` priority tap +
      *  `tapSourceIntoPayment` payment tap). */
     drawsCardOnTap?: number;
+    /** Stackless Effect Script on a TAP mana ability (CR 605.1a / 605.3b,
+     *  `useStack: false`, issue #5509): a non-mana additional effect that
+     *  runs through the interpreter as part of the SAME mana ability
+     *  resolving — no stack, no priority — with the activator as
+     *  `ctx.controller` and the source bound as `$source`. Run after the mana
+     *  is added, by the tap-for-mana paths only (`tapUntap` priority tap,
+     *  `tapSourceIntoPayment` payment tap, `activateFixedSacrificeManaAbility`),
+     *  beside the fixed riders above; the validator requires a `{T}` or
+     *  sacrifice cost leg.
+     *
+     *  Admits only the Ops in `MANA_ABILITY_EFFECT_OPS`
+     *  (`gre/effects/manaAbilityEffectOps.ts`, validator-enforced): each raises no
+     *  resolution choice, names no target (CR 605.1a — a mana ability never
+     *  requires one) and has a reversal the untap-toggle can run, so undoing
+     *  the tap (CR 106.4 refund) undoes the effect too. Distinct from
+     *  `effects` (the stack site, `useStack: true`). Used by Undiscovered
+     *  Paradise's "during your next untap step … return this land to its
+     *  owner's hand" (`returnToHandAtNextUntap`). */
+    manaAbilityEffects?: EffectOp[];
     /** Rider on a TAP mana ability (CR 605.1a, CR 118.3, `useStack: false`):
      *  once this activation's `cost.removeCounter` leg has been paid, the
      *  source is sacrificed (CR 701.21) if no counters of the named type
@@ -4245,6 +4264,14 @@ export interface SpellContext {
      *  (permanent). No-op if the target has left the battlefield. Used by
      *  Barl's Cage. */
     skipNextUntap: (target: TargetSelection) => void;
+    /** Marks the target to be returned to its OWNER's hand during
+     *  `playerId`'s next untap step (CR 502.3 — a turn-based action, no
+     *  stack). One-shot; the mark dies with the object (CR 400.7). No-op if
+     *  the target has left the battlefield. */
+    returnToHandAtNextUntap: (
+        target: TargetSelection,
+        playerId: string
+    ) => void;
     /** Grants the target "can attack this turn as though it didn't have
      *  defender" (CR 508.1a override — FEM Vodalian War Machine). Cleared at
      *  CLEANUP. No-op if the target has left the battlefield. */
@@ -16348,6 +16375,21 @@ export type EffectOp =
      *  one-shot flag. */
     | {
           op: "skipNextUntap";
+          target: EffectObjectSelector;
+      }
+    /** CR 502.3 / 502.4 (issue #5509) — "During your next untap step, return
+     *  <permanent> to its owner's hand." A thin declarative skin over the
+     *  SpellContext primitive `returnToHandAtNextUntap`, one execution path
+     *  (ADR 0045): it marks the permanent with the resolving controller; that
+     *  player's NEXT untap step returns it as part of the untap turn-based
+     *  action — no stack, no priority, whether or not the permanent would
+     *  untap. One-shot; the mark dies with the object (CR 400.7). `target`
+     *  names the permanent: an announced slot, the resolving source
+     *  (`$source` — a land returning itself), or a forEach `$each`. Skipped
+     *  when the permanent is gone (CR 609.3). Deliberately NOT a delayed
+     *  triggered ability (CR 603.7) and NOT generalised to other steps. */
+    | {
+          op: "returnToHandAtNextUntap";
           target: EffectObjectSelector;
       }
     /** CR 611.2a / 613.1f (layer 6, issue #843) — grant an ability to a

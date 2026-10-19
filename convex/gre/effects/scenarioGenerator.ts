@@ -2374,6 +2374,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "returnToHandAtNextUntap":
+            // `returnToHandAtNextUntap` (issue #5509, CR 502.3) marks a
+            // permanent for the controller's next untap step. Assertable on an
+            // announced permanent slot (a filler creature is seeded there and
+            // the mark is read after resolution); a `$each` / spell-site
+            // `$source` subject is skipped, covered by the Op's own test.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "returnToHandAtNextUntap" targets $source/$each — covered by the Op's own permanent test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "grantAbility":
             // `grantAbility` (issue #843) grants a keyword static ability to a
             // permanent for a duration (CR 611.2a / 613.1f). The generator can
@@ -3487,6 +3503,31 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: perm.skipNextUntap === true,
                     detail: `skipNextUntap ${perm.skipNextUntap}, expected true`,
+                };
+            },
+        };
+    },
+    // `returnToHandAtNextUntap` (issue #5509, CR 502.3) — the mark on the
+    // seeded permanent flips undefined→(the resolving controller's id).
+    returnToHandAtNextUntap(rawOp, scenario) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "returnToHandAtNextUntap" }
+        >;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        return {
+            label: `mark permanent ${permId} (returnToHandAtUntapOf undefined→controller)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: typeof perm.returnToHandAtUntapOf === "string",
+                    detail: `returnToHandAtUntapOf ${perm.returnToHandAtUntapOf}, expected a player id`,
                 };
             },
         };
