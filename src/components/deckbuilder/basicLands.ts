@@ -115,6 +115,19 @@ export function basicLandSubtypeOf(
     return null;
 }
 
+/** The Card ID of the Basic land an entry names, or `undefined` for a
+ *  non-basic. The Limited builder hands it to its print resolver as the
+ *  `definitionId` of a Basic held under a Print ID (issue #5550) — a Pool
+ *  Basic never stores one — so live legality reads it as Basic while its
+ *  `cardPrints` row is still loading (`resolveCardViaDefinitionIds`). */
+export function basicLandEntryDefinitionId(
+    cardId: string,
+    hint: BasicLandIdentity = {}
+): string | undefined {
+    const def = definitionOfEntry(cardId, hint);
+    return def?.supertypes?.includes("Basic") ? def.id : undefined;
+}
+
 /** Is this cardId a Basic land? Basics are exempt from Pool membership (ADR
  *  0054/0055) — freely addable/removable in the Maindeck, unlike every other
  *  Pool-sourced card, which can only move between Main and Side. */
