@@ -96,6 +96,7 @@
         "oracle:corpus": "bun scripts/oracle-corpus.ts",
         "oracle:index": "bun scripts/oracle-index-backfill.ts",
         "oracle:legality": "bun scripts/oracle-legality.ts",
+        "oracle:mark-regressions": "bun scripts/oracle-mark-regressions.ts",
         "oracle:pool": "bun scripts/catalogue-artifact.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
         "grammar:residue": "bun scripts/grammar-residue.ts",
