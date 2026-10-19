@@ -166,6 +166,30 @@ describe("activationConditionHolds — the activation-time subset", () => {
     it("fails CLOSED on a predicate outside the subset", () => {
         expect(holds({ binding: "$paid" })).toBe(false);
         expect(holds({ left: { ref: "$x" }, op: "ge", right: 0 })).toBe(false);
+        // Shapes the validator refuses, reached unvalidated: a filter is never
+        // silently dropped and an unreadable zone never counts as the hand.
+        expect(
+            holds({
+                left: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Land" },
+                    },
+                },
+                op: "ge",
+                right: 0,
+            })
+        ).toBe(false);
+        expect(
+            holds({
+                left: {
+                    count: { zone: "battlefield", controller: "controller" },
+                },
+                op: "ge",
+                right: 0,
+            })
+        ).toBe(false);
     });
 });
 

@@ -61,6 +61,9 @@ export function activationConditionHolds(
     source: PermanentView,
     condition: EffectPredicate
 ): boolean {
+    // The validator IS the subset's definition, so the evaluator cannot drift
+    // from it: an unvalidated wrong zone or a `filter` refuses, never counts.
+    if (activationConditionErrors(condition).length > 0) return false;
     if (!("op" in condition)) return false;
     const left = activationConditionValue(state, source, condition.left);
     const right = activationConditionValue(state, source, condition.right);
