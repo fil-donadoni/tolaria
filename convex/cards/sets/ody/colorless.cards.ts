@@ -2,21 +2,21 @@
 
 import { defineCard } from "../../../../convex/cards/types";
 
-// Barbarian Ring — "{T}: Add {R}. Barbarian Ring deals 1 damage to you.
-// Threshold — {R}, {T}, Sacrifice Barbarian Ring: It deals 2 damage to any
-// target. Activate only if seven or more cards are in your graveyard."
+// Barbarian Ring — "{T}: Add {R}. This land deals 1 damage to you.
+// Threshold — {R}, {T}, Sacrifice this land: It deals 2 damage to any target.
+// Activate only if there are seven or more cards in your graveyard."
 // Premodern Burn staple (PRD #979, issue #992).
 export const barbarianRing = defineCard(() => ({
     id: "1809361e-ae1a-4c47-8464-e6496e94d962",
     name: "Barbarian Ring",
     rarity: "uncommon",
     oracleText:
-        "{T}: Add {R}. Barbarian Ring deals 1 damage to you.\nThreshold — {R}, {T}, Sacrifice Barbarian Ring: It deals 2 damage to any target. Activate only if seven or more cards are in your graveyard.",
+        "{T}: Add {R}. This land deals 1 damage to you.\nThreshold — {R}, {T}, Sacrifice this land: It deals 2 damage to any target. Activate only if there are seven or more cards in your graveyard.",
     types: ["Land"],
     activatedAbilities: [
         {
             id: "barbarian-ring-mana",
-            oracleText: "{T}: Add {R}. Barbarian Ring deals 1 damage to you.",
+            oracleText: "{T}: Add {R}. This land deals 1 damage to you.",
             cost: { tap: true },
             useStack: false,
             effect: (ctx) => {
@@ -28,7 +28,7 @@ export const barbarianRing = defineCard(() => ({
         {
             id: "barbarian-ring-sac",
             oracleText:
-                "Threshold — {R}, {T}, Sacrifice Barbarian Ring: It deals 2 damage to any target. Activate only if seven or more cards are in your graveyard.",
+                "Threshold — {R}, {T}, Sacrifice this land: It deals 2 damage to any target. Activate only if there are seven or more cards in your graveyard.",
             cost: { mana: { R: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
