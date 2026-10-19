@@ -53,7 +53,10 @@ jobs:
               # them, and refuses to start with this set.
               env:
                   TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
-              run: bun run check:lane --json --retry-flaky > "$RUNNER_TEMP/lane.json"
+              # stderr teed to lane.log: a refusal leaves lane.json empty and
+              # its reason there, for the fixup step (issue #6003).
+              shell: bash
+              run: bun run check:lane --json --retry-flaky 2>&1 >"$RUNNER_TEMP/lane.json" | tee "$RUNNER_TEMP/lane.log"
             - name: Flakes in the job summary
               if: always()
               run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
@@ -68,7 +71,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   PR: ${{ github.event.pull_request.number }}
                   BASE_REF: ${{ github.event.pull_request.base.ref }}
-              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --pr "$PR" --ref "$BASE_REF"
+              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --log "$RUNNER_TEMP/lane.log" --pr "$PR" --ref "$BASE_REF"
 
     refusals:
         name: ${{ matrix.check }}

@@ -3,13 +3,15 @@
 // instead of spending a session on it (PRD issue #5620, issue #5640; ADR 0156
 // Amendment I § Duties).
 //
-//   classify --lane <lane.json> [--pr <N> | --draft <branch>] [--ref <base>]
+//   classify --lane <lane.json> [--log <lane.log>] [--pr <N> | --draft <branch>] [--ref <base>]
 //       Reads the JSON `check:lane --json --retry-flaky` wrote. Prints the fix
 //       keys (`oracle`, `blade-index`, `format`) when EVERY failed step is one
 //       a regeneration cures, nothing and exit 1 otherwise. With `--pr N` it
 //       also dispatches `pr-fixup.yml` for that PR (`gh workflow run`); with
 //       `--draft <branch>` (the queue's lane, issue #5955) the PR is the one
-//       the Mergify draft on that branch is checking.
+//       the Mergify draft on that branch is checking. An empty lane JSON is a
+//       lane that refused: it prints the refusal (`--log`, the lane's stderr)
+//       and exits 1 (issue #6003).
 //   flakes --lane <lane.json>
 //       The flakes the lane recorded, as job-summary markdown (empty if none).
 //   run --pr <N> --fixes <k,k> [--requeue] [--in-place --lease <sha>]
@@ -368,15 +370,61 @@ function flakesMain(argv: string[]): void {
     }
 }
 
+/**
+ * The lane's verdict from its `--json` stdout, or why there is none (issue
+ * #6003). A lane that REFUSES (a dirty or moved tree, a bad argument) exits
+ * before its JSON, leaving `lane.json` empty; its reason is the last
+ * `check:lane: ` line of its stderr (`log`, the step's tee). That is a
+ * refusal to report, never a parse error.
+ */
+export function readLaneVerdict(
+    laneText: string,
+    log: string
+): { lane: unknown } | { refused: string } {
+    if (laneText.trim() !== "") {
+        try {
+            return { lane: JSON.parse(laneText) };
+        } catch {
+            // A truncated blob: the lane died mid-write — no verdict either.
+        }
+    }
+    const reason = log
+        .split("\n")
+        .filter((l) => l.startsWith("check:lane: "))
+        .at(-1)
+        ?.slice("check:lane: ".length)
+        .trim();
+    return {
+        refused:
+            reason ||
+            "check:lane wrote no JSON verdict — read the check:lane step's log",
+    };
+}
+
+/** A file's text, or "" when it is absent — an unwritten file is no verdict. */
+function readOr(file: string | undefined): string {
+    if (file === undefined) return "";
+    try {
+        return readFileSync(file, "utf8");
+    } catch {
+        return "";
+    }
+}
+
 function classifyMain(argv: string[]): void {
     const laneFile = argOf(argv, "--lane");
     if (!laneFile) die("classify needs --lane <lane.json>");
-    let lane: unknown;
-    try {
-        lane = JSON.parse(readFileSync(laneFile, "utf8"));
-    } catch (e) {
-        die(`cannot read ${laneFile}: ${(e as Error).message}`);
+    const verdict = readLaneVerdict(
+        readOr(laneFile),
+        readOr(argOf(argv, "--log"))
+    );
+    if ("refused" in verdict) {
+        console.log(
+            `pr:fixup: lane refused — ${verdict.refused}; nothing to regenerate`
+        );
+        process.exit(1);
     }
+    const lane = verdict.lane;
     let pr = argOf(argv, "--pr");
     let ref = argOf(argv, "--ref");
     const draft = argOf(argv, "--draft");
