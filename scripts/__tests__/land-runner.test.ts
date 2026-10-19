@@ -745,6 +745,49 @@ describe("owner notification for land-failed (issue #5599)", () => {
         );
     });
 
+    it("failureReason names the ✗ step and its error, never a skip line (PR #5932, issue #6000)", () => {
+        // The tail of PR #5932's land log, 2026-10-19: the plan's skip
+        // reasons say "cannot drift", and the old picker quoted one.
+        const log = [
+            "lane: ran",
+            "$ bun scripts/check-lane.ts",
+            "lane:  engine   (HEAD e108f9662, 16 files — 15 under convex/**)",
+            "run:   format(diff) lint(diff) tsc[all] check:index",
+            "skip:  dom            — no changed code under src/** — the whole type-check is the backstop (#2738)",
+            "       bundle         — health-only (ADR 0154 §3): check:bundle costs 12–24 s",
+            "       blade-index    — no changed path under convex/gre/ai/blade/** — the blade card index cannot drift",
+            "       predicate: classifyPath() in scripts/check-lane.ts",
+            "Checking formatting...",
+            "All matched files use Prettier code style!",
+            "$ tsc -b --noEmit",
+            "scripts/lib/vitest-reporters.ts(10,29): error TS2307: Cannot find module '@mergifyio/vitest' or its corresponding type declarations.",
+            "  ✓ format(diff)         1.0s",
+            "  ✓ lint(diff)           1.6s",
+            "  \u001b[31m✗\u001b[0m tsc[all]             76.8s",
+            "  · check:index        ",
+            "",
+            "tree:  e108f9662 → e108f9662   (start → end)",
+            "FAIL  79.4s total",
+            'error: script "check:lane" exited with code 1',
+        ].join("\n");
+        expect(failureReason(log)).toBe(
+            "✗ tsc[all] — scripts/lib/vitest-reporters.ts(10,29): error TS2307: Cannot find module '@mergifyio/vitest' or its corresponding type declarations."
+        );
+    });
+
+    it("failureReason skips passing tests and vitest rules for the cause", () => {
+        const log = [
+            "     ✓ leaves no green record for a red gate  1328ms",
+            "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯",
+            " FAIL   node-tooling  scripts/__tests__/health-ui-walk.test.ts > is the LAST health step",
+            "  ✓ tsc[all]             0.2s",
+            "  ✗ node-tooling         118.5s",
+        ].join("\n");
+        expect(failureReason(log)).toBe(
+            "✗ node-tooling — FAIL   node-tooling  scripts/__tests__/health-ui-walk.test.ts > is the LAST health step"
+        );
+    });
+
     it("failureReason takes the first error line, else the last line", () => {
         expect(failureReason(`land: refusing x\n…\nlane: ran\n${NODE}`)).toBe(
             "land: refusing x"
