@@ -23,6 +23,18 @@ it running is fine, a new capability belongs in the new stack.
 `check:guards`. Omitting `check:index` once broke **every card-shipping PR at
 the merge-train** — the failure is not local to the branch that skipped it.
 
+**The one exception is mechanical, never a hand's** (ADR 0154 §11, issue
+#6149): the `full` lane runs `check:pr:app` — `check:pr` with `check:guards`'
+bot fast lane cut out, pinned to `check:pr` text-for-text by
+`check-guards-scope.test.ts` — and then `vitest(bot)`, the bot fast lane over
+the files the diff reaches through the import graph. A diff touching
+`BOT_GLOBS` or a Bot hash input (`isBotSourceFile`), or holding a path that
+forces `full` on its own (lockfile, dependency set, test/type/build config,
+anything unrecognised), runs the bot fast lane whole. A bot test that reads
+its corpus through `fs` is a `CENSUS_TESTS` row and is admitted by that
+corpus, as the app suites' censuses are. `check:lane --plan` prints the reach
+(`bot:   24/352 bot fast lane files (scoped by the import graph …)`).
+
 ## What `check:guards` actually runs, and why its scope is pinned
 
 Three lanes:
@@ -129,7 +141,8 @@ diff cannot reach is health's job; the full suite stays in batch health as
 the safety net, on a schedule (`health.yml`, § The batch cadence). `cards` keeps
 its fixed subsets — `node[cards]` and `bot[cards]` — because every catalogue
 test imports the set barrel, and the drift guards stay its data-side net.
-`full` is `check:pr` verbatim.
+`full` is `check:pr` verbatim except its bot half, which the same walk scopes
+(ADR 0154 §11, § Why `check:pr` may never be hand-picked).
 
 **The graph is a static walk, not vitest's `--changed`**
 (`scripts/lib/test-reach.ts`). vitest answers `--changed` by transforming
@@ -212,8 +225,8 @@ base drift — and **`check:bundle`** (12–24 s). **`check:convex-bundle` is no
 health-only**: ADR 0154 §3 named it, but its own esbuild pass measured 2–4 s,
 inside the ≤ 10 s budget the same section leaves unchanged, so it rides the
 `engine` and `cards` lanes. The census in `check-lane.test.ts` asks "does a
-lane run it" of the SCOPED lanes only: `full` is `check:pr` verbatim and
-composes every guard.
+lane run it" of the SCOPED lanes only: `full` is `check:pr` verbatim (bot half
+scoped, ADR 0154 §11) and composes every guard.
 
 What ADR 0104 §3 keeps: **admission is fail-closed** — a path no rule places
 still forces `full`. But `full` is a PLACEMENT, not a fallback (issue #5456):
