@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
+import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 import {
     DEFAULT_FIX_ATTEMPTS,
     loopDecision,
@@ -471,10 +472,14 @@ describe("release — refuses in seconds with the primary off the base branch (i
             );
             // Bounded: a spawned child that hung would outlive the test's
             // own timeout (no remote here, so a fetch would fail, not hang).
+            // The hosted lane sets the corpus exclusion, which `release`
+            // refuses first (exit 1): the child runs without it.
+            const env = { ...process.env };
+            delete env[CORPUS_EXCLUSION_ENV];
             const r = spawnSync(
                 "bun",
                 [resolve(__dirname, "..", "release.ts"), "--dry-run"],
-                { cwd: repo, encoding: "utf8", timeout: 30_000 }
+                { cwd: repo, env, encoding: "utf8", timeout: 30_000 }
             );
             expect(r.status).toBe(2);
             expect(r.stderr).toContain(`on \`${off}\`, not \`${BASE_BRANCH}\``);
