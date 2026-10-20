@@ -467,12 +467,24 @@ describe("spell slot — flashback (CR 702.34a)", () => {
         });
     });
 
+    it('reads the em-dash form\'s "Pay N life" leg beside the mana (CR 119.4)', () => {
+        const def = compiled(
+            spellCard({
+                typeLine: "Sorcery",
+                oracleText: "Draw three cards.\nFlashback—{1}{U}, Pay 3 life.",
+            })
+        );
+        expect(def.flashback).toEqual({ mana: { X: 1, U: 1 }, life: 3 });
+    });
+
     it("REFUSES a flashback component `FlashbackCost` cannot encode", () => {
-        // Deep Analysis prints "Flashback—{1}{U}, Pay 3 life." and
-        // `FlashbackCost` has no life field, so the cost cannot be paid at all.
-        const r = spellSlot.run("Flashback—{1}{U}, Pay 3 life.", sorcery);
+        // "Exile X blue cards from your graveyard" (Flash of Insight) has no
+        // atom in the shared cost grammar.
+        const r = spellSlot.run(
+            "Flashback—{1}{U}, Exile X blue cards from your graveyard.",
+            sorcery
+        );
         expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.reason).toMatch(/pay-life/);
     });
 });
 
