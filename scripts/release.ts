@@ -442,10 +442,10 @@ function main(): void {
         );
         process.exit(2);
     }
-    // The walk at the end of the gate talks to the deployment `convex dev`
-    // pushes from the PRIMARY checkout (issue #6132): off the base branch, it
-    // serves other code and the walk could only end INFRA — ~40 minutes of
-    // gates later. Refused here, in seconds.
+    // The browser step at the end of the gate (`check:game-download`) talks
+    // to the deployment `convex dev` pushes from the PRIMARY checkout (issue
+    // #6132): off the base branch, it serves other code and the step could
+    // only end INFRA — ~40 minutes of gates later. Refused here, in seconds.
     const primary = primaryCheckout(cwd);
     const offBase = primaryBranchRefusal(currentBranch(primary), BASE_BRANCH);
     if (offBase !== null) {

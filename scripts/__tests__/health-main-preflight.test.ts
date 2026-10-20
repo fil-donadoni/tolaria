@@ -155,33 +155,32 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
     }, 60_000);
 });
 
-describe("health-main — the deployment-skew preflight of the walk (issue #6132)", () => {
-    it("a primary off the base branch ends the owed walk INFRA / deployment-skew before any worktree or browser", () => {
+describe("health-main — the deployment-skew preflight of release's browser step (issues #6132, #6143)", () => {
+    it("a primary off the base branch ends the owed browser step INFRA / deployment-skew before any worktree or browser", () => {
         const tip = spawnSync("git", ["rev-parse", "HEAD"], {
             cwd: primary,
             encoding: "utf8",
         }).stdout.trim();
-        // What the offline phase leaves behind: a green half, a walk owed.
+        // Batch health's record: the offline half GREEN, the browser step
+        // owed to `release` (`browserStepsOwed`).
         const dir = path.join(primary, ".claude", "telemetry", "health");
         fs.mkdirSync(dir, { recursive: true });
-        const startedAt = new Date().toISOString();
         fs.writeFileSync(
             path.join(dir, "last.json"),
             JSON.stringify({
                 sha: tip,
-                status: "running",
-                startedAt,
+                status: "green",
+                startedAt: new Date().toISOString(),
                 branch: BASE_BRANCH,
-                phase: "walk",
                 offline: "green",
-                ui: "pending",
+                browser: "skipped",
             })
         );
         // The 2026-10-20 incident: the primary switched off base, so
         // `convex dev` pushed another tree's functions.
         git(["switch", "-q", "-c", `${BASE_BRANCH}-elsewhere`], primary);
 
-        const r = spawnSync("bun", [HEALTH_MAIN, "--phase=walk"], {
+        const r = spawnSync("bun", [HEALTH_MAIN, "--release"], {
             cwd: primary,
             encoding: "utf8",
             timeout: 45_000,
@@ -201,13 +200,14 @@ describe("health-main — the deployment-skew preflight of the walk (issue #6132
             failedStep: PREFLIGHT_SKEW_STEP,
             infraCause: "deployment-skew",
             reason: INFRA_REMEDY["deployment-skew"],
+            browser: "not run",
         });
         expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
-        // No walk worktree was ever added beside the primary.
+        // No browser-step worktree was ever added beside the primary.
         expect(
             fs
                 .readdirSync(tmp)
-                .filter((f) => f.startsWith("tolaria-health-walk-"))
+                .filter((f) => f.startsWith("tolaria-health-browser-"))
         ).toEqual([]);
     }, 60_000);
 });

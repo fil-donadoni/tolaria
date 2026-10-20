@@ -242,8 +242,9 @@ deployment-down` at any load (`scripts/ui-gate/deployment-watch.ts`).
   base is fine), or differ only in this tree's own `convex/` diff. A skew
   walks no cell — or abandons the walk mid-run — and exits `4`
   (`DEPLOYMENT_SKEW_EXIT`) with `✗ check:ui: deployment skew … — <reason>`
-  naming both shas or the branch: INFRA, never `unsettled` / `UNWALKED`, and
-  the health gate records `infra` / `deployment-skew`. Fix: put the primary
+  naming both shas or the branch: INFRA, never `unsettled` / `UNWALKED`.
+  `release` preflights the same skew before its browser step and records
+  `infra` / `deployment-skew` (issue #6143). Fix: put the primary
   back on base (`git -C <primary> switch <base> && git -C <primary> merge
 --ff-only origin/<base>`), wait for `convex dev` to push, rebase a branch
   that is behind, re-run.
