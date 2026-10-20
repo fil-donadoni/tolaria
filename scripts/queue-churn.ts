@@ -62,7 +62,18 @@ function mergedPrs(from: string, to: string): number[] {
         .map((p) => p.number);
 }
 
-const COMMENTS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:50,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{... on PullRequest{comments(last:30){nodes{createdAt body}}}}}}`;
+const COMMENTS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:20,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{... on PullRequest{comments(last:12){nodes{createdAt body}}}}}}`;
+
+function repoName(): string {
+    return gh([
+        "repo",
+        "view",
+        "--json",
+        "nameWithOwner",
+        "--jq",
+        ".nameWithOwner",
+    ]).trim();
+}
 
 function comments(from: string): QueueComment[] {
     type Page = {
@@ -79,7 +90,7 @@ function comments(from: string): QueueComment[] {
             "-f",
             `query=${COMMENTS_QUERY}`,
             "-F",
-            `q=is:pr updated:>=${from.slice(0, 10)}`,
+            `q=repo:${repoName()} is:pr updated:>=${from.slice(0, 10)}`,
         ])
     ) as Page[];
     return pages.flatMap((p) =>
