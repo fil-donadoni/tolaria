@@ -106,6 +106,26 @@ describe("generated-artifact class — wiring", () => {
         }
     });
 
+    // Issue #6116: the resolver commits a regeneration `--no-verify` and a
+    // repair pass re-runs the generator by hand — either way the generator's
+    // bytes must BE the committed bytes, or the push after it reds on format
+    // drift (PR #6064's repair did). Prettier-ignored = the generator owns the
+    // form; nothing else formats it.
+    it("every regenerated artifact is prettier-ignored, so its generator owns the bytes", async () => {
+        const prettier = await import("prettier");
+        const ignorePath = join(REPO_ROOT, ".prettierignore");
+        for (const artifact of REGENERATED_ARTIFACTS) {
+            const info = await prettier.getFileInfo(
+                join(REPO_ROOT, artifact.path),
+                { ignorePath }
+            );
+            expect(
+                info.ignored,
+                `${artifact.path} is regenerated but not in .prettierignore — add it, and make its generator write the committed form`
+            ).toBe(true);
+        }
+    });
+
     it("the worktree bootstrap registers the driver `.gitattributes` names", () => {
         // The bootstrap is node-builtins-only (it runs before `bun install`),
         // so it cannot import MERGE_DRIVER_NAME — this is what keeps the

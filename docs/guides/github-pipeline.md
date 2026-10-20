@@ -394,6 +394,17 @@ regenerates it. Per PR:
    `queue:plan` (`/next-ticket <issue> --resume`), re-queued by
    `bun run land:ready <PR#>` after the fix.
 
+**A new script-written committed file is classified in the same PR** (issue
+#6116): every generated artefact a conflict could reach is either a row of
+`REGENERATED_ARTIFACTS` in `scripts/lib/generated-artifacts.ts` — re-derivable
+offline, its `.gitattributes` `merge=regenerated` row, its path in
+`.prettierignore` so the generator's bytes ARE the committed bytes — a row of
+`OTHER_MERGE_DRIVERS`, or a bullet in that file's doc comment saying why it is
+neither. Step 1 then absorbs its conflicts and no regeneration ever needs a
+format step; `generated-artifact-merge.test.ts` reds on a regenerated path
+Prettier would reformat. An unclassified one turns every collision into a
+repair pass (PR #6064, PR #6068: the blade index).
+
 Nothing else labels or comments: a failed fetch, a moved head, a refused push
 or a resolver refusal (no Card Corpus cache on this machine) leaves the PR
 queued. `--dry-run` does everything but push and label; `--pr N` restricts it

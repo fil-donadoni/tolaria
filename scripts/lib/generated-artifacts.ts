@@ -90,6 +90,48 @@ import { LEDGER_PATH } from "./cr-ledger";
  *   - `data/oracle-retirements.json` — hand-authored INPUT, not a generated
  *     artifact. A conflict there is a real judgement call and must reach a
  *     human.
+ *   - `data/blade-card-index.json`, `data/blade-reproducers.json` — IN THIS
+ *     CLASS (issue #6116), though they carry no hash: both are a pure function
+ *     of `BLADE_SCENARIOS`, re-derived offline by `blade:card-index`, and their
+ *     rows sort by card name / scenario label, so two PRs pinning blade
+ *     entries for neighbouring cards insert into the same hunk. Measured: PR
+ *     #6064 and PR #6068 were each dequeued `land-failed` on exactly that, and
+ *     each repair pass resolved them by hand. The rule this extends: an
+ *     artifact that is BOTH re-derivable offline AND collides in practice is
+ *     regenerated — immunity by shape is a reason to stay out only when the
+ *     rows really are disjoint (`card-index.json`: one row per card, which a
+ *     PR adds once).
+ *   - `AGENTS.md`, `convex/AGENTS.md`, `src/AGENTS.md` — IN THIS CLASS (issue
+ *     #6116): whole-file mirrors of the `CLAUDE.md` sources and
+ *     `.claude/rules/*.md`, re-derived offline by `agents:build`, so any two
+ *     PRs that edit a source collide in the mirror while the sources merge.
+ *   - `data/catalogue/shard-dictionary.json` — whole-file state, NOT in this
+ *     class: it is sticky BY DESIGN (every client shard URL derives from it),
+ *     regenerated only on purpose by `catalogue:shard-dictionary`. Re-deriving
+ *     it at every rebased tip would move every shard URL as a side effect.
+ *   - `data/oracle-state-regressions.json` — NOT in this class: its entries'
+ *     `reason` and disposition are written by a human through
+ *     `oracle:mark-regressions --acknowledge`; only stale-entry pruning is
+ *     mechanical, and that runs after merge (issue #6061).
+ *   - `data/ai-effects-inert.json` — IMMUNE BY SHAPE, as its allowlist
+ *     sibling above (same writer, same per-row sorted form).
+ *   - `data/bot-reach-findings.json` — per-row and prettier-ignored, but NOT
+ *     re-derivable inside a rebase: its generator is a full Bot sweep.
+ *   - `data/premodern-metagame-decks*.json`, `data/cr/VERSION.json`,
+ *     `data/cr/comprehensive-rules.txt`, `data/verdicts.lock.json` — NOT
+ *     re-derivable offline (network, or self-play); each moves only in a
+ *     deliberate refresh PR.
+ *   - `data/boosters/*.json`, `convex/cubes/vintageCubeNames.ts` — one-shot
+ *     importer output, one file per set / cube that no two PRs share.
+ *
+ * THE NORM FOR A NEW ONE (issue #6116). A script that writes a committed file
+ * classifies it HERE in the same PR: a row of {@link REGENERATED_ARTIFACTS}
+ * (re-derivable offline — its `.gitattributes` row, and its path in
+ * `.prettierignore` so the generator's bytes ARE the committed bytes and a
+ * regeneration never needs a format step), a row of {@link
+ * OTHER_MERGE_DRIVERS}, or a bullet above saying why it is neither. A
+ * conflict on an unclassified generated file is a repair pass spent on bytes
+ * nobody chose.
  */
 
 /** A generated, committed artifact whose conflicts are resolved by re-deriving it. */
@@ -159,6 +201,39 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         wholeFileState: "rows (one line)",
         // The deck-builder search index (issue #4861): derived from the same
         // offline join, written by the same run.
+        requiresCorpus: false,
+    },
+    // Issue #6116 — derived from `BLADE_SCENARIOS` alone; the append-only
+    // driver merges `scenarios.ts` first, so the tip's registry is the union.
+    {
+        path: "data/blade-card-index.json",
+        script: "blade:card-index",
+        wholeFileState: "rows sorted by card name (neighbouring inserts)",
+        requiresCorpus: false,
+    },
+    {
+        path: "data/blade-reproducers.json",
+        script: "blade:card-index",
+        wholeFileState: "rows sorted by scenario label (neighbouring inserts)",
+        requiresCorpus: false,
+    },
+    // Issue #6116 — whole-file mirrors of the CLAUDE.md sources.
+    {
+        path: "AGENTS.md",
+        script: "agents:build",
+        wholeFileState: "the whole file (mirror of CLAUDE.md + rules)",
+        requiresCorpus: false,
+    },
+    {
+        path: "convex/AGENTS.md",
+        script: "agents:build",
+        wholeFileState: "the whole file (mirror of convex/CLAUDE.md)",
+        requiresCorpus: false,
+    },
+    {
+        path: "src/AGENTS.md",
+        script: "agents:build",
+        wholeFileState: "the whole file (mirror of src/CLAUDE.md)",
         requiresCorpus: false,
     },
 ] as const;
