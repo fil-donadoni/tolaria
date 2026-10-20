@@ -1,0 +1,9 @@
+{
+    "host": "omarchy",
+    "budget": null,
+    "latency": null,
+    "errors": {
+        "budget": "No LLM rows between 2026-10-14 and 2026-10-20.",
+        "latency": "No main-thread turns between 2026-10-14 and 2026-10-20."
+    }
+}

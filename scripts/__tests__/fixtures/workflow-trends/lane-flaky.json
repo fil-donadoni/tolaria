@@ -1,0 +1,19 @@
+{
+    "head": "bfcb91b2aade68e5e8cfe008775305bea96b4cd9",
+    "lane": "engine",
+    "ok": true,
+    "totalMs": 412873,
+    "outcomes": [
+        { "id": "check:ts", "status": "pass", "ms": 61230 },
+        {
+            "id": "vitest(changed)",
+            "status": "pass",
+            "ms": 351643,
+            "flake": {
+                "projects": ["node-tooling"],
+                "files": ["scripts/__tests__/duplicate-test-blocks.test.ts"],
+                "cause": "timeout"
+            }
+        }
+    ]
+}

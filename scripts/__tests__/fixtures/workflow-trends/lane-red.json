@@ -1,0 +1,15 @@
+{
+    "head": "4db4ed91bf57a197e0c0b8c1d2e3f4a5b6c7d8e9",
+    "lane": "engine",
+    "ok": false,
+    "totalMs": 140221,
+    "outcomes": [
+        { "id": "check:ts", "status": "pass", "ms": 60112 },
+        {
+            "id": "vitest(changed)",
+            "status": "fail",
+            "ms": 80109,
+            "failedFiles": ["scripts/__tests__/docs-lane.test.ts"]
+        }
+    ]
+}

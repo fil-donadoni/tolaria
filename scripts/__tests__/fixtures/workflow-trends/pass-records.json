@@ -1,0 +1,74 @@
+[
+    {
+        "version": 1,
+        "issue": 5651,
+        "pr": 6130,
+        "outcome": "handed-off",
+        "host": "omarchy",
+        "startedAt": "2026-10-19T08:00:00.000Z",
+        "endedAt": "2026-10-19T09:10:00.000Z",
+        "durationS": 4200,
+        "models": {
+            "claude-sonnet-5-5": {
+                "input": 1200,
+                "output": 48000,
+                "cacheCreation": 210000,
+                "cacheRead": 8100000
+            }
+        },
+        "costUsd": 4.5,
+        "usageLimitResetAt": null
+    },
+    {
+        "version": 1,
+        "issue": 5651,
+        "pr": 6130,
+        "outcome": "timeout",
+        "host": "omarchy",
+        "startedAt": "2026-10-18T11:00:00.000Z",
+        "endedAt": "2026-10-18T14:00:00.000Z",
+        "durationS": 10800,
+        "models": {},
+        "costUsd": null,
+        "usageLimitResetAt": null
+    },
+    {
+        "version": 1,
+        "issue": 6001,
+        "pr": 6131,
+        "outcome": "handed-off",
+        "host": "filippos-macbook-pro",
+        "startedAt": "2026-10-19T10:00:00.000Z",
+        "endedAt": "2026-10-19T10:40:00.000Z",
+        "durationS": 2400,
+        "models": {},
+        "costUsd": 2.25,
+        "usageLimitResetAt": null
+    },
+    {
+        "version": 1,
+        "issue": 6002,
+        "pr": null,
+        "outcome": "usage-limit",
+        "host": "filippos-macbook-pro",
+        "startedAt": "2026-10-17T10:00:00.000Z",
+        "endedAt": "2026-10-17T10:20:00.000Z",
+        "durationS": 1200,
+        "models": {},
+        "costUsd": 0.8,
+        "usageLimitResetAt": "2026-10-17T15:00:00.000Z"
+    },
+    {
+        "version": 1,
+        "issue": 6088,
+        "pr": null,
+        "outcome": "error",
+        "host": "macbook",
+        "startedAt": "2026-10-20T10:35:40.482Z",
+        "endedAt": "2026-10-20T10:35:40.486Z",
+        "durationS": 0,
+        "models": {},
+        "costUsd": null,
+        "usageLimitResetAt": null
+    }
+]

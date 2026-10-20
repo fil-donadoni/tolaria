@@ -1,0 +1,676 @@
+[
+    {
+        "oid": "f8adbb827afb7e1a04c3f942d06202799c334594",
+        "committedDate": "2026-10-20T10:04:30Z",
+        "status": null
+    },
+    {
+        "oid": "f2958400e1dfc64de24be2cc9ab46fb51e424590",
+        "committedDate": "2026-10-20T10:01:56Z",
+        "status": null
+    },
+    {
+        "oid": "8832443333101a9c09084649ca972ff8346ee140",
+        "committedDate": "2026-10-20T09:54:50Z",
+        "status": null
+    },
+    {
+        "oid": "39ba57c7687d4c76e650fd626f4e875f77f7ddff",
+        "committedDate": "2026-10-20T09:52:09Z",
+        "status": null
+    },
+    {
+        "oid": "582b12d7624462fd5080c6d59dbea019874e5916",
+        "committedDate": "2026-10-20T09:52:03Z",
+        "status": null
+    },
+    {
+        "oid": "1b9c72081e53b9fa68fcce36f669cd259b13d40b",
+        "committedDate": "2026-10-20T09:20:27Z",
+        "status": null
+    },
+    {
+        "oid": "f45851e39ab1cf8f0672c70d9d1d3f28f28094ba",
+        "committedDate": "2026-10-20T09:04:19Z",
+        "status": null
+    },
+    {
+        "oid": "0716a4e8e7d9f9b393ec02b17637b81b32b477f4",
+        "committedDate": "2026-10-20T08:28:17Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/0716a4e8e7d9.log",
+                "createdAt": "2026-10-20T08:48:27Z"
+            }
+        }
+    },
+    {
+        "oid": "4db4ed91bf57a197e79d3ae912cda05c71ee69bb",
+        "committedDate": "2026-10-20T08:11:57Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · check:all · github-hosted/runnervmxehtw · failure: gate",
+                "createdAt": "2026-10-20T08:14:41Z"
+            }
+        }
+    },
+    {
+        "oid": "5c3cd1349f41b81713f90a5f6bdbf67ee864d646",
+        "committedDate": "2026-10-19T22:09:50Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · omarchy · log: /home/fil/code/mtg/tolaria/.claude/telemetry/health/5c3cd1349f41.log",
+                "createdAt": "2026-10-20T00:40:22Z"
+            }
+        }
+    },
+    {
+        "oid": "5d51cbe5af19f01cb8149ce1395c9b3fdc9f173c",
+        "committedDate": "2026-10-19T22:09:43Z",
+        "status": null
+    },
+    {
+        "oid": "3974e3ba4c07b952d20d767de9b402755d1d8b3a",
+        "committedDate": "2026-10-19T21:23:40Z",
+        "status": null
+    },
+    {
+        "oid": "5f9c6d699e06aa640a08ff3606c90ca731872415",
+        "committedDate": "2026-10-19T21:11:46Z",
+        "status": null
+    },
+    {
+        "oid": "f7709fbd79b401df1293acfaaa94287f33f2742d",
+        "committedDate": "2026-10-19T21:11:38Z",
+        "status": null
+    },
+    {
+        "oid": "e2dfd96bfe599ad4c7c273d4edc08d1cbb816561",
+        "committedDate": "2026-10-19T20:59:42Z",
+        "status": null
+    },
+    {
+        "oid": "82c2cc591c8970569572e4986f436ad0e5141cdb",
+        "committedDate": "2026-10-19T20:59:35Z",
+        "status": null
+    },
+    {
+        "oid": "35ba7d41357908257b914253b962d2be1ebddc55",
+        "committedDate": "2026-10-19T20:42:28Z",
+        "status": null
+    },
+    {
+        "oid": "8371ade7aa57b5294e04f98972e072a00deab044",
+        "committedDate": "2026-10-19T20:33:38Z",
+        "status": null
+    },
+    {
+        "oid": "e675cca529283ee43f83586f9c868ccf03e50fe7",
+        "committedDate": "2026-10-19T19:22:34Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: test passed on a fresh run · omarchy",
+                "createdAt": "2026-10-19T20:53:41Z"
+            }
+        }
+    },
+    {
+        "oid": "115730fc5bc788a89b702c383f273d87c95109b7",
+        "committedDate": "2026-10-19T16:31:54Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · test · github-hosted/runnervm8k3b6 · failure: assertion · tests: scripts/__tests__/ui-census.test.ts",
+                "createdAt": "2026-10-19T16:46:29Z"
+            }
+        }
+    },
+    {
+        "oid": "8155b18606609e59df5447448d05ea62683bcb8f",
+        "committedDate": "2026-10-19T14:13:55Z",
+        "status": null
+    },
+    {
+        "oid": "e7f3581ccda65c6965fd8d575a745ba58ac82e3f",
+        "committedDate": "2026-10-19T14:03:49Z",
+        "status": {
+            "context": {
+                "state": "ERROR",
+                "description": "INFRA · test · omarchy · log: /home/fil/code/mtg/tolaria/.claude/telemetry/health/e7f3581ccda6.log",
+                "createdAt": "2026-10-19T14:44:06Z"
+            }
+        }
+    },
+    {
+        "oid": "fc36528fc0a5100b8cb04a366939fef863240211",
+        "committedDate": "2026-10-19T14:00:51Z",
+        "status": null
+    },
+    {
+        "oid": "02d731b240b4e10c117adae9a0800a06a0a26986",
+        "committedDate": "2026-10-19T13:50:16Z",
+        "status": null
+    },
+    {
+        "oid": "09d067e768f1d7be78cd741fa3d059564fa0cf85",
+        "committedDate": "2026-10-19T13:50:06Z",
+        "status": null
+    },
+    {
+        "oid": "51ddc9a802a6414956818f9d926e6b07aa86b896",
+        "committedDate": "2026-10-19T13:30:28Z",
+        "status": null
+    },
+    {
+        "oid": "576f2a8f93b818e0fcbfce0a4ad6b767fc123c03",
+        "committedDate": "2026-10-19T13:23:57Z",
+        "status": null
+    },
+    {
+        "oid": "02cd439e9afa7b697f4b8eb1d1724a9a6e8d960e",
+        "committedDate": "2026-10-19T13:13:59Z",
+        "status": null
+    },
+    {
+        "oid": "537cd5beb076ce970fe12de2b139c4d1eaa61b3b",
+        "committedDate": "2026-10-19T12:52:51Z",
+        "status": null
+    },
+    {
+        "oid": "d964790a8857269efaa15b90342eb2f4fedea9a8",
+        "committedDate": "2026-10-19T12:52:46Z",
+        "status": null
+    },
+    {
+        "oid": "cbc8ccfe2608e134342bd75c84664a522c69f3a7",
+        "committedDate": "2026-10-19T12:52:41Z",
+        "status": null
+    },
+    {
+        "oid": "2f112b558050ac6f7cd2e24f5daf68252ddf50c4",
+        "committedDate": "2026-10-19T11:42:58Z",
+        "status": null
+    },
+    {
+        "oid": "e76bf6ff56d367816bedde571478dac2f3adbbe5",
+        "committedDate": "2026-10-19T11:32:15Z",
+        "status": null
+    },
+    {
+        "oid": "a5852cb973dc8a1bde7922e9abadbfc4257edc94",
+        "committedDate": "2026-10-19T11:25:51Z",
+        "status": null
+    },
+    {
+        "oid": "60dc35c5b57f6061bc29464d76f0dc0157496bdb",
+        "committedDate": "2026-10-19T11:19:10Z",
+        "status": null
+    },
+    {
+        "oid": "c0ea54a89624d9adbc7657052e7e844ab7e5f78a",
+        "committedDate": "2026-10-19T11:02:00Z",
+        "status": null
+    },
+    {
+        "oid": "b12ffff250b8d60688b5ec9e71a560d611f0c56f",
+        "committedDate": "2026-10-19T11:01:56Z",
+        "status": null
+    },
+    {
+        "oid": "7837a7ba9cb393b721b5e39089e615a03c2ebd0a",
+        "committedDate": "2026-10-19T10:14:28Z",
+        "status": null
+    },
+    {
+        "oid": "78b92dabcf8e0e931a959fd5e81ea9f3df9a0505",
+        "committedDate": "2026-10-19T10:09:58Z",
+        "status": null
+    },
+    {
+        "oid": "f9ad7b0d838c192980f025912e6bbb6f41431dd0",
+        "committedDate": "2026-10-19T10:08:20Z",
+        "status": null
+    },
+    {
+        "oid": "7ebad113536f90ce77eefb51365fd4788bcbcd24",
+        "committedDate": "2026-10-19T10:00:54Z",
+        "status": null
+    },
+    {
+        "oid": "c7a341f51f476aca50ca0b82c7a7dce0000e4c35",
+        "committedDate": "2026-10-19T09:43:29Z",
+        "status": null
+    },
+    {
+        "oid": "a441fac50309c7d1677ef01e4fc6fda66e2d1f4e",
+        "committedDate": "2026-10-19T09:40:55Z",
+        "status": null
+    },
+    {
+        "oid": "3dabeca8d4be377885c3ad765abeeed239f1ef9b",
+        "committedDate": "2026-10-19T09:33:53Z",
+        "status": null
+    },
+    {
+        "oid": "4f357034a96d65063ce02fa70a440310ad2c1e2b",
+        "committedDate": "2026-10-19T09:10:59Z",
+        "status": null
+    },
+    {
+        "oid": "ba326a8ca7104998f9fe34c8a74d3c2c1433a2c6",
+        "committedDate": "2026-10-19T08:50:52Z",
+        "status": null
+    },
+    {
+        "oid": "767c7723e0dd3fa6b3057e2f6d1f962c9c03eaf4",
+        "committedDate": "2026-10-19T08:42:34Z",
+        "status": null
+    },
+    {
+        "oid": "4f6d611eeb3bc26d2f9368a1ed7259fef6d091b7",
+        "committedDate": "2026-10-19T08:36:23Z",
+        "status": null
+    },
+    {
+        "oid": "00813214a7de341b4e1b5398de95df99dcc84745",
+        "committedDate": "2026-10-19T08:32:19Z",
+        "status": null
+    },
+    {
+        "oid": "7033d08f6fdebc8197c2ebf54fc33c19c31b8c2c",
+        "committedDate": "2026-10-19T08:06:51Z",
+        "status": null
+    },
+    {
+        "oid": "90e0162513c802acee789e99fe7b8ae59443a6d6",
+        "committedDate": "2026-10-18T19:52:04Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/90e0162513c8.log",
+                "createdAt": "2026-10-18T22:50:07Z"
+            }
+        }
+    },
+    {
+        "oid": "1c8bdf6d5414ff34f23d13f0aaa64b2e81113243",
+        "committedDate": "2026-10-18T19:35:14Z",
+        "status": null
+    },
+    {
+        "oid": "8217cf59cba3ace9d7c2fcdf9e61ff139c3819bc",
+        "committedDate": "2026-10-18T19:22:39Z",
+        "status": null
+    },
+    {
+        "oid": "f8c6f8bc6efc23532ddf0e3fb0c0aaa9c651349c",
+        "committedDate": "2026-10-18T17:07:19Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/f8c6f8bc6efc.log",
+                "createdAt": "2026-10-18T19:12:06Z"
+            }
+        }
+    },
+    {
+        "oid": "be13a4248224f2fb93109297d7c87b89d6e1676f",
+        "committedDate": "2026-10-18T14:41:32Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · check:all · github-hosted/runnervm8k3b6 · failure: gate",
+                "createdAt": "2026-10-18T14:48:27Z"
+            }
+        }
+    },
+    {
+        "oid": "7a50a387528c251b4db5799820cf79a198212dd5",
+        "committedDate": "2026-10-18T14:39:41Z",
+        "status": null
+    },
+    {
+        "oid": "5173278130f72b3cc51d3ae3200afa2f5f99a9ac",
+        "committedDate": "2026-10-18T14:23:05Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · check:all · github-hosted/runnervm8k3b6 · failure: gate",
+                "createdAt": "2026-10-18T14:43:04Z"
+            }
+        }
+    },
+    {
+        "oid": "1dda0a00335bde113a6bd022d1da7d2766896c20",
+        "committedDate": "2026-10-18T14:19:37Z",
+        "status": null
+    },
+    {
+        "oid": "8feb3421f7d9a598d728f635f7bec7983f2fda91",
+        "committedDate": "2026-10-18T13:42:17Z",
+        "status": null
+    },
+    {
+        "oid": "f82c0804ad20f76314f5e563e0d00fb2f3c77361",
+        "committedDate": "2026-10-18T13:37:21Z",
+        "status": null
+    },
+    {
+        "oid": "fd16ff2a318cce8d5d771cb71184a763e65850ea",
+        "committedDate": "2026-10-18T13:31:54Z",
+        "status": null
+    },
+    {
+        "oid": "3fc998c82cd5a9e3b82f8e5b47b1a826ae7da0ff",
+        "committedDate": "2026-10-18T13:29:10Z",
+        "status": null
+    },
+    {
+        "oid": "9a97facaecdfb4db7f0704f69fd97427608afdb6",
+        "committedDate": "2026-10-18T13:23:14Z",
+        "status": null
+    },
+    {
+        "oid": "b820fb7dffa7b5e047348bd91305e7e58ad748fb",
+        "committedDate": "2026-10-18T13:16:36Z",
+        "status": null
+    },
+    {
+        "oid": "d8583f9c2350e2657ff0994e284879e098af18fa",
+        "committedDate": "2026-10-18T13:14:24Z",
+        "status": null
+    },
+    {
+        "oid": "5f82651f998335252aeac2224575f8e5be27f999",
+        "committedDate": "2026-10-18T13:13:15Z",
+        "status": null
+    },
+    {
+        "oid": "2892ed26caabe131d9aa54b8bdc9fcbb6c01f81d",
+        "committedDate": "2026-10-18T12:17:56Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/2892ed26caab.log",
+                "createdAt": "2026-10-18T13:07:50Z"
+            }
+        }
+    },
+    {
+        "oid": "8442d0b40da540985301c7e643469160db8e2198",
+        "committedDate": "2026-10-18T11:33:05Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · test · omarchy · failure: timeout · tests: scripts/__tests__/duplicate-test-blocks.test.ts,src/lib/__tests__/catalogueArtifact.test.ts",
+                "createdAt": "2026-10-18T12:14:17Z"
+            }
+        }
+    },
+    {
+        "oid": "1e3148c334b593ab960280e340f920902d193f08",
+        "committedDate": "2026-10-18T11:31:09Z",
+        "status": null
+    },
+    {
+        "oid": "46631fa1cd54490a34b2a80a9f9e59a2a6fe0e13",
+        "committedDate": "2026-10-18T08:44:16Z",
+        "status": null
+    },
+    {
+        "oid": "1d25c1b82c288bd8ab0352e27d93c8032d822169",
+        "committedDate": "2026-10-18T08:05:22Z",
+        "status": null
+    },
+    {
+        "oid": "4660c70d8603ef34204cb6fb5ce27b74e189983c",
+        "committedDate": "2026-10-18T07:52:39Z",
+        "status": null
+    },
+    {
+        "oid": "2c21a9b2185d69b255fea0e07f2164bce964a4fe",
+        "committedDate": "2026-10-18T07:42:11Z",
+        "status": {
+            "context": {
+                "state": "PENDING",
+                "description": "AMBER · - · Filippos-MacBook-Pro · repair-of: 7706c947ab14b87288d2c1afe812bfe19977e59c",
+                "createdAt": "2026-10-18T07:42:14Z"
+            }
+        }
+    },
+    {
+        "oid": "7706c947ab14b87288d2c1afe812bfe19977e59c",
+        "committedDate": "2026-10-18T07:09:38Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · test · runnervm8k3b6 · failure: assertion · tests: scripts/__tests__/blade-card-index-drift.bot.test.ts",
+                "createdAt": "2026-10-18T07:34:02Z"
+            }
+        }
+    },
+    {
+        "oid": "57688e4e564badac2cb74500678c73e283a86cdc",
+        "committedDate": "2026-10-18T07:05:37Z",
+        "status": null
+    },
+    {
+        "oid": "1747f6cfdfc541b18ef44db1584957557f1fb87c",
+        "committedDate": "2026-10-18T06:49:49Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · test · runnervm8k3b6 · failure: assertion · tests: scripts/__tests__/blade-card-index-drift.bot.test.ts",
+                "createdAt": "2026-10-18T07:13:58Z"
+            }
+        }
+    },
+    {
+        "oid": "da6e3ab25b7b242b93d1067befda3c892de44b85",
+        "committedDate": "2026-10-18T06:40:03Z",
+        "status": null
+    },
+    {
+        "oid": "3ec1d542601f9ec8326817bb79bdf196761f7a63",
+        "committedDate": "2026-10-18T06:37:20Z",
+        "status": null
+    },
+    {
+        "oid": "bb4527e06d4f1618cc75c5f1fbf92d43cab26cb8",
+        "committedDate": "2026-10-17T22:21:33Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/bb4527e06d4f.log",
+                "createdAt": "2026-10-18T00:38:50Z"
+            }
+        }
+    },
+    {
+        "oid": "38f89b774590ac466188ab9c060411cc652cc9b2",
+        "committedDate": "2026-10-17T22:15:32Z",
+        "status": null
+    },
+    {
+        "oid": "3f5651faaabb01fef9dd2613c80018e13b679574",
+        "committedDate": "2026-10-17T22:10:12Z",
+        "status": null
+    },
+    {
+        "oid": "656a814f7ddad2d58a311bad82c764685a428923",
+        "committedDate": "2026-10-17T22:07:02Z",
+        "status": null
+    },
+    {
+        "oid": "edc34116afb17b4923db511f9ad6d3e9cefda457",
+        "committedDate": "2026-10-17T21:18:33Z",
+        "status": null
+    },
+    {
+        "oid": "7f9fbac8f1426c0309b57bd7aeae274fe81ae2ee",
+        "committedDate": "2026-10-17T20:47:43Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · Filippos-MacBook-Pro · log: /Users/filippo/code/mtg/tolaria/.claude/telemetry/health/7f9fbac8f142.log",
+                "createdAt": "2026-10-17T21:57:28Z"
+            }
+        }
+    },
+    {
+        "oid": "6a481dba404f51012881c43b4caa4848dac5a31d",
+        "committedDate": "2026-10-17T20:39:21Z",
+        "status": null
+    },
+    {
+        "oid": "f5340a690628490b69b684cabecb76aab472253b",
+        "committedDate": "2026-10-17T20:32:32Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T20:33:52Z"
+            }
+        }
+    },
+    {
+        "oid": "0c06399b70dac0d76d72f324f55af759878cfbf8",
+        "committedDate": "2026-10-17T20:11:47Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T20:12:53Z"
+            }
+        }
+    },
+    {
+        "oid": "f098de87f36c6e2760df4a3d0bc2e70de0b6e8e9",
+        "committedDate": "2026-10-17T19:59:01Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T20:00:28Z"
+            }
+        }
+    },
+    {
+        "oid": "5f433df9047ea26ce703fafb240bba58b71c09c3",
+        "committedDate": "2026-10-17T19:43:02Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T19:44:46Z"
+            }
+        }
+    },
+    {
+        "oid": "f2ecf0bfba8736c127b44f7582f624ba3f7c6b3c",
+        "committedDate": "2026-10-17T18:52:29Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T18:53:32Z"
+            }
+        }
+    },
+    {
+        "oid": "d9662a2e1e52f27e49d0d8b1ed3e604c777ccd53",
+        "committedDate": "2026-10-17T18:49:27Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T18:50:39Z"
+            }
+        }
+    },
+    {
+        "oid": "b372143841dc760d078a2ee894125ee140851381",
+        "committedDate": "2026-10-17T14:29:38Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T14:30:52Z"
+            }
+        }
+    },
+    {
+        "oid": "341c0ecb5c4036492a6f3474f76287f0487547e1",
+        "committedDate": "2026-10-17T14:19:50Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T14:20:58Z"
+            }
+        }
+    },
+    {
+        "oid": "733e9c2d8ff22243702173b951e0e240bef607e0",
+        "committedDate": "2026-10-17T14:08:50Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T14:10:01Z"
+            }
+        }
+    },
+    {
+        "oid": "6814041d1279b7d954576ab3fa60186974455e10",
+        "committedDate": "2026-10-17T13:26:52Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · flake: worktree:init passed on a fresh run · Filippos-MacBook-Pro",
+                "createdAt": "2026-10-17T13:28:06Z"
+            }
+        }
+    },
+    {
+        "oid": "a69c722356a8da9854a2c4318150f5ab5334e1ab",
+        "committedDate": "2026-10-17T13:11:31Z",
+        "status": null
+    },
+    {
+        "oid": "a8398731e23bcafc91f6e8b323e1f3d14de630ce",
+        "committedDate": "2026-10-17T13:08:41Z",
+        "status": null
+    },
+    {
+        "oid": "0c39fb6a8dccb53b407dc31ffaf01e84def2d2a7",
+        "committedDate": "2026-10-17T12:37:14Z",
+        "status": {
+            "context": {
+                "state": "SUCCESS",
+                "description": "GREEN · - · omarchy · log: /home/fil/code/mtg/tolaria/.claude/telemetry/health/0c39fb6a8dcc.log",
+                "createdAt": "2026-10-17T13:06:32Z"
+            }
+        }
+    },
+    {
+        "oid": "7427b212afb27cd0052e04dc8c16d99ae4ffab56",
+        "committedDate": "2026-10-17T08:26:06Z",
+        "status": null
+    },
+    {
+        "oid": "0116c0366c9e361c95f5cecaa5109e8819e74b80",
+        "committedDate": "2026-10-16T18:50:18Z",
+        "status": {
+            "context": {
+                "state": "FAILURE",
+                "description": "RED · test · omarchy · failure: assertion · tests: scripts/__tests__/test-tmp-teardown.test.ts",
+                "createdAt": "2026-10-17T03:00:53Z"
+            }
+        }
+    }
+]

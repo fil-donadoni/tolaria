@@ -1,0 +1,118 @@
+# weekly-report — the week's workflow trends in one job summary (issue #5651,
+# ADR 0156 Amendment I § The dashboard is simplified, not removed): PRs per
+# hour, issues closed vs opened, failed landings by cause (Amendment I's
+# taxonomy), RED episodes and time to green against the target (≥ 80 %
+# without the owner, p90 < 6 h), flaky tests, cost per issue, pass and queue
+# latency. The numbers come from `scripts/lib/workflow-trends.ts`, a pure
+# library the cockpit reuses.
+#
+# `machine` runs on EVERY machine: GitHub sees runs and failures but not
+# tokens, allowance share or where a session's time goes, so each machine
+# reads its own telemetry (`telemetry:budget --json`, `telemetry:latency
+# --json`) and uploads it. `report` then reads GitHub — the PRs' timelines,
+# the base's `health` statuses, the `afk-pass` records, the `queue-lane`
+# JSON — adds the machines' readings, writes the summary and uploads the
+# trends as JSON (`weekly-trends`). A machine offline holds its `machine`
+# job until GitHub drops it (24 h); `report` runs anyway (`if: always()`)
+# and says the reading is missing.
+#
+# Public logs: the summary carries numbers, PR and issue numbers and test
+# file names; machines read `machine 1`, `machine 2`.
+#
+# A schedule fires from the DEFAULT branch only: the schedule starts once a
+# release carries this file there. Triggers an outsider cannot fire: the
+# schedule and a dispatch. The `host` matrix names the machines by their
+# `host:<name>` label (docs/guides/github-pipeline.md § weekly-report).
+name: weekly-report
+
+on:
+    schedule:
+        - cron: "7 6 * * 1"
+    workflow_dispatch:
+        inputs:
+            days:
+                description: Days the report covers, ending now
+                required: false
+                default: "7"
+
+permissions:
+    contents: read
+
+jobs:
+    machine:
+        name: telemetry reading (${{ matrix.host }})
+        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                host: [macbook, huawei]
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: weekly-report machine
+              run: |
+                  mkdir -p "$RUNNER_TEMP/weekly-machine"
+                  bun run weekly-report machine --out "$RUNNER_TEMP/weekly-machine/machine.json"
+            - name: Upload the reading
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: weekly-machine-${{ matrix.host }}
+                  path: ${{ runner.temp }}/weekly-machine/machine.json
+                  retention-days: 7
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    report:
+        name: weekly report
+        needs: machine
+        if: always()
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 60
+        # Reads only: the search and GraphQL API, and the runs' artifacts.
+        permissions:
+            contents: read
+            actions: read
+            issues: read
+            pull-requests: read
+            statuses: read
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: The machines' readings
+              # None at all (every machine offline) is a summary row, not a
+              # failed report.
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh run download "$GITHUB_RUN_ID" --pattern 'weekly-machine-*' --dir "$RUNNER_TEMP/machines" || echo "no machine reading"
+            - name: weekly-report
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DAYS: ${{ inputs.days || '7' }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/weekly-report"
+                  bun run weekly-report --days "$DAYS" --machines "$RUNNER_TEMP/machines" --json "$RUNNER_TEMP/weekly-report/trends.json" >> "$GITHUB_STEP_SUMMARY"
+            - name: Upload the trends
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: weekly-trends
+                  path: ${{ runner.temp }}/weekly-report/trends.json
+                  retention-days: 90
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

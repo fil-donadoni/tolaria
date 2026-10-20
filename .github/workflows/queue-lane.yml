@@ -71,6 +71,18 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   DRAFT: ${{ github.ref_name }}
               run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --log "$RUNNER_TEMP/lane.log" --draft "$DRAFT"
+            # The weekly report's record of this run: its flakes, and which
+            # red dequeued the PR (issue #5651). Step ids, test file names
+            # and timings only; an empty file is a refusal.
+            - name: Upload the lane JSON
+              if: always()
+              continue-on-error: true
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: queue-lane-json
+                  path: ${{ runner.temp }}/lane.json
+                  if-no-files-found: ignore
+                  retention-days: 14
             - name: Remove the job worktree
               if: always()
               shell: bash

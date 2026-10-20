@@ -1,0 +1,96 @@
+{
+    "host": "filippos-macbook-pro",
+    "budget": {
+        "from": "2026-10-14",
+        "to": "2026-10-20",
+        "targetPct": 0.5,
+        "allowance": { "units": 1080000000, "source": "env" },
+        "totals": {
+            "units": 380000000,
+            "usd": 912.4,
+            "nonClaudeUsd": 0,
+            "unattributedUnits": 12000000,
+            "days": 7
+        },
+        "cohorts": [{ "name": "/next-ticket, closed", "issues": 3 }],
+        "issues": [
+            {
+                "issue": 6001,
+                "units": 4100000,
+                "usd": 3.1,
+                "sessions": 1,
+                "state": "closed",
+                "nextIssue": true,
+                "sharePct": 0.38
+            },
+            {
+                "issue": 6003,
+                "units": 9800000,
+                "usd": 7.9,
+                "sessions": 2,
+                "state": "closed",
+                "nextIssue": true,
+                "sharePct": 0.91
+            },
+            {
+                "issue": 6004,
+                "units": 2000000,
+                "usd": 1.5,
+                "sessions": 1,
+                "state": "closed",
+                "nextIssue": true,
+                "sharePct": 0.19
+            },
+            {
+                "issue": 5999,
+                "units": 30000000,
+                "usd": 40.2,
+                "sessions": 4,
+                "state": "open",
+                "nextIssue": false,
+                "sharePct": 2.78
+            }
+        ]
+    },
+    "latency": {
+        "from": "2026-10-14",
+        "to": "2026-10-20",
+        "maxHours": 12,
+        "cohorts": [
+            {
+                "name": "issue-closing sessions (landed ≥1 PR)",
+                "sessions": 5,
+                "wall": { "median": 3000, "p90": 6600, "mean": 3500 },
+                "tool": { "median": 900, "p90": 2000, "mean": 1100 },
+                "gate": { "median": 300, "p90": 900, "mean": 400 },
+                "model": { "median": 1500, "p90": 3000, "mean": 1700 },
+                "machine": { "median": 2400, "p90": 5000, "mean": 2800 },
+                "idle": { "median": 600, "p90": 1600, "mean": 700 }
+            },
+            {
+                "name": "/next-ticket sessions (the ADR 0110 pipeline)",
+                "sessions": 4,
+                "wall": { "median": 2700, "p90": 6000, "mean": 3300 },
+                "tool": { "median": 900, "p90": 2000, "mean": 1100 },
+                "gate": { "median": 300, "p90": 900, "mean": 400 },
+                "model": { "median": 1500, "p90": 3000, "mean": 1700 },
+                "machine": { "median": 2400, "p90": 5000, "mean": 2800 },
+                "idle": { "median": 300, "p90": 1000, "mean": 500 }
+            },
+            {
+                "name": "all sessions in window",
+                "sessions": 9,
+                "wall": { "median": 2000, "p90": 6600, "mean": 3000 },
+                "tool": { "median": 900, "p90": 2000, "mean": 1100 },
+                "gate": { "median": 300, "p90": 900, "mean": 400 },
+                "model": { "median": 1500, "p90": 3000, "mean": 1700 },
+                "machine": { "median": 2400, "p90": 5000, "mean": 2800 },
+                "idle": { "median": 300, "p90": 1000, "mean": 500 }
+            }
+        ],
+        "sessions": [],
+        "adr0136": {},
+        "throughput": []
+    },
+    "errors": {}
+}
