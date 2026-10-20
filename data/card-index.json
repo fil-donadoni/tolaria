@@ -360,6 +360,16 @@
         "source": "compiled"
     },
     {
+        "name": "Acorn Harvest",
+        "scryfallId": "32987720-cc0c-416b-b79b-217d3b37542d",
+        "oracleId": "6aeba615-2d37-4eb8-a377-41a517e95aa3",
+        "firstSet": "tor",
+        "firstPrintId": "32987720-cc0c-416b-b79b-217d3b37542d",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Active Volcano",
         "scryfallId": "ad402e65-6fac-4005-a2d4-592983df0c30",
         "oracleId": "205ffa76-ff8e-4405-b21a-42358a9883c2",
@@ -12506,6 +12516,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crippling Fatigue",
+        "scryfallId": "0bb53a87-ba48-4c77-b284-3be321c8836e",
+        "oracleId": "d87190d0-bda3-4ad9-84b2-019f751999ce",
+        "firstSet": "tor",
+        "firstPrintId": "0bb53a87-ba48-4c77-b284-3be321c8836e",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crocodile of the Crossing",
         "scryfallId": "2f64ca9c-99c4-45d4-bd21-3ede61702250",
         "oracleId": "e5e31d27-3907-4c65-a988-a754f217e061",
@@ -14480,6 +14500,16 @@
         "firstSet": "ody",
         "firstPrintId": "d1f95b64-858b-4344-84a2-3afa5c7b9ee9",
         "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deep Analysis",
+        "scryfallId": "01e3c2e9-d8df-4a7a-be86-7be8c6254fa2",
+        "oracleId": "579cbd92-797f-4cdf-91ed-fca7a523eae5",
+        "firstSet": "tor",
+        "firstPrintId": "01e3c2e9-d8df-4a7a-be86-7be8c6254fa2",
+        "firstPrintSet": "tor",
         "rarity": "common",
         "source": "compiled"
     },

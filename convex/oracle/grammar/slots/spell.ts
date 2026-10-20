@@ -261,7 +261,11 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         ctx
     );
     if (!parsed.ok) return parsed;
-    const out: { mana?: ManaCost; sacrifice?: PermanentFilter } = {};
+    const out: {
+        mana?: ManaCost;
+        sacrifice?: PermanentFilter;
+        life?: number;
+    } = {};
     for (const atom of parsed.value.atoms as readonly CostAtomIR[]) {
         if (atom.kind === "mana") {
             out.mana = atom.mana;
@@ -275,6 +279,13 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         // an unpaid cost is an unbounded bug (see `shared/cost.ts`).
         if (atom.kind === "sacrifice-other" && atom.count === 1) {
             out.sacrifice = atom.filter;
+            continue;
+        }
+        // CR 702.34a / 119.4 — "Pay N life" (Deep Analysis): the flashback
+        // cast path charges it with the mana, and refuses a cast the caster's
+        // life total cannot cover (`FlashbackCost.life`).
+        if (atom.kind === "pay-life") {
+            out.life = atom.amount;
             continue;
         }
         return fail(

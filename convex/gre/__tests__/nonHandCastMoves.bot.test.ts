@@ -323,6 +323,40 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         expect(castOf(state, "p1", "gyBolt")).toBeUndefined();
     });
 
+    describe("flashback life leg (CR 702.34a / 119.4, issue #5506)", () => {
+        // Ancestral Recall: a spell whose resolution moves no life, so the
+        // sandbox's life delta is the flashback payment alone.
+        const lifeBolt = () =>
+            makeInstance(ancestralRecall().id, {
+                id: "gyBolt",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+                grantedFlashback: { life: 3 },
+            });
+
+        it("offers the cast carrying the life it pays when life covers it", () => {
+            const state = graveyardBoard(lifeBolt(), []);
+            const cast = castOf(state, "p1", "gyBolt");
+            expect(cast).toBeDefined();
+            expect(cast!.payLife).toBe(3);
+        });
+
+        it("does not offer it at life < N", () => {
+            const state = graveyardBoard(lifeBolt(), []);
+            getPlayer(state, "p1").life = 2;
+            expect(castOf(state, "p1", "gyBolt")).toBeUndefined();
+        });
+
+        it("the search sandbox charges the life", () => {
+            const state = graveyardBoard(lifeBolt(), []);
+            const before = getPlayer(state, "p1").life;
+            const move = castOf(state, "p1", "gyBolt")!;
+            const next = applyMoveForSearch(cloneGameState(state), "p1", move);
+            expect(getPlayer(next, "p1").life).toBe(before - 3);
+        });
+    });
+
     it("offers the INTRINSIC graveyard permission (CR 702.51 — Hogaak's shape)", () => {
         // The one shipped card with `castableFromOwnGraveyard` is Hogaak,
         // whose cost is payable ONLY by convoke + delve

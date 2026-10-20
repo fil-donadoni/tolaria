@@ -686,6 +686,22 @@ export function buildCastExileCostChoice(
     };
 }
 
+/** CR 702.34a / 119.4 — the LIFE a cast from `zone` owes for the card's
+ *  flashback cost ("Flashback—{1}{U}, Pay 3 life."), 0 when none. Owed only on a
+ *  graveyard cast that actually uses flashback: escape beats flashback (CR 702.138
+ *  — Underworld Breach), so an escape cast of the same card owes none. The ONE
+ *  seam the targeted and untargeted commits, the legal-action gate and the Bot's
+ *  enumerator share, so the life the server charges and the life the search
+ *  prices cannot drift. */
+export function flashbackLifeCost(
+    state: GameState,
+    card: CardInstanceState,
+    zone: CastFromZone
+): number {
+    if (zone !== "graveyard" || hasEscape(state, card)) return 0;
+    return getFlashbackAdditionalCost(card)?.life ?? 0;
+}
+
 /** CR 601.3 (issue #2980) — the card a `cast-spell` Move is about to
  *  cast, looked up in the zone the Move DECLARES, for the two search sandboxes'
  *  pre-removal cost block.
