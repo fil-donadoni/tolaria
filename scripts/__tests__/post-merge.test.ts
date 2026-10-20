@@ -185,11 +185,11 @@ describe("removeMergedWorktree (issue #6083)", () => {
     });
 
     it("logs a branch that maps to no issue worktree — never a silent success", () => {
-        const { fake, lines, calls } = io("docs/some-slug\n");
+        const { fake, lines, calls } = io("chore/some-slug\n");
         expect(removeMergedWorktree("/w/tolaria", 7, fake)).toBe(true);
         expect(calls).toEqual([]);
         expect(lines).toEqual([
-            'post-merge: PR #7: head branch "docs/some-slug" maps to no issue worktree — nothing to remove',
+            'post-merge: PR #7: head branch "chore/some-slug" maps to no issue worktree — nothing to remove',
         ]);
     });
 
