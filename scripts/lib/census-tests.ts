@@ -64,6 +64,12 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     },
     // docs/adr/ — every ADR has its index row
     { test: "scripts/__tests__/adr-index.test.ts", admits: /^docs\/adr\// },
+    // scripts/**/*.ts — no module but the lockfile's own reads the fragment table
+    // (issue #6169); the file's other blocks are import-reached anyway
+    {
+        test: "scripts/__tests__/oracle-fragment-keys.test.ts",
+        admits: /^scripts\/.*\.ts$/,
+    },
     // src/, scripts/ — the accessibility-gate exemption attribute
     {
         test: "scripts/__tests__/axe-exemption-scope.test.ts",
