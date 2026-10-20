@@ -157,13 +157,6 @@ export type TriggerHeadIR =
      */
     | { readonly kind: "attacks-unblocked" }
     /**
-     * CR 509.3c — "whenever this creature becomes blocked": once per combat
-     * however many creatures block it, over the per-pair `BLOCKERS_CONFIRMED`
-     * event deduped to the first blocker. Self only: "becomes blocked by a
-     * creature" (CR 509.3d) fires per blocker and is a different head.
-     */
-    | { readonly kind: "becomes-blocked" }
-    /**
      * CR 701.26a — "whenever this land becomes tapped": the source itself
      * going from untapped to tapped, however it was tapped (a {T} cost, a
      * mana ability, an effect). Self only; "enchanted land is tapped for
@@ -531,12 +524,6 @@ export const SELF_HEADS: readonly {
         tail: " attacks and isn't blocked",
         ir: { kind: "attacks-unblocked" },
     },
-    // CR 509.3c — the source itself becoming blocked, once per combat.
-    {
-        opener: "whenever ",
-        tail: " becomes blocked",
-        ir: { kind: "becomes-blocked" },
-    },
     // CR 701.26a — the source itself becoming tapped, by any means.
     {
         opener: "whenever ",
@@ -601,7 +588,6 @@ export function headPronounReferent(
             return "combatant";
         case "combat-damage-to-player":
         case "attacks-unblocked":
-        case "becomes-blocked":
             return "source";
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
         case "damage-dealt":

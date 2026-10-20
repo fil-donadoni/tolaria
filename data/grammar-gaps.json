@@ -113,11 +113,6 @@
             "issue": 4533
         },
         {
-            "key": "(op) › markAssignsNoCombatDamage",
-            "op": "markAssignsNoCombatDamage",
-            "issue": 5179
-        },
-        {
             "key": "(op) › moveSpellFromStack",
             "op": "moveSpellFromStack",
             "issue": 4532

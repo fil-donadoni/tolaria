@@ -5136,6 +5136,64 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 117.3a + CR 506.2 + CR 510.1c (issue #6205) — "you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn": a fixed mana `mayPay` gating a destroy and the source's own assignment suppression, the `$source` subject the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Goblin Vandal",
+            manaCost: "{R}",
+            typeLine: "Creature — Goblin Rogue",
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn.",
+            power: "1",
+            toughness: "1",
+            oracleId: "50bebbb9-01b7-4eb6-8efd-307c9bcd2517",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Vandal",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Rogue"],
+            manaCost: { R: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "goblin-vandal-trigger",
+                    oracleText:
+                        "Whenever this creature attacks and isn't blocked, you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn.",
+                    head: { kind: "attacks-unblocked" },
+                    targetRequirement: {
+                        type: "Artifact",
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: { R: 1 },
+                            prompt: "You may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn",
+                            bind: "$paid1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid1" },
+                            then: [
+                                { op: "destroy", target: { target: 0 } },
+                                {
+                                    op: "markAssignsNoCombatDamage",
+                                    target: { ref: "$source" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 106.1 + CR 608.2c — Cabal Ritual: exhibits the `if` Op's runtime "left" amount (a graveyard count), the card-dependent skip its threshold would otherwise quarantine on (issue #4541).
     {
         rule: "add mana instead if count",
