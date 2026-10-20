@@ -1,0 +1,11 @@
+{
+    "head": "5173278130c1f0de2f2a3a6a7b54d1f0f2a1a9e0",
+    "lane": "cards",
+    "ok": false,
+    "totalMs": 98211,
+    "outcomes": [
+        { "id": "check:ts", "status": "pass", "ms": 60112 },
+        { "id": "check:oracle", "status": "fail", "ms": 38099 },
+        { "id": "vitest(changed)", "status": "not-run", "ms": 0 }
+    ]
+}

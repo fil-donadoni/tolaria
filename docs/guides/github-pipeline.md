@@ -1170,6 +1170,68 @@ TRUSTED_AUTHORS=<login> bun scripts/pr-gate.ts --dry-run --pr <N>
 Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 (the [structure guard](#g-structure-guard)'s `queue-entry` rule).
 
+### weekly-report
+
+`.github/workflows/weekly-report.yml` (issue #5651): the week's trends in one
+job summary, every Monday at 06:07 UTC or by hand (Actions → weekly-report →
+Run workflow; input `days`, default 7, the window ending now). The numbers
+come from `scripts/lib/workflow-trends.ts`, a pure library the cockpit
+reuses; `scripts/weekly-report.ts` only reads.
+
+Two jobs:
+
+1. **`machine`**, on the [`lane`](#g-lane) runner of EVERY machine (a `host`
+   matrix): `bun run weekly-report machine` runs `telemetry:budget --json`
+   and `telemetry:latency --json` over their default window (the last seven
+   days) and uploads them as `weekly-machine-<host>`. GitHub sees runs, not
+   tokens, allowance share or where a session's time goes. A reader that
+   finds nothing (an empty window, no store) leaves its field empty and its
+   first stderr line as the reason. A machine offline holds its job until
+   GitHub drops it (24 h).
+2. **`report`**, on any `lane` runner, after both (`if: always()`): reads
+   GitHub and the readings, appends the summary to the job summary and
+   uploads the trends as JSON (`weekly-trends`, 90 days). Locally:
+   `bun run weekly-report --days 7` prints the same markdown (`--json
+<file>` writes the trends, `--to <iso>` moves the window's end).
+
+The sections and their sources:
+
+| Section                        | Source                                                                                                                                                    | How it is counted                                                                                                                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Throughput                     | PRs merged in the window; issue search counts                                                                                                             | PRs per hour over the window; issues closed vs opened                                                                                                                                              |
+| Failed landings by cause       | each PR's `land-failed` labels and the comment posted with each; `queue-lane`'s `lane.json`                                                               | episodes, not attempts (below), over every landing attempt (merged + episodes)                                                                                                                     |
+| RED episodes and time to green | the base's `health` commit statuses; `RED ladder stopped @ <sha>` issues                                                                                  | a RED opens an episode, later REDs and AMBERs join it, the next GREEN closes it; INFRA decides nothing. Without the owner = no RED of it reached the ladder's stop rung. Target: ≥ 80 %, p90 < 6 h |
+| Flaky tests                    | `queue-lane`'s `lane.json` (`outcomes[].flake`); health GREENs reading `flake: <step> passed on a fresh run`; `Flaky test:` / `Flaky health step:` issues | per test file or health step                                                                                                                                                                       |
+| Cost per issue                 | the `afk-pass` records; each machine's `telemetry:budget`                                                                                                 | `costUsd` summed per issue; per `/next-ticket` issue, dollars and allowance share                                                                                                                  |
+| Pass and queue latency         | the `afk-pass` records; `ready-to-land` labels; each machine's `telemetry:latency`                                                                        | pass minutes and outcomes; last `ready-to-land` → merged; `/next-ticket` session wall clock                                                                                                        |
+
+**A failed landing's cause** is Amendment I's taxonomy, read off the comment
+its labeller posts with the label (within two minutes):
+
+| Cause                              | The comment                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| rebase conflict                    | `pr-refresh: rebase onto … conflicts`; a land-runner's `the rebase stopped`                                             |
+| refused: RED base                  | a land-runner's `the health gate is RED and this PR is not a declared repair`                                           |
+| red lane: the PR's own defect      | `merge queue: a land refusal is red`; a land-runner's other reds; a dequeue whose `lane.json` is red                    |
+| red lane: stale generated artefact | a dequeue whose `lane.json` fails only [`pr-fixup`](#pr-fixup) rows                                                     |
+| red lane: environment or flaky     | a dequeue on `CHECKS_TIMEOUT`, or whose lane wrote no JSON (it refused or was killed); a land-runner killed by a signal |
+| red lane: unclassified             | a dequeue whose run left no `lane.json`                                                                                 |
+| other                              | a `land-failed` label with no recognised comment                                                                        |
+
+An **episode** is one PR head failing for one reason (§ [Where the flow
+fails](#where-the-flow-fails)). A label is the PR's previous episode again
+when no commit or force push reached the PR since it, and either it has no
+comment of its own (Mergify's rule re-firing when the owner re-queues) or its
+cause is the same.
+
+`queue-lane` uploads its `lane.json` as `queue-lane-json` (14 days) for this
+report: step ids, test file names and timings only. Runs from before that
+step existed read as unclassified.
+
+The summary is public: numbers, PR and issue numbers, test file names; the
+machines read `machine 1`, `machine 2`. A timeline is read to its first 100
+items, enough for any PR so far.
+
 ## The merge queue
 
 `.mergify.yml` (ADR 0156 §3 and §8, Amendment I; issue #5642). Mergify reads
