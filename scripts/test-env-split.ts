@@ -114,18 +114,40 @@ export interface SrcTestSplit {
     dom: string[];
 }
 
-/** Classifies every non-bot `src/**\/*.test.ts` by whether it needs a DOM. */
-export function splitSrcTests(root: string): SrcTestSplit {
+/** Classifies every `src` test `select` keeps by whether it needs a DOM. */
+function classifySrcTests(
+    root: string,
+    select: (file: string) => boolean
+): SrcTestSplit {
     const node: string[] = [];
     const dom: string[] = [];
     for (const file of collect(path.join(root, "src"), isTest).sort()) {
-        if (file.endsWith(".bot.test.ts")) continue;
+        if (!select(file)) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         const source = fs.readFileSync(file, "utf8");
         const needsDom = SRC_NODE_DISQUALIFIERS.some((m) => source.includes(m));
         (needsDom ? dom : node).push(rel);
     }
     return { node, dom };
+}
+
+/** Classifies every non-bot `src/**\/*.test.ts` by whether it needs a DOM. */
+export function splitSrcTests(root: string): SrcTestSplit {
+    return classifySrcTests(root, (f) => !f.endsWith(".bot.test.ts"));
+}
+
+/**
+ * The same verdict for the `src` BOT tests (issue #6151): `node` runs in
+ * `bot-node` (shared node workers), `dom` stays in the isolated happy-dom
+ * `bot-dom`. One classifier, so a bot file that grows a `vi.mock` or a DOM
+ * global moves back to `bot-dom` by itself, exactly like an app file. `.tsx`
+ * is never collected — `bot-dom` selects it by glob.
+ *
+ * The ladder file passes and is returned here; the config's general exclude
+ * keeps it out of `bot-node`, in its own isolated `ladder` project.
+ */
+export function splitSrcBotTests(root: string): SrcTestSplit {
+    return classifySrcTests(root, (f) => f.endsWith(".bot.test.ts"));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
