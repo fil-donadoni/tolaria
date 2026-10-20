@@ -85,7 +85,8 @@ afterAll(() => {
     const g = globalThis as { Worker?: unknown };
     if (g.Worker !== workerAtStart) {
         leaks.push("globalThis.Worker was replaced and not restored");
-        g.Worker = workerAtStart;
+        if (workerAtStart === undefined) delete g.Worker;
+        else g.Worker = workerAtStart;
     }
     const drift = envDrift(envAtStart, process.env);
     if (drift.length > 0) {

@@ -56,14 +56,24 @@ interface ProjectConfig {
 const projects = (vitestConfig as { test?: { projects?: ProjectConfig[] } })
     .test?.projects;
 
+/** Each glob compiled once: the repo-wide walk below asks ~2,250 files of
+ *  every project, and the src bot split adds ~120 literal globs (issue #6151)
+ *  — recompiling per file pushed that test past its 30 s ceiling under load. */
+const matchers = new Map<string, (file: string) => boolean>();
+function matches(glob: string, file: string): boolean {
+    let m = matchers.get(glob);
+    if (!m) matchers.set(glob, (m = picomatch(glob)));
+    return m(file);
+}
+
 /** Which projects would select `file`, by their own globs. */
 function selectedBy(file: string): string[] {
     return (projects ?? [])
         .filter((p) => {
             const include = p.test?.include ?? [];
             const exclude = p.test?.exclude ?? [];
-            const included = include.some((g) => picomatch(g)(file));
-            const excluded = exclude.some((g) => picomatch(g)(file));
+            const included = include.some((g) => matches(g, file));
+            const excluded = exclude.some((g) => matches(g, file));
             return included && !excluded;
         })
         .map((p) => p.test?.name ?? "?");
