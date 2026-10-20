@@ -418,7 +418,7 @@ export function blockedAttackPose(def: CardDefinition): TargetPose | null {
     const body = creatureFor(req);
     if (body === null) return null;
     const attacker = body.name === BASE_CREATURE ? SAVED_ATTACKER : body.name;
-    return {
+    const pose: TargetPose = {
         cards: [{ name: attacker, owner: "opp", zone: "battlefield" }],
         // Castle gives the holder's UNTAPPED blocker +0/+2, and a 2/4 survives
         // the 3/3: the block would cost nothing for the answer to turn.
@@ -435,6 +435,11 @@ export function blockedAttackPose(def: CardDefinition): TargetPose | null {
             },
         },
     };
+    return withLaterCombatants(
+        pose,
+        def.targetRequirement,
+        def.additionalTargetRequirements ?? []
+    );
 }
 
 /**
@@ -599,12 +604,20 @@ export function targetPose(def: CardDefinition): TargetPose {
 function spellPose(def: CardDefinition): TargetPose {
     const modes = def.targetRequirement ? [] : (def.modes ?? []);
     if (modes.length === 0)
-        return requirementPose(def, def.targetRequirement, undefined);
+        return withLaterCombatants(
+            requirementPose(def, def.targetRequirement, undefined),
+            def.targetRequirement,
+            def.additionalTargetRequirements ?? []
+        );
     // A modal spell states its targets per mode (CR 700.2a): the position holds
     // what EACH mode needs, so whichever the Bot picks has a legal target
     // (issue #4268). A combat a mode's role names is the first such mode's.
     const poses = modes.map((m) =>
-        requirementPose(def, m.targetRequirement, m.id)
+        withLaterCombatants(
+            requirementPose(def, m.targetRequirement, m.id),
+            m.targetRequirement,
+            m.additionalTargetRequirements ?? []
+        )
     );
     return {
         cards: poses.flatMap((p) => p.cards),
@@ -926,6 +939,116 @@ function requirementPose(
         };
     }
     return { cards, omitToughnessBoost, position: {} };
+}
+
+type CombatRole = "attacking" | "blocking";
+
+/**
+ * CR 115.3 + CR 508.1 / 509.1 — `pose` (the FIRST target group's), its combat
+ * extended until every LATER group (`additionalTargetRequirements`) naming a
+ * combat role has a creature in that role to choose (issue #6060). The first
+ * group's combat declares one combatant per role, so "ANOTHER target blocking
+ * creature" — a later group that may not choose an earlier group's pick
+ * (`excludePriorTargets`) — had nothing left, and the announcement needs a
+ * legal target in EVERY group (CR 601.2c). A later group takes a declared
+ * combatant when it may (CR 115.3 lets one object be chosen once per
+ * "target"), else one more is declared: a body satisfying the group's
+ * characteristics, attacking for the active player or blocking the first
+ * attacker for the defending one (CR 509.1a). A combat-role group whose
+ * earlier groups declared no combat is left unposed (no catalogue card has
+ * one).
+ */
+function withLaterCombatants(
+    pose: TargetPose,
+    first: CardDefinition["targetRequirement"],
+    later: readonly TargetRequirement[]
+): TargetPose {
+    const { combat, activePlayer: active } = pose.position;
+    const firstRoles = asList(creatureRequirement(first)?.combatRoleFilter);
+    if (!combat || !active || firstRoles.length === 0) return pose;
+    const sideOf = (role: CombatRole): "me" | "opp" =>
+        role === "attacking" ? active : active === "me" ? "opp" : "me";
+    const attackers = [...(combat.attackers ?? [])];
+    const blockers = [...(combat.blockers ?? [])];
+    const declared = (role: CombatRole): readonly string[] =>
+        role === "attacking" ? attackers : blockers.map((b) => b.blocker);
+    const cards = [...pose.cards];
+    // The first group's pick: its pose's first combatant in the role it
+    // names, attacking before blocking as `requirementPose` reads them.
+    const taken = new Set([
+        `${firstRoles.includes("attacking") ? "attacking" : "blocking"}:0`,
+    ]);
+    const fits = (name: string, role: CombatRole, req: TargetRequirement) => {
+        const body = tryGetCardByName(name);
+        const side = sideOf(role);
+        return (
+            body !== null &&
+            satisfiesCharacteristics(body, req) &&
+            (req.controller === undefined ||
+                (req.controller === "you") === (side === "me"))
+        );
+    };
+    // Bodies of `name` on `side` the position holds: the base creature it
+    // seeds on both sides, plus the pose's own.
+    const held = (name: string, side: "me" | "opp") =>
+        (name === BASE_CREATURE ? 1 : 0) +
+        cards
+            .filter(
+                (c) =>
+                    c.name === name &&
+                    c.owner === side &&
+                    c.zone === "battlefield"
+            )
+            .reduce((n, c) => n + (c.count ?? 1), 0);
+    let extended = false;
+    for (const req of later) {
+        const roles = asList(creatureRequirement(req)?.combatRoleFilter);
+        if (roles.length === 0) continue;
+        const reused = roles
+            .flatMap((role) =>
+                declared(role).map((name, i) => ({
+                    role,
+                    name,
+                    key: `${role}:${i}`,
+                }))
+            )
+            .find(
+                ({ role, name, key }) =>
+                    !(req.excludePriorTargets && taken.has(key)) &&
+                    fits(name, role, req)
+            );
+        if (reused) {
+            taken.add(reused.key);
+            continue;
+        }
+        const role = roles[0]!;
+        const body = creatureFor(req);
+        if (body === null || !fits(body.name, role, req)) return pose;
+        const side = sideOf(role);
+        const busy = declared(role).filter((n) => n === body.name).length;
+        if (held(body.name, side) <= busy)
+            cards.push({ name: body.name, owner: side, zone: "battlefield" });
+        if (role === "attacking") attackers.push(body.name);
+        else blockers.push({ blocker: body.name, blocking: [0] });
+        taken.add(`${role}:${declared(role).length - 1}`);
+        extended = true;
+    }
+    if (!extended) return pose;
+    return {
+        ...pose,
+        cards,
+        position: {
+            ...pose.position,
+            ...(blockers.length > 0 ? { phase: "DECLARE_BLOCKERS" } : {}),
+            combat: {
+                ...combat,
+                attackers,
+                ...(blockers.length > 0
+                    ? { blockers, blockersConfirmed: true }
+                    : {}),
+            },
+        },
+    };
 }
 
 export type CostPose = {
