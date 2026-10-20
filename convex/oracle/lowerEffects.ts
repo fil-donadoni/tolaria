@@ -2585,6 +2585,12 @@ function lowerSentenceBody(
             ]);
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);
+        case "put-subtype-from-hand":
+            // Only the "you may" printing is read; its `optional` wrapper
+            // lowers the pick, never this bare arm.
+            return unlowerable(
+                "an unconditional put from the hand is not a printed form"
+            );
         case "create-token":
             return lowerCreateToken(sentence, walk, site);
         case "optional": {
@@ -2602,6 +2608,12 @@ function lowerSentenceBody(
                 return unlowerable(
                     "an optional delayed draw is chosen at the delayed trigger, not here"
                 );
+            // CR 603.2 + CR 400.7 — "you may put a <Subtype> permanent card
+            // from your hand onto the battlefield": the pick's 0..1 count IS
+            // the "may" (declining picks nothing), the shape every
+            // hand-written hand→battlefield drop writes.
+            if (sentence.effect.kind === "put-subtype-from-hand")
+                return lowerOptionalPutFromHand(sentence.effect);
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");
@@ -3376,6 +3388,8 @@ function lowerSentenceBody(
             // candidates, so neither the prompt nor the sacrifice happens
             // (CR 101.3 — an impossible instruction is ignored).
             const bind = walk.nextBind("sacrifice");
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
             const edict = (player: EffectPlayerRef): EffectOp[] => [
                 {
                     op: "choice",
@@ -3386,7 +3400,7 @@ function lowerSentenceBody(
                     ...(sentence.superlative === undefined
                         ? {}
                         : { superlative: sentence.superlative }),
-                    count: sentence.count,
+                    count: count.value,
                     prompt: `Sacrifice ${sentence.phrase}.`,
                     bind,
                 },
@@ -4129,6 +4143,40 @@ function recordActedOn(
         (op.op === "moveZone" && "target" in op)
     )
         walk.actedOn = { op, requirement: subject.requirement };
+}
+
+/**
+ * CR 400.7 + CR 205.3 — "You may put a <Subtype> permanent card from your hand
+ * onto the battlefield": a 0..1 pick of the controller's own hand, then the
+ * `moveZone` of that pick. A "permanent card" is any card that is not an
+ * instant or sorcery (CR 110.1), hence `excludeType`.
+ */
+function lowerOptionalPutFromHand(
+    sentence: Extract<EffectSentenceIR, { kind: "put-subtype-from-hand" }>
+): Lowered<EffectOp[]> {
+    const bind = "$picked";
+    return lowered([
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            filter: {
+                subtype: sentence.subtype,
+                excludeType: ["Instant", "Sorcery"],
+            },
+            count: { min: 0, max: 1 },
+            prompt: `You may put a ${sentence.subtype} permanent card from your hand onto the battlefield.`,
+            bind,
+        },
+        {
+            op: "moveZone",
+            cards: { ref: bind },
+            player: "controller",
+            from: "hand",
+            to: "battlefield",
+        },
+    ]);
 }
 
 /**
