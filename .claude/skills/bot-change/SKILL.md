@@ -171,8 +171,8 @@ stupid or stuck.
 | **Anything in `convex/limited/`**           | `cardProfiles.ts` / `capabilityRegistry.ts` censuses — they are catalogue-wide and go red on an unclassified card                                                                                                                                                                                                                                                                                   |
 
 All of those guards live in the **bot suite**. `bun run test:app` is green while
-they are red — run **`bun run check:guards`** (the `TOLARIA_BOT_FAST=1` lane)
-before opening a PR.
+they are red, and an `engine`-lane `land` never runs them — run the bot suite
+before opening a PR (§ Gate).
 
 ## Verification doctrine (this is the part that is easy to get wrong)
 
@@ -185,8 +185,9 @@ before opening a PR.
    blade entry must travel in git with the change it guards, be reviewable in a
    diff, and reproduce on any machine with no deployment. Fixed `iterations`
    (never `timeMs` — wall-clock makes it machine-dependent) + explicit seeds ⇒
-   byte-identical chosen move. Tier `must` blocks CI; `stretch` is report-only
-   for positions the bot isn't expected to solve yet.
+   byte-identical chosen move. Tier `must` blocks — in your pre-PR
+   `bun run test:blade` and in batch health (there is no CI, § Gate);
+   `stretch` is report-only for positions the bot isn't expected to solve yet.
 2. **Then a unit test on the decision function** — `selectRootMove`,
    the valuer, the candidate generator — with a hand-built state. Deterministic,
    sub-second, and it names the actual mechanism.
@@ -223,10 +224,29 @@ before opening a PR.
 
 ## Gate
 
-`bunx vitest run <the bot tests you touched>` while iterating, then
-**`bun run check:guards`** (catches the coverage censuses the app suite can't
-see) plus `bun run check:pr`. The `must`-tier blade suite must stay green — a
-regression there is a real regression, not noise.
+There is no pre-PR lane gate (ADR 0136 §1): `land` pays the lane once, on the
+rebased tip. What a Bot session owes is the proof no later gate gives before
+the merge — in this order:
+
+- **While iterating:** `bunx vitest run <the bot tests you touched>`. A NEW
+  bot test is believed only once it has passed beside a neighbour file in the
+  same run (`bunx vitest run <new test> <a neighbour bot test>`): the node
+  projects run `isolate: false`, so a lone-file green can be a red at `land`
+  or in health, where other files load first.
+- **Before the PR:** the bot tests the diff reaches, then
+  **`bun run test:blade`** (the `must` tier) — both green. A diff under the
+  Bot globs owes the whole bot suite,
+  `bunx vitest run --project bot-node --project bot-dom` (light tier, no
+  lock); `check:lane --plan` prints no bot reach until issue #6149 scopes
+  one.
+  The blade run is the change's only pre-merge blade evidence: `check:pr`
+  holds no `test:blade` and no lane runs it at `land`. The bot suite runs at
+  `land` only in the `full` lane (inside `check:pr`), never in the `engine`
+  lane (ADR 0154 §3). Batch health runs both, after the merge. A `must` red
+  is a real regression, not noise.
+- **Never `check:pr` or `check:guards` as a pre-PR step.** `check:pr`
+  already contains `check:guards`, so the pair ran the bot suite and the app
+  suite twice — a cost no gate needs, since `land` pays the lane.
 
 ## Oracle lockfile — `--carry-bot`, never the sweep
 

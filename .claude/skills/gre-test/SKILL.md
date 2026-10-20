@@ -137,7 +137,10 @@ issue #4620). Same shape, different inputs → `it.each`.
 
 ## Running tests
 
-- `bun run test` — run all tests once
+- `bunx vitest run <the test files you generated>` — run them once (light
+  tier, no lock)
 - `bun run test:watch` — watch mode
 
-After generating tests, run `bun run test` to verify they pass.
+After generating tests, run the files you generated with `bunx vitest run` to
+verify they pass. Never the full suite (`test`) as a pre-PR step: it is batch
+health's, and blocked in an issue worktree; `land` pays the lane (ADR 0136 §1).

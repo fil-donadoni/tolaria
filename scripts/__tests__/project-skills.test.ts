@@ -502,6 +502,48 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
     });
 });
 
+describe("no project skill prescribes a pre-PR lane gate — `land` pays it once (ADR 0136 §1, issue #6147)", () => {
+    // `/bot-change` told a Bot session to run `check:guards` plus `check:pr`,
+    // which already contains it: the bot and app suites ran twice per
+    // session, ahead of a `land` that pays the lane again on the rebased tip.
+    // `/new-op`, `/audit-tracker`, `/gre-test` and `/create-ticket`'s
+    // acceptance template prescribed the same gates. The runnable spelling,
+    // `bun run <gate>`, is the instruction; naming a gate bare ("never
+    // `check:pr`") is prose, and a sub-script (`test:blade`, `check:docs`) is
+    // not one of these gates. Matched across a line wrap.
+    const PRE_PR_GATE =
+        /\bbun\s+run\s+(?:check:pr|check:guards|check:all|test)(?![\w:-])/g;
+
+    const skillMarkdown = (): string[] =>
+        execFileSync("git", ["ls-files", "-z", "--", ".claude/skills"], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        })
+            .split("\0")
+            .filter((f) => f.endsWith(".md"))
+            .sort();
+
+    it("finds the real corpus", () => {
+        const files = skillMarkdown();
+        expect(files).toContain(".claude/skills/bot-change/SKILL.md");
+        expect(files).toContain(".claude/skills/new-op/SKILL.md");
+    });
+
+    it("no skill file tells a session to run `check:pr`, `check:guards`, `check:all` or `test`", () => {
+        const hits = skillMarkdown().flatMap((file) => {
+            const text = fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
+            return [...text.matchAll(PRE_PR_GATE)].map(
+                (m) =>
+                    `${file}:${text.slice(0, m.index).split("\n").length}: ${m[0].replace(/\s+/g, " ")}`
+            );
+        });
+        expect(
+            hits,
+            "run the tests the diff reaches with `bunx vitest run <paths>` instead; a gate a skill genuinely owes before the PR is named bare, with its reason"
+        ).toEqual([]);
+    });
+});
+
 describe("every skill is discoverable on a case-sensitive filesystem", () => {
     it("tracks each skill's manifest as `SKILL.md`, never `skill.md`", () => {
         // macOS is case-INSENSITIVE, so a manifest committed as `skill.md`
