@@ -39,7 +39,7 @@ agent can actually run:
 
 ```
 bun run check:ui                              # the surfaces this diff reaches, all five viewports
-bun run check:ui -- --all                     # every surface, whatever the diff
+bun run check:ui -- --all                     # every surface, whatever the diff (by hand only)
 bun run check:ui -- --scope-only              # print the scope, no browser
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --headed                  # watch it walk
@@ -67,9 +67,11 @@ nothing, so a diff made only of them walks zero surfaces and says so. A
 closure of the module it mounts plus its section's, never by the page's whole
 route closure (issue #4913, ADR 0131 amendment): one dialog's diff walks that
 dialog's row, the page's own surface and any route that mounts it — not the
-other ~30 rows. An `import type` is no edge. **The full walk (`--all`) runs as
-the last batch-health step**, never on a PR: what a scoped receipt accepts not
-to see, health catches at batch cadence.
+other ~30 rows. An `import type` is no edge. **The full walk (`--all`) is run
+by hand only** — the owner's, e.g. before a UI revamp — never by an automated
+run: not batch health, not `release` (issue #6143, ADR 0131 amendment). What a
+scoped receipt accepts not to see (the Tailwind class scan, a sibling section
+under an open layer, base-branch graph drift) has no automated backstop.
 
 **Speed is sized to the machine the run owns** (issue #3653, re-sized in
 issue #4687). The five viewports are independent, so the lane walks several at

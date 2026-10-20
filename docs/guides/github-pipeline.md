@@ -862,9 +862,10 @@ the same, ADR 0116's green-at-release unchanged).
 | `release` | dispatch (`dry_run`, default on) | `[self-hosted, lane]` | `bun run release --no-fix` (`--gate-only` on a dry run), under `release` |
 
 **What it does.** From the job's [worktree](#g-job-worktree) of the primary
-checkout (which holds the Convex deployment the walk needs), `release` gates
-`origin/staging`'s tip with `health-main --ui-all`: the full offline gate AND
-the full `check:ui` walk. Only a GREEN verdict about that exact sha lets it
+checkout (which holds the Convex deployment its browser step needs), `release`
+gates `origin/staging`'s tip with `health-main --release`: the full offline
+gate AND `check:game-download` — never a `check:ui` walk (issue #6143). Only a
+GREEN verdict about that exact sha lets it
 push `<sha>:refs/heads/<release>` — a plain refspec, so git itself refuses a
 non-fast-forward; nothing passes `--force`. `pushRefusal` re-asks of the
 record the push acts on, right before it. The verdict goes to the store like
@@ -896,7 +897,8 @@ Orders that hold:
 - **The tip is the script's, not the job's.** `GITHUB_SHA` only names the
   job's scripts; the script fetches the base and gates what it finds.
 - **A release the Huawei is gating.** Health dedups by sha on the store: a
-  tip already GREEN with a full walk is skipped in seconds.
+  tip already GREEN runs only `check:game-download` (~34 s), never the
+  offline gate again.
 
 ### lane-timing
 
@@ -1157,7 +1159,7 @@ declared repair is admitted. Only a status written with a personal token
 fires it (the machines' `gh` login writes the verdicts; a status written
 with a job's `GITHUB_TOKEN` fires nothing — so the [`health`](#health)
 workflows dispatch `pr-gate` explicitly when they end). GitHub cannot filter `status` by context, so every
-OTHER status written with a personal token (`health-run`, `ui-walk`) shows
+OTHER status written with a personal token (`health-run`) shows
 as a **skipped** `pr-gate` run — expected, not a failure. A 15-minute
 `schedule` sweeps the same queue: it heals a `pending` left by an outage and
 a race between a PR's own run and a re-gate. By hand: Actions → pr-gate → Run workflow (input

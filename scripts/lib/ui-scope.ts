@@ -70,8 +70,9 @@
  *   3. its own `mounts` closure — the module the probe photographs.
  * The soundness argument is re-made at this granularity in ADR 0131's
  * amendment; the residual it accepts (a mount a section renders
- * unconditionally, a sibling section's frame under an open layer) is what the
- * full `check:ui --all` walk in batch health exists to catch.
+ * unconditionally, a sibling section's frame under an open layer) only the
+ * full `check:ui --all` walk sees — run by hand since issue #6143, with no
+ * automated backstop.
  *
  * An empty `scoped` result is valid: a test-only diff owes no browser time.
  *

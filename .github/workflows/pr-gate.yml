@@ -50,7 +50,7 @@ jobs:
         runs-on: ubuntu-24.04
         # Hosted only: a newer event supersedes the older run of the same PR
         # (or of the queue sweep). On the JOB, after its `if:`, so a status
-        # of another context (`health-run`, `ui-walk`) never cancels a sweep.
+        # of another context (`health-run`) never cancels a sweep.
         concurrency:
             group: pr-gate-${{ github.event.pull_request.number || inputs.pr || 'queue' }}
             cancel-in-progress: true

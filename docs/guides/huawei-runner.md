@@ -37,8 +37,9 @@ delete the plist.
 ## Set up the Huawei for the batch gates
 
 What the Huawei (Omarchy / Arch, i7-8550U, 4 cores / 8 threads, 16 GiB)
-needs to run every batch gate — `check:pr`, `test`, `check:all`,
-`check:ui --all`, `health` — and the check that proves each. Issue #5463
+needs to run every batch gate — `check:pr`, `test`, `check:all`, `health`
+(and `check:ui --all` by hand: no automated run walks it since issue #6143)
+— and the check that proves each. Issue #5463
 made these changes, in this order; every step is re-runnable (run it again on
 a machine that has it and nothing changes). What the machine then measured:
 `docs/research/huawei-gate-bench-2026-10-11.md` § 4.
@@ -131,10 +132,11 @@ not expect: only `delay` ones (NetworkManager, UPower, Omarchy's lock).
 
 ## Convex on the Huawei
 
-The Convex preflight of health and its `check:ui --all` walk run on the Huawei
-(topology B', ADR 0154), so the deployment they sign in against runs there
-too, as a systemd **user** unit, and never depends on the MacBook (issue
-#5468). Scenario seeds stay on the MacBook's own deployment.
+The Convex preflight of a health run that owes `check:game-download`, and any
+`check:ui` walk run by hand there, sign in against a deployment on the Huawei
+(topology B', ADR 0154), so it runs there too, as a systemd **user** unit, and
+never depends on the MacBook (issue #5468). Scenario seeds stay on the
+MacBook's own deployment.
 
 The unit, [`tolaria-convex.service`](../../scripts/runner-units/tolaria-convex.service),
 runs `convex dev --local` in the primary checkout, which is the command
