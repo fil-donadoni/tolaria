@@ -114,8 +114,6 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "damage-taken", scope: head.scope };
         case "attacks-unblocked":
             return { kind: "attacks-unblocked" };
-        case "becomes-blocked":
-            return { kind: "becomes-blocked" };
         case "becomes-tapped":
             return { kind: "tapped", scope: head.scope };
         case "cycled":
@@ -169,9 +167,10 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         // CR 506.2 + CR 508.5 — the source's own attack names the player it
         // attacks; this engine is two-player (ADR 0010), so that is the
         // source's controller's one opponent.
-        // CR 509.3c — a creature becomes blocked only while attacking.
+        // CR 508.1 + CR 509.1h — "attacks and isn't blocked" is the source's
+        // own attack too: the defending player is still its opponent.
         ...((head.kind === "attacks" && head.scope === "self") ||
-        head.kind === "becomes-blocked"
+        head.kind === "attacks-unblocked"
             ? { defendingPlayer: "opponent" as const }
             : {}),
         ...(playerField !== null
