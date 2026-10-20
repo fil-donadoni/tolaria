@@ -31,6 +31,7 @@
  * sampling `os.loadavg()`, sleeping, and recreating a game before a retry.
  */
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
+import { DEPLOYMENT_SKEW_EXIT } from "../lib/deployment-skew";
 
 /** The failure shapes the machine produces. Stable ids: they are printed on
  *  the receipt. */
@@ -237,8 +238,10 @@ export function infraDetail(signature: InfraSignature, load: number): string {
  * the tree's.
  *
  *   - exit 0 → `pass`.
- *   - exit 2 (fatal: configuration, sign-in, a thrown run) and exit 3
- *     (`DEPLOYMENT_DOWN_EXIT`) → `infra`: no surface was judged.
+ *   - exit 2 (fatal: configuration, sign-in, a thrown run), exit 3
+ *     (`DEPLOYMENT_DOWN_EXIT`) and exit 4 (`DEPLOYMENT_SKEW_EXIT`: the
+ *     deployment served code other than the walked tree, issue #6132) →
+ *     `infra`: no surface was judged.
  *   - exit 1 → `infra` iff it printed at least one failing row and EVERY
  *     failing row is `INFRA` — the walk's own verdict that the machine cut the
  *     cell short and was still busy after the retries (`standingVerdict`).
@@ -265,7 +268,11 @@ export function walkRunVerdict(
     output: string
 ): WalkRunVerdict {
     if (exitCode === 0) return "pass";
-    if (exitCode === WALK_FATAL_EXIT || exitCode === DEPLOYMENT_DOWN_EXIT)
+    if (
+        exitCode === WALK_FATAL_EXIT ||
+        exitCode === DEPLOYMENT_DOWN_EXIT ||
+        exitCode === DEPLOYMENT_SKEW_EXIT
+    )
         return "infra";
     if (exitCode !== 1) return "red";
 

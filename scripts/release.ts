@@ -59,6 +59,12 @@ import {
 } from "./health-fix";
 import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 import { inJobWorktree } from "./lib/health-verdict-job";
+import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    currentBranch,
+    primaryBranchRefusal,
+    skewRemedy,
+} from "./lib/deployment-skew";
 
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const HEALTH_FIX = resolve(__dirname, "health-fix.ts");
@@ -419,6 +425,18 @@ function main(): void {
     if (common !== ".git" && !inJobWorktree(cwd, process.env)) {
         console.error(
             "release: run from the primary checkout or a release job's worktree (the health gate creates its worktree beside the primary)"
+        );
+        process.exit(2);
+    }
+    // The walk at the end of the gate talks to the deployment `convex dev`
+    // pushes from the PRIMARY checkout (issue #6132): off the base branch, it
+    // serves other code and the walk could only end INFRA — ~40 minutes of
+    // gates later. Refused here, in seconds.
+    const primary = primaryCheckout(cwd);
+    const offBase = primaryBranchRefusal(currentBranch(primary), BASE_BRANCH);
+    if (offBase !== null) {
+        console.error(
+            `release: refusing — ${offBase}; ${skewRemedy(primary, BASE_BRANCH)}`
         );
         process.exit(2);
     }

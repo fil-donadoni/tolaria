@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { BASE_BRANCH } from "../lib/branches";
+import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 import {
     DEFAULT_FIX_ATTEMPTS,
     loopDecision,
@@ -442,5 +446,51 @@ describe("release — recordRoot (issue #5647)", () => {
             "/m/tolaria"
         );
         expect(recordRoot(".git", "/m/tolaria")).toBe("/m/tolaria");
+    });
+});
+
+describe("release — refuses in seconds with the primary off the base branch (issue #6132)", () => {
+    it("names the branch and the fix, before any fetch or gate", () => {
+        // A primary checkout on a branch that is not base: the deployment
+        // `convex dev` pushes from it would serve other code to the walk.
+        const repo = mkdtempSync(join(tmpdir(), "release-off-base-"));
+        try {
+            const off = `${BASE_BRANCH}-not`;
+            const git = (...args: string[]) =>
+                execFileSync("git", args, { cwd: repo, stdio: "pipe" });
+            git("init", "-q", "-b", off);
+            git(
+                "-c",
+                "user.email=t@example.invalid",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "init"
+            );
+            // Bounded: a spawned child that hung would outlive the test's
+            // own timeout (no remote here, so a fetch would fail, not hang).
+            // The hosted lane sets the corpus exclusion, which `release`
+            // refuses first (exit 1): the child runs without it.
+            const env = { ...process.env };
+            delete env[CORPUS_EXCLUSION_ENV];
+            const r = spawnSync(
+                "bun",
+                [resolve(__dirname, "..", "release.ts"), "--dry-run"],
+                { cwd: repo, env, encoding: "utf8", timeout: 30_000 }
+            );
+            expect(r.status).toBe(2);
+            expect(r.stderr).toContain(`on \`${off}\`, not \`${BASE_BRANCH}\``);
+            expect(r.stderr).toContain(`switch ${BASE_BRANCH}`);
+        } finally {
+            rmSync(repo, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        }
     });
 });

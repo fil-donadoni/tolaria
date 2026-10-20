@@ -91,7 +91,7 @@
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
- * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
+ * `lib/deployment-skew.ts` (builtins), `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
  * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
  * (their records, for `--status`), `lib/test-headroom.ts` (builtins), and
  * through `lib/health-verdict.ts` the
@@ -129,6 +129,7 @@ import {
     infraCause,
     PREFLIGHT_CONVEX_STEP,
     PREFLIGHT_MACHINE_STEP,
+    PREFLIGHT_SKEW_STEP,
     readLastSleepAt,
     recordInfra,
     repeatedMachineTimeout,
@@ -137,6 +138,7 @@ import {
     type UiWalkState,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import { readDeploymentSkew } from "./lib/deployment-skew";
 import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
     evidenceStore,
@@ -829,6 +831,23 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         log: ctx.logPath,
         prior: priorOf(ctx.previous),
     });
+    // The deployment serves the PRIMARY checkout's convex/ tree (issue
+    // #6132): one that is not the tip's would fail every game cell on a green
+    // tree. Seconds, before any worktree or browser; `check:ui` re-checks it
+    // through the walk (issue #6133).
+    const skew = walkSkew(ctx);
+    if (skew !== null) {
+        console.error(`health-main: deployment skew — ${skew}`);
+        publishWalk(ctx, "infra", PREFLIGHT_SKEW_STEP);
+        if (walkDisposition(readUiWalkGating()) === "advisory") {
+            finishGreen(ctx, "advisory", ctx.retry);
+            return;
+        }
+        finishInfra(ctx, "deployment-skew", PREFLIGHT_SKEW_STEP, ctx.logPath, {
+            offline: "green",
+            ui: "not run",
+        });
+    }
     // Wait, bounded, for a gap in the heavy mutex before `check:ui` sizes its
     // pool (issue #5024): started beside a `land` it caps itself at one
     // viewport for the whole walk. Off the mutex, never a reservation; expiry
@@ -947,6 +966,27 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
             ui: "infra",
         });
     finishRed(ctx, failed.step, { offline: "green", ui: "red" }, failed.out);
+}
+
+/**
+ * Why the deployment does not serve the tip's Convex code, or null when it
+ * does (`lib/deployment-skew.ts`, issue #6132). A git failure reads as no
+ * skew, loudly: `check:ui` makes the same comparison before its first cell.
+ */
+function walkSkew(ctx: RunCtx): string | null {
+    try {
+        const d = readDeploymentSkew({
+            primary: ctx.root,
+            base: BASE_BRANCH,
+            walked: { dir: ctx.root, rev: ctx.tip },
+        });
+        return d.kind === "skew" ? d.reason : null;
+    } catch (err) {
+        console.error(
+            `health-main: the deployment-skew preflight could not read git — ${(err as Error).message}`
+        );
+        return null;
+    }
 }
 
 /** `--phase=walk`: the walk the offline phase left owed, or nothing. */

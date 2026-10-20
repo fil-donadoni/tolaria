@@ -1510,6 +1510,7 @@ of its own sha.
 | `base-health` red with the base green               | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
 | `health` red, `health:status` names a flake         | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
 | an early RED, no `ladder` run                       | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
+| `health` INFRA `deployment-skew`                    | the primary checkout serves `convex dev`: off base, dirty or behind. Switch it to base, ff it, wait for the push, re-run (issues #6132, #6133)                                        |
 | jobs fail when the MacBook lid closes               | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                                                         |
 
 ## Glossary

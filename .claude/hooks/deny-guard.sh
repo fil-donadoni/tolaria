@@ -758,9 +758,9 @@ fi
 # and is unrecoverable; `git commit -a` sweeps their in-flight edits into an
 # unrelated commit (observed). `git add -A` / `git add .` is the same sweep in
 # two steps and is denied for the same reason — naming the paths (`git add
-# <path>`) is not, since that cannot pick up a file you did not mean. Branch
-# switching and ordinary commits stay allowed — the loop's own §0 does
-# `git checkout main && git pull`.
+# <path>`) is not, since that cannot pick up a file you did not mean. Ordinary
+# commits stay allowed, and so does switching — back to the base branch only
+# (§4b below).
 #
 # "Main checkout" is git's own distinction, not a path convention: a linked
 # worktree's git-dir differs from its common-dir, the main one's does not.
@@ -792,6 +792,103 @@ your own worktree instead:
 (\`git status\`, \`git stash list\`, \`git checkout <branch>\`, \`git add <path>\` and
 \`git commit -m\` without \`-a\` remain allowed.)"
         fi
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4b. The shared main checkout stays on the base branch (issues #6132, #6133).
+#
+# It is the DEPLOYMENT SOURCE: `convex dev --local` (`com.tolaria.convex`,
+# WorkingDirectory = this checkout) pushes whatever its convex/ tree holds to
+# the one local backend every browser walk talks to. On 2026-10-20 a
+# `git checkout main` here pushed functions 144+ commits behind base; every
+# game-route cell of the health walk went UNWALKED and a green tip went RED. So a
+# `git checkout` / `git switch` here may name only the base branch (or nothing
+# but flags). Anything else — another branch, a sha, `-b`/`-c <new>`, `-` — is
+# denied unless the command carries the announced escape hatch
+# `TOLARIA_PRIMARY_OFF_BASE=1` (and then `check:ui` / health report the skew as
+# INFRA until the checkout is back on base). Paths after `--` are §4's.
+#
+# Same cost order as §4: the text match first, the `git` calls only for a
+# command that could be denied. A word that is a path in the tree, or a word
+# that resolves to no commit, names no switch (`git checkout <file>`, `.`).
+# ─────────────────────────────────────────────────────────────────────────────
+if seg_has '(^|[;&|[:space:]])git[[:space:]]+(checkout|switch)([[:space:]]|$)' &&
+    ! seg_has 'TOLARIA_PRIMARY_OFF_BASE=1'; then
+    _off_base=""
+    if [ -n "$cwd" ] && [ -d "$cwd" ]; then
+        git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null || true)
+        common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+    else
+        git_dir="" common_dir=""
+    fi
+    if [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ]; then
+        _old_ifs=$IFS
+        IFS='
+'
+        set -f
+        for _seg in $segments; do
+            # The candidates a `git checkout|switch` IN COMMAND POSITION names
+            # (first word, or after env assignments / a pipe / a subshell —
+            # never the word `git` inside a quoted message): `new <name>`
+            # after a create flag, `dash` for `-`, `tok <word>` otherwise.
+            # Base and `HEAD` name no move; a `--` means paths follow, a
+            # checkout that restores files and switches nothing (§4's).
+            _cands=$(printf '%s\n' "$_seg" | awk -v base="$base_branch" '{
+                on = 0; cmdpos = 1; n = 0; create = 0
+                for (i = 1; i <= NF; i++) {
+                    if (!on) {
+                        if (cmdpos && $i == "git" && ($(i + 1) == "checkout" || $(i + 1) == "switch")) { on = 1; i++; continue }
+                        if ($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || $i == "|" || $i ~ /\($/) { cmdpos = 1 } else { cmdpos = 0 }
+                        continue
+                    }
+                    if ($i == "--") { n = 0; exit }
+                    if ($i == "-") { out[++n] = "dash -"; continue }
+                    if ($i ~ /^-./) { create = ($i ~ /^(-[bBcC]|--create|--force-create|--orphan)$/); continue }
+                    t = $i; gsub(/["\047]/, "", t)
+                    if (create) { out[++n] = "new " t; create = 0; continue }
+                    if (t == base || t == "HEAD") continue
+                    out[++n] = "tok " t
+                }
+            } END { for (k = 1; k <= n; k++) print out[k] }')
+            [ -n "$_cands" ] || continue
+            _ref=""
+            _is_restore=0
+            for _c in $_cands; do
+                _kind=${_c%% *}
+                _word=${_c#* }
+                case "$_kind" in
+                new | dash) _ref=$_word ;;
+                tok)
+                    # A word that is a path in the tree: `git checkout <file>`,
+                    # `git checkout <ref> <path>` — a restore, not a switch.
+                    if [ -e "$cwd/$_word" ]; then
+                        _is_restore=1
+                    elif [ -z "$_ref" ] &&
+                        git -C "$cwd" rev-parse --verify -q "$_word^{commit}" >/dev/null 2>&1; then
+                        _ref=$_word
+                    fi
+                    ;;
+                esac
+            done
+            if [ -n "$_ref" ] && [ "$_is_restore" = 0 ]; then
+                _off_base=$_ref
+                break
+            fi
+        done
+        set +f
+        IFS=$_old_ifs
+    fi
+    if [ -n "$_off_base" ]; then
+        deny "BLOCKED: switching the shared main checkout off \`$base_branch\` (to \`$_off_base\`).
+This checkout is the DEPLOYMENT SOURCE: \`convex dev\` pushes its convex/ tree to
+the local backend every \`check:ui\` walk and health walk talks to. Off
+\`$base_branch\` it serves other code, and the walks can only end INFRA
+(issues #6132, #6133). Look at another branch in a worktree instead:
+  git worktree add --detach ../<repo>-peek <ref>
+If you really mean to move it (and accept the skew INFRA until it is back),
+announce it in the command:
+  TOLARIA_PRIMARY_OFF_BASE=1 git switch <branch>"
     fi
 fi
 
