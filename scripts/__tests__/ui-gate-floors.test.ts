@@ -134,8 +134,15 @@ describe("readingsOf — probe/axe → Readings", () => {
         tinyText: 60,
         hOverflow: 14,
         cardW: null,
+        offenders: [],
     };
-    const axe: AxeCount = { serious: 15, critical: 16, ids: [], exempt: 0 };
+    const axe: AxeCount = {
+        serious: 15,
+        critical: 16,
+        ids: [],
+        exempt: 0,
+        offenders: [],
+    };
 
     it("maps every probe/axe field to its own reading", () => {
         expect(readingsOf(probe, axe)).toEqual({
