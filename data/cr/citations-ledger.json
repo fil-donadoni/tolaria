@@ -13110,6 +13110,7 @@
         {"id":"400.3","line":"// CR 400.3 — an object can only ever reach its OWNER's hand, so \"to your","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — ownership is untouched.","sites":1,"status":"baseline"},
         {"id":"400.3","line":"// CR 400.3 — the OWNER's library, not the controller's.","sites":1,"status":"baseline"},
+        {"id":"400.3","line":"// CR 400.3 — the bounce hands the card to its OWNER.","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — the card goes to its OWNER's hand.","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — the controller chooses one of their own permanents.","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — the controller picks one of their own permanents and","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
