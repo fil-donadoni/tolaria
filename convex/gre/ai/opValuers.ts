@@ -606,7 +606,10 @@ function sideEdictLoss(
  *  off its own board: the members its `choice`'s filter and count name whose
  *  loss NET of their worth back in hand is the cheapest
  *  (`EachPlayerSide.bounceUnits`), at the `destroy` completeness a bounce
- *  sweep's net takes (`sweptForEachValue`). Lost by that player. */
+ *  sweep's net takes (`sweptForEachValue`). Lost by that player. Not scaled
+ *  by `recoverableSweepFraction`, as the edict branch is not: a recast
+ *  creature is bounced again at the next firing, so a standing engine's
+ *  swing does not decay the way a one-shot sweep's does. */
 function sideBounceLoss(
     side: EachPlayerSide,
     bounce: EachPlayerEdictChoice,

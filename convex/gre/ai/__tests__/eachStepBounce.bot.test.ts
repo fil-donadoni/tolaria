@@ -37,6 +37,8 @@ const BEAR = grizzlyBears().id;
 
 interface Side {
     creatures: number;
+    /** Grizzly Bears this side controls that the OTHER player owns. */
+    stolen?: number;
     hope?: "board" | "hand";
 }
 
@@ -67,6 +69,13 @@ function board(own: Side, opp: Side): GameState {
                     : []),
                 ...cards(pid, BASIC, 3, "battlefield"),
                 ...cards(pid, BEAR, s.creatures, "battlefield"),
+                ...Array.from({ length: s.stolen ?? 0 }, () =>
+                    makeInstance(BEAR, {
+                        controllerId: pid,
+                        ownerId: pid === "p1" ? "p2" : "p1",
+                        zone: "battlefield",
+                    })
+                ),
             ],
         });
     return makeState({ players: [side("p1", own), side("p2", opp)] });
@@ -105,6 +114,17 @@ describe("a standing each-step return to hand reads the board (issue #5628)", ()
     it("two even sides net out to a measured zero, never the Latent Floor", () => {
         const even = board({ creatures: 1, hope: "board" }, { creatures: 1 });
         expect(hopeWorth(even)).toBeCloseTo(0, 6);
+    });
+
+    it("a stolen creature costs its controller more: its card lands in the other player's hand", () => {
+        // CR 400.3 — the bounce hands the card to its OWNER.
+        const owned = board({ creatures: 1, hope: "board" }, { creatures: 0 });
+        const stolen = board(
+            { creatures: 0, stolen: 1, hope: "board" },
+            { creatures: 0 }
+        );
+        expect(hopeWorth(owned)).toBeLessThan(0);
+        expect(hopeWorth(stolen)).toBeLessThan(hopeWorth(owned));
     });
 
     it("hand face equals board face on the same board, whatever the sign", () => {
