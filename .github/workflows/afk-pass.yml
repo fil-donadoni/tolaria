@@ -78,6 +78,25 @@ jobs:
                   AFK_PASS_TIMEOUT_MIN: ${{ vars.AFK_PASS_TIMEOUT_MIN }}
                   AFK_RECORD_DIR: ${{ runner.temp }}/afk-pass-record
               run: bun run afk:pass
+            # The worktree or the job setup failed before `afk:pass` could
+            # write its record (no bun, perhaps): a finished run without one
+            # holds the dispatcher (`records-unknown`), so leave a
+            # `setup-failed` one. Host by the runner's name, as afk:pass.
+            - name: Record a failed setup
+              if: failure()
+              shell: bash
+              env:
+                  AFK_ISSUE: ${{ inputs.issue }}
+                  AFK_RECORD_DIR: ${{ runner.temp }}/afk-pass-record
+              run: |
+                  [ -f "$AFK_RECORD_DIR/record.json" ] && exit 0
+                  mkdir -p "$AFK_RECORD_DIR"
+                  issue=0
+                  [[ "$AFK_ISSUE" =~ ^[1-9][0-9]*$ ]] && issue="$AFK_ISSUE"
+                  host=$(printf '%s' "${RUNNER_NAME:-unknown}" | sed -E 's/-(pass|lane|seed)-[0-9]+$//')
+                  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  printf '{"version":1,"issue":%s,"pr":null,"outcome":"setup-failed","host":"%s","startedAt":"%s","endedAt":"%s","durationS":0,"models":{},"costUsd":null,"usageLimitResetAt":null}\n' \
+                      "$issue" "$host" "$now" "$now" >"$AFK_RECORD_DIR/record.json"
             - name: Upload the pass record
               if: always()
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

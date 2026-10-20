@@ -35,7 +35,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { hostname } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -186,7 +186,11 @@ function pushWip(outcome: PassOutcome, issue: number): void {
         // the work on a disk that dies with the job.
         git(["commit", "--no-verify", "-m", wipCommitMessage(outcome, issue)]);
     }
-    git(["push", "origin", `HEAD:refs/heads/${act.branch}`]);
+    // --no-verify on the push too: `.husky/pre-push` checks the format of
+    // the pushed files, and a stopped pass's edits are not formatted — a
+    // refused push loses the work with the worktree. `wipAction` already
+    // limits the target to the issue's own branch.
+    git(["push", "--no-verify", "origin", `HEAD:refs/heads/${act.branch}`]);
     say(
         `pushed the pass's work to ${act.branch}${act.commit ? " (wip commit)" : ""}`
     );
@@ -265,7 +269,7 @@ function runPass(
         spawned.error !== undefined &&
         (spawned.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
     say(
-        `claude exited ${spawned.status ?? spawned.signal ?? "?"}${timedOut ? " (past its bound)" : ""} — its output is kept at ${out}, not in this log`
+        `claude exited ${spawned.status ?? spawned.signal ?? "?"}${timedOut ? " (past its bound)" : ""} — its output is kept on the machine under the job log directory (${relative(dirname(dirname(out)), out)}), not in this log`
     );
     let stdout = "";
     try {
@@ -321,6 +325,7 @@ async function main(): Promise<number> {
     // and the dispatcher resumes or releases it from what it reads itself.
     let pr: OpenPr | null = null;
     let outcome: PassOutcome;
+    let stateRead = false;
     try {
         pr = issuePr(p.issue, openPrs());
         const st = issueState(p.issue);
@@ -332,16 +337,21 @@ async function main(): Promise<number> {
             issueClosed: st.closed,
             labels: st.labels,
         });
+        stateRead = true;
     } catch (err) {
         say(`the issue's state could not be read: ${firstLine(err)}`);
         outcome = run.timedOut ? "timeout" : "error";
     }
 
-    try {
-        pushWip(outcome, p.issue);
-    } catch (err) {
-        say(`the WIP push failed: ${firstLine(err)}`);
-    }
+    // Unread, the pass may have handed off: a WIP commit would land on a PR
+    // already in the queue. Its branch holds whatever the session pushed.
+    if (stateRead)
+        try {
+            pushWip(outcome, p.issue);
+        } catch (err) {
+            say(`the WIP push failed: ${firstLine(err)}`);
+        }
+    else say("no WIP push (the issue's state is unknown)");
 
     writeRecord(recordDir, {
         issue: p.issue,

@@ -1025,28 +1025,32 @@ resume is pinned — an input, never a literal (`host-pinned`).
    `<uuid>/`) for tokens and the usage limit, the JSON result for the cost;
 4. **pushes stopped work** — when the pass stopped short (usage limit,
    timeout, error, no hand-off) on its own issue branch, uncommitted work is
-   committed as `wip(afk-pass): …` (`--no-verify`) and the branch pushed:
-   the next dispatch resumes it from `origin`. A detached HEAD, any other
-   branch, a hand-off or an abort is left alone — nothing here can push the
-   base;
+   committed as `wip(afk-pass): …` and the branch pushed, both
+   `--no-verify` (the pre-push format check would refuse a stopped pass's
+   unformatted edits, and the work dies with the worktree): the next
+   dispatch resumes it from `origin`. A detached HEAD, any other branch, a
+   hand-off, an abort or an issue whose state could not be read is left
+   alone — nothing here can push the base;
 5. **writes the record** — `record.json` in `$RUNNER_TEMP/afk-pass-record`,
    uploaded as the `afk-pass-record` artifact `if: always()` (14 days), and
-   the job summary; even a refused dispatch or a crash leaves one;
+   the job summary; even a refused dispatch or a crash leaves one, and a
+   job whose worktree or job setup failed gets a `setup-failed` record from
+   a bash step (`if: failure()`, no bun needed);
 6. **refills the slot** — `gh workflow run afk-dispatch.yml`,
    `continue-on-error` (the kill switch refuses the dispatch).
 
 **Outcomes** (the record's `outcome`), first match wins:
 
-| Outcome        | When                                                                                         | Run   |
-| -------------- | -------------------------------------------------------------------------------------------- | ----- |
-| `handed-off`   | the issue's PR is labelled `ready-to-land`                                                   | green |
-| `closed`       | the issue is closed                                                                          | green |
-| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`)                    | green |
-| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released)                    | green |
-| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                                                  | red   |
-| `error`        | `claude` exited non-zero, or the issue's state could not be read                             | red   |
-| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue                         | red   |
-| `setup-failed` | the dispatch's inputs are malformed, or `AFK_PASS_CLAUDE_ARGS` is unset — no session started | red   |
+| Outcome        | When                                                                                                               | Run   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ | ----- |
+| `handed-off`   | the issue's PR is labelled `ready-to-land`                                                                         | green |
+| `closed`       | the issue is closed                                                                                                | green |
+| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`)                                          | green |
+| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released)                                          | green |
+| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                                                                        | red   |
+| `error`        | `claude` exited non-zero, or the issue's state could not be read                                                   | red   |
+| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue                                               | red   |
+| `setup-failed` | the job setup failed, the dispatch's inputs are malformed, or `AFK_PASS_CLAUDE_ARGS` is unset — no session started | red   |
 
 A red run counts toward the dispatcher's failure streak; its claim stands,
 and the dispatcher resumes it (branch pushed) or releases it (nothing
