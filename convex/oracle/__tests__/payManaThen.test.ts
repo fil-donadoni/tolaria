@@ -71,3 +71,30 @@ describe("the source's own assignment suppression (CR 510.1c)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 });
+
+describe('"defending player controls" is read only behind the source\'s own attack (CR 508.5)', () => {
+    it.each([
+        "Whenever a creature attacks, destroy target artifact defending player controls.",
+        "Whenever this creature dies, destroy target artifact defending player controls.",
+    ])("refuses %s", (text) => {
+        expect(compileCard(creature(text)).state).toBe("unparsed");
+    });
+
+    it("reads it behind attacks-and-isn't-blocked", () => {
+        const ability = effectsOf(
+            "Whenever this creature attacks and isn't blocked, destroy target artifact defending player controls."
+        );
+        expect(ability.targetRequirement).toMatchObject({
+            controller: "opponent",
+        });
+    });
+});
+
+describe("the fixed payment keeps refusing neighbouring shapes", () => {
+    it.each([
+        "Whenever this creature attacks, you may pay {R/G}. If you do, draw a card.",
+        "Whenever this creature attacks, you may pay {R} to draw a card.",
+    ])("refuses %s", (text) => {
+        expect(compileCard(creature(text)).state).toBe("unparsed");
+    });
+});
