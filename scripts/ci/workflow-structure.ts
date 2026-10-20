@@ -582,6 +582,10 @@ function checkAction(f: SourceFile, out: Violation[]): void {
 export const ADVISORY_LANE_CHECK = "check:lane (advisory)";
 /** The branch prefix of the Mergify queue's drafts. */
 const QUEUE_DRAFT_PREFIX = "mergify/merge-queue/";
+/** An `if:` that skips the queue's drafts — negated, so a positive
+ *  `startsWith` (run ONLY on drafts) never passes. */
+const SKIPS_QUEUE_DRAFTS =
+    /!\s*startsWith\(\s*github\.head_ref\s*,\s*'mergify\/merge-queue\/'\s*\)/;
 
 /** Mergify condition strings that must stand at the top level (AND) of
  *  every queue rule's entry conditions. */
@@ -762,7 +766,7 @@ function checkAdvisoryLaneSkipsDrafts(
         const jobs = isObj(doc) && isObj(doc.jobs) ? doc.jobs : {};
         for (const [id, job] of Object.entries(jobs)) {
             if (!isObj(job) || job.name !== ADVISORY_LANE_CHECK) continue;
-            if (!String(job.if ?? "").includes(QUEUE_DRAFT_PREFIX))
+            if (!SKIPS_QUEUE_DRAFTS.test(String(job.if ?? "")))
                 out.push({
                     file: f.path,
                     job: id,

@@ -5,7 +5,8 @@
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command) and, when the Mergify
- *      queue admits its paths, `queue:shadow`: the queue lands it (issue
+ *      queue admits its paths, `queue:shadow` — since the cut-over a marker
+ *      `pr-refresh` reads; the queue lands every `ready-to-land` PR (issue
  *      #5952). Since the cut-over (issue #5643) the land-runner is retired:
  *      a PR the queue refuses (one touching `.github/` or `.mergify.yml`)
  *      is merged by the owner, by hand;

@@ -74,12 +74,12 @@ pull_request_rules:
     # before the hand-off (issue #5956); one red after it (a body edit, a
     # push) is the same repair pick as a dequeue (issue #5960).
     #
-    # A red advisory lane on the PR's head is the same pick (issue #5643): a
-    # PR whose own lane is red would only red the draft behind it. It is a
-    # rule, not a `-check-failure` queue condition, because `pr-check` runs
-    # on the queue's drafts too, and a condition red there dequeues the PR
-    # with no `land-failed` (issue #5978's stranding). A draft carries no
-    # `ready-to-land`, so this rule never fires on one.
+    # A red advisory lane on the PR's head is the same pick (issue #5643).
+    # The entry's `-check-failure` holds while the lane is still pending, so
+    # a PR can enter first and go red after: this rule labels it
+    # `land-failed` then, instead of leaving it dequeued on a failed
+    # condition with no repair pick (issue #5978's stranding). A draft
+    # carries no `ready-to-land`, so this rule never fires on one.
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=ready-to-land
