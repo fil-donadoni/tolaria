@@ -20,6 +20,8 @@ import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
     compilerHash,
     compilerSourceFiles,
+    indexFragments,
+    lockfileStructureProblems,
     parseLockfile,
     POOL_PROJECTION_SOURCE,
     poolHash,
@@ -160,13 +162,13 @@ function fragmentTallies(lock: Lockfile): {
         actual: number;
     }[];
 } {
-    const actual = new Array<number>(lock.fragments.length).fill(0);
+    const actual = new Map<string, number>();
     let distinctPairs = 0;
     for (const card of lock.cards) {
         // Deduped HERE too, so a row that carried a fragment twice could not
         // make the identity hold by inflating both sides at once.
-        for (const index of new Set(card.gaps ?? [])) {
-            actual[index]! += 1;
+        for (const key of new Set(card.gaps ?? [])) {
+            actual.set(key, (actual.get(key) ?? 0) + 1);
             distinctPairs += 1;
         }
     }
@@ -174,11 +176,11 @@ function fragmentTallies(lock: Lockfile): {
         declared: lock.fragments.reduce((sum, f) => sum + f.cards, 0),
         distinctPairs,
         mismatched: lock.fragments
-            .map((f, i) => ({
+            .map((f) => ({
                 text: f.text,
                 reason: f.reason,
                 declared: f.cards,
-                actual: actual[i]!,
+                actual: actual.get(f.key) ?? 0,
             }))
             .filter((r) => r.declared !== r.actual),
     };
@@ -192,18 +194,18 @@ describe("oracle:compile is deterministic", () => {
     });
 
     it("does not depend on the corpus's own ordering beyond the row order it fixes", () => {
-        // Fragment INDEXES are assigned by first sight, then remapped by count
-        // — so a reordered corpus must still produce the same fragment table.
+        // Fragments are interned by first sight, then sorted by content — so
+        // a reordered corpus must still produce the same fragment table.
         const forward = buildLockfile(SYNTHETIC);
         const reversed = buildLockfile([...SYNTHETIC].reverse());
         expect(reversed.fragments).toEqual(forward.fragments);
         expect(reversed.header.counts).toEqual(forward.header.counts);
     });
 
-    it("orders fragments tying on (cards, text) by reason, not by insertion", () => {
+    it("orders fragments sharing a text by reason, not by insertion", () => {
         // The sort key must be the whole INTERN key. These two rows carry the
         // same text and the same count; only `reason` separates them, so with
-        // (cards, text) alone their order is whatever `Array.prototype.sort`
+        // text alone their order is whatever `Array.prototype.sort`
         // stability makes of insertion order — deterministic by accident.
         const forward = buildLockfile(LAYOUT_TIE);
         expect(new Set(forward.fragments.map((f) => f.text)).size).toBe(1);
@@ -281,7 +283,7 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
         expect(row.state).toBe("unparsed");
         expect(row.definition).toBeUndefined();
         expect(row.gaps).toHaveLength(1);
-        expect(lock.fragments[row.gaps![0]!]?.text).toBe(
+        expect(indexFragments(lock).of(row)[0]?.text).toBe(
             "Destroy all creatures with flying."
         );
     });
@@ -313,7 +315,7 @@ describe("the lockfile carries the attribution diagnostic (issue #3822)", () => 
     it("records the attributed path on the refused line's fragment", () => {
         const row = lock.cards[0]!;
         expect(row.state).toBe("unparsed");
-        expect(lock.fragments[row.gaps![0]!]!.attribution).toEqual({
+        expect(indexFragments(lock).of(row)[0]!.attribution).toEqual({
             slot: "spell",
             path: ["effect clause", "target filter", "object descriptor"],
             span: "blocked creature",
@@ -392,15 +394,8 @@ describe("the committed lockfile", () => {
         }
     });
 
-    it("has in-range gap indexes and a fragment table sorted by blast radius", () => {
-        for (const card of lock!.cards) {
-            for (const index of card.gaps ?? []) {
-                expect(index).toBeGreaterThanOrEqual(0);
-                expect(index).toBeLessThan(lock!.fragments.length);
-            }
-        }
-        const counts = lock!.fragments.map((f) => f.cards);
-        expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+    it("passes its own structure check: keys, order, resolution, counts (issue #6169)", () => {
+        expect(lockfileStructureProblems(lock!)).toEqual([]);
     });
 
     it("declares, per fragment, exactly the cards that reference it", () => {
@@ -440,8 +435,8 @@ describe("fragment counts are per CARD, not per gap occurrence", () => {
         const lock = buildLockfile(DOUBLE_TRIP);
         const row = lock.cards[0]!;
         expect(row.state).toBe("unparsed");
-        expect(row.gaps).toEqual([0]);
         expect(lock.fragments).toHaveLength(1);
+        expect(row.gaps).toEqual([lock.fragments[0]!.key]);
         expect(lock.fragments[0]!.cards).toBe(1);
         const { declared, distinctPairs, mismatched } = fragmentTallies(lock);
         expect(mismatched).toEqual([]);

@@ -33,7 +33,7 @@ import {
 import { gapOf } from "./grammar-gaps";
 import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
-import type { CardRow, Lockfile } from "./oracle-lockfile";
+import { indexFragments, type CardRow, type Lockfile } from "./oracle-lockfile";
 import {
     claimId,
     isFloorless,
@@ -466,8 +466,9 @@ export function buildFragmentGapFilings(inputs: KindInputs): GapFiling[] {
     }
     if (held.size === 0) return [];
 
+    // Blast radius first: a gap is shown by its widest-blocking lines.
     const samples = new Map<string, string[]>();
-    for (const fragment of inputs.lock.fragments) {
+    for (const fragment of indexFragments(inputs.lock).ranked) {
         const key = gapOf(fragment).key;
         if (!held.has(key)) continue;
         const seen = samples.get(key) ?? [];
@@ -540,11 +541,9 @@ export function buildHandTailFilings(inputs: KindInputs): {
      *  outside every enforced Target. */
     readonly held: readonly GapFiling[];
 } {
-    const fragmentText = (row: CardRow): string | undefined => {
-        const index = row.gaps?.[0];
-        if (index === undefined) return undefined;
-        return inputs.lock.fragments[index]?.text;
-    };
+    const fragments = indexFragments(inputs.lock);
+    const fragmentText = (row: CardRow): string | undefined =>
+        fragments.of(row)[0]?.text;
 
     const drafts: Draft[] = [];
     const outOfScope: Draft[] = [];
@@ -1052,7 +1051,7 @@ export function computedGapKeys(
         if (verdict.outcome !== "played" && verdict.gap !== undefined)
             byKind.bot.add(verdict.gap);
     return {
-        grammar: new Set(lock.fragments.map((f) => gapOf(f).key)),
+        grammar: new Set(indexFragments(lock).ranked.map((f) => gapOf(f).key)),
         mechanic: byKind.mechanic,
         scenario: byKind.scenario,
         bot: botFindings === null ? null : byKind.bot,

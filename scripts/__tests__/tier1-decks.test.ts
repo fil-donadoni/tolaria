@@ -22,7 +22,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    indexFragments,
+    parseLockfile,
+    type CardRow,
+} from "../lib/oracle-lockfile";
 import { poolOracleIdsFromIndex } from "../oracle-compile";
 import {
     deckReport,
@@ -47,16 +52,28 @@ function row(
     return { oracleId, name, state, ...extra };
 }
 
-const FRAGMENTS = [
-    { text: "Whenever this creature deals damage to a player, you may ..." },
-    { text: "Protection from blue" },
-];
+const ROUTER = "no slot consumed the line";
+const DAMAGE_LINE = fragmentRow({
+    text: "Whenever this creature deals damage to a player, you may ...",
+    reason: ROUTER,
+    cards: 2,
+});
+const PROTECTION_LINE = fragmentRow({
+    text: "Protection from blue",
+    reason: ROUTER,
+    cards: 1,
+});
+const FRAGMENTS = indexFragments({
+    fragments: [DAMAGE_LINE, PROTECTION_LINE],
+});
 
 const ROWS: CardRow[] = [
-    row("id-mountain", "Mountain", "unparsed", { gaps: [0] }),
+    row("id-mountain", "Mountain", "unparsed", { gaps: [DAMAGE_LINE.key] }),
     row("id-warchief", "Goblin Warchief", "ready"),
-    row("id-lackey", "Goblin Lackey", "unparsed", { gaps: [0] }),
-    row("id-piledriver", "Goblin Piledriver", "unparsed", { gaps: [1] }),
+    row("id-lackey", "Goblin Lackey", "unparsed", { gaps: [DAMAGE_LINE.key] }),
+    row("id-piledriver", "Goblin Piledriver", "unparsed", {
+        gaps: [PROTECTION_LINE.key],
+    }),
     row("id-sharpshooter", "Goblin Sharpshooter", "quarantine", {
         quarantineReasons: [
             { kind: "smoke-scenario", detail: 'Op "tapUntap" untaps nothing' },

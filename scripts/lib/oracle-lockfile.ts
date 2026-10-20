@@ -79,6 +79,12 @@ export interface FormatRow {
 
 /** A distinct unconsumed fragment and how many cards it blocks. */
 export interface FragmentRow {
+    /**
+     * The fragment's Fragment Key ({@link fragmentKey}) — what a card row's
+     * `gaps` cite it by (issue #6169). Derived from the three fields below,
+     * never from the row's place in the table.
+     */
+    readonly key: string;
     readonly text: string;
     readonly reason: string;
     readonly cards: number;
@@ -114,8 +120,12 @@ export interface CardRow {
      * lockfile alone, which is the report's contract: no corpus, no network.
      */
     readonly poolIn?: readonly ReportedFormat[];
-    /** Indexes into `fragments`. Present iff `state === "unparsed"`. */
-    readonly gaps?: readonly number[];
+    /**
+     * The Fragment Keys of the lines the card fails on, sorted — resolved
+     * through {@link indexFragments}, never by position. Present iff
+     * `state === "unparsed"`.
+     */
+    readonly gaps?: readonly string[];
     readonly slots?: readonly string[];
     readonly opsUsed?: readonly string[];
     readonly quarantineReasons?: readonly QuarantineReason[];
@@ -407,4 +417,232 @@ export function indentBlock(text: string, spaces: number): string {
 
 export function parseLockfile(text: string): Lockfile {
     return JSON.parse(text) as Lockfile;
+}
+
+/** Whether a parsed value has the lockfile's shape — tables and counts. */
+export function isLockfileShaped(value: unknown): value is Lockfile {
+    const lock = value as Partial<Lockfile> | null;
+    return (
+        Array.isArray(lock?.fragments) &&
+        Array.isArray(lock?.cards) &&
+        lock?.header?.counts !== undefined
+    );
+}
+
+// ── Fragment Keys (issue #6169) ─────────────────────────────────────────
+//
+// A card row cites the lines it fails on by a key derived from each
+// fragment's own content, and the table is sorted by that content. A fragment
+// entering or leaving the table then changes its own row and the rows of the
+// cards that carry it, nothing else. Cited by INDEX, the 3 cards PR #6138
+// took to `ready` renumbered 17,522 rows, so any two grammar PRs conflicted,
+// and a clean textual merge could pair one side's indices with the other
+// side's table.
+
+/** What a fragment IS — the fields its key and its table position read. */
+export type FragmentContent = Pick<FragmentRow, "text" | "reason"> & {
+    readonly attribution?: Attribution;
+};
+
+/**
+ * Hex digits of sha256 a Fragment Key keeps. 48 bits over ~31,000 fragments
+ * puts a collision near 1 in 600,000; `oracle:compile` refuses one rather
+ * than merge two fragments, and lengthening the key is the fix.
+ */
+export const FRAGMENT_KEY_HEX = 12;
+
+/** An attribution as one intern/sort key — `""` when there is none. */
+export function attributionKey(attribution: Attribution | undefined): string {
+    return attribution === undefined
+        ? ""
+        : [attribution.slot, ...attribution.path, attribution.span].join(
+              "\u0001"
+          );
+}
+
+/**
+ * The fragment's whole identity as one string — what the compiler dedupes
+ * by, so two cards failing on the same line at the same place share a row.
+ *
+ * U+0000 as the join: it cannot occur in Oracle text, so the key is
+ * unambiguous. Escaped rather than literal — a raw control byte in source
+ * makes the whole FILE binary to git and grep.
+ *
+ * The attribution is part of it: the same line can fail at a different place
+ * on a different card (the slot guards read the type line), and folding the
+ * two would credit one card's gap to the other.
+ */
+export function fragmentIdentity(fragment: FragmentContent): string {
+    return `${fragment.text}\u0000${fragment.reason}\u0000${attributionKey(fragment.attribution)}`;
+}
+
+/** The Fragment Key: the head of sha256 over {@link fragmentIdentity}. */
+export function fragmentKey(fragment: FragmentContent): string {
+    return createHash("sha256")
+        .update(fragmentIdentity(fragment))
+        .digest("hex")
+        .slice(0, FRAGMENT_KEY_HEX);
+}
+
+/** A fragment row, its key derived — the one place a row is shaped. */
+export function fragmentRow(
+    fragment: FragmentContent & { readonly cards: number },
+    key: string = fragmentKey(fragment)
+): FragmentRow {
+    return {
+        key,
+        text: fragment.text,
+        reason: fragment.reason,
+        cards: fragment.cards,
+        ...(fragment.attribution !== undefined
+            ? { attribution: fragment.attribution }
+            : {}),
+    };
+}
+
+const cmpString = (a: string, b: string): number =>
+    a < b ? -1 : a > b ? 1 : 0;
+
+/**
+ * The TABLE order: text, then reason, then attribution — the whole
+ * identity, so the order is total, and content only, so a fragment's `cards`
+ * moving never moves its line.
+ */
+export function compareFragmentContent(
+    a: FragmentContent,
+    b: FragmentContent
+): number {
+    return (
+        cmpString(a.text, b.text) ||
+        cmpString(a.reason, b.reason) ||
+        cmpString(attributionKey(a.attribution), attributionKey(b.attribution))
+    );
+}
+
+/**
+ * The RANK order: blast radius first, the table order breaking ties — the
+ * backlog that ranks the next grammar rule (PRD #2693 user story 9), and the
+ * order in which a reader meets a card's fragments.
+ */
+export function compareFragmentRank(a: FragmentRow, b: FragmentRow): number {
+    return b.cards - a.cards || compareFragmentContent(a, b);
+}
+
+/** The one way a reader resolves `gaps` (issue #6169). */
+export interface FragmentIndex {
+    /** Every fragment, in {@link compareFragmentRank} order. */
+    readonly ranked: readonly FragmentRow[];
+    /** The fragments a card's `gaps` cite, in rank order — so a reader
+     *  taking a card's FIRST fragment takes its widest-blocking one. */
+    readonly of: (card: CardRow) => readonly FragmentRow[];
+}
+
+/**
+ * Index a lockfile's fragments by key. Throws on a duplicate key and on a
+ * `gaps` key the table does not hold: either is a lockfile no reader can
+ * trust (a hand-edit, a bad merge), and a reader guessing past it would
+ * misattribute a card silently.
+ */
+export function indexFragments(
+    lock: Pick<Lockfile, "fragments">
+): FragmentIndex {
+    const ranked = [...lock.fragments].sort(compareFragmentRank);
+    const rank = new Map<string, number>();
+    ranked.forEach((fragment, i) => {
+        if (rank.has(fragment.key))
+            throw new Error(
+                `oracle lockfile: fragment key ${fragment.key} is on two rows — run: bun run oracle:compile`
+            );
+        rank.set(fragment.key, i);
+    });
+    const of = (card: CardRow): FragmentRow[] =>
+        (card.gaps ?? [])
+            .map((key) => {
+                const i = rank.get(key);
+                if (i === undefined)
+                    throw new Error(
+                        `oracle lockfile: ${card.name} cites fragment ${key}, which the table does not hold — run: bun run oracle:compile`
+                    );
+                return i;
+            })
+            .sort((a, b) => a - b)
+            .map((i) => ranked[i]!);
+    return { ranked, of };
+}
+
+/**
+ * Everything a lockfile must satisfy on its own, with no corpus: each key is
+ * its row's content key, the table and the rows are in canonical order, each
+ * row's `gaps` resolve, each fragment declares exactly the cards citing it,
+ * and the header counts agree with the rows.
+ *
+ * `check:oracle` runs it on every checkout. It is also what tells a CORRECT
+ * clean textual merge from a wrong one: two branches each moving one card
+ * onto the same fragment edit its `cards` identically, git keeps one edit,
+ * and the count is one short.
+ */
+export function lockfileStructureProblems(
+    lock: Pick<Lockfile, "header" | "fragments" | "cards">
+): string[] {
+    const problems: string[] = [];
+    const declared = new Map<string, number>();
+    lock.fragments.forEach((fragment, i) => {
+        const key = fragmentKey(fragment);
+        if (fragment.key !== key)
+            problems.push(
+                `fragment ${JSON.stringify(fragment.text)} carries key ${fragment.key}, its content's key is ${key}`
+            );
+        if (declared.has(fragment.key))
+            problems.push(`fragment key ${fragment.key} is on two rows`);
+        declared.set(fragment.key, fragment.cards);
+        const prev = lock.fragments[i - 1];
+        if (prev !== undefined && compareFragmentContent(prev, fragment) >= 0)
+            problems.push(
+                `fragment ${fragment.key} is out of table order (text, reason, attribution)`
+            );
+    });
+    const cited = new Map<string, number>();
+    const counts = { ready: 0, quarantine: 0, unparsed: 0 };
+    lock.cards.forEach((card, i) => {
+        counts[card.state] += 1;
+        const prev = lock.cards[i - 1];
+        if (prev !== undefined && prev.oracleId >= card.oracleId)
+            problems.push(
+                `card ${card.name} is out of oracle-id order or duplicated`
+            );
+        const gaps = card.gaps ?? [];
+        if ((card.state === "unparsed") !== gaps.length > 0)
+            problems.push(
+                `card ${card.name} is ${card.state} with ${gaps.length} gap(s)`
+            );
+        gaps.forEach((key, j) => {
+            if (j > 0 && gaps[j - 1]! >= key)
+                problems.push(
+                    `card ${card.name}'s gaps are not sorted and distinct`
+                );
+            if (!declared.has(key))
+                problems.push(
+                    `card ${card.name} cites fragment ${key}, which the table does not hold`
+                );
+            cited.set(key, (cited.get(key) ?? 0) + 1);
+        });
+    });
+    for (const [key, cards] of declared) {
+        const actual = cited.get(key) ?? 0;
+        if (cards !== actual)
+            problems.push(
+                `fragment ${key} declares ${cards} card(s), ${actual} cite it`
+            );
+    }
+    const header = lock.header.counts;
+    for (const state of ["ready", "quarantine", "unparsed"] as const)
+        if (header[state] !== counts[state])
+            problems.push(
+                `header counts ${header[state]} ${state}, the rows ${counts[state]}`
+            );
+    if (header.total !== lock.cards.length)
+        problems.push(
+            `header counts ${header.total} cards, the table holds ${lock.cards.length}`
+        );
+    return problems;
 }

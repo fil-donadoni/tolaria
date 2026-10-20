@@ -138,6 +138,13 @@ state, the definition when there is one, and — for `unparsed` — indexes into
 blocks**. That table is the grammar backlog: it is what ranks the next rule by
 corpus count instead of by which card someone happened to look at.
 
+_Amended 2026-10-20 (issue #6169)._ A row cites its fragments by **Fragment
+Key** (a hash of the fragment's own text, reason and attribution), never by
+index, and the table is sorted by content. Cited by index, three cards
+graduating renumbered 17,522 rows (PR #6138), so any two grammar PRs
+conflicted. The blast-radius order is still the backlog; readers compute it
+(`compareFragmentRank`, `indexFragments` in `scripts/lib/oracle-lockfile.ts`).
+
 It is serialized with **one row per line** rather than by `JSON.stringify(…, 4)`
 so a card moving `ready` → `unparsed` is a single changed line in review. It is
 therefore in `.prettierignore`, and it is ~11 MB — accepted, because
