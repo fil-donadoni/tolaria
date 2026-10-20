@@ -170,9 +170,8 @@ stupid or stuck.
 | **A new keyword / evasion / combat rule**   | `evaluate.ts`'s creature-quality terms, and the combat tie-breaks in `selectRootMove`                                                                                                                                                                                                                                                                                                               |
 | **Anything in `convex/limited/`**           | `cardProfiles.ts` / `capabilityRegistry.ts` censuses — they are catalogue-wide and go red on an unclassified card                                                                                                                                                                                                                                                                                   |
 
-All of those guards live in the **bot suite**. `bun run test:app` is green while
-they are red, and an `engine`-lane `land` never runs them — run the bot suite
-before opening a PR (§ Gate).
+All of those guards live in the **bot suite**, which `test:app` and an
+`engine`-lane `land` never run (§ Gate).
 
 ## Verification doctrine (this is the part that is easy to get wrong)
 
@@ -185,9 +184,8 @@ before opening a PR (§ Gate).
    blade entry must travel in git with the change it guards, be reviewable in a
    diff, and reproduce on any machine with no deployment. Fixed `iterations`
    (never `timeMs` — wall-clock makes it machine-dependent) + explicit seeds ⇒
-   byte-identical chosen move. Tier `must` blocks — in your pre-PR
-   `bun run test:blade` and in batch health (there is no CI, § Gate);
-   `stretch` is report-only for positions the bot isn't expected to solve yet.
+   byte-identical chosen move. Tier `must` gates (§ Gate); `stretch` is
+   report-only for positions the bot isn't expected to solve yet.
 2. **Then a unit test on the decision function** — `selectRootMove`,
    the valuer, the candidate generator — with a hand-built state. Deterministic,
    sub-second, and it names the actual mechanism.
@@ -224,29 +222,16 @@ before opening a PR (§ Gate).
 
 ## Gate
 
-There is no pre-PR lane gate (ADR 0136 §1): `land` pays the lane once, on the
-rebased tip. What a Bot session owes is the proof no later gate gives before
-the merge — in this order:
+No pre-PR lane gate (ADR 0136 §1). In order:
 
-- **While iterating:** `bunx vitest run <the bot tests you touched>`. A NEW
-  bot test is believed only once it has passed beside a neighbour file in the
-  same run (`bunx vitest run <new test> <a neighbour bot test>`): the node
-  projects run `isolate: false`, so a lone-file green can be a red at `land`
-  or in health, where other files load first.
-- **Before the PR:** the bot tests the diff reaches, then
-  **`bun run test:blade`** (the `must` tier) — both green. A diff under the
-  Bot globs owes the whole bot suite,
-  `bunx vitest run --project bot-node --project bot-dom` (light tier, no
-  lock); `check:lane --plan` prints no bot reach until issue #6149 scopes
-  one.
-  The blade run is the change's only pre-merge blade evidence: `check:pr`
-  holds no `test:blade` and no lane runs it at `land`. The bot suite runs at
-  `land` only in the `full` lane (inside `check:pr`), never in the `engine`
-  lane (ADR 0154 §3). Batch health runs both, after the merge. A `must` red
-  is a real regression, not noise.
-- **Never `check:pr` or `check:guards` as a pre-PR step.** `check:pr`
-  already contains `check:guards`, so the pair ran the bot suite and the app
-  suite twice — a cost no gate needs, since `land` pays the lane.
+- Iterating: `bunx vitest run <bot tests touched>`; trust a NEW one only green
+  beside a neighbour file (`isolate: false`).
+- Before the PR, green: the bot tests the diff reaches (Bot globs:
+  `bunx vitest run --project bot-node --project bot-dom`; `check:lane --plan`
+  after issue #6149) and **`bun run test:blade`** — no `land` runs blade, an
+  `engine`-lane one no bot test (ADR 0154 §3).
+- Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
+  suites ran twice.
 
 ## Oracle lockfile — `--carry-bot`, never the sweep
 
