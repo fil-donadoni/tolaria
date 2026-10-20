@@ -25,7 +25,9 @@ will require. Version 6 (issue #5641) describes [a pass inside a job](#a-pass-in
 the [`pr-fixup`](#pr-fixup) job for stale generated artefacts. Version 8
 (issue #5642) adds [the merge queue](#the-merge-queue) — `.mergify.yml` in
 [shadow](#g-shadow), acting only on PRs the owner labels `queue:shadow`.
-Version 9 (issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
+Version 12 (issue #5643) is the [cut-over](#the-cut-over): Mergify merges
+every `ready-to-land` PR, the land-runner is retired, a ruleset guards the
+base branch. Version 9 (issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
 machine, and the schedules that replaced the Huawei's two timers. Version 10
 (issue #5645) adds [`health`](#health): batch health every two hours on a
 [`lane`](#g-lane) runner, an [early run](#g-early-run) on a hosted runner
@@ -283,8 +285,13 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 `.github/workflows/pr-check.yml`: on every PR open and push, the full
 `check:lane` on a free GitHub-hosted runner, on the merge ref (the PR merged
 into the current base — what would land). **Advisory**: no ruleset requires
-it, and `land` still pays the lane that gates the merge (ADR 0136); a red
-`pr-check` is a defect found before the queue. A fork's PR runs it only after
+it, and [`queue-lane`](#queue-lane) still runs the lane that gates the merge;
+a red `pr-check` is a defect found before the queue, and since the cut-over
+(issue #5643) a red `check:lane (advisory)` keeps the PR out of it
+(`-check-failure` in `queue_conditions`). The lane job skips the queue's
+drafts (`mergify/merge-queue/**`): Mergify re-reads entry conditions there,
+and a red on a draft would dequeue the PR with no `land-failed` (issue
+#5978's stranding; the structure guard's `queue-entry` row pins the skip). A fork's PR runs it only after
 the owner approves (see the checklist below); it gets no secret and a
 read-only token either way. A newer push cancels the older run.
 
@@ -346,7 +353,7 @@ The five are not queue conditions: Mergify judges those on the queue's
 draft, whose body is Mergify's, so the four that read the PR body would be
 red there and dequeue every PR ([the merge queue](#the-merge-queue), issue
 #5978). They hold at two points instead. `land:ready` runs them before the
-hand-off (issue #5956). After it, a refusal red on a `queue:shadow` PR (its
+hand-off (issue #5956). After it, a refusal red on a `ready-to-land` PR (its
 body edited, a push) labels it `land-failed` through `.mergify.yml`'s own
 `pull_request_rules` entry, the same repair pick as a dequeue, and
 `-label=land-failed` takes it out of the queue (issue #5960). Their contexts
@@ -355,8 +362,7 @@ are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
 `pr-check` also runs on `edited`. The refusals judge the PR's merge ref at its last
 push or edit, never the queue's rebased draft: against a base that moved
 since, `repair-proof` and `robustness-baseline` can be stale, which the
-migration accepts (`land`, on the land-runner path, still checks the rebased
-tip).
+migration accepts.
 
 ### pr-refresh
 
@@ -504,7 +510,7 @@ which the owner's machines hold; the job's worktree is cut from the primary
 checkout, so it finds it where `land`'s resolver does.
 
 **One decision for every red** (`classifyRed`, issue #5955), called by
-`queue-lane` and, until the cut-over, by the land-runner on a red `land`:
+`queue-lane` (and, until the cut-over, by the land-runner on a red `land`):
 
 | Class         | When                                                                                                                                                                                                                                                   | Then                                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1042,15 +1048,16 @@ Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 
 `.mergify.yml` (ADR 0156 §3 and §8, Amendment I; issue #5642). Mergify reads
 it from the **base** branch, so a PR is judged by the rules already merged,
-never by its own. It is in [shadow](#g-shadow): it acts only on PRs labelled
-`queue:shadow`, and since issue #5952 `land:ready` adds that label to every PR
-the queue admits. The land-runner lands the rest: a PR touching `.github/` or
-`.mergify.yml`, and any PR handed back to it.
+never by its own. Since [the cut-over](#the-cut-over) (issue #5643) it is the
+only merger of a `ready-to-land` PR. `land:ready` still adds `queue:shadow` to
+a PR the queue admits — a marker [`pr-refresh`](#pr-refresh) reads, no longer
+a condition. A PR touching `.github/` or `.mergify.yml` never enters the
+queue: the owner merges it by hand.
 
 | Rule                       | Value                                                                                                                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=queue:shadow` and `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                         |
-| Entry (`queue_conditions`) | `queue:shadow`, `ready-to-land`, no `land-failed`, [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                                                                   |
+| Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                                                  |
+| Entry (`queue_conditions`) | `ready-to-land`, no `land-failed`, no red `check:lane (advisory)` ([`pr-check`](#pr-check)), [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                         |
 | Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR                                                                                                                                  |
 | Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                         |
 | Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                           |
@@ -1074,7 +1081,7 @@ stopped by it: it finishes, unless its own head's re-gate dequeues it first —
 which of the two happens to a PR not yet drafted (third or later) is not
 observed yet. A check that reads the PR's body (the `land` refusals) can
 never be one: `land:ready` runs those before the hand-off. A PR stranded
-anyway — `queue:shadow` and `ready-to-land`, no `land-failed`, both gates
+anyway — `ready-to-land`, no `land-failed`, both gates
 green, no `queued` label (Mergify's own), its "Mergify Merge Queue" check
 stuck on "conditions under evaluation" — re-enters with a comment:
 
@@ -1088,21 +1095,13 @@ computes the PR's [`trusted-author`](#g-trusted-author) verdict exactly as
 that is not truncated, no path under `.github/` or `.mergify/` and no
 `.mergify.yml`, a rename counting both names). Green, it adds `queue:shadow`
 beside `ready-to-land` and the queue lands the PR. Otherwise it removes any
-`queue:shadow` and the land-runner lands it, so no PR is ever left with no
-merger. A repair goes to the queue too, a PR the runner failed included
+`queue:shadow` and names the owner as the merger: since the cut-over the
+land-runner no longer runs, and such a PR is merged by hand. A repair goes to the queue too, a PR the runner failed included
 (issue #5986). The command's last line names the merger. It also makes
 sure GitHub links the PR as closing the issue its branch names (a bare
 `Closes #N`, appended when `closingIssuesReferences` lacks it), so the issue
-closes at merge whoever merges. The fallback, should the queue stall, is a
-label:
-
-```bash
-gh pr edit <N> --remove-label queue:shadow   # back to the runner, until its next land:ready
-gh pr list --label queue:shadow --state open --limit 500 --json number \
-    --jq '.[].number' | xargs -I{} gh pr edit {} --remove-label queue:shadow
-```
-
-To stop new hand-offs going to the queue, revert PR #5953.
+closes at merge whoever merges. The fallback, should the queue stall, is
+[the cut-over's rollback](#the-cut-over).
 
 The land-runner never touches a `queue:shadow` PR — not to land it, not to
 unlabel it once Mergify merged it: its `gh pr list` excludes the label and
@@ -1121,6 +1120,31 @@ parallel-check, batch and dequeue rows (`queue-entry`, `queue-merge`,
 `dequeued_label` and `status_comments` are not pinned.
 A PR touching `.mergify.yml` never enters the queue itself — the owner
 merges it by hand, as for `.github/` (ADR 0156 §8.4).
+
+### The cut-over
+
+Issue #5643, after 26 shadow merges (the shadow log is in that issue). Three
+acts, in this order:
+
+1. **The config.** `.mergify.yml` drops `queue:shadow` from the auto-queue,
+   the entry and the refusal rule, and gains
+   `-check-failure=check:lane (advisory)`; [`pr-check`](#pr-check)'s lane
+   skips the queue's drafts. The PR touches both files, so the owner merges
+   it by hand.
+2. **The land-runner retired.** On the MacBook:
+   `launchctl bootout gui/$(id -u)/com.tolaria.land-runner`. `land` and the
+   runner's code stay in the tree two weeks as the fallback.
+3. **The ruleset on the base branch** (`staging: merges through the queue`):
+   no deletion, no force-push, a pull request required (no review, squash
+   only), the [`trusted-author`](#g-trusted-author) status required. Bypass:
+   the repository admin role — the owner, for `gaps:sync`, `release` and the
+   hand merges of `.github/` PRs. `Mergify Merge Queue` is not required: it
+   turns green only after Mergify's merge. A direct push from any other
+   identity is refused.
+
+**Rollback**, should the queue stall: revert the config PR, then
+`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.tolaria.land-runner.plist`
+— the runner lands every `ready-to-land` PR without `queue:shadow` again.
 
 ## A pass inside a job
 
@@ -1193,28 +1217,28 @@ Force-pushing the base stays denied by § 2 whatever the hatch says.
 the lane of any diff under `scripts/` and costs ~0.1 s of tests (≤ 10 s ⇒ the
 lane, issue #4963). Each line it prints names a rule:
 
-| Rule                           | Fails when                                                                                                                                                                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `schedule`, `workflow_dispatch`, `push` with a `branches:` filter Dependabot's branches cannot match, and `issues` limited to `labeled`/`unlabeled`                                                            |
-| `pr-target-head-checkout`      | a `pull_request_target` job checks out anything but the base (`ref:` / `repository:` set) or fetches the PR head                                                                                                                                                                           |
-| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                                                                                                                                    |
-| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                                                                                                                                 |
-| `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                                                                              |
-| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                                                                                    |
-| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                                                                             |
-| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the job-level group of a job `dispatcher-serialised` or `queue-superseded` requires                                                                                                                          |
-| `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                               |
-| `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, or move one watermark twice |
-| `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host                                                |
-| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                  |
-| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                    |
-| `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                                                                        |
-| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                                                                                  |
-| `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                                                                             |
-| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `label=queue:shadow` (the shadow phase), `-label=land-failed`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml`                                                        |
-| `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                        |
-| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                        |
-| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link                                                                                                                                |
+| Rule                           | Fails when                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `schedule`, `workflow_dispatch`, `push` with a `branches:` filter Dependabot's branches cannot match, and `issues` limited to `labeled`/`unlabeled`                                                                                                               |
+| `pr-target-head-checkout`      | a `pull_request_target` job checks out anything but the base (`ref:` / `repository:` set) or fetches the PR head                                                                                                                                                                                                                              |
+| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                                                                                                                                                                                       |
+| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                                                                                                                                                                                    |
+| `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                                                                                                                                 |
+| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                                                                                                                                       |
+| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                                                                                                                                |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the job-level group of a job `dispatcher-serialised` or `queue-superseded` requires                                                                                                                                                                             |
+| `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                                                                                  |
+| `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, or move one watermark twice                                                    |
+| `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host                                                                                                   |
+| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                                                                     |
+| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                                                                       |
+| `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                                                                                                                           |
+| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                                                                                                                                     |
+| `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                                                                                                                                |
+| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `-label=land-failed`, `-check-failure=check:lane (advisory)`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml`; still require `label=queue:shadow`; or the job posting `check:lane (advisory)` runs on the queue's drafts |
+| `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                                                                           |
+| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                                                                           |
+| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link                                                                                                                                                                                   |
 
 Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
 `macos-15`, …) counts as GitHub-hosted. Anything else — an expression, a
@@ -1287,16 +1311,16 @@ exists**; none adds a system. Read this before adding a check.
 7. [`health`](#health) gates the base tip, and the
    [RED ladder](#g-red-ladder) handles a RED.
 
-Until the cut-over (issue #5643), the land-runner does steps 3–5 for every PR
-that is not in [shadow](#g-shadow) — step 5 in place, in the worktree `land`
-rebased (`classifyRed`, issue #5955).
+Since [the cut-over](#the-cut-over) (issue #5643) every step is a job; the
+land-runner, which did steps 3–5 for the PRs outside [shadow](#g-shadow), is
+retired.
 
 ### Failure classes
 
 | Class                             | Episodes | Should be caught by                       | The gap                                                                                                                                     | Fix                                                                                                             |
 | --------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Rebase conflict                   | 21       | the picker's `## Target files` overlap    | append-only lists (blade registry, grammar fixtures, round-trip pins) and this guide, which every slice edits                               | issue #5942 (owner's pick, no new driver)                                                                       |
-| The PR's own defect               | ~15      | the session's targeted runs, then step 2  | the land-runner lands a PR whose `pr-check` is already red                                                                                  | cut-over: `-check-failure=pr-check` in `queue_conditions` (issue #5643)                                         |
+| The PR's own defect               | ~15      | the session's targeted runs, then step 2  | the land-runner lands a PR whose `pr-check` is already red                                                                                  | closed: `-check-failure=check:lane (advisory)` in `queue_conditions` (issue #5643)                              |
 | Tree moved under the lane         | 8        | —                                         | the guard compared the stash list, shared by every worktree: another session's lint-staged commit reds the lane                             | issue #5993: only HEAD and status count as a move                                                               |
 | Load-sensitive tooling test       | ~7       | —                                         | tests asserting on wall-clock time or machine load                                                                                          | issue #5874; the loop driver and gate mutex tests go with issue #5656                                           |
 | Defect inherited from the base    | ~6       | the culprit's own lane                    | a whole-tree guard the culprit's lane never runs: the blade-index drift test (`bot-node`), a CR ledger stale entry its merge driver revives | issue #5940 (an admitted cheap guard, 1.9 s, which also makes `pr-fixup`'s `blade-index` row live); issue #5677 |
@@ -1329,15 +1353,15 @@ counts episodes, not attempts, and leaves out holds.
 ### The machines
 
 Each machine runs one [`lane`](#g-lane) and two [`pass`](#g-pass) runners; the
-MacBook also runs [`seed`](#g-seed) and, until the cut-over, the land-runner.
+MacBook also runs [`seed`](#g-seed); the land-runner is retired (issue #5643).
 A health run therefore shares its machine with up to two passes. ADR 0156
 accepted a fixed runner count in place of RAM-aware admission; the answer to a
 load-induced timeout is to classify it [INFRA](#g-infra) (excused once, then
 the tree's), not to bring admission back. Working on the MacBook while the
 queue runs: [pause](#pause-and-resume) its runners.
 
-A long-lived process that runs repository code (today only the land-runner)
-must restart when that code changes. Jobs need nothing: each one runs the code
+A long-lived process that runs repository code (the land-runner was the only
+one) must restart when that code changes. Jobs need nothing: each one runs the code
 of its own sha.
 
 ### The rule for the next gap
@@ -1480,10 +1504,11 @@ machine are not in it: set the budget with that headroom.
 
 ### <a id="g-shadow"></a>Shadow
 
-Phase 1 of the queue (ADR 0156 § Migration): Mergify lands only the PRs
-labelled `queue:shadow` (since issue #5952, every PR `land:ready` hands off
-whose `trusted-author` verdict is green) and the land-runner the rest, so the
-two run side by side on real PRs before the cut-over drops the label.
+Phase 1 of the queue (ADR 0156 § Migration), ended by [the
+cut-over](#the-cut-over) (issue #5643): Mergify landed only the PRs labelled
+`queue:shadow` (since issue #5952, every PR `land:ready` hands off whose
+`trusted-author` verdict is green) and the land-runner the rest, so the two
+ran side by side on real PRs. The label survives as `pr-refresh`'s marker.
 
 ### <a id="g-trusted-authors"></a>`TRUSTED_AUTHORS`
 

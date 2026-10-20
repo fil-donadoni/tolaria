@@ -5,9 +5,10 @@
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command) and, when the Mergify
- *      queue admits its paths, `queue:shadow`: the queue lands it and the
- *      runner skips it (issue #5952). A PR touching `.github/` or
- *      `.mergify.yml` stays the runner's;
+ *      queue admits its paths, `queue:shadow`: the queue lands it (issue
+ *      #5952). Since the cut-over (issue #5643) the land-runner is retired:
+ *      a PR the queue refuses (one touching `.github/` or `.mergify.yml`)
+ *      is merged by the owner, by hand;
  *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
  *      but it holds no `sessions.cap` slot on this machine any more;
  *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
@@ -313,7 +314,7 @@ function main(): void {
     console.log(
         (shadow
             ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${SHADOW_LABEL}\` — the Mergify queue lands it`
-            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it (the queue would refuse it: ${admission.description})`) +
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the owner merges it by hand (the queue refuses it: ${admission.description})`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
