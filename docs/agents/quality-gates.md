@@ -224,9 +224,9 @@ tooling test project; `tolaria.config.json`, `.nvmrc`, `.prettierignore`,
 `.gitattributes` are `engine`; so are `.github/workflows/**` and
 `.github/actions/**` (issue #6146) — CI YAML read through `fs` by the
 `scripts/__tests__` drift guards, so it admits `node-tooling` whole and runs no
-`dom` and no bot suite (the rest of `.github/` stays `full`). The lane fallback rate row of
-`telemetry:latency` is the acceptance metric: 22 of 168 landings (13 %) on
-2026-10-11, every one a path in that list.
+`dom` and no bot suite (the rest of `.github/` stays `full`). The lane fallback
+rate row of `telemetry:latency` is the acceptance metric: 22 of 168 landings
+(13 %) on 2026-10-11, every one a path in that list.
 
 **`check-lane.ts` is the authority on what runs today**; the sections below are the history of the lanes it replaces and the
 measurements that justified them — kept because the residual risk ADR 0154

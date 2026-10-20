@@ -170,8 +170,8 @@ const FULL_PATTERNS: RegExp[] = [
  *   format and drift checks of the engine lane exercise them.
  * - `.github/workflows/**`, `.github/actions/**` (issue #6146): CI workflow
  *   and composite-action YAML, read through `fs` by the `scripts/__tests__`
- *   drift guards (workflow structure, PR gate, AFK dispatch/pass, queue lint,
- *   housekeeping…); no app or bot test can reach one. The rest of `.github/`
+ *   drift guards (workflow structure, AFK dispatch/pass, housekeeping,
+ *   release…); no app or bot test can reach one. The rest of `.github/`
  *   (templates, CODEOWNERS) has no such reader and stays `full`.
  */
 const ENGINE_CONFIG_PATTERNS: RegExp[] = [
