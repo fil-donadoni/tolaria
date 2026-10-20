@@ -26,6 +26,7 @@ import {
 const git = (...args: string[]): string =>
     execFileSync("git", args, {
         encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
         maxBuffer: 64 * 1024 * 1024,
     });
 
