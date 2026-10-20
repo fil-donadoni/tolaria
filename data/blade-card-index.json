@@ -145,6 +145,11 @@
             "needsSetup": false
         },
         {
+            "label": "each-step return to hand: Disenchant takes the Sunken Hope that bounces only the bot's creature, not the 2-MV artifact (issue #5628)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
             "tier": "must",
             "needsSetup": false
