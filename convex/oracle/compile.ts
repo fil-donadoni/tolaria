@@ -206,31 +206,12 @@ export function compileCard(card: OracleCard): CompileOutcome {
     // CR 305.6 — a land with a basic land type has the INTRINSIC ability
     // "{T}: Add [mana symbol]", one per basic land type, even when the text
     // box does not say so (the Oracle prints it as reminder text, which
-    // `normalize.ts` strips). How the engine models it is `getBasicLandMana`
-    // (convex/gre/constants.ts): it returns the FIRST basic subtype's colour
-    // and no other, so
-    //  - a land with exactly ONE basic type (Forest, Dwarven Mine, Dryad
-    //    Arbor) is served by the intrinsic path and needs NO explicit ability
-    //    — emitting one would double the mana — so it compiles like any
-    //    other card from its remaining lines;
-    //  - a land with TWO or more (Badlands) would tap for one colour only,
-    //    and the catalogue works around that with a hand-written
-    //    `manaChoices` ability the Oracle text does not carry. Fail closed
-    //    until `getBasicLandMana` reads every type (issue #5623) — see
-    //    docs/findings/2694-basic-land-type-mana-encoding.md.
-    if (
-        typeLine.parsed.types.includes("Land") &&
-        typeLine.parsed.subtypes.filter((s) => BASIC_LAND_TYPES.has(s)).length >
-            1
-    ) {
-        return unparsed([
-            {
-                line: card.typeLine,
-                fragment: card.typeLine,
-                reason: "land with two or more basic land types — the intrinsic mana ability reads one type only (CR 305.6)",
-            },
-        ]);
-    }
+    // `normalize.ts` strips). The engine models it from the subtypes alone
+    // (`getBasicLandManaColors`, convex/gre/constants.ts — every type, issue
+    // #5623), so a land with one basic type (Forest, Dryad Arbor) or several
+    // (Badlands, a Triome) needs NO explicit ability — emitting one would
+    // double the mana — and compiles like any other card from its remaining
+    // lines.
 
     const normalized = normalizeOracleText(card);
     if (!normalized.ok) {

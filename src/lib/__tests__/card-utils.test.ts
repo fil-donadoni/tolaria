@@ -5546,12 +5546,13 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
         expect(show(def)).toBe(true);
     });
 
-    it("shows Oracle text for a shockland (enter-tapped choice) that also has a mana ability (Steam Vents)", () => {
-        // Land: activated mana ability + entersTappedUnlessPay (CR 614.12).
-        // The pay-2-life-or-tapped clause is oracle-only.
+    it("shows Oracle text for a shockland (enter-tapped choice) whose mana is intrinsic (Steam Vents)", () => {
+        // Land: entersTappedUnlessPay (CR 614.12) and no printed mana ability
+        // — its {U}/{R} are the Island / Mountain intrinsic ones (CR 305.6,
+        // issue #5623). Both clauses are oracle-only.
         const def = getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
         expect(def.entersTappedUnlessPay).toBeDefined();
-        expect((def.activatedAbilities?.length ?? 0) > 0).toBe(true);
+        expect(def.activatedAbilities).toBeUndefined();
         expect(show(def)).toBe(true);
     });
 

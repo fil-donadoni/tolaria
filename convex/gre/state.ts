@@ -484,7 +484,11 @@ export function tickDuration(
 }
 
 // Re-export for consumers that imported from here previously
-export { getBasicLandMana } from "./constants";
+export {
+    getBasicLandMana,
+    getBasicLandManaColors,
+    hasBasicLandMana,
+} from "./constants";
 // CR 118.3 / 122.1b — the counter-cost affordability predicate MOVED to
 // `constants.ts` (issue #2712). It had to: `getActivatedManaAbility` and
 // `getManaTapOptionsDetailed` are mana-source authorities living in

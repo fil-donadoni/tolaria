@@ -1418,12 +1418,12 @@ export const woodenSphere = defineCard(() =>
 );
 
 // --- Dual lands (LEA) ---
-// Two basic land types for rules interactions (Armageddon, landwalk, etc.).
-// The two mana abilities are modelled as a single choice ability so the
-// frontend picker works the same as Birds of Paradise. `tapForPayment`
-// requires a `manaChoiceIndex` for these; the bot's `planManaPayment` derives
-// it from `getProducibleManaOptions`, which resolves the choice ability ahead
-// of the intrinsic basic-land-subtype path so the index is never dropped.
+// Two basic land types, and nothing else: CR 305.6 gives each type its own
+// intrinsic "{T}: Add [symbol]", so the two mana abilities ARE the subtypes
+// (issue #5623) — one tap option apiece in `getManaTapOptionsDetailed`, which
+// the picker, `tapSourceIntoPayment`'s `manaChoiceIndex` and the Bot's
+// `getProducibleManaOptions` all resolve against. The subtypes also carry
+// the rules interactions (Armageddon, landwalk, Blood Moon).
 
 export const badlands = defineCard(() =>
     makeDualLand({
