@@ -74,9 +74,9 @@ describe("check-lane admission", () => {
         classifyLane(files).run.some(
             (c) => c.id === "check:issue-log-comments"
         );
-    it("runs on a source edit and on the baseline, not on prose", () => {
+    it("runs on a source edit and on the baseline, not on a non-source file", () => {
         expect(ran(["convex/gre/ai/opValuers.ts"])).toBe(true);
         expect(ran(["data/issue-log-comments-baseline.json"])).toBe(true);
-        expect(ran(["docs/PROJECT.md"])).toBe(false);
+        expect(ran(["data/other.json"])).toBe(false);
     });
 });
