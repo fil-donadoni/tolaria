@@ -958,7 +958,9 @@ async function main(): Promise<void> {
     const stored = readStoredVerdict(root, tip);
     const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
     // A tip whose offline half already stands GREEN without its browser
-    // steps — batch health's, here or on the store — owes only them.
+    // steps — batch health's, here or on the store — owes only them. No
+    // Convex preflight nor machine wait here: both guard ~40 minutes of
+    // gates, and a down backend still ends `infra` on the step's own exit.
     if (release && browserStepsOwed({ last, tip, stored })) {
         console.log(
             `health-main: tip ${tip.slice(0, 8)}'s offline half stands GREEN — running only ${browser.join(", ")}`
