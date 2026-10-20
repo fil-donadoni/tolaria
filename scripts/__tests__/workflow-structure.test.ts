@@ -620,7 +620,7 @@ describe("workflow structure guard", () => {
     it("refuses an advisory lane that runs on the queue's drafts (issue #5643)", () => {
         const hosted = edit(
             HOSTED,
-            "    if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}\n",
+            "    if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}\n",
             ""
         );
         expect(
