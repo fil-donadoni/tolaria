@@ -9,7 +9,7 @@
 // side (`EachPlayerSide.sacrificeUnits`, CR 701.21a: each player sacrifices
 // its own cheapest), the opponent's loss minus the controller's. Every other
 // standing script on the scoped player that the Differential cannot read
-// yet (a discard at random, a mill, mana, a library reveal, a bounce) reads
+// yet (a mill, mana, a library reveal, a bounce) reads
 // NOTHING and keeps its Latent Floor, never the representative sign.
 //
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,

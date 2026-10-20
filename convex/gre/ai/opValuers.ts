@@ -701,8 +701,9 @@ export function eachStepDifferentialValue(
 
 /** Issue #5164 / #5574 — true for a script `eachStepDifferentialValue`
  *  reads: a non-empty script whose every Op is attributable to the scoped
- *  player alone (`isStepSideOp`) — a draw, a life Op, or (issue #5575) an
- *  edict on that player's own permanents — beyond the edict's bare
+ *  player alone (`isStepSideOp`) — a draw, a life Op, (issue #5575) an
+ *  edict on that player's own permanents, or (issue #5624) a discard at
+ *  random from its hand — beyond the edict's bare
  *  `choice`, which reads nothing by itself. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return (
@@ -742,7 +743,8 @@ function namesStepPlayer(node: unknown): boolean {
 /** Issue #5574 — one Op of a standing each-step script on one side: a draw
  *  priced off the side's library and hand, a life Op off the side's board.
  *  Issue #5575 — an edict's `sacrifice` off the side's own permanents
- *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before. */
+ *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before.
+ *  Issue #5624 — a discard at random off the side's hand. */
 function stepSideOpValue(
     op: EffectOp,
     script: readonly EffectOp[],
@@ -756,6 +758,8 @@ function stepSideOpValue(
             const edict = edictChoiceFor(op, script, isStepPlayerRef);
             return edict ? sideEdictLoss(side, edict, ctx) : valueOp(op, ctx);
         }
+        case "discardAtRandom":
+            return stepSideRandomDiscard(op.count, side, ctx);
         case "gainLife":
             return stepSideLife(op.amount, 1, side, ctx);
         case "loseLife":
@@ -782,6 +786,24 @@ function stepSideMana(
     return {
         points: priced(ctx, "ramp", side.own ? units : -units),
         tags: ["ramp"],
+    };
+}
+
+/** Issue #5624 — the scoped player's discard at random, the count grounded
+ *  on THAT player's board: its hand's mean card times the count
+ *  (`EachPlayerSide.randomDiscardUnits`, CR 701.9b), priced at the `draw`
+ *  valuer's own unit and lost by that player. A count the board cannot
+ *  ground voids the side (`groundCount`) and reads 0 here. */
+function stepSideRandomDiscard(
+    count: EffectValue,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    const n = Math.max(0, side.groundCount(count, isStepPlayerRef) ?? 0);
+    const units = side.randomDiscardUnits(n);
+    return {
+        points: priced(ctx, "cardAdvantage", side.own ? -units : units),
+        tags: ["cardAdvantage"],
     };
 }
 
@@ -823,7 +845,9 @@ function sideDraw(
  *  life gained or lost, damage to that player; issue #5575 — an edict on
  *  that player's own permanents (`choice` `sacrifice-permanents` + the
  *  `sacrifice` of its picks, CR 701.21a: only a permanent's controller can
- *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`).
+ *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`);
+ *  issue #5624 — a discard at random from that player's hand (CR 701.9b),
+ *  priced off its hand (`EachPlayerSide.randomDiscardUnits`).
  *  Every Op must name the scoped player — one naming a fixed player would be
  *  counted once per side; anything else is fail-closed. Issue #5574 — a life
  *  amount may be a board count (`isStepGroundableAmount`), grounded per side.
@@ -845,6 +869,10 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
             return edictChoiceFor(op, script, isStepPlayerRef) !== undefined;
         case "draw":
             return isStepPlayerRef(op.player) && typeof op.count === "number";
+        case "discardAtRandom":
+            return (
+                isStepPlayerRef(op.player) && isStepGroundableAmount(op.count)
+            );
         case "gainLife":
         case "loseLife":
             return (

@@ -135,6 +135,11 @@
             "needsSetup": false
         },
         {
+            "label": "each-step random discard: Disenchant takes the Bottomless Pit that empties only the bot's hand, not the 2-MV artifact (issue #5624)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
             "tier": "must",
             "needsSetup": false
