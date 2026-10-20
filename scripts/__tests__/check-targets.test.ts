@@ -19,7 +19,7 @@ import {
     perCardTests,
 } from "../lib/coverage-context";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
-import type { CardRow } from "../lib/oracle-lockfile";
+import { fragmentRow, type CardRow } from "../lib/oracle-lockfile";
 import {
     claimId,
     coverageVerdict,
@@ -71,7 +71,10 @@ const FRAGMENTS = [
     { text: "Widespread ability.", reason: ROUTER, cards: 3 },
     { text: "Unique ability.", reason: ROUTER, cards: 1 },
     { text: "Another unique ability.", reason: ROUTER, cards: 1 },
-];
+].map((f) => fragmentRow(f));
+/** A row's `gaps` citing `FRAGMENTS[i]` — keys, sorted like a compiled row's. */
+const gapsOf = (...i: number[]): string[] =>
+    i.map((n) => FRAGMENTS[n]!.key).sort();
 const MECHANIC = {
     kind: "planned-mechanic" as const,
     detail: 'keyword "horsemanship" is not implemented in the Mechanics Registry',
@@ -92,15 +95,15 @@ const CARDS: CardRow[] = [
     row("q", "Held Mechanic", "quarantine", { quarantineReasons: [MECHANIC] }),
     row("s", "Held Scenario", "quarantine", { quarantineReasons: [SCENARIO] }),
     // Four corpus cards carry the widespread gap (with Closure Climbed): above the floor of 3.
-    row("p1", "Pending One", "unparsed", { gaps: [0] }),
-    row("p2", "Pending Two", "unparsed", { gaps: [0] }),
-    row("p3", "Pending Mixed", "unparsed", { gaps: [0, 1] }),
-    row("b", "Below Marked", "unparsed", { gaps: [1] }),
-    row("t", "Below Row", "unparsed", { gaps: [2] }),
+    row("p1", "Pending One", "unparsed", { gaps: gapsOf(0) }),
+    row("p2", "Pending Two", "unparsed", { gaps: gapsOf(0) }),
+    row("p3", "Pending Mixed", "unparsed", { gaps: gapsOf(0, 1) }),
+    row("b", "Below Marked", "unparsed", { gaps: gapsOf(1) }),
+    row("t", "Below Row", "unparsed", { gaps: gapsOf(2) }),
     // Not in the Target: extra rows the fixture's ADD cases pull in.
     row("mr", "Marked Ready", "ready"),
     row("cl", "Closure Ready", "ready"),
-    row("cc", "Closure Climbed", "unparsed", { gaps: [0] }),
+    row("cc", "Closure Climbed", "unparsed", { gaps: gapsOf(0) }),
 ];
 const lock = { cards: CARDS, fragments: FRAGMENTS };
 const byOracleId = new Map(CARDS.map((c) => [c.oracleId, c] as const));

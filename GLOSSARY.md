@@ -1014,6 +1014,10 @@ _Avoid_: Divergence (taken — see the dropped-clause sense), conflict, mismatch
 One line of a card's Oracle text that no slot of the **Oracle Compiler** consumed, recorded in the **Oracle Lockfile** with the count of corpus cards that share it. It is the raw evidence of a missing grammar — per line, per card — and says only THAT the line was refused, never which rule was missing.
 _Avoid_: Gap (that is the attributed unit — see **Grammar Gap**), parse error, unsupported text
 
+**Fragment Key**:
+The identity a card row of the **Oracle Lockfile** cites a **Fragment** by: the head of a sha256 over the Fragment's text, reason and attribution. Derived from the Fragment's content, never from its place in the table, so a Fragment entering or leaving the table changes only its own row and the rows of the cards that carry it.
+_Avoid_: Fragment index, gap key (that is the **Grammar Gap**'s key)
+
 **Grammar Rule**:
 One clause form the **Oracle Compiler** accepts in a slot or a shared sub-grammar, delivered together with the golden fixtures that fix what it must produce. The unit of grammar work: a rule is composed by other rules, so the cards it unlocks are counted across the whole corpus, not on the card that asked for it.
 _Avoid_: Parser, template, pattern, line match

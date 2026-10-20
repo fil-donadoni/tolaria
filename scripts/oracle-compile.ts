@@ -5,9 +5,10 @@
  *
  * Deterministic by construction: the corpus rows are sorted by oracle id when
  * the cache is written, the fragment table is sorted by
- * (cards desc, text asc, reason asc, attribution asc) — the full intern key, so the order is
- * total and never rests on sort stability — and the serializer emits one row
- * per line with a fixed key order. Two runs on
+ * (text asc, reason asc, attribution asc) — the full intern key, so the order
+ * is total and never rests on sort stability — a row cites its fragments by
+ * content-derived Fragment Key (issue #6169), and the serializer emits one
+ * row per line with a fixed key order. Two runs on
  * the same tree and the same corpus are byte-identical — asserted in
  * `scripts/__tests__/oracle-compile.test.ts`.
  *
@@ -41,7 +42,6 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compileCard } from "../convex/oracle/compile";
 import type {
-    Attribution,
     CompileState,
     Gap,
     OracleCard,
@@ -59,13 +59,18 @@ import {
     type CorpusCard,
 } from "./oracle-corpus";
 import {
+    compareFragmentContent,
     compilerHash,
+    fragmentIdentity,
+    fragmentKey,
+    fragmentRow,
     LOCKFILE_GENERATOR,
     POOL_PROJECTION_SOURCE,
     poolHash,
     registryHash,
     serializeLockfile,
     type CardRow,
+    type FragmentContent,
     type FragmentRow,
     type Lockfile,
 } from "./lib/oracle-lockfile";
@@ -204,15 +209,6 @@ function toOracleCard(card: CorpusCard): OracleCard {
     };
 }
 
-/** An attribution as one intern/sort key — `""` when there is none. */
-function attributionKey(attribution: Attribution | undefined): string {
-    return attribution === undefined
-        ? ""
-        : [attribution.slot, ...attribution.path, attribution.span].join(
-              "\u0001"
-          );
-}
-
 /** The card's `poolIn`, as a row fragment — omitted when empty. */
 function poolOf(card: CorpusCard): { poolIn?: CorpusCard["poolIn"] } {
     return card.poolIn.length > 0 ? { poolIn: card.poolIn } : {};
@@ -245,6 +241,13 @@ export interface BuildLockfileOptions {
      * (issue #4027 exposed this: the ledger was empty until that PR).
      */
     readonly retirements?: RetirementLedger;
+    /**
+     * The Fragment Key function. Omitted, `fragmentKey` — the only value the
+     * write and drift-guard paths use. A test passes a coarser one to reach
+     * the collision refusal below, which 48 bits never reach on a real
+     * corpus (issue #6169).
+     */
+    readonly fragmentKey?: (fragment: FragmentContent) => string;
 }
 
 export function buildLockfile(
@@ -252,6 +255,7 @@ export function buildLockfile(
     options: BuildLockfileOptions = {}
 ): Lockfile {
     const { botReach } = options;
+    const keyOf = options.fragmentKey ?? fragmentKey;
     const pin = readPin();
     if (pin === null) {
         throw new Error(
@@ -262,43 +266,47 @@ export function buildLockfile(
     const retirements = options.retirements ?? readRetirementLedger();
 
     // Fragment table: dedupe by the unconsumed line, count the CARDS it blocks.
-    //
-    // U+0000 as the join: it cannot occur in Oracle text, so the key is
-    // unambiguous. Escaped rather than literal — a raw control byte in source
-    // makes the whole FILE binary to git and grep, which took this driver out
-    // of `gh pr diff` entirely.
-    //
-    // The attribution is part of the key: the same line can fail at a
-    // different place on a different card (the slot guards read the type
-    // line), and folding the two would credit one card's gap to the other.
-    const gapKey = (gap: Gap): string =>
-        `${gap.fragment}\u0000${gap.reason}\u0000${attributionKey(gap.attribution)}`;
-    const fragmentIndex = new Map<string, number>();
-    const fragmentOrder: {
-        text: string;
-        reason: string;
-        cards: number;
-        attribution?: Attribution;
-    }[] = [];
-    /** Callers MUST call this at most once per (card, fragment) — see below. */
-    const internFragment = (gap: Gap): number => {
-        const key = gapKey(gap);
-        const seen = fragmentIndex.get(key);
-        if (seen !== undefined) {
-            fragmentOrder[seen]!.cards += 1;
-            return seen;
+    // A row cites each fragment by its Fragment Key (issue #6169), never by
+    // its place in the table — see `lib/oracle-lockfile.ts`.
+    const contentOf = (gap: Gap): FragmentContent => ({
+        text: gap.fragment,
+        reason: gap.reason,
+        ...(gap.attribution !== undefined
+            ? { attribution: gap.attribution }
+            : {}),
+    });
+    const gapKey = (gap: Gap): string => fragmentIdentity(contentOf(gap));
+    const fragmentsByKey = new Map<
+        string,
+        {
+            key: string;
+            identity: string;
+            row: FragmentContent & { cards: number };
         }
-        const index = fragmentOrder.length;
-        fragmentOrder.push({
-            text: gap.fragment,
-            reason: gap.reason,
-            cards: 1,
-            ...(gap.attribution !== undefined
-                ? { attribution: gap.attribution }
-                : {}),
-        });
-        fragmentIndex.set(key, index);
-        return index;
+    >();
+    /** Callers MUST call this at most once per (card, fragment) — see below. */
+    const internFragment = (gap: Gap): string => {
+        const content = contentOf(gap);
+        const identity = fragmentIdentity(content);
+        const key = keyOf(content);
+        const seen = fragmentsByKey.get(key);
+        if (seen === undefined) {
+            fragmentsByKey.set(key, {
+                key,
+                identity,
+                row: { ...content, cards: 1 },
+            });
+        } else if (seen.identity === identity) {
+            seen.row.cards += 1;
+        } else {
+            // Two fragments, one key: citing it would credit one fragment's
+            // cards to the other. Never merge them — lengthen the key.
+            throw new Error(
+                `oracle:compile: fragments ${JSON.stringify(seen.row.text)} and ${JSON.stringify(content.text)} ` +
+                    `share the Fragment Key ${key} — raise FRAGMENT_KEY_HEX in scripts/lib/oracle-lockfile.ts`
+            );
+        }
+        return key;
     };
 
     const rawRows: CardRow[] = [];
@@ -360,7 +368,9 @@ export function buildLockfile(
                 name: card.name,
                 state: "unparsed",
                 ...poolOf(card),
-                gaps: [...distinctGaps.values()].map(internFragment),
+                // Sorted by key: content-derived, so the row's bytes move
+                // only when its own fragments do.
+                gaps: [...distinctGaps.values()].map(internFragment).sort(),
             });
         } else {
             const reasons: readonly QuarantineReason[] | undefined =
@@ -386,50 +396,17 @@ export function buildLockfile(
         }
     }
 
-    // The fragment table is sorted by blast radius — this IS the backlog that
-    // ranks the next grammar rule (PRD #2693 user story 9). Ties break on the
-    // rest of the INTERN KEY — text, then reason — so the order is total. Text
-    // alone is not: a row is (text, reason), and 12 texts in the shipped corpus
-    // carry two reasons, 7 of those pairs tying on `cards` as well. Their order
-    // would otherwise rest on `Array.prototype.sort` stability over insertion
-    // order, which is an accidental guarantee, not a deterministic one.
-    const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-    const sortedFragments = fragmentOrder
-        .map((f, index) => ({ ...f, index }))
-        .sort(
-            (a, b) =>
-                b.cards - a.cards ||
-                cmp(a.text, b.text) ||
-                cmp(a.reason, b.reason) ||
-                cmp(
-                    attributionKey(a.attribution),
-                    attributionKey(b.attribution)
-                )
-        );
-    const remap = new Map<number, number>();
-    sortedFragments.forEach((f, newIndex) => remap.set(f.index, newIndex));
-    const fragments: FragmentRow[] = sortedFragments.map((f) => ({
-        text: f.text,
-        reason: f.reason,
-        cards: f.cards,
-        ...(f.attribution !== undefined ? { attribution: f.attribution } : {}),
-    }));
-    // No dedupe here: the row's gap indexes are already distinct (deduped at
-    // intern time) and `remap` is a bijection. Deduping again would only hide a
-    // regression in the counting from the rows that are supposed to prove it.
-    const remapped: CardRow[] = rawRows.map((row) =>
-        row.gaps === undefined
-            ? row
-            : {
-                  ...row,
-                  gaps: row.gaps
-                      .map((g) => remap.get(g)!)
-                      .sort((a, b) => a - b),
-              }
-    );
+    // Sorted by CONTENT, never by blast radius (issue #6169): a fragment's
+    // line then stays where it is when its `cards` moves, so a grammar PR's
+    // diff is the rows whose meaning changed. The backlog's rank order is
+    // `compareFragmentRank`, which every reader meets through
+    // `indexFragments`.
+    const fragments: FragmentRow[] = [...fragmentsByKey.values()]
+        .map(({ key, row }) => fragmentRow(row, key))
+        .sort(compareFragmentContent);
     // Last, so `retired` is the final key of every marked row and marking a
     // card touches exactly that one row's bytes.
-    const cards: CardRow[] = stampRetirements(remapped, retirements);
+    const cards: CardRow[] = stampRetirements(rawRows, retirements);
 
     return {
         generator: LOCKFILE_GENERATOR,

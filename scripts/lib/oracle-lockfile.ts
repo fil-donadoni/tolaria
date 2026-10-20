@@ -79,6 +79,12 @@ export interface FormatRow {
 
 /** A distinct unconsumed fragment and how many cards it blocks. */
 export interface FragmentRow {
+    /**
+     * The fragment's Fragment Key ({@link fragmentKey}) — what a card row's
+     * `gaps` cite it by (issue #6169). Derived from the three fields below,
+     * never from the row's place in the table.
+     */
+    readonly key: string;
     readonly text: string;
     readonly reason: string;
     readonly cards: number;
@@ -114,8 +120,13 @@ export interface CardRow {
      * lockfile alone, which is the report's contract: no corpus, no network.
      */
     readonly poolIn?: readonly ReportedFormat[];
-    /** Indexes into `fragments`. Present iff `state === "unparsed"`. */
-    readonly gaps?: readonly number[];
+    /**
+     * The Fragment Keys of the lines the card fails on, sorted — resolved
+     * through `indexFragments` (`lib/oracle-fragments.ts`), never by
+     * position. Present iff
+     * `state === "unparsed"`.
+     */
+    readonly gaps?: readonly string[];
     readonly slots?: readonly string[];
     readonly opsUsed?: readonly string[];
     readonly quarantineReasons?: readonly QuarantineReason[];
@@ -405,6 +416,129 @@ export function indentBlock(text: string, spaces: number): string {
         .join("\n");
 }
 
+/**
+ * Parse a lockfile — and upgrade one written before Fragment Keys (issue
+ * #6169), whose rows cite fragments by index into a table sorted by blast
+ * radius. Readers of a HISTORICAL ref meet that format: `grammar:residue`
+ * reads the lockfile at a merge commit's parent, `oracle:report --delta` at
+ * a baseline. The upgrade gives such a file the keys and the table order a
+ * compile of the same tree would have written.
+ */
 export function parseLockfile(text: string): Lockfile {
-    return JSON.parse(text) as Lockfile;
+    const lock = JSON.parse(text) as Lockfile;
+    return lock.fragments?.some((f) => f.key === undefined)
+        ? upgradeIndexedLockfile(lock)
+        : lock;
+}
+
+function upgradeIndexedLockfile(lock: Lockfile): Lockfile {
+    // Keyed in the OLD order: the rows' indices point into it.
+    const fragments = lock.fragments.map((f) => fragmentRow(f));
+    const cards = lock.cards.map((card) => {
+        if (card.gaps === undefined) return card;
+        const gaps = (card.gaps as readonly unknown[]).map((index) => {
+            const fragment = fragments[index as number];
+            if (fragment === undefined)
+                throw new Error(
+                    `oracle lockfile: ${card.name} cites fragment index ${String(index)}, which the table does not hold`
+                );
+            return fragment.key;
+        });
+        return { ...card, gaps: gaps.sort() };
+    });
+    return {
+        ...lock,
+        fragments: [...fragments].sort(compareFragmentContent),
+        cards,
+    };
+}
+
+// ── Fragment Keys (issue #6169) ─────────────────────────────────────────
+//
+// A card row cites the lines it fails on by a key derived from each
+// fragment's own content, and the table is sorted by that content. A fragment
+// entering or leaving the table then changes its own row and the rows of the
+// cards that carry it, nothing else. Cited by INDEX, the 3 cards PR #6138
+// took to `ready` renumbered 17,522 rows, so any two grammar PRs conflicted,
+// and a clean textual merge could pair one side's indices with the other
+// side's table.
+
+/** What a fragment IS — the fields its key and its table position read. */
+export type FragmentContent = Pick<FragmentRow, "text" | "reason"> & {
+    readonly attribution?: Attribution;
+};
+
+/**
+ * Hex digits of sha256 a Fragment Key keeps. 48 bits over ~31,000 fragments
+ * puts a collision near 1 in 600,000; `oracle:compile` refuses one rather
+ * than merge two fragments, and lengthening the key is the fix.
+ */
+export const FRAGMENT_KEY_HEX = 12;
+
+/** An attribution as one intern/sort key — `""` when there is none. */
+export function attributionKey(attribution: Attribution | undefined): string {
+    return attribution === undefined
+        ? ""
+        : [attribution.slot, ...attribution.path, attribution.span].join(
+              "\u0001"
+          );
+}
+
+/**
+ * The fragment's whole identity as one string — what the compiler dedupes
+ * by, so two cards failing on the same line at the same place share a row.
+ *
+ * U+0000 as the join: it cannot occur in Oracle text, so the key is
+ * unambiguous. Escaped rather than literal — a raw control byte in source
+ * makes the whole FILE binary to git and grep.
+ *
+ * The attribution is part of it: the same line can fail at a different place
+ * on a different card (the slot guards read the type line), and folding the
+ * two would credit one card's gap to the other.
+ */
+export function fragmentIdentity(fragment: FragmentContent): string {
+    return `${fragment.text}\u0000${fragment.reason}\u0000${attributionKey(fragment.attribution)}`;
+}
+
+/** The Fragment Key: the head of sha256 over {@link fragmentIdentity}. */
+export function fragmentKey(fragment: FragmentContent): string {
+    return createHash("sha256")
+        .update(fragmentIdentity(fragment))
+        .digest("hex")
+        .slice(0, FRAGMENT_KEY_HEX);
+}
+
+/** A fragment row, its key derived — the one place a row is shaped. */
+export function fragmentRow(
+    fragment: FragmentContent & { readonly cards: number },
+    key: string = fragmentKey(fragment)
+): FragmentRow {
+    return {
+        key,
+        text: fragment.text,
+        reason: fragment.reason,
+        cards: fragment.cards,
+        ...(fragment.attribution !== undefined
+            ? { attribution: fragment.attribution }
+            : {}),
+    };
+}
+
+const cmpString = (a: string, b: string): number =>
+    a < b ? -1 : a > b ? 1 : 0;
+
+/**
+ * The TABLE order: text, then reason, then attribution — the whole
+ * identity, so the order is total, and content only, so a fragment's `cards`
+ * moving never moves its line.
+ */
+export function compareFragmentContent(
+    a: FragmentContent,
+    b: FragmentContent
+): number {
+    return (
+        cmpString(a.text, b.text) ||
+        cmpString(a.reason, b.reason) ||
+        cmpString(attributionKey(a.attribution), attributionKey(b.attribution))
+    );
 }

@@ -82,7 +82,12 @@ import { join } from "node:path";
 import { ALLOWLIST_PATH } from "../check-gaps";
 import { BASE_BRANCH } from "../lib/branches";
 import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
-import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    type CardRow,
+    type FragmentRow,
+    type Lockfile,
+} from "../lib/oracle-lockfile";
 import {
     claimId,
     coverageVerdict,
@@ -118,21 +123,22 @@ const REGISTRY: TargetRegistry = {
 };
 
 function fragment(text: string): FragmentRow {
-    return { text, reason: "no slot consumed the line", cards: 1 };
+    return fragmentRow({ text, reason: "no slot consumed the line", cards: 1 });
 }
 
-/** `refuses`-by-construction: N unparsed cards sharing one fragment index. */
+/** `refuses`-by-construction: N unparsed cards sharing one fragment, named
+ *  by its text (its key is `fragment(text)`'s). */
 function unparsed(
     oracleId: string,
     name: string,
-    gaps: number[],
+    lines: readonly string[],
     poolIn?: CardRow["poolIn"]
 ): CardRow {
     return {
         oracleId,
         name,
         state: "unparsed",
-        gaps,
+        gaps: lines.map((text) => fragment(text).key).sort(),
         ...(poolIn === undefined ? {} : { poolIn }),
     };
 }
@@ -799,10 +805,20 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
     const lock = {
         fragments: [fragment("a widespread line"), fragment("a one-off line")],
         cards: [
-            unparsed("w-1", "Wide One", [0], ["premodern"]),
-            unparsed("w-2", "Wide Two", [0], ["premodern"]),
-            unparsed("t-1", "Tail Card", [1], ["premodern", "vintage"]),
-            unparsed("m-1", "Mixed Card", [0, 1], ["premodern"]),
+            unparsed("w-1", "Wide One", ["a widespread line"], ["premodern"]),
+            unparsed("w-2", "Wide Two", ["a widespread line"], ["premodern"]),
+            unparsed(
+                "t-1",
+                "Tail Card",
+                ["a one-off line"],
+                ["premodern", "vintage"]
+            ),
+            unparsed(
+                "m-1",
+                "Mixed Card",
+                ["a widespread line", "a one-off line"],
+                ["premodern"]
+            ),
             ...FILLER,
         ],
     };
@@ -879,7 +895,10 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
     it("a card no PRIORITY Target ranks is never filed — nobody's ranked objective needs it", () => {
         const orphanLock = {
             fragments: [...lock.fragments, fragment("an orphan's own line")],
-            cards: [...lock.cards, unparsed("x-1", "Orphan Card", [2])],
+            cards: [
+                ...lock.cards,
+                unparsed("x-1", "Orphan Card", ["an orphan's own line"]),
+            ],
         };
         const { filings } = buildHandTailFilings(
             inputs(orphanLock, { handTailFiling: true })
@@ -892,8 +911,18 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         const both = {
             fragments: [fragment("a one-off line")],
             cards: [
-                unparsed("t-1", "Scoped Tail", [0], ["premodern"]),
-                unparsed("t-2", "Ranked Tail", [0], ["premodern"]),
+                unparsed(
+                    "t-1",
+                    "Scoped Tail",
+                    ["a one-off line"],
+                    ["premodern"]
+                ),
+                unparsed(
+                    "t-2",
+                    "Ranked Tail",
+                    ["a one-off line"],
+                    ["premodern"]
+                ),
                 ...FILLER,
             ],
         };
@@ -909,8 +938,18 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         const both = {
             fragments: [fragment("a one-off line")],
             cards: [
-                unparsed("t-1", "Scoped Tail", [0], ["premodern"]),
-                unparsed("t-2", "Ranked Tail", [0], ["premodern"]),
+                unparsed(
+                    "t-1",
+                    "Scoped Tail",
+                    ["a one-off line"],
+                    ["premodern"]
+                ),
+                unparsed(
+                    "t-2",
+                    "Ranked Tail",
+                    ["a one-off line"],
+                    ["premodern"]
+                ),
                 ...FILLER,
             ],
         };
@@ -929,7 +968,15 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         // leverage 1 < floor 3, and no `hand-tail:` marker vouches for it.
         const fallen = {
             fragments: [fragment("a widespread line")],
-            cards: [unparsed("w-1", "Wide One", [0], ["premodern"]), ...FILLER],
+            cards: [
+                unparsed(
+                    "w-1",
+                    "Wide One",
+                    ["a widespread line"],
+                    ["premodern"]
+                ),
+                ...FILLER,
+            ],
         };
         const { filings } = buildHandTailFilings(
             inputs(fallen, { handTailFiling: true })
@@ -1160,8 +1207,8 @@ describe("one claimId, one filing", () => {
         const lock = {
             fragments: [fragment("a one-off line")],
             cards: [
-                unparsed("dup-a", "Inferno", [0], ["premodern"]),
-                unparsed("dup-b", "Inferno", [0], ["vintage"]),
+                unparsed("dup-a", "Inferno", ["a one-off line"], ["premodern"]),
+                unparsed("dup-b", "Inferno", ["a one-off line"], ["vintage"]),
                 ...FILLER,
             ],
         };
@@ -1203,7 +1250,12 @@ describe("the ranked set is priority ∪ enforced", () => {
         const lock = {
             fragments: [fragment("a one-off line")],
             cards: [
-                unparsed("v-1", "Enforced Only", [0], ["vintage"]),
+                unparsed(
+                    "v-1",
+                    "Enforced Only",
+                    ["a one-off line"],
+                    ["vintage"]
+                ),
                 ...FILLER,
             ],
         };
@@ -1242,11 +1294,11 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
     const lock = {
         fragments: [fragment("a widespread line"), fragment("a one-off line")],
         cards: [
-            unparsed("w-1", "Wide One", [0], ["premodern"]),
-            unparsed("w-2", "Wide Two", [0], ["premodern"]),
-            unparsed("w-3", "Wide Three", [0], ["vintage"]),
-            unparsed("t-1", "Tail One", [1], ["premodern"]),
-            unparsed("t-2", "Tail Two", [1], ["vintage"]),
+            unparsed("w-1", "Wide One", ["a widespread line"], ["premodern"]),
+            unparsed("w-2", "Wide Two", ["a widespread line"], ["premodern"]),
+            unparsed("w-3", "Wide Three", ["a widespread line"], ["vintage"]),
+            unparsed("t-1", "Tail One", ["a one-off line"], ["premodern"]),
+            unparsed("t-2", "Tail Two", ["a one-off line"], ["vintage"]),
             ...FILLER,
         ],
     };
@@ -1303,14 +1355,34 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
         const mixed = {
             fragments: lock.fragments,
             cards: [
-                unparsed("w-1", "Wide One", [0], ["premodern"]),
+                unparsed(
+                    "w-1",
+                    "Wide One",
+                    ["a widespread line"],
+                    ["premodern"]
+                ),
                 {
-                    ...unparsed("w-2", "Wide Ready", [0], ["premodern"]),
+                    ...unparsed(
+                        "w-2",
+                        "Wide Ready",
+                        ["a widespread line"],
+                        ["premodern"]
+                    ),
                     state: "ready" as const,
                     opsUsed: [],
                 },
-                unparsed("w-3", "Wide Three", [0], ["vintage"]),
-                unparsed("w-4", "Wide Four", [0], ["vintage"]),
+                unparsed(
+                    "w-3",
+                    "Wide Three",
+                    ["a widespread line"],
+                    ["vintage"]
+                ),
+                unparsed(
+                    "w-4",
+                    "Wide Four",
+                    ["a widespread line"],
+                    ["vintage"]
+                ),
                 ...FILLER,
             ],
         };
@@ -1429,15 +1501,15 @@ describe("staleClaims — a settled hand-tail claim is not stale (issue #4513)",
         fragments: [fragment("rare clause")],
         cards: [
             ...FILLER,
-            unparsed("s-1", "Same Issue", [0]),
-            unparsed("o-1", "Other Issue", [0]),
+            unparsed("s-1", "Same Issue", ["rare clause"]),
+            unparsed("o-1", "Other Issue", ["rare clause"]),
             {
                 oracleId: "r-1",
                 name: "Now Ready",
                 state: "ready" as const,
                 opsUsed: [],
             },
-            unparsed("u-1", "Unmarked", [0]),
+            unparsed("u-1", "Unmarked", ["rare clause"]),
         ],
     };
     const settled = settledHandTailOf(
@@ -1488,9 +1560,9 @@ describe("planClaimClosures — gaps:sync closes the claims whose work is done (
         fragments: [fragment("rare clause")],
         cards: [
             ...FILLER,
-            unparsed("s-1", "Settled Here", [0]),
-            unparsed("o-1", "Settled Elsewhere", [0]),
-            unparsed("u-1", "Still Unmarked", [0]),
+            unparsed("s-1", "Settled Here", ["rare clause"]),
+            unparsed("o-1", "Settled Elsewhere", ["rare clause"]),
+            unparsed("u-1", "Still Unmarked", ["rare clause"]),
             {
                 oracleId: "r-1",
                 name: "Now Ready",
@@ -1550,7 +1622,10 @@ describe("planClaimClosures — gaps:sync closes the claims whose work is done (
     it("never closes a `ready` card's claim while a same-name printing keeps a residual gap", () => {
         const twin = settledHandTailOf(
             {
-                cards: [...lock.cards, unparsed("r-2", "Now Ready", [0])],
+                cards: [
+                    ...lock.cards,
+                    unparsed("r-2", "Now Ready", ["rare clause"]),
+                ],
             },
             new Map(),
             gapKeys
@@ -2102,9 +2177,9 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
                 fragment("a third line"),
             ],
             cards: [
-                unparsed("c-p1", "Tail Metagame", [0]),
-                unparsed("c-p2", "Tail Cube", [1]),
-                unparsed("c-x", "Tail Off Road", [2]),
+                unparsed("c-p1", "Tail Metagame", ["a first line"]),
+                unparsed("c-p2", "Tail Cube", ["a second line"]),
+                unparsed("c-x", "Tail Off Road", ["a third line"]),
                 ...FILLER,
             ],
         };
@@ -2146,7 +2221,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         const reached = partitionCardIndex(
             {
                 cards: [
-                    unparsed("h-1", "Tail One", [0]),
+                    unparsed("h-1", "Tail One", ["a one-off line"]),
                     {
                         oracleId: "h-2",
                         name: "Ready One",
@@ -2752,7 +2827,10 @@ describe("GAP_LABELS carries the filing stamp (issue #4457)", () => {
 describe("a card-keyed claim adopts the open issue naming the card (issue #4515)", () => {
     const lock = {
         fragments: [fragment("a one-off line")],
-        cards: [unparsed("t-1", "Tail Card", [0], ["premodern"]), ...FILLER],
+        cards: [
+            unparsed("t-1", "Tail Card", ["a one-off line"], ["premodern"]),
+            ...FILLER,
+        ],
     };
     const byName = (name: string) => (name === "Tail Card" ? "t-1" : undefined);
     const naming = (number: number, state = "OPEN") => ({
@@ -2874,9 +2952,24 @@ describe("a card-keyed claim adopts the open issue naming the card (issue #4515)
         const wide = {
             fragments: [fragment("a widespread line")],
             cards: [
-                unparsed("t-1", "Tail Card", [0], ["premodern"]),
-                unparsed("t-2", "Other Card", [0], ["premodern"]),
-                unparsed("t-3", "Third Card", [0], ["premodern"]),
+                unparsed(
+                    "t-1",
+                    "Tail Card",
+                    ["a widespread line"],
+                    ["premodern"]
+                ),
+                unparsed(
+                    "t-2",
+                    "Other Card",
+                    ["a widespread line"],
+                    ["premodern"]
+                ),
+                unparsed(
+                    "t-3",
+                    "Third Card",
+                    ["a widespread line"],
+                    ["premodern"]
+                ),
                 ...FILLER,
             ],
         };
