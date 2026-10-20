@@ -64,7 +64,7 @@ export function createAttemptConsole(deps: {
         },
         async lines() {
             await Promise.all(pending);
-            return recorded;
+            return [...recorded];
         },
     };
 }
