@@ -30,6 +30,7 @@ import {
     hasFlashback,
 } from "../flashback";
 import { finalizeCleanup } from "../phases";
+import { flashbackLifeCost } from "../castCost";
 import {
     locateCastSource,
     castRawManaCost,
@@ -715,6 +716,89 @@ describe("Flashback capability (CR 702.34)", () => {
                 expect(p1After.exile.some((c) => c.id === fb.id)).toBe(true);
                 expect(p1After.exile.some((c) => c.id === blue.id)).toBe(true);
                 expect(p1After.hand.some((c) => c.id === blue.id)).toBe(false);
+            });
+        });
+
+        describe('"Pay N life" flashback leg (CR 702.34a / 119.4)', () => {
+            function lifeFlashbackState(life: number) {
+                const fb = makeInstance(firebolt().id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { life: 3 },
+                });
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    life,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                return { state, fb };
+            }
+
+            it("normalizes and exposes the life leg as flashback-only additional cost", () => {
+                const { fb } = lifeFlashbackState(20);
+                expect(hasFlashback(fb)).toBe(true);
+                expect(getFlashbackCost(fb)).toBeUndefined();
+                expect(getFlashbackAdditionalCost(fb)).toEqual({ life: 3 });
+            });
+
+            it("owes the life only on a graveyard cast", () => {
+                const { state, fb } = lifeFlashbackState(20);
+                expect(flashbackLifeCost(state, fb, "graveyard")).toBe(3);
+                expect(flashbackLifeCost(state, fb, "hand")).toBe(0);
+            });
+
+            it('offers "cast" only while life >= N (CR 119.4)', () => {
+                for (const [life, expected] of [
+                    [3, ["cast"]],
+                    [2, []],
+                ] as const) {
+                    const { state, fb } = lifeFlashbackState(life);
+                    expect(
+                        getLegalActions(state, getPlayer(state, "p1"), fb)
+                    ).toEqual(expected);
+                }
+            });
+
+            it("refuses the targeted cast at life < N and pays + exiles at life >= N", () => {
+                const pt = (id: string): PendingTarget => ({
+                    playerId: "p1",
+                    cardInstanceId: id,
+                    targetType: "any",
+                    count: 1,
+                    selected: [{ type: "player", id: "p2" }],
+                });
+                const poor = lifeFlashbackState(2);
+                expect(() =>
+                    finalizeTargetSelection(poor.state, pt(poor.fb.id), "p1")
+                ).toThrow(/Cannot pay more life than you have/);
+                expect(getPlayer(poor.state, "p1").life).toBe(2);
+
+                const { state, fb } = lifeFlashbackState(20);
+                finalizeTargetSelection(state, pt(fb.id), "p1");
+                if (state.pendingCast) tryAutoCommitPendingCast(state, "p1");
+                expect(getPlayer(state, "p1").life).toBe(17);
+                const item = state.stack.find((s) => s.id === fb.id)!;
+                expect(item.exileOnResolve).toBe(true);
+                resolveTopOfStack(state);
+                expect(
+                    getPlayer(state, "p1").exile.some((c) => c.id === fb.id)
+                ).toBe(true);
+            });
+
+            it("frontend wiring — projectPublicState tags the card only when life covers it", () => {
+                for (const [life, expected] of [
+                    [3, ["cast"]],
+                    [2, []],
+                ] as const) {
+                    const { state, fb } = lifeFlashbackState(life);
+                    const projected = projectPublicState(state, 1, "p1");
+                    const projFb = projected.players[0].graveyard.find(
+                        (c) => c.id === fb.id
+                    )!;
+                    expect(projFb.legalActions ?? []).toEqual(expected);
+                }
             });
         });
 

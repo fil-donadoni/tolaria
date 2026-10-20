@@ -2461,6 +2461,7 @@ import {
     buildCastExileCostChoice,
     castAlternativeCostForZone,
     castRawManaCost,
+    flashbackLifeCost,
     libraryTopCastPayment,
 } from "./gre/castCost";
 import type { CastFromZone } from "./gre/castCost";
@@ -5495,7 +5496,16 @@ export function finalizeTargetSelection(
             cardInHand,
             castZone,
             pt.alternativeCostId
-        )?.life ?? 0);
+        )?.life ?? 0) +
+        // CR 702.34a / 119.4 — the LIFE leg of the flashback cost ("Flashback—
+        // {1}{U}, Pay 3 life."), owed only on a graveyard flashback cast.
+        flashbackLifeCost(state, cardInHand, castZone);
+    // CR 119.4 — defence in depth behind `announceCast`'s gate: the targeted
+    // commit runs in a later mutation, and the flashback life must be payable
+    // at the instant it is paid.
+    if (flashbackLifeCost(state, cardInHand, castZone) > player.life) {
+        throw new Error("Cannot pay more life than you have");
+    }
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -6643,7 +6653,11 @@ export const announceCast = mutation({
         }
         // CR 601.2b / 118.4 — a FIXED "pay N life" additional cost (Fumarole):
         // the cast is illegal if the caster's life is below N.
-        const fixedPayLife = effectiveAdditionalCosts?.payLife ?? 0;
+        const fixedPayLife =
+            (effectiveAdditionalCosts?.payLife ?? 0) +
+            // CR 702.34a / 119.4 — flashback's "Pay N life" leg, gated at
+            // announcement like the card's own fixed life cost.
+            flashbackLifeCost(state, cardInHand, castFromZone);
         if (fixedPayLife > 0 && player.life < fixedPayLife) {
             throw new Error("Cannot pay more life than you have");
         }
@@ -7597,7 +7611,10 @@ export const announceCast = mutation({
                 cardInHand,
                 castFromZone,
                 args.alternativeCostId
-            )?.life ?? 0);
+            )?.life ?? 0) +
+            // CR 702.34a / 119.4 — the flashback cost's LIFE leg (Deep
+            // Analysis), the same seam the targeted commit folds.
+            flashbackLifeCost(state, cardInHand, castFromZone);
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought). Gate on affordability at announcement; pip count comes from
         // the spell's PRINTED mana cost.
