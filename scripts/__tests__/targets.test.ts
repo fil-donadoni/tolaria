@@ -12,7 +12,11 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    parseLockfile,
+    type CardRow,
+} from "../lib/oracle-lockfile";
 import { floorlessCardIds } from "../lib/gap-kinds";
 import { poolOracleIds } from "../oracle-compile";
 import {
@@ -409,19 +413,21 @@ describe("coverage states — exactly one per card", () => {
         { text: "Widespread ability.", reason: ROUTER, cards: 3 },
         { text: "Unique ability.", reason: ROUTER, cards: 1 },
         { text: "Another unique ability.", reason: ROUTER, cards: 1 },
-    ];
+    ].map((f) => fragmentRow(f));
+    const gapsOf = (...i: number[]): string[] =>
+        i.map((n) => FRAGMENTS[n]!.key).sort();
     const HELD = { kind: "planned-mechanic" as const, detail: "keyword" };
     const cards: CardRow[] = [
         row("r", "Ready", "ready"),
         row("q", "Held", "quarantine", { quarantineReasons: [HELD] }),
         // Four corpus cards carry the widespread gap: above the floor of 3.
-        row("p1", "Pending One", "unparsed", { gaps: [0] }),
-        row("p2", "Pending Two", "unparsed", { gaps: [0] }),
-        row("u", "Mixed", "unparsed", { gaps: [0, 1] }),
-        row("h", "Declared", "unparsed", { gaps: [1] }),
-        row("b", "Below", "unparsed", { gaps: [2] }),
+        row("p1", "Pending One", "unparsed", { gaps: gapsOf(0) }),
+        row("p2", "Pending Two", "unparsed", { gaps: gapsOf(0) }),
+        row("u", "Mixed", "unparsed", { gaps: gapsOf(0, 1) }),
+        row("h", "Declared", "unparsed", { gaps: gapsOf(1) }),
+        row("b", "Below", "unparsed", { gaps: gapsOf(2) }),
         row("hr", "Declared Ready", "ready"),
-        row("hc", "Declared Climbed", "unparsed", { gaps: [0] }),
+        row("hc", "Declared Climbed", "unparsed", { gaps: gapsOf(0) }),
     ];
     const lock = { cards, fragments: FRAGMENTS };
     const byOracleId = new Map(cards.map((c) => [c.oracleId, c] as const));
