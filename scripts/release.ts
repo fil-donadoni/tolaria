@@ -4,9 +4,12 @@
 //
 // The base branch (`branches.base` in tolaria.config.json) collects landings
 // under the LANE gate only. This is the one place the FULL offline gate runs:
-// `health-main.ts` gates the `origin/<base>` tip under the heavy mutex, and
-// only a GREEN verdict on EXACTLY that sha lets the release branch move —
-// by fast-forward, never by force.
+// `health-main.ts` gates the `origin/<base>` tip under the heavy mutex, then
+// runs the release-only browser step `check:game-download` off it (a tip
+// batch health already proved runs only that), and only a GREEN verdict on
+// EXACTLY that sha lets the release branch move — by fast-forward, never by
+// force. No `check:ui` walk runs here (issue #6143): the every-surface walk
+// is a command the owner runs by hand.
 //
 // A RED verdict used to end the run: the marker `health-main.ts` wrote stayed
 // standing and the maintainer was handed a log path. Since PRD issue #3197 it
@@ -361,13 +364,24 @@ function readVerdictFile(root: string): string | null {
 }
 
 /**
+ * `health-main`'s argv for a release: the base tip, and `--release` — the
+ * offline gate plus the browser step `check:game-download`, never a
+ * `check:ui` walk (issue #6143).
+ */
+export const HEALTH_GATE_ARGS: readonly string[] = [
+    `--branch=${BASE_BRANCH}`,
+    "--release",
+];
+
+/**
  * The full gate, under the heavy mutex. `health-main.ts` dedups by sha (an
- * already-green tip is not re-gated), writes the durable verdict and exits 1
- * on RED — we read the RECORD rather than the exit status, so a verdict about
- * a DIFFERENT sha (a race with another run) is refused too.
+ * already-green tip is not re-gated, but owes its browser step), writes the
+ * durable verdict and exits 1 on RED — we read the RECORD rather than the
+ * exit status, so a verdict about a DIFFERENT sha (a race with another run)
+ * is refused too.
  */
 function runHealthGate(cwd: string): void {
-    spawnSync("bun", [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, "--ui-all"], {
+    spawnSync("bun", [HEALTH_MAIN, ...HEALTH_GATE_ARGS], {
         stdio: "inherit",
         cwd,
         env: netEnv(process.env),

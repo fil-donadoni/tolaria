@@ -3,8 +3,9 @@
 #
 # A dispatch runs `bun run release` on a `lane` runner, from the job's
 # worktree of the machine's primary checkout (the checkout holds the Convex
-# deployment the browser walk needs): `health-main --ui-all` — the full
-# offline gate AND the full `check:ui` walk — on `origin/<base>`'s tip, then,
+# deployment the browser step needs): `health-main --release` — the full
+# offline gate AND `check:game-download`, never a `check:ui` walk (issue
+# #6143) — on `origin/<base>`'s tip, then,
 # only on a GREEN verdict about that exact sha, a fast-forward of the release
 # branch (a plain `<sha>:refs/heads/<release>` refspec, never `--force`). The
 # push uses the owner's git identity (the runner runs as the owner, the

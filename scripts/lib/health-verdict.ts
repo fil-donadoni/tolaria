@@ -19,21 +19,20 @@
  * failed step stays RED — the reading may only ever downgrade a red that
  * provably overlapped a suspension, never invent one.
  *
- * `infra` is ALSO a `check:ui` step that exited `DEPLOYMENT_DOWN_EXIT`
- * (issue #4943): the local Convex backend did not answer, so the walk never
- * started. 7 of 12 REDs after issue #4913 put `check:ui --all` in the gate
- * were that one line, each raising the marker, blocking `queue:plan` and
- * spawning `health:fix` while nothing in the tree was wrong. The run
- * preflights the same probe (`convexPreflight`) so a down backend costs
+ * `infra` is ALSO a browser step that exited `DEPLOYMENT_DOWN_EXIT` (issue
+ * #4943): the local Convex backend did not answer, so the step never started.
+ * 7 of 12 REDs after issue #4913 put `check:ui --all` in the gate were that
+ * one line, each raising the marker, blocking `queue:plan` and spawning
+ * `health:fix` while nothing in the tree was wrong. A run that owes a browser
+ * step preflights the same probe (`convexPreflight`) so a down backend costs
  * seconds, not ~40 minutes of gates before the last step learns it.
  *
- * `infra` is ALSO a browser walk the ENVIRONMENT cut short (issue #4962):
- * `check:ui` exiting 2 (a fatal error before any surface was judged — the
- * sign-in the auth backend refused on aa785cf0), or exiting 1 with every
- * failing row `INFRA` (`walkRunVerdict`, `ui-gate/infra-verdict.ts`). A
- * walk the TREE failed is RED: the probation that once recorded it `infra` /
- * `ui-unproven` (issue #4962) is retired (issue #5378) — the walk now runs
- * only at release, so five consecutive walks would have taken weeks to arm.
+ * `infra` is ALSO a browser step the ENVIRONMENT cut short (issue #4962):
+ * exiting 2 (a fatal error before anything was measured — a sign-in the auth
+ * backend refused), or exiting 1 with every failing row `INFRA`
+ * (`walkRunVerdict`, `ui-gate/infra-verdict.ts`). One the TREE failed is RED.
+ * Since issue #6143 the one browser step is `check:game-download`, at
+ * `release`: no automated run walks `check:ui` any more.
  *
  * `infra` is ALSO a run the MACHINE could not carry (issue #4966): a gate that
  * waited out `machine.waitMaxS` on a saturated machine and never started
@@ -43,16 +42,15 @@
  * keeps the step RED — and so does the same step timing out on the very next
  * run (`repeatedMachineTimeout`): the excuse is the machine's once.
  *
- * `infra` is ALSO a walk whose deployment served code other than the walked
- * tree (issues #6132, #6133, `lib/deployment-skew.ts`): `convex dev` pushes
- * the PRIMARY checkout, and a primary moved off the base branch made every
- * `/game` cell `UNWALKED` on a green tip. The walk phase preflights it
- * (`PREFLIGHT_SKEW_STEP`), and `check:ui` exits `DEPLOYMENT_SKEW_EXIT` on one
- * it meets itself → `deployment-skew`.
+ * `infra` is ALSO a browser step facing a deployment that serves code other
+ * than the tip (issues #6132, #6133, `lib/deployment-skew.ts`): `convex dev`
+ * pushes the PRIMARY checkout, and a primary moved off the base branch fails
+ * a green tip's browser steps. The browser phase preflights it
+ * (`PREFLIGHT_SKEW_STEP`) → `deployment-skew`.
  *
- * Node builtins plus `lib/convex-reachable.ts` and `lib/deployment-skew.ts`
- * (both builtins only), `ui-gate/infra-verdict.ts` (which adds only those
- * two) and
+ * Node builtins plus `lib/convex-reachable.ts` (builtins only),
+ * `ui-gate/infra-verdict.ts` (which adds only it and `lib/deployment-skew.ts`,
+ * builtins only) and
  * `lib/machine-admission.ts` (builtins plus `lib/branches.ts`) —
  * `health-main.ts` carries the same constraint.
  */
@@ -60,7 +58,6 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEPLOYMENT_DOWN_EXIT } from "./convex-reachable";
-import { DEPLOYMENT_SKEW_EXIT } from "./deployment-skew";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
 import {
     MACHINE_SATURATED_EXIT,
@@ -73,19 +70,20 @@ export type HealthStatus = "running" | "green" | "red" | "infra";
 export type InfraCause =
     | "sleep"
     | "convex-down"
-    | "ui-walk"
+    /** A browser step the environment cut short (`walkRunVerdict`). */
+    | "browser-step"
     /** A gate waited out its bound on a saturated machine: nothing ran. */
     | "machine-saturated"
     /** A step ran, and failed ONLY by timing out, on a saturated machine. */
     | "machine-timeout"
-    /** The deployment served code other than the walked tree (issue #6132). */
+    /** The deployment served code other than the tip (issue #6132). */
     | "deployment-skew";
 
 /** The step name `last.json` records when the preflight found the backend
  *  down before any gate ran. */
 export const PREFLIGHT_CONVEX_STEP = "preflight:convex";
 
-/** The step name `last.json` records when the walk phase found the
+/** The step name `last.json` records when the browser phase found the
  *  deployment serving code other than the tip before any browser started
  *  (issue #6132). */
 export const PREFLIGHT_SKEW_STEP = "preflight:deployment-skew";
@@ -102,14 +100,14 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
     sleep: "the machine slept during the step; re-run `bun run health` awake",
     "convex-down":
         "the local Convex backend did not answer; start it with `bun run convex:ensure` (the AFK loop's next pass does), then the next health run re-gates the tip",
-    "ui-walk":
-        "the browser walk was cut short by the environment (a fatal check:ui error, or every failing row INFRA); the next health run re-walks the tip",
+    "browser-step":
+        "a browser step was cut short by the environment (a fatal exit, or every failing row INFRA); the next release re-runs it",
     "machine-saturated":
         "the machine stayed over machine.loadMax or under memory pressure past machine.waitMaxS, so nothing ran; see `bun run machine`, and the next health run re-gates the tip",
     "machine-timeout":
         "every failed test timed out while the machine was saturated; the next health run re-gates the tip, and the same step timing out again is RED",
     "deployment-skew":
-        "the local Convex deployment serves the primary checkout, and the primary is off the base branch, dirty under convex/, or does not contain the tip; put the primary back on the base branch (`git -C <primary> switch <base> && git -C <primary> merge --ff-only origin/<base>`), wait for convex dev to push, and the next health run re-walks the tip",
+        "the local Convex deployment serves the primary checkout, and the primary is off the base branch, dirty under convex/, or does not contain the tip; put the primary back on the base branch (`git -C <primary> switch <base> && git -C <primary> merge --ff-only origin/<base>`), wait for convex dev to push, and re-run `release`",
 };
 
 /** `{ sec = 1790866381, usec = 538510 } Thu Oct  1 …` → epoch ms, or null. */
@@ -176,11 +174,11 @@ export interface StepOutcome {
     ok: boolean;
     startedAt: number;
     lastSleepAt: number | null;
-    /** The `HEALTH_SCRIPTS` entry (`check:ui --all`). */
+    /** The `HEALTH_SCRIPTS` entry (`check:game-download`). */
     step?: string;
     /** The child's exit code; null when a signal killed it. */
     exitCode?: number | null;
-    /** The child's stdout + stderr — read for a `check:ui` step, and for a
+    /** The child's stdout + stderr — read for a browser step, and for a
      *  step that failed on a saturated machine. */
     output?: string;
     /** The step's own load / swap samples crossed a `machine.*` threshold
@@ -188,22 +186,22 @@ export interface StepOutcome {
     machineSaturated?: boolean;
 }
 
-/** The `HEALTH_SCRIPTS` entry's script name: `check:ui --all` → `check:ui`. */
+/** The `HEALTH_SCRIPTS` entry's script name: the word before any flag. */
 function scriptOf(step: string | undefined): string {
     return (step ?? "").split(/\s+/)[0];
 }
 
-/** The scripts that drive a browser against the deployment: the walk, and
- *  the per-game card-data download (issue #5618). Both speak `check:ui`'s
- *  exit contract — 0 pass, 1 red, `WALK_FATAL_EXIT` / `DEPLOYMENT_DOWN_EXIT`
- *  the run could not measure — and run off the heavy mutex, after it. */
+/** The scripts that drive a browser against the deployment: the per-game
+ *  card-data download (issue #5618). It speaks `check:ui`'s exit contract —
+ *  0 pass, 1 red, `WALK_FATAL_EXIT` / `DEPLOYMENT_DOWN_EXIT` the run could not
+ *  measure — and runs only at `release`, off the heavy mutex, after the
+ *  offline gates. `check:ui` itself is no health step (issue #6143). */
 const BROWSER_STEP_SCRIPTS: ReadonlySet<string> = new Set([
-    "check:ui",
     "check:game-download",
 ]);
 
-/** Whether a `HEALTH_SCRIPTS` entry is a browser step of the walk phase. */
-export function isWalkStep(step: string | undefined): boolean {
+/** Whether a `HEALTH_SCRIPTS` entry is a browser step (release-only). */
+export function isBrowserStep(step: string | undefined): boolean {
     return BROWSER_STEP_SCRIPTS.has(scriptOf(step));
 }
 
@@ -212,25 +210,24 @@ export function isWalkStep(step: string | undefined): boolean {
  *  exiting 3 says nothing about the backend. */
 export function infraCause(input: StepOutcome): InfraCause | null {
     if (input.ok) return null;
-    const walk = isWalkStep(input.step);
-    if (walk && input.exitCode === DEPLOYMENT_DOWN_EXIT) return "convex-down";
-    if (walk && input.exitCode === DEPLOYMENT_SKEW_EXIT)
-        return "deployment-skew";
+    const browser = isBrowserStep(input.step);
+    if (browser && input.exitCode === DEPLOYMENT_DOWN_EXIT)
+        return "convex-down";
     // A gate that never started: the machine stayed saturated past the bound.
     if (input.exitCode === MACHINE_SATURATED_EXIT) return "machine-saturated";
     if (input.lastSleepAt !== null && input.lastSleepAt >= input.startedAt)
         return "sleep";
     if (
-        walk &&
+        browser &&
         walkRunVerdict(input.exitCode ?? null, input.output ?? "") === "infra"
     )
-        return "ui-walk";
+        return "browser-step";
     // The machine explains a failure only when the failure is one it can
-    // cause: a suite whose every failed test timed out. (An unsettled walk
-    // is `ui-walk` above, saturated or not.) The caller excuses it ONCE —
-    // `repeatedMachineTimeout`.
+    // cause: a suite whose every failed test timed out. (An unsettled
+    // browser step is `browser-step` above, saturated or not.) The caller
+    // excuses it ONCE — `repeatedMachineTimeout`.
     if (
-        !walk &&
+        !browser &&
         input.machineSaturated &&
         timeoutOnlyFailure(input.output ?? "")
     )
@@ -267,8 +264,8 @@ export function repeatedMachineTimeout(
  * The verdict on one gate step. A step that passed is green whatever the
  * machine did — its tests ran to completion. A step that failed is `infra`
  * only when `infraCause` names a cause: the machine entered sleep at or after
- * the step started, `check:ui` found the deployment down, or the walk's own
- * receipt says the environment cut it short.
+ * the step started, a browser step found the deployment down, or its own
+ * output says the environment cut it short.
  */
 export function stepVerdict(input: StepOutcome): "green" | "red" | "infra" {
     if (input.ok) return "green";
@@ -276,20 +273,18 @@ export function stepVerdict(input: StepOutcome): "green" | "red" | "infra" {
 }
 
 /**
- * The preflight (issue #4943): before any gate runs, ask the deployment
- * `check:ui` will need — the same probe it makes. `convex-down` when the run
- * includes a `check:ui` step, a URL is configured, and it does not answer;
- * otherwise null and the gates run. No URL is left to `check:ui` to report:
- * a missing configuration is not a down backend.
+ * The preflight (issue #4943): before any gate runs, ask the deployment a
+ * browser step will need — the same probe it makes. `convex-down` when the
+ * run includes a browser step (`isBrowserStep`), a URL is configured, and it
+ * does not answer; otherwise null and the gates run. No URL is left to the
+ * step to report: a missing configuration is not a down backend.
  */
 export async function convexPreflight(input: {
     gates: readonly string[];
     url: string | undefined;
     probe: (url: string) => Promise<boolean>;
 }): Promise<InfraCause | null> {
-    const needsBackend = input.gates.some(
-        (g) => g.split(/\s+/)[0] === "check:ui"
-    );
+    const needsBackend = input.gates.some(isBrowserStep);
     if (!needsBackend || !input.url) return null;
     return (await input.probe(input.url)) ? null : "convex-down";
 }
@@ -348,20 +343,14 @@ export function infraNotice(r: InfraRecord): string {
     return `release health is INFRA @ ${sha} (at ${r.failedStep ?? "unknown step"}) — the tip is unproven, not red: ${r.reason ?? "re-run `bun run health`"}`;
 }
 
-/** The walk's state as `health:status` prints it, separately from the
- *  offline verdict. */
-export type UiWalkState =
+/** The browser steps' state as `health:status` prints it, separately from
+ *  the offline verdict (issue #4962; the walk retired, issue #6143). */
+export type BrowserStepsState =
     | "green"
     | "red"
     | "infra"
-    /** The offline gates passed and the walk is owed (`--phase=walk`). */
-    | "pending"
-    /** A process is walking now — another `--phase=walk` must not start. */
-    | "walking"
-    /** Batch health owes no walk: none ran (issue #5378). */
+    /** A process is running them now on this tip. */
+    | "running"
+    /** Batch health owes none: they are `release`'s (issue #5378). */
     | "skipped"
-    /** A walk ran on a machine whose walk is advisory (`ui-walk.gating`
-     *  false, issue #5465): recorded under `context=ui-walk`, not the
-     *  health verdict. `release` still owes its own full walk. */
-    | "advisory"
     | "not run";

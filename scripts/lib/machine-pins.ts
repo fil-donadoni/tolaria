@@ -2,7 +2,7 @@
  * Machine pins (issue #5590): every environment variable that overrides, for
  * one process, a decision a script takes from THIS machine — its platform,
  * its load, its slice of `tolaria.config.json` (which runner it is, which
- * store it writes, whether its walk gates). Topology B' (ADR 0154) runs the
+ * store it writes). Topology B' (ADR 0154) runs the
  * same tree on two machines that answer those differently, so a test that
  * spawns a script without a pin passes on one and reds on the other: issue
  * #5465's walk test landed green on the MacBook and went RED on the Huawei.
@@ -28,9 +28,6 @@ export const MACHINE_PINS = {
     }),
     // The land-runner (issue #5469): runs nowhere — no test merges.
     TOLARIA_LAND_RUNNER_PLATFORM: "",
-    // The browser walk (issue #5465): it gates, as on the MacBook that
-    // releases — not advisory because the suite happens to run on Linux.
-    TOLARIA_UI_WALK_GATING: "true",
 } as const;
 
 export type MachinePin = keyof typeof MACHINE_PINS;

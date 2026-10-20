@@ -28,10 +28,6 @@ const PLATFORM_READS: Record<string, Read> = {
         pin: "TOLARIA_LAND_RUNNER_PLATFORM",
         readIn: "scripts/lib/land-runner.ts",
     },
-    "scripts/lib/health-verdict-walk.ts": {
-        pin: "TOLARIA_UI_WALK_GATING",
-        readIn: "scripts/lib/health-verdict-walk.ts",
-    },
     "scripts/convex-ensure.ts": {
         mechanics: "systemd units exist on Linux only",
     },

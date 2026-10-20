@@ -22,7 +22,7 @@
  */
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { isWalkStep } from "./health-verdict";
+import { isBrowserStep } from "./health-verdict";
 import { readMachineSample, type MachineSample } from "./machine-admission";
 
 export interface HealthStep {
@@ -62,8 +62,8 @@ export interface StepResult {
     /** The signal that killed it, when one did — an OOM-killed `test` says so. */
     signal: NodeJS.Signals | null;
     elapsedMs: number;
-    /** The child's stdout then stderr, as the log received them — what the
-     *  walk's verdict is read from (`walkRunVerdict`, issue #4962). */
+    /** The child's stdout then stderr, as the log received them — what a
+     *  browser step's verdict is read from (`walkRunVerdict`, issue #4962). */
     output: string;
     /**
      * THIS run's machine: one reading before the spawn, one per liveness
@@ -86,23 +86,21 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * The full gate, in series, stopping at the first red — the name of the
  * failing entry is what the RED verdict records as `failedStep`.
  *
- * `check:ui --all` (the full browser walk, issue #4913) is the one step that
- * is not offline: it needs the local deployment and a browser, which is why
- * it is not in `check:all` (`docs/agents/quality-gates.md` § check:ui). It is
- * LAST, after every offline verdict, and it is the backstop for what a PR's
- * SCOPED receipt accepts not to see (ADR 0131 amendment): a PR walks the
- * surfaces its diff can reach, `release` (`--ui-all`) walks them all — a
- * batch run owes no walk (issue #5378). It takes the
- * machine-wide `check:ui` lane (`ui-admission.ts`), a separate mutex from the
- * heavy gate's, so a PR's own run and this one never overlap on the backend.
+ * `check:game-download` (issue #5618) is the one step that is not offline: it
+ * needs the local deployment and a browser, which is why it is not in
+ * `check:all`. It is LAST, after every offline verdict, and it is a RELEASE
+ * step: `bun run release` (`--release`) runs it, batch health never does
+ * (issue #5378). It runs OUTSIDE the heavy-mutex hold (issue #4962), in its
+ * own worktree when the offline half already stands, and takes the
+ * machine-wide browser lane (`ui-admission.ts`). The verdict is still ONE
+ * record per tip: offline green + browser green = GREEN. A browser step the
+ * environment cut short is `infra` (`lib/health-verdict.ts`); one the tree
+ * failed is RED.
  *
- * The walk runs OUTSIDE the heavy-mutex hold (issue #4962): a gate that holds
- * the mutex for the offline gates (`health-main --phase=offline`) releases it
- * and walks afterwards (`--phase=walk`) under the `check:ui` lane alone — a 12–60 min browser walk needs no suite's CPU budget, and every
- * queued `land` used to wait it out. `splitHealthGates` is that cut. The
- * verdict is still ONE record per tip: offline green + walk green = GREEN.
- * A walk the environment cut short is `infra` (`lib/health-verdict.ts`); one
- * the tree failed is RED.
+ * `check:ui --all`, the every-surface walk, is in NO automated run (issue
+ * #6143): 52 walks over three weeks found zero tree defects, and a layout
+ * change comes only from a `src/**` diff, which pays its own scoped walk. It
+ * stays a command run by hand (`PR_RECEIPT_GUARDS` below).
  *
  * THE RULE IS COST, NOT PHASE (issue #4963): a guard whose measured cost is
  * ≤ 10 s on the heavy tier belongs in the lane (`check:lane`, paid once by
@@ -138,7 +136,6 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:targets",
     "check:test-hygiene",
     "test",
-    "check:ui --all",
     "check:game-download",
 ];
 
@@ -159,20 +156,11 @@ export const LANE_COST_BUDGET_S = 10;
 export const HEALTH_ONLY_GUARDS: Readonly<
     Record<string, { measuredCostS: number; measured: string }>
 > = {
-    // The full browser walk (issue #4913). A PR pays its own SCOPED run by
-    // hand and pastes the receipt (`chrome-debug.md`); the lane cannot,
-    // because it needs a deployment and a browser and `check:lane` is offline.
-    "check:ui": {
-        measuredCostS: 879,
-        measured:
-            "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
-    },
     // A game's card-data download on a production build (issue #5618): a
     // `vite build`, then a Solo and a Bot game in Chromium against the
-    // deployment — a browser step of the walk phase (`isWalkStep`), offline
-    // `check:lane` cannot run it. The walk phase runs on `release` (and
-    // `--ui-all`), never in batch health (`planHealthWalk`): a regression
-    // waits on the base for the next release.
+    // deployment — a browser step (`isBrowserStep`), offline `check:lane`
+    // cannot run it. `release` runs it (`--release`), never batch health: a
+    // regression waits on the base for the next release.
     "check:game-download": {
         measuredCostS: 34,
         measured:
@@ -227,27 +215,51 @@ export const MAINTENANCE_SCRIPTS: Readonly<
     },
 };
 
+/**
+ * The `check:*` scripts a PR pays BY HAND and proves with a pasted receipt
+ * that `land` re-derives — never a lane step (it needs a deployment and a
+ * browser; `check:lane` is offline), never a health or `release` step (issue
+ * #6143). `check-lane.test.ts`'s census accepts a `check:*` script here as
+ * placed, and reds on one that is also in a lane, in `HEALTH_ONLY_GUARDS` or
+ * among `HEALTH_SCRIPTS`.
+ */
+export const PR_RECEIPT_GUARDS: Readonly<
+    Record<string, { measuredCostS: number; measured: string; why: string }>
+> = {
+    // The browser lane (issue #2580, ADR 0131): a no-flag run walks the
+    // surfaces the diff reaches and prints a `SCOPED` receipt; `--all` walks
+    // every surface, by hand (the owner, e.g. before a UI revamp).
+    "check:ui": {
+        measuredCostS: 879,
+        measured:
+            "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10); 39 green full walks 2026-09-30..10-20, mean ~17 min",
+        why: "a PR whose diff can move layout pastes its receipt (`chrome-debug.md`); the full walk found zero tree defects in 52 automated runs (issue #6143)",
+    },
+};
+
 /** The `bun run` argv for one `HEALTH_SCRIPTS` entry: the script name, then
- *  the flags the entry carries after it (`check:ui --all`). */
+ *  any flags the entry carries after it. */
 export function healthStepArgs(entry: string): string[] {
     return ["run", ...entry.split(/\s+/)];
 }
 
-/** The browser walk's own steps: a fresh worktree needs its bootstrap first. */
-export const WALK_BOOTSTRAP = "worktree:init";
+/** What a fresh step worktree runs first (the browser steps', the nightly
+ *  refresh's and the audits'): its bootstrap. */
+export const WORKTREE_BOOTSTRAP = "worktree:init";
 
 /**
  * One run's gates cut in two (issue #4962): `offline` — everything that is not
- * the browser walk, in order, the Bot gates included — and `walk`, the
- * `check:ui` entries, which run after the heavy mutex is released.
+ * a browser step, in order, the Bot gates included — and `browser`, the
+ * release-only steps (`isBrowserStep`), which run after the heavy mutex is
+ * released and only under `--release` (issue #6143).
  */
 export function splitHealthGates(gates: readonly string[]): {
     offline: string[];
-    walk: string[];
+    browser: string[];
 } {
     return {
-        offline: gates.filter((g) => !isWalkStep(g)),
-        walk: gates.filter((g) => isWalkStep(g)),
+        offline: gates.filter((g) => !isBrowserStep(g)),
+        browser: gates.filter((g) => isBrowserStep(g)),
     };
 }
 
