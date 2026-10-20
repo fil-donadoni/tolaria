@@ -1,12 +1,12 @@
-# The merge queue (ADR 0156 §3 and §8, Amendment I; issue #5642) — SHADOW
-# phase: Mergify queues only a PR labelled `queue:shadow`, which `land:ready`
-# adds whenever this queue would admit the PR (issue #5952); the land-runner
-# skips those (`planTick`), so each PR has exactly one merger. Cut-over drops
-# the `queue:shadow` condition and retires the land-runner.
+# The merge queue (ADR 0156 §3 and §8, Amendment I; issue #5642). Since the
+# cut-over (issue #5643) Mergify is the only merger of a `ready-to-land` PR
+# and the land-runner is retired. `land:ready` still adds `queue:shadow` to a
+# PR the queue admits: a marker `pr-refresh` reads (issue #5983), no longer a
+# condition here.
 #
 # Mergify reads this file from the BASE branch: a PR cannot loosen the rules
 # it is judged by, and a PR touching `.github/` or this file never enters the
-# queue (`land:ready` hands it to the land-runner). The structure guard pins the shape:
+# queue: the owner merges it by hand. The structure guard pins the shape:
 # scripts/ci/workflow-structure.ts, rules `queue-entry`, `queue-merge`,
 # `queue-shape`, `queue-dequeue`. docs/guides/github-pipeline.md § The merge
 # queue.
@@ -24,15 +24,18 @@ merge_protections_settings:
     # Queue a PR as soon as it is labelled; the queue rule's
     # `queue_conditions` decide whether it may enter.
     auto_merge_conditions:
-        - label=queue:shadow
         - label=ready-to-land
 
 queue_rules:
     - name: default
       queue_conditions:
-          - label=queue:shadow
           - label=ready-to-land
           - -label=land-failed
+          # A PR whose own advisory lane is already red would only red the
+          # draft behind it (issue #5643). Self-healing: a `pr-fixup` push
+          # re-runs it on the new head. `pr-check` skips the queue's drafts,
+          # so this condition never dequeues a queued PR (issue #5978).
+          - -check-failure=check:lane (advisory)
           - check-success=trusted-author
           - check-success=base-health
           - -files~=^\.github/
@@ -70,11 +73,18 @@ pull_request_rules:
     # PR body would dequeue every PR (issue #5978). `land:ready` runs them
     # before the hand-off (issue #5956); one red after it (a body edit, a
     # push) is the same repair pick as a dequeue (issue #5960).
+    #
+    # A red advisory lane on the PR's head is the same pick (issue #5643): a
+    # PR whose own lane is red would only red the draft behind it. It is a
+    # rule, not a `-check-failure` queue condition, because `pr-check` runs
+    # on the queue's drafts too, and a condition red there dequeues the PR
+    # with no `land-failed` (issue #5978's stranding). A draft carries no
+    # `ready-to-land`, so this rule never fires on one.
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
-          - label=queue:shadow
           - label=ready-to-land
           - or:
+                - check-failure=check:lane (advisory)
                 - check-failure=ui-receipt
                 - check-failure=scenario
                 - check-failure=retired-rows
