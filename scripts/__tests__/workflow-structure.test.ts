@@ -63,6 +63,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   lane:
+    name: check:lane (advisory)
+    if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -114,9 +116,9 @@ merge_queue:
 queue_rules:
   - name: default
     queue_conditions:
-      - label=queue:shadow
       - label=ready-to-land
       - -label=land-failed
+      - -check-failure=check:lane (advisory)
       - check-success=trusted-author
       - check-success=base-health
       - -files~=^\\.github/
@@ -606,11 +608,39 @@ describe("workflow structure guard", () => {
         }
     });
 
+    it("refuses a queue rule still requiring the shadow label (issue #5643)", () => {
+        const mergify = edit(
+            MERGIFY,
+            "      - label=ready-to-land\n",
+            "      - label=ready-to-land\n      - label=queue:shadow\n"
+        );
+        expect(rules(fixture({ mergify }))).toEqual(["queue-entry"]);
+    });
+
+    it("refuses an advisory lane that runs on the queue's drafts (issue #5643)", () => {
+        const hosted = edit(
+            HOSTED,
+            "    if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}\n",
+            ""
+        );
+        expect(
+            checkStructure(fixture({ hosted })).map(formatViolation)
+        ).toEqual([
+            ".github/workflows/hosted.yml (job lane): queue-entry: the job posting `check:lane (advisory)` must skip the queue's drafts (an `if:` on `mergify/merge-queue/`): the queue's entry reads that check",
+        ]);
+        const onlyDrafts = edit(
+            HOSTED,
+            "!startsWith(github.head_ref",
+            "startsWith(github.head_ref"
+        );
+        expect(rules(fixture({ hosted: onlyDrafts }))).toEqual(["queue-entry"]);
+    });
+
     it("refuses a queue rule that does not gate entry", () => {
         for (const line of [
-            "      - label=queue:shadow\n",
             "      - label=ready-to-land\n",
             "      - -label=land-failed\n",
+            "      - -check-failure=check:lane (advisory)\n",
             "      - check-success=trusted-author\n",
             "      - check-success=base-health\n",
             "      - -files~=^\\.github/\n",

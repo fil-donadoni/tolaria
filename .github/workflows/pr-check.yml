@@ -34,6 +34,11 @@ concurrency:
 jobs:
     lane:
         name: check:lane (advisory)
+        # Not on the merge queue's drafts: `queue-lane` gates those, and
+        # Mergify re-reads `queue_conditions` on a draft, so a red here would
+        # dequeue the PR on a failed condition with no `land-failed` (issue
+        # #5978's stranding; `.mergify.yml`, issue #5643).
+        if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
         # `actions: write` only to dispatch pr-fixup below (issue #5640).

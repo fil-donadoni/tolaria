@@ -74,9 +74,11 @@
  *     in a workflow holding a self-hosted job, or in a shared action: a lane
  *     on the owner's machines gates, and a gate never skips the corpus.
  *   - `queue-entry` — a `.mergify.yml` queue rule whose entry conditions do not
- *     require `ready-to-land`, `queue:shadow` (the shadow phase, issue #5642),
- *     no `land-failed`, `trusted-author`, `base-health` and the exclusion of
- *     `.github/` and `.mergify.yml` (ADR 0156 §8 barriers 3–4).
+ *     require `ready-to-land`, no `land-failed`, no red advisory lane (issue
+ *     #5643), `trusted-author`, `base-health` and the exclusion of `.github/`
+ *     and `.mergify.yml` (ADR 0156 §8 barriers 3–4); one that still requires
+ *     `queue:shadow` (the shadow phase ended at the cut-over); or an advisory
+ *     lane job that runs on the queue's drafts.
  *   - `queue-merge` — a queue rule whose merge conditions are anything but
  *     the queue lane alone (Amendment I: the entry gates were proven on the
  *     PR, and `pr-gate` posts both green on Mergify's draft, issue #5978).
@@ -576,12 +578,23 @@ function checkAction(f: SourceFile, out: Violation[]): void {
     );
 }
 
+/** The check run `pr-check`'s lane job posts on a PR's head. */
+export const ADVISORY_LANE_CHECK = "check:lane (advisory)";
+/** The branch prefix of the Mergify queue's drafts. */
+const QUEUE_DRAFT_PREFIX = "mergify/merge-queue/";
+/** An `if:` that skips the queue's drafts — negated, so a positive
+ *  `startsWith` (run ONLY on drafts) never passes. */
+const SKIPS_QUEUE_DRAFTS =
+    /!\s*startsWith\(\s*github\.head_ref\s*,\s*'mergify\/merge-queue\/'\s*\)/;
+
 /** Mergify condition strings that must stand at the top level (AND) of
- *  every queue rule's entry conditions. The shadow label is Phase 1's (issue
- *  #5642): cut-over removes it here and in `.mergify.yml` together. */
+ *  every queue rule's entry conditions. */
 const QUEUE_ENTRY: { what: string; re: RegExp }[] = [
     { what: `label=${READY_LABEL}`, re: labelCondition(READY_LABEL) },
-    { what: `label=${SHADOW_LABEL}`, re: labelCondition(SHADOW_LABEL) },
+    {
+        what: `-check-failure=${ADVISORY_LANE_CHECK} (a PR whose own lane is red, issue #5643)`,
+        re: /^-check-failure\s*=\s*check:lane \(advisory\)$/,
+    },
     {
         what: `-label=${FAILED_LABEL} (a rejected PR re-enters only through a repair)`,
         re: labelCondition(FAILED_LABEL, "-"),
@@ -685,6 +698,11 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
                     "queue-entry",
                     `queue rule \`${name}\`: queue_conditions lack ${need.what}`
                 );
+        if (conds.some((c) => labelCondition(SHADOW_LABEL).test(c)))
+            v(
+                "queue-entry",
+                `queue rule \`${name}\`: queue_conditions require \`${SHADOW_LABEL}\` — the shadow phase ended at the cut-over (issue #5643)`
+            );
         const merge = isObj(rule) ? asArray(rule.merge_conditions) : [];
         if (
             merge.length !== 1 ||
@@ -723,8 +741,40 @@ export function checkStructure(input: StructureInput): Violation[] {
     );
     for (const f of input.workflows) checkWorkflow(f, localActions, out);
     for (const f of input.actions) checkAction(f, out);
-    if (input.mergify) checkMergify(input.mergify, out);
+    if (input.mergify) {
+        checkMergify(input.mergify, out);
+        checkAdvisoryLaneSkipsDrafts(input.workflows, out);
+    }
     return out;
+}
+
+/** The queue's entry reads the advisory lane, and Mergify re-reads entry
+ *  conditions on its draft: a lane run on a draft that goes red dequeues the
+ *  PR on a failed condition, with no `land-failed` (issue #5978's stranding).
+ *  So the job posting that check must skip the queue's drafts (issue #5643). */
+function checkAdvisoryLaneSkipsDrafts(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    for (const f of workflows) {
+        let doc: unknown;
+        try {
+            doc = parse(f.text);
+        } catch {
+            continue; // reported by checkWorkflow
+        }
+        const jobs = isObj(doc) && isObj(doc.jobs) ? doc.jobs : {};
+        for (const [id, job] of Object.entries(jobs)) {
+            if (!isObj(job) || job.name !== ADVISORY_LANE_CHECK) continue;
+            if (!SKIPS_QUEUE_DRAFTS.test(String(job.if ?? "")))
+                out.push({
+                    file: f.path,
+                    job: id,
+                    rule: "queue-entry",
+                    message: `the job posting \`${ADVISORY_LANE_CHECK}\` must skip the queue's drafts (an \`if:\` on \`${QUEUE_DRAFT_PREFIX}\`): the queue's entry reads that check`,
+                });
+        }
+    }
 }
 
 export function formatViolation(v: Violation): string {
