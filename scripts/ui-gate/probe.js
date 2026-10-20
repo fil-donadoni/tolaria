@@ -106,7 +106,57 @@ window.__tolariaProbe = () => {
         }
         return false;
     };
-    const probe = (list) => {
+    /**
+     * WHERE each Floor broke (issue #6145): a count says a card is zero-size,
+     * the box says which one and where. Every Floor bucket records its
+     * offenders here — selector, label and viewport rect, at most
+     * `OFFENDERS_PER_FLOOR` each — so a failing cell's screenshot can outline
+     * them (`overlay.js`). A zero-size or stranded box is reported as measured:
+     * the overlay, not the probe, decides how to draw a box nobody can see.
+     */
+    const OFFENDERS_PER_FLOOR = 6;
+    const offenders = [];
+    const selectorOf = (e) => {
+        let s = e.tagName.toLowerCase();
+        if (e.id) return (s + "#" + e.id).slice(0, 80);
+        const slot = e.getAttribute("data-slot");
+        if (slot) s += '[data-slot="' + slot + '"]';
+        const cls = (e.className || "")
+            .toString()
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2);
+        if (cls.length) s += "." + cls.join(".");
+        return s.slice(0, 80);
+    };
+    const offend = (floor, e, r, why) => {
+        if (
+            offenders.filter((o) => o.floor === floor).length >=
+            OFFENDERS_PER_FLOOR
+        )
+            return;
+        const box = r || e.getBoundingClientRect();
+        offenders.push({
+            floor,
+            sel: selectorOf(e),
+            t: (
+                e.getAttribute("alt") ||
+                e.getAttribute("aria-label") ||
+                e.textContent ||
+                ""
+            )
+                .trim()
+                .slice(0, 24),
+            x: Math.round(box.left),
+            y: Math.round(box.top),
+            w: Math.round(box.width),
+            h: Math.round(box.height),
+            why: why || "",
+        });
+    };
+    /** `kind` names the Floor family the offenders go to: `cards`/`ctrls`. */
+    const probe = (list, kind) => {
         const o = {
             n: list.length,
             zero: 0,
@@ -117,7 +167,10 @@ window.__tolariaProbe = () => {
         for (const e of list) {
             const r = e.getBoundingClientRect();
             if (r.width < 4 || r.height < 4) {
-                if (!undisplayed(e)) o.zero++;
+                if (!undisplayed(e)) {
+                    o.zero++;
+                    offend(kind + "Zero", e, r);
+                }
                 continue;
             }
             // Hit-test the centre of the element's VISIBLE INTERSECTION with
@@ -186,7 +239,10 @@ window.__tolariaProbe = () => {
                 );
                 if (t && !e.contains(t) && !t.contains(e)) o.occ++;
             } else if (port) o.reachable++;
-            else o.stranded++;
+            else {
+                o.stranded++;
+                offend(kind + "Stranded", e, r);
+            }
         }
         return o;
     };
@@ -345,6 +401,37 @@ window.__tolariaProbe = () => {
     }
 
     const hOverflow = document.documentElement.scrollWidth - V;
+    // The boxes that START the sideways scroll: past the right edge, under a
+    // parent that is not — the outermost culprit, not every descendant it
+    // drags along. A page can scroll sideways with no such box (a margin,
+    // a transform), so the document itself stands in when none is found:
+    // a nonzero Floor always names at least one rect.
+    if (hOverflow > 0) {
+        for (const e of document.querySelectorAll("body *")) {
+            const r = e.getBoundingClientRect();
+            if (r.width <= 0 || r.right <= V + 1) continue;
+            const parent = e.parentElement;
+            if (
+                parent &&
+                parent !== document.body &&
+                parent.getBoundingClientRect().right > V + 1
+            )
+                continue;
+            offend("hOverflow", e, r, "right edge " + Math.round(r.right));
+        }
+        if (!offenders.some((o) => o.floor === "hOverflow"))
+            offend(
+                "hOverflow",
+                document.documentElement,
+                {
+                    left: 0,
+                    top: 0,
+                    width: document.documentElement.scrollWidth,
+                    height: H,
+                },
+                "scrollWidth " + document.documentElement.scrollWidth
+            );
+    }
 
     // A decorative image (AmbientPageGround's random full-bleed art,
     // FeaturedDeckArt's hero splash, the library-order deck mock, …) is not a
@@ -465,12 +552,19 @@ window.__tolariaProbe = () => {
         const have = RENDITION_W[variant];
         if (!have) {
             softUnknown++;
+            offend("cardsSoft", e, r, "unknown rendition " + variant);
             continue;
         }
         const need = layoutW * devicePixelRatio;
         // 1px of slack for the sub-pixel rounding a fractional layout width
         // produces; a real under-declaration is never within 1 device pixel.
-        if (have + 1 < need)
+        if (have + 1 < need) {
+            offend(
+                "cardsSoft",
+                e,
+                r,
+                "needs " + Math.round(need) + "px, has " + have + " " + variant
+            );
             soft.push({
                 t: (e.getAttribute("alt") || e.tagName).trim().slice(0, 24),
                 w: Math.round(layoutW),
@@ -486,6 +580,7 @@ window.__tolariaProbe = () => {
                 // box and has not re-picked.
                 dec: e.getAttribute("sizes") || "",
             });
+        }
     }
 
     // ── Square-corner check (ADR 0103 §7, issue #2724) ──
@@ -583,7 +678,13 @@ window.__tolariaProbe = () => {
                 radiusPx(cs.borderTopLeftRadius || cs.borderRadius, nr.width)
             );
         }
-        if (best < MIN_RADIUS_FRACTION * r.width)
+        if (best < MIN_RADIUS_FRACTION * r.width) {
+            offend(
+                "cardsSquare",
+                e,
+                r,
+                "radius " + Math.round(best * 100) / 100
+            );
             cornerSquare.push({
                 t: (e.getAttribute("alt") || e.tagName).trim().slice(0, 24),
                 cls: (e.className || "").toString().slice(0, 40),
@@ -591,6 +692,7 @@ window.__tolariaProbe = () => {
                 h: Math.round(r.height),
                 r: Math.round(best * 100) / 100,
             });
+        }
     }
 
     // Fixed/sticky chrome eating the top and bottom of the viewport.
@@ -618,7 +720,7 @@ window.__tolariaProbe = () => {
         topChrome: Math.round(topChrome),
         bottomChrome: Math.round(bottomChrome),
         mainTop: Math.round(mr.top),
-        cards: probe(imgs),
+        cards: probe(imgs, "cards"),
         cardW,
         cardsSquareN: cornerSquare.length,
         cardsSquare: cornerSquare.slice(0, 6),
@@ -626,7 +728,7 @@ window.__tolariaProbe = () => {
         cardsSoft: soft.slice(0, 6),
         cardsSoftPending: softPending,
         cardsSoftUnknown: softUnknown,
-        ctrls: probe(ctrls),
+        ctrls: probe(ctrls, "ctrls"),
         starvedN: starved.length,
         starved: starved.slice(0, 4),
         smallN: small.length,
@@ -634,5 +736,6 @@ window.__tolariaProbe = () => {
         shellBand,
         tinyText: tiny,
         tinyEx: [...tinyEx],
+        offenders,
     };
 };
