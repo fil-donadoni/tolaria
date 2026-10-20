@@ -25,8 +25,10 @@ import {
 
 /** Steps the lane plans that are NOT seconds-cost, by id, with the reason. */
 export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
-    "check:pr":
+    "check:pr:app":
         "the `full` lane's verbatim delegation runs the whole check:all:inner — minutes, the runner's to pay",
+    "vitest(bot)":
+        "the `full` lane's bot half (issue #6149) — up to the whole bot fast lane, ~122 s at land; the runner's to pay",
 };
 
 /**

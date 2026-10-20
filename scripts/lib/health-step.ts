@@ -146,8 +146,8 @@ export const HEALTH_SCRIPTS: readonly string[] = [
  * The guards no SCOPED lane (`engine`, `skin`, `cards`, `docs`) runs, each
  * with its MEASURED cost — the only legal reason to keep a guard out of
  * `check:lane` (issue #4963: ≤ 10 s on the heavy tier belongs in the lane;
- * ADR 0154 §3). The `full` lane is `check:pr` verbatim and may still compose
- * one of them. `check-lane.test.ts`'s census reds on a `check:*` package
+ * ADR 0154 §3). The `full` lane is `check:pr` verbatim but its bot half
+ * (ADR 0154 §11) and may still compose one of them. `check-lane.test.ts`'s census reds on a `check:*` package
  * script that is in neither a lane plan nor this list, and on an entry here
  * whose measured cost is within the lane budget or that a scoped lane runs.
  *
@@ -190,8 +190,8 @@ export const HEALTH_ONLY_GUARDS: Readonly<
     // `bot-node` + `bot-dom` — `test:bot` with `HEAVY_BOT_GLOB` empty since
     // issue #2436. Its byte-identity pins (mana census, forced-pass pins) were
     // 29 of 34 vitest reds at `land` in 14 days, all base drift. Health runs
-    // it as `test` → `test:bot`; the `full` lane still runs it inside
-    // `check:pr` → `check:guards`.
+    // it as `test` → `test:bot`; the `full` lane runs the files a diff
+    // reaches as `vitest(bot)`, whole on a Bot input (issue #6149).
     "test:bot": {
         measuredCostS: 100,
         measured:

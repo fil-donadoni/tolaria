@@ -26,7 +26,9 @@
  * file matching `DIRECTORY_WALK` is a row here or in `CENSUS_WALK_EXEMPT`
  * with the reason its walk censuses no repo corpus. SCOPE: `scripts/__tests__`
  * only, where the tree's census guards live; a directory-walking test under
- * `convex/` or `src/` is not seen by the guard and stays health's.
+ * `convex/` or `src/` is not seen by the guard and stays health's unless a
+ * row declares it by hand. A `*.bot.test.ts` row is admitted only into the
+ * `full` lane's bot half (`botRelatedTests`, issue #6149).
  */
 
 export interface CensusTest {
@@ -262,6 +264,13 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     {
         test: "scripts/__tests__/weak-sole-assertion.test.ts",
         admits: /^(convex|src|scripts|dashboard)\//,
+    },
+    // BOT census (issue #6149): the activation-cost leg claims name a file and
+    // a symbol under convex/gre/ — read through `fs`, never imported. Rides
+    // the `full` lane's bot half (`botRelatedTests`), never a general run.
+    {
+        test: "convex/gre/__tests__/costLegClaims.bot.test.ts",
+        admits: /^convex\/gre\//,
     },
     // .github/ workflows and actions, .mergify.yml, the job harness (issue #5636)
     {

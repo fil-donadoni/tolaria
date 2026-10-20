@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import vitestConfig from "../../vitest.config";
-import { classifyLane } from "../check-lane";
+import { BOT_FAST_LANE, classifyLane } from "../check-lane";
 
 /**
  * `check:guards` scope guard — the light gate must run the WHOLE node project.
@@ -111,6 +111,46 @@ describe("check:guards scope — the light gate runs the whole node project", ()
         // inside the node project — either alone would catch a bad citation,
         // and the pair survives one of them being dropped.
         expect(guards).toContain("cr:lint");
+    });
+});
+
+/**
+ * Issue #6149 — the `full` lane runs `check:pr` verbatim EXCEPT its bot half:
+ * `check:pr:app` for the rest, the bot fast lane scoped by the import graph
+ * (`vitest(bot)`). The `:app` scripts are copies, so they are pinned here to
+ * the scripts they cut: a guard added to `check:pr` or to `check:guards`' app
+ * half that the copy lacks would be a `full`-lane check that silently stops
+ * running at land.
+ */
+describe("check:pr:app is check:pr minus the bot fast lane (issue #6149)", () => {
+    const BOT_SEGMENT =
+        "TOLARIA_BOT_FAST=1 vitest run --project bot-node --project bot-dom";
+
+    it("check:guards is the bot fast lane, then check:guards:app's text exactly", () => {
+        expect(pkg.scripts["check:guards"]).toBe(
+            `${BOT_SEGMENT} && ${pkg.scripts["check:guards:app"]}`
+        );
+    });
+
+    it("check:pr:app is check:pr with check:guards:app in check:guards' place", () => {
+        const pr = pkg.scripts["check:pr"];
+        expect(pr.match(/\bcheck:guards\b/g)).toHaveLength(1);
+        expect(pkg.scripts["check:pr:app"]).toBe(
+            pr.replace(/\bcheck:guards\b/, "check:guards:app")
+        );
+    });
+
+    it("the full lane runs check:pr:app and the bot segment the app half cut", () => {
+        expect(BOT_FAST_LANE).toBe(
+            BOT_SEGMENT.replace("vitest run", "bunx vitest run")
+        );
+        const full = classifyLane(["package.json"]);
+        expect(full.run.map((c) => c.command)).toEqual(
+            expect.arrayContaining(["bun run check:pr:app", BOT_FAST_LANE])
+        );
+        expect(full.run.map((c) => c.command)).not.toContain(
+            "bun run check:pr"
+        );
     });
 });
 
