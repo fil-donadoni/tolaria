@@ -8,6 +8,7 @@
     },
     "scripts": {
         "afk:dispatch": "bun scripts/afk-dispatch.ts",
+        "afk:pass": "bun scripts/afk-pass.ts",
         "agents:build": "bun scripts/build-agents-md.ts",
         "ai:allowlist": "bun scripts/ai-effects-allowlist.ts",
         "build": "bun run catalogue:ensure && tsc -b && vite build",

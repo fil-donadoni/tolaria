@@ -1,0 +1,116 @@
+# afk-pass — ONE `/next-ticket` pass as a job (ADR 0156 Amendment I § The
+# pass is dispatched, not just triggered; issue #5650). Only `afk-dispatch.yml`
+# starts it, with the issue it already claimed, the issue's model tier, whether
+# the pass resumes a dead pass's pushed work, and — for a resume — the host
+# that ran it. `bun run afk:pass` (scripts/afk-pass.ts; decisions in
+# scripts/lib/afk-pass.ts) runs `claude -p "/next-ticket N"` in the loop's
+# environment, bounded by `AFK_PASS_TIMEOUT_MIN` (default 180, at most 190 —
+# under this job's `timeout-minutes`, so the record survives a long pass),
+# pushes a stopped pass's work to its branch, and writes the pass record.
+#
+# The permission mode is the repository variable `AFK_PASS_CLAUDE_ARGS`, the
+# OWNER's call with no default: unset, the job refuses before any session
+# starts (docs/guides/github-pipeline.md § afk-pass).
+#
+# The run name `afk-pass #<N>` is how the dispatcher reads which claim a run
+# holds (`PASS_RUN_PREFIX`). The record (`afk-pass-record`, `record.json`) is
+# uploaded whatever happened: a finished run without one holds the dispatcher.
+# A usage limit is a green run whose record names the reset time.
+#
+# Public logs: Claude's output stays on the machine
+# (`~/.cache/tolaria/jobs/<run id>-<attempt>/`); the log and the summary carry
+# numbers only. The job's last act dispatches the dispatcher, which refills
+# the slot — `continue-on-error`, since a disabled dispatcher (the kill
+# switch) refuses the dispatch and must not fail the pass.
+#
+# Triggers an outsider cannot fire: a dispatch only.
+name: afk-pass
+run-name: afk-pass #${{ inputs.issue }}${{ inputs.resume && ' (resume)' || '' }}
+
+on:
+    workflow_dispatch:
+        inputs:
+            issue:
+                description: the issue the dispatcher claimed
+                required: true
+            model:
+                description: "the issue's model tier: sonnet, opus, fable"
+                required: true
+                default: sonnet
+            resume:
+                description: resume a dead pass's pushed branch (`/next-ticket N --resume`)
+                type: boolean
+                default: false
+            host:
+                description: "the machine a resume is pinned to (its runner's `host:` label); empty = any pass runner"
+                required: false
+                default: ""
+
+permissions:
+    contents: read
+
+jobs:
+    pass:
+        name: next-ticket pass
+        runs-on:
+            [
+                self-hosted,
+                pass,
+                "${{ inputs.host && format('host:{0}', inputs.host) || 'pass' }}",
+            ]
+        # The pass's own bound (190 min at most) plus the job setup, the WIP
+        # push and the record.
+        timeout-minutes: 210
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: afk:pass
+              env:
+                  AFK_ISSUE: ${{ inputs.issue }}
+                  AFK_MODEL: ${{ inputs.model }}
+                  AFK_RESUME: ${{ inputs.resume }}
+                  AFK_PASS_CLAUDE_ARGS: ${{ vars.AFK_PASS_CLAUDE_ARGS }}
+                  AFK_PASS_TIMEOUT_MIN: ${{ vars.AFK_PASS_TIMEOUT_MIN }}
+                  AFK_RECORD_DIR: ${{ runner.temp }}/afk-pass-record
+              run: bun run afk:pass
+            # The worktree or the job setup failed before `afk:pass` could
+            # write its record (no bun, perhaps): a finished run without one
+            # holds the dispatcher (`records-unknown`), so leave a
+            # `setup-failed` one. Host by the runner's name, as afk:pass.
+            - name: Record a failed setup
+              if: failure()
+              shell: bash
+              env:
+                  AFK_ISSUE: ${{ inputs.issue }}
+                  AFK_RECORD_DIR: ${{ runner.temp }}/afk-pass-record
+              run: |
+                  [ -f "$AFK_RECORD_DIR/record.json" ] && exit 0
+                  mkdir -p "$AFK_RECORD_DIR"
+                  issue=0
+                  [[ "$AFK_ISSUE" =~ ^[1-9][0-9]*$ ]] && issue="$AFK_ISSUE"
+                  host=$(printf '%s' "${RUNNER_NAME:-unknown}" | sed -E 's/-(pass|lane|seed)-[0-9]+$//')
+                  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  printf '{"version":1,"issue":%s,"pr":null,"outcome":"setup-failed","host":"%s","startedAt":"%s","endedAt":"%s","durationS":0,"models":{},"costUsd":null,"usageLimitResetAt":null}\n' \
+                      "$issue" "$host" "$now" "$now" >"$AFK_RECORD_DIR/record.json"
+            - name: Upload the pass record
+              if: always()
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: afk-pass-record
+                  path: ${{ runner.temp }}/afk-pass-record/record.json
+                  if-no-files-found: warn
+                  retention-days: 14
+            - name: Refill the slot
+              if: always()
+              continue-on-error: true
+              run: gh workflow run afk-dispatch.yml
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
