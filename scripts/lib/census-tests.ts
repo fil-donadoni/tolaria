@@ -298,6 +298,8 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "`readdirSync` named in comments and test titles only; it censuses no repo corpus",
     "scripts/__tests__/queue-plan.test.ts":
         "a scratch cache dir; it censuses no repo corpus",
+    "scripts/__tests__/ui-gate-failure-shot.test.ts":
+        "counts the PNGs in a scratch shot dir the test creates; it censuses no repo corpus",
     "scripts/__tests__/ui-gate-lane-account.test.ts":
         "a scratch root dir; it censuses no repo corpus",
     "scripts/__tests__/verdict-pack-cache.bot.test.ts":
