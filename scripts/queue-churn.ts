@@ -24,25 +24,41 @@ function instant(s: string): string {
     return new Date(t).toISOString();
 }
 
-function runs(workflow: string, from: string): WorkflowRun[] {
-    return JSON.parse(
-        gh([
-            "run",
-            "list",
-            "--workflow",
-            workflow,
-            "--created",
-            `>=${from.slice(0, 10)}`,
-            "--limit",
-            "1000",
-            "--json",
-            "displayTitle,conclusion,createdAt",
-        ])
-    ) as WorkflowRun[];
+const LIMIT = 1000;
+
+/** A list that filled its limit was cut: the ratios would be silently low. */
+function notTruncated<T>(rows: T[], what: string): T[] {
+    if (rows.length >= LIMIT)
+        throw new Error(
+            `${what}: ${LIMIT} rows is the cap — narrow the window`
+        );
+    return rows;
+}
+
+const day = (iso: string) => iso.slice(0, 10);
+
+function runs(workflow: string, from: string, to: string): WorkflowRun[] {
+    return notTruncated(
+        JSON.parse(
+            gh([
+                "run",
+                "list",
+                "--workflow",
+                workflow,
+                "--created",
+                `${day(from)}..${day(to)}`,
+                "--limit",
+                String(LIMIT),
+                "--json",
+                "displayTitle,conclusion,createdAt",
+            ])
+        ) as WorkflowRun[],
+        `${workflow} runs`
+    );
 }
 
 function mergedPrs(from: string, to: string): number[] {
-    return (
+    return notTruncated(
         JSON.parse(
             gh([
                 "pr",
@@ -50,19 +66,24 @@ function mergedPrs(from: string, to: string): number[] {
                 "--state",
                 "merged",
                 "--search",
-                `merged:>=${from.slice(0, 10)}`,
+                `merged:${day(from)}..${day(to)}`,
                 "--limit",
-                "1000",
+                String(LIMIT),
                 "--json",
                 "number,mergedAt",
             ])
-        ) as { number: number; mergedAt: string }[]
+        ) as { number: number; mergedAt: string }[],
+        "merged PRs"
     )
-        .filter((p) => p.mergedAt >= from && p.mergedAt < to)
+        .filter(
+            (p) =>
+                Date.parse(p.mergedAt) >= Date.parse(from) &&
+                Date.parse(p.mergedAt) < Date.parse(to)
+        )
         .map((p) => p.number);
 }
 
-const COMMENTS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:20,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{... on PullRequest{comments(last:12){nodes{createdAt body}}}}}}`;
+const COMMENTS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:20,after:$endCursor){pageInfo{hasNextPage endCursor} issueCount nodes{... on PullRequest{number comments(last:50){totalCount nodes{createdAt body}}}}}}`;
 
 function repoName(): string {
     return gh([
@@ -78,7 +99,13 @@ function repoName(): string {
 function comments(from: string): QueueComment[] {
     type Page = {
         data: {
-            search: { nodes: { comments?: { nodes: QueueComment[] } }[] };
+            search: {
+                issueCount: number;
+                nodes: {
+                    number?: number;
+                    comments?: { totalCount: number; nodes: QueueComment[] };
+                }[];
+            };
         };
     };
     const pages = JSON.parse(
@@ -90,11 +117,21 @@ function comments(from: string): QueueComment[] {
             "-f",
             `query=${COMMENTS_QUERY}`,
             "-F",
-            `q=repo:${repoName()} is:pr updated:>=${from.slice(0, 10)}`,
+            `q=repo:${repoName()} is:pr updated:${day(from)}..*`,
         ])
     ) as Page[];
+    if (pages[0] && pages[0].data.search.issueCount >= LIMIT)
+        throw new Error(
+            `PR search: ${LIMIT} results is the cap — narrow the window`
+        );
     return pages.flatMap((p) =>
-        p.data.search.nodes.flatMap((n) => n.comments?.nodes ?? [])
+        p.data.search.nodes.flatMap((n) => {
+            if (n.comments && n.comments.totalCount > n.comments.nodes.length)
+                console.error(
+                    `warning: PR #${n.number} has ${n.comments.totalCount} comments, read the last ${n.comments.nodes.length}`
+                );
+            return n.comments?.nodes ?? [];
+        })
     );
 }
 
@@ -111,8 +148,8 @@ function main(): void {
     const churn = queueChurn({
         window: { from, to },
         mergedPrs: mergedPrs(from, to),
-        queueLaneRuns: runs("queue-lane.yml", from),
-        prRefreshRuns: runs("pr-refresh.yml", from),
+        queueLaneRuns: runs("queue-lane.yml", from, to),
+        prRefreshRuns: runs("pr-refresh.yml", from, to),
         comments: comments(from),
     });
     console.log(
