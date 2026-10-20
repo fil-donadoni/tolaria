@@ -3879,6 +3879,44 @@ function lowerSentenceBody(
                     breadth: sentence.breadth,
                 },
             ]);
+        case "pay-mana-then": {
+            // CR 117.3a + CR 608.2c — the fixed payment is a `mayPay` mana
+            // cost: declining, or being unable to pay, leaves the REQUIRED
+            // bind false and the gated effect undone.
+            const inner = gatedSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            const bind = walk.nextBind("paid");
+            return lowered([
+                {
+                    op: "mayPay",
+                    // CR 603.2 — "you" on a triggered ability is its controller.
+                    player: "controller",
+                    cost: sentence.mana,
+                    prompt: capitalise(
+                        sentence.clause.split(SELF_MARKER).join(site.selfName)
+                    ),
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { binding: bind },
+                    then: inner.value,
+                },
+            ]);
+        }
+        case "assigns-no-combat-damage":
+            // CR 510.1c — the source itself assigns nothing this turn.
+            return lowered([
+                { op: "markAssignsNoCombatDamage", target: { ref: "$source" } },
+            ]);
+        case "effect-and-assigns-no-combat-damage": {
+            const head = lowerSentence(sentence.effect, walk, site);
+            if (!head.ok) return head;
+            return lowered([
+                ...head.value,
+                { op: "markAssignsNoCombatDamage", target: { ref: "$source" } },
+            ]);
+        }
         case "pay-variable-then": {
             // CR 107.3f — the nomination and the payment are ONE decision, and
             // nominating 0 IS "if you don't" (an effect of X = 0 and declining
