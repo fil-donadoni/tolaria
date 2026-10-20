@@ -25,6 +25,7 @@ import {
     readingsOf,
     type AxeCount,
     type Floor,
+    type Offender,
     type ProbeResult,
 } from "./floors.ts";
 
@@ -62,19 +63,23 @@ export function outlineSpec(
     failedAsserts: readonly AssertResult[]
 ): OutlineSpec {
     const floors = new Set(broken.map((b) => b.floor));
-    const boxes = [...probe.offenders, ...axe.offenders]
-        .filter((o) => floors.has(o.floor))
-        .map((o) => ({
-            x: o.x,
-            y: o.y,
-            w: o.w,
-            h: o.h,
-            label: `${o.floor} ${o.t || o.sel}` + (o.why ? ` — ${o.why}` : ""),
-        }));
+    const offenders = [...probe.offenders, ...axe.offenders].filter((o) =>
+        floors.has(o.floor)
+    );
+    const label = (o: Offender) =>
+        `${o.floor} ${o.t || o.sel}` + (o.why ? ` — ${o.why}` : "");
+    // An unlocated offender (`w` -1) is named on the banner: a box drawn at
+    // the origin would read as a real location.
+    const boxes = offenders
+        .filter((o) => o.w >= 0)
+        .map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h, label: label(o) }));
     return {
         boxes,
         banner: [
             ...broken.map((b) => `${b.floor} ${b.reading}`),
+            ...offenders
+                .filter((o) => o.w < 0)
+                .map((o) => `${label(o)} (not located)`),
             ...failedAsserts.map((a) => `ASSERT FAIL ${a.label} — ${a.detail}`),
         ],
     };
