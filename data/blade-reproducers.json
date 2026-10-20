@@ -937,6 +937,189 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "each-step mill: Disenchant takes the Worry Beads milling the bot's four-card library, not the 2-MV artifact (issue #5625)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Aeolipile",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Worry Beads",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 4
+    },
     "each-step random discard: Disenchant takes the Bottomless Pit that empties only the bot's hand, not the 2-MV artifact (issue #5624)": {
         "cards": [
             {
