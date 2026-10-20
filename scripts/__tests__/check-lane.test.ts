@@ -182,6 +182,60 @@ describe("check-lane — path classification (issue #2740)", () => {
             ).toContain("node-tooling");
     });
 
+    // Issue #6146: workflow and composite-action YAML is tooling configuration.
+    describe(".github/{workflows,actions}/** is engine, not full (issue #6146)", () => {
+        const yaml = [
+            ".github/workflows/pr-gate.yml",
+            ".github/actions/job-setup/action.yml",
+        ];
+        const none = (): RelatedTests => ({
+            "node-engine": [],
+            "node-tooling": [],
+            dom: [],
+        });
+
+        it("a workflow and a composite action classify engine", () => {
+            for (const p of yaml) {
+                expect(classifyPath(p), p).toBe("engine");
+                expect(classifyLane([p], undefined, none).lane, p).toBe(
+                    "engine"
+                );
+            }
+        });
+
+        it("a .github/**-only diff admits node-tooling whole, no dom, no bot", () => {
+            const plan = classifyLane(yaml, undefined, none);
+            expect(plan.run).toContainEqual({
+                id: "node-tooling",
+                command: "bunx vitest run --project node-tooling",
+            });
+            expect(
+                plan.run.filter((c) =>
+                    /--project (dom|bot-node|bot-dom)\b/.test(c.command)
+                )
+            ).toEqual([]);
+            expect(ids(plan.skip)).toEqual(
+                expect.arrayContaining(["dom", "bot fast lane"])
+            );
+        });
+
+        it("mixed with src/** and convex/** it is still full; the rest of .github/ stays full", () => {
+            expect(
+                classifyLane([
+                    ".github/workflows/pr-gate.yml",
+                    "src/components/Board.tsx",
+                    "convex/gre/combat.ts",
+                ]).lane
+            ).toBe("full");
+            for (const p of [
+                ".github/CODEOWNERS",
+                ".github/ISSUE_TEMPLATE/bug.yml",
+                ".github/dependabot.yml",
+            ])
+                expect(classifyPath(p), p).toBe("full");
+        });
+    });
+
     describe("package.json is classified by content (issue #5456)", () => {
         const pkg = (o: object) => JSON.stringify(o);
         const base = {

@@ -168,9 +168,15 @@ const FULL_PATTERNS: RegExp[] = [
  *   `scripts/lib/**` and proven by its tests.
  * - `.nvmrc`, `.gitattributes`, `.prettierignore`: repository plumbing; the
  *   format and drift checks of the engine lane exercise them.
+ * - `.github/workflows/**`, `.github/actions/**` (issue #6146): CI workflow
+ *   and composite-action YAML, read through `fs` by the `scripts/__tests__`
+ *   drift guards (workflow structure, AFK dispatch/pass, housekeeping,
+ *   release…); no app or bot test can reach one. The rest of `.github/`
+ *   (templates, CODEOWNERS) has no such reader and stays `full`.
  */
 const ENGINE_CONFIG_PATTERNS: RegExp[] = [
     /^\.claude\//,
+    /^\.github\/(?:workflows|actions)\//,
     /^tolaria\.config\.json$/,
     /^\.nvmrc$/,
     /^\.gitattributes$/,
@@ -836,7 +842,7 @@ function appendCheapGuards(
 
 /** Where the drift-guard census lives: hooks, skills, the gate scripts. */
 const TOOLING_PATHS =
-    /^((scripts|\.claude)\/|tolaria\.config\.json$|\.nvmrc$|\.gitattributes$|\.prettierignore$|package\.json$)/;
+    /^((scripts|\.claude|\.github\/(?:workflows|actions))\/|tolaria\.config\.json$|\.nvmrc$|\.gitattributes$|\.prettierignore$|package\.json$)/;
 
 /**
  * The server bundle's size receipt rides the lanes that can move it (`engine`,
