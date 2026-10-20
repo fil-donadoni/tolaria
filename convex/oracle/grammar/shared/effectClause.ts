@@ -25,12 +25,14 @@
  * the line rather than being dropped.
  */
 
+import { readManaCost } from "../../manaCost";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import type {
     Color,
     EffectCardFilter,
     EffectChoiceSuperlative,
     EffectManaPool,
+    ManaCost,
     TargetRequirement,
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
@@ -492,6 +494,17 @@ export type EffectSentenceIR =
           readonly clause: string;
           readonly effect: EffectSentenceIR;
       }
+    /** CR 117.3a + CR 608.2c — "You may pay {R}. If you do, <effect>": a FIXED
+     *  mana payment offered to the controller, gating `effect` on having paid.
+     *  The fixed-cost twin of `pay-variable-then` (no nomination, no X). A
+     *  WRAPPER over an already-read sentence; `clause` is the first sentence
+     *  AS PRINTED (the prompt the player is asked). */
+    | {
+          readonly kind: "pay-mana-then";
+          readonly clause: string;
+          readonly mana: ManaCost;
+          readonly effect: EffectSentenceIR;
+      }
     | {
           readonly kind: "pump";
           readonly subject: SubjectIR;
@@ -931,6 +944,24 @@ export type EffectSentenceIR =
           readonly kind: "combat-restriction";
           readonly restriction: CombatRestrictionIR;
           readonly subject: SubjectIR;
+      }
+    /**
+     * CR 510.1c — "<this creature> assigns no combat damage this turn": a
+     * turn-scoped suppression of the damage the SOURCE assigns, not a
+     * prevention of damage dealt to it (CR 615.1a — the word "prevent" is a
+     * different shield). Only the self spelling is read: a standalone corpus
+     * card naming another creature earns the wider subject.
+     */
+    | { readonly kind: "assigns-no-combat-damage" }
+    /**
+     * CR 510.1c + CR 608.2c — "<effect> and <this creature> assigns no combat
+     * damage this turn": the head effect, then the suppression, in printed
+     * order. A wrapper over an already-read sentence, like `optional`: the
+     * head is read by the rule that reads it alone.
+     */
+    | {
+          readonly kind: "effect-and-assigns-no-combat-damage";
+          readonly effect: EffectSentenceIR;
       }
     /**
      * CR 509.1c — "<target creature> blocks this creature this turn if able":
@@ -1845,6 +1876,14 @@ export type SentenceIR =
      * without the other is refused.
      */
     | { readonly role: "pay-variable-mana"; readonly text: string }
+    /** CR 117.3a — the first sentence of a fixed mana payment ("You may pay
+     *  {R}"); the `if-you-do` after it is the second. Folded into a
+     *  `pay-mana-then` by `assembleSentences`. */
+    | {
+          readonly role: "pay-mana";
+          readonly text: string;
+          readonly mana: ManaCost;
+      }
     | {
           readonly role: "if-you-do";
           readonly text: string;
@@ -2081,6 +2120,8 @@ export function assembleSentences(
     // CR 107.3f — a variable payment waits for the "If you do" it feeds.
     let payVariable: Extract<SentenceIR, { role: "pay-variable-mana" }> | null =
         null;
+    // CR 117.3a — a fixed payment waits for the "If you do" it feeds.
+    let payMana: Extract<SentenceIR, { role: "pay-mana" }> | null = null;
     // CR 702.34a — a flashback grant waits for the sentence that prices it.
     let flashbackGrant: Extract<
         SentenceIR,
@@ -2229,6 +2270,21 @@ export function assembleSentences(
                 ok: false,
                 reason: '"from it" / "that card" follows no revealed hand',
             };
+        if (payMana !== null) {
+            if (sentence.role !== "if-you-do")
+                return {
+                    ok: false,
+                    reason: '"You may pay {cost}" is not followed by "If you do, …"',
+                };
+            effects.push({
+                kind: "pay-mana-then",
+                clause: `${payMana.text}. ${sentence.text}`,
+                mana: payMana.mana,
+                effect: sentence.effect,
+            });
+            payMana = null;
+            continue;
+        }
         if (payVariable !== null) {
             if (sentence.role !== "if-you-do")
                 return {
@@ -2330,6 +2386,21 @@ export function assembleSentences(
                     reason: "a variable payment follows an unfinished sentence run",
                 };
             payVariable = sentence;
+            continue;
+        }
+        if (sentence.role === "pay-mana") {
+            if (
+                restrictions.length > 0 ||
+                window !== null ||
+                awaitingColorChoice ||
+                revealUntil !== null ||
+                piles !== null
+            )
+                return {
+                    ok: false,
+                    reason: "a mana payment follows an unfinished sentence run",
+                };
+            payMana = sentence;
             continue;
         }
         if (awaitingColorChoice) {
@@ -2802,6 +2873,11 @@ export function assembleSentences(
             ok: false,
             reason: '"You may pay {X}" is the last sentence and feeds no effect',
         };
+    if (payMana !== null)
+        return {
+            ok: false,
+            reason: '"You may pay {cost}" is the last sentence and feeds no effect',
+        };
     if (window !== null)
         return {
             ok: false,
@@ -3188,6 +3264,16 @@ export function optionalSentenceRule(
                 role: "pay-variable-mana" as const,
                 text: capitalise(probe),
             });
+        const fixedPay = probe.match(PAY_FIXED_MANA);
+        if (fixedPay !== null) {
+            const read = readManaCost(fixedPay[1]!);
+            if (!read.ok) return fail(read.reason, read.fragment);
+            return ok({
+                role: "pay-mana" as const,
+                text: capitalise(probe),
+                mana: read.cost,
+            });
+        }
         if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
@@ -3513,6 +3599,13 @@ const GRANT_SPELL_MANA_SUBSTITUTION =
     /^For one spell this turn, you may spend mana as though it were mana of any (color|type) to pay that spell's mana cost$/;
 /** CR 107.3f (issue #4529) — the first sentence of a variable payment. */
 const PAY_VARIABLE_MANA = "you may pay {X}";
+/** CR 117.3a — a FIXED mana payment: "you may pay" then pips only, whole. A
+ *  variable {X} is `PAY_VARIABLE_MANA`'s; a non-mana leg ("pay 2 life") is
+ *  another payment this rule does not read. */
+const PAY_FIXED_MANA = /^you may pay ((?:\{[WUBRGC0-9]+\})+)$/;
+/** CR 510.1c — the source's own assignment suppression, whole. */
+const ASSIGNS_NO_COMBAT_DAMAGE = "{self} assigns no combat damage this turn";
+const AND_ASSIGNS_NO_COMBAT_DAMAGE = ` and ${ASSIGNS_NO_COMBAT_DAMAGE}`;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
 /** CR 121.1 — the first half of a `draw-then-ranged-topdeck`, whole. */
@@ -4409,6 +4502,19 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // different payment this rule does not read.
         if (uncapitalise(span) === PAY_VARIABLE_MANA)
             return ok({ role: "pay-variable-mana" as const, text: span });
+        // CR 117.3a — a fixed mana payment in its two sentences; the
+        // capitalised spelling a full stop introduces (the trigger site
+        // prints it lowercase, `optionalSentenceRule`).
+        const fixedPay = uncapitalise(span).match(PAY_FIXED_MANA);
+        if (fixedPay !== null) {
+            const read = readManaCost(fixedPay[1]!);
+            if (!read.ok) return fail(read.reason, read.fragment);
+            return ok({
+                role: "pay-mana" as const,
+                text: span,
+                mana: read.cost,
+            });
+        }
         const chooseDrawn = span.match(CHOOSE_DRAWN_THIS_TURN);
         if (chooseDrawn !== null) {
             const max = readNumberWord(chooseDrawn[1]!);
@@ -6028,6 +6134,23 @@ function effectSentence(
             kind: "tap-untap" as const,
             action,
             subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── source's assignment suppression (CR 510.1c) ─────────────────────
+    if (span === ASSIGNS_NO_COMBAT_DAMAGE)
+        return ok({
+            kind: "assigns-no-combat-damage" as const,
+        } satisfies EffectSentenceIR);
+    if (span.endsWith(AND_ASSIGNS_NO_COMBAT_DAMAGE)) {
+        const head = effectSentence(
+            span.slice(0, span.length - AND_ASSIGNS_NO_COMBAT_DAMAGE.length),
+            ctx
+        );
+        if (!head.ok) return head;
+        return ok({
+            kind: "effect-and-assigns-no-combat-damage" as const,
+            effect: head.value,
         } satisfies EffectSentenceIR);
     }
 
