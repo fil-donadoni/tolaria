@@ -1243,7 +1243,14 @@ describe("deny-guard — no discarding git operations in the shared main checkou
 describe("deny-guard § 4b — the main checkout stays on the base branch (issues #6132, #6133)", () => {
     // A base this hook has never heard of: only the config can name it.
     let projectDir: string;
+    let headSha: string;
     beforeAll(() => {
+        // Real refs: a word names a switch only when it resolves to a commit.
+        execFileSync("git", ["branch", "prod"], { cwd: mainCheckout });
+        headSha = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+            cwd: mainCheckout,
+            encoding: "utf8",
+        }).trim();
         projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-primary-"));
         fs.writeFileSync(
             path.join(projectDir, "tolaria.config.json"),
@@ -1256,19 +1263,19 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
         fs.rmSync(projectDir, { recursive: true, force: true });
     });
     const env = () => ({ CLAUDE_PROJECT_DIR: projectDir });
-    const OFF_BASE = [
+    const OFF_BASE = () => [
         "git checkout prod",
         "git switch prod",
         "git checkout -q main",
         "git switch -c feat/x",
         "git checkout -b feat/x origin/integration",
-        "git checkout 02bd75cc5",
+        `git checkout ${headSha}`,
         "git switch -",
         "git fetch && git checkout prod && git pull --ff-only",
     ];
 
     it("denies a switch off base there, naming the branch and the escape hatch", () => {
-        for (const cmd of OFF_BASE) {
+        for (const cmd of OFF_BASE()) {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toContain("DEPLOYMENT SOURCE");
@@ -1282,7 +1289,19 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
             "git switch integration && git pull --ff-only",
             "git switch -q integration",
             "git checkout",
+            "git checkout HEAD",
             "git log --oneline -3",
+            // A restore names a path, and switches nothing (review, PR for
+            // issue #6132): a file, `.`, a ref followed by a path, `--`.
+            "git checkout README.md",
+            "git checkout .",
+            "git checkout prod README.md",
+            "git checkout prod -- README.md",
+            // A word that resolves to no commit names no switch.
+            "git checkout no-such-branch",
+            // `git checkout` inside a message is not a command.
+            'git commit -m "fix git checkout prod bug"',
+            "echo git switch prod",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
@@ -1299,7 +1318,7 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
     });
 
     it("allows any switch in a linked worktree — it is not the deployment source", () => {
-        for (const cmd of OFF_BASE) {
+        for (const cmd of OFF_BASE()) {
             const r = runHook(DENY_GUARD, bash(cmd, linkedWorktree), env());
             expect(r.code, `expected ALLOW in worktree for: ${cmd}`).toBe(0);
         }

@@ -127,6 +127,8 @@ export function skewRemedy(primary: string, base: string): string {
     return `put the primary checkout back on the base branch (\`git -C ${primary} switch ${base} && git -C ${primary} merge --ff-only origin/${base}\`), wait for convex dev to push, and rebase a branch that is behind origin/${base}; then re-run`;
 }
 
+/** stdout's non-empty lines, right-trimmed only: a `status --porcelain` line
+ *  starts with a meaningful space (` M path`). */
 function gitLines(cwd: string, args: readonly string[]): string[] {
     const r = spawnSync("git", args as string[], { cwd, encoding: "utf8" });
     if (r.status !== 0) {
@@ -136,7 +138,7 @@ function gitLines(cwd: string, args: readonly string[]): string[] {
     }
     return (r.stdout ?? "")
         .split("\n")
-        .map((l) => l.trim())
+        .map((l) => l.trimEnd())
         .filter((l) => l.length > 0);
 }
 

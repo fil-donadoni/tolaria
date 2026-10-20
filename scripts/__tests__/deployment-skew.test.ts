@@ -207,6 +207,11 @@ describe("readDeploymentSkew — the inputs read from git", () => {
         const d = readDeploymentSkew({ primary, base: "staging", walked });
         expect(d.kind === "skew" && d.reason).toMatch(/convex\/new\.ts/);
         fs.rmSync(path.join(primary, "convex", "new.ts"));
+        // A MODIFIED tracked file: its porcelain line starts with a space.
+        fs.writeFileSync(path.join(primary, "convex", "game.ts"), "edit\n");
+        const m = readDeploymentSkew({ primary, base: "staging", walked });
+        expect(m.kind === "skew" && m.reason).toMatch(/: convex\/game\.ts$/);
+        git(primary, "checkout", "-q", "--", "convex/game.ts");
     });
 
     it("a walked commit the primary does not contain is a skew; one it has moved past is not", () => {
@@ -269,7 +274,7 @@ describe("watchDeployment — a skew arising mid-walk abandons it (issue #6133)"
         vi.useRealTimers();
     });
 
-    it("the first tick that reads a skew settles down with skew set, the probe never consulted", async () => {
+    it("two consecutive skew readings settle down with skew set, the probe not consulted on the second", async () => {
         let probes = 0;
         let skew: string | null = null;
         const w = watchDeployment({
@@ -291,6 +296,14 @@ describe("watchDeployment — a skew arising mid-walk abandons it (issue #6133)"
         await vi.advanceTimersByTimeAsync(30_000);
         expect(probes).toBe(2);
         skew = "the primary checkout is on `main`, not `staging`";
+        // One reading is not enough: a fast-forward can be caught mid-write.
+        let settled = false;
+        void run.catch(() => {
+            settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(settled).toBe(false);
+        expect(probes).toBe(3);
         await vi.advanceTimersByTimeAsync(15_000);
         const err = await run.catch((e: unknown) => e);
         expect(err).toBeInstanceOf(DeploymentDownAbort);
@@ -298,6 +311,6 @@ describe("watchDeployment — a skew arising mid-walk abandons it (issue #6133)"
         expect((err as DeploymentDownAbort).message).toMatch(
             /serving code other than the walked tree.*on `main`/
         );
-        expect(probes).toBe(2);
+        expect(probes).toBe(3);
     });
 });

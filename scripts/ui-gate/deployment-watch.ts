@@ -27,10 +27,10 @@
  *   4. `probeStateLabel` — the probe state as the live progress prints it.
  *
  * The watch also asks, on the same cadence, WHICH code the deployment serves
- * (issue #6133): an injected `skew` check (`lib/deployment-skew.ts`) that
- * names a skew settles `down` at once, with `skew` set — one reading is a
- * fact about the primary checkout, not a transient probe failure — and
- * `index.ts` exits `DEPLOYMENT_SKEW_EXIT` instead.
+ * (issue #6133): an injected `skew` check (`lib/deployment-skew.ts`). Like the
+ * probe, `failuresToAbort` CONSECUTIVE skew readings settle `down`, with `skew`
+ * set — one reading can catch a fast-forward mid-write — and `index.ts` exits
+ * `DEPLOYMENT_SKEW_EXIT` instead.
  *
  * No browser, no `os`: the probe, the clock and the timer are injected.
  */
@@ -204,6 +204,8 @@ export function watchDeployment(deps: WatchDeps): DeploymentWatch {
     };
     /** Only the latest failure time matters to `failedSince`. */
     let lastFailureAtMs: number | null = null;
+    /** Consecutive ticks that read a skew. */
+    let skewStreak = 0;
     let inFlight = false;
     let stopped = false;
     let declare: (d: DeploymentDown) => void = () => {};
@@ -219,8 +221,13 @@ export function watchDeployment(deps: WatchDeps): DeploymentWatch {
         } catch {
             skew = null;
         }
+        skewStreak = skew === null ? 0 : skewStreak + 1;
         if (skew !== null) {
-            note(`deployment skew — ${skew}`);
+            note(
+                `deployment skew (${skewStreak}/${failuresToAbort}) — ${skew}`
+            );
+        }
+        if (skew !== null && skewStreak >= failuresToAbort) {
             state.down = true;
             state.lastFailure = skew;
             stop();
