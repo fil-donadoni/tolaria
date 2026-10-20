@@ -654,7 +654,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Jade Monolith",
     "Jade Statue",
     "Jandor's Ring",
-    "Jester's Cap",
     "Jester's Mask",
     "Jeweled Amulet",
     "Jihad",
