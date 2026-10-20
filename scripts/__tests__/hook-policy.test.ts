@@ -1508,6 +1508,57 @@ describe("deny-guard — scope", () => {
     });
 });
 
+describe("deny-guard — the hand-off is land:ready, never a raw ready-to-land label (issue #6141)", () => {
+    const wt = issueWorktree;
+
+    it("denies every spelling that adds the label to a PR, naming land:ready", () => {
+        for (const cmd of [
+            "gh pr edit 6138 --add-label ready-to-land",
+            "gh pr edit 6138 --add-label=ready-to-land",
+            'gh pr edit 6138 --add-label "ready-to-land"',
+            "gh pr edit 6138 --add-label 'ready-to-land'",
+            "gh pr edit 6138 --add-label bug,ready-to-land",
+            "gh pr edit 6138 --add-label ready-to-land,bug",
+            "gh pr create --title t --body b --label ready-to-land",
+            "gh pr create --title t --label=ready-to-land",
+            "gh pr create --title t -l ready-to-land",
+            "gh issue edit 6138 --add-label ready-to-land",
+            "gh issue edit 6138 --add-label=ready-to-land",
+            "FOO=1 gh pr edit 6138 --add-label ready-to-land",
+            "true | gh pr edit 6138 --add-label ready-to-land",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, wt));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toMatch(/bun run land:ready/);
+        }
+    });
+
+    it("allows the hatch in the same segment", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_ALLOW_MANUAL_READY=1 gh pr edit 6138 --add-label ready-to-land",
+                wt
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+
+    it("allows unqueueing, the hand-off itself, and other labels", () => {
+        for (const cmd of [
+            "gh pr edit 6138 --remove-label ready-to-land",
+            "gh pr edit 6138 --remove-label=ready-to-land --add-label land-failed",
+            "bun run land:ready 6138",
+            "gh pr edit 6138 --add-label ready-to-land-later",
+            "gh pr create --title t --label bug",
+            "git commit -m 'never run gh pr edit N --add-label ready-to-land by hand'",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, wt));
+            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
+        }
+    });
+});
+
 describe("deny-guard — the claim is one locked act: queue:claim, never a hand-typed label (issue #4375)", () => {
     // `queue:plan` counts the live claims and refuses at the cap; a label typed
     // later races that read, and two sessions in the window both pass

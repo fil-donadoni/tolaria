@@ -11,7 +11,7 @@ here changes it. A job differs in five places, and ONLY these:
 | § 1 Model check     | read the `model:*` label and stop on a lower tier | The dispatcher chose the tier from the label and launched this session on it. Say the tier in one line and go on; a label above the running tier is the dispatcher's defect: abort (below) and say so.                                    |
 | § 2 Claim, worktree | `queue:claim N`, `wt:new N`                       | The claim is the `in-progress` label the dispatcher set: read it back (`gh issue view N --json labels --jq '[.labels[].name]'`), never set it. The [job worktree](#the-worktree) is the shell's directory. No `queue:claim`, no `wt:new`. |
 | § 3 Implement       | commit when the work is a unit                    | Commit **and push early and often** (below): a killed job is resumed from its pushed branch.                                                                                                                                              |
-| § 5 Hand off        | `land:ready <PR#>`                                | The same, until the landing stack is deleted; after that `gh pr edit <PR#> --add-label ready-to-land`. Either way the PR is labelled `ready-to-land` and the pass ends.                                                                   |
+| § 5 Hand off        | `land:ready <PR#>`                                | The same: `bun run land:ready <PR#>`. It labels the PR `ready-to-land` and the pass ends.                                                                                                                                                 |
 
 ## The worktree
 
@@ -70,5 +70,5 @@ assignee together, as `deny-guard` § 6b requires), then read the labels back.
 There is no worktree to remove: the job's last step does it.
 
 **Done when:** the claim was read back, never set; the branch is on `origin`
-and every commit is pushed; the PR is labelled `ready-to-land` (or the claim
+and every commit is pushed; `land:ready` labelled the PR `ready-to-land` (or the claim
 is released with the abort's comment) and nothing printed a secret.

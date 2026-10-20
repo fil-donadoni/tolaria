@@ -1036,6 +1036,34 @@ The sweep on purpose, by explicit owner request:
         fi
     fi
 fi
+# 7b. The hand-off is `bun run land:ready <PR#>`, never a raw label (issue #6141).
+#
+# `land:ready` does three things beyond the label: the pre-queue check (the
+# lane's seconds-cost steps, issue #5554), the bare `Closes #N` line when GitHub
+# does not link the PR to its branch's issue (issue #5952), and the claim move to
+# `pr-open`. A raw `ready-to-land` skips all three: PR #6138 went into the
+# queue with 26 unconfirmed CR citations and no closing link. The claim label
+# has its guard (§ 6); the hand-off label gets the same shape. Removing the label
+# (unqueue) is never denied, and `land:ready`'s own `gh` calls are child
+# processes this hook never sees.
+#
+# Every spelling `gh` accepts for adding a label to a PR: `gh pr edit
+# --add-label`, `gh pr create --label` / `-l`, `gh issue edit --add-label`; `=`
+# or a space, quoted or not, anywhere in a comma list. The hatch is for the
+# owner labelling by hand, in the SAME segment.
+READY_LABEL_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+(pr|issue)[[:space:]]+(edit|create)[[:space:]].*[[:space:]](--add-label|--label|-l)(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?ready-to-land["'"'"']?([[:space:],]|$)'
+if seg_has "$READY_LABEL_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_READY=1' "$READY_LABEL_INVOKE"; then
+    deny "BLOCKED: a raw \`ready-to-land\` label skips the hand-off (issue #6141).
+\`land:ready\` runs the pre-queue check (the lane's seconds-cost steps), adds the
+\`Closes #N\` line when GitHub does not link the PR to its issue, and moves the
+claim to \`pr-open\`; the bare label does none of it, and the PR enters the
+queue to fail on an error the check catches in seconds. Hand off with:
+  bun run land:ready <PR#>
+Unqueueing (\`--remove-label ready-to-land\`) is never denied. Labelling by hand,
+as the owner:
+  TOLARIA_ALLOW_MANUAL_READY=1 gh pr edit <PR#> --add-label ready-to-land"
+fi
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. A session never runs `land` — it hands its PR off `ready-to-land`.

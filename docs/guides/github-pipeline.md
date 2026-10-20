@@ -1369,7 +1369,7 @@ which lists the only five differences:
 | Model    | None. The dispatcher launched the session on the issue's `model:*` tier.                                                              |
 | Claim    | None. The `in-progress` label is the claim, set by the dispatcher; the pass reads it back and never sets it (no `queue:claim`).       |
 | Worktree | The [job worktree](#g-job-worktree), a detached HEAD at the base tip. The pass cuts `feat/issue-N` (or `fix/`) and pushes it at once. |
-| Hand-off | `bun run land:ready <PR#>` while the landing stack stands; after it is deleted, `gh pr edit <PR#> --add-label ready-to-land`.         |
+| Hand-off | `bun run land:ready <PR#>`.                                                                                                           |
 
 **A pass's life**, in order:
 
