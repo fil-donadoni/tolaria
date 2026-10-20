@@ -750,12 +750,20 @@ export const DESCRIPTOR_READERS: DescriptorReaders = {
  */
 const LEGACY_ANY_TARGET = "creature, planeswalker, or player";
 
-/** True when the card prints a head "this <permanent> attacks" (CR 508.1). */
+/** True when the card prints a head "<this permanent / its own name> attacks"
+ *  (CR 508.1) — a legendary's short name ("The Wasp") included. */
 const SELF_ATTACK_HEAD = /\b(?:Whenever|When) this \w+ attacks\b/;
 function selfAttackHead(ctx: unknown): boolean {
-    const text = (ctx as { card?: { oracleText?: string } } | null)?.card
-        ?.oracleText;
-    return text !== undefined && SELF_ATTACK_HEAD.test(text);
+    const card = (
+        ctx as { card?: { oracleText?: string; name?: string } } | null
+    )?.card;
+    const text = card?.oracleText;
+    if (text === undefined) return false;
+    if (SELF_ATTACK_HEAD.test(text)) return true;
+    const name = card?.name;
+    if (name === undefined) return false;
+    const names = new Set([name, name.split(",")[0]!]);
+    return [...names].some((n) => text.includes(`Whenever ${n} attacks`));
 }
 
 export function descriptorRuleWith(
