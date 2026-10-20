@@ -15,6 +15,7 @@
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
 import { describe, expect, it } from "vitest";
+import type { EffectOp } from "../../../cards/types";
 import type { CardInstanceState, GameState } from "../../state";
 import {
     makeInstance,
@@ -101,6 +102,34 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
     it("Oath of Druids' script is one the Differential reads", () => {
         const script = oathOfDruids().triggeredAbilities![0].effects!;
         expect(isEachStepEngineScript(script)).toBe(true);
+    });
+
+    it("only a cost-free 'may' offered to the scoped player reads as that player's choice", () => {
+        // The Oath's own script, varied one clause at a time: each variant
+        // is no longer a "may" the scoped player decides for free, and is
+        // fail-closed (read nothing, ADR 0151 §1).
+        const script = oathOfDruids().triggeredAbilities![0].effects!;
+        const [offer, arm] = script as [
+            Extract<EffectOp, { op: "mayPay" }>,
+            Extract<EffectOp, { op: "if" }>,
+        ];
+        const variants: [string, EffectOp[]][] = [
+            ["a costed offer", [{ ...offer, cost: { life: 2 } }, arm]],
+            [
+                "an offer to the controller",
+                [{ ...offer, player: "controller" }, arm],
+            ],
+            ["an arm with an else", [offer, { ...arm, else: arm.then }]],
+            [
+                "an arm reading another binding",
+                [offer, { ...arm, predicate: { binding: "$other" } }],
+            ],
+            ["an arm with no offer", [arm]],
+        ];
+        for (const [name, variant] of variants) {
+            expect(isEachStepEngineScript(variant), name).toBe(false);
+        }
+        expect(isEachStepEngineScript([offer]), "a bare offer").toBe(false);
     });
 
     it("only the side an opponent out-creatures digs: the sign is the controller's, flipped on the mirror", () => {

@@ -655,6 +655,7 @@ function boardSide(
                 state,
                 player,
                 filter,
+                weights,
                 realisedLoss
             );
             const m = worths.length;
@@ -668,13 +669,30 @@ function boardSide(
 /** Issue #5627 — the realised worth of each card of `player`'s library
  *  matching `filter` (`undefined`: every card), read as it would stand once
  *  put onto `player`'s battlefield: untapped, unattached, under `player`'s
- *  control, matched on its characteristics there. */
+ *  control, matched on its characteristics there. An approximation, a mean
+ *  over the library: the copy is valued beside the board, not on it — its
+ *  own statics are no part of the layer pass (a characteristic-defining P/T
+ *  reads its printed one) and it is not marked as entering this turn.
+ *  Memoised per library array, board, weight vector and filter: the hand face and the
+ *  board face of one leaf, and every removal spell asking the engine's
+ *  realised loss, read the same library. */
 function libraryMatchWorths(
     state: GameState,
     player: PlayerState,
     filter: PermanentFilter | undefined,
+    weights: EvalWeights,
     realisedLoss: RealisedLoss
 ): number[] {
+    const key = JSON.stringify(filter ?? null);
+    const hit = LIBRARY_MATCH_MEMO.get(player.library);
+    if (
+        hit &&
+        hit.state === state &&
+        hit.weights === weights &&
+        hit.key === key
+    ) {
+        return hit.worths;
+    }
     const worths: number[] = [];
     for (const c of player.library) {
         const landed: CardInstanceState = {
@@ -696,8 +714,14 @@ function libraryMatchWorths(
         }
         worths.push(realisedLoss(landed));
     }
+    LIBRARY_MATCH_MEMO.set(player.library, { state, weights, key, worths });
     return worths;
 }
+
+const LIBRARY_MATCH_MEMO = new WeakMap<
+    readonly CardInstanceState[],
+    { state: GameState; weights: EvalWeights; key: string; worths: number[] }
+>();
 
 /** Issue #5626 — the units of `mana` (`EachPlayerSide.manaUnits`) one card
  *  of `player`'s hand spends on top of its whole mana base: for each card
