@@ -13319,6 +13319,123 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5627. The discriminating position (the entry above is the anchor reading). Guards the dig branch of `eachStepDifferentialValue` (`stepSideDig`, `stepSideMayArm`, `ai/opValuers.ts`) and its side reader (`EachPlayerSide.digUnits`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: the Oath never (Aeolipile 20). Before issue #5627 (the family read nothing): Disenchant on the Oath 20/20. Proof of failure — the family left unread (`isStepSideOp` refusing `revealUntilMatch`): Disenchant on the Oath 20/20.",
     },
+    {
+        // EACH-STEP MILL (issue #5625, ADR 0151) — the opponent's Worry
+        // Beads has the player whose upkeep it is mill a card (CR 701.17a).
+        // The bot's library holds four cards, the opponent's thirty: every
+        // milled card brings the bot one draw nearer decking (CR 104.3c /
+        // 704.5b) and costs the opponent nothing, so the Beads is the
+        // permanent Disenchant should answer, not the Aeolipile.
+        label: "each-step mill: Disenchant takes the Worry Beads milling the bot's four-card library, not the 2-MV artifact (issue #5625)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Worry Beads milling only the bot's short library toward decking",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Worry Beads", owner: "opp", zone: "battlefield" },
+                // The opponent's library is the long one: 4 filler basics + 26.
+                ...Array.from({ length: 26 }, () => ({
+                    name: "Plains",
+                    owner: "opp" as const,
+                    zone: "library" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 4,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Worry Beads",
+                },
+            ],
+        },
+        note: "Issue #5625. One half of the Worry Beads pair (two unpaired `conditional` Test Positions — the libraries differ on both sides, so no `pairOf`): the Beads is worth what each player's upkeep mill costs that player at the leaf evaluator's decking term (`EachPlayerSide.millLoss`, `ai/latentBoard.ts`; `libraryTerm`, `ai/decking.ts`), the opponent's loss minus the bot's. Measured at 400 iterations over 20 seeds: the Beads 20/20. Before issue #5625 (the mill family read nothing, its Latent Floor) the Beads is 20/20 here too — the mirror below reds on that. Proof of failure — the side reader skipped (`stepSideMill` reading 0, a measured zero): Aeolipile 20/20.",
+    },
+    {
+        // EACH-STEP MILL, MIRROR (issue #5625, ADR 0151) — the board above
+        // with the libraries swapped: the bot's holds thirty cards, the
+        // opponent's four. Now the opponent's Worry Beads mills the
+        // OPPONENT toward decking and never costs the bot a card it would
+        // draw, so destroying it only spares the opponent.
+        label: "each-step mill: Disenchant leaves the Worry Beads milling only the opponent's four-card library (issue #5625)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Worry Beads milling only the opponent's short library toward decking",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Worry Beads", owner: "opp", zone: "battlefield" },
+                // The bot's library is the long one: 4 filler basics + 26.
+                ...Array.from({ length: 26 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "library" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 4,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Worry Beads",
+                },
+            ],
+        },
+        note: "Issue #5625. The other half of the Worry Beads pair. Guards the mill branch of `eachStepDifferentialValue` (`stepSideMill`, `isStepSideOp`, `ai/opValuers.ts`). Measured at 400 iterations over 20 seeds: the Beads never (Aeolipile 20). Proof of failure — the family left unread (`isStepSideOp` refusing `mill`, the pre-#5625 Latent Floor): Disenchant on the Beads 20/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
