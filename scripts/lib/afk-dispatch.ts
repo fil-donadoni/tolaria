@@ -31,7 +31,7 @@ import {
     type UsageRecord,
     type WeightClass,
 } from "./usage-window";
-import type { ClaimFacts, PickResult } from "./picker";
+import { claimFate, type ClaimFacts, type PickResult } from "./picker";
 import type { HealthMarker } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL } from "./land-labels";
@@ -559,6 +559,20 @@ export function claimFacts(
             pr: pr?.number ?? null,
         };
     });
+}
+
+/**
+ * The orphan claims to release while the dispatcher holds (issue #6194): a
+ * dead pass's claim with no pushed branch and no PR. Releasing starts no
+ * pass, so every hold but the kill switch (`disabled`: the owner stopped the
+ * machine, it touches nothing) still does it; dispatch and resume stay held.
+ */
+export function holdReleases(
+    hold: Hold,
+    facts: readonly ClaimFacts[]
+): number[] {
+    if (hold.kind === "disabled") return [];
+    return facts.filter((f) => claimFate(f) === "release").map((f) => f.issue);
 }
 
 /** The newest completed pass run of each issue — whose runner names the host

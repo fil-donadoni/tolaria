@@ -51,6 +51,7 @@ import {
     claimFacts,
     failureStreak,
     holdFor,
+    holdReleases,
     hostOfRunnerName,
     lastPassRun,
     mayClaim,
@@ -480,6 +481,47 @@ async function main(): Promise<void> {
                 );
             }
         }
+        // Releasing starts no pass: orphans are released under any hold but
+        // the kill switch (issue #6194). Unreadable → none this run.
+        const released: string[] = [];
+        let releaseFailed = false;
+        try {
+            if (hold.kind === "disabled") throw new Error("kill switch");
+            const claimedNow = readReadyQueue()
+                .filter((i) => i.labels.some((l) => l.name === CLAIM_LABEL))
+                .map((i) => i.number);
+            const orphans = holdReleases(
+                hold,
+                claimFacts(
+                    claimedNow,
+                    passRuns,
+                    pushedBranches(),
+                    openPrs(),
+                    claimTimes(slug, claimedNow)
+                )
+            );
+            if (DRY_RUN)
+                say(
+                    `would release: ${orphans.map((n) => `#${n}`).join(", ") || "none"}`
+                );
+            else
+                for (const n of orphans)
+                    try {
+                        gh(releaseEditArgs(n));
+                        released.push(`released orphan claim #${n}`);
+                    } catch (err) {
+                        releaseFailed = true;
+                        released.push(
+                            `release #${n} failed: ${(err as Error).message.split("\n")[0]}`
+                        );
+                    }
+        } catch (err) {
+            if (hold.kind !== "disabled")
+                say(
+                    `claims unreadable (${(err as Error).message.split("\n")[0]}) — no release this run`
+                );
+        }
+        for (const l of released) say(l);
         const aged = agedRepairNotice(hold, repairs, dispatchRuns, config, now);
         const agedLines = agedRepairLines(aged.aged, hold);
         for (const l of agedLines) say(l);
@@ -488,9 +530,11 @@ async function main(): Promise<void> {
             "",
             ...agedLines.map((l) => `- ${l}`),
             ...(agedLines.length ? [""] : []),
+            ...released.map((l) => `- ${l}`),
+            ...(released.length ? [""] : []),
             budgetLine,
         ]);
-        let fail = false;
+        let fail = releaseFailed;
         if (hold.kind === "failure-streak" && hold.notify) {
             say(
                 `failing this run once so GitHub emails the owner; acknowledge with "${ACK_MARKER}" (ack_failures=true)`

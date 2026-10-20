@@ -10,6 +10,7 @@ import {
     claimFacts,
     failureStreak,
     holdFor,
+    holdReleases,
     hostOfRunnerName,
     mayClaim,
     parseAfkDispatchConfig,
@@ -26,7 +27,7 @@ import {
     type RunnerRow,
     type WorkflowRun,
 } from "../lib/afk-dispatch";
-import { pick } from "../lib/picker";
+import { claimFate, pick } from "../lib/picker";
 import type {
     IssueDetail,
     PlanConfig,
@@ -786,5 +787,72 @@ describe("afk-dispatch inputs (issue #5649)", () => {
         expect(Object.keys(wf.on.workflow_dispatch.inputs)).toContain(
             "ack_failures"
         );
+    });
+});
+
+describe("a dead pass's claim from real-shaped run titles (issue #6194)", () => {
+    // The titles the YAML-parsed run-name renders (the structure guard pins
+    // that), not hand-built ones: bare `afk-pass` maps to nothing.
+    const dead = (issue: number) =>
+        run(10, `afk-pass #${issue}`, { conclusion: "failure" });
+
+    it("no branch → release, pushed branch → resume", () => {
+        const [orphan, pushed] = facts(
+            [7, 8],
+            [dead(7), { ...dead(8), id: 11 }],
+            ["fix/issue-8"],
+            []
+        );
+        expect(claimFate(orphan)).toBe("release");
+        expect(claimFate(pushed)).toBe("resume");
+    });
+
+    it("a bare-titled run proves nothing, so the claim reads as live (the bug)", () => {
+        const [f] = facts(
+            [7],
+            [run(10, "afk-pass", { conclusion: "failure" })],
+            [],
+            []
+        );
+        expect(claimFate(f)).toBe("live");
+    });
+
+    it("a resume run's title still names its issue", () => {
+        const [f] = facts(
+            [7],
+            [run(10, "afk-pass #7 (resume)", { conclusion: "failure" })],
+            [],
+            []
+        );
+        expect(claimFate(f)).toBe("release");
+    });
+});
+
+describe("orphan claims under a hold (issue #6194)", () => {
+    const orphanFacts = facts(
+        [7, 8, 9],
+        [
+            run(10, "afk-pass #7", { conclusion: "failure" }),
+            run(11, "afk-pass #8", { conclusion: "failure" }),
+        ],
+        ["fix/issue-8"],
+        []
+    );
+    const holds = [
+        { kind: "failure-streak", message: "m", notify: false },
+        { kind: "red", message: "m" },
+        { kind: "no-budget", message: "m" },
+        { kind: "usage-limit", message: "m", until: "x" },
+    ] as const;
+
+    it("releases the orphan, not the resumable nor the foreign claim", () => {
+        for (const h of holds)
+            expect(holdReleases(h, orphanFacts)).toEqual([7]);
+    });
+
+    it("the kill switch releases nothing", () => {
+        expect(
+            holdReleases({ kind: "disabled", message: "m" }, orphanFacts)
+        ).toEqual([]);
     });
 });

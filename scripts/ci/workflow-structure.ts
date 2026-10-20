@@ -92,6 +92,7 @@
  *     dequeue under a RED is a hold, not a repair pick (issue #6110).
  */
 import { parse } from "yaml";
+import { passRunIssue } from "../lib/afk-dispatch";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 import {
     FAILED_LABEL,
@@ -133,6 +134,7 @@ export type RuleId =
     | "dispatcher-serialised"
     | "queue-superseded"
     | "host-pinned"
+    | "pass-run-name"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -751,6 +753,55 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
         );
 }
 
+export const PASS_WORKFLOW_FILE = ".github/workflows/afk-pass.yml";
+const SAMPLE_PASS_ISSUE = 6194;
+
+/** Render a `run-name` for a sample dispatch: only the two expressions the
+ *  pass workflow uses are understood; anything else is `null`. */
+function renderRunName(name: string, resume: boolean): string | null {
+    let unknown = false;
+    const out = name.replace(/\$\{\{\s*(.*?)\s*\}\}/g, (_m, expr: string) => {
+        if (expr === "inputs.issue") return String(SAMPLE_PASS_ISSUE);
+        const m = /^inputs\.resume && '(.*)' \|\| ''$/.exec(expr);
+        if (m) return resume ? m[1] : "";
+        unknown = true;
+        return "";
+    });
+    return unknown ? null : out;
+}
+
+/** The pass workflow's `run-name` is the one string the dispatcher identifies
+ *  a pass run by (`passRunIssue`). Read through the YAML parser, an unquoted
+ *  ` #` is a comment and the name loses its issue (issue #6194). */
+function checkPassRunName(workflows: SourceFile[], out: Violation[]): void {
+    const f = workflows.find((w) => w.path === PASS_WORKFLOW_FILE);
+    if (!f) return;
+    let doc: unknown;
+    try {
+        doc = parse(f.text);
+    } catch {
+        return; // reported by checkWorkflow
+    }
+    const name = isObj(doc) ? doc["run-name"] : undefined;
+    const fail = (message: string) =>
+        out.push({ file: f.path, job: null, rule: "pass-run-name", message });
+    if (typeof name !== "string")
+        return fail(
+            "no `run-name:` string — the dispatcher cannot map a run to its issue"
+        );
+    for (const resume of [false, true]) {
+        const title = renderRunName(name, resume);
+        if (title === null)
+            return fail(
+                `run-name \`${name}\` uses an expression the guard cannot render`
+            );
+        if (passRunIssue(title) !== SAMPLE_PASS_ISSUE)
+            return fail(
+                `run-name renders \`${title}\` (resume=${resume}), which the dispatcher's run-title parser does not map to its issue — quote the value (an unquoted \` #\` starts a YAML comment)`
+            );
+    }
+}
+
 export function checkStructure(input: StructureInput): Violation[] {
     const out: Violation[] = [];
     const localActions = new Set(
@@ -758,6 +809,7 @@ export function checkStructure(input: StructureInput): Violation[] {
     );
     for (const f of input.workflows) checkWorkflow(f, localActions, out);
     for (const f of input.actions) checkAction(f, out);
+    checkPassRunName(input.workflows, out);
     if (input.mergify) {
         checkMergify(input.mergify, out);
         checkAdvisoryLaneSkipsDrafts(input.workflows, out);
