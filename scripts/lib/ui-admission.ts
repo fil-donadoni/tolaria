@@ -65,6 +65,11 @@ export interface UiLaneOwner {
     /** Heartbeat: the last time the holder attested to being alive. */
     ts: number;
     acquiredAt: number;
+    /** What the walk is doing, stamped by its live heartbeat (issue #6072):
+     *  `ts` only proves the event loop runs; this says whether the walk
+     *  MOVES, for every session queued behind it. */
+    progress?: string;
+    progressAt?: number;
 }
 
 export interface UiLaneHold {
@@ -144,7 +149,36 @@ export function uiLaneHolderLine(owner: UiLaneOwner, now: number): string {
         `last heartbeat ${fmtDuration(now - owner.ts)} ago`,
         owner.cwd,
         owner.label,
+        ...(owner.progress !== undefined && owner.progressAt !== undefined
+            ? [
+                  `progress ${fmtDuration(now - owner.progressAt)} ago: ${owner.progress}`,
+              ]
+            : []),
     ].join(" · ");
+}
+
+/**
+ * Stamp the walk's live progress on the lane's owner record (issue #6072), so
+ * a waiter's line and `gate:who --all` say what the holder is DOING, not only
+ * that its timer fires. Only the holder `pid` may stamp; a lane released or
+ * reclaimed meanwhile is left alone. Best-effort: never throws.
+ */
+export function stampUiLaneProgress(
+    root: string,
+    pid: number,
+    progress: string,
+    now: number = Date.now()
+): void {
+    const owner = readUiLaneOwner(root);
+    if (!owner || owner.pid !== pid) return;
+    try {
+        writeFileSync(
+            ownerFile(root),
+            JSON.stringify({ ...owner, progress, progressAt: now })
+        );
+    } catch {
+        /* mid-release — never crash the run for a progress line */
+    }
 }
 
 /** The heavy gate's owner stamp, as `gate.ts` writes it under `gate.lock`. */

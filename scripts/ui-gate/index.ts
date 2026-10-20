@@ -197,6 +197,7 @@ import {
     admitUiMachine,
     gateLockRoot,
     heavyHolderLive,
+    stampUiLaneProgress,
     MachineSaturatedError,
     type UiMachineAdmission,
 } from "../lib/ui-admission.ts";
@@ -219,6 +220,13 @@ import {
     withDeadline,
     type AttemptResult,
 } from "./cell-deadline.ts";
+import {
+    cellProgressLine,
+    heartbeatLine,
+    startHeartbeat,
+    type ViewportActivity,
+} from "./heartbeat.ts";
+import { consoleErrorDetail } from "./console-detail.ts";
 import {
     NETWORK_INSTRUMENT_SOURCE,
     trackPageRequests,
@@ -288,6 +296,11 @@ const RUN_DEADLINE_MS = deadlineFromEnv(
 const DEPLOYMENT_PROBE_MS = deadlineFromEnv(
     process.env.TOLARIA_UI_GATE_PROBE_MS,
     15_000
+);
+/** The live heartbeat's cadence (issue #6072): a walk is never silent longer. */
+const HEARTBEAT_MS = deadlineFromEnv(
+    process.env.TOLARIA_UI_GATE_HEARTBEAT_MS,
+    30_000
 );
 
 /** One cell's measurement, as an attempt returns it. */
@@ -1047,6 +1060,19 @@ async function main(): Promise<number> {
                  * what the run deadline prints when it fires (issue #4912).
                  */
                 const progress = new Map<string, string>();
+                /**
+                 * The live view (issue #6072): since when each viewport has
+                 * been on its current activity, and the cells finished across
+                 * the matrix — what the heartbeat and the per-cell progress
+                 * lines print while the cell lines stay buffered.
+                 */
+                const activity = new Map<string, ViewportActivity>();
+                const setProgress = (viewportId: string, doing: string) => {
+                    progress.set(viewportId, doing);
+                    activity.set(viewportId, { doing, sinceMs: Date.now() });
+                };
+                const cellsTotal = walkable.length * VIEWPORTS.length;
+                let cellsDone = 0;
                 const reported = new Set<string>();
                 const finished: ViewportResult[] = [];
 
@@ -1134,10 +1160,23 @@ async function main(): Promise<number> {
                         opened.on("console", (msg) => {
                             if (msg.type() === "error") {
                                 attemptConsole.push(msg.text());
-                                consoleErrors.push(
-                                    `${viewport.id}: ${msg.text().slice(0, 160)}`
+                                // React logs through a format string
+                                // (`%o`), so the text alone names nothing:
+                                // resolve the arguments (issue #6072).
+                                void consoleErrorDetail(msg).then((detail) =>
+                                    consoleErrors.push(
+                                        `${viewport.id}: ${detail.slice(0, 400)}`
+                                    )
                                 );
                             }
+                        });
+                        // An uncaught exception is no console message: it
+                        // was never reported at all.
+                        opened.on("pageerror", (err) => {
+                            attemptConsole.push(err.message);
+                            consoleErrors.push(
+                                `${viewport.id}: uncaught ${(err.stack ?? err.message).slice(0, 400)}`
+                            );
                         });
                         return opened;
                     };
@@ -1296,7 +1335,8 @@ async function main(): Promise<number> {
                             viewport: viewport.id,
                             ms: t,
                         });
-                        progress.set(viewport.id, surface.id);
+                        setProgress(viewport.id, surface.id);
+                        const cellStartedAt = Date.now();
                         const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
                         const outcome = await runCellAttempts<MeasuredCell>({
                             attempt: () => attemptCell(surface, t),
@@ -1473,6 +1513,20 @@ async function main(): Promise<number> {
                             lines.push(...assertLines);
                         }
                         if (cleanupLine !== null) lines.push(cleanupLine);
+                        cellsDone++;
+                        log(
+                            cellProgressLine({
+                                index: cellsDone,
+                                total: cellsTotal,
+                                viewport: viewport.id,
+                                surface: surface.id,
+                                outcome:
+                                    outcome.kind === "ok"
+                                        ? "measured"
+                                        : outcome.kind,
+                                ms: Date.now() - cellStartedAt,
+                            })
+                        );
                     };
 
                     // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
@@ -1482,7 +1536,7 @@ async function main(): Promise<number> {
                         await measure(surface);
                     }
 
-                    progress.set(viewport.id, "signing in");
+                    setProgress(viewport.id, "signing in");
                     await ensurePage();
                     await ensureSignedIn(
                         page,
@@ -1498,7 +1552,7 @@ async function main(): Promise<number> {
                         await measure(surface);
                     }
 
-                    progress.set(viewport.id, "closing its context");
+                    setProgress(viewport.id, "closing its context");
                     await withDeadline(
                         () => context.close(),
                         CELL_DEADLINE_MS,
@@ -1536,6 +1590,36 @@ async function main(): Promise<number> {
                     now: Date.now,
                     startedAtMs: startedAt,
                 });
+                const stopHeartbeat = startHeartbeat(
+                    HEARTBEAT_MS,
+                    () => {
+                        const line = heartbeatLine({
+                            nowMs: Date.now(),
+                            startedAtMs: startedAt,
+                            cellsDone,
+                            cellsTotal,
+                            open: VIEWPORT_IDS.filter(
+                                (id) => !reported.has(id) && activity.has(id)
+                            ).map((id) => [id, activity.get(id)!] as const),
+                            load: loadAverage(),
+                            stallAfterMs: CELL_DEADLINE_MS / 2,
+                        });
+                        log(line);
+                        // What every session queued on the lane sees.
+                        stampUiLaneProgress(
+                            gateLockRoot(),
+                            process.pid,
+                            line.replace(/^ui-gate: /, "")
+                        );
+                    },
+                    {
+                        setInterval,
+                        clearInterval: (handle) =>
+                            clearInterval(
+                                handle as ReturnType<typeof setInterval>
+                            ),
+                    }
+                );
                 const results = await untilDeploymentDown(
                     () =>
                         withDeadline(
@@ -1544,7 +1628,7 @@ async function main(): Promise<number> {
                                     VIEWPORTS,
                                     poolSize.limit,
                                     async (viewport, _index, lane) => {
-                                        progress.set(
+                                        setProgress(
                                             viewport.id,
                                             "opening its context"
                                         );
@@ -1566,45 +1650,49 @@ async function main(): Promise<number> {
                             "the run"
                         ),
                     deployment
-                ).catch((err: unknown) => {
-                    if (err instanceof DeploymentDownAbort) {
-                        // No receipt: no cell was judged against a live
-                        // backend. The open cells say where the walk was.
+                )
+                    .finally(stopHeartbeat)
+                    .catch((err: unknown) => {
+                        if (err instanceof DeploymentDownAbort) {
+                            // No receipt: no cell was judged against a live
+                            // backend. The open cells say where the walk was.
+                            const open = openCellsLines(
+                                VIEWPORT_IDS,
+                                progress,
+                                reported
+                            );
+                            log(
+                                `ui-gate: deployment down — ${open.length} viewport(s) still open:`
+                            );
+                            for (const line of open) log(line);
+                            fleet.abandon("the deployment is down");
+                            deploymentAborted = true;
+                            throw new DeploymentDownError(
+                                `${err.message} — the run is aborted with no receipt; ` +
+                                    `restart the backend (\`bun run convex:ensure\`) and re-run.`
+                            );
+                        }
+                        if (!(err instanceof DeadlineExpired)) throw err;
+                        const minutes = Math.round(RUN_DEADLINE_MS / 60_000);
+                        for (const id of VIEWPORT_IDS) {
+                            const done = finished.find(
+                                (r) => r.viewport === id
+                            );
+                            for (const line of done?.lines ?? []) log(line);
+                        }
                         const open = openCellsLines(
                             VIEWPORT_IDS,
                             progress,
                             reported
                         );
                         log(
-                            `ui-gate: deployment down — ${open.length} viewport(s) still open:`
+                            `ui-gate: run deadline (${minutes} min) passed with ${open.length} viewport(s) still open:`
                         );
                         for (const line of open) log(line);
-                        fleet.abandon("the deployment is down");
-                        deploymentAborted = true;
-                        throw new DeploymentDownError(
-                            `${err.message} — the run is aborted with no receipt; ` +
-                                `restart the backend (\`bun run convex:ensure\`) and re-run.`
+                        throw new FatalError(
+                            `the run outlived its ${minutes}-minute deadline with ${open.length} viewport(s) open (listed above) — no receipt`
                         );
-                    }
-                    if (!(err instanceof DeadlineExpired)) throw err;
-                    const minutes = Math.round(RUN_DEADLINE_MS / 60_000);
-                    for (const id of VIEWPORT_IDS) {
-                        const done = finished.find((r) => r.viewport === id);
-                        for (const line of done?.lines ?? []) log(line);
-                    }
-                    const open = openCellsLines(
-                        VIEWPORT_IDS,
-                        progress,
-                        reported
-                    );
-                    log(
-                        `ui-gate: run deadline (${minutes} min) passed with ${open.length} viewport(s) still open:`
-                    );
-                    for (const line of open) log(line);
-                    throw new FatalError(
-                        `the run outlived its ${minutes}-minute deadline with ${open.length} viewport(s) open (listed above) — no receipt`
-                    );
-                });
+                    });
                 const collected = collectRun({
                     knownSurfaceIds: knownIds,
                     viewportIds: VIEWPORT_IDS,
