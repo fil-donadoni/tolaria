@@ -399,10 +399,11 @@ regenerates it. Per PR:
 `REGENERATED_ARTIFACTS` in `scripts/lib/generated-artifacts.ts` — re-derivable
 offline, its `.gitattributes` `merge=regenerated` row, its path in
 `.prettierignore` so the generator's bytes ARE the committed bytes — a row of
-`OTHER_MERGE_DRIVERS`, or a bullet in that file's doc comment saying why it is
-neither. Step 1 then absorbs its conflicts and no regeneration ever needs a
-format step; `generated-artifact-merge.test.ts` reds on a regenerated path
-Prettier would reformat. An unclassified one turns every collision into a
+`OTHER_MERGE_DRIVERS`, or a row of `UNREGENERATED_DATA` saying why it is
+neither (sticky, human input, not offline, one-shot, blob). Step 1 then absorbs
+its conflicts and no regeneration ever needs a format step.
+`generated-artifact-merge.test.ts` reds on a tracked `data/` file with no row,
+on a row matching nothing, and on a regenerated path Prettier would reformat. An unclassified one turns every collision into a
 repair pass (PR #6064, PR #6068: the blade index).
 
 Nothing else labels or comments: a failed fetch, a moved head, a refused push
