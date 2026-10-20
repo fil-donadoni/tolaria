@@ -53,9 +53,9 @@ export function formatElapsed(ms: number): string {
 
 /**
  * One heartbeat: elapsed, cells done over the matrix, what each open viewport
- * is on and for how long, the deployment probe's state, the load. A viewport whose current activity is older
- * than `stallAfterMs` says so, so a stall is named before the cell deadline
- * fires rather than only after.
+ * is on and for how long, the deployment probe's state, the load. A viewport
+ * whose current activity is older than `stallAfterMs` says so, so a stall is
+ * named before the cell deadline fires rather than only after.
  */
 export function heartbeatLine(input: HeartbeatInput): string {
     const parts = [
