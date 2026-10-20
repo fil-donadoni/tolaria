@@ -217,8 +217,6 @@ export const arcLightning = defineCard(() => ({
 // `count: { min: 0, max: 1 }` for the "you may", then `moveZone` routing
 // through `putFromHandOntoBattlefield`. CR 205.3 — a "Goblin permanent card"
 // is `subtype: "Goblin"` AND NOT Instant/Sorcery (`excludeType`).
-//
-// compiler-gap: Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield. (#2693)
 export const goblinLackey = defineCard(() => ({
     id: "9b848caa-aad8-4060-8f86-304a8556de2d", // USG 190
     rarity: "uncommon",
