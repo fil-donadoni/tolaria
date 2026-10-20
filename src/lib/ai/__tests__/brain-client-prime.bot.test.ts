@@ -11,6 +11,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import { disposeBrain, primeBrain, warmBrain } from "../brain-client";
+import { clearAiDecisions } from "../trace-store";
 
 const instances: RecordingWorker[] = [];
 
@@ -54,6 +55,10 @@ beforeEach(() => {
 afterEach(() => {
     disposeBrain();
     (globalThis as { Worker?: unknown }).Worker = originalWorker;
+    // A replaced Worker leaves its failure breadcrumb in the decision ring —
+    // module state a shared `bot-node` worker hands the next file (issue
+    // #6151).
+    clearAiDecisions();
 });
 
 describe("primeBrain", () => {
