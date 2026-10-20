@@ -32,6 +32,9 @@ export interface HeartbeatInput {
     /** The viewports still open, in matrix order. */
     open: readonly (readonly [string, ViewportActivity])[];
     load: number;
+    /** The deployment watch's state (`probeStateLabel`, issue #6081), printed
+     *  before the load; absent when the run has no watch. */
+    convex?: string;
     /** One activity older than this is flagged as a likely stall. */
     stallAfterMs: number;
 }
@@ -50,7 +53,7 @@ export function formatElapsed(ms: number): string {
 
 /**
  * One heartbeat: elapsed, cells done over the matrix, what each open viewport
- * is on and for how long, the load. A viewport whose current activity is older
+ * is on and for how long, the deployment probe's state, the load. A viewport whose current activity is older
  * than `stallAfterMs` says so, so a stall is named before the cell deadline
  * fires rather than only after.
  */
@@ -70,6 +73,7 @@ export function heartbeatLine(input: HeartbeatInput): string {
             `${viewport} ${activity.doing} ${formatElapsed(held)}${stall}`
         );
     }
+    if (input.convex) parts.push(input.convex);
     parts.push(`load ${input.load.toFixed(1)}`);
     return parts.join(" · ");
 }

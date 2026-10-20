@@ -110,8 +110,9 @@ export interface CellAttemptDeps<T> {
     /** One attempt: walk, settle, measure. Throws on a failure the Infra
      *  Verdict classifies. */
     attempt: () => Promise<AttemptResult<T>>;
-    /** The console errors the CURRENT attempt logged. */
-    attemptConsole: () => readonly string[];
+    /** The console errors the CURRENT attempt logged, each by its text and
+     *  its resolved detail (`attempt-console.ts`, issue #6087). */
+    attemptConsole: () => Promise<readonly string[]>;
     /** The human reason for a thrown failure (a walk's `Unreachable` message,
      *  or `walk threw: …`). */
     reasonOf: (err: unknown) => string;
@@ -164,7 +165,7 @@ export async function runCellAttempts<T>(
             const reason = deps.reasonOf(err);
             const failure = classifyWalkFailure({
                 message,
-                consoleErrors: deps.attemptConsole(),
+                consoleErrors: await deps.attemptConsole(),
                 deploymentDown:
                     deps.deployment?.failedSince(startedAt) ?? false,
             });

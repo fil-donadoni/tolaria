@@ -54,6 +54,21 @@ describe("heartbeatLine — what a silent walk is doing right now", () => {
             "no viewport open"
         );
     });
+
+    it("names the deployment probe's state before the load (issue #6087)", () => {
+        expect(
+            heartbeatLine({ ...base, open: [], convex: "convex ok 3s ago" })
+        ).toBe(
+            "ui-gate: ♥ 12m30s · 48/155 cells · no viewport open · convex ok 3s ago · load 5.1"
+        );
+        expect(
+            heartbeatLine({ ...base, open: [], convex: "convex DOWN" })
+        ).toContain("· convex DOWN · load 5.1");
+    });
+
+    it("prints no probe segment for a run without a watch", () => {
+        expect(heartbeatLine({ ...base, open: [] })).not.toContain("convex");
+    });
 });
 
 describe("cellProgressLine — one live line per finished cell", () => {

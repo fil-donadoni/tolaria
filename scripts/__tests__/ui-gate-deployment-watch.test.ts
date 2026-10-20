@@ -200,7 +200,7 @@ describe("a cell failing while a probe failed is the deployment's", () => {
         attempt: async () => {
             throw new Error(`${UNSETTLED_MESSAGE_PREFIX} within 30000ms`);
         },
-        attemptConsole: () => [],
+        attemptConsole: async () => [],
         reasonOf: (err) => (err as Error).message,
         onDeadline: () => {},
         beforeRetry: async () => {},
