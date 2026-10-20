@@ -7193,6 +7193,114 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 400.7 + CR 205.3 — "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield": the controller's own 0..1 hand pick filtered by creature type minus instants and sorceries, then the `moveZone` of the pick (issue #5203).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Goblin Lackey",
+            manaCost: "{R}",
+            typeLine: "Creature — Goblin",
+            oracleText:
+                "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+            power: "1",
+            toughness: "1",
+            oracleId: "213fbbdd-f1bc-4bba-9124-7b26e9a706c8",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Lackey",
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            manaCost: { R: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "goblin-lackey-trigger",
+                    oracleText:
+                        "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "player",
+                    },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            filter: {
+                                subtype: "Goblin",
+                                excludeType: ["Instant", "Sorcery"],
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "You may put a Goblin permanent card from your hand onto the battlefield.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: "controller",
+                            from: "hand",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 120.3 — "Whenever this creature is dealt damage, sacrifice that many permanents": the controller's own edict sized by the damage the head carried, `choice` count `{ ref: "$event.amount" }` (a computed exact count, issue #5559) then the `sacrifice` of the picks (issue #5203).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Phyrexian Negator",
+            manaCost: "{2}{B}",
+            typeLine: "Creature — Phyrexian Horror",
+            oracleText:
+                "Whenever this creature is dealt damage, sacrifice that many permanents.",
+            power: "5",
+            toughness: "5",
+            oracleId: "f22fcd17-bc24-41df-81ce-6d11208861b9",
+            layout: "normal",
+        },
+        expected: {
+            name: "Phyrexian Negator",
+            types: ["Creature"],
+            subtypes: ["Phyrexian", "Horror"],
+            manaCost: { X: 2, B: 1 },
+            power: 5,
+            toughness: 5,
+            oracleText:
+                "Whenever this creature is dealt damage, sacrifice that many permanents.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "phyrexian-negator-trigger",
+                    oracleText:
+                        "Whenever this creature is dealt damage, sacrifice that many permanents.",
+                    head: { kind: "damage-taken", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: "controller",
+                            zone: "battlefield",
+                            filter: {},
+                            count: { ref: "$event.amount" },
+                            prompt: "Sacrifice that many permanents.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 702.33e + CR 702.33f + CR 603.4 — "When this creature enters, if it was kicked with its {R} kicker, …": a check-time gate on ONE named kicker plus the resolution-time `additionalCostPaid` branch. Exhibits a kicker-payment amount the canned smoke scenario casts unkicked (issue #4571).
     {
         rule: "kicked trigger condition",

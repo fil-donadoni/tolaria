@@ -1067,6 +1067,17 @@ export type EffectSentenceIR =
           readonly types: readonly CardType[];
           readonly optional: boolean;
       }
+    | {
+          /**
+           * CR 400.7 + CR 205.3 — "[You may] put a <Subtype> permanent card
+           * from your hand onto the battlefield": the controller picks one
+           * card of that creature type that is not an instant or sorcery. The
+           * "may" is the enclosing `optional` wrapper's, folded into the
+           * pick's 0..1 count at lowering.
+           */
+          readonly kind: "put-subtype-from-hand";
+          readonly subtype: string;
+      }
     | ({
           /**
            * CR 111.1 — create one or more creature tokens whose
@@ -1403,7 +1414,9 @@ export type EffectSentenceIR =
            */
           readonly kind: "sacrifice";
           readonly player: PlayerRefIR;
-          readonly count: number;
+          /** A printed number, or "that many" — the damage a damage head
+           *  dealt or took (CR 120.3), read by the lowering's `lowerAmount`. */
+          readonly count: AmountIR;
           readonly filter: EffectCardFilter;
           /** CR 608.2h — "with the greatest power among creatures they
            *  control": the pick narrows to the permanents tied for the extreme
@@ -3603,6 +3616,8 @@ const COLOR_ALTERNATIVES =
 /** CR 118.12a — where a sacrifice rider's payment begins. */
 const SACRIFICE_UNLESS = " unless you ";
 const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
+/** CR 701.21a — the imperative "Sacrifice that many permanents": the controller's own edict. */
+const SACRIFICE_THAT_MANY = /^Sacrifice that many (permanents)$/;
 /**
  * CR 608.2h — the superlative tail of an edict's permanent phrase: "creature
  * with the greatest power among creatures they control". Head, extreme, stat
@@ -3641,6 +3656,10 @@ const RETURN_SELF_FROM_GRAVEYARD =
 /** CR 101.4 — "Each player puts a creature card from their graveyard onto the battlefield". */
 const EACH_PLAYER_PUTS =
     /^Each player (puts|may put) an? (.+) card from their (graveyard|hand) onto the battlefield$/;
+
+/** CR 205.3 — "Put a Goblin permanent card from your hand onto the battlefield". */
+const PUT_SUBTYPE_FROM_HAND =
+    /^Put an? (\S+) permanent card from your hand onto the battlefield$/;
 
 /** A permanent card type word ("creature", "enchantment") as a `CardType`. */
 function permanentCardType(word: string): CardType | null {
@@ -6220,6 +6239,17 @@ function effectSentence(
             kind: "return-self-from-graveyard" as const,
             to: "hand" as const,
         } satisfies EffectSentenceIR);
+    const putFromHand = span.match(PUT_SUBTYPE_FROM_HAND);
+    if (putFromHand !== null) {
+        // CR 205.3m — a creature type; any other word is a card type or
+        // supertype the filter would have to read differently.
+        if (!CREATURE_SUBTYPES.has(putFromHand[1]!))
+            return fail(`"${putFromHand[1]}" is not a creature type`, span);
+        return ok({
+            kind: "put-subtype-from-hand" as const,
+            subtype: putFromHand[1]!,
+        } satisfies EffectSentenceIR);
+    }
     const eachPuts = span.match(EACH_PLAYER_PUTS);
     if (eachPuts !== null) {
         const types = permanentCardTypeList(eachPuts[2]!);
@@ -6712,6 +6742,16 @@ function effectSentence(
     }
 
     // ── sacrifice, the player's choice (CR 701.21a) ────────────────────────
+    // The imperative is the controller's own edict, its size the amount the
+    // head carried ("that many" — the damage dealt, CR 120.3).
+    if (SACRIFICE_THAT_MANY.test(span))
+        return ok({
+            kind: "sacrifice" as const,
+            player: { kind: "you" as const },
+            count: { kind: "event-amount" as const },
+            filter: {},
+            phrase: "that many permanents",
+        } satisfies EffectSentenceIR);
     const edict = span.match(SACRIFICE_EDICT);
     if (edict !== null) {
         const player = playerSubject(edict[1]!, ctx);
@@ -6754,7 +6794,7 @@ function effectSentence(
         return ok({
             kind: "sacrifice" as const,
             player,
-            count,
+            count: { kind: "fixed" as const, value: count },
             filter: filter.value,
             ...(superlative === undefined ? {} : { superlative }),
             phrase: `${edict[2]} ${edict[3]}`,
