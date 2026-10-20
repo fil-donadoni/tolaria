@@ -783,8 +783,9 @@ function checkPassRunName(workflows: SourceFile[], out: Violation[]): void {
         return; // reported by checkWorkflow
     }
     const name = isObj(doc) ? doc["run-name"] : undefined;
-    const fail = (message: string) =>
+    const fail = (message: string): void => {
         out.push({ file: f.path, job: null, rule: "pass-run-name", message });
+    };
     if (typeof name !== "string")
         return fail(
             "no `run-name:` string — the dispatcher cannot map a run to its issue"
