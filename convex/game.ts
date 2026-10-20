@@ -43,6 +43,7 @@ import {
     moveCard,
     removePermanentTo,
     getBasicLandMana,
+    hasBasicLandMana,
     payManaCost,
     manaSpentDelta,
     validateManaSpendOrder,
@@ -1888,7 +1889,7 @@ export function tapSourceIntoPayment(
     // `requiresTap &&` gate in `tapUntap` (issue #2021: this site gated
     // unconditionally, so the payment path rejected what the priority path
     // allowed).
-    const requiresTap = !!getBasicLandMana(card) || ability?.cost.tap === true;
+    const requiresTap = hasBasicLandMana(card) || ability?.cost.tap === true;
     if (requiresTap && isTapLockedBySummoningSickness(card)) {
         throw new Error("Creature has summoning sickness");
     }
@@ -13377,7 +13378,7 @@ export const tapUntap = mutation({
         // ability whose cost includes {T}. Untap (refunding floating mana)
         // is allowed since it reverses an earlier activation, not a fresh one.
         const requiresTap =
-            !!getBasicLandMana(card) || ability?.cost.tap === true;
+            hasBasicLandMana(card) || ability?.cost.tap === true;
         if (!wasTapped && requiresTap && isTapLockedBySummoningSickness(card)) {
             throw new Error("Creature has summoning sickness");
         }

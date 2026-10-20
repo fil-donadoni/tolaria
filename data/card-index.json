@@ -1348,6 +1348,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alpine Meadow",
+        "scryfallId": "8702d6b9-bb01-4841-a76d-4a576066c772",
+        "oracleId": "8c281ebe-d9a1-48af-b58b-19c55aa4625b",
+        "firstSet": "khm",
+        "firstPrintId": "8702d6b9-bb01-4841-a76d-4a576066c772",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Alpine Watchdog",
         "scryfallId": "c392a7e5-6ff5-4c2f-9590-f8811a724f44",
         "oracleId": "6a0419c3-4bfa-46c1-932b-fe10f2fa2ad7",
@@ -2724,6 +2734,16 @@
         "firstSet": "pls",
         "firstPrintId": "86369fe5-d86d-4f4c-8f3d-dedc174f2032",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Arctic Treeline",
+        "scryfallId": "b20e3117-f1e4-4449-ae9d-0b66abfc717d",
+        "oracleId": "32fb0096-546c-4633-b6e3-ba3f2d9fa49c",
+        "firstSet": "khm",
+        "firstPrintId": "b20e3117-f1e4-4449-ae9d-0b66abfc717d",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Arcum's Sleigh",
@@ -8720,6 +8740,16 @@
         "source": "compiled"
     },
     {
+        "name": "Canyon Slough",
+        "scryfallId": "8cb273d9-466d-416d-b27d-d1bc8a249076",
+        "oracleId": "2031b17c-0536-446f-a9aa-b46fe79b7ea7",
+        "firstSet": "akh",
+        "firstPrintId": "8cb273d9-466d-416d-b27d-d1bc8a249076",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Canyon Wildcat",
         "scryfallId": "0169e52b-7909-4a8f-8ca2-62f030f9a85a",
         "oracleId": "dbf7b3ef-1ca4-4b0d-bec2-f5e60b150013",
@@ -11010,6 +11040,16 @@
         "source": "compiled"
     },
     {
+        "name": "Coastal Peak",
+        "scryfallId": "a8af6ded-de96-4095-8a5b-9f1c79adea1a",
+        "oracleId": "0e25faa2-efb0-4ca5-b280-18c38faa860c",
+        "firstSet": "soc",
+        "firstPrintId": "a8af6ded-de96-4095-8a5b-9f1c79adea1a",
+        "firstPrintSet": "soc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Coastal Tower",
         "scryfallId": "d115dbff-e35b-495f-a1e3-19651895927e",
         "oracleId": "f0367926-4380-4d22-8cb8-46c2076f102a",
@@ -11736,6 +11776,16 @@
         "firstSet": "c14",
         "firstPrintId": "c2c794b9-09da-49be-b258-b0e21f1663e3",
         "firstPrintSet": "c14"
+    },
+    {
+        "name": "Contaminated Aquifer",
+        "scryfallId": "6bb570f4-de68-4d8c-a9f3-8a3294163aa8",
+        "oracleId": "c27b771d-b5ec-459a-a101-f078cb8d0184",
+        "firstSet": "dmu",
+        "firstPrintId": "6bb570f4-de68-4d8c-a9f3-8a3294163aa8",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Contemplation",
@@ -21092,6 +21142,16 @@
         "source": "compiled"
     },
     {
+        "name": "Festering Thicket",
+        "scryfallId": "d312f4ca-909a-47df-91dc-dfb63838b5f5",
+        "oracleId": "bdb9b2ce-342c-4935-8943-d0c3971b1e38",
+        "firstSet": "eoc",
+        "firstPrintId": "d312f4ca-909a-47df-91dc-dfb63838b5f5",
+        "firstPrintSet": "eoc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Fetid Heath",
         "scryfallId": "0fbb9790-3744-4dcb-881a-452573298822",
         "oracleId": "42bf259d-4bb9-49c3-b4ec-223dca62f4d6",
@@ -21119,6 +21179,16 @@
         "firstPrintId": "891718e9-bef3-470a-80c5-514f7f43abe8",
         "firstPrintSet": "ori",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Fetid Pools",
+        "scryfallId": "ae703d94-6f1f-463b-ab25-1b3f462e7e78",
+        "oracleId": "32b03b48-06da-4a74-a7ac-e5ae39a4f428",
+        "firstSet": "akh",
+        "firstPrintId": "ae703d94-6f1f-463b-ab25-1b3f462e7e78",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -24134,6 +24204,16 @@
         "source": "compiled"
     },
     {
+        "name": "Geothermal Bog",
+        "scryfallId": "1e62fe57-4fa4-4bfd-8e31-9f6db774d7e2",
+        "oracleId": "e3b67368-1dd6-419b-a95d-7131b1dba23f",
+        "firstSet": "dmu",
+        "firstPrintId": "1e62fe57-4fa4-4bfd-8e31-9f6db774d7e2",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Geothermal Crevice",
         "scryfallId": "e744b593-13fe-4967-b492-ac02f5815e57",
         "oracleId": "83f9d84a-a011-4fa9-a3a4-51eb39159c54",
@@ -24696,6 +24776,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Glacial Floodplain",
+        "scryfallId": "9de5fadd-4559-479f-b45d-abe792f0f6e5",
+        "oracleId": "5d3563dd-a2c1-463c-a0ed-5ac22388bdbe",
+        "firstSet": "khm",
+        "firstPrintId": "9de5fadd-4559-479f-b45d-abe792f0f6e5",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Glacial Stalker",
         "scryfallId": "8821c7b9-702b-416f-b006-941ad57f9e11",
         "oracleId": "49d06291-c8cb-4e22-b178-d0598582b2ee",
@@ -24923,6 +25013,16 @@
         "firstPrintId": "a1519521-7f53-4f13-a104-daf52e8c7234",
         "firstPrintSet": "sok",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Glittering Massif",
+        "scryfallId": "c6ab42e4-4c87-4fc1-b7a9-1c0ff7d791fb",
+        "oracleId": "23732d20-aba6-46cc-89d0-0542629bc6b5",
+        "firstSet": "eoc",
+        "firstPrintId": "c6ab42e4-4c87-4fc1-b7a9-1c0ff7d791fb",
+        "firstPrintSet": "eoc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -27932,6 +28032,16 @@
         "source": "compiled"
     },
     {
+        "name": "Haunted Mire",
+        "scryfallId": "16f5e958-56e6-4666-a534-24deba6f652d",
+        "oracleId": "b0b58a03-462c-4964-97c7-42bc777ec23e",
+        "firstSet": "dmu",
+        "firstPrintId": "16f5e958-56e6-4666-a534-24deba6f652d",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Haunting Echoes",
         "scryfallId": "aca4c571-48b8-4150-93f8-4cb5c8e797c4",
         "oracleId": "3abd345a-69a5-486e-ada9-dd1ca0decc28",
@@ -28804,6 +28914,16 @@
         "firstSet": "znr",
         "firstPrintId": "24c40082-516e-4381-a4cc-e61c5a9a6cac",
         "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Highland Forest",
+        "scryfallId": "682eee5f-7986-45d3-910f-407303fdbcc4",
+        "oracleId": "35137378-6754-4bb1-a38e-5940890ccab1",
+        "firstSet": "khm",
+        "firstPrintId": "682eee5f-7986-45d3-910f-407303fdbcc4",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -30100,6 +30220,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Ice Tunnel",
+        "scryfallId": "8cff3ef0-4dfb-472e-aa1e-77613dd0f6d8",
+        "oracleId": "40c5d6fe-854a-436d-9f80-13eb5f1f8f68",
+        "firstSet": "khm",
+        "firstPrintId": "8cff3ef0-4dfb-472e-aa1e-77613dd0f6d8",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Iceberg",
         "scryfallId": "a2f70e49-17fa-4033-bd45-63374f7f5ec5",
         "oracleId": "cff3fba2-9c5d-4e98-9ff0-0cc0b3bc8dbe",
@@ -30170,6 +30300,16 @@
         "firstSet": "ice",
         "firstPrintId": "39a7e496-8d2e-49db-b298-475d9017537a",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Idyllic Beachfront",
+        "scryfallId": "c50ec22c-decb-419f-ae52-78ea1706eb11",
+        "oracleId": "0aea7e5d-40d7-46c7-a8a6-479cb8061e49",
+        "firstSet": "dmu",
+        "firstPrintId": "c50ec22c-decb-419f-ae52-78ea1706eb11",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Ifh-Bíff Efreet",
@@ -31525,6 +31665,16 @@
         "firstPrintId": "916d8aa5-158f-46f4-babe-981a391fd88b",
         "firstPrintSet": "emn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Irrigated Farmland",
+        "scryfallId": "4d87fcc0-cef5-4410-adf1-91c5f50c1d01",
+        "oracleId": "406eabe2-df62-49e2-bb39-c0227509d875",
+        "firstSet": "akh",
+        "firstPrintId": "4d87fcc0-cef5-4410-adf1-91c5f50c1d01",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -39620,6 +39770,16 @@
         "source": "compiled"
     },
     {
+        "name": "Molten Tributary",
+        "scryfallId": "20aff4af-5128-432f-a8c8-65b6909d31ac",
+        "oracleId": "58c592ed-20fc-481b-909b-2315567e5f20",
+        "firstSet": "dmu",
+        "firstPrintId": "20aff4af-5128-432f-a8c8-65b6909d31ac",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Molten Vortex",
         "scryfallId": "d99fd073-c249-4cd2-9d71-be417c88c493",
         "oracleId": "da5ee877-143e-4f53-ad20-1bc527a8fff8",
@@ -47594,6 +47754,16 @@
         "source": "compiled"
     },
     {
+        "name": "Radiant Grove",
+        "scryfallId": "e0f9dca6-e5ae-4714-8a59-2ef1d8f1e82d",
+        "oracleId": "32c91719-f3dd-4cc7-9e32-7d5ccf18f07c",
+        "firstSet": "dmu",
+        "firstPrintId": "e0f9dca6-e5ae-4714-8a59-2ef1d8f1e82d",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Radiant Kavu",
         "scryfallId": "153077a8-38c0-44aa-9b84-cdd9ade50ad6",
         "oracleId": "ab46b957-5206-4390-a2f6-aba2e8d1debe",
@@ -47813,6 +47983,16 @@
         "firstPrintId": "803ba4ef-24ed-4f45-aed8-f9442322e31e",
         "firstPrintSet": "por",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rain-Slicked Copse",
+        "scryfallId": "07be68c1-1272-4209-84b9-4fff9211b23e",
+        "oracleId": "633a41f0-3889-49a0-b2fc-9baf59f4ddc2",
+        "firstSet": "ecc",
+        "firstPrintId": "07be68c1-1272-4209-84b9-4fff9211b23e",
+        "firstPrintSet": "ecc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -50030,6 +50210,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Rimewood Falls",
+        "scryfallId": "da1db084-f235-4e26-8867-5f0835a0d283",
+        "oracleId": "983739cd-0b36-40d9-9a03-7b6aa7ffd0df",
+        "firstSet": "khm",
+        "firstPrintId": "da1db084-f235-4e26-8867-5f0835a0d283",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rimrock Knight // Boulder Rush",
         "scryfallId": "a3d13d84-01e4-4429-93db-e5afff811527",
         "oracleId": "24db950b-e4fe-42d0-977b-4957eb8229d9",
@@ -51646,6 +51836,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sacred Peaks",
+        "scryfallId": "24957d64-ad17-4d4f-8a00-3cdd83e1ce88",
+        "oracleId": "fb69bc57-f05a-41c2-9b7b-9a9761ef0cd3",
+        "firstSet": "dmu",
+        "firstPrintId": "24957d64-ad17-4d4f-8a00-3cdd83e1ce88",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sacred Wolf",
         "scryfallId": "a2bffe20-c469-4ac8-a8a9-361a244f4cfe",
         "oracleId": "ccb64a70-cbdd-4991-a28d-b137032a4f4d",
@@ -52727,6 +52927,16 @@
         "firstPrintId": "18cd73f4-78ba-404b-bdb2-7213a56daa4f",
         "firstPrintSet": "psal",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scattered Groves",
+        "scryfallId": "ccb541aa-3bf6-41f3-89e5-9c6c56ea210a",
+        "oracleId": "3c87ea85-ca29-45a7-b5b2-758c62898b0a",
+        "firstSet": "akh",
+        "firstPrintId": "ccb541aa-3bf6-41f3-89e5-9c6c56ea210a",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -54708,6 +54918,16 @@
         "firstSet": "lrw",
         "firstPrintId": "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
         "firstPrintSet": "lrw"
+    },
+    {
+        "name": "Sheltered Thicket",
+        "scryfallId": "d23cd764-3f5c-4c93-ba83-e5ff397003a2",
+        "oracleId": "db8d8643-3d0b-4f20-bf53-f4cd26a0e8df",
+        "firstSet": "akh",
+        "firstPrintId": "d23cd764-3f5c-4c93-ba83-e5ff397003a2",
+        "firstPrintSet": "akh",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sheltering Boughs",
@@ -57394,6 +57614,16 @@
         "firstSet": "ice",
         "firstPrintId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Snowfield Sinkhole",
+        "scryfallId": "6611dc5e-6acc-48df-b8c4-4b327314578b",
+        "oracleId": "749c2c8e-9588-4e83-b07f-3c37eb63338b",
+        "firstSet": "khm",
+        "firstPrintId": "6611dc5e-6acc-48df-b8c4-4b327314578b",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Snowhorn Rider",
@@ -60830,6 +61060,16 @@
         "firstPrintSet": "scg"
     },
     {
+        "name": "Sulfurous Mire",
+        "scryfallId": "35ebe245-ebb5-493c-b9c1-56fbfda9bd66",
+        "oracleId": "77cf536e-246e-4c18-8e04-c904fcad3f40",
+        "firstSet": "khm",
+        "firstPrintId": "35ebe245-ebb5-493c-b9c1-56fbfda9bd66",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sulfurous Springs",
         "scryfallId": "2fdeab50-b45f-412b-85a3-c6cf009ce567",
         "oracleId": "f5c38c01-4a40-469f-91a0-7479daf4e8e7",
@@ -61182,6 +61422,16 @@
         "firstSet": "tsr",
         "firstPrintId": "82ab72c3-1f76-45ff-84b4-05f403866d44",
         "firstPrintSet": "tsr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sunlit Marsh",
+        "scryfallId": "f0588fbf-3c05-452a-b3f7-67604c1f921d",
+        "oracleId": "a5e5a259-5fa7-4b01-93cb-a2b4aaf80927",
+        "firstSet": "dmu",
+        "firstPrintId": "f0588fbf-3c05-452a-b3f7-67604c1f921d",
+        "firstPrintSet": "dmu",
         "rarity": "common",
         "source": "compiled"
     },
@@ -62286,6 +62536,16 @@
         "firstSet": "mrd",
         "firstPrintId": "361a524c-17aa-43a0-8aea-1d26a9a1044c",
         "firstPrintSet": "mrd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tangled Islet",
+        "scryfallId": "4a325fb4-fe71-47f1-9a2f-05b8cfe88fe6",
+        "oracleId": "4b1f68a2-b606-4c64-bd44-a9714808316d",
+        "firstSet": "dmu",
+        "firstPrintId": "4a325fb4-fe71-47f1-9a2f-05b8cfe88fe6",
+        "firstPrintSet": "dmu",
         "rarity": "common",
         "source": "compiled"
     },
@@ -66494,6 +66754,16 @@
         "source": "compiled"
     },
     {
+        "name": "Umbral Expanse",
+        "scryfallId": "15848965-01a8-48bf-aa61-8a753339c761",
+        "oracleId": "5a1dfc60-645d-4bc0-8883-e06ed9c80706",
+        "firstSet": "soc",
+        "firstPrintId": "15848965-01a8-48bf-aa61-8a753339c761",
+        "firstPrintSet": "soc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Umbral Juke",
         "scryfallId": "3fbd0921-e953-492b-ad73-c8a8bfaa750b",
         "oracleId": "d56afdf6-51e0-4151-a86c-4c4827a50a0e",
@@ -69166,6 +69436,16 @@
         "firstSet": "rtr",
         "firstPrintId": "23723bc7-a68e-4810-bc87-60df916cbb8a",
         "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Volatile Fjord",
+        "scryfallId": "f2392fbb-d9c4-4688-b99c-4e7614c60c12",
+        "oracleId": "96262c15-9130-409c-8242-71f84be719b7",
+        "firstSet": "khm",
+        "firstPrintId": "f2392fbb-d9c4-4688-b99c-4e7614c60c12",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -72112,12 +72392,32 @@
         "firstPrintSet": "ons"
     },
     {
+        "name": "Wooded Ridgeline",
+        "scryfallId": "e8e31184-dca4-48b1-be9d-581247c41d99",
+        "oracleId": "c2ca3e20-23ca-4d2a-88a1-5e98ff884abb",
+        "firstSet": "dmu",
+        "firstPrintId": "e8e31184-dca4-48b1-be9d-581247c41d99",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Wooden Sphere",
         "scryfallId": "bcae01a2-171b-47cd-87be-f1e4e5314326",
         "oracleId": "0bd8917c-bec4-4603-bc3f-8e0c2afae56a",
         "firstSet": "lea",
         "firstPrintId": "bcae01a2-171b-47cd-87be-f1e4e5314326",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Woodland Chasm",
+        "scryfallId": "b2dd0b71-5a60-418c-82fc-f13d1b5075d0",
+        "oracleId": "bf5482b6-dd3e-4fb7-bc62-29e23b417a5f",
+        "firstSet": "khm",
+        "firstPrintId": "b2dd0b71-5a60-418c-82fc-f13d1b5075d0",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Woodland Druid",

@@ -62,7 +62,6 @@ import {
 } from "@convex/gre/loyalty";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
-    LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
@@ -72,6 +71,7 @@ import {
     getFixedMultiColorTapManaAbility,
     getManaTapOptions,
     getManaTapOptionsDetailed,
+    hasBasicLandMana,
     hasFilteredGiveUpCost,
     hybridCostKey,
     isSpellStackItem,
@@ -296,13 +296,13 @@ export function isLandwalkUnblockable(
     return false;
 }
 
-export function getLandManaColor(card: CardInstance): Color | null {
-    const subtypes = card.subtypes ?? [];
-    for (const subtype of subtypes) {
-        const color = LAND_SUBTYPE_MANA[subtype];
-        if (color) return color;
-    }
-    return null;
+/** CR 305.6 — does this permanent have an intrinsic basic-land mana ability
+ *  (one per basic land type)? The engine's own probe (`hasBasicLandMana`), so
+ *  the board reads the same text-change-aware subtypes the server taps by and
+ *  a land with two basic types (Badlands) is a mana source with no printed
+ *  ability (issue #5623). Which colours it offers is `getManaChoices`. */
+export function hasIntrinsicLandMana(card: CardInstance): boolean {
+    return hasBasicLandMana(card as unknown as CardInstanceState);
 }
 
 /** The id to resolve a card's NAME / ART / ORACLE TEXT by for a DISPLAY-ONLY
@@ -449,7 +449,7 @@ export function hasManaAbility(
     stateView?: TriggerStateView,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): boolean {
-    if (getLandManaColor(card) !== null) return true;
+    if (hasIntrinsicLandMana(card)) return true;
     const ability = findClientManaAbility(card);
     if (!ability) return false;
     if (ability.canActivate) {
@@ -906,7 +906,7 @@ export function hasFixedMultiColorTapManaAbility(card: CardInstance): boolean {
  *  activatable. Mirrors the `requiresTap` gate in `tapUntap` /
  *  `tapSourceIntoPayment` server-side. */
 export function manaActivationRequiresTap(card: CardInstance): boolean {
-    if (getLandManaColor(card) !== null) return true;
+    if (hasIntrinsicLandMana(card)) return true;
     return getEffectiveActivatedAbilities(
         card as unknown as CardInstanceState
     ).some(({ ability: a }) => !a.useStack && a.cost.tap === true);

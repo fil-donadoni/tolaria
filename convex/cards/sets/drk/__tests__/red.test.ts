@@ -18,6 +18,7 @@ import {
     abilitiesSuppressed,
     getActivatedManaAbility,
     getBasicLandMana,
+    getBasicLandManaColors,
     hasManaAbility,
 } from "../../../../gre/constants";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
@@ -102,7 +103,8 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         expect(land.abilitiesSuppressedBy).toEqual([
             { sourceId: "moon-1", seq: expect.any(Number) },
         ]);
-        // Its original {T}: Add {G} or {U} choice ability no longer functions.
+        // Its {G}/{U} abilities were the intrinsic Forest / Island ones (CR
+        // 305.6, issue #5623), gone with the subtypes; no printed one remains.
         expect(getActivatedManaAbility(land)).toBeNull();
         // It still HAS a mana ability — the intrinsic Mountain one.
         expect(hasManaAbility(land)).toBe(true);
@@ -170,11 +172,12 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
     it("reverts the land cleanly when Blood Moon leaves play (stopApplyingStaticEffects)", () => {
         const { state, moon, land } = withBloodMoon();
         stopApplyingStaticEffects(state, moon);
-        // Printed subtypes restored; original mana ability functions again.
+        // Printed subtypes restored; their intrinsic mana abilities (CR 305.6)
+        // function again.
         expect(land.subtypes).toEqual(["Forest", "Island"]);
         expect(abilitiesSuppressed(land)).toBe(false);
         expect(land.abilitiesSuppressedBy).toBeUndefined();
-        expect(getActivatedManaAbility(land)).not.toBeNull();
+        expect(getBasicLandManaColors(land)).toEqual(["G", "U"]);
         const options = getProducibleManaOptions(land);
         expect(options.has("G")).toBe(true);
         expect(options.has("U")).toBe(true);

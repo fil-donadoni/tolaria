@@ -21,7 +21,7 @@ import {
     hasFixedMultiColorTapManaAbility,
     hasFilteredGiveUpManaAbility,
     canAffordManaAbilityCost,
-    getLandManaColor,
+    hasIntrinsicLandMana,
     getActivatedManaColor,
     getManaChoices,
     buildTriggerStateView,
@@ -604,7 +604,7 @@ export function useBattlefieldVisualState(
                     );
             return card.isTapped
                 ? tappedDuringPayment
-                : getLandManaColor(card) !== null ||
+                : hasIntrinsicLandMana(card) ||
                       getActivatedManaColor(card) !== null ||
                       // CR 605.1a (issue #2021) — a FIXED-output sacrifice
                       // source answers null to `getActivatedManaColor` (no

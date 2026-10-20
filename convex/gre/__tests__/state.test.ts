@@ -6,6 +6,8 @@ import {
     grantKnowledge,
     grantKnowledgeToAll,
     getBasicLandMana,
+    getBasicLandManaColors,
+    hasBasicLandMana,
     getPlayer,
     getOpponentId,
     moveCard,
@@ -152,8 +154,9 @@ describe("getBasicLandMana", () => {
         expect(getBasicLandMana(card)).toBe("G");
     });
 
-    it("dual land returns first matching color (CR 305.6 — each subtype grants its own ability)", () => {
-        // Tundra has Plains and Island subtypes
+    it("dual land has no single fixed colour (CR 305.6 — each subtype grants its own ability)", () => {
+        // Tundra has Plains and Island subtypes: two intrinsic abilities, so
+        // tapping it is a choice, never the first type's colour (issue #5623).
         const card = makeCard({
             card: {
                 name: "Tundra",
@@ -161,8 +164,9 @@ describe("getBasicLandMana", () => {
                 subtypes: ["Plains", "Island"],
             },
         });
-        // Current implementation returns the first match
-        expect(getBasicLandMana(card)).toBe("W");
+        expect(getBasicLandMana(card)).toBeNull();
+        expect(getBasicLandManaColors(card)).toEqual(["W", "U"]);
+        expect(hasBasicLandMana(card)).toBe(true);
     });
 
     it("returns null for land without basic land subtype", () => {
