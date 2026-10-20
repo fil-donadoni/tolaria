@@ -643,13 +643,17 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         // Exercised on the driver directly: an artifact whose two sides changed
         // disjoint regions merges textually, and forcing a regeneration there
         // would turn today's clean landing into a refusal on any machine
-        // without the corpus cache.
+        // without the corpus cache. JSON, but not shaped like the lockfile:
+        // the lockfile's own structure check (issue #6169) has nothing to
+        // read, so the plain rule holds.
+        const lines = (first: string, last: string): string =>
+            `[\n"${first}",\n"two",\n"three",\n"four",\n"five",\n"six",\n"${last}"\n]\n`;
         const base = join(repo, "m.base");
         const ours = join(repo, "m.ours");
         const theirs = join(repo, "m.theirs");
-        writeFileSync(base, "one\ntwo\nthree\nfour\nfive\nsix\nseven\n");
-        writeFileSync(ours, "ONE\ntwo\nthree\nfour\nfive\nsix\nseven\n");
-        writeFileSync(theirs, "one\ntwo\nthree\nfour\nfive\nsix\nSEVEN\n");
+        writeFileSync(base, lines("one", "seven"));
+        writeFileSync(ours, lines("ONE", "seven"));
+        writeFileSync(theirs, lines("one", "SEVEN"));
 
         const r = spawnSync(
             "bun",
@@ -657,9 +661,7 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
             { cwd: repo, encoding: "utf8" }
         );
         expect(r.status, r.stdout + r.stderr).toBe(0);
-        expect(readFileSync(ours, "utf8")).toBe(
-            "ONE\ntwo\nthree\nfour\nfive\nsix\nSEVEN\n"
-        );
+        expect(readFileSync(ours, "utf8")).toBe(lines("ONE", "SEVEN"));
         expect(existsSync(markerPath())).toBe(false);
     });
 
