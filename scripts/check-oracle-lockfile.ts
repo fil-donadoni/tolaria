@@ -88,7 +88,6 @@ import { carriedBotReach } from "./lib/oracle-bot-reach";
 import {
     compilerHash,
     LOCKFILE_INPUT_SUMMARY,
-    lockfileStructureProblems,
     parseLockfile,
     POOL_PROJECTION_SOURCE,
     poolHash,
@@ -97,6 +96,7 @@ import {
     type HeaderHashes,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import { lockfileStructureProblems } from "./lib/oracle-fragments";
 import { ORIGIN_BASE } from "./lib/branches";
 import { baseArtifact, gitRunner, type GitRunner } from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";

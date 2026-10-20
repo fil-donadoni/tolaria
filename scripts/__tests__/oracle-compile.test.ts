@@ -20,8 +20,6 @@ import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
     compilerHash,
     compilerSourceFiles,
-    indexFragments,
-    lockfileStructureProblems,
     parseLockfile,
     POOL_PROJECTION_SOURCE,
     poolHash,
@@ -30,6 +28,10 @@ import {
     type HeaderHashes,
     type Lockfile,
 } from "../lib/oracle-lockfile";
+import {
+    indexFragments,
+    lockfileStructureProblems,
+} from "../lib/oracle-fragments";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 

@@ -33,7 +33,8 @@ import {
 import { gapOf } from "./grammar-gaps";
 import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
-import { indexFragments, type CardRow, type Lockfile } from "./oracle-lockfile";
+import { type CardRow, type Lockfile } from "./oracle-lockfile";
+import { indexFragments } from "./oracle-fragments";
 import {
     claimId,
     isFloorless,

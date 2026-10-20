@@ -40,13 +40,12 @@
  */
 
 import {
-    indexFragments,
     type CardRow,
     type FragmentContent,
-    type FragmentIndex,
     type FragmentRow,
     type Lockfile,
 } from "./oracle-lockfile";
+import { indexFragments, type FragmentIndex } from "./oracle-fragments";
 
 /** The frame of a line no slot entered any sub-grammar for. */
 export const NO_SLOT = "(no slot)";

@@ -23,7 +23,8 @@ import { REPORTED_FORMATS } from "../oracle-corpus";
 import { corpusNameIndex } from "./card-names";
 import { gapOf, poolTarget } from "./grammar-gaps";
 import type { QuarantineReason } from "../../convex/oracle/types";
-import { indexFragments, type CardRow, type Lockfile } from "./oracle-lockfile";
+import { type CardRow, type Lockfile } from "./oracle-lockfile";
+import { indexFragments } from "./oracle-fragments";
 import { validateDecks, type Tier1Deck } from "./tier1-decks";
 
 /** Path of the registry, relative to the repo root. */

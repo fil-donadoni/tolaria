@@ -143,7 +143,7 @@ Key** (a hash of the fragment's own text, reason and attribution), never by
 index, and the table is sorted by content. Cited by index, three cards
 graduating renumbered 17,522 rows (PR #6138), so any two grammar PRs
 conflicted. The blast-radius order is still the backlog; readers compute it
-(`compareFragmentRank`, `indexFragments` in `scripts/lib/oracle-lockfile.ts`).
+(`compareFragmentRank`, `indexFragments` in `scripts/lib/oracle-fragments.ts`).
 
 It is serialized with **one row per line** rather than by `JSON.stringify(…, 4)`
 so a card moving `ready` → `unparsed` is a single changed line in review. It is

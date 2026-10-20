@@ -32,13 +32,15 @@ import type { CorpusCard } from "../oracle-corpus";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
     fragmentKey,
-    indexFragments,
-    lockfileStructureProblems,
     parseLockfile,
     serializeLockfile,
     type CardRow,
     type Lockfile,
 } from "../lib/oracle-lockfile";
+import {
+    indexFragments,
+    lockfileStructureProblems,
+} from "../lib/oracle-fragments";
 import {
     findGapKeys,
     gapCards,
@@ -127,6 +129,9 @@ const READERS_CORPUS: CorpusCard[] = [
         manaCost: "{2}{B}",
         oracleText: "Destroy all creatures with flying.",
     }),
+    // Its WIDER fragment (Equip {3}, three cards) has the LARGER key: the
+    // row's sorted keys put the narrow line first, rank order the wide one.
+    refused(8, "Equip {3}", "The mirror forgets faces."),
 ];
 
 /** Everything a reader derives from a lockfile, as one comparable value. */
@@ -215,8 +220,85 @@ describe("every reader resolves gaps by key (issue #6169)", () => {
     });
 });
 
-describe("no module reads the fragment table except the lockfile's own", () => {
-    it("`.fragments` appears in no non-test script but scripts/lib/oracle-lockfile.ts", () => {
+describe("a card's first fragment is its widest, whatever its keys' order", () => {
+    const lock = buildLockfile(READERS_CORPUS);
+    const row = lock.cards.find((c) => c.name === "Test Card 8")!;
+    it("the fixture discriminates: the row's first KEY is the narrow line", () => {
+        const first = lock.fragments.find((f) => f.key === row.gaps![0])!;
+        expect(first.text).toBe("The mirror forgets faces.");
+        expect(first.cards).toBe(1);
+    });
+
+    it("the resolver, the Tier 1 blocker and the gap's card line all take the widest", () => {
+        expect(
+            indexFragments(lock)
+                .of(row)
+                .map((f) => f.text)
+        ).toEqual(["Equip {3}", "The mirror forgets faces."]);
+        const deck = {
+            slug: "one",
+            name: "One",
+            main: [{ count: 1, name: row.name }],
+            sideboard: [],
+        };
+        const report = deckReport(
+            deck,
+            corpusNameIndex(lock),
+            indexFragments(lock),
+            new Set()
+        );
+        expect(report.cards[0]!.blocker).toBe("Equip {3}");
+        const [equip] = findGapKeys(lock, "Equip");
+        const line = gapCards(lock, equip!, null).find(
+            (c) => c.name === row.name
+        )!.line;
+        expect(line).toBe("Equip {3}");
+    });
+});
+
+describe("a lockfile written before Fragment Keys is upgraded on read", () => {
+    it("index-format rows parse into the keyed lockfile a compile writes", () => {
+        // The pre-#6169 encoding: the table in rank order, rows citing
+        // ascending indices into it, no `key` on a fragment row.
+        const lock = buildLockfile(READERS_CORPUS);
+        const ranked = indexFragments(lock).ranked;
+        const position = new Map(ranked.map((f, i) => [f.key, i]));
+        const legacy = {
+            ...lock,
+            fragments: ranked.map((f) => ({
+                text: f.text,
+                reason: f.reason,
+                cards: f.cards,
+                ...(f.attribution !== undefined
+                    ? { attribution: f.attribution }
+                    : {}),
+            })),
+            cards: lock.cards.map((c) =>
+                c.gaps === undefined
+                    ? c
+                    : {
+                          ...c,
+                          gaps: c.gaps
+                              .map((k) => position.get(k)!)
+                              .sort((a, b) => a - b),
+                      }
+            ),
+        };
+        expect(parseLockfile(JSON.stringify(legacy))).toEqual(
+            JSON.parse(JSON.stringify(lock))
+        );
+    });
+});
+
+describe("no module reads the fragment table except its two owners", () => {
+    it("no non-test script but oracle-lockfile.ts and oracle-fragments.ts reads `fragments` off a lockfile", () => {
+        const OWNERS = new Set([
+            "scripts/lib/oracle-lockfile.ts",
+            "scripts/lib/oracle-fragments.ts",
+        ]);
+        // A member read, an index by name, or a destructuring assignment.
+        const READS_FRAGMENTS =
+            /\.fragments\b|\[["']fragments["']\]|\{[^}]*\bfragments\b[^}]*\}\s*=[^=>]/;
         const offenders: string[] = [];
         const walk = (dir: string): void => {
             for (const entry of readdirSync(dir)) {
@@ -226,11 +308,11 @@ describe("no module reads the fragment table except the lockfile's own", () => {
                         walk(path);
                 } else if (entry.endsWith(".ts")) {
                     const rel = relative(ROOT, path);
-                    if (rel === "scripts/lib/oracle-lockfile.ts") continue;
+                    if (OWNERS.has(rel)) continue;
                     readFileSync(path, "utf8")
                         .split("\n")
                         .forEach((line, i) => {
-                            if (/\.fragments\b/.test(line))
+                            if (READS_FRAGMENTS.test(line))
                                 offenders.push(
                                     `${rel}:${i + 1}: ${line.trim()}`
                                 );

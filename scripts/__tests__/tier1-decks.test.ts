@@ -24,10 +24,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
     fragmentRow,
-    indexFragments,
     parseLockfile,
     type CardRow,
 } from "../lib/oracle-lockfile";
+import { indexFragments } from "../lib/oracle-fragments";
 import { poolOracleIdsFromIndex } from "../oracle-compile";
 import {
     deckReport,

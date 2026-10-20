@@ -45,11 +45,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 import { writeStderrSync } from "./lib/merge-driver-io";
+import { type Lockfile } from "./lib/oracle-lockfile";
 import {
     isLockfileShaped,
     lockfileStructureProblems,
-    type Lockfile,
-} from "./lib/oracle-lockfile";
+} from "./lib/oracle-fragments";
 import {
     BOT_VERDICT_OVERLAY_PATH,
     overlayBranchVerdicts,

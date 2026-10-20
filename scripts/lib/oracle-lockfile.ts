@@ -122,7 +122,8 @@ export interface CardRow {
     readonly poolIn?: readonly ReportedFormat[];
     /**
      * The Fragment Keys of the lines the card fails on, sorted — resolved
-     * through {@link indexFragments}, never by position. Present iff
+     * through `indexFragments` (`lib/oracle-fragments.ts`), never by
+     * position. Present iff
      * `state === "unparsed"`.
      */
     readonly gaps?: readonly string[];
@@ -415,18 +416,41 @@ export function indentBlock(text: string, spaces: number): string {
         .join("\n");
 }
 
+/**
+ * Parse a lockfile — and upgrade one written before Fragment Keys (issue
+ * #6169), whose rows cite fragments by index into a table sorted by blast
+ * radius. Readers of a HISTORICAL ref meet that format: `grammar:residue`
+ * reads the lockfile at a merge commit's parent, `oracle:report --delta` at
+ * a baseline. The upgrade gives such a file the keys and the table order a
+ * compile of the same tree would have written.
+ */
 export function parseLockfile(text: string): Lockfile {
-    return JSON.parse(text) as Lockfile;
+    const lock = JSON.parse(text) as Lockfile;
+    return lock.fragments?.some((f) => f.key === undefined)
+        ? upgradeIndexedLockfile(lock)
+        : lock;
 }
 
-/** Whether a parsed value has the lockfile's shape — tables and counts. */
-export function isLockfileShaped(value: unknown): value is Lockfile {
-    const lock = value as Partial<Lockfile> | null;
-    return (
-        Array.isArray(lock?.fragments) &&
-        Array.isArray(lock?.cards) &&
-        lock?.header?.counts !== undefined
-    );
+function upgradeIndexedLockfile(lock: Lockfile): Lockfile {
+    // Keyed in the OLD order: the rows' indices point into it.
+    const fragments = lock.fragments.map((f) => fragmentRow(f));
+    const cards = lock.cards.map((card) => {
+        if (card.gaps === undefined) return card;
+        const gaps = (card.gaps as readonly unknown[]).map((index) => {
+            const fragment = fragments[index as number];
+            if (fragment === undefined)
+                throw new Error(
+                    `oracle lockfile: ${card.name} cites fragment index ${String(index)}, which the table does not hold`
+                );
+            return fragment.key;
+        });
+        return { ...card, gaps: gaps.sort() };
+    });
+    return {
+        ...lock,
+        fragments: [...fragments].sort(compareFragmentContent),
+        cards,
+    };
 }
 
 // ── Fragment Keys (issue #6169) ─────────────────────────────────────────
@@ -517,132 +541,4 @@ export function compareFragmentContent(
         cmpString(a.reason, b.reason) ||
         cmpString(attributionKey(a.attribution), attributionKey(b.attribution))
     );
-}
-
-/**
- * The RANK order: blast radius first, the table order breaking ties — the
- * backlog that ranks the next grammar rule (PRD #2693 user story 9), and the
- * order in which a reader meets a card's fragments.
- */
-export function compareFragmentRank(a: FragmentRow, b: FragmentRow): number {
-    return b.cards - a.cards || compareFragmentContent(a, b);
-}
-
-/** The one way a reader resolves `gaps` (issue #6169). */
-export interface FragmentIndex {
-    /** Every fragment, in {@link compareFragmentRank} order. */
-    readonly ranked: readonly FragmentRow[];
-    /** The fragments a card's `gaps` cite, in rank order — so a reader
-     *  taking a card's FIRST fragment takes its widest-blocking one. */
-    readonly of: (card: CardRow) => readonly FragmentRow[];
-}
-
-/**
- * Index a lockfile's fragments by key. Throws on a duplicate key and on a
- * `gaps` key the table does not hold: either is a lockfile no reader can
- * trust (a hand-edit, a bad merge), and a reader guessing past it would
- * misattribute a card silently.
- */
-export function indexFragments(
-    lock: Pick<Lockfile, "fragments">
-): FragmentIndex {
-    const ranked = [...lock.fragments].sort(compareFragmentRank);
-    const rank = new Map<string, number>();
-    ranked.forEach((fragment, i) => {
-        if (rank.has(fragment.key))
-            throw new Error(
-                `oracle lockfile: fragment key ${fragment.key} is on two rows — run: bun run oracle:compile`
-            );
-        rank.set(fragment.key, i);
-    });
-    const of = (card: CardRow): FragmentRow[] =>
-        (card.gaps ?? [])
-            .map((key) => {
-                const i = rank.get(key);
-                if (i === undefined)
-                    throw new Error(
-                        `oracle lockfile: ${card.name} cites fragment ${key}, which the table does not hold — run: bun run oracle:compile`
-                    );
-                return i;
-            })
-            .sort((a, b) => a - b)
-            .map((i) => ranked[i]!);
-    return { ranked, of };
-}
-
-/**
- * Everything a lockfile must satisfy on its own, with no corpus: each key is
- * its row's content key, the table and the rows are in canonical order, each
- * row's `gaps` resolve, each fragment declares exactly the cards citing it,
- * and the header counts agree with the rows.
- *
- * `check:oracle` runs it on every checkout. It is also what tells a CORRECT
- * clean textual merge from a wrong one: two branches each moving one card
- * onto the same fragment edit its `cards` identically, git keeps one edit,
- * and the count is one short.
- */
-export function lockfileStructureProblems(
-    lock: Pick<Lockfile, "header" | "fragments" | "cards">
-): string[] {
-    const problems: string[] = [];
-    const declared = new Map<string, number>();
-    lock.fragments.forEach((fragment, i) => {
-        const key = fragmentKey(fragment);
-        if (fragment.key !== key)
-            problems.push(
-                `fragment ${JSON.stringify(fragment.text)} carries key ${fragment.key}, its content's key is ${key}`
-            );
-        if (declared.has(fragment.key))
-            problems.push(`fragment key ${fragment.key} is on two rows`);
-        declared.set(fragment.key, fragment.cards);
-        const prev = lock.fragments[i - 1];
-        if (prev !== undefined && compareFragmentContent(prev, fragment) >= 0)
-            problems.push(
-                `fragment ${fragment.key} is out of table order (text, reason, attribution)`
-            );
-    });
-    const cited = new Map<string, number>();
-    const counts = { ready: 0, quarantine: 0, unparsed: 0 };
-    lock.cards.forEach((card, i) => {
-        counts[card.state] += 1;
-        const prev = lock.cards[i - 1];
-        if (prev !== undefined && prev.oracleId >= card.oracleId)
-            problems.push(
-                `card ${card.name} is out of oracle-id order or duplicated`
-            );
-        const gaps = card.gaps ?? [];
-        if ((card.state === "unparsed") !== gaps.length > 0)
-            problems.push(
-                `card ${card.name} is ${card.state} with ${gaps.length} gap(s)`
-            );
-        gaps.forEach((key, j) => {
-            if (j > 0 && gaps[j - 1]! >= key)
-                problems.push(
-                    `card ${card.name}'s gaps are not sorted and distinct`
-                );
-            if (!declared.has(key))
-                problems.push(
-                    `card ${card.name} cites fragment ${key}, which the table does not hold`
-                );
-            cited.set(key, (cited.get(key) ?? 0) + 1);
-        });
-    });
-    for (const [key, cards] of declared) {
-        const actual = cited.get(key) ?? 0;
-        if (cards !== actual)
-            problems.push(
-                `fragment ${key} declares ${cards} card(s), ${actual} cite it`
-            );
-    }
-    const header = lock.header.counts;
-    for (const state of ["ready", "quarantine", "unparsed"] as const)
-        if (header[state] !== counts[state])
-            problems.push(
-                `header counts ${header[state]} ${state}, the rows ${counts[state]}`
-            );
-    if (header.total !== lock.cards.length)
-        problems.push(
-            `header counts ${header.total} cards, the table holds ${lock.cards.length}`
-        );
-    return problems;
 }

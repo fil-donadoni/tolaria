@@ -20,12 +20,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CompileState } from "../../convex/oracle/types";
-import {
-    indexFragments,
-    type CardRow,
-    type FragmentIndex,
-    type Lockfile,
-} from "./oracle-lockfile";
+import { type CardRow, type Lockfile } from "./oracle-lockfile";
+import { indexFragments, type FragmentIndex } from "./oracle-fragments";
 import { corpusNameIndex } from "./card-names";
 
 /** Path of the canonical lists, relative to the repo root. */

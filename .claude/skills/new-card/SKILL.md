@@ -67,7 +67,7 @@ the gates cannot disagree:
 jq -r --arg n "<Card Name>" '. as $l | ($l.fragments | INDEX(.key)) as $f
   | $l.cards[] | select(.name==$n)
   | "state=\(.state)  ops=\(.opsUsed // [])  quarantine=\(.quarantineReasons // [])",
-    ((.gaps // [])[] as $k | $f[$k]
+    ([(.gaps // [])[] | $f[.]] | sort_by(-.cards, .text)[]
       | "  fragment: \(.text)\n    reason: \(.reason)  attribution: \(.attribution // "—")  fragment-cards: \(.cards)")' \
   data/oracle-compiled.json
 ```
