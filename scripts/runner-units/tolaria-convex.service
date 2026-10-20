@@ -15,7 +15,8 @@ Type=simple
 WorkingDirectory=__REPO__
 # The watcher, not the bare `convex-local-backend`: it pushes the primary
 # checkout's functions on every change, the one thing that keeps the
-# deployment serving the base branch the health walk tests. `mise exec` reads
+# deployment serving the base branch `release`'s browser step and a by-hand
+# `check:ui` test. `mise exec` reads
 # the checkout's `mise.toml` (Node at the repo's pin: Convex's node actions
 # need 20/22/24) over the user's global mise config, which supplies bun.
 ExecStart=__MISE__ exec -- bun x convex dev --local

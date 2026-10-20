@@ -882,8 +882,8 @@ if seg_has '(^|[;&|[:space:]])git[[:space:]]+(checkout|switch)([[:space:]]|$)' &
     if [ -n "$_off_base" ]; then
         deny "BLOCKED: switching the shared main checkout off \`$base_branch\` (to \`$_off_base\`).
 This checkout is the DEPLOYMENT SOURCE: \`convex dev\` pushes its convex/ tree to
-the local backend every \`check:ui\` walk and health walk talks to. Off
-\`$base_branch\` it serves other code, and the walks can only end INFRA
+the local backend every \`check:ui\` walk and \`release\`'s browser step talks
+to. Off \`$base_branch\` it serves other code, and they can only end INFRA
 (issues #6132, #6133). Look at another branch in a worktree instead:
   git worktree add --detach ../<repo>-peek <ref>
 If you really mean to move it (and accept the skew INFRA until it is back),

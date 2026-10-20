@@ -157,8 +157,8 @@ export interface SkewRead {
     primary: string;
     base: string;
     /** The walked tree: a directory whose WORKING TREE is walked (`check:ui`
-     *  serves it with Vite), or `{ dir, rev }` for a commit (the health walk's
-     *  tip, before its worktree exists). */
+     *  serves it with Vite), or `{ dir, rev }` for a commit (`release`'s
+     *  tip, before its browser-step worktree exists). */
     walked: string | { dir: string; rev: string };
     /** The ref a PR's own diff is measured from (`origin/<base>`); omitted, no
      *  own diff is excused — a base tip has none. */
