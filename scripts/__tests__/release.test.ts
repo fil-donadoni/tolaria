@@ -480,7 +480,12 @@ describe("release — refuses in seconds with the primary off the base branch (i
             expect(r.stderr).toContain(`on \`${off}\`, not \`${BASE_BRANCH}\``);
             expect(r.stderr).toContain(`switch ${BASE_BRANCH}`);
         } finally {
-            rmSync(repo, { recursive: true, force: true });
+            rmSync(repo, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });

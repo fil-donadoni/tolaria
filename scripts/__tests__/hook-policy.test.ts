@@ -1260,7 +1260,12 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
         );
     });
     afterAll(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
+        fs.rmSync(projectDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
     const env = () => ({ CLAUDE_PROJECT_DIR: projectDir });
     const OFF_BASE = () => [
