@@ -320,6 +320,33 @@ describe("pre-push hook", () => {
                 expect(calls()).toMatch(/run test/);
             });
 
+            it("runs the gate with no inherited GIT_* repository variables (issue #6017)", () => {
+                // git exports GIT_DIR to a hook in a linked worktree; a gate
+                // that inherits it lets a test's throwaway `git init` turn the
+                // shared repository bare.
+                const bin = stubBun(0);
+                fs.writeFileSync(
+                    path.join(bin, "bun"),
+                    `#!/bin/sh\nenv | grep '^GIT_' >> "${path.join(bin, "calls.log")}"\necho "$@" >> "${path.join(bin, "calls.log")}"\n`,
+                    { mode: 0o755 }
+                );
+                const gitDir = path.join(tmp, ".git");
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                    env: {
+                        GIT_DIR: gitDir,
+                        GIT_INDEX_FILE: path.join(gitDir, "index"),
+                        GIT_WORK_TREE: tmp,
+                    },
+                });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(calls()).toMatch(/run check:all/);
+                expect(calls()).not.toMatch(
+                    /^GIT_(DIR|WORK_TREE|INDEX_FILE|COMMON_DIR|OBJECT_DIRECTORY)=/m
+                );
+            });
+
             it("blocks the push when the gate is red", () => {
                 const bin = stubBun(0, "run test");
                 const r = runHook(drifted, clean, {
