@@ -3,7 +3,11 @@ import * as fs from "fs";
 import * as path from "path";
 import picomatch from "picomatch";
 import vitestConfig from "../../vitest.config";
-import { splitScriptsTests, splitSrcTests } from "../test-env-split";
+import {
+    splitScriptsTests,
+    splitSrcBotTests,
+    splitSrcTests,
+} from "../test-env-split";
 
 /**
  * The `src` test partition must stay a PARTITION.
@@ -67,6 +71,8 @@ function selectedBy(file: string): string[] {
 
 const SRC_TESTS = collectTests(path.join(ROOT, "src")).sort();
 const NON_BOT = SRC_TESTS.filter((f) => !f.endsWith(".bot.test.ts"));
+const BOTS = SRC_TESTS.filter((f) => /\.bot\.test\.tsx?$/.test(f));
+const BOT_NODE = new Set(splitSrcBotTests(ROOT).node);
 
 describe("src test env split — every src test runs in exactly one project", () => {
     it("reads the real config (sanity — an unparsed config would vacuously pass)", () => {
@@ -110,14 +116,37 @@ describe("src test env split — every src test runs in exactly one project", ()
         ).toEqual([]);
     });
 
-    it("routes bot src tests to the bot project only", () => {
-        const bots = SRC_TESTS.filter((f) => f.endsWith(".bot.test.ts"));
-        expect(bots.length).toBeGreaterThan(0);
-        for (const f of bots) {
-            expect(selectedBy(f), f).toEqual(
-                f.endsWith("/ladder.bot.test.ts") ? ["ladder"] : ["bot-dom"]
-            );
+    // Issue #6151: the classifier's verdict decides bot files too — a passing
+    // `.ts` bot file runs in the shared-worker `bot-node`, a rejected one and
+    // every `.tsx` stay in the isolated `bot-dom`, and the ladder file keeps
+    // its own isolated project whatever the classifier says.
+    it("routes each src bot test by the classifier: bot-node, bot-dom or ladder", () => {
+        expect(BOTS.length).toBeGreaterThan(0);
+        for (const f of BOTS) {
+            const expected = f.endsWith("/ladder.bot.test.ts")
+                ? "ladder"
+                : BOT_NODE.has(f)
+                  ? "bot-node"
+                  : "bot-dom";
+            expect(selectedBy(f), f).toEqual([expected]);
         }
+    });
+
+    it("moves a non-trivial share of the src bot tests to bot-node", () => {
+        const inBotNode = BOTS.filter((f) =>
+            selectedBy(f).includes("bot-node")
+        );
+        const inBotDom = BOTS.filter((f) => selectedBy(f).includes("bot-dom"));
+        expect(
+            inBotNode.length,
+            "No src bot test is selected by bot-node: the split is undone and every " +
+                "DOM-free bot file is back to re-importing the catalogue per file."
+        ).toBeGreaterThan(40);
+        // What stays isolated is exactly what the classifier rejects, plus
+        // every `.tsx` (never classified: JSX in a test means rendering).
+        expect(inBotDom).toEqual(
+            BOTS.filter((f) => f.endsWith(".tsx") || !BOT_NODE.has(f))
+        );
     });
 });
 
