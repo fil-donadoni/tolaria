@@ -226,6 +226,19 @@ export interface EachPlayerSide {
      *  order: the draw lands in the hand they leave behind, from the library
      *  they leave behind. An empty library draws nothing and reads 0. */
     drawUnits(count: number, before?: readonly HandStep[]): number;
+    /** Issue #5625 — what this player loses when it mills `count` cards
+     *  (CR 701.17a), in points: the leaf evaluator's decking term at the
+     *  library the mill leaves minus at the one it holds (CR 104.3c / 704.5b,
+     *  `libraryTerm`). The library's order is hidden, so a milled card is not
+     *  a card the player would have drawn next — the next draw keeps the
+     *  library's expectation — and costs only the library it shortens: zero
+     *  above `deckingHorizon`, steeper as decking nears. At most the library's
+     *  size is milled (CR 701.17b). A graveyard the evaluator credits — the
+     *  player holds recursion access, or a permanent granting its graveyard
+     *  escape (`hasGraveyardRecursionAccess`, `graveyardEngineTerm`) — may
+     *  turn the milled card into a gain this reader does not price: the side
+     *  is unreadable (0, and the Differential falls back). */
+    millLoss(count: number): number;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching
      *  `filter`: the cheapest ones — only a permanent's controller can
