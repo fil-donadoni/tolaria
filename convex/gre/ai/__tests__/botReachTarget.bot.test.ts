@@ -158,10 +158,10 @@ describe("the generated position poses a declared combat (CR 508.1, 509.1)", () 
 });
 
 describe("every target group's combat role is posed (CR 115.3, 508.1, 509.1)", () => {
-    // "ANOTHER target" (`excludePriorTargets`) forbids the first group's pick
-    // (CR 115.3), so the second group needs a combatant of its own: one
-    // declared blocker left "another target blocking creature" with nothing to
-    // choose (issue #6060).
+    // The printed "ANOTHER target" (`excludePriorTargets`) forbids the first
+    // group's pick, which CR 115.3 alone would allow, so the second group
+    // needs a combatant of its own: one declared blocker left "another target
+    // blocking creature" with nothing to choose (issue #6060).
     const another = (role: "attacking" | "blocking"): TargetRequirement => ({
         type: "Creature",
         count: 1,
@@ -185,9 +185,53 @@ describe("every target group's combat role is posed (CR 115.3, 508.1, 509.1)", (
         ["two blocking creatures", "blocking", "blocking"],
         ["two attacking creatures", "attacking", "attacking"],
         ["an attacking and a blocking creature", "attacking", "blocking"],
-        ["a blocking and an attacking creature", "blocking", "attacking"],
     ] as const)("%s", (_label, first, second) => {
         expect(botCanCast(fight(first, second))).toBe(true);
+    });
+
+    it("a blocking and an attacking creature: the later group takes the declared attacker", () => {
+        // Removal of a blocker is posed with the holder attacking, and that
+        // attacker is no earlier group's pick: nothing more is declared.
+        const def = fight("blocking", "attacking");
+        expect(targetPose(def).position.combat?.attackers).toEqual([
+            "Grizzly Bears",
+        ]);
+        expect(botCanCast(def)).toBe(true);
+    });
+
+    it("a later group's toughness ceiling drops the position's +0/+2", () => {
+        const def = instant(
+            "fight-blocking-small-blocking",
+            { combatRoleFilter: ["blocking"] },
+            {
+                effects: FIGHT,
+                additionalTargetRequirements: [
+                    { ...another("blocking"), toughnessFilter: { max: 2 } },
+                ],
+            }
+        );
+        expect(botCanCast(def)).toBe(true);
+    });
+
+    it("no blocker is posed for an attacker that evasion could refuse it (CR 509.1b)", () => {
+        const def = instant(
+            "fight-flier-blocking",
+            { combatRoleFilter: ["attacking"], requireAbility: "flying" },
+            {
+                effects: FIGHT,
+                additionalTargetRequirements: [another("blocking")],
+            }
+        );
+        const combat = targetPose(def).position.combat;
+        // The first group's flier attacks; the later group gets no blocker.
+        expect(combat?.attackers).toHaveLength(1);
+        expect(combat?.blockers).toBeUndefined();
+    });
+
+    it("the blocked-attack window declares the later group's attacker too", () => {
+        const combat = blockedAttackPose(fight("attacking", "attacking"))
+            ?.position.combat;
+        expect(combat?.attackers).toHaveLength(2);
     });
 
     it("two blocking creatures: the Bot casts the fight", () => {

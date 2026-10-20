@@ -956,7 +956,7 @@ type CombatRole = "attacking" | "blocking";
  * characteristics, attacking for the active player or blocking the first
  * attacker for the defending one (CR 509.1a). A combat-role group whose
  * earlier groups declared no combat is left unposed (no catalogue card has
- * one).
+ * one), and so is a blocker the first attacker's own abilities could refuse.
  */
 function withLaterCombatants(
     pose: TargetPose,
@@ -978,16 +978,27 @@ function withLaterCombatants(
     const taken = new Set([
         `${firstRoles.includes("attacking") ? "attacking" : "blocking"}:0`,
     ]);
+    const controls = (req: TargetRequirement, side: "me" | "opp") =>
+        req.controller === undefined ||
+        req.controller === "any" ||
+        (req.controller === "active"
+            ? side === active
+            : (req.controller === "you") === (side === "me"));
     const fits = (name: string, role: CombatRole, req: TargetRequirement) => {
         const body = tryGetCardByName(name);
-        const side = sideOf(role);
         return (
             body !== null &&
             satisfiesCharacteristics(body, req) &&
-            (req.controller === undefined ||
-                (req.controller === "you") === (side === "me"))
+            controls(req, sideOf(role))
         );
     };
+    // CR 509.1b — an evasion ability (flying, menace, horsemanship) on the
+    // first attacker restricts what may block it, and the seeded combat does
+    // not re-check evasion: only a plain attacker takes a posed blocker.
+    const firstAttacker = tryGetCardByName(attackers[0] ?? "");
+    const blockable =
+        firstAttacker !== null &&
+        (firstAttacker.staticAbilities ?? []).every((k) => k === "defender");
     // Bodies of `name` on `side` the position holds: the base creature it
     // seeds on both sides, plus the pose's own.
     const held = (name: string, side: "me" | "opp") =>
@@ -1001,9 +1012,14 @@ function withLaterCombatants(
             )
             .reduce((n, c) => n + (c.count ?? 1), 0);
     let extended = false;
+    // A later group's "toughness N or less" is read off the printed body, so
+    // the position's +0/+2 enchantment must not lift it over (as for the
+    // first group in `requirementPose`).
+    let ceiling = false;
     for (const req of later) {
         const roles = asList(creatureRequirement(req)?.combatRoleFilter);
         if (roles.length === 0) continue;
+        if (req.toughnessFilter?.max !== undefined) ceiling = true;
         const reused = roles
             .flatMap((role) =>
                 declared(role).map((name, i) => ({
@@ -1024,6 +1040,7 @@ function withLaterCombatants(
         const role = roles[0]!;
         const body = creatureFor(req);
         if (body === null || !fits(body.name, role, req)) return pose;
+        if (role === "blocking" && !blockable) return pose;
         const side = sideOf(role);
         const busy = declared(role).filter((n) => n === body.name).length;
         if (held(body.name, side) <= busy)
@@ -1033,10 +1050,11 @@ function withLaterCombatants(
         taken.add(`${role}:${declared(role).length - 1}`);
         extended = true;
     }
-    if (!extended) return pose;
+    if (!extended && (!ceiling || pose.omitToughnessBoost)) return pose;
     return {
         ...pose,
         cards,
+        omitToughnessBoost: pose.omitToughnessBoost || ceiling,
         position: {
             ...pose.position,
             ...(blockers.length > 0 ? { phase: "DECLARE_BLOCKERS" } : {}),

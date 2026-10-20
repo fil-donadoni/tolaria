@@ -11,10 +11,12 @@ castability gate `getLegalActions` uses for the client's Cast affordance) checks
 `additionalTargetRequirements`. The cast announcement (`convex/game.ts`, over
 `castAnnouncedTargetGroups` in `convex/gre/kicker.ts`) and the Bot's group enumerator (`enumerateTargetGroupTuples`,
 `convex/gre/moves.ts`) both need EVERY group to have a legal target (CR 601.2c).
-So a spell whose later group has nothing to choose gets offered to a human, who
-is then refused at announcement: for example, "target blocking creature fights
-another target blocking creature" with one blocker, or Hull Breach's "destroy
-target artifact and target enchantment" with no enchantment.
+So a spell whose later group has nothing to choose gets offered to a human,
+who is then refused at announcement: for example, "target blocking creature
+fights another target blocking creature" with one blocker, or Fumarole's
+"destroy target creature and target land" with no land to target. (A modal
+spell with no card-level `targetRequirement` skips the gate entirely: it
+returns `true` before reading any group.)
 
 **Evidence.** Issue #6060's test (`botReachTarget.bot.test.ts`, "every target
 group's combat role is posed"). Before the fix, the two-blocker pose returned
