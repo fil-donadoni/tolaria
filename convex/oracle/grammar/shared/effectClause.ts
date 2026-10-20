@@ -1257,6 +1257,21 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 603.7a — "Exile it at the beginning of the next end step" /
+           * "Sacrifice it …": a delayed triggered ability created by the
+           * resolving effect, whose body removes the object an EARLIER
+           * sentence of the same ability put onto the battlefield (a token
+           * just created, CR 111.1, or a card just returned, CR 400.7j). "It"
+           * is anaphora (CR 608.2h), so the sentence carries no subject: the
+           * lowering binds it to that object and refuses every other site.
+           * "Exile them …" (several tokens) and the cleanup-step timing are
+           * neighbours, refused here.
+           */
+          readonly kind: "delayed-removal";
+          readonly verb: "exile" | "sacrifice";
+      }
+    | {
+          /**
            * CR 201.4 — "Choose a [nonland] card name": the pick the SAME
            * ability's later sentence reads as "that name" (a `discard-named-
            * from-hand` or `dig-named-to-hand`). `prompt` is the printed
@@ -3551,6 +3566,9 @@ const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
 const DELAYED_DRAW_NEXT_UPKEEP =
     /^(?:You draw (\S+) cards?|Draw (a) card) at the beginning of the next turn(?:'|’)s upkeep$/;
+/** CR 603.7a — "Exile it at the beginning of the next end step" / "Sacrifice it …". */
+const DELAYED_REMOVAL_NEXT_END_STEP =
+    /^(Exile|Sacrifice) it at the beginning of the next end step$/;
 /** CR 201.4a — "Choose a card name" and its two printed restrictions. */
 /** CR 201.4 + CR 701.20a — the Cursed Scroll sentence, whole. */
 const NAME_THEN_REVEAL_RANDOM =
@@ -5020,6 +5038,20 @@ function effectSentence(
                 span
             );
         return ok(bound);
+    }
+
+    // ── delayed removal at the next end step (CR 603.7a) ───────────────────
+    // Before every verb branch: "Exile it …" would otherwise reach the exile
+    // verb, whose subject grammar refuses "it at the beginning of …".
+    const delayedRemoval = span.match(DELAYED_REMOVAL_NEXT_END_STEP);
+    if (delayedRemoval !== null) {
+        return ok({
+            kind: "delayed-removal" as const,
+            verb:
+                delayedRemoval[1] === "Exile"
+                    ? ("exile" as const)
+                    : ("sacrifice" as const),
+        } satisfies EffectSentenceIR);
     }
 
     // ── reveal the top card into hand (CR 701.20a) ─────────────────────────

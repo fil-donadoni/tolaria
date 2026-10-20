@@ -328,7 +328,12 @@ export function lowerTriggeredAbility(input: {
     // exactly the cases where it means something else, so the referent is
     // dropped instead and the pronoun is refused: the fail-closed half of
     // ADR 0105 § 2, a form earning its way back in with a rule and a fixture.
-    const laterAntecedents: SiteAntecedents = { ...antecedents };
+    const laterAntecedents: SiteAntecedents = {
+        ...antecedents,
+        ...(antecedents.object !== undefined
+            ? { headNamedObject: true as const }
+            : {}),
+    };
     delete (laterAntecedents as { object?: unknown }).object;
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];

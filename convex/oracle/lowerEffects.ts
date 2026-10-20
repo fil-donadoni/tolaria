@@ -182,6 +182,21 @@ export interface SiteAntecedents {
      * (CR 303.4b). Absent = the head named no creature.
      */
     readonly creature?: EffectObjectSelector;
+    /**
+     * CR 608.2h — the number of target slots announced BEFORE `creature` was
+     * named. Set when the referent is a creature an earlier sentence put onto
+     * the battlefield (`SentenceWalk.introduced`): targets announced before
+     * that sentence are farther antecedents, one announced after it is the
+     * nearer one. Absent = 0, the head's own creature.
+     */
+    readonly creatureAfterSlots?: number;
+    /**
+     * CR 608.2h — the head named an `object`, withheld from every sentence
+     * after the first (`lowerTriggered.ts`). Not a referent: a marker that a
+     * later "that creature" or "it" has the head's object as a second
+     * candidate, so binding it to an earlier sentence's object is a guess.
+     */
+    readonly headNamedObject?: true;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
@@ -1061,6 +1076,23 @@ export class SentenceWalk {
     } | null = null;
 
     /**
+     * CR 111.1 / CR 400.7j — the ONE object the last sentence that put
+     * something onto the battlefield put there without targeting it (a token
+     * created, the top creature card of a graveyard returned), with the Op
+     * that did it: the referent of "that creature" and of "it" in the
+     * sentences after it ("Exile it at the beginning of the next end step").
+     * The Op is kept so a reader can give it the `bind` that names the new
+     * object (the same lazy binding `actedOn` uses). `slots` is the number of
+     * target slots announced before it; a later announcement is a nearer
+     * antecedent and clears it.
+     */
+    introduced: {
+        readonly op: { bind?: string };
+        readonly creature: boolean;
+        readonly slots: number;
+    } | null = null;
+
+    /**
      * CR 608.2c — an earlier sentence dealt damage to the ONE announced target
      * (slot 0): the antecedent of "dealt damage this way". Set by the
      * `deal-damage` lowering only.
@@ -1180,9 +1212,14 @@ function selectorsFor(
             : unlowerable('"it" names no object at this site');
     }
     // CR 608.2h — "that creature" names what the head named, unless an earlier
-    // announced target is the nearer antecedent.
+    // announced target is the nearer antecedent. A creature an earlier
+    // sentence put onto the battlefield is nearer than the targets announced
+    // before it (`SiteAntecedents.creatureAfterSlots`).
     if (subject.kind === "that-creature") {
-        if (slots.requirements().length > 0)
+        if (
+            slots.requirements().length >
+            (site.antecedents?.creatureAfterSlots ?? 0)
+        )
             return unlowerable(
                 '"that creature" follows an announced target, which is the nearer antecedent (CR 608.2h)'
             );
@@ -1570,7 +1607,12 @@ export function lowerSentence(
 ): Lowered<EffectOp[]> {
     const announced = walk.targets.requirements().length;
     const actedOn = walk.actedOn;
-    const out = lowerSentenceBody(sentence, walk, site);
+    const introduced = walk.introduced;
+    const out = lowerSentenceBody(
+        sentence,
+        walk,
+        introducedCreatureSite(sentence, walk, site)
+    );
     // CR 608.2h — "that creature" names the object the LAST sentence acted
     // on. A sentence that announced a new target without recording itself
     // (a tap, a pump) makes the older referent stale, so it is dropped rather
@@ -1580,7 +1622,91 @@ export function lowerSentence(
         walk.actedOn === actedOn
     )
         walk.actedOn = null;
+    // CR 608.2h — the object an earlier sentence put onto the battlefield is
+    // the nearest antecedent only until some OTHER sentence intervenes: one
+    // that creates several tokens, returns other cards, announces a target or
+    // sits behind a gate may each have introduced a nearer one. So the
+    // referent survives only the sentence that set it and the sentences that
+    // read it; every other sentence forgets it, and a later "it" is refused
+    // rather than bound to a guess.
+    if (
+        walk.introduced === introduced &&
+        (walk.targets.requirements().length !== announced ||
+            !readsIntroduced(sentence, introduced))
+    )
+        walk.introduced = null;
     return out;
+}
+
+/** The sentences that name `SentenceWalk.introduced` and so keep it alive. */
+function readsIntroduced(
+    sentence: EffectSentenceIR,
+    introduced: SentenceWalk["introduced"]
+): boolean {
+    if (introduced === null) return false;
+    if (sentence.kind === "delayed-removal") return true;
+    return introduced.creature && mentionsThatCreature(sentence);
+}
+
+/**
+ * CR 608.2h + CR 400.7j — a sentence reading "that creature" after an earlier
+ * sentence put ONE creature onto the battlefield names THAT creature (Shallow
+ * Grave's "That creature gains haste until end of turn"), the nearer
+ * antecedent than anything the head named. The site is rebound for that
+ * sentence only, and the introducing Op is given its `bind` only when a
+ * sentence actually reads it, so a script that never names the object binds
+ * nothing.
+ */
+function introducedCreatureSite(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): SiteOptions {
+    const introduced = walk.introduced;
+    if (
+        introduced === null ||
+        !introduced.creature ||
+        !mentionsThatCreature(sentence)
+    )
+        return site;
+    // A head that names a creature or object of its own ("Whenever a creature
+    // you control attacks, create a token. That creature …") leaves two
+    // candidates. Refused rather than guessed: the site loses its creature,
+    // so the subject finds none.
+    if (headNamesAnObject(site)) {
+        return {
+            ...site,
+            antecedents: { ...site.antecedents, creature: undefined },
+        };
+    }
+    const bind = introduced.op.bind ?? walk.nextBind("that");
+    introduced.op.bind = bind;
+    return {
+        ...site,
+        antecedents: {
+            ...site.antecedents,
+            creature: { ref: bind },
+            creatureAfterSlots: introduced.slots,
+        },
+    };
+}
+
+/** CR 608.2h — the site's own text named a creature or object a later
+ *  pronoun may still mean, beside the one an earlier sentence introduced. */
+function headNamesAnObject(site: SiteOptions): boolean {
+    const named = site.antecedents;
+    return (
+        named?.creature !== undefined ||
+        named?.object !== undefined ||
+        named?.headNamedObject === true
+    );
+}
+
+/** True when a `that-creature` subject sits anywhere in the sentence's IR. */
+function mentionsThatCreature(node: unknown): boolean {
+    if (typeof node !== "object" || node === null) return false;
+    if ((node as { kind?: unknown }).kind === "that-creature") return true;
+    return Object.values(node).some(mentionsThatCreature);
 }
 
 function lowerSentenceBody(
@@ -2404,20 +2530,27 @@ function lowerSentenceBody(
                 if (!index.ok) return index;
                 player = { target: index.value };
             }
-            return lowered([
-                {
-                    op: "moveZone",
-                    target: {
-                        zone: "graveyard",
-                        position: sentence.position,
-                        player,
-                        ...(sentence.cardType !== null
-                            ? { filter: { type: sentence.cardType } }
-                            : {}),
-                    },
-                    to: sentence.to,
+            const move: Extract<EffectOp, { op: "moveZone" }> = {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: sentence.position,
+                    player,
+                    ...(sentence.cardType !== null
+                        ? { filter: { type: sentence.cardType } }
+                        : {}),
                 },
-            ]);
+                to: sentence.to,
+            };
+            // CR 400.7j — the returned card is an object later sentences of
+            // this effect can find.
+            if (sentence.to === "battlefield")
+                walk.introduced = {
+                    op: move,
+                    creature: sentence.cardType === "Creature",
+                    slots: slots.requirements().length,
+                };
+            return lowered([move]);
         }
         case "graveyard-sweep":
             // CR 400.7 — one simultaneous `forEach` over the controller's
@@ -3085,6 +3218,43 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "delayed-removal": {
+            // CR 603.7a — the delayed trigger is created now; its body acts on
+            // the object an earlier sentence put onto the battlefield
+            // (CR 608.2h "it"), carried across by `capture` (resolved to that
+            // object's id now, re-bound when the trigger fires; gone by then,
+            // the body skips, CR 608.2b). To sacrifice it is its controller's
+            // act (CR 701.21a), so the body names no player.
+            const introduced = walk.introduced;
+            if (introduced === null)
+                return unlowerable(
+                    '"it" names no object an earlier sentence put onto the battlefield (CR 608.2h)'
+                );
+            if (slots.requirements().length > introduced.slots)
+                return unlowerable(
+                    '"it" follows an announced target, which is the nearer antecedent (CR 608.2h)'
+                );
+            // The site's own object (a head whose subject is the source, a
+            // per-creature combat head) is a second candidate: refused.
+            if (headNamesAnObject(site))
+                return unlowerable(
+                    '"it" may name the site\'s own object or the one an earlier sentence put onto the battlefield (CR 608.2h)'
+                );
+            const bind = introduced.op.bind ?? walk.nextBind("that");
+            introduced.op.bind = bind;
+            const verb = sentence.verb === "exile" ? "Exile" : "Sacrifice";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText: `${verb} it at the beginning of the next end step.`,
+                    capture: { $captured: { ref: bind } },
+                    effects: [
+                        { op: sentence.verb, target: { ref: "$captured" } },
+                    ],
+                },
+            ]);
+        }
         case "look-hand":
         case "look-random-hand": {
             // CR 400.2 — a private look: `looker` is omitted, so it defaults
@@ -3738,6 +3908,10 @@ function gatedSentence(
     const actedOn = walk.actedOn;
     const inner = lowerSentence(sentence, walk, site);
     walk.libraryLookedAt = antecedent;
+    // An object put onto the battlefield behind the gate may not exist, and
+    // one put there before it may no longer be the nearest antecedent: no
+    // later sentence names either.
+    walk.introduced = null;
     // A removal behind the gate may or may not have happened, and the restore
     // below forgets it: remember that the announced object's fate is unknown.
     if (walk.actedOn !== actedOn) walk.gatedRemoval = true;
@@ -4054,6 +4228,14 @@ function lowerCreateToken(
     };
     if (count.kind === "fixed") {
         if (count.value !== 1) op.count = count.value;
+        // CR 111.1 — ONE token is an object later sentences can name; the
+        // Op's `bind` names only the last of several, so more name none.
+        else
+            walk.introduced = {
+                op,
+                creature: true,
+                slots: walk.targets.requirements().length,
+            };
         return lowered([op]);
     }
     if (count.kind === "announced-x") {

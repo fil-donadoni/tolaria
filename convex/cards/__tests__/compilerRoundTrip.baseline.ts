@@ -1050,7 +1050,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Sevinne's Reclamation",
     "Shackles",
     "Shadowy Backstreet",
-    "Shallow Grave",
     "Shapeshifter",
     "Shelkin Brownie",
     "Shelldock Isle",
