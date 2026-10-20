@@ -377,7 +377,14 @@ describe("two branches moving two cards merge into the regenerated lockfile (git
     beforeEach(() => {
         dir = mkdtempSync(join(tmpdir(), "tolaria-fragment-merge-"));
     });
-    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     function mergeFile(base: Lockfile, ours: Lockfile, theirs: Lockfile) {
         for (const [name, lock] of [
