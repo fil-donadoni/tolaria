@@ -756,22 +756,25 @@ async function runAxe(page: Page): Promise<AxeCount> {
                 // WHERE each serious or critical violation is (issue #6145):
                 // its nodes' targets, located, so a failure shot outlines
                 // them. A target inside a shadow root or a frame is a nested
-                // array, and is kept unlocated rather than guessed.
+                // array, and is kept unlocated (w -1) rather than guessed.
                 offenders: r.violations
                     .filter((v) => v.impact === "serious" || v.impact === "critical")
                     .flatMap((v) =>
                         v.nodes.slice(0, 6).map((n) => {
                             const sel = typeof n.target[0] === "string" ? n.target[0] : "";
-                            const el = sel ? document.querySelector(sel) : null;
+                            let el = null;
+                            try { el = sel ? document.querySelector(sel) : null; } catch (e) {}
                             const b = el ? el.getBoundingClientRect() : null;
                             return {
                                 floor: v.impact === "critical" ? "axeCritical" : "axeSerious",
                                 sel: (sel || String(n.target)).slice(0, 80),
                                 t: "",
-                                x: b ? Math.round(b.left) : 0,
-                                y: b ? Math.round(b.top) : 0,
-                                w: b ? Math.round(b.width) : 0,
-                                h: b ? Math.round(b.height) : 0,
+                                // -1: unlocated — named on the banner, never
+                                // drawn as a box at the origin.
+                                x: b ? Math.round(b.left) : -1,
+                                y: b ? Math.round(b.top) : -1,
+                                w: b ? Math.round(b.width) : -1,
+                                h: b ? Math.round(b.height) : -1,
                                 why: v.id,
                             };
                         })

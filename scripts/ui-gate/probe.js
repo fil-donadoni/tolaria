@@ -121,8 +121,8 @@ window.__tolariaProbe = () => {
         if (e.id) return (s + "#" + e.id).slice(0, 80);
         const slot = e.getAttribute("data-slot");
         if (slot) s += '[data-slot="' + slot + '"]';
-        const cls = (e.className || "")
-            .toString()
+        // The attribute, not `className`: an SVG's is an object.
+        const cls = (e.getAttribute("class") || "")
             .trim()
             .split(/\s+/)
             .filter(Boolean)

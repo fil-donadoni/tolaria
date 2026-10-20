@@ -163,6 +163,35 @@ describe("check:ui failure shots — when a cell is shot (issue #6145)", () => {
 });
 
 describe("check:ui failure shots — what the overlay outlines", () => {
+    it("names an unlocated axe target on the banner instead of drawing it at the origin", () => {
+        const spec = outlineSpec(
+            probeOf(),
+            {
+                ...CLEAN_AXE,
+                critical: 1,
+                offenders: [
+                    {
+                        floor: "axeCritical",
+                        sel: "iframe,#x",
+                        t: "",
+                        x: -1,
+                        y: -1,
+                        w: -1,
+                        h: -1,
+                        why: "button-name",
+                    },
+                ],
+            },
+            [{ floor: "axeCritical", reading: 1 }],
+            []
+        );
+        expect(spec.boxes).toEqual([]);
+        expect(spec.banner).toEqual([
+            "axeCritical 1",
+            "axeCritical iframe,#x — button-name (not located)",
+        ]);
+    });
+
     it("outlines only the offenders of BROKEN Floors, labelled with the Floor", () => {
         const spec = outlineSpec(
             probeOf({}, [

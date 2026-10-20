@@ -152,6 +152,8 @@ export interface Offender {
     t: string;
     x: number;
     y: number;
+    /** -1 (with `h`) when the box could not be located — an axe target in a
+     *  shadow root or frame: named on the shot's banner, never drawn. */
     w: number;
     h: number;
     /** The reading at that box, when one number says it (`needs 416px…`). */
