@@ -1758,6 +1758,10 @@ function hasPayableFlashbackAdditionalCost(
         });
         if (!hasVictim) return false;
     }
+    // CR 119.4 — a player may pay life only while their life total covers it.
+    if (add.life !== undefined && add.life > 0 && player.life < add.life) {
+        return false;
+    }
     if (add.exileFromHand) {
         const wantColor = add.exileFromHand.color;
         const hasCard = player.hand.some((c) =>

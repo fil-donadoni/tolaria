@@ -31,18 +31,23 @@ import type { CardInstanceState, PlayerState } from "./state/declarations";
  *  exile a card from hand), independent of the mana portion (CR 702.34a). */
 export type FlashbackAdditionalCost = Pick<
     FlashbackCost,
-    "sacrifice" | "exileFromHand"
+    "sacrifice" | "exileFromHand" | "life"
 >;
 
 /** A raw `flashback` value may be a bare {@link ManaCost} (mana-only flashback,
  *  Faithless Looting) or the generalized {@link FlashbackCost} shape carrying a
  *  non-mana component (Lava Dart). This discriminant is exact: a `FlashbackCost`
- *  is the only shape with a `mana`/`sacrifice`/`exileFromHand` key, and a
+ *  is the only shape with a `mana`/`sacrifice`/`exileFromHand`/`life` key, and a
  *  `ManaCost` never has one (its keys are colour/generic/X pips). */
 function isFlashbackCostShape(
     raw: ManaCost | FlashbackCost
 ): raw is FlashbackCost {
-    return "mana" in raw || "sacrifice" in raw || "exileFromHand" in raw;
+    return (
+        "mana" in raw ||
+        "sacrifice" in raw ||
+        "exileFromHand" in raw ||
+        "life" in raw
+    );
 }
 
 /** Normalize either accepted `flashback` shape to a {@link FlashbackCost}. A
@@ -94,7 +99,11 @@ export function getFlashbackAdditionalCost(
 ): FlashbackAdditionalCost | undefined {
     const fb = getNormalizedFlashback(card);
     if (!fb) return undefined;
-    if (fb.sacrifice === undefined && fb.exileFromHand === undefined) {
+    if (
+        fb.sacrifice === undefined &&
+        fb.exileFromHand === undefined &&
+        fb.life === undefined
+    ) {
         return undefined;
     }
     return {
@@ -102,6 +111,8 @@ export function getFlashbackAdditionalCost(
         ...(fb.exileFromHand !== undefined
             ? { exileFromHand: fb.exileFromHand }
             : {}),
+        // CR 702.34a / 119.4 — "Pay N life" (Deep Analysis).
+        ...(fb.life !== undefined ? { life: fb.life } : {}),
     };
 }
 
