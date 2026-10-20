@@ -41,6 +41,12 @@ import {
     getAiEscalations,
     getAiTraces,
 } from "./src/lib/ai/trace-store";
+import { scrubGitRepoEnv } from "./scripts/lib/git-repo-env";
+
+// Inherited git repository env (issue #6017) — same scrub, same reason as
+// `vitest.setup.node.ts`: every setup file owns it, whatever runs before it.
+// Before the snapshot below, so a scrubbed key never reads as drift.
+scrubGitRepoEnv();
 
 const workerAtStart = (globalThis as { Worker?: unknown }).Worker;
 const envAtStart = { ...process.env };
