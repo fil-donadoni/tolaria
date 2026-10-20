@@ -13064,6 +13064,127 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5626. The discriminating position (the entry above is the anchor reading). Guards the mana branch of `eachStepDifferentialValue` (`stepSideMana`, `ai/opValuers.ts`) and its side reader (`EachPlayerSide.manaUnits`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: the Aeolipile never (Disenchant on the Vineyard 10, pass 10). Before issue #5626 (the family read nothing): Disenchant on the Aeolipile 11/20, on seeds 0xb1ade and 2 of this entry's four. Proof of failure — the side reader skipped (`valueOp` on each side's `addMana`, the representative ramp): the Aeolipile on seeds 0xb1ade and 2.",
     },
+    {
+        // EACH-STEP RANDOM DISCARD (issue #5624, ADR 0151) — the opponent's
+        // Bottomless Pit has the player whose upkeep it is discard a card at
+        // random (CR 701.9b). The bot holds four cards beside Disenchant, the
+        // opponent none: the Pit takes a card from the bot every turn and
+        // nothing from the opponent, so it is the permanent Disenchant should
+        // answer, not the Aeolipile.
+        label: "each-step random discard: Disenchant takes the Bottomless Pit that empties only the bot's hand, not the 2-MV artifact (issue #5624)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Bottomless Pit only the bot has cards in hand for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                    count: 4,
+                },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Swamp",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Bottomless Pit", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Bottomless Pit",
+                },
+            ],
+        },
+        note: "Issue #5624. The anchor reading of the Bottomless Pit pair (two unpaired `conditional` Test Positions — the hands differ on both sides, so no `pairOf`): the Pit is worth what each player's upkeep discard at random takes from that player's hand (`EachPlayerSide.randomDiscardUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's. Measured at 400 iterations over 20 seeds: the Pit 20/20. Proof of failure — the side reader skipped (`stepSideRandomDiscard` reading 0 units): Aeolipile 20/20. Before issue #5624 (the family read nothing, its Latent Floor) the Pit is 20/20 here too; the mirror entry below is the one that reds on that.",
+    },
+    {
+        // EACH-STEP RANDOM DISCARD, MIRROR (issue #5624, ADR 0151) — the
+        // board above with the hands swapped: the bot holds only Disenchant,
+        // the opponent four cards. The opponent's Bottomless Pit now strips
+        // the OPPONENT's hand and never the bot's, so destroying it gives the
+        // opponent its cards back.
+        //
+        // This is the position that discriminates against the pre-#5624
+        // reading: unread, the Pit keeps its Latent Floor — a positive worth
+        // for its controller on every board — and Disenchant takes it.
+        label: "each-step random discard: Disenchant leaves the Bottomless Pit that empties only the opponent's hand (issue #5624)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Bottomless Pit only the opponent has cards in hand for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Swamp",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 4,
+                },
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Bottomless Pit", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Bottomless Pit",
+                },
+            ],
+        },
+        note: "Issue #5624. The discriminating position (the entry above is the anchor reading). Guards the discard-at-random branch of `eachStepDifferentialValue` (`isStepSideOp`, `stepSideRandomDiscard`, `ai/opValuers.ts`). Measured at 400 iterations over 20 seeds: the Pit never (Aeolipile 20). Proof of failure — `isStepSideOp` refusing `discardAtRandom` (the pre-#5624 read-nothing): Disenchant on the Pit 14/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through

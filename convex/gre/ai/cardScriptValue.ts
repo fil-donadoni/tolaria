@@ -669,7 +669,7 @@ function abilityScriptOpValue(
         // keeps its Latent Floor (unmeasured, incomplete). Issue #5575 — the
         // same for every standing script on the scoped player beyond the
         // life family (`isEachStepScopedScript`): a family the Differential
-        // does not read yet (a discard at random, a mill, mana) reads
+        // does not read yet (a mill, mana, a library reveal) reads
         // nothing, never the representative sign. The life family itself is
         // read per side when its amounts ground (issue #5574's
         // `isEachStepEngineScript`).
