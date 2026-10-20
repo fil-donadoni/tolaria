@@ -13319,6 +13319,117 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5627. The discriminating position (the entry above is the anchor reading). Guards the dig branch of `eachStepDifferentialValue` (`stepSideDig`, `stepSideMayArm`, `ai/opValuers.ts`) and its side reader (`EachPlayerSide.digUnits`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: the Oath never (Aeolipile 20). Before issue #5627 (the family read nothing): Disenchant on the Oath 20/20. Proof of failure — the family left unread (`isStepSideOp` refusing `revealUntilMatch`): Disenchant on the Oath 20/20.",
     },
+    {
+        // EACH-STEP RETURN TO HAND (issue #5628, ADR 0151) — the opponent's
+        // Sunken Hope has the player whose upkeep it is return a creature it
+        // controls to its owner's hand. The bot controls a Grizzly Bears, the
+        // opponent no creature: the Hope bounces the bot's body every turn
+        // and nothing of the opponent's, so it is the permanent Disenchant
+        // should answer, not the Aeolipile.
+        label: "each-step return to hand: Disenchant takes the Sunken Hope that bounces only the bot's creature, not the 2-MV artifact (issue #5628)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Sunken Hope only the bot has a creature for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Sunken Hope", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Sunken Hope",
+                },
+            ],
+        },
+        note: "Issue #5628. The anchor reading of the Sunken Hope pair (two unpaired `conditional` Test Positions — the creatures differ on both sides, so no `pairOf`): the Hope is worth what each player's upkeep bounce takes from that player, its cheapest creature net of its worth back in hand (`EachPlayerSide.bounceUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's. Measured at 400 iterations over 20 seeds: the Hope 20/20. Proof of failure — the side reader skipped (`sideBounceLoss` reading 0 units): Aeolipile 20/20. Before issue #5628 (the family read nothing, its Latent Floor) the Hope is 20/20 here too; the mirror entry below is the one that reds on that.",
+    },
+    {
+        // EACH-STEP RETURN TO HAND, MIRROR (issue #5628, ADR 0151) — the
+        // board above with the creature swapped: the opponent controls the
+        // Grizzly Bears, the bot no creature. The opponent's Sunken Hope now
+        // bounces the OPPONENT's body and never the bot's, so destroying it
+        // gives the opponent its tempo back.
+        //
+        // This is the position that discriminates against the pre-#5628
+        // reading: unread, the Hope keeps its Latent Floor — a positive worth
+        // for its controller on every board — and Disenchant takes it.
+        label: "each-step return to hand: Disenchant leaves the Sunken Hope that bounces only the opponent's creature (issue #5628)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Sunken Hope only the opponent has a creature for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Island",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Sunken Hope", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Sunken Hope",
+                },
+            ],
+        },
+        note: "Issue #5628. The discriminating position (the entry above is the anchor reading). Guards the return to hand branch of `eachStepDifferentialValue` (`isStepSideOp`, `bounceChoiceFor`, `sideBounceLoss`, `ai/opValuers.ts`). Measured at 400 iterations over 20 seeds: the Hope never (Aeolipile 15, pass 5). Proof of failure — `isStepSideOp` refusing the bounce's `forEach` (the pre-#5628 read-nothing): Disenchant on the Hope 20/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
