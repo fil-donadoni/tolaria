@@ -502,6 +502,23 @@ function boardSide(
             for (const w of worths.slice(0, count)) worth += w;
             return worth;
         },
+        randomDiscardUnits(count) {
+            const scale = boardDraw();
+            const hand = handValues(player.hand, valuedCardId, returnedWorth);
+            // No library card on the board to price a discard against: the
+            // side is unreadable, never a measured zero.
+            if (scale === undefined || scale <= 0 || !hand) {
+                unreadable = true;
+                return 0;
+            }
+            answered = true;
+            if (hand.length === 0 || count <= 0) return 0;
+            let sum = 0;
+            for (const w of hand) sum += w;
+            // CR 701.9b — a random discard: no chooser keeps its best.
+            const discarded = Math.min(count, hand.length);
+            return ((sum / hand.length) * discarded) / scale;
+        },
         groundCount(value, namesSide = isEachPlayerRef) {
             const n = groundSideCount(
                 state,
