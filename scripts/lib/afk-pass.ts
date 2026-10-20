@@ -84,6 +84,22 @@ export function passClaudeArgs(
     ];
 }
 
+/**
+ * The session's extra `claude` arguments — its permission mode — from the
+ * repository variable `AFK_PASS_CLAUDE_ARGS`. The permission mode is the
+ * OWNER's call, never a baked-in default (the loop's own rule,
+ * `scripts/loop-drain.sh`): unset, the job refuses before any session starts,
+ * rather than run one that blocks on its first permission prompt.
+ */
+export function passPermissionArgs(raw: string | undefined): string[] {
+    const args = (raw ?? "").split(/\s+/).filter(Boolean);
+    if (args.length === 0)
+        throw new Error(
+            "no permission mode: set the repository variable AFK_PASS_CLAUDE_ARGS (the owner's call, never a default)"
+        );
+    return args;
+}
+
 /** The loop's run id for a job: `TOLARIA_LOOP_RUN_ID`, which the
  *  session-origin hook records beside the session. */
 export function passRunId(env: Env): string {

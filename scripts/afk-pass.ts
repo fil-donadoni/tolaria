@@ -43,7 +43,7 @@ import { gh } from "./lib/gh";
 import { sanitizeHost } from "./lib/github-runner";
 import { parseUsageLine, type UsageRecord } from "./lib/usage-window";
 import { DEFAULT_PROJECTS_DIR } from "./usage-window";
-import { extraClaudeArgs, quietLogPath } from "./health-fix";
+import { quietLogPath } from "./health-fix";
 import { hostOfRunnerName, type OpenPr } from "./lib/afk-dispatch";
 import {
     issuePr,
@@ -51,6 +51,7 @@ import {
     parsePassInputs,
     passClaudeArgs,
     passOutcome,
+    passPermissionArgs,
     passRecord,
     passRunId,
     passTimeoutMin,
@@ -232,7 +233,8 @@ function thisHost(): string {
 function runPass(
     p: PassInputs,
     sessionId: string,
-    timeoutMin: number
+    timeoutMin: number,
+    extra: readonly string[]
 ): { exitCode: number | null; timedOut: boolean; stdout: string } {
     const out = quietLogPath(process.env, `afk-pass-${p.issue}`);
     const err = out.replace(/\.log$/, ".stderr.log");
@@ -242,9 +244,6 @@ function runPass(
     say(
         `pass for issue #${p.issue} on tier ${p.model}${p.resume ? " (resume)" : ""}, bound ${timeoutMin} min, session ${sessionId}`
     );
-    const extra = extraClaudeArgs([
-        `--claude-args=${process.env.AFK_PASS_CLAUDE_ARGS ?? ""}`,
-    ]);
     const spawned = spawnSync("claude", passClaudeArgs(p, sessionId, extra), {
         stdio: ["ignore", fdOut, fdErr],
         timeout: timeoutMin * 60_000,
@@ -284,8 +283,10 @@ async function main(): Promise<number> {
     const issueGuess = Number(process.env.AFK_ISSUE) || 0;
 
     let p: PassInputs;
+    let extra: string[];
     try {
         p = parsePassInputs(process.env);
+        extra = passPermissionArgs(process.env.AFK_PASS_CLAUDE_ARGS);
     } catch (err) {
         say(`refusing the dispatch: ${firstLine(err)}`);
         writeRecord(recordDir, {
@@ -306,7 +307,8 @@ async function main(): Promise<number> {
     const run = runPass(
         p,
         sessionId,
-        passTimeoutMin(process.env.AFK_PASS_TIMEOUT_MIN)
+        passTimeoutMin(process.env.AFK_PASS_TIMEOUT_MIN),
+        extra
     );
     const endedMs = Date.now();
 

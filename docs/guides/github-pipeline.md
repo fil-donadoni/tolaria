@@ -1007,7 +1007,9 @@ resume is pinned — an input, never a literal (`host-pinned`).
 1. **launches the session** —
    `claude --model <tier> --session-id <uuid> -p "/next-ticket N" --output-format json`,
    `/next-ticket N --resume` for a resume, then the permission mode
-   (`AFK_PASS_CLAUDE_ARGS`). Its environment is the old loop's:
+   (`AFK_PASS_CLAUDE_ARGS` — the owner's call, with NO default: unset, the
+   job refuses as `setup-failed` before any session starts, the loop's own
+   rule). Its environment is the old loop's:
    `TOLARIA_LOOP_DRAIN=1` (the skill's hand-off detaches no driver),
    `TOLARIA_LOOP_RUN_ID=gh-<run id>-<attempt>` (the session-origin hook books
    the session under it), `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. The
@@ -1035,16 +1037,16 @@ resume is pinned — an input, never a literal (`host-pinned`).
 
 **Outcomes** (the record's `outcome`), first match wins:
 
-| Outcome        | When                                                                      | Run   |
-| -------------- | ------------------------------------------------------------------------- | ----- |
-| `handed-off`   | the issue's PR is labelled `ready-to-land`                                | green |
-| `closed`       | the issue is closed                                                       | green |
-| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`) | green |
-| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released) | green |
-| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                               | red   |
-| `error`        | `claude` exited non-zero, or the issue's state could not be read          | red   |
-| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue      | red   |
-| `setup-failed` | the dispatch's inputs are malformed — no session started                  | red   |
+| Outcome        | When                                                                                         | Run   |
+| -------------- | -------------------------------------------------------------------------------------------- | ----- |
+| `handed-off`   | the issue's PR is labelled `ready-to-land`                                                   | green |
+| `closed`       | the issue is closed                                                                          | green |
+| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`)                    | green |
+| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released)                    | green |
+| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                                                  | red   |
+| `error`        | `claude` exited non-zero, or the issue's state could not be read                             | red   |
+| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue                         | red   |
+| `setup-failed` | the dispatch's inputs are malformed, or `AFK_PASS_CLAUDE_ARGS` is unset — no session started | red   |
 
 A red run counts toward the dispatcher's failure streak; its claim stands,
 and the dispatcher resumes it (branch pushed) or releases it (nothing
@@ -1062,10 +1064,10 @@ token is masked by the job setup.
 
 **Repository variables** (beside the dispatcher's):
 
-| Variable               | Meaning                                                      | Default                          |
-| ---------------------- | ------------------------------------------------------------ | -------------------------------- |
-| `AFK_PASS_CLAUDE_ARGS` | the session's extra `claude` arguments — its permission mode | `--dangerously-skip-permissions` |
-| `AFK_PASS_TIMEOUT_MIN` | the session's bound, minutes (at most 190)                   | 180                              |
+| Variable               | Meaning                                                                                                        | Default |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- | ------- |
+| `AFK_PASS_CLAUDE_ARGS` | the session's extra `claude` arguments — its permission mode, e.g. `--dangerously-skip-permissions` — required | none    |
+| `AFK_PASS_TIMEOUT_MIN` | the session's bound, minutes (at most 190)                                                                     | 180     |
 
 Run one by hand (the issue must already be claimed — the job never claims):
 `gh workflow run afk-pass.yml -f issue=<N> -f model=sonnet`.

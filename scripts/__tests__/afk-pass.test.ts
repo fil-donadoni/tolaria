@@ -7,6 +7,7 @@ import {
     parsePassInputs,
     passClaudeArgs,
     passOutcome,
+    passPermissionArgs,
     passRecord,
     passTimeoutMin,
     passTokens,
@@ -108,6 +109,20 @@ describe("afk-pass inputs and command line", () => {
         expect(
             passClaudeArgs({ issue: 7, model: "opus", resume: true }, "s", [])
         ).toContain("/next-ticket 7 --resume");
+    });
+
+    it("takes the permission mode from the owner, never a default", () => {
+        expect(passPermissionArgs("--dangerously-skip-permissions")).toEqual([
+            "--dangerously-skip-permissions",
+        ]);
+        expect(passPermissionArgs(" --permission-mode  acceptEdits ")).toEqual([
+            "--permission-mode",
+            "acceptEdits",
+        ]);
+        expect(() => passPermissionArgs(undefined)).toThrow(
+            /AFK_PASS_CLAUDE_ARGS/
+        );
+        expect(() => passPermissionArgs("  ")).toThrow(/AFK_PASS_CLAUDE_ARGS/);
     });
 
     it("bounds the pass under the job's timeout", () => {
