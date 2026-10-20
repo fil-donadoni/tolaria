@@ -8188,4 +8188,104 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 701.23b (stated quality) + CR 406.1 (exile) +
+    // CR 701.24a (shuffle) — "Search target player's library for a card and
+    // exile it. Then that player shuffles.": the controller searches the
+    // TARGET player's library and the find is exiled, so its owner is denied
+    // it. Exhibits the card-dependent forms the canned generator cannot
+    // model: a `choice` sized at RUNTIME by the target's library, and a
+    // `moveZone` of the picked cards out of that library (issue #5252).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "36e937a9-e15e-4404-bcdd-c2b0943a34ad",
+            name: "Extract",
+            manaCost: "{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search target player's library for a card and exile it. Then that player shuffles.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Extract",
+            types: ["Sorcery"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Search target player's library for a card and exile it. Then that player shuffles.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    zoneOwnerId: { target: 0 },
+                    count: 1,
+                    prompt: "Search that player's library for a card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: { target: 0 },
+                    from: "library",
+                    to: "exile",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { target: 0 },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
+    // CR 701.23a (search) + CR 701.23b (stated quality) + CR 406.1 (exile) +
+    // CR 701.24a (shuffle) — "Search target player's library for up to seven
+    // cards and exile them. Then that player shuffles.": the optional range of
+    // the target-library search. Exhibits the runtime-sized `{ min, max }`
+    // `choice` count the canned generator cannot size (issue #5252).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8daed4d8-1a43-4452-85dd-51b320714489",
+            name: "Denying Wind",
+            manaCost: "{7}{U}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search target player's library for up to seven cards and exile them. Then that player shuffles.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Denying Wind",
+            types: ["Sorcery"],
+            manaCost: { X: 7, U: 2 },
+            oracleText:
+                "Search target player's library for up to seven cards and exile them. Then that player shuffles.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    zoneOwnerId: { target: 0 },
+                    count: { min: 0, max: 7 },
+                    prompt: "Search that player's library for up to seven cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: { target: 0 },
+                    from: "library",
+                    to: "exile",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { target: 0 },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
 ]);

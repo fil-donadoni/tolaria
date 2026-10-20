@@ -936,13 +936,16 @@ export const jestersCap = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     zoneOwnerId: { target: 0 },
-                    count: { min: 0, max: 3 },
-                    prompt: "Search the target player's library for up to three cards to exile.",
-                    bind: "$picked",
+                    // CR 701.23b — plain "cards" states no quality, so the
+                    // search is MANDATORY: exactly three, clamped to what the
+                    // library holds (CR 608.2b).
+                    count: 3,
+                    prompt: "Search that player's library for three cards.",
+                    bind: "$found1",
                 },
                 {
                     op: "moveZone",
-                    cards: { ref: "$picked" },
+                    cards: { ref: "$found1" },
                     player: { target: 0 },
                     from: "library",
                     to: "exile",
