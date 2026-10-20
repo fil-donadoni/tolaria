@@ -39,7 +39,13 @@
  * so two runs over one lockfile print one list.
  */
 
-import type { CardRow, FragmentRow, Lockfile } from "./oracle-lockfile";
+import {
+    type CardRow,
+    type FragmentContent,
+    type FragmentRow,
+    type Lockfile,
+} from "./oracle-lockfile";
+import { indexFragments, type FragmentIndex } from "./oracle-fragments";
 
 /** The frame of a line no slot entered any sub-grammar for. */
 export const NO_SLOT = "(no slot)";
@@ -95,7 +101,7 @@ export function gapShape(span: string): string {
 }
 
 /** The Grammar Gap a Fragment is attributed to. */
-export function gapOf(fragment: FragmentRow): GrammarGap {
+export function gapOf(fragment: FragmentContent): GrammarGap {
     const a = fragment.attribution;
     if (a !== undefined) {
         const shape = gapShape(a.span);
@@ -261,19 +267,16 @@ function tallyGroups(
     target: ReadonlySet<string> | null,
     groupOf: (gap: GrammarGap) => string
 ): Tally[] {
-    const gapOfFragment = lock.fragments.map(gapOf);
+    const gaps = fragmentGaps(lock);
     const tallies = new Map<string, Tally>();
     for (const card of lock.cards) {
         if (card.state !== "unparsed" || card.gaps === undefined) continue;
         const inTarget = target === null || target.has(card.oracleId);
         const groups = new Map<
             string,
-            { gap: GrammarGap; fragment: number; keys: Set<string> }
+            { gap: GrammarGap; fragment: FragmentRow; keys: Set<string> }
         >();
-        for (const [key, { gap, fragment }] of distinctGaps(
-            card,
-            gapOfFragment
-        )) {
+        for (const [key, { gap, fragment }] of distinctGaps(card, gaps)) {
             const group = groupOf(gap);
             const hit = groups.get(group);
             if (hit === undefined)
@@ -306,7 +309,7 @@ function tallyGroups(
                 (inTarget && !tally.example.inTarget)
             ) {
                 tally.example = {
-                    line: lock.fragments[fragment]!.text,
+                    line: fragment.text,
                     card: card.name,
                     inTarget,
                 };
@@ -397,11 +400,12 @@ export function findGapKeys(
     lock: Pick<Lockfile, "fragments" | "cards">,
     query: string
 ): string[] {
+    const gaps = fragmentGaps(lock);
     const keys = new Set<string>();
     for (const card of lock.cards) {
         if (card.state !== "unparsed" || card.gaps === undefined) continue;
-        for (const index of card.gaps)
-            keys.add(gapOf(lock.fragments[index]!).key);
+        for (const fragment of gaps.index.of(card))
+            keys.add(gaps.gapOf.get(fragment)!.key);
     }
     if (keys.has(query)) return [query];
     return [...keys].filter((k) => k.includes(query)).sort();
@@ -429,17 +433,17 @@ export function gapCards(
     key: string,
     target: ReadonlySet<string> | null
 ): GapCard[] {
-    const gapOfFragment = lock.fragments.map(gapOf);
+    const gaps = fragmentGaps(lock);
     const out: GapCard[] = [];
     for (const card of lock.cards) {
         if (card.state !== "unparsed" || card.gaps === undefined) continue;
-        const keys = distinctGaps(card, gapOfFragment);
+        const keys = distinctGaps(card, gaps);
         const hit = keys.get(key);
         if (hit === undefined) continue;
         out.push({
             name: card.name,
             oracleId: card.oracleId,
-            line: lock.fragments[hit.fragment]!.text,
+            line: hit.fragment.text,
             sole: keys.size === 1,
             inTarget: target === null || target.has(card.oracleId),
         });
@@ -453,15 +457,32 @@ export function gapCards(
     );
 }
 
-/** A card's gaps, one entry per Grammar Gap — the first fragment kept. */
+/** The lockfile's fragments resolved by key, each with its Grammar Gap. */
+interface FragmentGaps {
+    readonly index: FragmentIndex;
+    readonly gapOf: ReadonlyMap<FragmentRow, GrammarGap>;
+}
+
+function fragmentGaps(lock: Pick<Lockfile, "fragments">): FragmentGaps {
+    const index = indexFragments(lock);
+    return {
+        index,
+        gapOf: new Map(index.ranked.map((f) => [f, gapOf(f)] as const)),
+    };
+}
+
+/**
+ * A card's gaps, one entry per Grammar Gap — the first fragment in rank
+ * order kept, so the line a gap is shown by is its widest-blocking one.
+ */
 function distinctGaps(
     card: CardRow,
-    gapOfFragment: readonly GrammarGap[]
-): Map<string, { gap: GrammarGap; fragment: number }> {
-    const out = new Map<string, { gap: GrammarGap; fragment: number }>();
-    for (const index of card.gaps ?? []) {
-        const gap = gapOfFragment[index]!;
-        if (!out.has(gap.key)) out.set(gap.key, { gap, fragment: index });
+    gaps: FragmentGaps
+): Map<string, { gap: GrammarGap; fragment: FragmentRow }> {
+    const out = new Map<string, { gap: GrammarGap; fragment: FragmentRow }>();
+    for (const fragment of gaps.index.of(card)) {
+        const gap = gaps.gapOf.get(fragment)!;
+        if (!out.has(gap.key)) out.set(gap.key, { gap, fragment });
     }
     return out;
 }

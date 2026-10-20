@@ -19,9 +19,13 @@ import {
     rankGrammarGaps,
     setTargetFromMtgjson,
 } from "../lib/grammar-gaps";
-import type { CardRow, FragmentRow } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    type CardRow,
+    type FragmentRow,
+} from "../lib/oracle-lockfile";
 
-const EQUIP_2: FragmentRow = {
+const EQUIP_2 = fragmentRow({
     text: "Equip {2}",
     reason: "no slot consumed the line",
     cards: 2,
@@ -30,14 +34,14 @@ const EQUIP_2: FragmentRow = {
         path: ["keyword ability"],
         span: "Equip {2}",
     },
-};
-const EQUIP_3: FragmentRow = {
+});
+const EQUIP_3 = fragmentRow({
     ...EQUIP_2,
     text: "Equip {3}",
     cards: 1,
     attribution: { ...EQUIP_2.attribution!, span: "Equip {3}" },
-};
-const HEAD: FragmentRow = {
+});
+const HEAD = fragmentRow({
     text: "Whenever you gain life, draw a card.",
     reason: "no slot consumed the line",
     cards: 2,
@@ -46,23 +50,23 @@ const HEAD: FragmentRow = {
         path: ["trigger head"],
         span: "Whenever you gain life",
     },
-};
-const TRANSFORM: FragmentRow = {
+});
+const TRANSFORM = fragmentRow({
     text: "Creature — Werewolf // Creature — Werewolf",
     reason: 'layout "transform" is not in grammar v0 (multi-faced cards)',
     cards: 1,
-};
-const UNENTERED: FragmentRow = {
+});
+const UNENTERED = fragmentRow({
     text: "Totally unreadable text 3",
     reason: "no slot consumed the line",
     cards: 1,
-};
+});
 
 const FRAGMENTS = [EQUIP_2, EQUIP_3, HEAD, TRANSFORM, UNENTERED];
 
 function unparsed(
     id: string,
-    gaps: number[],
+    gaps: readonly FragmentRow[],
     poolIn?: CardRow["poolIn"]
 ): CardRow {
     return {
@@ -70,7 +74,7 @@ function unparsed(
         name: `Card ${id}`,
         state: "unparsed",
         ...(poolIn ? { poolIn } : {}),
-        gaps,
+        gaps: gaps.map((f) => f.key).sort(),
     };
 }
 
@@ -82,12 +86,12 @@ function unparsed(
 // f: unentered line            → (no slot) gap compiles f
 // g: ready, never counted
 const CARDS: CardRow[] = [
-    unparsed("a", [0], ["premodern"]),
-    unparsed("b", [1, 2], ["premodern", "legacy"]),
-    unparsed("c", [2], ["legacy"]),
-    unparsed("d", [0, 2]),
-    unparsed("e", [3]),
-    unparsed("f", [4]),
+    unparsed("a", [EQUIP_2], ["premodern"]),
+    unparsed("b", [EQUIP_3, HEAD], ["premodern", "legacy"]),
+    unparsed("c", [HEAD], ["legacy"]),
+    unparsed("d", [EQUIP_2, HEAD]),
+    unparsed("e", [TRANSFORM]),
+    unparsed("f", [UNENTERED]),
     { oracleId: "g", name: "Card g", state: "ready", poolIn: ["premodern"] },
 ];
 const LOCK = { fragments: FRAGMENTS, cards: CARDS };
@@ -171,10 +175,10 @@ describe("rankGrammarGaps", () => {
             {
                 fragments: FRAGMENTS,
                 cards: [
-                    unparsed("p", [0, 2]),
-                    unparsed("q", [0, 3]),
-                    unparsed("r", [0, 4]),
-                    unparsed("s", [2]),
+                    unparsed("p", [EQUIP_2, HEAD]),
+                    unparsed("q", [EQUIP_2, TRANSFORM]),
+                    unparsed("r", [EQUIP_2, UNENTERED]),
+                    unparsed("s", [HEAD]),
                 ],
             },
             null
@@ -192,7 +196,7 @@ describe("rankGrammarGaps", () => {
     it("breaks a Target tie on the corpus count (the leverage tie-break)", () => {
         // Target {b}: both gaps refuse b and compile nothing; Equip refuses 3 in
         // the corpus, the head 3 too — make the head's corpus count larger.
-        const extra = unparsed("h", [2]);
+        const extra = unparsed("h", [HEAD]);
         const ranked = rankGrammarGaps(
             { fragments: FRAGMENTS, cards: [...CARDS, extra] },
             new Set(["b"])
@@ -204,7 +208,7 @@ describe("rankGrammarGaps", () => {
     });
 
     it("counts a card once per gap, however many of its lines fail there", () => {
-        const twice = unparsed("x", [0, 1]); // Equip {2} AND Equip {3}
+        const twice = unparsed("x", [EQUIP_2, EQUIP_3]);
         const ranked = rankGrammarGaps(
             { fragments: FRAGMENTS, cards: [twice] },
             null
@@ -226,12 +230,12 @@ function attributed(
     slot = "triggered",
     path = ["trigger head"]
 ): FragmentRow {
-    return {
+    return fragmentRow({
         text: `${span}, draw a card.`,
         reason: "no slot consumed the line",
         cards: 1,
         attribution: { slot, path, span },
-    };
+    });
 }
 
 describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => {
@@ -316,24 +320,22 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
 });
 
 describe("rankClauseFamilies", () => {
-    // 0 red, 1 noncreature: one family, two forms. 2 Equip: another family.
-    const fragments = [
-        attributed("Whenever you cast a red spell"),
-        attributed("Whenever you cast a noncreature spell"),
-        EQUIP_2,
-    ];
+    // red, noncreature: one family, two forms. Equip: another family.
+    const red = attributed("Whenever you cast a red spell");
+    const noncreature = attributed("Whenever you cast a noncreature spell");
+    const fragments = [red, noncreature, EQUIP_2];
     // m: red only               → the family compiles m
     // n: red + noncreature      → two keys, ONE family: compiles n
     // o: noncreature + Equip    → refused by both families, compiled by neither
     const lock = {
         fragments,
         cards: [
-            unparsed("m", [0]),
-            unparsed("n", [0, 1]),
-            unparsed("o", [1, 2]),
+            unparsed("m", [red]),
+            unparsed("n", [red, noncreature]),
+            unparsed("o", [noncreature, EQUIP_2]),
         ],
     };
-    const cast = clauseFamily(gapOf(fragments[0]!));
+    const cast = clauseFamily(gapOf(red));
 
     it("compiles a card only when every one of its gaps is in the family", () => {
         const ranked = rankClauseFamilies(lock, null);
@@ -380,15 +382,15 @@ describe("one gap, card by card (--gap, issue #3834)", () => {
         // Ambiguous: every candidate comes back, never the first match.
         expect(findGapKeys(LOCK, "›").length).toBe(4);
         // A key that is a prefix of another is still reachable exactly.
-        const flash: FragmentRow = {
+        const flash = fragmentRow({
             text: "Flash",
             reason: "no slot consumed the line",
             cards: 1,
-        };
-        const flashback: FragmentRow = { ...flash, text: "Flashback {…}" };
+        });
+        const flashback = fragmentRow({ ...flash, text: "Flashback {…}" });
         const prefixLock = {
             fragments: [flash, flashback],
-            cards: [unparsed("x", [0]), unparsed("y", [1])],
+            cards: [unparsed("x", [flash]), unparsed("y", [flashback])],
         };
         expect(findGapKeys(prefixLock, `${NO_SLOT} › Flash`)).toEqual([
             `${NO_SLOT} › Flash`,
