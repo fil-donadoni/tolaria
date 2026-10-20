@@ -5,6 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { globSync } from "tinyglobby";
 import vitestConfig from "../../vitest.config";
 import {
+    botRelatedTests,
+    botTests,
     fileNameLiterals,
     generalTests,
     moduleKey,
@@ -13,6 +15,7 @@ import {
     reverseReach,
     shellFileNames,
     TEST_ALIASES,
+    type BotProject,
     type ReachIndex,
     type RelatedProject,
 } from "../lib/test-reach";
@@ -65,14 +68,28 @@ const FIXTURE: Record<string, string> = {
     // A census: walks a directory, imports nothing it reads (issue #5535).
     "scripts/__tests__/census.test.ts": `const d = fs.readdirSync("corpus");\n`,
     "corpus/notes.txt": `notes\n`,
+    // The bot fast lane (issue #6149): a src bot test (bot-dom), the ladder
+    // (its own project, never walked), and a bot census over convex/corpus/.
+    "src/lib/ai/__tests__/five.bot.test.ts": `import { m } from "../../../m";\n`,
+    "src/lib/ai/selfplay/ladder.bot.test.ts": `import { m } from "../../../m";\n`,
+    "convex/__tests__/census.bot.test.ts": `const d = fs.readdirSync("convex/corpus");\n`,
+    "convex/corpus/rows.ts": `export const rows = [];\n`,
 };
 
 const CENSUS = [
     { test: "scripts/__tests__/census.test.ts", admits: /^corpus\// },
 ];
 
+const BOT_CENSUS = [
+    {
+        test: "convex/__tests__/census.bot.test.ts",
+        admits: /^convex\/corpus\//,
+    },
+];
+
 let root: string;
 let index: ReachIndex;
+let botIndex: ReachIndex<BotProject>;
 
 beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), "test-reach-"));
@@ -81,6 +98,7 @@ beforeAll(() => {
         writeFileSync(join(root, rel), text);
     }
     index = reachIndex(root);
+    botIndex = reachIndex(root, botTests(root));
 });
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -251,6 +269,47 @@ describe("test-reach — a declared census is admitted by its corpus (issue #553
     });
 });
 
+describe("test-reach — the bot fast lane is walked the same way (issue #6149)", () => {
+    it("botTests holds every bot fast lane file in its project, never the ladder or a perf file", () => {
+        expect(Object.fromEntries(botTests(root))).toEqual({
+            "convex/__tests__/three.bot.test.ts": "bot-node",
+            "convex/__tests__/census.bot.test.ts": "bot-node",
+            "src/lib/ai/__tests__/five.bot.test.ts": "bot-dom",
+        });
+    });
+
+    it("a module a bot test imports plans that bot file, in its project", () => {
+        expect(botRelatedTests(botIndex, ["convex/x/b.ts"], [])).toEqual({
+            "bot-node": ["convex/__tests__/three.bot.test.ts"],
+            "bot-dom": [],
+        });
+        expect(botRelatedTests(botIndex, ["src/m.ts"], [])).toEqual({
+            "bot-node": [],
+            "bot-dom": ["src/lib/ai/__tests__/five.bot.test.ts"],
+        });
+    });
+
+    it("a bot census is admitted when its watched tree changes, which no import edge reaches", () => {
+        expect(
+            botRelatedTests(botIndex, ["convex/corpus/rows.ts"], BOT_CENSUS)[
+                "bot-node"
+            ]
+        ).toEqual(["convex/__tests__/census.bot.test.ts"]);
+        expect(
+            botRelatedTests(botIndex, ["convex/corpus/rows.ts"], [])["bot-node"]
+        ).toEqual([]);
+    });
+
+    it("a census row of the other suite is planned by neither walk", () => {
+        expect(botRelatedTests(botIndex, ["corpus/notes.txt"], CENSUS)).toEqual(
+            { "bot-node": [], "bot-dom": [] }
+        );
+        expect(
+            relatedTests(index, ["convex/corpus/rows.ts"], BOT_CENSUS)
+        ).toEqual({ "node-engine": [], "node-tooling": [], dom: [] });
+    });
+});
+
 describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)", () => {
     const ROOT = resolve(__dirname, "../..");
     interface Project {
@@ -273,6 +332,24 @@ describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)
             }).sort();
             const mirrored = [...mirror]
                 .filter(([, proj]) => proj === (name as RelatedProject))
+                .map(([f]) => f)
+                .sort();
+            expect(mirrored, name).toEqual(files);
+        }
+    });
+
+    it("every bot fast lane project's files, project by project (issue #6149)", () => {
+        const mirror = botTests(ROOT);
+        for (const name of ["bot-node", "bot-dom"] as const) {
+            const p = config.test!.projects!.find(
+                (x) => x.test?.name === name
+            )!;
+            const files = globSync(p.test!.include!, {
+                cwd: ROOT,
+                ignore: p.test!.exclude ?? [],
+            }).sort();
+            const mirrored = [...mirror]
+                .filter(([, proj]) => proj === name)
                 .map(([f]) => f)
                 .sort();
             expect(mirrored, name).toEqual(files);

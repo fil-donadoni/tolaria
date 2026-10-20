@@ -77,10 +77,11 @@ export const FIXES: Readonly<Record<FixKey, FixRow>> = {
         // The drift test is a `bot-node` file no related run selects: the
         // lane runs it as its own admitted guard (issue #5940) and names it
         // in `failedFiles` — a red with no file named (a crash) is not drift.
-        // A `full` lane runs it inside `check:pr` (`check:guards`): the same
-        // files rule, read from the captured output (issue #5955, PR #5863
-        // sat `land-failed` 7 h on exactly this red).
-        stepIds: ["blade-index", "check:pr"],
+        // A `full` lane also runs it inside its bot half when the diff
+        // reaches it (`vitest(bot)`, issue #6149): the same files rule, read
+        // from the captured output (issue #5955, PR #5863 sat `land-failed`
+        // 7 h on exactly this red).
+        stepIds: ["blade-index", "vitest(bot)"],
         onlyFiles: [BLADE_INDEX_DRIFT_TEST],
         script: "blade:card-index",
         args: [],
