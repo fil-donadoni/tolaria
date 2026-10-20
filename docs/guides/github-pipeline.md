@@ -264,21 +264,22 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 
 ## Workflows
 
-| Workflow                                  | Trigger                                                          | Runner                                | What it proves                                                                            |
-| ----------------------------------------- | ---------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                      | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory                                   |
-| [`pr-check`](#required-checks) `refusals` | same                                                             | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                                 |
-| [`release`](#release)                     | dispatch (`dry_run`)                                             | `[self-hosted, lane]`                 | the full gate + walk on the base tip, then the release fast-forward, under an Environment |
-| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch             | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                         |
-| [`pr-refresh`](#pr-refresh)               | push to the base branch                                          | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                                 |
-| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                 | `lane` per machine, `seed`            | fast-forward, worktree cleanup, seed, housekeeping, nightly                               |
-| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                  | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                         |
-| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses    |
-| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                        | `[self-hosted, lane]`                 | the lane on the queue's rebased draft, one flaky re-run                                   |
-| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand            | `[self-hosted, lane]`                 | regenerates a stale generated artefact and pushes it                                      |
-| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)           | `[self-hosted, lane]`                 | the base tip's `health` verdict; a RED's flake check and bisect                           |
-| [`health-early`](#health)                 | push to the base branch, one run at a time                       | GitHub-hosted `ubuntu-24.04`          | the offline gate after a merge batch — its RED only                                       |
-| [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself               | `[self-hosted, pass, host:<machine>]` | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop       |
+| Workflow                                  | Trigger                                                             | Runner                                         | What it proves                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                         | GitHub-hosted `ubuntu-24.04`                   | the PR's full `check:lane`, on the merge ref — advisory                                   |
+| [`pr-check`](#required-checks) `refusals` | same                                                                | same                                           | one job per `land` refusal (five), `scripts/pr-checks.ts`                                 |
+| [`release`](#release)                     | dispatch (`dry_run`)                                                | `[self-hosted, lane]`                          | the full gate + walk on the base tip, then the release fast-forward, under an Environment |
+| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch                | `[self-hosted, lane, host:<machine>]`          | the same lane on an owner's machine, to compare timings (phase 0)                         |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch                                             | `[self-hosted, lane]`                          | rebases the queued PRs the push conflicts with or touches                                 |
+| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                    | `lane` per machine, `seed`                     | fast-forward, worktree cleanup, seed, housekeeping, nightly                               |
+| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                     | `[self-hosted, pass]`, one at a time           | picks, claims and dispatches AFK passes, or holds                                         |
+| [`afk-pass`](#afk-pass)                   | dispatch (`issue`, `model`, `resume`, `host`) — from the dispatcher | `[self-hosted, pass]` (+ `host:` for a resume) | one `/next-ticket` pass, its WIP push and its record                                      |
+| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch    | GitHub-hosted `ubuntu-24.04`                   | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses    |
+| [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                           | `[self-hosted, lane]`                          | the lane on the queue's rebased draft, one flaky re-run                                   |
+| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand               | `[self-hosted, lane]`                          | regenerates a stale generated artefact and pushes it                                      |
+| [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)              | `[self-hosted, lane]`                          | the base tip's `health` verdict; a RED's flake check and bisect                           |
+| [`health-early`](#health)                 | push to the base branch, one run at a time                          | GitHub-hosted `ubuntu-24.04`                   | the offline gate after a merge batch — its RED only                                       |
+| [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself                  | `[self-hosted, pass, host:<machine>]`          | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop       |
 
 ### pr-check
 
@@ -937,7 +938,7 @@ summary, and exits 0 ("nothing to do"); the next trigger re-checks. In order:
 | Hold               | Holds while                                                                                                                            | Lifts when                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `disabled`         | `afk-dispatch.yml` itself is disabled (a run queued before the kill switch)                                                            | the workflow is enabled again                                                   |
-| `no-pass-workflow` | `afk-pass.yml` is absent or disabled on the default branch (until issue #5650 lands, the dispatcher is inert)                          | `afk-pass.yml` is on the default branch and enabled                             |
+| `no-pass-workflow` | `afk-pass.yml` is absent or disabled on the default branch (before issue #5650 landed, the dispatcher was inert)                       | `afk-pass.yml` is on the default branch and enabled                             |
 | `failure-streak`   | the last three completed `afk-pass` runs failed (`failure`, `timed_out`, `startup_failure`; a `cancelled` run is passed over)          | the owner acknowledges: `gh workflow run afk-dispatch.yml -f ack_failures=true` |
 | `unknown-health`   | the health verdict store cannot be read — unattended, an unknown base holds                                                            | the store answers again                                                         |
 | `red`              | the base's health verdict is RED (the `health` commit status, ADR 0116)                                                                | health reads GREEN or AMBER                                                     |
@@ -988,6 +989,86 @@ next enabled run resumes or releases it.
 
 A dry run prints the plan without claiming, releasing or dispatching, on a
 machine with the owner's `gh` login: `bun run afk:dispatch --dry-run`.
+
+### afk-pass
+
+`.github/workflows/afk-pass.yml` runs ONE [pass](#g-pass): `bun run afk:pass`
+(`scripts/afk-pass.ts`; every decision is a pure function in
+`scripts/lib/afk-pass.ts`). Only the [dispatcher](#g-dispatcher) starts it,
+with the issue it already claimed and the inputs `model`, `resume` and `host`
+([§ afk-dispatch](#afk-dispatch)). The run is named `afk-pass #<N>`
+(`afk-pass #<N> (resume)`): the name is how the dispatcher tells which claim
+a run holds. Its runner is `[self-hosted, pass]`, plus `host:<host>` when a
+resume is pinned — an input, never a literal (`host-pinned`).
+
+**What the job does**, after the [job worktree](#g-job-worktree) and the
+[job setup](#g-job-setup):
+
+1. **launches the session** —
+   `claude --model <tier> --session-id <uuid> -p "/next-ticket N" --output-format json`,
+   `/next-ticket N --resume` for a resume, then the permission mode
+   (`AFK_PASS_CLAUDE_ARGS`). Its environment is the old loop's:
+   `TOLARIA_LOOP_DRAIN=1` (the skill's hand-off detaches no driver),
+   `TOLARIA_LOOP_RUN_ID=gh-<run id>-<attempt>` (the session-origin hook books
+   the session under it), `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. The
+   session reads `job.md` ([a pass inside a job](#a-pass-inside-a-job)) and
+   pushes after every commit;
+2. **bounds it** — `AFK_PASS_TIMEOUT_MIN` (default 180, at most 190) ends the
+   session BEFORE the job's `timeout-minutes: 210`, so the record still gets
+   written; a job killed by its own timeout leaves none (a `timed_out` run,
+   which the dispatcher's `records-unknown` hold does not wait for);
+3. **reads what the pass left** — the issue's open PR (by branch,
+   `feat/issue-N` or `fix/issue-N`) and labels, the session's transcripts
+   (`~/.claude/projects/*/<uuid>.jsonl` and its subagents' under
+   `<uuid>/`) for tokens and the usage limit, the JSON result for the cost;
+4. **pushes stopped work** — when the pass stopped short (usage limit,
+   timeout, error, no hand-off) on its own issue branch, uncommitted work is
+   committed as `wip(afk-pass): …` (`--no-verify`) and the branch pushed:
+   the next dispatch resumes it from `origin`. A detached HEAD, any other
+   branch, a hand-off or an abort is left alone — nothing here can push the
+   base;
+5. **writes the record** — `record.json` in `$RUNNER_TEMP/afk-pass-record`,
+   uploaded as the `afk-pass-record` artifact `if: always()` (14 days), and
+   the job summary; even a refused dispatch or a crash leaves one;
+6. **refills the slot** — `gh workflow run afk-dispatch.yml`,
+   `continue-on-error` (the kill switch refuses the dispatch).
+
+**Outcomes** (the record's `outcome`), first match wins:
+
+| Outcome        | When                                                                      | Run   |
+| -------------- | ------------------------------------------------------------------------- | ----- |
+| `handed-off`   | the issue's PR is labelled `ready-to-land`                                | green |
+| `closed`       | the issue is closed                                                       | green |
+| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`) | green |
+| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released) | green |
+| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                               | red   |
+| `error`        | `claude` exited non-zero, or the issue's state could not be read          | red   |
+| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue      | red   |
+| `setup-failed` | the dispatch's inputs are malformed — no session started                  | red   |
+
+A red run counts toward the dispatcher's failure streak; its claim stands,
+and the dispatcher resumes it (branch pushed) or releases it (nothing
+pushed). **A usage limit** is green on purpose: the record's
+`usageLimitResetAt` is the latest `resetsAt` the refusal named, and the
+dispatcher holds every new pass until it passes (`usage-limit` hold). A
+refusal naming no reset (a model that needs usage credits) holds one hour.
+
+**Public logs.** The session's stdout (the JSON result) and stderr go to
+`~/.cache/tolaria/jobs/<run id>-<attempt>/afk-pass-<N>.log` and
+`.stderr.log` on the machine; the transcript stays in `~/.claude/projects`.
+The log gets the exit code, the path and the outcome; the summary, issue,
+PR, outcome, duration, cost and tokens per model — no host name. The `gh`
+token is masked by the job setup.
+
+**Repository variables** (beside the dispatcher's):
+
+| Variable               | Meaning                                                      | Default                          |
+| ---------------------- | ------------------------------------------------------------ | -------------------------------- |
+| `AFK_PASS_CLAUDE_ARGS` | the session's extra `claude` arguments — its permission mode | `--dangerously-skip-permissions` |
+| `AFK_PASS_TIMEOUT_MIN` | the session's bound, minutes (at most 190)                   | 180                              |
+
+Run one by hand (the issue must already be claimed — the job never claims):
+`gh workflow run afk-pass.yml -f issue=<N> -f model=sonnet`.
 
 ### pr-gate
 
@@ -1278,8 +1359,9 @@ in the repository's Settings; a slice that needs a new one adds its row here.
 
 - [ ] **Actions → General → Allow actions: GitHub-owned + the pinned
       third-party ones the workflows name.** Today the workflows use only
-      GitHub-owned `actions/checkout`; node and bun are installed by script
-      precisely so the allow-list needs no entry.
+      GitHub-owned `actions/checkout` and `actions/upload-artifact`
+      ([`afk-pass`](#afk-pass)'s record); node and bun are installed by
+      script precisely so the allow-list needs no entry.
 - [ ] **Both machines' runners re-installed after issue #5636**
       (`bun run runner install`), so their units export
       `TOLARIA_PRIMARY_CHECKOUT`.
