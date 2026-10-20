@@ -1154,7 +1154,8 @@ draft's body is Mergify's and declares no repair (issue #5978).
 **Re-gate.** A `health` or `health-fix` commit status — a verdict written,
 or a repair issue recorded on the pivot — fires the workflow's `status`
 trigger, which re-posts both statuses on every open PR labelled
-`ready-to-land`: a RED holds the queue, a GREEN or AMBER reopens it, a newly
+`ready-to-land`: a RED holds the queue, a GREEN or AMBER reopens it and requeues the PRs the
+RED held (`@mergifyio requeue`, [a hold](#a-red-dequeue-is-a-hold)), a newly
 declared repair is admitted. Only a status written with a personal token
 fires it (the machines' `gh` login writes the verdicts; a status written
 with a job's `GITHUB_TOKEN` fires nothing — so the [`health`](#health)
@@ -1262,20 +1263,39 @@ a PR the queue admits — a marker [`pr-refresh`](#pr-refresh) reads, no longer
 a condition. A PR touching `.github/` or `.mergify.yml` never enters the
 queue: the owner merges it by hand.
 
-| Rule                       | Value                                                                                                                                                                                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                                                  |
-| Entry (`queue_conditions`) | `ready-to-land`, no `land-failed`, no red `check:lane (advisory)` ([`pr-check`](#pr-check)), [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                         |
-| Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR                                                                                                                                  |
-| Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                         |
-| Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                           |
-| Merge method               | `squash`, as `land` merges                                                                                                                                                                                                                        |
-| Dequeue                    | on `checks-failed` or `checks-timeout`: `ready-to-land` → `land-failed`, plus a comment naming the reason and linking the `queue-lane` runs; Mergify's own dequeue comment (`status_comments: outcomes`) links the failing run of this PR's draft |
+| Rule                       | Value                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                                                                                                                                                             |
+| Entry (`queue_conditions`) | `ready-to-land`, no `land-failed`, no red `check:lane (advisory)` ([`pr-check`](#pr-check)), [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                                                                                                                                    |
+| Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR                                                                                                                                                                                                                                             |
+| Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                                                                                                                                    |
+| Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                                                                                                                                      |
+| Merge method               | `squash`, as `land` merges                                                                                                                                                                                                                                                                                                                                   |
+| Dequeue                    | on `checks-failed` or `checks-timeout`: `ready-to-land` → `land-failed`, plus a comment naming the reason and linking the `queue-lane` runs; Mergify's own dequeue comment (`status_comments: outcomes`) links the failing run of this PR's draft. **Not** when [`base-health`](#g-base-health) is red on the PR: that is [a hold](#a-red-dequeue-is-a-hold) |
 
 `land-failed` is the repair pick's trigger (`afk-dispatch` re-fires the PR's
 issue), and `-label=land-failed` keeps the PR out of the queue until the
 repair's `land:ready` swaps the labels back. Mergify's default `dequeued`
 label is off (`dequeued_label: null`).
+
+### A RED dequeue is a hold
+
+A RED on the base is not the PR's red (issue #6110). When one arrives with PRs
+queued, [`pr-gate`](#pr-gate)'s re-gate posts `base-health` red on each, and
+Mergify may dequeue them with `checks-failed`. The repair-pick rule carries
+`-check-failure=base-health`, so it does not fire: the PR keeps
+`ready-to-land`, has no `land-failed`, and no pass is spent on it. The GREEN or
+AMBER that follows re-gates the same PRs, and `pr-gate` comments
+`@mergifyio requeue` on each whose `base-health` turns green after being red or
+pending (and that is `ready-to-land`, not `land-failed`, `trusted-author` green,
+no `queued` label), so nothing needs a human or a pass. A `queue-lane` red
+leaves `base-health` green: it stays a repair pick. The structure guard's
+`queue-dequeue` row pins the exemption.
+
+Race: if Mergify dequeues before the RED's re-gate has posted `base-health`
+red on the PR's head, the repair-pick rule can still fire once. Mergify does
+not undo a label; a PR labelled `land-failed` this way is swapped back by hand
+(`land:ready`).
 
 **Where Mergify judges the entry conditions.** While a PR is queued, Mergify
 re-checks the check conditions of `queue_conditions` on the queue's **draft**,
@@ -1447,7 +1467,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `-label=land-failed`, `-check-failure=check:lane (advisory)`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml`; still require `label=queue:shadow`; or the job posting `check:lane (advisory)` runs on the queue's drafts |
 | `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                                                                           |
 | `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                                                                           |
-| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link                                                                                                                                                                                   |
+| `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link, or lacks the top-level `-check-failure=base-health` ([a hold](#a-red-dequeue-is-a-hold))                                                                                         |
 
 Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
 `macos-15`, …) counts as GitHub-hosted. Anything else — an expression, a
@@ -1555,7 +1575,11 @@ Two defects distort the numbers above rather than add to them:
 A hold is no failure, but one stranded a PR. On 2026-10-18 PR #5854 sat
 14 h with no merger: the RED reddened `base-health` on its queue draft,
 Mergify dequeued it, and no GREEN requeued it (`@mergifyio requeue` did).
-Fix: issue #5978.
+Fix: issue #5978 for the stranding; issue #6110 for the label: on 2026-10-20 a
+RED (a lint error in PR #6105) dequeued PR #6070 and PR #6034 with
+`CHECKS_FAILED` and the repair-pick rule labelled both `land-failed`, though
+neither had a defect. A dequeue under a red `base-health` is now
+[a hold](#a-red-dequeue-is-a-hold): no `land-failed`, and the GREEN requeues.
 
 The [shadow](#g-shadow) comparison that decides the cut-over (issue #5643)
 counts episodes, not attempts, and leaves out holds.
