@@ -230,12 +230,11 @@ over two machines); the rest is batch health's.
   (`convex/**`, `scripts/**`, `data/**`, `.claude/**` tooling, repo config,
   scripts-only `package.json`) / `cards` / `docs` (prose, `check:docs`, incl.
   `.claude/skills/**/*.md`, `.claude/rules/*.md`) / `full` (`src/**` +
-  `convex/**`, dependency changes, lockfile) = `check:pr` **verbatim**; prose
-  beside code adds `node[docs]`. **The lane runs the tests reachable from the
-  diff through the import graph** (`vitest --changed`) + `tsc`, diff format /
-  lint, `cr:lint`, drift and cheap guards; an unreachable test is health's
-  (ADR 0154 overturns ADR 0104).
-- **Never hand-pick a subset of `check:pr`.**
+  `convex/**`, dependency changes, lockfile) = `check:pr` **verbatim**, **never
+  hand-picked**; only its bot half is scoped (ADR 0154 §11); prose beside code
+  adds `node[docs]`. **The lane runs the tests reachable from the diff through
+  the import graph** + `tsc`, diff format / lint, `cr:lint`, drift and cheap
+  guards; an unreachable test is health's (ADR 0154 overturns ADR 0104).
 - **Guard tier = measured cost** (issue #4963): ≤ 10 s → lane (admitted by
   diff: `check:gaps`/`check:targets`/`check:test-hygiene`); above →
   `HEALTH_ONLY_GUARDS` with its cost (`check:ui --all`, bot fast lane =
