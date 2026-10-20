@@ -566,6 +566,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Sorcery › grantFlashback",
+            "issue": 6175
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:player › choice+discard",
             "issue": 4278
         },
@@ -588,6 +593,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › armGraveyardRedirect+grantGraveyardPlay",
             "issue": 4835
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+dealDamage+forEach+sacrifice",
+            "issue": 6174
         },
         {
             "kind": "bot",
