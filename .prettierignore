@@ -77,3 +77,12 @@ data/cr/citations-ledger.json
 # Prettier explodes each row across ten lines (measured: 816 -> 6,407), and the
 # command's own output would then never reproduce the committed bytes.
 data/bot-reach-findings.json
+# Regenerated artifacts (scripts/lib/generated-artifacts.ts, issue #6116):
+# the generator's bytes ARE the committed bytes, so a regeneration — by hand
+# or by the rebase resolver — never needs a format step.
+data/oracle-legality.json
+data/blade-card-index.json
+data/blade-reproducers.json
+/AGENTS.md
+/convex/AGENTS.md
+/src/AGENTS.md
