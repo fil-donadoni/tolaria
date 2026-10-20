@@ -93,7 +93,12 @@
  */
 import { parse } from "yaml";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
-import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "../lib/land-labels";
+import {
+    FAILED_LABEL,
+    HELD_LABEL,
+    READY_LABEL,
+    SHADOW_LABEL,
+} from "../lib/land-labels";
 
 export interface SourceFile {
     path: string;
@@ -631,7 +636,10 @@ export const QUEUE_PARALLEL_CHECKS = 2;
 /** The dequeue reasons that make a PR a repair pick: its check went red. */
 const DEQUEUE_REASONS = ["checks-failed", "checks-timeout"];
 /** A dequeue under a red `base-health` is a hold (issue #6110). */
-const HOLD_EXEMPT = /^-check-failure\s*=\s*base-health$/;
+const HOLD_EXEMPT = [
+    /^-check-failure\s*=\s*base-health$/,
+    labelCondition(HELD_LABEL, "-"),
+];
 
 const strings = (v: unknown): string[] =>
     asArray(v)
@@ -658,8 +666,8 @@ function relabelsDequeue(rule: unknown): boolean {
     // A RED on the base is a hold, not the PR's red (issue #6110): the rule
     // must stand down when `base-health` failed, at the top level (an `or:`
     // branch would only widen it).
-    if (!strings(rule.conditions).some((c) => HOLD_EXEMPT.test(c)))
-        return false;
+    const top = strings(rule.conditions);
+    if (!HOLD_EXEMPT.every((re) => top.some((c) => re.test(c)))) return false;
     const label = isObj(rule.actions.label) ? rule.actions.label : {};
     const comment = isObj(rule.actions.comment) ? rule.actions.comment : {};
     return (
@@ -739,7 +747,7 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
     if (!prRules.some(relabelsDequeue))
         v(
             "queue-dequeue",
-            `no pull_request_rule labels a PR dequeued on ${DEQUEUE_REASONS.join("/")} \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`) with a comment carrying a link, unless \`base-health\` is red (\`-check-failure=base-health\`: a RED is a hold, issue #6110)`
+            `no pull_request_rule labels a PR dequeued on ${DEQUEUE_REASONS.join("/")} \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`) with a comment carrying a link, unless held (\`-check-failure=base-health\` and \`-label=${HELD_LABEL}\`: a RED is a hold, issue #6110)`
         );
 }
 

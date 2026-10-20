@@ -1283,7 +1283,11 @@ label is off (`dequeued_label: null`).
 A RED on the base is not the PR's red (issue #6110). When one arrives with PRs
 queued, [`pr-gate`](#pr-gate)'s re-gate posts `base-health` red on each, and
 Mergify may dequeue them with `checks-failed`. The repair-pick rule carries
-`-check-failure=base-health`, so it does not fire: the PR keeps
+`-check-failure=base-health` and `-label=queue:held`, so it does not fire; a
+second rule (`a dequeue under a RED is a hold`) puts `queue:held` on the PR,
+because the dequeue reason outlives the RED and the first condition alone would
+match again once the GREEN lands. `pr-gate` removes `queue:held` when it
+requeues. The PR keeps
 `ready-to-land`, has no `land-failed`, and no pass is spent on it. The GREEN or
 AMBER that follows re-gates the same PRs, and `pr-gate` comments
 `@mergifyio requeue` on each whose `base-health` turns green after being red or
@@ -1291,6 +1295,10 @@ pending (and that is `ready-to-land`, not `land-failed`, `trusted-author` green,
 no `queued` label), so nothing needs a human or a pass. A `queue-lane` red
 leaves `base-health` green: it stays a repair pick. The structure guard's
 `queue-dequeue` row pins the exemption.
+
+Not verified live yet: that Mergify honours `@mergifyio requeue` from the
+`github-actions` token, and that a requeue clears the dequeue reason. If a
+held PR is not requeued at GREEN, comment it by hand.
 
 Race: if Mergify dequeues before the RED's re-gate has posted `base-health`
 red on the PR's head, the repair-pick rule can still fire once. Mergify does

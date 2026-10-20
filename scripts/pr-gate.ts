@@ -24,6 +24,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { HELD_LABEL } from "./lib/land-labels";
 import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     githubVerdictStore,
@@ -215,6 +216,15 @@ function main(): number {
             console.log(`PR #${raw.number}: ${REQUEUE_COMMENT}`);
             if (!dryRun)
                 try {
+                    gh(run, [
+                        "pr",
+                        "edit",
+                        String(raw.number),
+                        "--repo",
+                        repo,
+                        "--remove-label",
+                        HELD_LABEL,
+                    ]);
                     gh(run, [
                         "pr",
                         "comment",
