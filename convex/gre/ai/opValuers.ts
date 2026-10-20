@@ -1,31 +1,25 @@
-// Per-Op value model — the OP_VALUERS dispatch table (PRD #1423 "DSL semantic
-// layer", issue #1426). Mirrors the interpreter's `OP_EXECUTORS`: one entry per
-// Op, keyed by Op name. Where an executor APPLIES an Op to game state, a valuer
-// VALUES it — projecting it onto the fixed feature basis (`featureBasis.ts`) as
-// a Forge-scale `{ points, tags }`. A script's value is the walker's sum over
-// its Ops (`valueEffectScript`).
+// Per-Op value model — the OP_VALUERS dispatch table. Mirrors the
+// interpreter's `OP_EXECUTORS`: one entry per Op, keyed by Op name. Where an
+// executor APPLIES an Op to game state, a valuer VALUES it — projecting it
+// onto the fixed feature basis (`featureBasis.ts`) as a Forge-scale
+// `{ points, tags }`. A script's value is the walker's sum over its Ops
+// (`valueEffectScript`).
 //
-// Issue #1426 shipped the CHARTER Ops (the highest-frequency / most
-// eval-relevant verbs, PRD #1423). Issue #1430 backfilled every remaining
-// `status:"implemented"` Op at the time, emptying the coverage guard's
-// allowlist; `castDuringResolution` (#1477) and `createTokenCopy` (#1459)
-// shipped afterward straight onto the allowlist instead of earning a valuer —
-// issue #1515 backfills those two and re-empties it. The guard
+// Every `status:"implemented"` Op is either valued here or a
+// walker-handled structural construct; the coverage guard
 // (`convex/cards/__tests__/opValuerCoverage.bot.test.ts`) fails CI on any
-// implemented Op that is neither valued nor a walker-handled structural
-// construct.
+// implemented Op that is neither, and its allowlist is empty.
 //
-// Issue #1521 corrected three semantic bugs found by review: `dealDamage`
-// assumed damage aimed at a player is NEVER self-directed (false — recoil/
-// symmetric riders exist), `divideIntoPiles` averaged the two piles instead
-// of taking the adversarial chooser's worst-case split, and `sacrifice`
-// treated every single-target form as the caster's own cost even when the
-// target is an arbitrary announced permanent (potentially the opponent's).
+// Player-ref signs are read from the Op, never assumed: `dealDamage` aimed at
+// a player may be self-directed (recoil/symmetric riders), `divideIntoPiles`
+// takes the adversarial chooser's worst-case split rather than the piles'
+// average, and `sacrifice` signs by whose permanent it is (an arbitrary
+// announced permanent may be the opponent's).
 //
 // Point magnitudes are on `evaluate.ts`'s Forge scale (a 2/2 vanilla ≈ 170, one
 // life ≈ 8, one untapped mana ≈ 12). They are hand-tuned for ORDERING (a burn/
-// removal spell must out-score a do-nothing spell of equal mana value) — the
-// PRD tunes them further against the blade suite in a later slice.
+// removal spell must out-score a do-nothing spell of equal mana value) and
+// checked against the blade suite.
 
 import type {
     EffectCardFilter,
@@ -226,34 +220,34 @@ const CASCADE_VALUE = 50; // CR 702.85a (issue #3216) — a free mini-cast of a 
 const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
 /** The WALK-LOCAL binding scope threaded down an Effect Script by
- *  `valueEffectScript` (issue #3292). Purely syntactic — derived from the
- *  script's own Ops, never from live state, so both grounding modes see the
- *  identical attribution and no `ContextAwareResolvers` entry is owed. Kept
- *  OFF `GroundingContext` deliberately: a grounding context answers "what does
- *  this ref mean at the decision node", while this answers "which earlier Op in
- *  THIS script bound this name" — a fact of the script, scoped to one walk.
+ *  `valueEffectScript`. Purely syntactic — derived from the script's own Ops,
+ *  never from live state, so both grounding modes see the identical
+ *  attribution and no `ContextAwareResolvers` entry is owed. Kept OFF
+ *  `GroundingContext` deliberately: a grounding context answers "what does
+ *  this ref mean at the decision node", while this answers "which earlier Op
+ *  in THIS script bound this name" — a fact of the script, scoped to one walk.
  *
  *  `controllerChosenPicks` holds the picks-binding names a `choice` Op whose
  *  `player` is the literal `"controller"` has bound. A `sacrifice` over such a
  *  binding is the CASTER's own permanent (a cost), not an edict.
  *
- *  `coinFlipSeriesWinProbability` (issue #4470) maps a `coinFlipSeries`
- *  `bindLosses` name to the probability that series lands at zero losses —
- *  CR 705.1's equal-likelihood flip is independent each time, so `count`
- *  flips ALL won is `0.5 ** count`. Read by `if`'s walker below (CR 705.2 is
- *  the win/loss half — see that citation) to discount a "won every flip"
- *  branch instead of assuming it happens for free: `chooseNumber` /
- *  `coinFlipSeries` themselves are correctly ZERO-valued (their whole
- *  consequence is the branch that reads the binding back), so nothing else in
- *  the walk ever prices the ODDS of getting there — a script conditioned on a
- *  coin-flip win priced its `then` branch as certain, which is how Squee's
- *  Revenge's hand-value out-priced Lightning Bolt: `evaluate.ts`'s `hand` term
- *  then rated NEVER casting it above every real line of play.
+ *  `coinFlipSeriesWinProbability` maps a `coinFlipSeries` `bindLosses` name to
+ *  the probability that series lands at zero losses — CR 705.1's
+ *  equal-likelihood flip is independent each time, so `count` flips ALL won is
+ *  `0.5 ** count`. Read by `if`'s walker below (CR 705.2 is the win/loss half
+ *  — see that citation) to discount a "won every flip" branch instead of
+ *  assuming it happens for free: `chooseNumber` / `coinFlipSeries` themselves
+ *  are correctly ZERO-valued (their whole consequence is the branch that reads
+ *  the binding back), so nothing else in the walk ever prices the ODDS of
+ *  getting there. Without it a script conditioned on a coin-flip win priced
+ *  its `then` branch as certain, and Squee's Revenge's hand-value out-priced
+ *  Lightning Bolt: `evaluate.ts`'s `hand` term rated NEVER casting it above
+ *  every real line of play.
  *
- *  `counteredSourceBindings` (issue #5044) holds the names a `counter`'s
- *  `bindSource` binds — written ONLY when the countered object is a
- *  permanent's ability (CR 113.7a), so every Op that reads one is a rider that
- *  fires on one of the two stack-object kinds the counter could name. Read by
+ *  `counteredSourceBindings` holds the names a `counter`'s `bindSource` binds
+ *  — written ONLY when the countered object is a permanent's ability (CR
+ *  113.7a), so every Op that reads one is a rider that fires on one of the two
+ *  stack-object kinds the counter could name. Read by
  *  {@link contingentBindingWeight}. */
 type ScriptScope = {
     readonly controllerChosenPicks: ReadonlySet<string>;
@@ -679,18 +673,18 @@ function isStepPlayerRef(ref: EffectPlayerRef): boolean {
     );
 }
 
-/** Issue #5164 (ADR 0151) — the Differential Reading of a standing ENGINE:
- *  a `phaseScope: "each"` trigger fires on every player's step (CR 603.2b,
+/** The Differential Reading of a standing ENGINE (ADR 0151): a
+ *  `phaseScope: "each"` trigger fires on every player's step (CR 603.2b,
  *  500.1) and acts on whichever player's step it is, so on a real board its
  *  script is valued once per player with that player as the scoped one, and
  *  the sides summed — what the engine gives its controller minus what it
- *  gives the opponent, per firing. The caller multiplies by the recurrence
- *  (issue #5151). A `draw` is priced off the drawing side's own board
+ *  gives the opponent, per firing. The caller multiplies by the recurrence.
+ *  A `draw` is priced off the drawing side's own board
  *  (`EachPlayerSide.drawUnits`): Howling Mine feeds the player whose next
  *  card is worth more to it — the better library, the hand the cleanup
  *  discard leaves room in.
  *
- *  Issue #5574 — a life Op is priced off the scoped player's own board too
+ *  A life Op is priced off the scoped player's own board too
  *  (`stepSideLife`): Karma's damage is the Swamps THAT player controls, so it
  *  hurts the side with more Swamps; a literal amount nets out to a MEASURED
  *  zero (Copper Tablet). `gate` is the trigger's CR 603.4 intervening-if,
@@ -729,14 +723,12 @@ export function eachStepDifferentialValue(
     return { points, tags: [...tags] };
 }
 
-/** Issue #5164 / #5574 — true for a script `eachStepDifferentialValue`
- *  reads: a non-empty script whose every Op is attributable to the scoped
- *  player alone (`isStepSideOp`) — a draw, a life Op, (issue #5575) an
- *  edict on that player's own permanents, (issue #5624) a discard at
- *  random from its hand, (issue #5628) a return to hand of its own
- *  permanents, or (issue #5625) a mill — beyond the edict's or the bounce's
- *  bare `choice` and (issue #5627) a "may"'s bare `mayPay`, which read
- *  nothing by themselves. */
+/** True for a script `eachStepDifferentialValue` reads: a non-empty script
+ *  whose every Op is attributable to the scoped player alone
+ *  (`isStepSideOp`) — a draw, a life Op, an edict or a bounce on that
+ *  player's own permanents, a discard at random from its hand, a mill — with
+ *  at least one Op beyond the bare `choice` (edict, bounce) and `mayPay`
+ *  ("may") that read nothing by themselves. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return (
         script.length > 0 &&
@@ -772,13 +764,12 @@ function namesStepPlayer(node: unknown): boolean {
     return Object.values(node).some(namesStepPlayer);
 }
 
-/** Issue #5574 — one Op of a standing each-step script on one side: a draw
- *  priced off the side's library and hand, a life Op off the side's board.
- *  Issue #5575 — an edict's `sacrifice` off the side's own permanents
- *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before.
- *  Issue #5624 — a discard at random off the side's hand. Issue #5628 — a
- *  bounce's `forEach` off the side's own permanents (`sideBounceLoss`).
- *  Issue #5625 — a mill off the side's library (`stepSideMill`). */
+/** One Op of a standing each-step script on one side: a draw priced off the
+ *  side's library and hand, a life Op off its board, an edict's `sacrifice`
+ *  off its own permanents (`sideEdictLoss`; the `choice` reads through
+ *  `valueOp`), a discard at random off its hand, a bounce's `forEach` off its
+ *  own permanents (`sideBounceLoss`), a mill off its library
+ *  (`stepSideMill`). */
 function stepSideOpValue(
     op: EffectOp,
     script: readonly EffectOp[],
@@ -940,31 +931,33 @@ function sideDraw(
     };
 }
 
-/** Issue #5164 — an Op of a standing each-step script the Differential
- *  Reading prices for the scoped player alone: a literal `draw` (CR 121.1),
- *  life gained or lost, damage to that player; issue #5575 — an edict on
- *  that player's own permanents (`choice` `sacrifice-permanents` + the
- *  `sacrifice` of its picks, CR 701.21a: only a permanent's controller can
- *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`);
- *  issue #5624 — a discard at random from that player's hand (CR 701.9b),
- *  priced off its hand (`EachPlayerSide.randomDiscardUnits`); issue #5625 —
- *  that player milling cards (CR 701.17a), priced off its library
- *  (`EachPlayerSide.millLoss`).
- *  Every Op must name the scoped player — one naming a fixed player would be
- *  counted once per side; anything else is fail-closed. Issue #5574 — a life
- *  amount may be a board count (`isStepGroundableAmount`), grounded per side.
- *  Issue #5626 — mana added to that player's pool, of the CR 106.4 default
- *  lifetime, priced off its hand (`EachPlayerSide.manaUnits`) as mana spent
- *  in its first main phase, where every shipped shape fires (pinned by the
- *  census in `eachStepMana.bot.test.ts`). Issue #5627 — a cost-free "may"
- *  offered to that player (`mayPay` with no `cost`) and the `if` arm
- *  reading its binding (`isStepMayArm`), and that player revealing its own
- *  library until a match, the match onto its battlefield and the rest into
- *  its graveyard (`revealUntilMatch`, priced off its library by
- *  `EachPlayerSide.digUnits`). Issue #5628 — a return to hand of that
- *  player's own permanents (`choice` `choose-permanents` + a `forEach` over
- *  its picks returning each to its owner's hand), priced off its board
- *  (`EachPlayerSide.bounceUnits`). */
+/** An Op of a standing each-step script the Differential Reading prices for
+ *  the scoped player alone. Every Op must name the scoped player — one naming
+ *  a fixed player would be counted once per side; anything else is
+ *  fail-closed. The shapes, each priced off the side's own board:
+ *   - a literal `draw` (CR 121.1), life gained or lost, damage to that player;
+ *     a life amount may be a board count (`isStepGroundableAmount`), grounded
+ *     per side.
+ *   - an edict on that player's own permanents (`choice`
+ *     `sacrifice-permanents` + the `sacrifice` of its picks, CR 701.21a: only
+ *     a permanent's controller can sacrifice it), off
+ *     `EachPlayerSide.sacrificeUnits`.
+ *   - a discard at random from that player's hand (CR 701.9b), off
+ *     `EachPlayerSide.randomDiscardUnits`.
+ *   - that player milling cards (CR 701.17a), off its library
+ *     (`EachPlayerSide.millLoss`).
+ *   - mana added to that player's pool, of the CR 106.4 default lifetime, off
+ *     its hand (`EachPlayerSide.manaUnits`) as mana spent in its first main
+ *     phase, where every shipped shape fires (pinned by the census in
+ *     `eachStepMana.bot.test.ts`).
+ *   - a cost-free "may" offered to that player (`mayPay` with no `cost`) and
+ *     the `if` arm reading its binding (`isStepMayArm`); that player revealing
+ *     its own library until a match, the match onto its battlefield and the
+ *     rest into its graveyard (`revealUntilMatch`, off
+ *     `EachPlayerSide.digUnits`).
+ *   - a return to hand of that player's own permanents (`choice`
+ *     `choose-permanents` + a `forEach` over its picks returning each to its
+ *     owner's hand), off `EachPlayerSide.bounceUnits`. */
 function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "mayPay":
@@ -1770,29 +1763,25 @@ const coinFlipSeries: Valuer<"coinFlipSeries"> = () => {
 
 const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
     if (op.permanents) {
-        // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
-        // exactly as the single-permanent branch below signs by whose permanent
-        // it is (issue #1521). The binding attribution is walk-local
-        // (`ScriptScope`), and it is the same shape of fix issue #1964 made for
-        // a self-bounce: the script itself already says who is picking, the
-        // valuer just had no way to read it.
+        // A picks-set sacrifice signs by WHO CHOSE the picks, exactly as the
+        // single-permanent branch below signs by whose permanent it is. The
+        // binding attribution is walk-local (`ScriptScope`): the script itself
+        // says who is picking, and a self-bounce reads the same way.
         //
         //   - bound by a `choice` whose `player` is the literal `"controller"`
-        //     — the caster picks their OWN permanent, so this is a COST. Nine
-        //     shipped cards ride it (Flash, Dredge, Glacial Chasm, Kjeldoran
-        //     Dead, Devouring Strossus, Mold Demon, Grist, Gut, Minsc & Boo),
-        //     and all of them used to read as discounted removal aimed at the
-        //     opponent. Flash is what surfaced it: its trailing
-        //     `if (not $paid) -> sacrifice($picked)` priced as +120 removal,
-        //     so the bot cast it on hands where the only reachable outcome is
+        //     — the caster picks their OWN permanent, so this is a COST (Flash,
+        //     Dredge, Glacial Chasm, Kjeldoran Dead, Devouring Strossus, Mold
+        //     Demon, Grist, Gut, Minsc & Boo). Without the sign, Flash's
+        //     trailing `if (not $paid) -> sacrifice($picked)` priced as +120
+        //     removal and the bot cast it where the only reachable outcome is
         //     sacrificing its own creature for nothing.
         //   - anything else — an `"opponent"` chooser (Sheoldred's Edict,
         //     Portal to Phyrexia), an announced target player (Liliana of the
         //     Veil, Archon of Cruelty), a `{ controllerOf }` (Barrin's Spite),
         //     the `$each` / `$event.activePlayerId` symmetric shapes (Innocent
         //     Blood, Mana Vortex), or a binding this walk cannot attribute at
-        //     all — keeps today's edict value. The unattributable case must
-        //     fail OPEN to the edict, never silently negative.
+        //     all — keeps the edict value. The unattributable case must fail
+        //     OPEN to the edict, never silently negative.
         if (isControllerChosenPicksRef(op.permanents, scope)) {
             return {
                 points: SAC_SELF_COST,
@@ -2252,25 +2241,23 @@ const revealAndCategorize: Valuer<"revealAndCategorize"> = (op) => ({
     tags: ["cardAdvantage"],
 });
 
-// CR 601.2b / 701.9 (issue #1945) — per-category choice from a set, applied
-// once per player via `forEach { set: "players" }` (Noxious Vapors / Planar
-// Overlay both read "each player…"). Whichever player `op.player` resolves to
-// acts on THEIR OWN hand/battlefield, so the sign mirrors `discard`'s
-// harmful-by-default convention: negative when `op.player` is LITERALLY the
-// caster (a genuine self-cost — the caster's own hand gets thinned, or their
-// own land gets bounced), positive otherwise.
+// CR 601.2b / 701.9 — per-category choice from a set, applied once per player
+// via `forEach { set: "players" }` (Noxious Vapors / Planar Overlay both read
+// "each player…"). Whichever player `op.player` resolves to acts on THEIR OWN
+// hand/battlefield, so the sign mirrors `discard`'s harmful-by-default
+// convention: negative when `op.player` is LITERALLY the caster (a genuine
+// self-cost — the caster's own hand gets thinned, or their own land gets
+// bounced), positive otherwise.
 //
-// The two player-ref traps `dealDamage` already guards against apply here
-// verbatim, and both shipped cards walk straight into them:
-//   - `{ ref: "$each" }` (issue #1521) — the `forEach { set: "players" }`
-//     iteration variable. The walker evaluates a context-free `forEach` body
-//     ONCE, so there is no second, opposite-signed iteration to cancel it: a
-//     self-negative reading is simply a self-negative score, and the bot would
-//     never cast its own symmetric sweeper. Scored NEUTRAL, like every other
-//     symmetric each-player effect.
-//   - a BOUND `{ ref }` (issue #1548) — context-free `isSelf` maps every
-//     `{ ref }` object to self, so a bound player ref must be treated as NOT
-//     self and take the harmful-by-default (opponent-directed) sign.
+// The two player-ref traps `dealDamage` guards against apply here verbatim:
+//   - `{ ref: "$each" }` — the `forEach { set: "players" }` iteration variable.
+//     The walker evaluates a context-free `forEach` body ONCE, so no second,
+//     opposite-signed iteration cancels it: a self-negative reading would be a
+//     self-negative score and the bot would never cast its own symmetric
+//     sweeper. Scored NEUTRAL, like every other symmetric each-player effect.
+//   - a BOUND `{ ref }` — context-free `isSelf` maps every `{ ref }` object to
+//     self, so a bound player ref must be treated as NOT self and take the
+//     harmful-by-default (opponent-directed) sign.
 const CATEGORIZED_SWEEP_VALUE = 15; // Noxious Vapors — hand thinned to ≤1-per-colour, own worse cards lost
 const CATEGORIZED_BOUNCE_VALUE = 10; // Planar Overlay — a land returns to hand, a turn of tempo
 const chooseCategorized: Valuer<"chooseCategorized"> = (op, ctx) => {

@@ -862,6 +862,14 @@ export const CHEAP_GUARDS: readonly {
         lacks: "Guard C's baseline did not change — it cannot have gained a row",
         diffOnly: true,
     },
+    // Issue #6170: ~1 s (`git ls-files` + a read of ~5k sources). Any source
+    // edit can mint a 3+-ref comment block, so it is admitted by every
+    // .ts/.tsx; a census, so it also runs whole in health.
+    {
+        id: "check:issue-log-comments",
+        admits: /^((convex|src|scripts)\/.*\.tsx?$|data\/issue-log-comments-baseline\.json$)/,
+        lacks: "no changed .ts/.tsx under convex/**, src/** or scripts/**, and the issue-log baseline did not move — no comment block can have gained a third issue ref",
+    },
 ];
 
 /** The cheap guard's command: its own, else `bun run <id>`. */
