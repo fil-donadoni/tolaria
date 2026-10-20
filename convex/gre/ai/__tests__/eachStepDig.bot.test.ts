@@ -159,9 +159,11 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
     });
 
     it("equal creature counts: no side has a legal target, the engine reads a measured 0", () => {
+        // Only p1's library holds creatures: without the CR 603.3d gate its
+        // own dig would read alone, a gain.
         const even = board(
             { creatures: 1, libraryCreatures: 4, oath: "board" },
-            { creatures: 1, libraryCreatures: 4 }
+            { creatures: 1, libraryCreatures: 0 }
         );
         expect(oathWorth(even)).toBeCloseTo(0, 9);
     });
