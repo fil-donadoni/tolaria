@@ -57,6 +57,7 @@ import {
     castAlternativeCostForZone,
     castExileCostOccupiesPayWithSlot,
     castRawManaCost,
+    flashbackLifeCost,
     exileCastPermission,
     graveyardCastMechanism,
     type CastFromZone,
@@ -3285,6 +3286,14 @@ function enumerateCastMovesFromZone(
     // the helper lived in `convex/game.ts`, which imports this module.
     const castFromZone: CastFromZone = opts?.castFromZone ?? "hand";
     const chosenAltCost = opts?.chosenAltCost;
+    // CR 702.34a / 119.4 — the flashback cost's "Pay N life" leg (Deep
+    // Analysis): priced through the one seam the server commit reads, and a
+    // cast the caster's life cannot cover is not a legal move.
+    const flashbackLife =
+        chosenAltCost === undefined && lifeInsteadOfMana === undefined
+            ? flashbackLifeCost(state, card, castFromZone)
+            : 0;
+    if (flashbackLife > 0 && player.life < flashbackLife) return [];
     const rawCost =
         chosenAltCost !== undefined
             ? (chosenAltCost.mana ?? {})
@@ -3887,6 +3896,7 @@ function enumerateCastMovesFromZone(
             // replacements above.
             let payLife =
                 (lifeInsteadOfMana ?? 0) +
+                flashbackLife +
                 // CR 118.9 / 119.4 (issue #4900) — the chosen alternative
                 // cost's life leg (Force of Will's "pay 1 life").
                 (chosenAltCost?.life ?? 0) +

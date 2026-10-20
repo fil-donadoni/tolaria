@@ -53,6 +53,8 @@ export interface FlashbackCostIR {
     readonly mana?: ManaCost;
     /** CR 701.21a — the non-mana half, e.g. Lava Dart's "Sacrifice a Mountain". */
     readonly sacrifice?: PermanentFilter;
+    /** CR 119.4 — the "Pay N life" leg, e.g. Deep Analysis's "Pay 3 life". */
+    readonly life?: number;
 }
 
 /**

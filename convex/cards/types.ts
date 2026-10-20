@@ -235,6 +235,12 @@ export interface FlashbackCost {
      *  own hand via the flashback exile-cost picker. `color` filters the
      *  eligible cards (CR 105.2); omit for any card. */
     exileFromHand?: { color?: Color };
+    /** CR 702.34a / 119.4 — "Pay N life" flashback-only additional cost (Deep
+     *  Analysis: "Flashback—{1}{U}, Pay 3 life."). Same shape as the shared
+     *  `CostLegs.life` (ADR 0079): a fixed amount, payable only while the
+     *  caster's life total is at least N, paid atomically with the mana as the
+     *  spell is cast. */
+    life?: number;
 }
 
 /** CR 702.138 — Escape. A card with escape may be cast from its owner's
