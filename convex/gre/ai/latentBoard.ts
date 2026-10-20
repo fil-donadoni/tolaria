@@ -628,6 +628,38 @@ function boardSide(
             for (const loss of losses.slice(0, count)) taken += loss;
             return taken / denominator;
         },
+        bounceUnits(effectFilter, count) {
+            const filter = sweepPermanentFilter(effectFilter);
+            if (filter === UNREADABLE_SWEEP_FILTER) {
+                unreadable = true;
+                return undefined;
+            }
+            answered = true;
+            const lossOf = memberLoss(RETURNS, realisedLoss, returnedWorth);
+            const nets: number[] = [];
+            for (const perm of player.battlefield) {
+                const view = effectivePermanentView(state, perm);
+                if (
+                    filter !== undefined &&
+                    !matchesPermanentFilter(view, filter, {
+                        supertypesOf: liveSupertypesOf,
+                    })
+                ) {
+                    continue;
+                }
+                const { taken, handedBack } = lossOf(perm, view);
+                // CR 400.3 — the card goes to its OWNER's hand.
+                nets.push(
+                    perm.ownerId === player.id
+                        ? taken - handedBack
+                        : taken + handedBack
+                );
+            }
+            nets.sort((a, b) => a - b);
+            let net = 0;
+            for (const n of nets.slice(0, count)) net += n;
+            return net / denominator;
+        },
         manaUnits(mana) {
             // A hidden hand has no costs to read: the side is unreadable.
             if (player.hand.some(isPlaceholder)) {
@@ -1169,6 +1201,7 @@ function zoneChanges(
 }
 
 const LEAVES: SweepOutcome = { kind: "leaves" };
+const RETURNS: SweepOutcome = { kind: "returnsToHand" };
 
 /** Issue #4781 — `perm` as the card a bounce hands back: a NEW object in
  *  its owner's hand (CR 400.7), so its type line and abilities go back to
