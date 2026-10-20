@@ -81,6 +81,8 @@ interface Accumulator {
     entersTapped: boolean;
     drawStepReplacement: boolean;
     shuffleFromAnywhere: boolean;
+    /** CR 702.8a — "You may cast this spell as though it had flash." */
+    castAsThoughFlash: boolean;
     damagePreventionCounterRemoval: boolean;
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
@@ -481,6 +483,10 @@ function lowerLine(
                 acc.drawStepReplacement = true;
             if (out.shuffleFromAnywhere === true)
                 acc.shuffleFromAnywhere = true;
+            if (out.castAsThoughFlash === true) acc.castAsThoughFlash = true;
+            acc.compiledTriggeredAbilities.push(
+                ...(out.triggeredAbilities ?? [])
+            );
             if (out.damagePreventionCounterRemoval === true)
                 acc.damagePreventionCounterRemoval = true;
             if (out.extraLandDrops !== undefined)
@@ -732,6 +738,7 @@ export function lowerCard(
         entersTapped: false,
         drawStepReplacement: false,
         shuffleFromAnywhere: false,
+        castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
         extraLandDrops: 0,
         asEntersDiscards: [],
@@ -873,6 +880,9 @@ export function lowerCard(
     // CR 614.1a — a replacement is a closure; the compiler emits the flag and
     // `expandDefinition` rebuilds the `replacementEffects[]` entry from it.
     if (acc.shuffleFromAnywhere) definition.shuffleFromAnywhere = true;
+    // CR 702.8a — the card-level flash permission the timing authority reads
+    // (`castTimingBaseLegal`, `gre/rules.ts`); not the keyword (CR 604.1).
+    if (acc.castAsThoughFlash) definition.castAsThoughFlash = true;
     // CR 615 — likewise a closure pair; `expandDefinition` rebuilds it.
     if (acc.damagePreventionCounterRemoval)
         definition.damagePreventionCounterRemoval = true;
