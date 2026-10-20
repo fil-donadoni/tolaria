@@ -146,7 +146,6 @@ function main(argv: readonly string[]): number {
             gapOf({
                 text: gap.fragment,
                 reason: gap.reason,
-                cards: 1,
                 attribution: gap.attribution,
             }).key,
         issueOf

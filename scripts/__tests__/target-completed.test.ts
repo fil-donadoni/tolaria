@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { CardRow } from "../lib/oracle-lockfile";
+import { fragmentRow, type CardRow } from "../lib/oracle-lockfile";
 import {
     formatCompletion,
     mustCoveredCards,
@@ -40,6 +40,13 @@ const row = (
     extra: Partial<CardRow> = {}
 ): CardRow => ({ oracleId, name, state, ...extra });
 
+const FRAGMENTS = [
+    fragmentRow({
+        text: "Widespread ability.",
+        reason: "no slot consumed the line",
+        cards: 1,
+    }),
+];
 const CARDS: CardRow[] = [
     row("r", "Ready", "ready"),
     row("r2", "Ready Two", "ready"),
@@ -48,16 +55,9 @@ const CARDS: CardRow[] = [
         quarantineReasons: [MECHANIC],
     }),
     // A grammar gap at the floor with its claim: covered, not yet playable.
-    row("p", "Grammar Pending", "unparsed", { gaps: [0] }),
+    row("p", "Grammar Pending", "unparsed", { gaps: [FRAGMENTS[0]!.key] }),
     // Hand-written (playable) but neither claimed nor marked: the invariant's red.
     row("u", "Bare Hand-Written", "unparsed", { gaps: [] }),
-];
-const FRAGMENTS = [
-    {
-        text: "Widespread ability.",
-        reason: "no slot consumed the line",
-        cards: 1,
-    },
 ];
 const byOracleId = new Map(CARDS.map((c) => [c.oracleId, c] as const));
 const gaps = gapIndex({ cards: CARDS, fragments: FRAGMENTS });

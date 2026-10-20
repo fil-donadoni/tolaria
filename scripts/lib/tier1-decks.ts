@@ -20,7 +20,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CompileState } from "../../convex/oracle/types";
-import type { CardRow, Lockfile } from "./oracle-lockfile";
+import { type CardRow, type Lockfile } from "./oracle-lockfile";
+import { indexFragments, type FragmentIndex } from "./oracle-fragments";
 import { corpusNameIndex } from "./card-names";
 
 /** Path of the canonical lists, relative to the repo root. */
@@ -206,12 +207,9 @@ export function readTier1Decks(root: string): Tier1DeckFile {
 function blockerOf(
     state: DeckCardState,
     row: CardRow,
-    fragments: readonly { readonly text: string }[]
+    fragments: FragmentIndex
 ): string | undefined {
-    if (state === "unparsed") {
-        const gap = row.gaps?.[0];
-        return gap === undefined ? undefined : fragments[gap]?.text;
-    }
+    if (state === "unparsed") return fragments.of(row)[0]?.text;
     if (state === "quarantine") {
         const reason = row.quarantineReasons?.[0];
         return reason === undefined
@@ -237,7 +235,7 @@ function slotOf(inMain: boolean, inSide: boolean): DeckSlot {
 export function deckReport(
     deck: Tier1Deck,
     rowsByName: ReadonlyMap<string, CardRow>,
-    fragments: readonly { readonly text: string }[],
+    fragments: FragmentIndex,
     poolOracleIds: ReadonlySet<string>
 ): DeckReport {
     const copies = new Map<string, number>();
@@ -303,8 +301,9 @@ export function tier1Reports(
     poolOracleIds: ReadonlySet<string>
 ): DeckReport[] {
     const rowsByName = corpusNameIndex(lock);
+    const fragments = indexFragments(lock);
     return file.decks.map((deck) =>
-        deckReport(deck, rowsByName, lock.fragments, poolOracleIds)
+        deckReport(deck, rowsByName, fragments, poolOracleIds)
     );
 }
 

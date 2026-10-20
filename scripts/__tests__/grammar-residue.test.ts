@@ -12,16 +12,24 @@ import {
     renderLedger,
     trackingOf,
 } from "../lib/grammar-residue";
-import type { CardRow, FragmentRow } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    type CardRow,
+    type FragmentRow,
+} from "../lib/oracle-lockfile";
 import type { ClaimRow, ClusterRow } from "../lib/targets";
 
-const frag = (span: string, slot = "triggered", path = ["trigger head"]) =>
-    ({
+const frag = (
+    span: string,
+    slot = "triggered",
+    path = ["trigger head"]
+): FragmentRow =>
+    fragmentRow({
         text: `${span}.`,
         reason: "no slot consumed the line",
         cards: 1,
         attribution: { slot, path, span },
-    }) satisfies FragmentRow;
+    });
 
 // before: the head gap refuses A and B. after: the head reads, A graduates,
 // B is refused by a BODY gap the head used to mask, C by another one.
@@ -32,11 +40,11 @@ const KEY_HEAD = "triggered › trigger head › Whenever you cast a spell";
 const KEY_X = "triggered › effect clause › Sacrifice this creature";
 const KEY_Y = "triggered › effect clause › Counter it";
 
-const unparsed = (id: string, gaps: number[]): CardRow => ({
+const unparsed = (id: string, gaps: readonly FragmentRow[]): CardRow => ({
     oracleId: id,
     name: `Card ${id}`,
     state: "unparsed",
-    gaps,
+    gaps: gaps.map((f) => f.key).sort(),
 });
 const ready = (id: string): CardRow => ({
     oracleId: id,
@@ -46,11 +54,11 @@ const ready = (id: string): CardRow => ({
 
 const before = {
     fragments: [HEAD],
-    cards: [unparsed("A", [0]), unparsed("B", [0])],
+    cards: [unparsed("A", [HEAD]), unparsed("B", [HEAD])],
 };
 const after = {
     fragments: [BODY_X, BODY_Y],
-    cards: [ready("A"), unparsed("B", [0]), unparsed("C", [1])],
+    cards: [ready("A"), unparsed("B", [BODY_X]), unparsed("C", [BODY_Y])],
 };
 
 const claim = (key: string, issue: number): ClaimRow => ({
