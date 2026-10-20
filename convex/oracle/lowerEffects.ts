@@ -3880,7 +3880,7 @@ function lowerSentenceBody(
                 },
             ]);
         case "pay-mana-then": {
-            // CR 117.3a + CR 608.2c — the fixed payment is a `mayPay` mana
+            // CR 118.12 + CR 608.2c — the fixed payment is a `mayPay` mana
             // cost: declining, or being unable to pay, leaves the REQUIRED
             // bind false and the gated effect undone.
             const inner = gatedSentence(sentence.effect, walk, site);
