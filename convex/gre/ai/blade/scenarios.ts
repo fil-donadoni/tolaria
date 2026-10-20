@@ -13185,6 +13185,140 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5624. The discriminating position (the entry above is the anchor reading). Guards the discard-at-random branch of `eachStepDifferentialValue` (`isStepSideOp`, `stepSideRandomDiscard`, `ai/opValuers.ts`). Measured at 400 iterations over 20 seeds: the Pit never (Aeolipile 20). Proof of failure — `isStepSideOp` refusing `discardAtRandom` (the pre-#5624 read-nothing): Disenchant on the Pit 14/20.",
     },
+    {
+        // EACH-STEP DIG (issue #5627, ADR 0151) — the opponent's Oath of
+        // Druids has the player whose upkeep it is, if an opponent controls
+        // more creatures than it does (CR 603.3d: else no legal target), dig
+        // its library for a creature onto the battlefield (CR 603.5: a
+        // "may"). The bot controls two Grizzly Bears, the opponent none and
+        // four Craw Wurms in its library: the Oath feeds the opponent every
+        // upkeep and never the bot, so it is the permanent Disenchant should
+        // answer, not the Aeolipile.
+        label: "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Oath of Druids only the opponent is out-creatured for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Oath of Druids", owner: "opp", zone: "battlefield" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Craw Wurm",
+                    owner: "opp" as const,
+                    zone: "library" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Oath of Druids",
+                },
+            ],
+        },
+        note: "Issue #5627. The anchor reading of the Oath of Druids pair (two unpaired `conditional` Test Positions — the creatures and libraries differ on both sides, so no `pairOf`): the Oath is worth what each player's upkeep dig puts onto its battlefield, less the milled prefix (`EachPlayerSide.digUnits`, `ai/latentBoard.ts`), on the side an opponent out-creatures (`stepTargetHolds`) and only when that player gains by it (`stepSideMayArm`, `ai/opValuers.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Oath 20/20. NOT discriminating on its own — before issue #5627 (the family read nothing, ADR 0151 §1) the Oath is 20/20 here too; the mirror entry below is the one that reds.",
+    },
+    {
+        // EACH-STEP DIG, MIRROR (issue #5627, ADR 0151) — the board above
+        // with the creatures swapped: the opponent controls the two Grizzly
+        // Bears, the bot none and the four Craw Wurms in its library. Now the
+        // opponent's Oath of Druids digs a Craw Wurm for the BOT every upkeep
+        // and never for the opponent, so destroying it takes the bot's engine
+        // away.
+        //
+        // This is the position that discriminates: read as nothing (the
+        // pre-#5627 read-nothing rule), the Oath keeps its Latent Floor and
+        // Disenchant takes it 20/20 here exactly as above.
+        label: "each-step dig: Disenchant leaves the Oath of Druids that digs only the bot's Craw Wurms (issue #5627)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Oath of Druids only the bot is out-creatured for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Craw Wurm",
+                    owner: "me" as const,
+                    zone: "library" as const,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Oath of Druids", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Oath of Druids",
+                },
+            ],
+        },
+        note: "Issue #5627. The discriminating position (the entry above is the anchor reading). Guards the dig branch of `eachStepDifferentialValue` (`stepSideDig`, `stepSideMayArm`, `ai/opValuers.ts`) and its side reader (`EachPlayerSide.digUnits`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: the Oath never (Aeolipile 20). Before issue #5627 (the family read nothing): Disenchant on the Oath 20/20. Proof of failure — the family left unread (`isStepSideOp` refusing `revealUntilMatch`): Disenchant on the Oath 20/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
