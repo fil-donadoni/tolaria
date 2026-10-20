@@ -802,7 +802,7 @@ fi
 # WorkingDirectory = this checkout) pushes whatever its convex/ tree holds to
 # the one local backend every browser walk talks to. On 2026-10-20 a
 # `git checkout main` here pushed functions 144+ commits behind base; every
-# `/game` cell of the health walk went UNWALKED and a green tip went RED. So a
+# game-route cell of the health walk went UNWALKED and a green tip went RED. So a
 # `git checkout` / `git switch` here may name only the base branch (or nothing
 # but flags). Anything else — another branch, a sha, `-b`/`-c <new>`, `-` — is
 # denied unless the command carries the announced escape hatch

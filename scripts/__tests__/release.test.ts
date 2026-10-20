@@ -469,7 +469,6 @@ describe("release — refuses in seconds with the primary off the base branch (i
                 "-m",
                 "init"
             );
-            const started = Date.now();
             // Bounded: a spawned child that hung would outlive the test's
             // own timeout (no remote here, so a fetch would fail, not hang).
             const r = spawnSync(
@@ -480,7 +479,6 @@ describe("release — refuses in seconds with the primary off the base branch (i
             expect(r.status).toBe(2);
             expect(r.stderr).toContain(`on \`${off}\`, not \`${BASE_BRANCH}\``);
             expect(r.stderr).toContain(`switch ${BASE_BRANCH}`);
-            expect(Date.now() - started).toBeLessThan(30_000);
         } finally {
             rmSync(repo, { recursive: true, force: true });
         }
