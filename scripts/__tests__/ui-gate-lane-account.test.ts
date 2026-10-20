@@ -447,7 +447,7 @@ describe("convexRunArgv", () => {
 });
 
 describe("runScreenshotDir", () => {
-    it("gives each run its own directory and prunes only expired run directories", () => {
+    it("gives each run its own directory and prunes only expired run directories and loose PNGs", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "ui-gate-shots-"));
         try {
             const now = Date.now();
@@ -455,9 +455,16 @@ describe("runScreenshotDir", () => {
             const recent = path.join(root, "000000000002");
             const unrelated = path.join(root, "keep-me");
             for (const d of [old, recent, unrelated]) fs.mkdirSync(d);
+            // Loose shots (issue #6145): an old one goes, a fresh one and an
+            // old non-image stay.
+            const oldPng = path.join(root, "lobby__390x844x3.png");
+            const freshPng = path.join(root, "fresh.png");
+            const oldNote = path.join(root, "notes.txt");
+            for (const f of [oldPng, freshPng, oldNote])
+                fs.writeFileSync(f, "");
             const past = (now - SCREENSHOT_RETENTION_MS - 60_000) / 1000;
-            fs.utimesSync(old, past, past);
-            fs.utimesSync(unrelated, past, past);
+            for (const p of [old, unrelated, oldPng, oldNote])
+                fs.utimesSync(p, past, past);
 
             const dir = runScreenshotDir(root, "abcdefabcdef", now);
 
@@ -465,7 +472,9 @@ describe("runScreenshotDir", () => {
             expect(fs.readdirSync(root).sort()).toEqual([
                 "000000000002",
                 "abcdefabcdef",
+                "fresh.png",
                 "keep-me",
+                "notes.txt",
             ]);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
