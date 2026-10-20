@@ -587,9 +587,11 @@ export const SCREENSHOT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /**
  * This run's screenshot directory under `root`, created, with sibling run
- * directories older than the retention window removed. Per run so two
- * concurrent runs can never overwrite each other's evidence; pruned because a
- * directory per run would otherwise grow without bound.
+ * directories AND loose PNGs older than the retention window removed. Per run
+ * so two concurrent runs can never overwrite each other's evidence; pruned
+ * because a directory per run would otherwise grow without bound. The loose
+ * PNGs are older layouts' and hand runs' shots, which nothing else ever
+ * removed (issue #6145).
  */
 export function runScreenshotDir(
     root: string,
@@ -598,11 +600,12 @@ export function runScreenshotDir(
 ): string {
     fs.mkdirSync(root, { recursive: true });
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !/^[0-9a-f]{12}$/.test(entry.name))
-            continue;
-        const dir = path.join(root, entry.name);
-        if (now - fs.statSync(dir).mtimeMs > SCREENSHOT_RETENTION_MS) {
-            fs.rmSync(dir, { recursive: true, force: true });
+        const runDir = entry.isDirectory() && /^[0-9a-f]{12}$/.test(entry.name);
+        const loosePng = entry.isFile() && /\.png$/i.test(entry.name);
+        if (!runDir && !loosePng) continue;
+        const target = path.join(root, entry.name);
+        if (now - fs.statSync(target).mtimeMs > SCREENSHOT_RETENTION_MS) {
+            fs.rmSync(target, { recursive: true, force: true });
         }
     }
     const dir = path.join(root, runId);
