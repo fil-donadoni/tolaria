@@ -57,5 +57,18 @@
         "models": {},
         "costUsd": 0.8,
         "usageLimitResetAt": "2026-10-17T15:00:00.000Z"
+    },
+    {
+        "version": 1,
+        "issue": 6088,
+        "pr": null,
+        "outcome": "error",
+        "host": "macbook",
+        "startedAt": "2026-10-20T10:35:40.482Z",
+        "endedAt": "2026-10-20T10:35:40.486Z",
+        "durationS": 0,
+        "models": {},
+        "costUsd": null,
+        "usageLimitResetAt": null
     }
 ]

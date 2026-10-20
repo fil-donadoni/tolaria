@@ -28,9 +28,10 @@ import {
  * The weekly report's aggregation (issue #5651). `pr-timelines.json` and
  * `base-history.json` are GitHub's own answers to `weekly-report.ts`'s
  * queries, recorded 2026-10-20 (comment bodies cut to their marker lines);
- * `machine-huawei.json` is that machine's real reading of the week. No
- * `afk-pass` record, `lane.json` artifact or telemetry with rows existed yet:
- * those fixtures are written in the shape their writers produce
+ * `machine-huawei.json` is that machine's real reading of the week, and the
+ * last `pass-records.json` row a real `afk-pass` record (just past the
+ * window). No other record, `lane.json` artifact or telemetry with rows
+ * existed yet: those fixtures are written in the shape their writers produce
  * (`passRecord`, `check:lane --json --retry-flaky`, `telemetry:budget
  * --json`, `telemetry:latency --json`).
  */

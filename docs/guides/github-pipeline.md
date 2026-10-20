@@ -1229,8 +1229,9 @@ report: step ids, test file names and timings only. Runs from before that
 step existed read as unclassified.
 
 The summary is public: numbers, PR and issue numbers, test file names; the
-machines read `machine 1`, `machine 2`. A timeline is read to its first 100
-items, enough for any PR so far.
+machines read `machine 1`, `machine 2`. The PRs are searched one day at a
+time (a search answers at most 1000 results), and a timeline is read to its
+newest 100 items, enough for any PR so far.
 
 ## The merge queue
 

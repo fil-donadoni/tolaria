@@ -136,13 +136,28 @@ function graphqlPages<T>(query: string, vars: Record<string, string>): T[] {
     return JSON.parse(gh(args)) as T[];
 }
 
-const PRS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:50,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{... on PullRequest{number mergedAt timelineItems(first:100,itemTypes:[LABELED_EVENT,ISSUE_COMMENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT]){nodes{__typename ... on LabeledEvent{createdAt label{name}} ... on IssueComment{createdAt body} ... on PullRequestCommit{commit{committedDate}} ... on HeadRefForcePushedEvent{createdAt}}}}}}}`;
+const PRS_QUERY = `query($q:String!,$endCursor:String){search(type:ISSUE,query:$q,first:50,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{... on PullRequest{number mergedAt timelineItems(last:100,itemTypes:[LABELED_EVENT,ISSUE_COMMENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT]){nodes{__typename ... on LabeledEvent{createdAt label{name}} ... on IssueComment{createdAt body} ... on PullRequestCommit{commit{committedDate}} ... on HeadRefForcePushedEvent{createdAt}}}}}}}`;
 
-function prTimelines(repo: string, from: string): PrTimeline[] {
+/** The PRs updated since `from`, one search per day: a search answers at
+ *  most 1000 results, and a week at the queue's ceiling updates more. A PR
+ *  updated on two days is read once — its newest timeline wins. */
+function prTimelines(repo: string, from: string, to: string): PrTimeline[] {
     type Page = { data: { search: { nodes: PrTimeline[] } } };
-    return graphqlPages<Page>(PRS_QUERY, {
-        q: `repo:${repo} is:pr updated:>=${from}`,
-    }).flatMap((p) => p.data.search.nodes.filter((n) => n.number));
+    const byNumber = new Map<number, PrTimeline>();
+    const iso = (t: number) =>
+        new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
+    for (let t = Date.parse(from); t < Date.parse(to); t += 86_400_000) {
+        // The last day is open-ended: a PR updated since the window's end
+        // still carries the window's events.
+        const end =
+            t + 86_400_000 >= Date.parse(to) ? "*" : iso(t + 86_400_000);
+        for (const page of graphqlPages<Page>(PRS_QUERY, {
+            q: `repo:${repo} is:pr updated:${iso(t)}..${end}`,
+        }))
+            for (const n of page.data.search.nodes)
+                if (n.number) byNumber.set(n.number, n);
+    }
+    return [...byNumber.values()];
 }
 
 function issueCount(q: string): number {
@@ -332,7 +347,7 @@ function reportMain(): void {
         );
         facts = {
             window,
-            prs: prTimelines(repo, window.from),
+            prs: prTimelines(repo, window.from, window.to),
             issuesOpened: issueCount(`repo:${repo} is:issue created:${range}`),
             issuesClosed: issueCount(`repo:${repo} is:issue closed:${range}`),
             history: baseHistory(repo, before),

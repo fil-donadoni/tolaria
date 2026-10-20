@@ -871,6 +871,7 @@ export function summaryMarkdown(t: Trends): string {
                       (m, i) =>
                           `| machine ${i + 1} | ${m.issues ?? "n/a"} | ${spreadCell(m.issueUsd, usd)} | ${spreadCell(m.issueSharePct, (n) => (n === null ? "n/a" : `${n.toFixed(2)} %`))} | ${m.sessions ?? "n/a"} | ${m.sessionWallMin === null ? "n/a" : `${fx(m.sessionWallMin.median, 0)} / ${fx(m.sessionWallMin.p90, 0)}`} |`
                   ),
+                  "",
                   ...t.machines.flatMap((m, i) =>
                       m.errors.map((e) => `- machine ${i + 1}: ${e}`)
                   ),
