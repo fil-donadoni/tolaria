@@ -8,6 +8,12 @@
  * and the gate is offline by contract (CLAUDE.md). So the guard is tiered, and
  * every tier that can run, runs:
  *
+ *  0. STRUCTURE (always, offline — issue #6169). Every Fragment Key is its
+ *     row's content key, every card's `gaps` resolve, every fragment declares
+ *     exactly the cards citing it, and the header counts agree with the rows
+ *     (`lockfileStructureProblems`). A hand-edit or a clean textual merge of
+ *     two branches that each moved a card onto one fragment breaks one of
+ *     these with every hash still agreeing.
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
  *     compiler's own source — the grammar under `convex/oracle/**` AND the
  *     driver that turns it into this file (`scripts/oracle-corpus.ts`,
@@ -90,6 +96,7 @@ import {
     type HeaderHashes,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import { lockfileStructureProblems } from "./lib/oracle-fragments";
 import { ORIGIN_BASE } from "./lib/branches";
 import { baseArtifact, gitRunner, type GitRunner } from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
@@ -159,9 +166,9 @@ function fail(
             `${DIM}  fix: bun run oracle:corpus   # fetches THE COMMITTED PIN — ` +
                 `data/oracle-corpus.json.gz is gitignored and absent here\n` +
                 `       then: ${fixCommand}\n` +
-                `       (do NOT add --repin: taking today's Scryfall drop instead ` +
-                `renumbers every gap index and\n` +
-                `        turns a few-line lockfile diff into ~50k lines of churn)${RESET}\n`
+                `       (do NOT add --repin: it takes today's Scryfall drop instead, and every ` +
+                `card added or re-worded\n` +
+                `        since the pin rides along in a diff that asked for none of it)${RESET}\n`
         );
     }
     process.exit(1);
@@ -231,6 +238,22 @@ function checkLockfile(): void {
             "bun run oracle:compile"
         );
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
+
+    // Tier 0 — structure (issue #6169): what the file owes on its own.
+    const problems = lockfileStructureProblems(lock);
+    if (problems.length > 0)
+        fail(
+            "oracle lockfile",
+            `${problems.length} structural problem(s) — a hand-edit or a textual merge no regeneration produced:\n` +
+                problems
+                    .slice(0, 10)
+                    .map((p) => `    ${p}`)
+                    .join("\n") +
+                (problems.length > 10
+                    ? `\n    … and ${problems.length - 10} more`
+                    : ""),
+            "bun run oracle:compile"
+        );
 
     // Tier 1 — header hashes.
     const drift = headerHashDrift(lock.header, treeHashes());

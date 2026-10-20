@@ -614,6 +614,9 @@ def main() -> None:
         # literal value.
         return STRUCTURAL_REASON_PREFIX_STRIP.sub("<X>", reason)
 
+    # A row's `gaps` are Fragment Keys (issue #6169), never table positions.
+    index_of = {frag["key"]: i for i, frag in enumerate(fragments)}
+
     frag_clauses: list[list[tuple[str, str]]] = []
     for frag in fragments:
         if frag["reason"] == "no slot consumed the line":
@@ -624,7 +627,7 @@ def main() -> None:
     card_requirements: dict[str, set[tuple[str, str]]] = {}
     for c in unparsed:
         reqs: set[tuple[str, str]] = set()
-        for gap_idx in c["gaps"]:
+        for gap_idx in (index_of[key] for key in c["gaps"]):
             reqs.update(frag_clauses[gap_idx])
         card_requirements[c["oracleId"]] = reqs
 
@@ -642,7 +645,7 @@ def main() -> None:
     shape_examples: dict[tuple[str, str], Counter] = defaultdict(Counter)
     shape_cards: dict[tuple[str, str], set[str]] = defaultdict(set)
     for c in unparsed:
-        for gap_idx in c["gaps"]:
+        for gap_idx in (index_of[key] for key in c["gaps"]):
             frag = fragments[gap_idx]
             for shape in frag_clauses[gap_idx]:
                 shape_examples[shape][frag["text"] if frag["reason"] == "no slot consumed the line" else frag["reason"]] += frag["cards"]

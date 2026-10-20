@@ -23,7 +23,8 @@ import { REPORTED_FORMATS } from "../oracle-corpus";
 import { corpusNameIndex } from "./card-names";
 import { gapOf, poolTarget } from "./grammar-gaps";
 import type { QuarantineReason } from "../../convex/oracle/types";
-import type { CardRow, Lockfile } from "./oracle-lockfile";
+import { type CardRow, type Lockfile } from "./oracle-lockfile";
+import { indexFragments } from "./oracle-fragments";
 import { validateDecks, type Tier1Deck } from "./tier1-decks";
 
 /** Path of the registry, relative to the repo root. */
@@ -915,9 +916,12 @@ export function gapIndex(lock: Pick<Lockfile, "cards" | "fragments">): {
     gapKeys: (row: CardRow) => readonly string[];
     leverage: ReadonlyMap<string, number>;
 } {
-    const keyOfFragment = lock.fragments.map((f) => gapOf(f).key);
+    const fragments = indexFragments(lock);
+    const keyOfFragment = new Map(
+        fragments.ranked.map((f) => [f, gapOf(f).key] as const)
+    );
     const gapKeys = (row: CardRow): string[] => [
-        ...new Set((row.gaps ?? []).map((i) => keyOfFragment[i]!)),
+        ...new Set(fragments.of(row).map((f) => keyOfFragment.get(f)!)),
     ];
     const leverage = new Map<string, number>();
     for (const row of lock.cards) {
