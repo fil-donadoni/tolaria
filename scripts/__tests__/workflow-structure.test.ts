@@ -628,6 +628,12 @@ describe("workflow structure guard", () => {
         ).toEqual([
             ".github/workflows/hosted.yml (job lane): queue-entry: the job posting `check:lane (advisory)` must skip the queue's drafts (an `if:` on `mergify/merge-queue/`): the queue's entry reads that check",
         ]);
+        const onlyDrafts = edit(
+            HOSTED,
+            "!startsWith(github.head_ref",
+            "startsWith(github.head_ref"
+        );
+        expect(rules(fixture({ hosted: onlyDrafts }))).toEqual(["queue-entry"]);
     });
 
     it("refuses a queue rule that does not gate entry", () => {
