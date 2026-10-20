@@ -245,6 +245,23 @@ export interface EachPlayerSide {
      *  holding a hidden placeholder in hand is unreadable (0, and the
      *  Differential falls back). */
     manaUnits(mana: EffectManaPool): number;
+    /** Issue #5627 — what this player digs out of its own library by
+     *  revealing from the top until a card matching `filter` (Oath of
+     *  Druids' `revealUntilMatch`): `match`, the expected matching card put
+     *  onto its battlefield — the mean realised worth of the library's
+     *  matching cards, each landed under this player, over a representative
+     *  victim's (the `sweepUnits` scale), 0 when none matches; `milled`, the
+     *  expected count of cards revealed before it, put into the graveyard —
+     *  `(n - m) / (m + 1)` of a shuffled library of `n` cards holding `m`
+     *  matches, the whole library when `m` is 0 (CR 101.3: the match leg has
+     *  no referent, the rest leg is still performed). The order is hidden,
+     *  the contents are not. `undefined` for a filter the lens cannot match
+     *  exactly, which voids the side; a side holding a hidden placeholder in
+     *  its library is unreadable (0s, and the Differential falls back). An
+     *  empty library digs nothing and reads 0s, answering nothing. */
+    digUnits(
+        filter: EffectCardFilter
+    ): { match: number; milled: number } | undefined;
 }
 
 /** Issue #5573 — one earlier Op of a one-shot `forEach { set: "players" }`

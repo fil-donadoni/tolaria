@@ -56,7 +56,7 @@ import {
     valueEffectScript,
 } from "./opValuers";
 import { withTypedRepresentativeVictim } from "./representativeVictim";
-import { tappedOnNextStepOf } from "./latentBoard";
+import { stepTargetHolds, tappedOnNextStepOf } from "./latentBoard";
 import type { CardInstanceState } from "../state";
 import type { OpValue, ValueTag } from "./featureBasis";
 
@@ -1097,8 +1097,32 @@ export function dslStandingAbilityScriptValue(
  *  `phaseStep` (`tappedOnNextStepOf`): a Howling Mine tapped on its
  *  controller's turn misses the opponent's next draw step. Every other gate
  *  reads the source UNTAPPED, as issue #5164 did: the engine is a recurrence,
- *  and its controller's untap step untaps it (CR 502.3). */
+ *  and its controller's untap step untaps it (CR 502.3).
+ *
+ *  Issue #5627 — CR 603.3d: a PLAYER target the trigger announces is a gate
+ *  too. With no legal target on that player's step the ability is removed
+ *  from the stack and does nothing (Oath of Druids' "target player who
+ *  controls more creatures than they do", `stepTargetHolds`). Composed with
+ *  the condition gate above, both must hold. */
 function stepGateOf(ability: {
+    gate?: TriggeredAbility["gate"];
+    interveningIf?: TriggeredAbility["interveningIf"];
+    sourceTapCondition?: TriggeredAbility["sourceTapCondition"];
+    phaseStep?: TriggeredAbility["phaseStep"];
+    targetRequirement?: TargetRequirement;
+}): StepGate | typeof UNDECIDABLE_STEP_GATE | undefined {
+    const condition = stepConditionGateOf(ability);
+    const target = ability.targetRequirement;
+    if (target?.type !== "player" || condition === UNDECIDABLE_STEP_GATE) {
+        return condition;
+    }
+    return (activePlayerId, self, state) =>
+        stepTargetHolds(target, activePlayerId, self, state) &&
+        (condition === undefined || condition(activePlayerId, self, state));
+}
+
+/** Issue #5574 / #5578 — the condition half of `stepGateOf`. */
+function stepConditionGateOf(ability: {
     gate?: TriggeredAbility["gate"];
     interveningIf?: TriggeredAbility["interveningIf"];
     sourceTapCondition?: TriggeredAbility["sourceTapCondition"];

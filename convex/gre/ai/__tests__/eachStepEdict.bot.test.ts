@@ -198,6 +198,8 @@ describe("no standing each-step script takes the representative sign (issue #557
             );
         });
         expect(unread.length).toBeGreaterThan(0);
+        // Issue #5627 — the library to battlefield family is read per side.
+        expect(unread.map((e) => e.name)).not.toContain("Oath of Druids");
         for (const { name, def } of unread) {
             expect(
                 dslStandingAbilityScriptValue(
