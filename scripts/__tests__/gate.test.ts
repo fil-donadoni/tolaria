@@ -2083,7 +2083,12 @@ describe("gate.ts — the job tier and the jobs it admits (issue #4941)", () => 
     for (const [name, cmd] of [
         ["bot:reach", ["bun", "run", "bot:reach"]],
         ["verdicts:search", ["bun", "run", "verdicts:search"]],
-        ["oracle:compile (the sweep)", ["bun", "scripts/oracle-compile.ts"]],
+        // `--replay-bot`: the sweep that always plays. A bare run queues only
+        // on a cache miss (issue #6069, oracle-bot-reach.test.ts).
+        [
+            "oracle:compile --replay-bot (the sweep)",
+            ["bun", "scripts/oracle-compile.ts", "--replay-bot"],
+        ],
     ] as const) {
         it(`\`${name}\` waits for the heavy mutex instead of starting`, async () => {
             // An UNadmitted run is the real job, and a sweep whose verdicts are

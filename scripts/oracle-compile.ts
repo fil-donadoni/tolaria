@@ -628,9 +628,12 @@ async function main(): Promise<void> {
         process.exit(2);
     }
     const previous = readCommittedLockfile();
-    const corpus = readCorpus();
+    // Read on first use: a `--replay-bot` run queues for the mutex before it
+    // touches the corpus, as it did before the probe existed (issue #6069).
+    let corpusRead: readonly CorpusCard[] | null = null;
+    const corpus = () => (corpusRead ??= readCorpus());
     const build = (source: BotReachSource) =>
-        serializeLockfile(buildLockfile(corpus, { botReach: source }));
+        serializeLockfile(buildLockfile(corpus(), { botReach: source }));
     // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
     // waits for the heavy gate's mutex instead of racing a `land` — but only
     // once it knows it has a miss to play (issue #6069). `--check` never
@@ -655,7 +658,7 @@ async function main(): Promise<void> {
     if (swept !== null && "exit" in swept) process.exit(swept.exit);
     const narrowed =
         replayNames.length > 0
-            ? await replayingNamedCards(previous, corpus, replayNames)
+            ? await replayingNamedCards(previous, corpus(), replayNames)
             : null;
     const text =
         swept?.text ?? build(narrowed?.source ?? carriedBotReach(previous));
