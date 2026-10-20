@@ -994,6 +994,64 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "each-step return to hand: Disenchant takes the Sunken Hope that bounces only the bot's creature, not the 2-MV artifact (issue #5628)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Aeolipile",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Sunken Hope",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "escape: casts Phlage from the graveyard": {

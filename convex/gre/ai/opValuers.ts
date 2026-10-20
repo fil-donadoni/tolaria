@@ -418,16 +418,21 @@ function singleOpSweepOutcome(
             tag: "boardRemoval",
         };
     }
-    if (
-        only.op === "moveZone" &&
-        "to" in only &&
-        only.to === "hand" &&
-        "target" in only &&
-        isEachRef(only.target)
-    ) {
+    if (isEachReturnedToHand(only)) {
         return { outcome: { kind: "returnsToHand" }, tag: "tempo" };
     }
     return undefined;
+}
+
+/** A `moveZone` returning a `forEach`'s `$each` to its owner's hand. */
+function isEachReturnedToHand(op: EffectOp): boolean {
+    return (
+        op.op === "moveZone" &&
+        "to" in op &&
+        op.to === "hand" &&
+        "target" in op &&
+        isEachRef(op.target)
+    );
 }
 
 /** Issue #5162 (ADR 0151) — the Differential Reading of a one-shot
@@ -597,6 +602,30 @@ function sideEdictLoss(
     return { points: side.own ? -taken : taken, tags: ["boardRemoval"] };
 }
 
+/** Issue #5628 — what `side` gives up to a bounce of its own permanents,
+ *  off its own board: the members its `choice`'s filter and count name whose
+ *  loss NET of their worth back in hand is the cheapest
+ *  (`EachPlayerSide.bounceUnits`), at the `destroy` completeness a bounce
+ *  sweep's net takes (`sweptForEachValue`). Lost by that player. Not scaled
+ *  by `recoverableSweepFraction`, as the edict branch is not: a recast
+ *  creature is bounced again at the next firing, so a standing engine's
+ *  swing does not decay the way a one-shot sweep's does. */
+function sideBounceLoss(
+    side: EachPlayerSide,
+    bounce: EachPlayerEdictChoice,
+    sideCtx: GroundingContext
+): OpValue {
+    const count = groundedEdictCount(side, bounce);
+    const units = side.bounceUnits(bounce.filter, count) ?? 0;
+    const taken = pricedFraction(
+        sideCtx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.destroy,
+        units
+    );
+    return { points: side.own ? -taken : taken, tags: ["tempo"] };
+}
+
 /** Issue #5559 — how many members `side` gives up to an edict: its literal
  *  count, or the computed one grounded on `side`'s board (a keep-N edict's
  *  "the rest"), never below zero (CR 107.1b). A count the board cannot
@@ -703,8 +732,9 @@ export function eachStepDifferentialValue(
 /** Issue #5164 / #5574 — true for a script `eachStepDifferentialValue`
  *  reads: a non-empty script whose every Op is attributable to the scoped
  *  player alone (`isStepSideOp`) — a draw, a life Op, (issue #5575) an
- *  edict on that player's own permanents, or (issue #5624) a discard at
- *  random from its hand — beyond the edict's bare `choice` and (issue
+ *  edict on that player's own permanents, (issue #5624) a discard at
+ *  random from its hand, or (issue #5628) a return to hand of its own
+ *  permanents — beyond the edict's or the bounce's bare `choice` and (issue
  *  #5627) a "may"'s bare `mayPay`, which read nothing by themselves. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return (
@@ -745,7 +775,8 @@ function namesStepPlayer(node: unknown): boolean {
  *  priced off the side's library and hand, a life Op off the side's board.
  *  Issue #5575 — an edict's `sacrifice` off the side's own permanents
  *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before.
- *  Issue #5624 — a discard at random off the side's hand. */
+ *  Issue #5624 — a discard at random off the side's hand. Issue #5628 — a
+ *  bounce's `forEach` off the side's own permanents (`sideBounceLoss`). */
 function stepSideOpValue(
     op: EffectOp,
     script: readonly EffectOp[],
@@ -758,6 +789,12 @@ function stepSideOpValue(
         case "sacrifice": {
             const edict = edictChoiceFor(op, script, isStepPlayerRef);
             return edict ? sideEdictLoss(side, edict, ctx) : valueOp(op, ctx);
+        }
+        case "forEach": {
+            const bounce = bounceChoiceFor(op, script);
+            return bounce
+                ? sideBounceLoss(side, bounce, ctx)
+                : valueOp(op, ctx);
         }
         case "discardAtRandom":
             return stepSideRandomDiscard(op.count, side, ctx);
@@ -906,7 +943,10 @@ function sideDraw(
  *  reading its binding (`isStepMayArm`), and that player revealing its own
  *  library until a match, the match onto its battlefield and the rest into
  *  its graveyard (`revealUntilMatch`, priced off its library by
- *  `EachPlayerSide.digUnits`). */
+ *  `EachPlayerSide.digUnits`). Issue #5628 — a return to hand of that
+ *  player's own permanents (`choice` `choose-permanents` + a `forEach` over
+ *  its picks returning each to its owner's hand), priced off its board
+ *  (`EachPlayerSide.bounceUnits`). */
 function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "mayPay":
@@ -926,9 +966,14 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
                 op.persistsUntil === undefined
             );
         case "choice":
-            return isEachPlayerEdictChoice(op, isStepPlayerRef);
+            return (
+                isEachPlayerEdictChoice(op, isStepPlayerRef) ||
+                isStepBounceChoice(op)
+            );
         case "sacrifice":
             return edictChoiceFor(op, script, isStepPlayerRef) !== undefined;
+        case "forEach":
+            return bounceChoiceFor(op, script) !== undefined;
         case "draw":
             return isStepPlayerRef(op.player) && typeof op.count === "number";
         case "discardAtRandom":
@@ -1145,6 +1190,35 @@ function edictChoiceFor(
         if (isEachPlayerEdictChoice(e, namesSide) && e.bind === ref.ref) {
             return e;
         }
+    }
+    return undefined;
+}
+
+/** Issue #5628 — a `choice` that has the scoped player pick an exact number
+ *  of its OWN battlefield permanents (Sunken Hope's shape); what the picks
+ *  undergo is the `forEach` that reads them (`bounceChoiceFor`). */
+function isStepBounceChoice(op: EffectOp): op is EachPlayerEdictChoice {
+    return (
+        isOwnZoneEachPlayerChoice(op, isStepPlayerRef) &&
+        op.kind === "choose-permanents" &&
+        op.zone === "battlefield" &&
+        op.bind !== undefined
+    );
+}
+
+/** Issue #5628 — the bounce `choice` of `script` whose picks `op` returns,
+ *  each to its owner's hand (CR 400.3), if any. */
+function bounceChoiceFor(
+    op: Extract<EffectOp, { op: "forEach" }>,
+    script: readonly EffectOp[]
+): EachPlayerEdictChoice | undefined {
+    const select = op.select;
+    if (select.set !== "bound") return undefined;
+    if (op.effects.length !== 1 || !isEachReturnedToHand(op.effects[0])) {
+        return undefined;
+    }
+    for (const e of script) {
+        if (isStepBounceChoice(e) && e.bind === select.ref) return e;
     }
     return undefined;
 }
