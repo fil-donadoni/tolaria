@@ -235,6 +235,19 @@ export interface EachPlayerSide {
         filter: EffectCardFilter | undefined,
         count: number
     ): number | undefined;
+    /** Issue #5628 — `boardRemoval` units (the `sweepUnits` scale) of the
+     *  `count` members this player would choose to return to their owners'
+     *  hands among its permanents matching `filter`: each one's realised
+     *  loss NET of its card's worth back in hand (the `returnsToHand` sweep
+     *  outcome) — the cheapest nets, since the chooser keeps its best. A card
+     *  it controls but does not own lands in its owner's hand (CR 400.3), so
+     *  the other player's gain is this one's loss; a token hands nothing
+     *  back (CR 111.7). No matching permanent loses nothing. `undefined` for
+     *  a filter the lens cannot match exactly. */
+    bounceUnits(
+        filter: EffectCardFilter | undefined,
+        count: number
+    ): number | undefined;
     /** Issue #5626 — what `mana` added to this player's pool at the
      *  beginning of its main phase is worth to it, in `ramp` units: the most
      *  of it one card of its hand spends that its own mana base (every
