@@ -1239,6 +1239,22 @@ of `check:all`. It walks the tip's frontend against whatever Convex functions
 the shared local deployment serves, since `check:ui` pushes none — on a PR as
 in health (ADR 0131 § Amendment).
 
+**The deployment serves the primary checkout, so the primary stays on the
+base branch** (issues #6132, #6133). `convex dev --local` runs in the primary
+checkout and pushes its `convex/` tree; on 2026-10-20 a primary switched to
+the release branch served functions 144+ commits old, every `/game` cell went
+`UNWALKED`, and health wrote a RED on a green tip. Now a walk whose deployment
+serves other code is INFRA, never RED, and never a PASS
+(`scripts/lib/deployment-skew.ts`): the primary must be on base, clean under
+`convex/` (codegen excluded), and contain the walked tree's base point (a
+primary AHEAD on base is newer base code, not a skew), or differ only in the
+tree's own `convex/` diff. `check:ui` checks it before the first cell and on
+every deployment-watch tick, exiting `4` (`DEPLOYMENT_SKEW_EXIT`); the health
+walk preflights it (`preflight:deployment-skew`, cause `deployment-skew`);
+`release` refuses in seconds with the primary off base; and `deny-guard` § 4b
+refuses a `git checkout` / `git switch` of the primary to anything but base
+(escape: `TOLARIA_PRIMARY_OFF_BASE=1`).
+
 **The walk runs off the heavy mutex, and the environment never makes it RED**
 (issue #4962). Of its first ten verdicts inside batch health, nine were RED and none
 was a product defect: a down backend, a sign-in the auth backend refused, walks

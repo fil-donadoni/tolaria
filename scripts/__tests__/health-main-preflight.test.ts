@@ -6,7 +6,11 @@ import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
 import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
-import { INFRA_REMEDY, PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
+import {
+    INFRA_REMEDY,
+    PREFLIGHT_CONVEX_STEP,
+    PREFLIGHT_SKEW_STEP,
+} from "../lib/health-verdict";
 
 /**
  * The whole `health-main` run with the Convex deployment down (issue #4943):
@@ -147,5 +151,62 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
             )
         ) as Record<string, unknown>;
         expect(last.failedStep, r.stderr).not.toBe(PREFLIGHT_CONVEX_STEP);
+    }, 60_000);
+});
+
+describe("health-main — the deployment-skew preflight of the walk (issue #6132)", () => {
+    it("a primary off the base branch ends the owed walk INFRA / deployment-skew before any worktree or browser", () => {
+        const tip = spawnSync("git", ["rev-parse", "HEAD"], {
+            cwd: primary,
+            encoding: "utf8",
+        }).stdout.trim();
+        // What the offline phase leaves behind: a green half, a walk owed.
+        const dir = path.join(primary, ".claude", "telemetry", "health");
+        fs.mkdirSync(dir, { recursive: true });
+        const startedAt = new Date().toISOString();
+        fs.writeFileSync(
+            path.join(dir, "last.json"),
+            JSON.stringify({
+                sha: tip,
+                status: "running",
+                startedAt,
+                branch: BASE_BRANCH,
+                phase: "walk",
+                offline: "green",
+                ui: "pending",
+            })
+        );
+        // The 2026-10-20 incident: the primary switched off base, so
+        // `convex dev` pushed another tree's functions.
+        git(["switch", "-q", "-c", `${BASE_BRANCH}-elsewhere`], primary);
+
+        const r = spawnSync("bun", [HEALTH_MAIN, "--phase=walk"], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 45_000,
+            env: { ...withoutCorpusExclusion(), TOLARIA_GATE_HELD: "" },
+        });
+
+        expect(r.status, r.stderr).toBe(1);
+        expect(r.stderr).toMatch(
+            new RegExp(`INFRA @ \\w+ at ${PREFLIGHT_SKEW_STEP}`)
+        );
+        expect(r.stderr).toContain(`-elsewhere\`, not \`${BASE_BRANCH}\``);
+        const last = JSON.parse(
+            fs.readFileSync(path.join(dir, "last.json"), "utf8")
+        ) as Record<string, unknown>;
+        expect(last).toMatchObject({
+            status: "infra",
+            failedStep: PREFLIGHT_SKEW_STEP,
+            infraCause: "deployment-skew",
+            reason: INFRA_REMEDY["deployment-skew"],
+        });
+        expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
+        // No walk worktree was ever added beside the primary.
+        expect(
+            fs
+                .readdirSync(tmp)
+                .filter((f) => f.startsWith("tolaria-health-walk-"))
+        ).toEqual([]);
     }, 60_000);
 });

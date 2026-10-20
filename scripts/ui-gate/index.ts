@@ -112,6 +112,10 @@
  *   3  `DEPLOYMENT_DOWN_EXIT` (`lib/convex-reachable.ts`): the deployment at
  *      VITE_CONVEX_URL did not answer. Its own code so the health gate records
  *      `infra`, never a RED tip (issue #4943); `bun run convex:ensure` starts it.
+ *   4  `DEPLOYMENT_SKEW_EXIT` (`lib/deployment-skew.ts`, issues #6132, #6133):
+ *      the deployment serves the primary checkout's convex/ tree, and that is
+ *      not this tree's (outside its own diff) — before the first cell, or
+ *      mid-walk. INFRA with the reason, never `unsettled` cells.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
@@ -180,7 +184,13 @@ import {
     type PoolGrowth,
     type ViewportResult,
 } from "./parallel.ts";
-import { ORIGIN_BASE } from "../lib/branches.ts";
+import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches.ts";
+import { primaryCheckout } from "../lib/primary-checkout.ts";
+import {
+    DEPLOYMENT_SKEW_EXIT,
+    readDeploymentSkew,
+    skewRemedy,
+} from "../lib/deployment-skew.ts";
 import {
     DEPLOYMENT_DOWN_EXIT,
     reachable,
@@ -381,6 +391,36 @@ class FatalError extends Error {}
 /** The deployment did not answer: exits `DEPLOYMENT_DOWN_EXIT`, never 2, so
  *  the health gate can tell a down backend from a red tree (issue #4943). */
 class DeploymentDownError extends FatalError {}
+
+/** The deployment serves code other than the walked tree: exits
+ *  `DEPLOYMENT_SKEW_EXIT` (issues #6132, #6133). */
+class DeploymentSkewError extends FatalError {}
+
+/**
+ * Why the deployment does not serve this tree's Convex code, or null. The
+ * deployment is `convex dev` in the PRIMARY checkout; this tree's own
+ * convex/ diff against `origin/<base>` is excused — the deployment cannot be
+ * serving a PR's changes. A git failure reads as no skew.
+ */
+function deploymentSkewNow(): string | null {
+    try {
+        const d = readDeploymentSkew({
+            primary: primaryCheckout(REPO_ROOT),
+            base: BASE_BRANCH,
+            walked: REPO_ROOT,
+            ownDiffFrom: ORIGIN_BASE,
+        });
+        return d.kind === "skew" ? d.reason : null;
+    } catch {
+        return null;
+    }
+}
+
+function skewError(reason: string, when: string): DeploymentSkewError {
+    return new DeploymentSkewError(
+        `deployment skew ${when} — ${reason}. INFRA, not the tree: ${skewRemedy(primaryCheckout(REPO_ROOT), BASE_BRANCH)}.`
+    );
+}
 
 function log(message: string): void {
     process.stdout.write(`${message}\n`);
@@ -873,6 +913,9 @@ async function main(): Promise<number> {
                 `convex:ensure starts one only when none is alive, issue #4945).`
         );
     }
+    // Which code the deployment serves (issue #6132): a skew walks no cell.
+    const skewAtStart = deploymentSkewNow();
+    if (skewAtStart !== null) throw skewError(skewAtStart, "before the walk");
     if (!fs.existsSync(AXE_PATH)) {
         throw new FatalError(
             `axe-core is not installed at ${AXE_PATH} — run \`bun install\``
@@ -996,6 +1039,9 @@ async function main(): Promise<number> {
                 clearInterval(handle as ReturnType<typeof setInterval>),
         },
         note: (line) => log(`ui-gate: ${line}`),
+        // Re-read every tick (issue #6133): a primary switched mid-walk
+        // abandons the walk as a skew, not a cascade of UNWALKED cells.
+        skew: deploymentSkewNow,
     });
 
     try {
@@ -1653,6 +1699,14 @@ async function main(): Promise<number> {
                 )
                     .finally(stopHeartbeat)
                     .catch((err: unknown) => {
+                        if (
+                            err instanceof DeploymentDownAbort &&
+                            err.down.skew
+                        ) {
+                            fleet.abandon("the deployment serves other code");
+                            deploymentAborted = true;
+                            throw skewError(err.down.reason, "mid-walk");
+                        }
                         if (err instanceof DeploymentDownAbort) {
                             // No receipt: no cell was judged against a live
                             // backend. The open cells say where the walk was.
@@ -1769,7 +1823,11 @@ try {
     if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
         process.exit(
-            err instanceof DeploymentDownError ? DEPLOYMENT_DOWN_EXIT : 2
+            err instanceof DeploymentDownError
+                ? DEPLOYMENT_DOWN_EXIT
+                : err instanceof DeploymentSkewError
+                  ? DEPLOYMENT_SKEW_EXIT
+                  : 2
         );
     }
     throw err;

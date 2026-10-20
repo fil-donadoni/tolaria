@@ -1220,6 +1220,9 @@ describe("deny-guard — no discarding git operations in the shared main checkou
     });
 
     it("allows non-discarding git in the main checkout", () => {
+        // No tolaria.config.json in the fixture: the base falls back to
+        // `main`, so `git checkout main` is a switch to base (§4b).
+        const env = { CLAUDE_PROJECT_DIR: mainCheckout };
         for (const cmd of [
             "git status --short",
             "git stash list",
@@ -1231,8 +1234,74 @@ describe("deny-guard — no discarding git operations in the shared main checkou
             "git add src/foo.ts",
             "git add docs/adr/0101-x.md GLOSSARY.md",
         ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env);
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
+});
+
+describe("deny-guard § 4b — the main checkout stays on the base branch (issues #6132, #6133)", () => {
+    // A base this hook has never heard of: only the config can name it.
+    let projectDir: string;
+    beforeAll(() => {
+        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-primary-"));
+        fs.writeFileSync(
+            path.join(projectDir, "tolaria.config.json"),
+            JSON.stringify({
+                branches: { base: "integration", release: "prod" },
+            })
+        );
+    });
+    afterAll(() => {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+    });
+    const env = () => ({ CLAUDE_PROJECT_DIR: projectDir });
+    const OFF_BASE = [
+        "git checkout prod",
+        "git switch prod",
+        "git checkout -q main",
+        "git switch -c feat/x",
+        "git checkout -b feat/x origin/integration",
+        "git checkout 02bd75cc5",
+        "git switch -",
+        "git fetch && git checkout prod && git pull --ff-only",
+    ];
+
+    it("denies a switch off base there, naming the branch and the escape hatch", () => {
+        for (const cmd of OFF_BASE) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toContain("DEPLOYMENT SOURCE");
+            expect(r.stderr).toContain("TOLARIA_PRIMARY_OFF_BASE=1");
+        }
+    });
+
+    it("allows the switch back to base, a bare checkout, and paths after --", () => {
+        for (const cmd of [
+            "git checkout integration",
+            "git switch integration && git pull --ff-only",
+            "git switch -q integration",
+            "git checkout",
+            "git log --oneline -3",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
+            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
+
+    it("allows the announced escape hatch", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("TOLARIA_PRIMARY_OFF_BASE=1 git switch prod", mainCheckout),
+            env()
+        );
+        expect(r.code).toBe(0);
+    });
+
+    it("allows any switch in a linked worktree — it is not the deployment source", () => {
+        for (const cmd of OFF_BASE) {
+            const r = runHook(DENY_GUARD, bash(cmd, linkedWorktree), env());
+            expect(r.code, `expected ALLOW in worktree for: ${cmd}`).toBe(0);
         }
     });
 });

@@ -758,9 +758,9 @@ fi
 # and is unrecoverable; `git commit -a` sweeps their in-flight edits into an
 # unrelated commit (observed). `git add -A` / `git add .` is the same sweep in
 # two steps and is denied for the same reason — naming the paths (`git add
-# <path>`) is not, since that cannot pick up a file you did not mean. Branch
-# switching and ordinary commits stay allowed — the loop's own §0 does
-# `git checkout main && git pull`.
+# <path>`) is not, since that cannot pick up a file you did not mean. Ordinary
+# commits stay allowed, and so does switching — back to the base branch only
+# (§4b below).
 #
 # "Main checkout" is git's own distinction, not a path convention: a linked
 # worktree's git-dir differs from its common-dir, the main one's does not.
@@ -791,6 +791,68 @@ your own worktree instead:
   git worktree add ../<repo>-<task> -b <branch> && cd ../<repo>-<task>
 (\`git status\`, \`git stash list\`, \`git checkout <branch>\`, \`git add <path>\` and
 \`git commit -m\` without \`-a\` remain allowed.)"
+        fi
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4b. The shared main checkout stays on the base branch (issues #6132, #6133).
+#
+# It is the DEPLOYMENT SOURCE: `convex dev --local` (`com.tolaria.convex`,
+# WorkingDirectory = this checkout) pushes whatever its convex/ tree holds to
+# the one local backend every browser walk talks to. On 2026-10-20 a
+# `git checkout main` here pushed functions 144+ commits behind base; every
+# `/game` cell of the health walk went UNWALKED and a green tip went RED. So a
+# `git checkout` / `git switch` here may name only the base branch (or nothing
+# but flags). Anything else — another branch, a sha, `-b`/`-c <new>`, `-` — is
+# denied unless the command carries the announced escape hatch
+# `TOLARIA_PRIMARY_OFF_BASE=1` (and then `check:ui` / health report the skew as
+# INFRA until the checkout is back on base). Paths after `--` are §4's.
+#
+# Same cost order as §4: the text match first, the two `git` calls only for a
+# command that could be denied.
+# ─────────────────────────────────────────────────────────────────────────────
+if seg_has '(^|[;&|[:space:]])git[[:space:]]+(checkout|switch)([[:space:]]|$)' &&
+    ! seg_has 'TOLARIA_PRIMARY_OFF_BASE=1'; then
+    _off_base=""
+    _old_ifs=$IFS
+    IFS='
+'
+    set -f
+    for _seg in $segments; do
+        _named=$(printf '%s\n' "$_seg" | awk -v base="$base_branch" '{
+            on = 0
+            for (i = 1; i <= NF; i++) {
+                if (!on) {
+                    if ($i == "git" && ($(i + 1) == "checkout" || $(i + 1) == "switch")) { on = 1; i++ }
+                    continue
+                }
+                if ($i == "--") break
+                if ($i ~ /^-./) continue
+                t = $i; gsub(/["\047]/, "", t)
+                if (t != base) { print t; exit }
+            }
+        }')
+        if [ -n "$_named" ]; then
+            _off_base=$_named
+            break
+        fi
+    done
+    set +f
+    IFS=$_old_ifs
+    if [ -n "$_off_base" ] && [ -n "$cwd" ] && [ -d "$cwd" ]; then
+        git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null || true)
+        common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+        if [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ]; then
+            deny "BLOCKED: switching the shared main checkout off \`$base_branch\` (to \`$_off_base\`).
+This checkout is the DEPLOYMENT SOURCE: \`convex dev\` pushes its convex/ tree to
+the local backend every \`check:ui\` walk and health walk talks to. Off
+\`$base_branch\` it serves other code, and the walks can only end INFRA
+(issues #6132, #6133). Look at another branch in a worktree instead:
+  git worktree add --detach ../<repo>-peek <ref>
+If you really mean to move it (and accept the skew INFRA until it is back),
+announce it in the command:
+  TOLARIA_PRIMARY_OFF_BASE=1 git switch <branch>"
         fi
     fi
 fi
