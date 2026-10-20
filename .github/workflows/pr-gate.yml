@@ -11,7 +11,8 @@
 #
 # Re-gate: a `health` or `health-fix` commit status (a verdict, or a repair
 # issue recorded on the pivot) re-runs the gate over every open PR labelled
-# `ready-to-land` — a RED holds the queue, a GREEN or AMBER reopens it.
+# `ready-to-land` — a RED holds the queue, a GREEN or AMBER reopens it and
+# requeues the PRs the RED had dequeued (issue #6110).
 # A 15-minute schedule sweeps the same queue; `workflow_dispatch` does it by
 # hand (input `pr`: one PR only). GitHub cannot filter `status` by context:
 # every other status written with a personal token shows as a SKIPPED run.
@@ -37,7 +38,9 @@ on:
 
 permissions:
     contents: read
-    pull-requests: read
+    # `write`: the `@mergifyio requeue` comment on a PR a GREEN releases
+    # (issue #6110). Base code only; the PR is read as data.
+    pull-requests: write
     statuses: write
 
 jobs:

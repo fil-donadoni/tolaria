@@ -12,6 +12,7 @@ import {
     gatePrOf,
     healthAdmission,
     isMergifyQueuePr,
+    needsRequeue,
     parseTrustedAuthors,
     protectedPaths,
     queuedPrs,
@@ -367,5 +368,39 @@ describe("the REST pull_request, read", () => {
             rest({ number: 3, labels: undefined }),
         ];
         expect(queuedPrs(prs).map((p) => p.number)).toEqual([1]);
+    });
+});
+
+describe("needsRequeue — the GREEN that releases a held PR (issue #6110)", () => {
+    const held = {
+        labels: ["ready-to-land"],
+        prior: "failure" as const,
+        next: "success" as const,
+        trustedAuthor: "success" as const,
+    };
+
+    it("requeues a ready-to-land PR whose base-health went red → green", () => {
+        expect(needsRequeue(held)).toBe(true);
+        expect(needsRequeue({ ...held, prior: "pending" })).toBe(true);
+    });
+
+    it("does not repeat on a PR that simply waits its turn", () => {
+        expect(needsRequeue({ ...held, prior: "success" })).toBe(false);
+        expect(needsRequeue({ ...held, prior: undefined })).toBe(false);
+    });
+
+    it("stays out while the RED stands", () => {
+        expect(needsRequeue({ ...held, next: "failure" })).toBe(false);
+        expect(needsRequeue({ ...held, next: "pending" })).toBe(false);
+    });
+
+    it("leaves a repair pick, a queued PR and an unqueueable one alone", () => {
+        const labels = (...l: string[]) => ({ ...held, labels: l });
+        expect(needsRequeue(labels("ready-to-land", "land-failed"))).toBe(
+            false
+        );
+        expect(needsRequeue(labels("ready-to-land", "queued"))).toBe(false);
+        expect(needsRequeue(labels("enhancement"))).toBe(false);
+        expect(needsRequeue({ ...held, trustedAuthor: "failure" })).toBe(false);
     });
 });

@@ -18,7 +18,8 @@
  * `GITHUB_SERVER_URL` / `GITHUB_RUN_ID` for each status's link.
  * `--dry-run` prints the statuses and posts nothing. Each status is decided
  * and posted on its own: one that cannot be read or written is reported and
- * skipped, and the run exits 1. An unreadable verdict store posts
+ * skipped, and the run exits 1. A PR whose `base-health` turns green after
+ * being held gets `@mergifyio requeue` (issue #6110). An unreadable verdict store posts
  * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
@@ -33,13 +34,18 @@ import {
     type GhRunner,
 } from "./lib/health-verdict-store";
 import {
+    BASE_HEALTH_CONTEXT,
     baseHealthStatus,
     gatePrOf,
+    needsRequeue,
+    REQUEUE_COMMENT,
     parseTrustedAuthors,
     PR_FILES_JQ,
     prFilesApiPath,
     queuedPrs,
+    TRUSTED_AUTHOR_CONTEXT,
     trustedAuthorStatus,
+    type GateState,
     type GateStatus,
     type RestPr,
 } from "./lib/pr-gate";
@@ -116,6 +122,20 @@ function post(
     gh(run, args);
 }
 
+/** The state of the PR head's newest `base-health` status, if any. */
+function priorBaseHealth(
+    run: GhRunner,
+    repo: string,
+    sha: string
+): GateState | undefined {
+    const [state] = ghLines<GateState>(
+        run,
+        `repos/${repo}/commits/${sha}/statuses?per_page=100`,
+        `.[] | select(.context == "${BASE_HEALTH_CONTEXT}") | .state | tojson`
+    );
+    return state;
+}
+
 function main(): number {
     const run = realGh;
     const dryRun = process.argv.includes("--dry-run");
@@ -164,15 +184,50 @@ function main(): number {
                     trusted
                 ),
         ];
+        const posted = new Map<string, GateState>();
+        let prior: GateState | undefined;
         for (const status of decide) {
             try {
                 const s = status();
                 show(raw.number, raw.head.sha, s);
+                if (s.context === BASE_HEALTH_CONTEXT)
+                    prior = priorBaseHealth(run, repo, raw.head.sha);
                 if (!dryRun) post(run, repo, raw.head.sha, s, targetUrl);
+                posted.set(s.context, s.state);
             } catch (e) {
                 failed++;
                 console.error(`PR #${raw.number}: ${(e as Error).message}`);
             }
+        }
+        // The GREEN that releases a held PR requeues it: Mergify does not.
+        const next = posted.get(BASE_HEALTH_CONTEXT);
+        const trustedState = posted.get(TRUSTED_AUTHOR_CONTEXT);
+        if (
+            next &&
+            trustedState &&
+            needsRequeue({
+                labels: (raw.labels ?? []).map((l) => l.name),
+                prior,
+                next,
+                trustedAuthor: trustedState,
+            })
+        ) {
+            console.log(`PR #${raw.number}: ${REQUEUE_COMMENT}`);
+            if (!dryRun)
+                try {
+                    gh(run, [
+                        "pr",
+                        "comment",
+                        String(raw.number),
+                        "--repo",
+                        repo,
+                        "--body",
+                        REQUEUE_COMMENT,
+                    ]);
+                } catch (e) {
+                    failed++;
+                    console.error(`PR #${raw.number}: ${(e as Error).message}`);
+                }
         }
     }
     return failed === 0 ? 0 : 1;

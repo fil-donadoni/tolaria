@@ -52,8 +52,14 @@ queue_rules:
       merge_method: squash
 
 pull_request_rules:
+    #
+    # Not when `base-health` is red on the PR: a RED on the base is a hold,
+    # not the PR's red (issue #6110). The PR keeps `ready-to-land`, and the
+    # GREEN's re-gate (`pr-gate`) requeues it. A `queue-lane` red leaves
+    # `base-health` green, so it stays a repair pick.
     - name: a PR the queue rejects is a repair pick
       conditions:
+          - -check-failure=base-health
           - or:
                 - queue-dequeue-reason=checks-failed
                 - queue-dequeue-reason=checks-timeout
