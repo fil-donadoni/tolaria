@@ -1683,6 +1683,42 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23a (search) + CR 701.23b (stated quality) + CR 406.1 /
+           * CR 404.1 (the denial routes) — "Search target player's library for
+           * three cards and exile them [, then that player shuffles]": the
+           * CONTROLLER looks through the library of a TARGET player and takes
+           * cards out of it, so the opponent is denied them (exiled or milled).
+           * The library owner is the announced target (`player`); the chooser
+           * stays the controller.
+           *
+           * `count` is the printed number and `upTo` its "up to" form. A plain
+           * count is mandatory: a search for plain "cards" states no quality
+           * (CR 701.23b), so the controller must find as many as the library
+           * holds. "up to N" is the optional range. A quality ("with
+           * flashback") is not read here — the line fails rather than
+           * searching wider than the card said.
+           *
+           * `shuffle` is the printed "then that player shuffles" — in the
+           * sentence itself, or folded in from the sentence after it
+           * (`shuffle-searched-library`).
+           */
+          readonly kind: "search-target-library";
+          readonly player: PlayerRefIR;
+          readonly count: number;
+          readonly upTo: boolean;
+          readonly route: "exile" | "graveyard";
+          readonly shuffle: boolean;
+      }
+    | {
+          /**
+           * CR 701.24a — "Then that player shuffles.": the sentence after a
+           * `search-target-library`, folded into its `shuffle` flag by the
+           * sentence-list assembler. Alone it names no library and fails.
+           */
+          readonly kind: "shuffle-searched-library";
+      }
+    | {
+          /**
            * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
            * instead." Two printed sentences, one effect: the second REPLACES
            * the first when every condition holds as the ability resolves, and
@@ -2717,6 +2753,18 @@ export function assembleSentences(
                 namePending = true;
             }
             effects.push(...sentence.effects);
+            continue;
+        }
+        // CR 701.24a — "Then that player shuffles." belongs to the target
+        // library the sentence before searched; nothing else names it.
+        if (sentence.effect.kind === "shuffle-searched-library") {
+            const previous = effects[effects.length - 1];
+            if (previous?.kind !== "search-target-library" || previous.shuffle)
+                return {
+                    ok: false,
+                    reason: '"Then that player shuffles." follows no search of a target library',
+                };
+            effects[effects.length - 1] = { ...previous, shuffle: true };
             continue;
         }
         // "The chosen color" names no pick without a "Choose a color."
@@ -3786,6 +3834,17 @@ const LIBRARY_SEARCH_TO_TOP = new Map<string, EffectCardFilter>([
     ],
     ["an enchantment card|that", { type: "Enchantment" }],
 ]);
+/**
+ * CR 701.23a — "Search target player's library for <count> and exile them":
+ * the library owner is a target. The count group is read by
+ * `readTargetLibrarySearch`; anything between the count and the denial verb
+ * (a quality such as "with flashback") fails the match.
+ */
+const SEARCH_TARGET_LIBRARY =
+    /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
+/** CR 701.24a — the sentence that shuffles the library a search just looked at. */
+const THEN_THAT_PLAYER_SHUFFLES =
+    /^Then that player shuffles(?: their library)?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -5709,6 +5768,46 @@ function effectSentence(
             tapped: row.tapped,
         } satisfies EffectSentenceIR);
     }
+
+    // ── search a TARGET player's library, exile or mill the find ───────────
+    // CR 701.23a (search) + CR 701.23b (stated quality) + CR 701.24a (shuffle)
+    const searchTarget = span.match(SEARCH_TARGET_LIBRARY);
+    if (searchTarget !== null) {
+        const [, who, , upToWord, plainWord, verb, pronoun, shuffles] =
+            searchTarget;
+        const word = upToWord ?? plainWord;
+        const count = word === undefined ? 1 : readNumberWord(word);
+        // "a card" takes "it"; a spelled count takes "them" and is plural, so a
+        // count of one or zero behind "cards" is a misreading, not a form.
+        if (count === null || (word !== undefined && count < 2))
+            return fail(`"${span}" has no printed search count`, span);
+        if ((word === undefined) !== (pronoun === "it"))
+            return fail(
+                `"${span}" pairs the count with the wrong pronoun`,
+                span
+            );
+        // CR 404.1 — "put them into that player's graveyard" is the other
+        // denial route; the regex admits that suffix only behind "put", and
+        // "put" only with it.
+        const intoGraveyard = span.includes("graveyard");
+        if ((verb === "put") !== intoGraveyard)
+            return fail(`"${span}" is not a library search denial route`, span);
+        const player = playerSubject(capitalise(who!), ctx);
+        if (player === null || player.kind !== "target")
+            return fail(`"${who}" is not a targeted player`, span);
+        return ok({
+            kind: "search-target-library" as const,
+            player,
+            count,
+            upTo: upToWord !== undefined,
+            route: intoGraveyard ? ("graveyard" as const) : ("exile" as const),
+            shuffle: shuffles !== undefined,
+        } satisfies EffectSentenceIR);
+    }
+    if (THEN_THAT_PLAYER_SHUFFLES.test(span))
+        return ok({
+            kind: "shuffle-searched-library" as const,
+        } satisfies EffectSentenceIR);
 
     // ── draw, and lose life / and the opponent discards (CR 608.2c) ────────
     const drawAnd =
