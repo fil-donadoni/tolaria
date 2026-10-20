@@ -135,6 +135,29 @@ export interface ProbeResult {
      *  scrolls sideways. A Floor on anything above zero. */
     hOverflow: number;
     cardW: { min: number; max: number } | null;
+    /** WHERE each Floor broke (issue #6145): up to six boxes per Floor bucket,
+     *  every bucket that reads nonzero naming at least one. What a failing
+     *  cell's screenshot outlines. */
+    offenders: Offender[];
+}
+
+/** One box that broke a Floor, in viewport CSS pixels (issue #6145). A
+ *  zero-size or stranded box is reported as measured — the overlay decides
+ *  how to draw what nobody can see. */
+export interface Offender {
+    floor: Floor;
+    /** A short CSS selector: `tag#id`, else tag + `data-slot` + two classes. */
+    sel: string;
+    /** The element's alt / aria-label / text, for a reader. */
+    t: string;
+    x: number;
+    y: number;
+    /** -1 (with `h`) when the box could not be located — an axe target in a
+     *  shadow root or frame: named on the shot's banner, never drawn. */
+    w: number;
+    h: number;
+    /** The reading at that box, when one number says it (`needs 416px…`). */
+    why: string;
 }
 
 /** One square-cornered card, named so the run says WHICH card (issue #2724).
@@ -173,6 +196,8 @@ export interface AxeCount {
     /** How many axe-exempt subtrees the run excluded (issue #2593) — see
      *  `AXE_EXEMPT_SELECTOR` in `index.ts`. */
     exempt: number;
+    /** The serious and critical violations' nodes, located (issue #6145). */
+    offenders: Offender[];
 }
 
 /**

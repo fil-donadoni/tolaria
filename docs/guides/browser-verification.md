@@ -135,9 +135,15 @@ the app itself on `127.0.0.1` and a free port (your `bun run dev` is left
 alone), registers the run's own throwaway account and signs in as it, walks
 each surface in `scripts/ui-gate/surfaces.ts` at each of the five viewports,
 injects `scripts/ui-gate/probe.js` and `axe-core`, and holds every Floor at
-zero (`scripts/ui-gate/floors.ts`). Screenshots land in
-`.claude/telemetry/ui-gate/<runId>/` (gitignored; run directories older than a
-day are pruned).
+zero (`scripts/ui-gate/floors.ts`). Only a FAILING cell is screenshotted
+(issue #6145), at CSS pixels, with every offending box outlined and labelled
+with its Floor; the shots land in `.claude/telemetry/ui-gate/<runId>/`
+(gitignored; run directories and loose PNGs older than a day are pruned). A run
+with a failing cell ends with ONE comment — a table of the broken Floors and the
+shots inline — on the branch's open PR, else on the issue the branch is named
+for, else the local paths are printed. Posting is never a verdict: a failed
+upload prints the paths and leaves the exit code alone. `--no-publish` keeps the
+shots local.
 
 **Requirements.** A running **local** Convex backend (`bunx convex dev` — the
 lane never starts one, and its account functions refuse any other deployment)
@@ -591,7 +597,7 @@ shape    auth-sign-in         1440x900x2   cardsOcc 0 ctrlsOcc 0 small 2 starved
 machine load: start 3.2, end 4.1 (1-minute average, 12 cpus, retry threshold 12)
 shell return band: absent on every walk — no controls excluded
 console errors: none
-screenshots: .claude/telemetry/ui-gate/3f9c0a1b2d4e/
+failure shots: none
 wall time: 412s
 ```
 
