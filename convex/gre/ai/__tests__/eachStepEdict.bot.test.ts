@@ -9,8 +9,9 @@
 // side (`EachPlayerSide.sacrificeUnits`, CR 701.21a: each player sacrifices
 // its own cheapest), the opponent's loss minus the controller's. Every other
 // standing script on the scoped player that the Differential cannot read
-// yet (a mill, mana, a library reveal, a bounce) reads
-// NOTHING and keeps its Latent Floor, never the representative sign.
+// yet (mana, a library reveal, a bounce) reads NOTHING and keeps its Latent
+// Floor, never the representative sign. Issue #5625 reads the mill family
+// (`eachStepMill.bot.test.ts`).
 //
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
@@ -200,6 +201,8 @@ describe("no standing each-step script takes the representative sign (issue #557
         expect(unread.length).toBeGreaterThan(0);
         // Issue #5627 — the library to battlefield family is read per side.
         expect(unread.map((e) => e.name)).not.toContain("Oath of Druids");
+        // Issue #5625 — the mill family is read per side.
+        expect(unread.map((e) => e.name)).not.toContain("Worry Beads");
         for (const { name, def } of unread) {
             expect(
                 dslStandingAbilityScriptValue(
