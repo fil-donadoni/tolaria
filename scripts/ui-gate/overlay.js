@@ -30,7 +30,20 @@ window.__tolariaOutline = (spec) => {
     root.setAttribute("aria-hidden", "true");
     root.style.cssText =
         "position:fixed;inset:0;pointer-events:none;z-index:2147483647;";
+    // Labels placed so far: two offenders side by side would otherwise
+    // print one label over the other, and the reader loses a Floor.
+    const placed = [];
     const tag = (text, left, top) => {
+        const LH = 14;
+        while (
+            placed.some(
+                (p) =>
+                    Math.abs(p.top - top) < LH && Math.abs(p.left - left) < 160
+            ) &&
+            top < H - LH
+        )
+            top += LH;
+        placed.push({ left, top });
         const t = document.createElement("div");
         t.textContent = text;
         t.style.cssText =
