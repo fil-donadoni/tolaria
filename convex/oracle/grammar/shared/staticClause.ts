@@ -277,6 +277,12 @@ export type StaticClauseIR =
     /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
+    /** CR 702.8a + CR 307.1 + CR 603.7a — "You may cast this spell as though
+     *  it had flash. If you cast it any time a sorcery couldn't have been
+     *  cast, the controller of the permanent it becomes sacrifices it at the
+     *  beginning of the next cleanup step." Lowered to `castAsThoughFlash`
+     *  and an entered trigger gated on the cast-time timing snapshot. */
+    | { readonly kind: "flash-cast-cleanup-sacrifice" }
     /** CR 614.1a — "If <self> would be put into a graveyard from anywhere,
      *  reveal <self> and shuffle it into its owner's library instead".
      *  Lowered to `shuffleFromAnywhere`. */
@@ -1977,6 +1983,32 @@ const playerShroudRule: Rule<StaticClauseIR> = pattern(
     (): RuleResult<StaticClauseIR> => ok({ kind: "player-shroud" as const })
 );
 
+// ── Frame: flash permission with an off-timing sacrifice (CR 702.8a) ───────
+
+/**
+ * The Mirage/Visions template, whole: "You may cast this spell as though it
+ * had flash. If you cast it any time a sorcery couldn't have been cast, the
+ * controller of the permanent it becomes sacrifices it at the beginning of
+ * the next cleanup step." (Spider Climb, Parapet, Necromancy.) Two sentences,
+ * ONE ability: the permission (CR 702.8a's "any time you could cast an
+ * instant", granted without the keyword) and the price of using it, keyed on
+ * the timing USED (CR 307.1 — when a sorcery could have been cast), with a
+ * CR 603.7a delayed sacrifice at the cleanup step (CR 514.3a). The first
+ * sentence alone (Rout's "as though it had flash" with a surcharge) and an
+ * end-step or "destroy" variant differ from the anchored text and stay
+ * refused.
+ */
+const FLASH_CAST_CLEANUP_SACRIFICE =
+    "You may cast this spell as though it had flash. If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step";
+
+const flashCastCleanupSacrificeRule: Rule<StaticClauseIR> = rule(
+    "flash cast cleanup sacrifice",
+    (span): RuleResult<StaticClauseIR> =>
+        span === FLASH_CAST_CLEANUP_SACRIFICE
+            ? ok({ kind: "flash-cast-cleanup-sacrifice" as const })
+            : fail("not the flash-cast cleanup-sacrifice template", span)
+);
+
 // ── The clause ─────────────────────────────────────────────────────────────
 
 export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
@@ -2009,6 +2041,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         extraLandDropRule,
         asEntersDiscardRule,
         playerShroudRule,
+        flashCastCleanupSacrificeRule,
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
         selfConditionalPumpRule,

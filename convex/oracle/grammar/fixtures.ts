@@ -7891,4 +7891,193 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.8a + CR 603.7a — the Mirage flash permission and its off-timing
+    // cleanup sacrifice. Exhibits `delayedTrigger` capturing `$source` and the
+    // `sacrifice` of that capture, armed by an entered trigger gated on
+    // `castOffSorceryTiming` (issue #5256).
+    {
+        rule: "flash cast cleanup sacrifice",
+        card: {
+            oracleId: "2636aafa-83f9-4b72-b729-04e1c3aa0eec",
+            name: "Spider Climb",
+            manaCost: "{G}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "You may cast this spell as though it had flash. If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step.\nEnchant creature\nEnchanted creature gets +0/+3 and has reach. (It can block creatures with flying.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Spider Climb",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { G: 1 },
+            oracleText:
+                "You may cast this spell as though it had flash. If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step.\nEnchant creature\nEnchanted creature gets +0/+3 and has reach. (It can block creatures with flying.)",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spider-climb-cleanup-sacrifice",
+                    oracleText:
+                        "If you cast it any time a sorcery couldn't have been cast, the controller of the permanent it becomes sacrifices it at the beginning of the next cleanup step.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "cast-off-sorcery-timing" },
+                    effects: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-cleanup-step",
+                            oracleText:
+                                "At the beginning of the next cleanup step, the controller of this permanent sacrifices it.",
+                            capture: { $becomes: { ref: "$source" } },
+                            effects: [
+                                {
+                                    op: "sacrifice",
+                                    target: { ref: "$becomes" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 0, toughness: 3 },
+                { kind: "keyword-grant", appliesTo: "host", keyword: "reach" },
+            ],
+            castAsThoughFlash: true,
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 603.7a + CR 111.1 — "Sacrifice it at the beginning of the next end
+    // step" after a token is created: the delayed body sacrifices the token
+    // `createToken` bound (issue #5256).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c5f5b7e5-af1e-4c8a-8d44-3e2152955d4e",
+            name: "Tidal Wave",
+            manaCost: "{2}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Create a 5/5 blue Wall creature token with defender. Sacrifice it at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tidal Wave",
+            types: ["Instant"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Create a 5/5 blue Wall creature token with defender. Sacrifice it at the beginning of the next end step.",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Wall",
+                        types: ["Creature"],
+                        subtypes: ["Wall"],
+                        power: 5,
+                        toughness: 5,
+                        colors: ["U"],
+                        staticAbilities: ["defender"],
+                    },
+                    controller: "controller",
+                    bind: "$that1",
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Sacrifice it at the beginning of the next end step.",
+                    capture: { $captured: { ref: "$that1" } },
+                    effects: [
+                        { op: "sacrifice", target: { ref: "$captured" } },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.7a + CR 111.1 — "Exile it at the beginning of the next end step"
+    // after a token is created, on an activated ability: the delayed body
+    // exiles the token `createToken` bound (issue #5256).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "650949ca-609b-46c5-bc6b-6f782cdcb6d2",
+            name: "Rakdos Guildmage",
+            manaCost: "{B/R}{B/R}",
+            typeLine: "Creature — Zombie Shaman",
+            oracleText:
+                "({B/R} can be paid with either {B} or {R}.)\n{3}{B}, Discard a card: Target creature gets -2/-2 until end of turn.\n{3}{R}: Create a 2/1 red Goblin creature token with haste. Exile it at the beginning of the next end step.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rakdos Guildmage",
+            types: ["Creature"],
+            subtypes: ["Zombie", "Shaman"],
+            manaCost: {
+                hybrid: [
+                    ["B", "R"],
+                    ["B", "R"],
+                ],
+            },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "({B/R} can be paid with either {B} or {R}.)\n{3}{B}, Discard a card: Target creature gets -2/-2 until end of turn.\n{3}{R}: Create a 2/1 red Goblin creature token with haste. Exile it at the beginning of the next end step.",
+            activatedAbilities: [
+                {
+                    id: "rakdos-guildmage-ability",
+                    oracleText:
+                        "{3}{B}, Discard a card: Target creature gets -2/-2 until end of turn.",
+                    cost: {
+                        mana: { X: 3, B: 1 },
+                        discardFilter: { filter: {}, count: 1 },
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { target: 0 },
+                            power: -2,
+                            toughness: -2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+                {
+                    id: "rakdos-guildmage-ability-2",
+                    oracleText:
+                        "{3}{R}: Create a 2/1 red Goblin creature token with haste. Exile it at the beginning of the next end step.",
+                    cost: { mana: { X: 3, R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Goblin",
+                                types: ["Creature"],
+                                subtypes: ["Goblin"],
+                                power: 2,
+                                toughness: 1,
+                                colors: ["R"],
+                                staticAbilities: ["haste"],
+                            },
+                            controller: "controller",
+                            bind: "$that1",
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Exile it at the beginning of the next end step.",
+                            capture: { $captured: { ref: "$that1" } },
+                            effects: [
+                                { op: "exile", target: { ref: "$captured" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

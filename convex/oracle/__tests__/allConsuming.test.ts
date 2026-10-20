@@ -36,8 +36,13 @@ import { oracleCard } from "./oracle.fixture";
  * file. A grammar change that makes this clause readable must replace it, and
  * the replacement must fail the `is genuinely unreadable on its own` case
  * below before it is trusted here.
+ *
+ * It was `"Exile it at the beginning of the next end step."` until issue
+ * #5256 taught the effect grammar that sentence (CR 603.7a). Its replacement
+ * is an ante sentence: ante is out of scope (ADR 0010), so no rule will ever
+ * read it.
  */
-const UNREADABLE_CLAUSE = "Exile it at the beginning of the next end step.";
+const UNREADABLE_CLAUSE = "Ante the top card of your library.";
 
 function mutate(card: OracleCard, oracleText: string): OracleCard {
     return { ...card, oracleText };
