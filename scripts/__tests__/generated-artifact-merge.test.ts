@@ -18,7 +18,9 @@ import {
     OTHER_MERGE_DRIVERS,
     planResolution,
     REGENERATE_MARKER,
+    matchesUnregeneratedPattern,
     REGENERATED_ARTIFACTS,
+    UNREGENERATED_DATA,
 } from "../lib/generated-artifacts";
 import { CORPUS_PATH } from "../oracle-corpus";
 import {
@@ -122,6 +124,49 @@ describe("generated-artifact class — wiring", () => {
             expect(
                 info.ignored,
                 `${artifact.path} is regenerated but not in .prettierignore — add it, and make its generator write the committed form`
+            ).toBe(true);
+        }
+    });
+
+    // Issue #6116: a new `data/` file is classified in the PR that adds it —
+    // regenerated, driven, or a row saying why neither — so no generated
+    // artefact reaches the default text merge by omission.
+    it("every tracked data/ file has exactly one classification", () => {
+        const tracked = spawnSync("git", ["ls-files", "data"], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        })
+            .stdout.split("\n")
+            .filter((p) => p !== "");
+        const problems: string[] = [];
+        for (const path of tracked) {
+            const rows = [
+                ...REGENERATED_ARTIFACTS.filter((a) => a.path === path).map(
+                    () => "REGENERATED_ARTIFACTS"
+                ),
+                ...OTHER_MERGE_DRIVERS.filter((a) => a.path === path).map(
+                    () => "OTHER_MERGE_DRIVERS"
+                ),
+                ...UNREGENERATED_DATA.filter((r) =>
+                    matchesUnregeneratedPattern(r.pattern, path)
+                ).map((r) => `UNREGENERATED_DATA ${r.pattern}`),
+            ];
+            if (rows.length !== 1)
+                problems.push(
+                    `${path}: ${rows.length === 0 ? "no row" : rows.join(" + ")}`
+                );
+        }
+        expect(
+            problems,
+            "classify every data/ file in scripts/lib/generated-artifacts.ts (REGENERATED_ARTIFACTS, OTHER_MERGE_DRIVERS or UNREGENERATED_DATA):\n" +
+                problems.join("\n")
+        ).toEqual([]);
+        for (const row of UNREGENERATED_DATA) {
+            expect(
+                tracked.some((p) =>
+                    matchesUnregeneratedPattern(row.pattern, p)
+                ),
+                `UNREGENERATED_DATA ${row.pattern} matches no tracked file — delete the row`
             ).toBe(true);
         }
     });

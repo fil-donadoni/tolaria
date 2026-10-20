@@ -105,31 +105,19 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     #6116): whole-file mirrors of the `CLAUDE.md` sources and
  *     `.claude/rules/*.md`, re-derived offline by `agents:build`, so any two
  *     PRs that edit a source collide in the mirror while the sources merge.
- *   - `data/catalogue/shard-dictionary.json` — whole-file state, NOT in this
- *     class: it is sticky BY DESIGN (every client shard URL derives from it),
- *     regenerated only on purpose by `catalogue:shard-dictionary`. Re-deriving
- *     it at every rebased tip would move every shard URL as a side effect.
- *   - `data/oracle-state-regressions.json` — NOT in this class: its entries'
- *     `reason` and disposition are written by a human through
- *     `oracle:mark-regressions --acknowledge`; only stale-entry pruning is
- *     mechanical, and that runs after merge (issue #6061).
- *   - `data/ai-effects-inert.json` — IMMUNE BY SHAPE, as its allowlist
- *     sibling above (same writer, same per-row sorted form).
- *   - `data/bot-reach-findings.json` — per-row and prettier-ignored, but NOT
- *     re-derivable inside a rebase: its generator is a full Bot sweep.
- *   - `data/premodern-metagame-decks*.json`, `data/cr/VERSION.json`,
- *     `data/cr/comprehensive-rules.txt`, `data/verdicts.lock.json` — NOT
- *     re-derivable offline (network, or self-play); each moves only in a
- *     deliberate refresh PR.
- *   - `data/boosters/*.json`, `convex/cubes/vintageCubeNames.ts` — one-shot
- *     importer output, one file per set / cube that no two PRs share.
+ *   - Every OTHER tracked file under `data/` — generated or not — is a row of
+ *     {@link UNREGENERATED_DATA} with its reason (issue #6116): sticky by
+ *     design, human-written, not re-derivable offline, one-shot importer
+ *     output, a blob, or hand input.
  *
- * THE NORM FOR A NEW ONE (issue #6116). A script that writes a committed file
- * classifies it HERE in the same PR: a row of {@link REGENERATED_ARTIFACTS}
- * (re-derivable offline — its `.gitattributes` row, and its path in
- * `.prettierignore` so the generator's bytes ARE the committed bytes and a
- * regeneration never needs a format step), a row of {@link
- * OTHER_MERGE_DRIVERS}, or a bullet above saying why it is neither. A
+ * THE NORM FOR A NEW ONE (issue #6116). A new committed file under `data/` —
+ * and any script-written committed file elsewhere — is classified HERE in the
+ * same PR: a row of {@link REGENERATED_ARTIFACTS} (re-derivable offline — its
+ * `.gitattributes` row, and its path in `.prettierignore` so the generator's
+ * bytes ARE the committed bytes and a regeneration never needs a format
+ * step), a row of {@link OTHER_MERGE_DRIVERS}, or a row of {@link
+ * UNREGENERATED_DATA} saying why it is neither. `generated-artifact-merge.test.ts`
+ * reds on a `data/` path with no row, so the choice cannot be skipped. A
  * conflict on an unclassified generated file is a repair pass spent on bytes
  * nobody chose.
  */
@@ -312,6 +300,164 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
             "both sides only inserted is concatenated, anything else stays a conflict",
     })),
 ] as const;
+
+/** Why a tracked `data/` file is neither regenerated nor driven. */
+export type UnregeneratedKind =
+    /** Per-row, sorted, no whole-file state: two PRs touch disjoint hunks. */
+    | "immune-by-shape"
+    /** Re-derivable, but moving it at a rebased tip would be a side effect. */
+    | "sticky"
+    /** Its generator needs the network, a deployment or a Bot sweep. */
+    | "not-offline"
+    /** Written by a person (or by a script recording a person's decision). */
+    | "human-input"
+    /** One importer run per file; no two PRs share it. */
+    | "one-shot"
+    /** A binary, content-addressed by name: git cannot conflict in it. */
+    | "blob";
+
+/** A tracked `data/` file (or every file directly under a `dir/*`) that is
+ *  out of both classes above, with its reason (issue #6116). */
+export interface UnregeneratedData {
+    /** A repo-relative path, or `<dir>/*` for every file directly in `<dir>`. */
+    readonly pattern: string;
+    readonly kind: UnregeneratedKind;
+    readonly why: string;
+}
+
+/**
+ * Every tracked `data/` file outside {@link REGENERATED_ARTIFACTS} and {@link
+ * OTHER_MERGE_DRIVERS}. Exhaustive by test: a `data/` path with no row reds
+ * `generated-artifact-merge.test.ts`, so a new artefact is classified in the
+ * PR that adds it — never left to the default text merge by omission.
+ */
+export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
+    {
+        pattern: "data/card-index.json",
+        kind: "immune-by-shape",
+        why: "one row per card sorted by name, a PR adds its card once; regenerating needs Scryfall",
+    },
+    {
+        pattern: "data/ai-effects-allowlist.json",
+        kind: "immune-by-shape",
+        why: "aiEffects baseline, per-row sorted by class then name (issue #3017)",
+    },
+    {
+        pattern: "data/ai-effects-inert.json",
+        kind: "immune-by-shape",
+        why: "the allowlist's sibling: same writer (`ai:allowlist`), same per-row sorted form",
+    },
+    {
+        pattern: "data/catalogue/shard-dictionary.json",
+        kind: "sticky",
+        why: "every client shard URL derives from it; `catalogue:shard-dictionary` moves it on purpose only",
+    },
+    {
+        pattern: "data/bot-reach-findings.json",
+        kind: "not-offline",
+        why: "written by a full Bot sweep (`bot:reach`), never inside a rebase",
+    },
+    {
+        pattern: "data/grammar-gaps.json",
+        kind: "not-offline",
+        why: "`gaps:sync` records the GitHub issues it files there",
+    },
+    {
+        pattern: "data/oracle-corpus.pin.json",
+        kind: "not-offline",
+        why: "pins a downloaded corpus; moves only in a deliberate re-pin PR",
+    },
+    {
+        pattern: "data/premodern-metagame-decks.json",
+        kind: "not-offline",
+        why: "`metagame:import --refresh` fetches mtgtop8",
+    },
+    {
+        pattern: "data/premodern-metagame-decks.pin.json",
+        kind: "not-offline",
+        why: "the metagame import's fetch pin (`fetchedAt`)",
+    },
+    {
+        pattern: "data/cr/VERSION.json",
+        kind: "not-offline",
+        why: "`cr:sync` downloads the Comprehensive Rules (ADR 0098)",
+    },
+    {
+        pattern: "data/cr/comprehensive-rules.txt",
+        kind: "not-offline",
+        why: "the vendored CR itself, written by `cr:sync` (ADR 0098)",
+    },
+    {
+        pattern: "data/verdicts.lock.json",
+        kind: "not-offline",
+        why: "`verdicts:promote` derives it from self-play and blade runs",
+    },
+    {
+        pattern: "data/oracle-retirements.json",
+        kind: "human-input",
+        why: "each retirement is a decision (`oracle:retire` records it); a conflict is a judgement call",
+    },
+    {
+        pattern: "data/oracle-state-regressions.json",
+        kind: "human-input",
+        why: "entries carry a human-written reason (`--acknowledge`); stale ones are pruned after merge (issue #6061)",
+    },
+    {
+        pattern: "data/targets.json",
+        kind: "human-input",
+        why: "the owner's Enforced Targets",
+    },
+    {
+        pattern: "data/prints-rarity-overrides.json",
+        kind: "human-input",
+        why: "hand-curated rarity corrections",
+    },
+    {
+        pattern: "data/premodern-tier1-decks.json",
+        kind: "human-input",
+        why: "hand-curated Tier 1 deck lists",
+    },
+    {
+        pattern: "data/worklists/*",
+        kind: "human-input",
+        why: "card lists a person wrote for an import or a rollout",
+    },
+    {
+        pattern: "data/json/*",
+        kind: "one-shot",
+        why: "MTGJSON set dumps, one file per set",
+    },
+    {
+        pattern: "data/boosters/*",
+        kind: "one-shot",
+        why: "`import-booster-config.ts` output, one file per set",
+    },
+    {
+        pattern: "data/pick-ratings/*",
+        kind: "one-shot",
+        why: "one rating table per format",
+    },
+    {
+        pattern: "data/card-profiles/*",
+        kind: "one-shot",
+        why: "one card-profile table per format",
+    },
+    {
+        pattern: "data/full-catalogue/*",
+        kind: "blob",
+        why: "gzip, content-addressed by name (issue #3500); `catalogue:build` needs Scryfall",
+    },
+] as const;
+
+/** Whether `path` is matched by an {@link UnregeneratedData} pattern. */
+export function matchesUnregeneratedPattern(
+    pattern: string,
+    path: string
+): boolean {
+    if (!pattern.endsWith("/*")) return pattern === path;
+    const dir = pattern.slice(0, -1);
+    return path.startsWith(dir) && !path.slice(dir.length).includes("/");
+}
 
 /**
  * Marker the merge driver appends resolved paths to, resolved through
