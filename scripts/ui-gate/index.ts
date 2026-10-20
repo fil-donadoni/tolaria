@@ -26,7 +26,10 @@
  *      same file the manual runbook points at) and axe-core;
  *   5. holds every Floor at zero (`floors.ts`, ADR 0132) and exits non-zero on
  *      a broken Floor OR on a coverage hole. Shape Readings are printed, never
- *      compared.
+ *      compared;
+ *   6. screenshots a FAILING cell only, its offenders outlined, and posts the
+ *      run's shots as one comment on the branch's PR or issue
+ *      (`failure-shot.ts`, `publish-shots.ts`, issue #6145) — never a verdict.
  *
  * COVERAGE IS AN ASSERTION, NOT A BEST EFFORT. A surface that could not be
  * reached — the scenario row is missing, an active game blocks the route,
@@ -72,6 +75,9 @@
  *                                                        # the machine sized
  *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
  *                                                        # against another ref
+ *   bun run check:ui -- --no-publish                     # keep failure shots
+ *                                                        # local (no PR/issue
+ *                                                        # comment)
  *
  * SPEED IS SIZED TO THE MACHINE (issue #3653, re-sized in #4687). The five
  * viewports are walked `viewportParallelism(ncpu, totalMemory)` at a time —
@@ -125,9 +131,11 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import {
+    brokenFloors,
     readingsOf,
     UNWALKED_SURFACES,
     type AxeCount,
+    type Offender,
     type ProbeResult,
     type Readings,
     type SquareExample,
@@ -246,6 +254,18 @@ import {
 } from "./settle.ts";
 import { runSettleSelfCheck } from "./settle-selfcheck.ts";
 import {
+    assertAndShoot,
+    shotFileName,
+    type FailedCell,
+    type OutlineSpec,
+} from "./failure-shot.ts";
+import {
+    orderCells,
+    publishEnv,
+    publishFailedShots,
+    spawnGh,
+} from "./publish-shots.ts";
+import {
     cellTimingSuffix,
     emptyTimings,
     phaseSummaryLines,
@@ -257,8 +277,10 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
 const PROBE_PATH = path.join(HERE, "probe.js");
+const OVERLAY_PATH = path.join(HERE, "overlay.js");
 const AXE_PATH = path.join(REPO_ROOT, "node_modules", "axe-core", "axe.min.js");
-/** Each run writes under `<root>/<runId>/` (issue #3626). */
+/** Each run writes its failure shots under `<root>/<runId>/` (issue #3626,
+ *  failing cells only since issue #6145). */
 const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
@@ -324,6 +346,8 @@ interface MeasuredCell {
     probe: ProbeResult;
     axe: AxeCount;
     asserts: readonly AssertResult[];
+    /** Whether the attempt wrote a failure shot (issue #6145). */
+    shot: boolean;
 }
 
 function loadAverage(): number {
@@ -679,6 +703,28 @@ async function runProbe(page: Page): Promise<ProbeResult> {
     return (await page.evaluate("window.__tolariaProbe()")) as ProbeResult;
 }
 
+const OVERLAY_SOURCE = fs.readFileSync(OVERLAY_PATH, "utf8");
+
+/**
+ * A failing cell's one screenshot (issue #6145): the offenders outlined by
+ * `overlay.js`, at CSS pixels — a third to a ninth of the device-pixel PNG,
+ * which is what keeps the PR comment light — and the overlay removed again
+ * before anything else reads the page.
+ */
+async function shootOutlined(
+    page: Page,
+    spec: OutlineSpec,
+    file: string
+): Promise<void> {
+    await page.addScriptTag({ content: OVERLAY_SOURCE });
+    try {
+        await page.evaluate(`window.__tolariaOutline(${JSON.stringify(spec)})`);
+        await page.screenshot({ path: file, scale: "css" });
+    } finally {
+        await page.evaluate("window.__tolariaOutlineClear()").catch(() => {});
+    }
+}
+
 /** `axe-core` in the page. Shared with the Named Assertions' `contrast` check
  *  (`assertions.ts`), which runs the same library over one subtree. */
 async function injectAxe(page: Page): Promise<void> {
@@ -706,16 +752,39 @@ async function runAxe(page: Page): Promise<AxeCount> {
                 violations: r.violations.map((v) => ({
                     id: v.id,
                     impact: v.impact,
-                    // Kept for the operator, not for the Floor: a red line
-                    // that only names a rule id sends the reader back to a
-                    // browser to find the node.
-                    node: (v.nodes[0] && v.nodes[0].html || "").slice(0, 120),
                 })),
+                // WHERE each serious or critical violation is (issue #6145):
+                // its nodes' targets, located, so a failure shot outlines
+                // them. A target inside a shadow root or a frame is a nested
+                // array, and is kept unlocated (w -1) rather than guessed.
+                offenders: r.violations
+                    .filter((v) => v.impact === "serious" || v.impact === "critical")
+                    .flatMap((v) =>
+                        v.nodes.slice(0, 6).map((n) => {
+                            const sel = typeof n.target[0] === "string" ? n.target[0] : "";
+                            let el = null;
+                            try { el = sel ? document.querySelector(sel) : null; } catch (e) {}
+                            const b = el ? el.getBoundingClientRect() : null;
+                            return {
+                                floor: v.impact === "critical" ? "axeCritical" : "axeSerious",
+                                sel: (sel || String(n.target)).slice(0, 80),
+                                t: "",
+                                // -1: unlocated — named on the banner, never
+                                // drawn as a box at the origin.
+                                x: b ? Math.round(b.left) : -1,
+                                y: b ? Math.round(b.top) : -1,
+                                w: b ? Math.round(b.width) : -1,
+                                h: b ? Math.round(b.height) : -1,
+                                why: v.id,
+                            };
+                        })
+                    ),
             };
         })()`
     )) as {
         exempt: number;
-        violations: { id: string; impact: string | null; node: string }[];
+        violations: { id: string; impact: string | null }[];
+        offenders: Offender[];
     };
     const serious = result.violations.filter((v) => v.impact === "serious");
     const critical = result.violations.filter((v) => v.impact === "critical");
@@ -724,6 +793,7 @@ async function runAxe(page: Page): Promise<AxeCount> {
         critical: critical.length,
         ids: [...new Set([...critical, ...serious].map((v) => v.id))],
         exempt: result.exempt,
+        offenders: result.offenders,
     };
 }
 
@@ -748,6 +818,9 @@ interface Options {
     base: string;
     /** `--serve=dev|build`: the dev server or a production build (issue #4687). */
     serve: ServeMode;
+    /** `--no-publish`: keep the failure shots local instead of commenting
+     *  them on the PR or issue (issue #6145). */
+    publish: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -760,6 +833,7 @@ function parseArgs(argv: string[]): Options {
         parallel: null,
         base: ORIGIN_BASE,
         serve: DEFAULT_SERVE,
+        publish: true,
     };
     for (const arg of argv) {
         // `--record` and `--accept=` died with the budget file (ADR 0132): a
@@ -768,6 +842,7 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--keep-user") opts.keepUser = true;
         else if (arg === "--scope-only") opts.scopeOnly = true;
         else if (arg === "--all") opts.all = true;
+        else if (arg === "--no-publish") opts.publish = false;
         else if (arg.startsWith("--base=")) {
             opts.base = arg.slice("--base=".length);
         } else if (arg.startsWith("--serve=")) {
@@ -807,6 +882,15 @@ function git(args: string[]): string {
         );
     }
     return r.stdout;
+}
+
+/** `git` for a fact the run can do without: trimmed stdout, or null. */
+function gitOrNull(args: string[]): string | null {
+    try {
+        return git(args).trim() || null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -1011,6 +1095,9 @@ async function main(): Promise<number> {
     // The RUN's id, not an account's: the screenshots outlive every account the
     // run owned, and there are `uncappedSize` of those.
     const shotDir = runScreenshotDir(SHOT_ROOT, newRunId());
+    /** Every cell that was shot, in the order cells finished; the publish
+     *  step re-orders them (issue #6145). */
+    const failedCells: FailedCell[] = [];
 
     // Not `let server: AppServer | null = null`: it is assigned inside the
     // `withLaneAccount` callback, and an annotated `null` initialiser narrows
@@ -1355,27 +1442,41 @@ async function main(): Promise<number> {
                             }
                         }
 
-                        const shot = path.join(
+                        // Shot only on failure, outlined (issue #6145). The
+                        // assertions run AFTER the probe, axe and a Floor's
+                        // shot, never before: a `reachable` check scrolls its
+                        // element into view, and the measurement above has to
+                        // be taken on the screen as the walk found it.
+                        const shotPath = path.join(
                             shotDir,
-                            `${surface.id}__${viewport.id}.png`
+                            shotFileName(surface.id, viewport.id)
                         );
-                        await timed(t, "screenshot", () =>
-                            p.screenshot({ path: shot })
-                        );
-                        // AFTER the probe, axe and the screenshot, never
-                        // before: a `reachable` check scrolls its element
-                        // into view, and the measurement above has to be
-                        // taken on the screen as the walk found it.
-                        const asserts = await timed(t, "assertions", () =>
-                            evaluateAssertions(p, surface.asserts ?? [], {
-                                viewport: {
-                                    width: viewport.width,
-                                    height: viewport.height,
-                                },
-                                ensureAxe: () => injectAxe(p),
-                            })
-                        );
-                        return { kind: "ok", value: { ...measured, asserts } };
+                        const { asserts, shot } = await assertAndShoot({
+                            probe: measured.probe,
+                            axe: measured.axe,
+                            shoot: (spec) =>
+                                timed(t, "screenshot", () =>
+                                    shootOutlined(p, spec, shotPath)
+                                ),
+                            assertions: () =>
+                                timed(t, "assertions", () =>
+                                    evaluateAssertions(
+                                        p,
+                                        surface.asserts ?? [],
+                                        {
+                                            viewport: {
+                                                width: viewport.width,
+                                                height: viewport.height,
+                                            },
+                                            ensureAxe: () => injectAxe(p),
+                                        }
+                                    )
+                                ),
+                        });
+                        return {
+                            kind: "ok",
+                            value: { ...measured, asserts, shot },
+                        };
                     };
 
                     /**
@@ -1530,6 +1631,28 @@ async function main(): Promise<number> {
                                 readings,
                                 asserts,
                             });
+                            if (outcome.value.shot) {
+                                failedCells.push({
+                                    surface: surface.id,
+                                    viewport: viewport.id,
+                                    floors: brokenFloors(readings),
+                                    asserts: asserts
+                                        .filter((a) => !a.ok)
+                                        .map((a) => a.label),
+                                    file: shotFileName(surface.id, viewport.id),
+                                });
+                            }
+                        }
+                        // A shot an earlier, abandoned attempt wrote is not
+                        // this cell's: only a failing outcome keeps one.
+                        if (!(outcome.kind === "ok" && outcome.value.shot)) {
+                            fs.rmSync(
+                                path.join(
+                                    shotDir,
+                                    shotFileName(surface.id, viewport.id)
+                                ),
+                                { force: true }
+                            );
                         }
 
                         // Issue #2671 review round 2 MUST-FIX: this used to sit inside
@@ -1783,7 +1906,7 @@ async function main(): Promise<number> {
                         ? "shell return band: absent on every walk — no controls excluded"
                         : `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`;
                 const wallMs = Date.now() - startedAt;
-                return printReceipt(
+                const exitCode = printReceipt(
                     evaluate(knownIds, collected.walks, diffScope),
                     [
                         machineLoadLine(loadAtStart, loadAverage()),
@@ -1797,12 +1920,31 @@ async function main(): Promise<number> {
                         ...consoleErrors
                             .slice(0, 10)
                             .map((line) => `  ${line}`),
-                        `screenshots: ${path.relative(REPO_ROOT, shotDir)}/`,
+                        `failure shots: ${failedCells.length === 0 ? "none" : `${failedCells.length} in ${path.relative(REPO_ROOT, shotDir)}/`}`,
                         ...phaseSummaryLines(collected.timings, wallMs),
                         `wall time: ${Math.round(wallMs / 1000)}s`,
                     ],
                     ""
                 );
+                // After the receipt, outside it, and never a verdict: a
+                // comment that could not be posted changes no exit code.
+                publishFailedShots(
+                    orderCells(failedCells, VIEWPORT_IDS, SURFACE_IDS),
+                    {
+                        dir: shotDir,
+                        branch: gitOrNull([
+                            "rev-parse",
+                            "--abbrev-ref",
+                            "HEAD",
+                        ]),
+                        head: gitOrNull(["rev-parse", "--short", "HEAD"]),
+                        gh: spawnGh,
+                        env: publishEnv(),
+                        log,
+                        disabled: !opts.publish,
+                    }
+                );
+                return exitCode;
             } finally {
                 // Closed BEFORE the account is torn down, so no page is still
                 // subscribed to rows the teardown is deleting.
