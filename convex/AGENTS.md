@@ -289,6 +289,14 @@ forgot. Derivation: the module's doc comment.
   helpers from `convex/gre/constants.ts` — never local
 - Mana abilities use `useStack: false` (CR 605.3b)
 
+## Doc comments: the mechanism, not an issue log (issue #6170)
+
+Say what the code reads and why; history is git's. A comment block naming 3+
+distinct `issue #N` is refused by `bun run check:issue-log-comments`; one
+`(issue #N)` pointer is fine. Legacy blocks sit in
+`data/issue-log-comments-baseline.json` (only shrinks; `-- --update` drops
+rewritten ones).
+
 ## Primitive reuse (mandatory)
 
 Target scale ~80k cards — one primitive per card does not scale. Before adding

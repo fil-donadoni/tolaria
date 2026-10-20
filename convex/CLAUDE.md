@@ -283,20 +283,13 @@ forgot. Derivation: the module's doc comment.
   helpers from `convex/gre/constants.ts` — never local
 - Mana abilities use `useStack: false` (CR 605.3b)
 
-## Doc comments describe the mechanism, not an issue log (issue #6170)
+## Doc comments: the mechanism, not an issue log (issue #6170)
 
-A comment says what the code reads and why, never the history of the issues
-that shaped it — that is git's and the PRs'. Each slice appending its own
-`Issue #N — …` sentence to one docstring makes siblings in flight conflict by
-construction (PR #6135's rebase conflict was two such sentences in
-`gre/ai/opValuers.ts`). A single `(issue #N)` pointer to a decision stays
-allowed; **a comment block naming 3+ distinct `issue #N` refs is refused** by
-`bun run check:issue-log-comments` (~1 s, a lane guard).
-
-The existing blocks sit in `data/issue-log-comments-baseline.json`, a ratchet
-that only shrinks: editing a legacy block makes it a new block, so rewrite it
-to state the mechanism. After deleting or rewriting one, `bun run
-check:issue-log-comments -- --update` drops its stale key; adding a key reds.
+Say what the code reads and why; history is git's. A comment block naming 3+
+distinct `issue #N` is refused by `bun run check:issue-log-comments`; one
+`(issue #N)` pointer is fine. Legacy blocks sit in
+`data/issue-log-comments-baseline.json` (only shrinks; `-- --update` drops
+rewritten ones).
 
 ## Primitive reuse (mandatory)
 
