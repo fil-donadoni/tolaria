@@ -15,6 +15,7 @@ import {
     heavyHolderRunning,
     MachineSaturatedError,
     readUiLaneOwner,
+    stampUiLaneProgress,
     uiLaneWhoLines,
 } from "../lib/ui-admission";
 import type { MachineSample } from "../lib/machine-admission";
@@ -136,6 +137,34 @@ describe("uiLaneWhoLines", () => {
         expect(live).toMatch(/holder pid alive/);
         const dead = uiLaneWhoLines(root, Date.now(), () => false).join("\n");
         expect(dead).toMatch(/holder is dead/);
+    });
+});
+
+describe("stampUiLaneProgress (issue #6072) — a waiter sees what the holder is DOING", () => {
+    it("puts the holder's live progress, and its age, on the who line", async () => {
+        await acquireUiLane(inProcess({ pid: 2002, cwd: "/wt-b" }));
+        stampUiLaneProgress(root, 2002, "♥ 3m00s · 12/155 cells", 10_000);
+        const line = uiLaneWhoLines(root, 52_000, () => true)[0];
+        expect(line).toMatch(
+            /pid 2002 .* · progress 42s ago: ♥ 3m00s · 12\/155 cells$/
+        );
+    });
+
+    it("never stamps a lane another pid holds, and keeps the owner's other fields", async () => {
+        await acquireUiLane(inProcess({ pid: 3003, cwd: "/wt-c" }));
+        stampUiLaneProgress(root, 9999, "not mine");
+        expect(readUiLaneOwner(root)?.progress).toBeUndefined();
+        stampUiLaneProgress(root, 3003, "mine");
+        expect(readUiLaneOwner(root)).toMatchObject({
+            pid: 3003,
+            cwd: "/wt-c",
+            progress: "mine",
+        });
+    });
+
+    it("is a no-op on a free lane", () => {
+        stampUiLaneProgress(root, 4004, "nobody");
+        expect(readUiLaneOwner(root)).toBeNull();
     });
 });
 
