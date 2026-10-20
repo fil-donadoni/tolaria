@@ -109,6 +109,9 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     {@link UNREGENERATED_DATA} with its reason (issue #6116): sticky by
  *     design, human-written, not re-derivable offline, one-shot importer
  *     output, a blob, or hand input.
+ *   - `convex/cubes/vintageCubeNames.ts` — the one script-written file outside
+ *     `data/`: one-shot output of `scripts/gen-vintage-cube.ts`, no two PRs
+ *     share it.
  *
  * THE NORM FOR A NEW ONE (issue #6116). A new committed file under `data/` —
  * and any script-written committed file elsewhere — is classified HERE in the
@@ -434,13 +437,13 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
     },
     {
         pattern: "data/pick-ratings/*",
-        kind: "one-shot",
-        why: "one rating table per format",
+        kind: "human-input",
+        why: "the checked-in seed layer under the Admin-editable Pick Ratings (`cardRatings`)",
     },
     {
         pattern: "data/card-profiles/*",
-        kind: "one-shot",
-        why: "one card-profile table per format",
+        kind: "human-input",
+        why: "per-card profiles a person reviews (`reviewed` flag)",
     },
     {
         pattern: "data/full-catalogue/*",

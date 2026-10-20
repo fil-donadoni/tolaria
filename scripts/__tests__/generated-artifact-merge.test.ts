@@ -138,6 +138,10 @@ describe("generated-artifact class — wiring", () => {
         })
             .stdout.split("\n")
             .filter((p) => p !== "");
+        expect(
+            tracked.length,
+            "git ls-files data returned nothing"
+        ).toBeGreaterThan(0);
         const problems: string[] = [];
         for (const path of tracked) {
             const rows = [
