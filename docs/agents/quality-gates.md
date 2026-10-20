@@ -149,7 +149,8 @@ narrowed so a hub cannot drag the suite in: comments stripped, test-file names
 never an input, module names only inside a test file. What it still cannot see
 is a census that walks a DIRECTORY or pattern-matches source text: a tooling
 path that is not a module (`.claude/hooks/*.sh`, `settings.json`,
-`package.json`, `tolaria.config.json`, a `scripts/**/*.json`) still admits
+`package.json`, `tolaria.config.json`, a `scripts/**/*.json`, a
+`.github/{workflows,actions}/**` YAML) still admits
 `node-tooling` **whole**, prose still appends `node[docs]`, and the rest — a
 source-scanning census like `branches.test.ts` or `perf-test-boundary.test.ts`
 — reds at the next health run, the residual risk ADR 0154 accepts. Past 400
@@ -220,7 +221,10 @@ still forces `full`. But `full` is a PLACEMENT, not a fallback (issue #5456):
 `engines` / `packageManager` change, a scripts-only edit is `engine`;
 `.claude/**` non-prose (hooks, settings, skill scripts) is `engine` with the
 tooling test project; `tolaria.config.json`, `.nvmrc`, `.prettierignore`,
-`.gitattributes` are `engine`. The lane fallback rate row of
+`.gitattributes` are `engine`; so are `.github/workflows/**` and
+`.github/actions/**` (issue #6146) — CI YAML read through `fs` by the
+`scripts/__tests__` drift guards, so it admits `node-tooling` whole and runs no
+`dom` and no bot suite (the rest of `.github/` stays `full`). The lane fallback rate row of
 `telemetry:latency` is the acceptance metric: 22 of 168 landings (13 %) on
 2026-10-11, every one a path in that list.
 
