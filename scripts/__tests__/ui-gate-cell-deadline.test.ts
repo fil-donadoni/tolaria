@@ -49,7 +49,7 @@ function cell<T>(
     const log = { deadlines: 0, retries: 0, notes: [] as string[] };
     const deps: CellAttemptDeps<T> = {
         attempt,
-        attemptConsole: () => [],
+        attemptConsole: async () => [],
         reasonOf: (err) => (err as Error).message,
         onDeadline: () => {
             log.deadlines++;
