@@ -1235,6 +1235,23 @@ machines read `machine 1`, `machine 2`. The PRs are searched one day at a
 time (a search answers at most 1000 results), and a timeline is read to its
 newest 100 items, enough for any PR so far.
 
+### queue:churn
+
+`bun run queue:churn --since <date> [--until <date>] [--json]` (issue #6171,
+`scripts/queue-churn.ts`; the arithmetic is the pure `scripts/lib/queue-churn.ts`)
+measures the merge queue's restarts over a window, read-only. A bare date is
+UTC midnight; `--until` defaults to now. It prints, per merged PR:
+
+- [`queue-lane`](#queue-lane) runs, by conclusion (`running` = no conclusion yet);
+- [`pr-refresh`](#pr-refresh) runs (one per push to the base);
+- Mergify dequeues, by cause read off the comment's `## Reason`:
+  `checks-failed`, `conflict`, `manually-updated`, `interrupted`, `other`
+  (e.g. the `ready-to-land` label removed).
+
+Every slice of issue #6164 reports before/after against it. Baseline,
+`--since 2026-10-20 --until 2026-10-20T15:00:00Z`: 14 merges, 30 `queue-lane`
+runs (11 cancelled, 4 failure) = 2.14 per merge, 15 `pr-refresh` runs.
+
 ## The merge queue
 
 `.mergify.yml` (ADR 0156 §3 and §8, Amendment I; issue #5642). Mergify reads
