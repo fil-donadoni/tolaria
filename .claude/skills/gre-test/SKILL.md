@@ -137,7 +137,8 @@ issue #4620). Same shape, different inputs → `it.each`.
 
 ## Running tests
 
-- `bun run test` — run all tests once
+- `bunx vitest run <files>` — run them once
 - `bun run test:watch` — watch mode
 
-After generating tests, run `bun run test` to verify they pass.
+After generating tests, run them with `bunx vitest run` — never the full
+suite pre-PR (ADR 0136 §1).

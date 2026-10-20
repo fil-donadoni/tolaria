@@ -258,7 +258,8 @@ closed issue (issue #1841 — 10 issues, ~22 stubs).
     it, and is read first.
 4.  **Run the guard**: `bunx vitest run
 convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
-    carry a tracking ref) plus `bun run check:pr`. Report any pre-existing red
+    carry a tracking ref) — never `check:pr` (ADR 0136 §1: no pre-PR lane
+    gate, `land` pays it once). Report any pre-existing red
     on `main` as pre-existing, with the culprit commit — never absorb it
     silently, never claim green you didn't see.
 5.  **Open the PR**, listing the tracker → slice mapping as a table.

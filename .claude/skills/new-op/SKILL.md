@@ -39,16 +39,15 @@ finding that out after writing sites 1–7 throws them away.
 | 7   | `convex/gre/ai/opValuers.ts`               | `OP_VALUERS`                                                                                                | ✅ `opValuerCoverage.bot.test.ts` — **BOT suite**, invisible to `bun run test:app`                                                                                    |
 | 7b  | `convex/gre/ai/opValuers.ts`               | `OP_BENEFICENCE` (same file, separate table)                                                                | ✅ `opBeneficenceCensus.bot.test.ts` — **BOT suite**; a `"neutral"` row needs a comment saying WHY (issue #3006)                                                      |
 | 7c  | `convex/gre/ai/choiceDepth.ts`             | `RAISES_RESOLUTION_CHOICE` — `true` iff the executor can `return "suspend"`                                 | ✅ `check:ts` (`Record<EffectOp["op"], boolean>`) — a bare `tsc -p` can miss it                                                                                       |
-| 8   | `convex/oracle/grammar/**` + `fixtures.ts` | the Grammar Rule that emits the Op + its `GOLDEN_FIXTURES` entry                                            | ✅ `check:gaps` — derived Op census, **`health` only** (never `check:pr`/`land`); fixtures by `goldenFixtures.test.ts`                                                |
+| 8   | `convex/oracle/grammar/**` + `fixtures.ts` | the Grammar Rule that emits the Op + its `GOLDEN_FIXTURES` entry                                            | ✅ `check:gaps` — derived Op census, in `land`'s lane (issue #4963); fixtures by `goldenFixtures.test.ts`                                                             |
 
 Sites 2/3/4 are the ones a guard catches within seconds
 (`convex/gre/effects/__tests__/validate.test.ts` asserts the three are
 set-equal); 5, 6 and 7c red `check:ts`. **The ones that bite are 2b/2c, 7/7b
 and 8** — 2b and 2c because nothing checks them at all, 7 and 7b because they
-live in the bot suite (run `bun run check:guards`, not just the app suite), 8
-because its guard runs only in `health`:
-an Op landed without its rule passes `land` and reds the base tip at the next
-batch health, for every session on the machine.
+live in the bot suite, which an `engine`-lane `land` never runs (§ Gate), 8
+because no test suite holds its guard: an Op without its rule reds
+`check:gaps` at `land:ready` at the latest.
 
 7b stopped being a silent hole in issue #3006: every implemented Op now carries
 a sign, is one of `PARAMETRIZED_BENEFICENCE_OPS`, or has an explicit `"neutral"`
@@ -179,9 +178,10 @@ is more work than the Op". Then:
 convex/gre/effects/__tests__/interpreter.test.ts
 convex/cards/__tests__/effectScripts.test.ts
 convex/cards/__tests__/effectScriptSmoke.test.ts
-convex/oracle/__tests__/goldenFixtures.test.ts`, then **`bun run check:pr`**
-(which includes `check:guards` — the bot fast lane where site 7's coverage guard
-lives). A green app suite proves nothing about sites 7 and 7b — both guards run
-in the bot suite — and `check:pr` proves nothing about site 8: `check:gaps`
-runs in `health` only, so its green is the read-back you quote in the PR,
-never something `land` re-derives.
+convex/oracle/__tests__/goldenFixtures.test.ts`, then
+`bunx vitest run --project bot-node
+convex/cards/__tests__/opValuerCoverage.bot.test.ts
+convex/cards/__tests__/opBeneficenceCensus.bot.test.ts` (sites 7/7b: neither
+`land:ready` nor an `engine`-lane `land` runs a bot test, ADR 0154 §3) and
+**`bun run check:gaps`** (site 8, seconds). Never `check:pr` / `check:guards`
+pre-PR (ADR 0136 §1): `land` pays the lane.

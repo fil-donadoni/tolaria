@@ -170,9 +170,8 @@ stupid or stuck.
 | **A new keyword / evasion / combat rule**   | `evaluate.ts`'s creature-quality terms, and the combat tie-breaks in `selectRootMove`                                                                                                                                                                                                                                                                                                               |
 | **Anything in `convex/limited/`**           | `cardProfiles.ts` / `capabilityRegistry.ts` censuses — they are catalogue-wide and go red on an unclassified card                                                                                                                                                                                                                                                                                   |
 
-All of those guards live in the **bot suite**. `bun run test:app` is green while
-they are red — run **`bun run check:guards`** (the `TOLARIA_BOT_FAST=1` lane)
-before opening a PR.
+All of those guards live in the **bot suite**, which `test:app` and an
+`engine`-lane `land` never run (§ Gate).
 
 ## Verification doctrine (this is the part that is easy to get wrong)
 
@@ -185,8 +184,8 @@ before opening a PR.
    blade entry must travel in git with the change it guards, be reviewable in a
    diff, and reproduce on any machine with no deployment. Fixed `iterations`
    (never `timeMs` — wall-clock makes it machine-dependent) + explicit seeds ⇒
-   byte-identical chosen move. Tier `must` blocks CI; `stretch` is report-only
-   for positions the bot isn't expected to solve yet.
+   byte-identical chosen move. Tier `must` gates (§ Gate); `stretch` is
+   report-only for positions the bot isn't expected to solve yet.
 2. **Then a unit test on the decision function** — `selectRootMove`,
    the valuer, the candidate generator — with a hand-built state. Deterministic,
    sub-second, and it names the actual mechanism.
@@ -223,10 +222,16 @@ before opening a PR.
 
 ## Gate
 
-`bunx vitest run <the bot tests you touched>` while iterating, then
-**`bun run check:guards`** (catches the coverage censuses the app suite can't
-see) plus `bun run check:pr`. The `must`-tier blade suite must stay green — a
-regression there is a real regression, not noise.
+No pre-PR lane gate (ADR 0136 §1). In order:
+
+- Iterating: `bunx vitest run <bot tests touched>`; trust a NEW one only green
+  beside a neighbour file (`isolate: false`).
+- Before the PR, green: the bot tests the diff reaches (Bot globs:
+  `bunx vitest run --project bot-node --project bot-dom`; `check:lane --plan`
+  after issue #6149) and **`bun run test:blade`** — no `land` runs blade, an
+  `engine`-lane one no bot test (ADR 0154 §3).
+- Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
+  suites ran twice.
 
 ## Oracle lockfile — `--carry-bot`, never the sweep
 
