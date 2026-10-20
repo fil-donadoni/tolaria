@@ -28,6 +28,7 @@
 // PRD tunes them further against the blade suite in a later slice.
 
 import type {
+    EffectCardFilter,
     EffectOp,
     EffectManaPool,
     EffectMoveZone,
@@ -703,13 +704,13 @@ export function eachStepDifferentialValue(
  *  reads: a non-empty script whose every Op is attributable to the scoped
  *  player alone (`isStepSideOp`) — a draw, a life Op, (issue #5575) an
  *  edict on that player's own permanents, or (issue #5624) a discard at
- *  random from its hand — beyond the edict's bare
- *  `choice`, which reads nothing by itself. */
+ *  random from its hand — beyond the edict's bare `choice` and (issue
+ *  #5627) a "may"'s bare `mayPay`, which read nothing by themselves. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return (
         script.length > 0 &&
         script.every((op) => isStepSideOp(op, script)) &&
-        script.some((op) => op.op !== "choice")
+        script.some((op) => op.op !== "choice" && op.op !== "mayPay")
     );
 }
 
@@ -769,9 +770,55 @@ function stepSideOpValue(
             return stepSideLife(op.amount, -1, side, ctx);
         case "addMana":
             return stepSideMana(op.mana, side, ctx);
+        case "mayPay":
+            // The decision binds a boolean and moves nothing: its worth is
+            // the `if` arm that reads it (`stepSideMayArm`).
+            return ZERO_OP_VALUE;
+        case "if":
+            return stepSideMayArm(op.then, side, ctx);
+        case "revealUntilMatch":
+            return stepSideDig(op.filter, side, ctx);
         default:
             return valueOp(op, ctx);
     }
+}
+
+/** Issue #5627 — the arm of a cost-free "may" (`mayPay` + the `if` reading
+ *  its binding) on one side: the scoped player makes the choice as the
+ *  ability resolves (CR 603.5) and takes the arm only when it gains by it,
+ *  so the side reads the arm's worth to that player or nothing — never a
+ *  loss its own player chose. */
+function stepSideMayArm(
+    arm: readonly EffectOp[],
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    let total = ZERO_OP_VALUE;
+    for (const op of arm) {
+        total = addValues(total, stepSideOpValue(op, arm, side, ctx));
+    }
+    const chosen = side.own
+        ? Math.max(0, total.points)
+        : Math.min(0, total.points);
+    return chosen === 0 ? ZERO_OP_VALUE : { points: chosen, tags: total.tags };
+}
+
+/** Issue #5627 — the scoped player revealing its library until a card
+ *  matching `filter`, that card onto its battlefield, the rest into its
+ *  graveyard (`EachPlayerSide.digUnits`): the expected landed card at the
+ *  `recursion` unit the `revealUntilMatch` valuer prices a battlefield
+ *  match at, less the expected milled prefix at the `mill` valuer's own
+ *  per-card unit, signed by whose side it is. */
+function stepSideDig(
+    filter: EffectCardFilter,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    const dig = side.digUnits(filter);
+    if (dig === undefined) return ZERO_OP_VALUE;
+    const gain =
+        priced(ctx, "recursion", dig.match) - dig.milled * MILL_PER_CARD_VALUE;
+    return { points: side.own ? gain : -gain, tags: ["recursion"] };
 }
 
 /** Issue #5626 — mana added to the scoped player's pool, priced at the
@@ -854,9 +901,24 @@ function sideDraw(
  *  Issue #5626 — mana added to that player's pool, of the CR 106.4 default
  *  lifetime, priced off its hand (`EachPlayerSide.manaUnits`) as mana spent
  *  in its first main phase, where every shipped shape fires (pinned by the
- *  census in `eachStepMana.bot.test.ts`). */
+ *  census in `eachStepMana.bot.test.ts`). Issue #5627 — a cost-free "may"
+ *  offered to that player (`mayPay` with no `cost`) and the `if` arm
+ *  reading its binding (`isStepMayArm`), and that player revealing its own
+ *  library until a match, the match onto its battlefield and the rest into
+ *  its graveyard (`revealUntilMatch`, priced off its library by
+ *  `EachPlayerSide.digUnits`). */
 function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
+        case "mayPay":
+            return op.cost === undefined && isStepPlayerRef(op.player);
+        case "if":
+            return isStepMayArm(op, script);
+        case "revealUntilMatch":
+            return (
+                isStepPlayerRef(op.player) &&
+                op.match === "battlefield" &&
+                op.rest === "graveyard"
+            );
         case "addMana":
             return (
                 op.player !== undefined &&
@@ -887,6 +949,29 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
         default:
             return false;
     }
+}
+
+/** Issue #5627 — an `if` with no `else` reading the binding of the script's
+ *  cost-free `mayPay` offered to the scoped player, whose every arm Op is
+ *  itself a step-side Op: the "may" `stepSideMayArm` reads as that player's
+ *  choice. */
+function isStepMayArm(
+    op: Extract<EffectOp, { op: "if" }>,
+    script: readonly EffectOp[]
+): boolean {
+    const { predicate } = op;
+    if (op.else !== undefined || !("binding" in predicate)) return false;
+    const offered = script.some(
+        (o) =>
+            o.op === "mayPay" &&
+            o.bind === predicate.binding &&
+            isStepSideOp(o, script)
+    );
+    return (
+        offered &&
+        op.then.length > 0 &&
+        op.then.every((o) => isStepSideOp(o, op.then))
+    );
 }
 
 /** Issue #5574 — an amount shape a side may ground on its own board

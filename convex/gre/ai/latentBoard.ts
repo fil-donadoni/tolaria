@@ -54,7 +54,11 @@ import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
-import { getLegalTargets, pendingTargetingSource } from "../rules";
+import {
+    getLegalTargets,
+    pendingTargetingSource,
+    targetingSourceFromCard,
+} from "../rules";
 import { isLand, PLACEHOLDER_CARD_ID } from "../constants";
 import {
     effectiveMaxHandSize,
@@ -464,6 +468,33 @@ export function tappedOnNextStepOf(
     return untapStepHoldsTapped(state, perm);
 }
 
+/** Issue #5627 — CR 603.3d: whether a standing each-step trigger announcing
+ *  `requirement` (a PLAYER target) finds enough legal targets on
+ *  `activePlayerId`'s step, chosen by its source's controller (CR 601.2c)
+ *  through the engine's one target authority (`getLegalTargets`), on `state`
+ *  with that player active — a comparative predicate (Oath of Druids'
+ *  `playerControlsMoreThan: { than: "active" }`) reads the active player.
+ *  Without them the trigger is removed from the stack and does nothing. */
+export function stepTargetHolds(
+    requirement: TargetRequirement,
+    activePlayerId: string,
+    self: PermanentView,
+    state: GameState
+): boolean {
+    const { count } = requirement;
+    const min =
+        typeof count === "number" ? count : count === "X" ? 0 : count.min;
+    if (min <= 0) return true;
+    const source = self as unknown as CardInstanceState;
+    const legal = getLegalTargets(
+        { ...state, activePlayerId },
+        requirement,
+        targetingSourceFromCard(source, false),
+        source.controllerId
+    );
+    return legal.length >= min;
+}
+
 /** Issue #5162 — `player`'s side of a Differential Reading, with the flag
  *  `eachPlayerDifferential` reads to know the side was answered. */
 function boardSide(
@@ -606,7 +637,66 @@ function boardSide(
             answered = true;
             return spendableExtraMana(state, player, valuedCardId, mana);
         },
+        digUnits(effectFilter) {
+            const filter = sweepPermanentFilter(effectFilter);
+            if (filter === UNREADABLE_SWEEP_FILTER) {
+                unreadable = true;
+                return undefined;
+            }
+            // A hidden library has no contents to read: unreadable.
+            if (player.library.some(isPlaceholder)) {
+                unreadable = true;
+                return { match: 0, milled: 0 };
+            }
+            const n = player.library.length;
+            if (n === 0) return { match: 0, milled: 0 };
+            answered = true;
+            const worths = libraryMatchWorths(
+                state,
+                player,
+                filter,
+                realisedLoss
+            );
+            const m = worths.length;
+            if (m === 0) return { match: 0, milled: n };
+            const mean = worths.reduce((a, b) => a + b, 0) / m;
+            return { match: mean / denominator, milled: (n - m) / (m + 1) };
+        },
     };
+}
+
+/** Issue #5627 — the realised worth of each card of `player`'s library
+ *  matching `filter` (`undefined`: every card), read as it would stand once
+ *  put onto `player`'s battlefield: untapped, unattached, under `player`'s
+ *  control, matched on its characteristics there. */
+function libraryMatchWorths(
+    state: GameState,
+    player: PlayerState,
+    filter: PermanentFilter | undefined,
+    realisedLoss: RealisedLoss
+): number[] {
+    const worths: number[] = [];
+    for (const c of player.library) {
+        const landed: CardInstanceState = {
+            ...c,
+            zone: "battlefield",
+            controllerId: player.id,
+            isTapped: false,
+            attachedTo: undefined,
+        };
+        if (
+            filter !== undefined &&
+            !matchesPermanentFilter(
+                effectivePermanentView(state, landed),
+                filter,
+                { supertypesOf: liveSupertypesOf }
+            )
+        ) {
+            continue;
+        }
+        worths.push(realisedLoss(landed));
+    }
+    return worths;
 }
 
 /** Issue #5626 — the units of `mana` (`EachPlayerSide.manaUnits`) one card
