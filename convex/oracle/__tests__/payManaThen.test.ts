@@ -74,8 +74,8 @@ describe("the source's own assignment suppression (CR 510.1c)", () => {
 
 describe('"defending player controls" is read only behind the source\'s own attack (CR 508.5)', () => {
     it.each([
-        "Whenever a creature attacks, destroy target artifact defending player controls.",
-        "Whenever this creature dies, destroy target artifact defending player controls.",
+        "Whenever a creature you control attacks, destroy target artifact defending player controls.",
+        "When this creature dies, destroy target artifact defending player controls.",
     ])("refuses %s", (text) => {
         expect(compileCard(creature(text)).state).toBe("unparsed");
     });
