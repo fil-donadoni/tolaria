@@ -26,6 +26,12 @@
  *      `index.ts` turns into `DEPLOYMENT_DOWN_EXIT` with no receipt.
  *   4. `probeStateLabel` — the probe state as the live progress prints it.
  *
+ * The watch also asks, on the same cadence, WHICH code the deployment serves
+ * (issue #6133): an injected `skew` check (`lib/deployment-skew.ts`). Like the
+ * probe, `failuresToAbort` CONSECUTIVE skew readings settle `down`, with `skew`
+ * set — one reading can catch a fast-forward mid-write — and `index.ts` exits
+ * `DEPLOYMENT_SKEW_EXIT` instead.
+ *
  * No browser, no `os`: the probe, the clock and the timer are injected.
  */
 
@@ -147,6 +153,9 @@ export interface DeploymentDown {
     reason: string;
     /** When the last successful probe finished; `null` if none ever did. */
     lastOkAtMs: number | null;
+    /** Set when the deployment answered but serves code other than the
+     *  walked tree (issue #6133): `reason` is the skew. */
+    skew?: boolean;
 }
 
 export interface DeploymentWatch {
@@ -174,6 +183,9 @@ export interface WatchDeps {
     timer: WatchTimer;
     /** One line per state change (a failure, a recovery, the verdict). */
     note?: (line: string) => void;
+    /** Why the deployment serves code other than the walked tree, or null
+     *  (issue #6133). Read before each probe; a throw reads as no skew. */
+    skew?: () => string | null;
 }
 
 /**
@@ -192,6 +204,8 @@ export function watchDeployment(deps: WatchDeps): DeploymentWatch {
     };
     /** Only the latest failure time matters to `failedSince`. */
     let lastFailureAtMs: number | null = null;
+    /** Consecutive ticks that read a skew. */
+    let skewStreak = 0;
     let inFlight = false;
     let stopped = false;
     let declare: (d: DeploymentDown) => void = () => {};
@@ -201,6 +215,30 @@ export function watchDeployment(deps: WatchDeps): DeploymentWatch {
 
     const tick = async () => {
         if (inFlight || stopped || state.down) return;
+        let skew: string | null = null;
+        try {
+            skew = deps.skew?.() ?? null;
+        } catch {
+            skew = null;
+        }
+        skewStreak = skew === null ? 0 : skewStreak + 1;
+        if (skew !== null) {
+            note(
+                `deployment skew (${skewStreak}/${failuresToAbort}) — ${skew}`
+            );
+        }
+        if (skew !== null && skewStreak >= failuresToAbort) {
+            state.down = true;
+            state.lastFailure = skew;
+            stop();
+            declare({
+                failures: 0,
+                reason: skew,
+                lastOkAtMs: state.lastOkAtMs,
+                skew: true,
+            });
+            return;
+        }
         inFlight = true;
         let result: ProbeResult;
         try {
@@ -263,7 +301,9 @@ export class DeploymentDownAbort extends Error {
     readonly down: DeploymentDown;
     constructor(down: DeploymentDown) {
         super(
-            `the Convex deployment stopped answering mid-run (${down.failures} consecutive failed probes: ${down.reason})`
+            down.skew
+                ? `the Convex deployment started serving code other than the walked tree mid-run: ${down.reason}`
+                : `the Convex deployment stopped answering mid-run (${down.failures} consecutive failed probes: ${down.reason})`
         );
         this.down = down;
     }

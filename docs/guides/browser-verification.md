@@ -232,6 +232,19 @@ deployment.
   mid-walk costs about two probe intervals, never 155 `unsettled` cells. A
   cell attempt that failed while a probe did stands as `INFRA —
 deployment-down` at any load (`scripts/ui-gate/deployment-watch.ts`).
+- **Deployment skew** (issues #6132, #6133). The deployment serves whatever
+  `convex dev` pushed from the **primary checkout**, not the tree being
+  walked. Before the first cell, and on every probe tick, the lane compares
+  them (`scripts/lib/deployment-skew.ts`): the primary must be on the base
+  branch, clean under `convex/`, and contain this tree's fork point (ahead on
+  base is fine), or differ only in this tree's own `convex/` diff. A skew
+  walks no cell — or abandons the walk mid-run — and exits `4`
+  (`DEPLOYMENT_SKEW_EXIT`) with `✗ check:ui: deployment skew … — <reason>`
+  naming both shas or the branch: INFRA, never `unsettled` / `UNWALKED`, and
+  the health gate records `infra` / `deployment-skew`. Fix: put the primary
+  back on base (`git -C <primary> switch <base> && git -C <primary> merge
+--ff-only origin/<base>`), wait for `convex dev` to push, rebase a branch
+  that is behind, re-run.
 - **Deadlines** (issue #4912). Every cell ATTEMPT — walk, settle, probe, axe,
   screenshot, assertions — runs under a wall-clock deadline (180s,
   `TOLARIA_UI_GATE_CELL_DEADLINE_MS`); past it the lane closes the page and

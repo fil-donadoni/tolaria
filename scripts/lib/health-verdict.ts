@@ -43,8 +43,16 @@
  * keeps the step RED — and so does the same step timing out on the very next
  * run (`repeatedMachineTimeout`): the excuse is the machine's once.
  *
- * Node builtins plus `lib/convex-reachable.ts` (itself builtins only),
- * `ui-gate/infra-verdict.ts` (which adds only `lib/convex-reachable.ts`) and
+ * `infra` is ALSO a walk whose deployment served code other than the walked
+ * tree (issues #6132, #6133, `lib/deployment-skew.ts`): `convex dev` pushes
+ * the PRIMARY checkout, and a primary moved off the base branch made every
+ * `/game` cell `UNWALKED` on a green tip. The walk phase preflights it
+ * (`PREFLIGHT_SKEW_STEP`), and `check:ui` exits `DEPLOYMENT_SKEW_EXIT` on one
+ * it meets itself → `deployment-skew`.
+ *
+ * Node builtins plus `lib/convex-reachable.ts` and `lib/deployment-skew.ts`
+ * (both builtins only), `ui-gate/infra-verdict.ts` (which adds only those
+ * two) and
  * `lib/machine-admission.ts` (builtins plus `lib/branches.ts`) —
  * `health-main.ts` carries the same constraint.
  */
@@ -52,6 +60,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEPLOYMENT_DOWN_EXIT } from "./convex-reachable";
+import { DEPLOYMENT_SKEW_EXIT } from "./deployment-skew";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
 import {
     MACHINE_SATURATED_EXIT,
@@ -68,11 +77,18 @@ export type InfraCause =
     /** A gate waited out its bound on a saturated machine: nothing ran. */
     | "machine-saturated"
     /** A step ran, and failed ONLY by timing out, on a saturated machine. */
-    | "machine-timeout";
+    | "machine-timeout"
+    /** The deployment served code other than the walked tree (issue #6132). */
+    | "deployment-skew";
 
 /** The step name `last.json` records when the preflight found the backend
  *  down before any gate ran. */
 export const PREFLIGHT_CONVEX_STEP = "preflight:convex";
+
+/** The step name `last.json` records when the walk phase found the
+ *  deployment serving code other than the tip before any browser started
+ *  (issue #6132). */
+export const PREFLIGHT_SKEW_STEP = "preflight:deployment-skew";
 
 /** The step name `last.json` records when the machine stayed saturated past
  *  the bound before any gate ran (issue #4966). */
@@ -92,6 +108,8 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
         "the machine stayed over machine.loadMax or under memory pressure past machine.waitMaxS, so nothing ran; see `bun run machine`, and the next health run re-gates the tip",
     "machine-timeout":
         "every failed test timed out while the machine was saturated; the next health run re-gates the tip, and the same step timing out again is RED",
+    "deployment-skew":
+        "the local Convex deployment serves the primary checkout, and the primary is off the base branch, dirty under convex/, or does not contain the tip; put the primary back on the base branch (`git -C <primary> switch <base> && git -C <primary> merge --ff-only origin/<base>`), wait for convex dev to push, and the next health run re-walks the tip",
 };
 
 /** `{ sec = 1790866381, usec = 538510 } Thu Oct  1 …` → epoch ms, or null. */
@@ -196,6 +214,8 @@ export function infraCause(input: StepOutcome): InfraCause | null {
     if (input.ok) return null;
     const walk = isWalkStep(input.step);
     if (walk && input.exitCode === DEPLOYMENT_DOWN_EXIT) return "convex-down";
+    if (walk && input.exitCode === DEPLOYMENT_SKEW_EXIT)
+        return "deployment-skew";
     // A gate that never started: the machine stayed saturated past the bound.
     if (input.exitCode === MACHINE_SATURATED_EXIT) return "machine-saturated";
     if (input.lastSleepAt !== null && input.lastSleepAt >= input.startedAt)

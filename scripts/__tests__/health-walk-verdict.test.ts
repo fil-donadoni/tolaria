@@ -112,7 +112,8 @@ describe("walkRunVerdict — the walk's own receipt says whose failure it was (i
         expect(walkRunVerdict(1, run(BANNER, PASS_ROW))).toBe("red");
         expect(walkRunVerdict(1, "")).toBe("red");
         expect(walkRunVerdict(null, run(INFRA_ROW))).toBe("red");
-        expect(walkRunVerdict(4, run(INFRA_ROW))).toBe("red");
+        // 4 is `DEPLOYMENT_SKEW_EXIT` since issue #6132: 9 is unknown.
+        expect(walkRunVerdict(9, run(INFRA_ROW))).toBe("red");
     });
 });
 
