@@ -72,9 +72,18 @@ if (plan.kind === "refuse") {
     process.exit(1);
 }
 
+// One run per distinct command: several artifacts share a generator
+// (`catalogue:pack` writes four, `agents:build` three), which writes them all.
+const ran = new Set<string>();
 for (const artifact of plan.artifacts) {
+    const command = [artifact.script, ...(artifact.args ?? [])].join(" ");
+    if (ran.has(command)) continue;
+    ran.add(command);
+    const covered = plan.artifacts
+        .filter((a) => [a.script, ...(a.args ?? [])].join(" ") === command)
+        .map((a) => a.path);
     process.stderr.write(
-        `${DIM}resolve-generated-artifacts: regenerating ${artifact.path} (bun run ${[artifact.script, ...(artifact.args ?? [])].join(" ")})${RESET}\n`
+        `${DIM}resolve-generated-artifacts: regenerating ${covered.join(", ")} (bun run ${command})${RESET}\n`
     );
     const r = spawnSync(
         "bun",

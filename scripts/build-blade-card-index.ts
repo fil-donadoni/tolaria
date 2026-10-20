@@ -28,11 +28,11 @@ if (import.meta.main) {
     const index = buildBladeCardIndex(BLADE_SCENARIOS);
     writeFileSync(
         join(ROOT, BLADE_CARD_INDEX_PATH),
-        `${JSON.stringify(index, null, 2)}\n`
+        `${JSON.stringify(index, null, 4)}\n`
     );
     writeFileSync(
         join(ROOT, BLADE_REPRODUCERS_PATH),
-        `${JSON.stringify(buildBladeReproducers(BLADE_SCENARIOS), null, 2)}\n`
+        `${JSON.stringify(buildBladeReproducers(BLADE_SCENARIOS), null, 4)}\n`
     );
     console.log(
         `blade:card-index: ${Object.keys(index).length} card(s) over ${BLADE_SCENARIOS.length} scenario(s)`

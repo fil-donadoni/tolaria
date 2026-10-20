@@ -13,14 +13,19 @@
 #
 # This list is not hand-maintained: `scripts/__tests__/generated-artifact-merge.test.ts`
 # pins it to REGENERATED_ARTIFACTS in `scripts/lib/generated-artifacts.ts`,
-# which also records why every OTHER committed `data/` artifact is out of the
-# class.
+# which also records why every OTHER script-written committed artifact is out
+# of the class — a new generator classifies its output there (issue #6116).
 data/oracle-compiled.json merge=regenerated
 data/oracle-legality.json merge=regenerated
 data/catalogue/source-hash.json merge=regenerated
 data/catalogue/packed-corpus.json merge=regenerated
 data/catalogue/definition-index.json merge=regenerated
 data/catalogue/search-index.json merge=regenerated
+data/blade-card-index.json merge=regenerated
+data/blade-reproducers.json merge=regenerated
+AGENTS.md merge=regenerated
+convex/AGENTS.md merge=regenerated
+src/AGENTS.md merge=regenerated
 
 # Committed artifacts that are NOT re-derivable — so out of the class above —
 # but whose conflicts are still never a real disagreement (issue #3768). Each

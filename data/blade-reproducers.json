@@ -383,7 +383,9 @@
         "activePlayer": "opp",
         "priority": "me",
         "combat": {
-            "attackers": ["Serra Angel"],
+            "attackers": [
+                "Serra Angel"
+            ],
             "confirmed": true
         }
     },
@@ -1078,7 +1080,9 @@
         "activePlayer": "opp",
         "priority": "me",
         "combat": {
-            "attackers": ["Serra Angel"],
+            "attackers": [
+                "Serra Angel"
+            ],
             "confirmed": true
         }
     },
@@ -1663,7 +1667,9 @@
             {
                 "layer": 6,
                 "affected": {
-                    "opp": ["Grizzly Bears"]
+                    "opp": [
+                        "Grizzly Bears"
+                    ]
                 },
                 "controller": "opp",
                 "payload": {
@@ -1711,7 +1717,9 @@
             {
                 "layer": 6,
                 "affected": {
-                    "opp": ["Grizzly Bears"]
+                    "opp": [
+                        "Grizzly Bears"
+                    ]
                 },
                 "controller": "opp",
                 "payload": {
@@ -1769,12 +1777,16 @@
         "activePlayer": "opp",
         "priority": "me",
         "combat": {
-            "attackers": ["Hill Giant"],
+            "attackers": [
+                "Hill Giant"
+            ],
             "confirmed": true,
             "blockers": [
                 {
                     "blocker": "Grizzly Bears",
-                    "blocking": [0]
+                    "blocking": [
+                        0
+                    ]
                 }
             ],
             "blockersConfirmed": true
