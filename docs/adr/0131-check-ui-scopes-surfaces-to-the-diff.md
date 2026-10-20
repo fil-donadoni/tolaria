@@ -18,6 +18,9 @@ a layout, stylesheet, overlay/portal, z-index or scroll-container file;
 otherwise the PR says `no walk owed` and `land` accepts it. The scoper below
 decides WHAT an owed walk covers, unchanged. ADR 0104 §2, which this record
 amended for `check:ui` alone, is overturned by ADR 0154 for every lane.
+**Amended 2026-10-20 (issue #6143)**: no automated run walks every surface —
+`release` runs the offline gates and `check:game-download`, and
+`check:ui --all` is a command run by hand.
 
 ## Context
 
@@ -468,3 +471,67 @@ accepts not to see (the Tailwind class scan, sibling sections, graph drift)
 can sit across many GREEN batches and is found at release, which then stops
 on a RED marker and fixes forward (ADR 0116). The PR-level receipt and
 `land`'s verification of it are unchanged.
+
+## Amendment (issue #6143) — no automated run walks every surface
+
+### What the release walk measured
+
+The retained health logs, 2026-09-30 → 2026-10-20: 52 full-walk sections. 39
+green (mean ~17 min; ~9 min when the walk ran 5 viewports wide, ~22 min when
+it ran serialized beside a heavy gate), 10 exit 2 (the deployment down ×7, a
+sign-in the auth backend refused ×3), 3 exit 1 (one unreachable cell that
+passed on the next tip, `INFRA` cells at load 12.5, a backend serving another
+branch's functions). **Zero tree defects.** The one real UI defect of the
+period (issue #4122) was caught by its PR's own scoped walk. The walk cost ~25
+walk-related issues and ~20 plumbing commits in four weeks, while the work
+moved to the engine, the cards and the Bot. A layout change comes only from a
+`src/**` diff, and that diff pays its own scoped walk (ADR 0154, issue #5459).
+
+### The rule
+
+Decisions 8 and 9 of the previous amendment are replaced; 10 stands for the
+one browser step that remains (one the tree failed is RED, one the
+environment cut short `infra`):
+
+8. **No automated run walks every surface.** Not batch health, not
+   `bun run release`, not the release workflow, on neither machine:
+   `HEALTH_SCRIPTS` holds no `check:ui` step, and `health-main` refuses the
+   retired `--ui-all` (and the `--phase=offline|walk` hand-off that served it)
+   with exit 2 rather than read it as a batch run that walks nothing.
+9. **`release` releases on the GREEN of the exact tip.**
+   `health-main --release` runs the offline gates and then
+   `check:game-download` (issue #5618), the one release-only browser step,
+   off the heavy mutex, with its INFRA / RED semantics unchanged. A tip whose
+   offline half already stands GREEN — batch health's record, or the verdict
+   store's — runs only that step (`browserStepsOwed`,
+   `scripts/lib/health-gate-skip.ts`); so does a tip whose last run stopped
+   `infra` at that step after the offline gates passed. No record's walk half
+   gates a release any more.
+
+`bun run check:ui --all` stays a command run by hand — the owner's, e.g.
+before a UI revamp. In the guard-tier census `check:ui` is a **PR-receipt
+guard** (`PR_RECEIPT_GUARDS`, `scripts/lib/health-step.ts`): a PR whose diff
+can move layout runs it and pastes the receipt `land` re-derives; it is no
+health-only guard.
+
+Retired with the automated walk, not left dead: the walk plan
+(`lib/health-walk-plan.ts`: `planHealthWalk`, `walkWasFull`, the walk's own
+outcome and disposition), the forced-walk flag `--ui-all`, the
+`--phase=offline|walk` hand-off and its `phase` / `prior` record fields, the
+wait for a walk window (`lib/health-walk-wait.ts`), the `ui-walk` verdict
+context (`lib/health-verdict-walk.ts`), its Linux gating flag `ui-walk.gating`
+with the `TOLARIA_UI_WALK_GATING` pin, and `bun run ui:calibrate`
+(`scripts/ui-gate/calibrate.ts`, ADR 0154 §9's calibration, which existed only
+to promote that flag). Kept: the cut between the offline gates and the browser
+steps (`splitHealthGates`), because `check:game-download` still runs after
+the former and off the mutex, and `walkRunVerdict`, which reads that step's
+exit on `check:ui`'s contract.
+
+### Residual
+
+The three things the scoper accepts not to see — the Tailwind class scan, a
+sibling section's frame under an open layer, base-branch graph drift — are
+now accepted with **no automated backstop**. A drift of that kind sits on the
+base and the release branch until a later PR's scoped walk reaches the
+surface it broke, or the owner runs the full walk by hand. A backend serving
+another sha (issues #6132, #6133) is out of this record's scope.

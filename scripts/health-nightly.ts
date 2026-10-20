@@ -62,7 +62,7 @@ import {
     healthGateEnv,
     healthStepArgs,
     runHealthStep,
-    WALK_BOOTSTRAP,
+    WORKTREE_BOOTSTRAP,
 } from "./lib/health-step";
 import { readVerdictLineage, verdictStore } from "./lib/health-verdict-store";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -171,15 +171,15 @@ async function refresh(root: string, dir: string, tip: string) {
             {
                 ordinal: 1,
                 total: steps[0]!.total,
-                name: WALK_BOOTSTRAP,
+                name: WORKTREE_BOOTSTRAP,
                 cmd: "bun",
-                args: healthStepArgs(WALK_BOOTSTRAP),
+                args: healthStepArgs(WORKTREE_BOOTSTRAP),
             },
             { cwd: wt, env, logPath }
         );
         if (!boot.ok) {
             console.error(
-                `health-nightly: ${WALK_BOOTSTRAP} failed — Bot Findings stay stale (${logPath})`
+                `health-nightly: ${WORKTREE_BOOTSTRAP} failed — Bot Findings stay stale (${logPath})`
             );
             return false;
         }
@@ -227,15 +227,15 @@ async function file(
             {
                 ordinal: 1,
                 total: 2,
-                name: WALK_BOOTSTRAP,
+                name: WORKTREE_BOOTSTRAP,
                 cmd: "bun",
-                args: healthStepArgs(WALK_BOOTSTRAP),
+                args: healthStepArgs(WORKTREE_BOOTSTRAP),
             },
             { cwd: wt, env, logPath }
         );
         if (!boot.ok) {
             console.error(
-                `health-nightly: ${WALK_BOOTSTRAP} failed — Bot Gaps not filed tonight (${logPath})`
+                `health-nightly: ${WORKTREE_BOOTSTRAP} failed — Bot Gaps not filed tonight (${logPath})`
             );
             return "failed";
         }

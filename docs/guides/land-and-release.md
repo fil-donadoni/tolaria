@@ -406,10 +406,11 @@ when that (tip, base) was already gated green (ADR 0136 §1–2).
 ### <a id="g-health-gate"></a>Health gate
 
 `scripts/health-main.ts`: the full gate (`check:all`, the derived Op census
-`check:gaps`, all three test suites, and last — at `release` only (`--ui-all`)
-— the full `check:ui` browser walk, issue #4913, run off the heavy mutex and
-never RED on the environment, issue #4962; a batch run owes no walk and records
-it `skipped` (ADR 0131, issue #5378) — `HEALTH_SCRIPTS` in
+`check:gaps`, all three test suites, and last — at `release` only
+(`--release`) — the browser step `check:game-download`, run off the heavy
+mutex and never RED on the environment, issue #4962; a batch run owes none
+and records it `skipped` (issue #5378); no run walks `check:ui --all`, a
+command run by hand (ADR 0131, issue #6143) — `HEALTH_SCRIPTS` in
 `scripts/lib/health-step.ts`) on one
 branch tip, leaving a durable verdict under
 `.claude/telemetry/health/`. Runs at release, per batch of landings, or by hand

@@ -25,7 +25,7 @@ block no longer fits a PR body (GitHub caps it at 65,536 characters): paste the
 three lines under `receipt digest` — banner, `verdict-sha256:`, coverage —
 which `land` accepts on the same terms (#4419). A no-flag run walks the diff's
 surfaces and prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers
-any diff; never `DIAGNOSTIC`; never reflow a row. **the full walk (`--all`) is the full proof, a batch-health step, never a PR's** (issue #4913).
+any diff; never `DIAGNOSTIC`; never reflow a row. **The full walk (`--all`) is run by hand only — no automated run, `release` included** (issue #6143).
 
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.

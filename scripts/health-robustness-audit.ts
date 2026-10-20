@@ -24,7 +24,7 @@ import {
     healthGateEnv,
     healthStepArgs,
     runHealthStep,
-    WALK_BOOTSTRAP,
+    WORKTREE_BOOTSTRAP,
 } from "./lib/health-step";
 import { infraCause, readLastSleepAt } from "./lib/health-verdict";
 import {
@@ -98,9 +98,9 @@ async function main(): Promise<void> {
                 {
                     ordinal: 1,
                     total: 2,
-                    name: WALK_BOOTSTRAP,
+                    name: WORKTREE_BOOTSTRAP,
                     cmd: "bun",
-                    args: healthStepArgs(WALK_BOOTSTRAP),
+                    args: healthStepArgs(WORKTREE_BOOTSTRAP),
                 },
                 { cwd: wt, env, logPath: log }
             );

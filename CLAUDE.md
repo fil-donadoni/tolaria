@@ -237,7 +237,7 @@ over two machines); the rest is batch health's.
 - **Never hand-pick a subset of `check:pr`.**
 - **Guard tier = measured cost** (issue #4963): ≤ 10 s → lane (admitted by
   diff: `check:gaps`/`check:targets`/`check:test-hygiene`); above →
-  `HEALTH_ONLY_GUARDS` with its cost (`check:ui --all`, bot fast lane =
+  `HEALTH_ONLY_GUARDS` with its cost (`check:game-download`, bot fast lane =
   `test:bot`, `check:bundle`). A new guard's PR states its cost.
 - **`check:all` VERIFIES formatting**, never repairs: drift → `bun run format`,
   re-run (#1807).
@@ -248,7 +248,7 @@ over two machines); the rest is batch health's.
   fires at the 20th landing since GREEN or 8 h after the first un-healthed
   (ADR 0154); a failed vitest project is re-run once before RED. **Topology
   B'** (any machine, #5873): MacBook = sessions + land-runner + `release`;
-  Huawei = health, crons, audits, release walk. **The verdict is shared**
+  Huawei = health, crons, audits. **The verdict is shared**
   (commit status on the gated sha, read through the verdict store by
   `queue:plan`, `land`, the loop, on both machines); `release` re-proves the
   tip here.

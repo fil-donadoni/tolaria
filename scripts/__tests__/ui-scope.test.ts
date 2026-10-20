@@ -623,6 +623,20 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         );
     });
 
+    it("never content-reads a JSON file: its words are data, not a class or a style (issue #6143)", () => {
+        // `tolaria.config.json` is imported by `src/`, and its `$comment`
+        // says "a fixed search budget": the whole-file read owed every
+        // config diff a walk.
+        expect(
+            owed(
+                "tolaria.config.json",
+                `{ "$comment": "the game-end consult's fixed search budget", "z": "z-10 overflow-auto" }`
+            ).owed
+        ).toBe(false);
+        // The path rules still apply: a public asset is owed whatever it is.
+        expect(owed("public/manifest.json", `{}`).owed).toBe(true);
+    });
+
     it("fails closed: a file gone or unreadable stays owed", () => {
         expect(owed("src/components/x/leaf.tsx", null).owed).toBe(true);
     });

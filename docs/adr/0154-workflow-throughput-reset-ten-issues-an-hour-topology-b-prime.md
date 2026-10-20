@@ -10,6 +10,10 @@ a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. The rollout
 is PRD #5454's tickets, issues #5456–#5471; until a ticket lands, the script
 it names is the authority on what runs TODAY and this record on what a PR
 OWES.
+**Amended 2026-10-20 (ADR 0131's issue #6143 amendment)**: no automated run
+walks `check:ui --all` — §7's release step, §9's Huawei release walk, its
+`context=ui-walk` and the Linux walk calibration (§ Measured after Phase 1)
+are retired; `release` runs the offline gates and `check:game-download`.
 
 ## Context
 

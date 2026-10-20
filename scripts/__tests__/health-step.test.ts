@@ -10,6 +10,7 @@ import {
     HEALTH_ONLY_GUARDS,
     HEALTH_SCRIPTS,
     MAINTENANCE_SCRIPTS,
+    PR_RECEIPT_GUARDS,
     type HealthStep,
 } from "../lib/health-step";
 
@@ -302,7 +303,7 @@ describe("healthGateEnv — who holds the mutex for a health run", () => {
 });
 
 describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", () => {
-    it("is worktree:init, check:all, the cheap guards and test offline, then the browser steps", () => {
+    it("is worktree:init, check:all, the cheap guards and test offline, then the browser step", () => {
         expect(splitHealthGates(HEALTH_SCRIPTS)).toEqual({
             offline: [
                 "worktree:init",
@@ -312,10 +313,20 @@ describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", 
                 "check:test-hygiene",
                 "test",
             ],
-            // The per-game download after the walk (issue #5618): a red
-            // there never hides the walk's own state.
-            walk: ["check:ui --all", "check:game-download"],
+            // The per-game download (issue #5618), `release`'s only browser
+            // step since the walk left (issue #6143).
+            browser: ["check:game-download"],
         });
+    });
+
+    it("runs no check:ui step: the full walk is by hand, a PR-receipt guard (issue #6143)", () => {
+        expect(
+            HEALTH_SCRIPTS.map((e) => e.split(/\s+/)[0]).filter(
+                (n) => n === "check:ui"
+            )
+        ).toEqual([]);
+        expect(HEALTH_ONLY_GUARDS).not.toHaveProperty("check:ui");
+        expect(PR_RECEIPT_GUARDS).toHaveProperty("check:ui");
     });
 
     it("leaves check:convex-heap to the maintenance tier, never gated", () => {

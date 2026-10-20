@@ -707,9 +707,10 @@ disagrees with the batch's is deferred as a lane mismatch, the same way an
 overlapping target file is deferred today. `/next-ticket` lands one issue at a
 time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
-with it. What stands in its place (issue #4913) is the full `check:ui --all`
-walk as a RELEASE step (issue #5378): a PR walks the surfaces its diff can
-reach, `bun run release` walks them all, and a batch-health run walks nothing.
+with it. What stood in its place (issue #4913), the full `check:ui --all` walk
+as a health and then a RELEASE step (issue #5378), is retired too (issue
+#6143): a PR walks the surfaces its diff can reach, and no automated run —
+batch health, `bun run release` — walks them all; `--all` is run by hand.
 
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)
 
@@ -766,15 +767,17 @@ most 8 s on a landing that admits all three, nothing on one that admits none.
 reached by some lane's plan (directly or through the scripts it composes) or
 listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured
 cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
-`--all` walk: 14m39s green, 45m37s red); ADR 0154 §3 adds the bot fast lane
+`--all` walk: 14m39s green, 45m37s red), which issue #6143 moved to a fourth
+place, `PR_RECEIPT_GUARDS`: a PR runs it by hand and pastes the receipt `land`
+re-derives, and no health or `release` run composes it. ADR 0154 §3 adds the bot fast lane
 (`test:bot`) and `check:bundle` with their costs (issue #5464; ADR 0154 named
 `check:convex-bundle` too, but at 2–4 s it rides the lane), and
 moves `check:convex-heap` (9–17 min per health run) out of `HEALTH_SCRIPTS`
 altogether, to a by-hand `maintenance` script (issue #5458). Issue #5618 adds
 `check:game-download` (28–35 s: a production build, then a Solo and a Bot game
-in Chromium), a browser step of the walk phase after `check:ui --all`
-(`isWalkStep`, same exit contract) — so it runs on `release`, never in batch
-health. A guard in neither place reds the census.
+in Chromium), a browser step (`isBrowserStep`, `check:ui`'s exit contract)
+after the offline gates — so it runs on `release` (`health-main --release`),
+never in batch health. A guard in no place reds the census.
 
 ### No pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
@@ -899,7 +902,7 @@ So the full gate moved. `tolaria.config.json` names a **base** branch
 | -------------------- | ------------------------------------------------------------------------- | ----------------------------------------- | -------------------------- |
 | `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base  | MacBook, by the land-runner (issue #5469) | ≤ 3 min budget (6.8 meas.) |
 | batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | either machine's `lane` runner            | its own machine's          |
-| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward     | MacBook                                   | ~13 min + walk, once       |
+| `bun run release`    | `health` + `check:game-download` on the `origin/<base>` tip → fast-fwd    | MacBook                                   | ~13 min + 34 s, once       |
 | `bun run health`     | the same full gate, by hand, on the base tip                              | either                                    | ~13 min                    |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
@@ -960,28 +963,29 @@ were flaky.
 prove the tree. Step costs are the MacBook's `detach.log` over the same 14
 days (green runs, range):
 
-| Step                 | Measured               | Where now                                       |
-| -------------------- | ---------------------- | ----------------------------------------------- |
-| `worktree:init`      | 1–2 s                  | health, offline                                 |
-| `check:all`          | 1 m 40 s – 2 m 08 s    | health, offline                                 |
-| `check:gaps`         | < 1 s                  | health, offline (and the lane)                  |
-| `check:targets`      | ~1 s                   | health, offline (and the lane)                  |
-| `check:test-hygiene` | 2–3 s                  | health, offline (and the lane)                  |
-| `test`               | 6 m 19 s – 18 m 47 s   | health, offline                                 |
-| `check:ui --all`     | 14 m 39 s green        | `release` only (`--ui-all`, issue #5378)        |
-| `check:convex-heap`  | 4 m 45 s – 17 m 45 s   | `bun run maintenance`, by hand — never gated    |
-| `bot:reach`          | 3 m 10 s – 4 m 40 s    | `bun run health:nightly`, when the Bot moved    |
-| `seed:bot-findings`  | ~1 s                   | `bun run health:nightly`, after `bot:reach`     |
-| `gaps:sync`          | 1 m 27 s – 3 m 57 s    | `bun run health:nightly`, primary at the tip    |
-| robustness audit     | 13 m 30 s – 18 m 51 s  | `bun run health:nightly`, weekly (Sunday night) |
-| pick agreement audit | (not separately timed) | `bun run health:nightly`, weekly                |
+| Step                  | Measured               | Where now                                       |
+| --------------------- | ---------------------- | ----------------------------------------------- |
+| `worktree:init`       | 1–2 s                  | health, offline                                 |
+| `check:all`           | 1 m 40 s – 2 m 08 s    | health, offline                                 |
+| `check:gaps`          | < 1 s                  | health, offline (and the lane)                  |
+| `check:targets`       | ~1 s                   | health, offline (and the lane)                  |
+| `check:test-hygiene`  | 2–3 s                  | health, offline (and the lane)                  |
+| `test`                | 6 m 19 s – 18 m 47 s   | health, offline                                 |
+| `check:game-download` | 28–35 s                | `release` only (`--release`, issue #6143)       |
+| `check:ui --all`      | 14 m 39 s green        | by hand only — no automated run (issue #6143)   |
+| `check:convex-heap`   | 4 m 45 s – 17 m 45 s   | `bun run maintenance`, by hand — never gated    |
+| `bot:reach`           | 3 m 10 s – 4 m 40 s    | `bun run health:nightly`, when the Bot moved    |
+| `seed:bot-findings`   | ~1 s                   | `bun run health:nightly`, after `bot:reach`     |
+| `gaps:sync`           | 1 m 27 s – 3 m 57 s    | `bun run health:nightly`, primary at the tip    |
+| robustness audit      | 13 m 30 s – 18 m 51 s  | `bun run health:nightly`, weekly (Sunday night) |
+| pick agreement audit  | (not separately timed) | `bun run health:nightly`, weekly                |
 
 The offline phase is ~10–15 min. `check:convex-heap` is the first member of a
 third guard tier, `MAINTENANCE_SCRIPTS` (`scripts/lib/health-step.ts`): a
 diagnostic report no gate waits for — a capacity analysis at 35k cards is a
 planning input, not a broken tip. `check-lane.test.ts`'s census places every
-`check:*` script in a lane, in `HEALTH_ONLY_GUARDS` (by measured cost), or
-there. `health:nightly` refreshes the Bot Findings only when `origin/<base>`
+`check:*` script in a lane, in `HEALTH_ONLY_GUARDS` (by measured cost),
+there, or in `PR_RECEIPT_GUARDS` (`check:ui`, by hand, issue #6143). `health:nightly` refreshes the Bot Findings only when `origin/<base>`
 moved the Bot's globs since its last refresh (`nightly.json` beside
 `last.json`), and runs the audits on the weekly night — or on any night once
 the last audit is over eight days old — on the tip the last GREEN or RED
@@ -995,8 +999,9 @@ was a local file (`last.json`, a `RED` marker), so
 the other machine's `queue:plan` kept picking from a tip it could not know was
 red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
 goes through a store — a GitHub commit
-status on the gated sha (`context=health`; `context=ui-walk` for the Linux
-walk while it is advisory, issue #5465). On Linux `ui-walk.gating` (`tolaria.config.json`, default false) keeps the walk out of the health verdict: the offline half stands as GREEN (`ui: advisory`), the walk's own verdict goes under `ui-walk` with the machine named. Promote the flag once `bun run ui:calibrate <macbook-receipt> <linux-receipt>` of one tip exits 0; a divergent cell goes to `UNWALKED_SURFACES` with an issue. `queue:plan`, `land`'s RED gate,
+status on the gated sha (`context=health`; the advisory Linux walk's
+`context=ui-walk`, its `ui-walk.gating` flag and `bun run ui:calibrate` went
+with the automated walk, issue #6143). `queue:plan`, `land`'s RED gate,
 `loop-drain`'s stop and `health:fix` read through the store on both machines.
 Last writer per sha wins; `infra` never
 overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the
@@ -1200,9 +1205,8 @@ stylesheet, a layout, an overlay/portal, a z-index or a scroll-container file
 (a tested list, one fixture per glob and one negative in `ui-scope.test.ts`);
 otherwise the PR body says `no walk owed` and `land` accepts that line on the
 same terms as a receipt. What an OWED walk covers is ADR 0131's scoper,
-unchanged; `check:ui --all` stays a release step (issue #5378), run on the
-Huawei under topology B' and advisory there until a calibration run matches
-the MacBook's nine Floors cell by cell (issue #5465).
+unchanged; `check:ui --all` is run by hand only, on neither machine by any
+automated run (issue #6143).
 
 **What the lane WALKS is itself gated, offline** (issue #3420). `check:ui`'s
 coverage was asserted only between hand-written lists, so a new screen or
@@ -1227,21 +1231,24 @@ order of weight:
 3. It is slower than the whole static gate — measured ~4 min for eight
    surfaces × five viewports on this machine, most of it axe.
 
-**The full walk runs at `release`, never on a PR** (issue #4913, ADR 0131
-amendment; batch health walks nothing — its walk is `skipped` with the reason
-named, the scoper never asked — issue #5378, which retired the batch-scoped
-plan of issue #5076 after 30 batch walks in a week came out full, 9.2 h, no
-defect). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
-row of `/admin/design-system` by its section and its mount, a route surface by
-its route closure, a type-only import counting as no edge. What the scoper
-accepts not to see (a mount a section renders unconditionally, a sibling
-section's frame under an open layer, the Tailwind class scan, base-branch graph
-drift) is what the full walk exists to catch: `release` runs `check:ui --all` on
-the tip it releases, after every offline verdict. It is the one
-health step that is not offline, and the three reasons above still keep it out
-of `check:all`. It walks the tip's frontend against whatever Convex functions
-the shared local deployment serves, since `check:ui` pushes none — on a PR as
-in health (ADR 0131 § Amendment).
+**No automated run walks every surface** (issue #6143, ADR 0131 amendment).
+The full walk was a batch-health step (issue #4913), then a `release` step
+(issue #5378, after 30 batch walks in a week came out full, 9.2 h, no defect).
+Over the retained health logs, 2026-09-30 → 10-20, it ran 52 times: 39 green
+(mean ~17 min), 10 exit 2 (deployment down ×7, sign-in refused ×3), 3 exit 1
+on the environment or another branch's functions — **zero tree defects**; the
+one UI defect of the period (issue #4122) was caught by its PR's own scoped
+walk. So `bun run check:ui --all` is a command run by hand (the owner, e.g.
+before a UI revamp), and `release` releases on the GREEN of the exact tip. A
+PR's receipt is `SCOPED` to what its diff can reach — a specimen row of
+`/admin/design-system` by its section and its mount, a route surface by its
+route closure, a type-only import counting as no edge. What the scoper accepts
+not to see (a mount a section renders unconditionally, a sibling section's
+frame under an open layer, the Tailwind class scan, base-branch graph drift)
+now has **no automated backstop**: it sits until a later PR's scoped walk
+reaches the surface, or the owner walks in full by hand. A walk checks the
+tip's frontend against whatever Convex functions the shared local deployment
+serves, since `check:ui` pushes none (ADR 0131 § Amendment).
 
 **The deployment serves the primary checkout, so the primary stays on the
 base branch** (issues #6132, #6133). `convex dev --local` runs in the primary
@@ -1253,40 +1260,35 @@ serves other code is INFRA, never RED, and never a PASS
 `convex/` (codegen excluded), and contain the walked tree's base point (a
 primary AHEAD on base is newer base code, not a skew), or differ only in the
 tree's own `convex/` diff. `check:ui` checks it before the first cell and on
-every deployment-watch tick, exiting `4` (`DEPLOYMENT_SKEW_EXIT`); the health
-walk preflights it (`preflight:deployment-skew`, cause `deployment-skew`);
-`release` refuses in seconds with the primary off base; and `deny-guard` § 4b
-refuses a `git checkout` / `git switch` of the primary to anything but base
-(escape: `TOLARIA_PRIMARY_OFF_BASE=1`).
+every deployment-watch tick, exiting `4` (`DEPLOYMENT_SKEW_EXIT`); `release`
+refuses in seconds with the primary off base, and its browser step is
+preflighted (`preflight:deployment-skew`, cause `deployment-skew`, issue
+#6143); and `deny-guard` § 4b refuses a `git checkout` / `git switch` of the
+primary to anything but base (escape: `TOLARIA_PRIMARY_OFF_BASE=1`).
 
-**The walk runs off the heavy mutex, and the environment never makes it RED**
-(issue #4962). Of its first ten verdicts inside batch health, nine were RED and none
-was a product defect: a down backend, a sign-in the auth backend refused, walks
-whose own rows said `INFRA` at load 7–12.5 — and every one of them raised the
-marker that stops the queue, while the walk (4–60 min) held the `--under-lock`
-block every queued `land` waits on. Three rules:
+**`release`'s one browser step runs off the heavy mutex, and the environment
+never makes it RED** (issues #4962, #6143). Of the walk's first ten verdicts
+inside batch health, nine were RED and none was a product defect — a down
+backend, a sign-in the auth backend refused, rows that said `INFRA` at load
+7–12.5 — and every one raised the marker that stops the queue. The rules
+survive for `check:game-download`, which speaks `check:ui`'s exit contract:
 
-1. **Two phases.** A gate that holds the mutex for the offline gates
-   (`health-main --phase=offline` under its
-   `gate.ts yield`) releases it before any walk, and `health-main
---phase=walk` holds only the `check:ui` lane; `release` passes no hold and
-   the walk scrubs one — so `gate:who` during the walk shows the heavy mutex
-   free. Since issue #5378 a batch's walk phase finds none owed. The verdict is still
-   ONE `last.json` record per tip: offline green + walk green = `GREEN`, and
-   it names the two halves (`offline`, `ui`), which `health:status` prints.
-2. **An environment failure is `infra`, never `RED`.** `check:ui` exit 2 (a
-   fatal before any surface was judged) and exit 3 (deployment down), and an
-   exit 1 whose failing rows are ALL `INFRA` — the walk's own verdict that the
-   machine was still busy after the retries (`walkRunVerdict`,
-   `scripts/ui-gate/infra-verdict.ts`) — record `infra`: no marker, re-walked
-   on the next trigger. One `FAIL` row (a broken Floor on a settled cell), one
-   `assert … FAIL` row, or any `UNWALKED` row (the walk failed on a quiet
-   machine, by its own classification) is the tree's.
-3. **No probation** (retired, issue #5378). The walk once had to show 5
-   consecutive non-infra verdicts (`ui-walk.json`) before a failure the tree
-   owns could raise the marker; at one walk per release that would take weeks
-   to arm. A tree-failed walk is `RED`, and `bun run release` reads only
-   `GREEN`.
+1. **After the offline gates, off the mutex.** `health-main --release` runs
+   the offline gates, then the browser step in its own worktree with any hold
+   scrubbed — `gate:who` during it shows the heavy mutex free. A tip whose
+   offline half already stands GREEN (batch health's record, or the store's)
+   runs only the browser step (`browserStepsOwed`); `--release` is refused
+   under `--under-lock`, and the retired `--ui-all` / `--phase=` are refused
+   outright. The verdict is ONE `last.json` record per tip: offline green +
+   browser green = `GREEN`, and it names the two halves (`offline`,
+   `browser`), which `health:status` prints.
+2. **An environment failure is `infra`, never `RED`.** Exit 2 (a fatal before
+   anything was measured), exit 3 (deployment down), and an exit 1 whose
+   failing rows are ALL `INFRA` (`walkRunVerdict`,
+   `scripts/ui-gate/infra-verdict.ts`) record `infra` (`browser-step`): no
+   marker, and the next `release` re-runs the step alone — the store keeps
+   the batch GREEN under it (infra never overwrites). Anything else is the
+   tree's: `RED`, and `bun run release` reads only `GREEN`.
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check
@@ -1759,7 +1761,8 @@ mid-issue finishes and the fix-forward has a way in.
 8 cores, 16 GB) runs the LLM sessions, `land` and `release` — everything a
 person or a session waits on. The Huawei (Omarchy Linux, i7 4c/8t, 16 GiB,
 ~0.35× the MacBook's multi-thread) runs what nobody waits on: batch health,
-the nightly crons, the audits, the `check:ui --all` release walk. So the
+the nightly crons, the audits (no automated `check:ui --all` walk on either
+machine since issue #6143). So the
 admission below is read twice: on the MacBook a heavy holder is now almost
 always a `land` and health never competes with it; on the Huawei the probes
 are Linux's (`/proc`, PSI) and the thresholds are calibrated from that
@@ -2026,8 +2029,8 @@ samples read (and so does another holder while it queues on the heavy mutex),
 so "saturated" alone cannot tell a busy machine from a regression that hangs
 the suite. What tells them apart is the next run — the
 same step failing the same way twice in a row is the tree's, and is RED
-(`repeatedMachineTimeout`). An unsettled walk needed no new rule: every failing
-row INFRA was already `ui-walk`.
+(`repeatedMachineTimeout`). An unsettled browser step needed no new rule: every
+failing row INFRA was already `infra` (`browser-step`, once `ui-walk`).
 
 **Fails open.** A probe that cannot be read — another platform, a failed
 spawn — reads as null, and null never saturates; the hook admits on a missing

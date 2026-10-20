@@ -22,7 +22,7 @@ import {
     readDeploymentSkew,
     type SkewInput,
 } from "../lib/deployment-skew";
-import { infraCause, INFRA_REMEDY, stepVerdict } from "../lib/health-verdict";
+import { INFRA_REMEDY, stepVerdict } from "../lib/health-verdict";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
 import {
     DeploymentDownAbort,
@@ -245,7 +245,7 @@ describe("readDeploymentSkew — the inputs read from git", () => {
     });
 });
 
-describe("a skew is INFRA / deployment-skew in health, never RED (issue #6132)", () => {
+describe("a skew is INFRA / deployment-skew in health, never RED (issues #6132, #6143)", () => {
     const outcome = (step: string, exitCode: number) => ({
         ok: false,
         startedAt: 1_000,
@@ -255,14 +255,10 @@ describe("a skew is INFRA / deployment-skew in health, never RED (issue #6132)",
         output: "",
     });
 
-    it("check:ui exiting DEPLOYMENT_SKEW_EXIT is infra with the deployment-skew cause", () => {
+    // No health step runs `check:ui` (issue #6143): health records the
+    // cause from its own preflight (`health-main-preflight.test.ts`).
+    it("check:ui exiting DEPLOYMENT_SKEW_EXIT reads infra", () => {
         expect(walkRunVerdict(DEPLOYMENT_SKEW_EXIT, "")).toBe("infra");
-        expect(
-            infraCause(outcome("check:ui --all", DEPLOYMENT_SKEW_EXIT))
-        ).toBe("deployment-skew");
-        expect(
-            stepVerdict(outcome("check:ui --all", DEPLOYMENT_SKEW_EXIT))
-        ).toBe("infra");
         expect(INFRA_REMEDY["deployment-skew"]).not.toContain('"');
     });
 

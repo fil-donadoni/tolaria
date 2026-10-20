@@ -70,8 +70,9 @@
  *   3. its own `mounts` closure — the module the probe photographs.
  * The soundness argument is re-made at this granularity in ADR 0131's
  * amendment; the residual it accepts (a mount a section renders
- * unconditionally, a sibling section's frame under an open layer) is what the
- * full `check:ui --all` walk in batch health exists to catch.
+ * unconditionally, a sibling section's frame under an open layer) only the
+ * full `check:ui --all` walk sees — run by hand since issue #6143, with no
+ * automated backstop.
  *
  * An empty `scoped` result is valid: a test-only diff owes no browser time.
  *
@@ -437,7 +438,10 @@ export function renderUiScope(scope: UiScope, base: string): string {
  *   - CONTENT: the changed file declares a `z-index` (`z-10`, `z-[60]`,
  *     `zIndex`), a scroll container (`overflow-auto`, `overflow-y: scroll`,
  *     `ScrollArea`) or a responsive rule (`@media`, `@container`,
- *     `matchMedia`, `useMediaQuery`, `useViewport`).
+ *     `matchMedia`, `useMediaQuery`, `useViewport`). A `.json` file is DATA
+ *     and is never content-read (issue #6143): a word in it — "a fixed search
+ *     budget" in `tolaria.config.json`'s `$comment` — is prose, not a class
+ *     or a style, and owed every diff that touched the config a walk.
  * Tests, markdown, scripts and server-only paths cannot reach the DOM and owe
  * nothing. Content is read from the file AS CHANGED, not its hunks: a leaf
  * file that declares a scroll container anywhere owes a walk — over-owing is
@@ -495,6 +499,12 @@ export function owedByContent(source: string): string | null {
     return null;
 }
 
+/** A file whose content is data, never markup or style: no content rule
+ *  applies to it (`owedByPath` still does — a `public/` JSON is owed). */
+function isDataPath(path: string): boolean {
+    return /\.json$/.test(path);
+}
+
 /** `read(path)` returns the file as changed, or `null` when it is gone/unreadable. */
 export function uiWalkOwed(
     changed: readonly string[],
@@ -506,6 +516,7 @@ export function uiWalkOwed(
     for (const path of reachable) {
         const byPath = owedByPath(path);
         if (byPath) return { owed: true, rule: byPath, path };
+        if (isDataPath(path)) continue;
         const source = read(path);
         if (source === null) {
             return {

@@ -3,7 +3,7 @@
 // never a second one (issue #4945).
 //
 // The AFK loop needs the deployment `VITE_CONVEX_URL` names for `check:ui`,
-// for the health gate's `check:ui --all` walk and for preset seeding, and
+// for `release`'s `check:game-download` and for preset seeding, and
 // nothing in the loop ever started it: a laptop sleep or a session that
 // killed its own `convex dev` stopped every run until a human typed
 // `bunx convex dev`. `check:ui` deliberately never starts a backend ("a second

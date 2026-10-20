@@ -32,6 +32,7 @@ import {
     HEALTH_SCRIPTS,
     LANE_COST_BUDGET_S,
     MAINTENANCE_SCRIPTS,
+    PR_RECEIPT_GUARDS,
 } from "../lib/health-step";
 import vitestSettings from "../../vitest.config";
 
@@ -2276,8 +2277,10 @@ describe("check-lane — the blade card index drift test runs where the index ca
  * Issue #4963 — the census: every `check:*` package script is either reached
  * by some lane's plan (directly, or through the scripts that plan's commands
  * compose) or named in `HEALTH_ONLY_GUARDS` with a measured cost over the
- * lane budget. A new guard in neither place reds here, so "where does it
- * run, and why not in the lane" is answered by the PR that adds it.
+ * lane budget — or placed by judgment in `MAINTENANCE_SCRIPTS` (never gated,
+ * issue #5458) or `PR_RECEIPT_GUARDS` (run by hand, proved by a receipt,
+ * issue #6143). A new guard in no place reds here, so "where does it run,
+ * and why not in the lane" is answered by the PR that adds it.
  */
 describe("check-lane — every check:* script is in a lane or health-only by cost (issue #4963)", () => {
     const pkg = JSON.parse(
@@ -2332,18 +2335,37 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
             (n) => n.startsWith("check:") && n !== "check:lane"
         );
 
-    it("every check:* script is in a lane, in HEALTH_ONLY_GUARDS or in MAINTENANCE_SCRIPTS", () => {
+    it("every check:* script is in a lane, in HEALTH_ONLY_GUARDS, in MAINTENANCE_SCRIPTS or in PR_RECEIPT_GUARDS", () => {
         const reach = laneReachable();
         const orphans = checks().filter(
             (n) =>
                 !reach.has(n) &&
                 !(n in HEALTH_ONLY_GUARDS) &&
-                !(n in MAINTENANCE_SCRIPTS)
+                !(n in MAINTENANCE_SCRIPTS) &&
+                !(n in PR_RECEIPT_GUARDS)
         );
         expect(
             orphans,
-            "a check:* script in no lane must be listed in HEALTH_ONLY_GUARDS (scripts/lib/health-step.ts) with its measured cost — over 10 s, or it belongs in check:lane — or, if no gate should ever wait for it, in MAINTENANCE_SCRIPTS"
+            "a check:* script in no lane must be listed in HEALTH_ONLY_GUARDS (scripts/lib/health-step.ts) with its measured cost — over 10 s, or it belongs in check:lane — or, if no gate should ever wait for it, in MAINTENANCE_SCRIPTS, or, if a PR runs it by hand and pastes a receipt `land` re-derives, in PR_RECEIPT_GUARDS"
         ).toEqual([]);
+    });
+
+    it("a PR-receipt guard is run by hand: in no lane, not health-only, not a health step (issue #6143)", () => {
+        const reach = laneReachable();
+        for (const [name, { measured, why }] of Object.entries(
+            PR_RECEIPT_GUARDS
+        )) {
+            expect(pkg.scripts, name).toHaveProperty(name);
+            expect(reach.has(name), `${name} is in a lane`).toBe(false);
+            expect(name in HEALTH_ONLY_GUARDS, name).toBe(false);
+            expect(name in MAINTENANCE_SCRIPTS, name).toBe(false);
+            expect(
+                HEALTH_SCRIPTS.map((e) => e.split(/\s+/)[0]),
+                name
+            ).not.toContain(name);
+            expect(measured.length, name).toBeGreaterThan(10);
+            expect(why.length, name).toBeGreaterThan(10);
+        }
     });
 
     it("a maintenance script is never gated: in no lane, not health-only, not a health step (issue #5458)", () => {

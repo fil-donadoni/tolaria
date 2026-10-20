@@ -21,21 +21,21 @@ export interface HealthRecord {
     failedStep?: string;
     /** `infra` only: why, and what to do (`INFRA_REMEDY`, issue #4943). */
     reason?: string;
-    /** ISO: when the run's current PHASE began — the browser walk, after the
-     *  offline gates released the mutex (issue #4962). Liveness reads it. */
+    /** ISO: when the run's current PHASE began — the browser steps, after
+     *  the offline gates released the mutex (issue #4962). Liveness reads it. */
     phaseStartedAt?: string;
-    /** `running` only: `walk` once the offline gates passed (issue #4962). */
-    phase?: "walk";
-    /** The browser walk's state; `pending` = owed, nobody walking yet. */
-    ui?: string;
+    /** The offline gates' half of the verdict (issue #4962). */
+    offline?: string;
+    /** The release-only browser steps' state (`BrowserStepsState`). */
+    browser?: string;
 }
 
 /**
  * Is a health run already in flight? A `running` record younger than `staleMs`
  * is a live run; older belongs to one that died. Its age counts from the
  * current PHASE (`phaseStartedAt`, issue #4962) when there is one: offline
- * gates plus the browser walk can outlast `staleMs` together while each phase
- * stays well inside it. `staleMs` mirrors `health-main.ts`'s own
+ * gates plus the browser steps can outlast `staleMs` together while each
+ * phase stays well inside it. `staleMs` mirrors `health-main.ts`'s own
  * `STALE_RUNNING_MS`.
  */
 export function healthRunInFlight(
@@ -78,4 +78,31 @@ export function gateSkipReason(input: {
             : `tip ${short(tip)} already being gated`;
     if (retryTerminal) return null;
     return `tip ${short(tip)} already has a ${last.status.toUpperCase()} verdict${last.failedStep ? ` (${last.failedStep})` : ""} — a job never re-gates it; \`bun run health\` retries by hand`;
+}
+
+/**
+ * Whether a `--release` run owes ONLY the browser steps on `tip` (issue
+ * #6143): the offline half already stands GREEN and no record here shows the
+ * browser steps green on that sha. Batch health never runs them (issue
+ * #5378), so a batch GREEN owes them before `release` reads it.
+ *
+ * The offline half stands on this machine's record about the tip — GREEN, or
+ * INFRA at a browser step after the offline gates passed (the store keeps
+ * the batch GREEN under it: infra never overwrites, and without this the
+ * local INFRA would refuse every `release` of the tip) — or, when this
+ * machine has no record about the tip, on the store's GREEN. Any other local
+ * record decides on its own (`gateSkipReason`): a running one is not raced, a
+ * RED one is re-gated whole.
+ */
+export function browserStepsOwed(input: {
+    last: HealthRecord | null;
+    tip: string;
+    stored?: Verdict | null;
+}): boolean {
+    const { last, tip, stored } = input;
+    if (last?.sha === tip) {
+        if (last.status === "green") return last.browser !== "green";
+        return last.status === "infra" && last.offline === "green";
+    }
+    return stored?.sha === tip && stored.status === "green";
 }

@@ -45,10 +45,6 @@ export const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
 /** The GitHub commit-status context the verdict is written under. */
 export const HEALTH_CONTEXT = "health";
 
-/** The context the advisory Linux walk writes under (issue #5465) — never
- *  `health`, so a walk divergence can never write RED. */
-export const UI_WALK_CONTEXT = "ui-walk";
-
 /** A GitHub commit description is capped at 140 characters. */
 export const DESCRIPTION_MAX = 140;
 
@@ -300,7 +296,7 @@ export interface GithubStoreOptions {
     /** The branch whose history is the lineage. */
     branch?: string;
     run?: GhRunner;
-    /** The commit-status context; `health` unless the advisory walk's. */
+    /** The commit-status context; `health` unless a caller names another. */
     context?: string;
 }
 

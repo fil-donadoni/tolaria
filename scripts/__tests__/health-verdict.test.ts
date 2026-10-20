@@ -152,7 +152,8 @@ describe("health verdict — an INFRA run never erases a standing RED (issue #49
  * A Convex backend that does not answer is INFRA, not a RED tip (issue
  * #4943). 7 of 12 REDs after issue #4913 were `check:ui` finding the local
  * deployment down — exit 2, a RED marker, `health:fix` spawned, the AFK loop
- * stopped — with nothing wrong in the tree.
+ * stopped — with nothing wrong in the tree. Since issue #6143 the one browser
+ * step is `check:game-download`, on `check:ui`'s exit contract.
  */
 describe("health verdict — the Convex deployment is down (issue #4943)", () => {
     const failed = (step: string, exitCode: number | null) =>
@@ -164,14 +165,16 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
             exitCode,
         });
 
-    it("is INFRA when check:ui exits DEPLOYMENT_DOWN_EXIT", () => {
-        expect(failed("check:ui --all", DEPLOYMENT_DOWN_EXIT)).toBe("infra");
+    it("is INFRA when the browser step exits DEPLOYMENT_DOWN_EXIT", () => {
+        expect(failed("check:game-download", DEPLOYMENT_DOWN_EXIT)).toBe(
+            "infra"
+        );
         expect(
             infraCause({
                 ok: false,
                 startedAt: STEP_START,
                 lastSleepAt: null,
-                step: "check:ui --all",
+                step: "check:game-download",
                 exitCode: DEPLOYMENT_DOWN_EXIT,
             })
         ).toBe("convex-down");
@@ -185,9 +188,9 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
         expect(failed("check:game-download", 1)).toBe("red");
     });
 
-    it("is RED for a genuine check:ui failure — a non-PASS verdict it cannot attribute, or a signal", () => {
-        expect(failed("check:ui --all", 1)).toBe("red");
-        expect(failed("check:ui --all", null)).toBe("red");
+    it("is RED for a genuine browser-step failure — a verdict it cannot attribute, or a signal", () => {
+        expect(failed("check:game-download", 1)).toBe("red");
+        expect(failed("check:game-download", null)).toBe("red");
     });
 
     it("is RED when another step exits with the same code", () => {
@@ -209,7 +212,7 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
                 ok: true,
                 startedAt: STEP_START,
                 lastSleepAt: STEP_START + 1,
-                step: "check:ui --all",
+                step: "check:game-download",
                 exitCode: 0,
             })
         ).toBeNull();
@@ -217,7 +220,7 @@ describe("health verdict — the Convex deployment is down (issue #4943)", () =>
 });
 
 describe("health verdict — the Convex preflight (issue #4943)", () => {
-    const GATES = ["check:all", "test", "check:ui --all"];
+    const GATES = ["check:all", "test", "check:game-download"];
     const probeAnswering = (answers: boolean) => {
         const asked: string[] = [];
         return {
@@ -252,7 +255,7 @@ describe("health verdict — the Convex preflight (issue #4943)", () => {
         ).toBeNull();
     });
 
-    it("asks nothing for a run with no check:ui step, or no URL configured", async () => {
+    it("asks nothing for a run with no browser step, or no URL configured", async () => {
         const p = probeAnswering(false);
         expect(
             await convexPreflight({

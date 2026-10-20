@@ -40,7 +40,7 @@ responsive module; or a file declaring a `z-index`, scroll container or
 `@media`/`matchMedia`/`useViewport*`. Leaf
 components, copy, handlers, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
-`land` refuses. `--all` (release walk) stays the full proof.
+`land` refuses. `--all`: the full proof, by hand only (#6143).
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
