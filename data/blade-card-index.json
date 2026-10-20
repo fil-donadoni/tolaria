@@ -125,6 +125,11 @@
     ],
     "Disenchant": [
         {
+            "label": "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "each-step edict: Disenchant takes the Destructive Flow that eats only the bot's nonbasic lands, not the 2-MV artifact (issue #5575)",
             "tier": "must",
             "needsSetup": false
