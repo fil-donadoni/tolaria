@@ -103,6 +103,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts which lane the classifier picks for them; it reads no repo document",
     "scripts/__tests__/ui-gate-infra-verdict.test.ts":
         "the GLOSSARY.md mention is a header comment citing the glossary term it implements; the test reads no repo document",
+    "scripts/__tests__/ui-gate-publish-shots.test.ts":
+        "reads back the check-ui-comment.md body the publish step writes into a temp run dir; it reads no repo document",
     "scripts/__tests__/ui-gate-settle.test.ts":
         "the GLOSSARY.md mention is a header comment citing the glossary term it implements; the test reads scripts/ui-gate/surfaces.ts source, no repo document",
     "scripts/__tests__/ui-scope.test.ts":
