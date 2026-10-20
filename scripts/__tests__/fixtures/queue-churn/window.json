@@ -1,0 +1,89 @@
+{
+    "window": { "from": "2026-10-20T00:00:00Z", "to": "2026-10-20T15:00:00Z" },
+    "mergedPrs": [6138, 6135, 6123],
+    "queueLaneRuns": [
+        {
+            "displayTitle": "Merge of #6138",
+            "conclusion": "cancelled",
+            "createdAt": "2026-10-20T09:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6138",
+            "conclusion": "success",
+            "createdAt": "2026-10-20T10:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6135",
+            "conclusion": "failure",
+            "createdAt": "2026-10-20T11:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6135",
+            "conclusion": "cancelled",
+            "createdAt": "2026-10-20T12:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6123",
+            "conclusion": "success",
+            "createdAt": "2026-10-20T13:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6100",
+            "conclusion": "success",
+            "createdAt": "2026-10-19T23:59:59Z"
+        },
+        {
+            "displayTitle": "Merge of #6150",
+            "conclusion": "",
+            "createdAt": "2026-10-20T14:00:00Z"
+        },
+        {
+            "displayTitle": "Merge of #6151",
+            "conclusion": "success",
+            "createdAt": "2026-10-20T15:00:00Z"
+        }
+    ],
+    "prRefreshRuns": [
+        {
+            "displayTitle": "a",
+            "conclusion": "success",
+            "createdAt": "2026-10-20T08:00:00Z"
+        },
+        {
+            "displayTitle": "b",
+            "conclusion": "success",
+            "createdAt": "2026-10-20T14:59:59Z"
+        },
+        {
+            "displayTitle": "c",
+            "conclusion": "success",
+            "createdAt": "2026-10-19T08:00:00Z"
+        }
+    ],
+    "comments": [
+        {
+            "createdAt": "2026-10-20T09:10:00Z",
+            "body": "<!---\n-*- Mergify Payload -*-\n{\"version\": 1, \"state\": \"dequeued\"}\n-*- Mergify Payload End -*-\n-->\n\n## Reason\nThe merge conditions cannot be satisfied due to failing checks\n- `queue-lane`"
+        },
+        {
+            "createdAt": "2026-10-20T10:10:00Z",
+            "body": "<!---\n-*- Mergify Payload -*-\n{\"version\": 1, \"state\": \"dequeued\"}\n-*- Mergify Payload End -*-\n-->\n\n## Reason\nPull request #6123 has been dequeued\n> - [ ] `-conflict` [queue requirement]"
+        },
+        {
+            "createdAt": "2026-10-20T11:10:00Z",
+            "body": "<!---\n-*- Mergify Payload -*-\n{\"version\": 1, \"state\": \"dequeued\"}\n-*- Mergify Payload End -*-\n-->\n\n## Reason\nThe pull request has been manually updated"
+        },
+        {
+            "createdAt": "2026-10-20T12:10:00Z",
+            "body": "<!---\n-*- Mergify Payload -*-\n{\"version\": 1, \"state\": \"queued\"}\n-*- Mergify Payload End -*-\n-->\n\n## Reason\nfailing checks"
+        },
+        {
+            "createdAt": "2026-10-19T12:10:00Z",
+            "body": "<!---\n-*- Mergify Payload -*-\n{\"version\": 1, \"state\": \"dequeued\"}\n-*- Mergify Payload End -*-\n-->\n\n## Reason\nfailing checks"
+        },
+        {
+            "createdAt": "2026-10-20T12:20:00Z",
+            "body": "a human comment about failing checks"
+        }
+    ]
+}
