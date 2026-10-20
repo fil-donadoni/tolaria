@@ -46,7 +46,6 @@ import type { CardDefinition } from "./types";
 import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
-import { becomesBlockedTrigger } from "./abilities/triggers/becomesBlockedTrigger";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
@@ -234,8 +233,6 @@ export type CompiledTriggerHead =
     | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
     /** CR 509.1h — "whenever this creature attacks and isn't blocked". */
     | { readonly kind: "attacks-unblocked" }
-    /** CR 509.3c — "whenever this creature becomes blocked" (once per combat). */
-    | { readonly kind: "becomes-blocked" }
     /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
     | { readonly kind: "tapped"; readonly scope: "self" }
     /** CR 702.29c — "when you cycle this card". */
@@ -546,8 +543,6 @@ export function resolveCompiledTrigger(
             });
         case "attacks-unblocked":
             return attackerUnblockedTrigger(common);
-        case "becomes-blocked":
-            return becomesBlockedTrigger(common);
         case "tapped":
             return tappedTrigger({ ...common, scope: head.scope });
         case "cycled":

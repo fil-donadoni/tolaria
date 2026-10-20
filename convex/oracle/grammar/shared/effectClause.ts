@@ -3604,8 +3604,9 @@ const PAY_VARIABLE_MANA = "you may pay {X}";
  *  another payment this rule does not read. */
 const PAY_FIXED_MANA = /^you may pay ((?:\{[WUBRGC0-9]+\})+)$/;
 /** CR 510.1c — the source's own assignment suppression, whole. */
-const ASSIGNS_NO_COMBAT_DAMAGE = "{self} assigns no combat damage this turn";
-const AND_ASSIGNS_NO_COMBAT_DAMAGE = ` and ${ASSIGNS_NO_COMBAT_DAMAGE}`;
+const ASSIGNS_NO_COMBAT_DAMAGE = /^(.+) assigns no combat damage this turn$/;
+const AND_ASSIGNS_NO_COMBAT_DAMAGE =
+    /^(.+) and (.+) assigns no combat damage this turn$/;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
 /** CR 121.1 — the first half of a `draw-then-ranged-topdeck`, whole. */
@@ -5208,6 +5209,22 @@ function effectSentence(
     span: string,
     ctx: unknown
 ): RuleResult<EffectSentenceIR> {
+    // ── source's assignment suppression (CR 510.1c) ─────────────────────
+    const assignsNone = span.match(ASSIGNS_NO_COMBAT_DAMAGE);
+    if (assignsNone !== null && isSelfPhrase(assignsNone[1]!))
+        return ok({
+            kind: "assigns-no-combat-damage" as const,
+        } satisfies EffectSentenceIR);
+    const andAssignsNone = span.match(AND_ASSIGNS_NO_COMBAT_DAMAGE);
+    if (andAssignsNone !== null && isSelfPhrase(andAssignsNone[2]!)) {
+        const head = effectSentence(andAssignsNone[1]!, ctx);
+        if (!head.ok) return head;
+        return ok({
+            kind: "effect-and-assigns-no-combat-damage" as const,
+            effect: head.value,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── "…, where X is the number of …" (CR 107.3) ─────────────────────────
     const whereX = span.match(WHERE_X_IS);
     if (whereX !== null) {
@@ -6134,23 +6151,6 @@ function effectSentence(
             kind: "tap-untap" as const,
             action,
             subject: subject.value,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── source's assignment suppression (CR 510.1c) ─────────────────────
-    if (span === ASSIGNS_NO_COMBAT_DAMAGE)
-        return ok({
-            kind: "assigns-no-combat-damage" as const,
-        } satisfies EffectSentenceIR);
-    if (span.endsWith(AND_ASSIGNS_NO_COMBAT_DAMAGE)) {
-        const head = effectSentence(
-            span.slice(0, span.length - AND_ASSIGNS_NO_COMBAT_DAMAGE.length),
-            ctx
-        );
-        if (!head.ok) return head;
-        return ok({
-            kind: "effect-and-assigns-no-combat-damage" as const,
-            effect: head.value,
         } satisfies EffectSentenceIR);
     }
 
