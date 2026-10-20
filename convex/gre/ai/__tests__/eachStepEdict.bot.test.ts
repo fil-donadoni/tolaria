@@ -9,9 +9,10 @@
 // side (`EachPlayerSide.sacrificeUnits`, CR 701.21a: each player sacrifices
 // its own cheapest), the opponent's loss minus the controller's. Every other
 // standing script on the scoped player that the Differential cannot read
-// yet (mana, a library reveal, a bounce) reads NOTHING and keeps its Latent
-// Floor, never the representative sign. Issue #5625 reads the mill family
-// (`eachStepMill.bot.test.ts`).
+// reads NOTHING and keeps its Latent Floor, never the representative sign.
+// Issues #5624, #5625, #5626, #5627 and #5628 read the remaining shipped
+// families per side (a discard at random, a mill, mana, a library reveal, a
+// bounce); a bound mill stands in for a family no side reader prices.
 //
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
@@ -161,6 +162,34 @@ function scopedEngines(): { name: string; def: CardDefinition }[] {
     return out;
 }
 
+const BOUND_MILL = "a bound mill";
+
+/** Worry Beads with its mill bound — a script on the scoped player no side
+ *  reader prices (`isStepSideOp`: a bound mill feeds a later Op), so the
+ *  census below keeps an unread member once every shipped family is read. */
+function boundMillEngine(): { name: string; def: CardDefinition } {
+    const beads = [...registeredDefinitions()].find(
+        (d) => d.name === "Worry Beads"
+    )!;
+    const trigger = beads.triggeredAbilities![0];
+    return {
+        name: BOUND_MILL,
+        def: {
+            ...beads,
+            activatedAbilities: [],
+            staticAbilities: [],
+            triggeredAbilities: [
+                {
+                    ...trigger,
+                    effects: trigger.effects!.map((op) =>
+                        op.op === "mill" ? { ...op, bind: "milled" } : op
+                    ),
+                },
+            ],
+        },
+    };
+}
+
 describe("no standing each-step script takes the representative sign (issue #5575)", () => {
     const engines = scopedEngines();
 
@@ -192,17 +221,20 @@ describe("no standing each-step script takes the representative sign (issue #557
         const state = board({ nonbasics: 1 }, { nonbasics: 1 });
         const anchor = state.players[0].hand[0];
         const lens = handLatentLens(state, "p1", anchor)!;
-        const unread = engines.filter(({ def }) => {
+        const unread = [...engines, boundMillEngine()].filter(({ def }) => {
             const script = def.triggeredAbilities![0];
             return !isEachStepEngineScript(
                 (script.effects ?? script.aiEffects)!
             );
         });
-        expect(unread.length).toBeGreaterThan(0);
+        const names = unread.map((e) => e.name);
+        // Issue #5625 — the mill family was the last shipped one unread; the
+        // bound variant keeps this reading non-vacuous.
+        expect(names).toContain(BOUND_MILL);
         // Issue #5627 — the library to battlefield family is read per side.
-        expect(unread.map((e) => e.name)).not.toContain("Oath of Druids");
+        expect(names).not.toContain("Oath of Druids");
         // Issue #5625 — the mill family is read per side.
-        expect(unread.map((e) => e.name)).not.toContain("Worry Beads");
+        expect(names).not.toContain("Worry Beads");
         for (const { name, def } of unread) {
             expect(
                 dslStandingAbilityScriptValue(
