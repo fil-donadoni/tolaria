@@ -65,7 +65,7 @@ What should happen after the fix. Be specific about edge cases.
 
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
-- [ ] `bun run check:all` and `bun run test` pass
+- [ ] Lane green at `land`
 - [ ] `area:game-bot` only: `Blade: <expected position and move | none — <why>>`
 
 **Out of scope:**
