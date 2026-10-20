@@ -465,7 +465,7 @@ export function handTailCardMatch(file: string): CardMatch | undefined {
  * lockfile, the Bot Reach Findings report, and the `hand-tail:` markers
  * `handTailClaimMismatches` already scanned. `grammar` unions the derived Op
  * census (`(op) › …`, {@link opGapKey}) with the fragment-level Grammar Gaps
- * `computedGapKeys` reads off `lock.fragments` — the two key schemes the
+ * `computedGapKeys` reads off the fragment table — the two key schemes the
  * module header's "ops rows are grammar rows" note describes.
  *
  * `bot` is the WHOLE-CORPUS set (`computedGapKeys`'s own `.bot`), never the

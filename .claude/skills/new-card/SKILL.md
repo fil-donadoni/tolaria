@@ -64,9 +64,10 @@ answers offline, in a quarter of a second, and it is the same artefact
 the gates cannot disagree:
 
 ```bash
-jq -r --arg n "<Card Name>" '. as $l | $l.cards[] | select(.name==$n)
+jq -r --arg n "<Card Name>" '. as $l | ($l.fragments | INDEX(.key)) as $f
+  | $l.cards[] | select(.name==$n)
   | "state=\(.state)  ops=\(.opsUsed // [])  quarantine=\(.quarantineReasons // [])",
-    ((.gaps // [])[] as $i | $l.fragments[$i]
+    ([(.gaps // [])[] | $f[.]] | sort_by(-.cards, .text)[]
       | "  fragment: \(.text)\n    reason: \(.reason)  attribution: \(.attribution // "—")  fragment-cards: \(.cards)")' \
   data/oracle-compiled.json
 ```
