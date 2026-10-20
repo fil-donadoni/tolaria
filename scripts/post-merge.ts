@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * `bun run post-merge <sync|seed> --before <sha> --after <sha>` — what a push
+ * `bun run post-merge <sync|seed> --before <sha> --after <sha>` / `bun run
+ * post-merge sweep` — what a push
  * to the base obliges on a machine (issue #5644, PRD #5620). `post-merge.yml`
  * runs it from a job worktree on every machine; both steps act on the
  * machine's PRIMARY checkout, never on the worktree they run from.
@@ -8,6 +9,9 @@
  *   sync   fetch + fast-forward the primary checkout (on the MacBook
  *          `convex dev` serves the deployment from it), remove the worktree
  *          each merged PR left standing, ingest the telemetry.
+ *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
+ *          no merge will ever clean up — PR closed unmerged, or no PR, no
+ *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
  *   seed   the `seed` machine only: fast-forward again (a no-op when `sync`
  *          already did), register each merged PR's `## Preset scenario`, and
  *          `seed:preset --all` when the push changed a card set.
@@ -36,7 +40,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { hostname } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { ALLOWLIST_PATH } from "./check-gaps";
 import { ALLOWLIST_COMMIT_SUBJECT } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
@@ -51,6 +55,7 @@ import {
     syncNotice,
 } from "./lib/post-merge";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { gcLine, worktreeGc } from "./worktree-gc";
 
 /** Wall for one child: a hung `convex` call must not hold the lane runner. */
 const STEP_WALL_MS = 10 * 60_000;
@@ -209,11 +214,20 @@ export function fastForward(primary: string): boolean {
     return false;
 }
 
-/** Remove the worktree a merged PR's session left standing. */
-function removeMergedWorktree(primary: string, pr: number): boolean {
-    let head: string;
-    try {
-        head = gh([
+/** The I/O `removeMergedWorktree` does — a seam for the test. */
+export interface MergedWorktreeIo {
+    /** The PR's head branch, as `gh` prints it (trailing newline and all). */
+    headOf: (pr: number) => string;
+    exists: (path: string) => boolean;
+    /** `lsof -a -d cwd -Fn` output. */
+    cwds: () => string;
+    git: (args: string[], cwd: string) => { ok: boolean };
+    log: (line: string) => void;
+}
+
+const MERGED_WORKTREE_IO: MergedWorktreeIo = {
+    headOf: (pr) =>
+        gh([
             "pr",
             "view",
             String(pr),
@@ -221,28 +235,53 @@ function removeMergedWorktree(primary: string, pr: number): boolean {
             "headRefName",
             "--jq",
             ".headRefName",
-        ]);
+        ]),
+    exists: existsSync,
+    cwds: () =>
+        spawnSync("lsof", ["-a", "-d", "cwd", "-Fn"], { encoding: "utf8" })
+            .stdout ?? "",
+    git,
+    log: (line) => console.log(line),
+};
+
+/**
+ * Remove the worktree a merged PR's session left standing. Every outcome is
+ * a logged line (issue #6083): a branch naming no issue worktree used to be
+ * a silent success, which hid that EVERY merge was skipped. false = a failed
+ * lookup or removal, the leg's red.
+ */
+export function removeMergedWorktree(
+    primary: string,
+    pr: number,
+    io: MergedWorktreeIo = MERGED_WORKTREE_IO
+): boolean {
+    let head: string;
+    try {
+        head = io.headOf(pr).trim();
     } catch (e) {
         console.error(`post-merge: PR #${pr}: ${(e as Error).message}`);
         return false;
     }
     const wt = mergedWorktree(primary, head);
-    if (wt === null) return true;
-    if (!existsSync(wt)) {
-        git(["worktree", "prune"], primary);
+    if (wt === null) {
+        io.log(
+            `post-merge: PR #${pr}: head branch ${JSON.stringify(head)} maps to no issue worktree — nothing to remove`
+        );
         return true;
     }
-    const cwds = spawnSync("lsof", ["-a", "-d", "cwd", "-Fn"], {
-        encoding: "utf8",
-    }).stdout;
-    if (cwdInside(cwds ?? "", wt)) {
-        console.log(
+    if (!io.exists(wt)) {
+        io.git(["worktree", "prune"], primary);
+        io.log(`post-merge: PR #${pr}: worktree ${wt} not on this machine`);
+        return true;
+    }
+    if (cwdInside(io.cwds(), wt)) {
+        io.log(
             `post-merge: PR #${pr}: worktree ${wt} is in use (land?) — left to its owner`
         );
         return true;
     }
-    const removed = git(["worktree", "remove", "--force", wt], primary).ok;
-    console.log(
+    const removed = io.git(["worktree", "remove", "--force", wt], primary).ok;
+    io.log(
         `post-merge: PR #${pr}: worktree ${wt} ${removed ? "removed" : "NOT removed"}`
     );
     return removed;
@@ -309,6 +348,26 @@ export function seed(primary: string, before: string, after: string): boolean {
     return ok;
 }
 
+/**
+ * The orphan sweep (issue #6083): every issue worktree on this machine,
+ * classified by `wt:gc`, each listed with its verdict; the removable ones
+ * removed. Red when the facts could not be read or a removal failed.
+ */
+export function sweep(primary: string): boolean {
+    const rows = worktreeGc(primary, { apply: true, issuesOnly: true });
+    if (rows === null) {
+        console.error(
+            "post-merge: sweep: could not read the PR lists or the claims — nothing removed"
+        );
+        return false;
+    }
+    for (const row of rows) console.log(gcLine(row, dirname(primary)));
+    console.log(
+        `post-merge: sweep: ${rows.length} issue worktree(s), ${rows.filter((r) => r.removed === true).length} removed`
+    );
+    return rows.every((r) => r.removed !== false);
+}
+
 function flag(argv: string[], name: string): string {
     const i = argv.indexOf(name);
     const v = i === -1 ? undefined : argv[i + 1];
@@ -322,13 +381,14 @@ function flag(argv: string[], name: string): string {
 if (import.meta.main) {
     const argv = process.argv.slice(2);
     const step = argv[0];
-    if (step !== "sync" && step !== "seed") {
+    if (step !== "sync" && step !== "seed" && step !== "sweep") {
         console.error(
-            "usage: bun run post-merge <sync|seed> --before <sha> --after <sha>"
+            "usage: bun run post-merge <sync|seed> --before <sha> --after <sha> | sweep"
         );
         process.exit(2);
     }
     const primary = primaryCheckout();
+    if (step === "sweep") process.exit(sweep(primary) ? 0 : 1);
     const run = step === "sync" ? sync : seed;
     process.exit(
         run(primary, flag(argv, "--before"), flag(argv, "--after")) ? 0 : 1

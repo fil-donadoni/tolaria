@@ -6,6 +6,9 @@
 # direct push, grammar residue, claim release, umbrella detach). Two schedules
 # cover what no push triggers: housekeeping's hourly retry and `health:nightly`.
 # They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
+# The hourly schedule also runs `sweep` on EVERY machine (issue #6083):
+# worktrees are machine-local, so the issue worktrees no merge cleans up (PR
+# closed unmerged, or no PR and no claim) are swept per host, like `sync`.
 # No job requires one host (issue #5873): `housekeeping` and `nightly` keep
 # their state in `refs/tolaria/state` and work in a worktree of their own, so
 # a runner that is offline or broken costs nothing but its own `sync` leg.
@@ -30,7 +33,7 @@ on:
             job:
                 description: Job to run by hand
                 type: choice
-                options: [housekeeping, nightly]
+                options: [housekeeping, nightly, sweep]
                 default: housekeeping
 
 permissions:
@@ -58,6 +61,31 @@ jobs:
               env:
                   BEFORE: ${{ github.event.before }}
               run: bun run post-merge sync --before "$BEFORE" --after "$GITHUB_SHA"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    sweep:
+        name: orphan issue-worktree sweep (${{ matrix.host }})
+        if: ${{ github.event.schedule == '17 * * * *' || inputs.job == 'sweep' }}
+        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                host: [macbook, huawei]
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: post-merge sweep
+              run: bun run post-merge sweep
             - name: Remove the job worktree
               if: always()
               shell: bash

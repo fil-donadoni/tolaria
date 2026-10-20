@@ -51,7 +51,10 @@ export function pickResumeBranch(
  * issue whose claim it releases, issue #5457).
  */
 export function issueOfBranch(branch: string): number | null {
-    const m = /(?:^|\/)issue-(\d+)$/.exec(branch);
+    // Trimmed: a name read through `gh()` keeps its trailing newline, and
+    // `$` without the multiline flag does not match before it — every merged
+    // PR's worktree was silently skipped (issue #6083).
+    const m = /(?:^|\/)issue-(\d+)$/.exec(branch.trim());
     return m ? Number(m[1]) : null;
 }
 
