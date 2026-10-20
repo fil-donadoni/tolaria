@@ -209,6 +209,7 @@ import { FUNCTION_TIMEOUT_PATTERN, type RetryPolicy } from "./infra-verdict.ts";
 import {
     convexProbe,
     DeploymentDownAbort,
+    probeStateLabel,
     untilDeploymentDown,
     watchDeployment,
 } from "./deployment-watch.ts";
@@ -227,6 +228,7 @@ import {
     type ViewportActivity,
 } from "./heartbeat.ts";
 import { consoleErrorDetail } from "./console-detail.ts";
+import { createAttemptConsole } from "./attempt-console.ts";
 import {
     NETWORK_INSTRUMENT_SOURCE,
     trackPageRequests,
@@ -297,6 +299,10 @@ const DEPLOYMENT_PROBE_MS = deadlineFromEnv(
     process.env.TOLARIA_UI_GATE_PROBE_MS,
     15_000
 );
+/** How long a failed attempt's verdict waits for one console error's resolved
+ *  arguments (issue #6087): a page-side read, so a hung page falls back to the
+ *  text instead of holding the cell. */
+const CONSOLE_DETAIL_WAIT_MS = 2_000;
 /** The live heartbeat's cadence (issue #6072): a walk is never silent longer. */
 const HEARTBEAT_MS = deadlineFromEnv(
     process.env.TOLARIA_UI_GATE_HEARTBEAT_MS,
@@ -1143,9 +1149,13 @@ async function main(): Promise<number> {
                     // Before any app code: the settle predicate counts the Convex
                     // requests in flight through this (`settle.ts`).
                     await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
-                    /** The console errors of the CURRENT walk attempt, untruncated —
-                     *  what `classifyWalkFailure` reads a signature from. */
-                    const attemptConsole: string[] = [];
+                    /** The console errors of the CURRENT walk attempt, untruncated,
+                     *  by text and resolved detail — what `classifyWalkFailure`
+                     *  reads a signature from (issue #6087). */
+                    const attemptConsole = createAttemptConsole({
+                        detailWaitMs: CONSOLE_DETAIL_WAIT_MS,
+                        sleep,
+                    });
                     /**
                      * A page in this viewport's context, instrumented. A cell
                      * that outlives its deadline (issue #4912) has its page
@@ -1159,13 +1169,16 @@ async function main(): Promise<number> {
                         trackPageRequests(opened);
                         opened.on("console", (msg) => {
                             if (msg.type() === "error") {
-                                attemptConsole.push(msg.text());
                                 // React logs through a format string
                                 // (`%o`), so the text alone names nothing:
-                                // resolve the arguments (issue #6072).
-                                void consoleErrorDetail(msg).then((detail) =>
+                                // resolve the arguments (issue #6072) — for
+                                // the diagnostic list AND the signature
+                                // (issue #6087).
+                                const detail = consoleErrorDetail(msg);
+                                attemptConsole.error(msg.text(), detail);
+                                void detail.then((resolved) =>
                                     consoleErrors.push(
-                                        `${viewport.id}: ${detail.slice(0, 400)}`
+                                        `${viewport.id}: ${resolved.slice(0, 400)}`
                                     )
                                 );
                             }
@@ -1173,7 +1186,7 @@ async function main(): Promise<number> {
                         // An uncaught exception is no console message: it
                         // was never reported at all.
                         opened.on("pageerror", (err) => {
-                            attemptConsole.push(err.message);
+                            attemptConsole.uncaught(err.message);
                             consoleErrors.push(
                                 `${viewport.id}: uncaught ${(err.stack ?? err.message).slice(0, 400)}`
                             );
@@ -1230,7 +1243,7 @@ async function main(): Promise<number> {
                         // attempt (or surface) logged before they are cleared,
                         // so none can land in this attempt's signature.
                         await p.evaluate("0").catch(() => {});
-                        attemptConsole.length = 0;
+                        attemptConsole.clear();
                         await timed(t, "walk", () => surface.walk(p, ctx));
                         await timed(t, "settle", () =>
                             waitForSettledScreen(p, {
@@ -1244,8 +1257,8 @@ async function main(): Promise<number> {
                         // this signature: a `Server Error` can be logged
                         // harmlessly on a quiet machine.
                         await p.evaluate("0").catch(() => {});
-                        const timedOut = attemptConsole.find((line) =>
-                            FUNCTION_TIMEOUT_PATTERN.test(line)
+                        const timedOut = (await attemptConsole.lines()).find(
+                            (line) => FUNCTION_TIMEOUT_PATTERN.test(line)
                         );
                         if (timedOut) {
                             throw new Error(
@@ -1340,7 +1353,7 @@ async function main(): Promise<number> {
                         const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
                         const outcome = await runCellAttempts<MeasuredCell>({
                             attempt: () => attemptCell(surface, t),
-                            attemptConsole: () => attemptConsole,
+                            attemptConsole: () => attemptConsole.lines(),
                             reasonOf: (err) => {
                                 const message = (err as Error).message;
                                 return err instanceof Unreachable
@@ -1601,6 +1614,10 @@ async function main(): Promise<number> {
                             open: VIEWPORT_IDS.filter(
                                 (id) => !reported.has(id) && activity.has(id)
                             ).map((id) => [id, activity.get(id)!] as const),
+                            convex: probeStateLabel(
+                                deployment.state(),
+                                Date.now()
+                            ),
                             load: loadAverage(),
                             stallAfterMs: CELL_DEADLINE_MS / 2,
                         });
