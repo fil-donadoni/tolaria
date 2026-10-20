@@ -5136,7 +5136,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 117.3a + CR 506.2 + CR 510.1c (issue #6205) — "you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn": a fixed mana `mayPay` gating a destroy and the source's own assignment suppression, the `$source` subject the canned generator does not model.
+    // CR 118.12 + CR 506.2 + CR 510.1c (issue #6205) — "you may pay {R}. If you do, destroy target artifact defending player controls and this creature assigns no combat damage this turn": a fixed mana `mayPay` gating a destroy and the source's own assignment suppression, the `$source` subject the canned generator does not model.
     {
         rule: "effect clause",
         card: {

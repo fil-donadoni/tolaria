@@ -494,7 +494,7 @@ export type EffectSentenceIR =
           readonly clause: string;
           readonly effect: EffectSentenceIR;
       }
-    /** CR 117.3a + CR 608.2c — "You may pay {R}. If you do, <effect>": a FIXED
+    /** CR 118.12 + CR 608.2c — "You may pay {R}. If you do, <effect>": a FIXED
      *  mana payment offered to the controller, gating `effect` on having paid.
      *  The fixed-cost twin of `pay-variable-then` (no nomination, no X). A
      *  WRAPPER over an already-read sentence; `clause` is the first sentence
@@ -1876,7 +1876,7 @@ export type SentenceIR =
      * without the other is refused.
      */
     | { readonly role: "pay-variable-mana"; readonly text: string }
-    /** CR 117.3a — the first sentence of a fixed mana payment ("You may pay
+    /** CR 118.12 — the first sentence of a fixed mana payment ("You may pay
      *  {R}"); the `if-you-do` after it is the second. Folded into a
      *  `pay-mana-then` by `assembleSentences`. */
     | {
@@ -2120,7 +2120,7 @@ export function assembleSentences(
     // CR 107.3f — a variable payment waits for the "If you do" it feeds.
     let payVariable: Extract<SentenceIR, { role: "pay-variable-mana" }> | null =
         null;
-    // CR 117.3a — a fixed payment waits for the "If you do" it feeds.
+    // CR 118.12 — a fixed payment waits for the "If you do" it feeds.
     let payMana: Extract<SentenceIR, { role: "pay-mana" }> | null = null;
     // CR 702.34a — a flashback grant waits for the sentence that prices it.
     let flashbackGrant: Extract<
@@ -3599,7 +3599,7 @@ const GRANT_SPELL_MANA_SUBSTITUTION =
     /^For one spell this turn, you may spend mana as though it were mana of any (color|type) to pay that spell's mana cost$/;
 /** CR 107.3f (issue #4529) — the first sentence of a variable payment. */
 const PAY_VARIABLE_MANA = "you may pay {X}";
-/** CR 117.3a — a FIXED mana payment: "you may pay" then pips only, whole. A
+/** CR 118.12 — a FIXED mana payment: "you may pay" then pips only, whole. A
  *  variable {X} is `PAY_VARIABLE_MANA`'s; a non-mana leg ("pay 2 life") is
  *  another payment this rule does not read. */
 const PAY_FIXED_MANA = /^you may pay ((?:\{[WUBRGC0-9]+\})+)$/;
@@ -4503,7 +4503,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // different payment this rule does not read.
         if (uncapitalise(span) === PAY_VARIABLE_MANA)
             return ok({ role: "pay-variable-mana" as const, text: span });
-        // CR 117.3a — a fixed mana payment in its two sentences; the
+        // CR 118.12 — a fixed mana payment in its two sentences; the
         // capitalised spelling a full stop introduces (the trigger site
         // prints it lowercase, `optionalSentenceRule`).
         const fixedPay = uncapitalise(span).match(PAY_FIXED_MANA);

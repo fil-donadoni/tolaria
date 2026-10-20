@@ -1,4 +1,4 @@
-// "You may pay {cost}. If you do, <effect>" (CR 117.3a + CR 608.2c) and
+// "You may pay {cost}. If you do, <effect>" (CR 118.12 + CR 608.2c) and
 // "<effect> and this creature assigns no combat damage this turn" (CR 510.1c),
 // issue #6205. Behavioural layer over the golden fixture: the forms this rule
 // reads, and the neighbours it must keep refusing.
@@ -23,7 +23,7 @@ function effectsOf(oracleText: string) {
     return outcome.definition.compiledTriggeredAbilities![0]!;
 }
 
-describe("fixed mana payment gates its payoff (CR 117.3a)", () => {
+describe("fixed mana payment gates its payoff (CR 118.12)", () => {
     it("lowers to a mayPay on the mana cost and an if on its bind", () => {
         const ability = effectsOf(
             "Whenever this creature attacks, you may pay {R}. If you do, draw a card."
