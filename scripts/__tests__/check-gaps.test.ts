@@ -74,7 +74,8 @@ describe("check:gaps runs in health and in the lane, composed by no package scri
             path.join(ROOT, "scripts/health-main.ts"),
             "utf8"
         );
-        expect(src).toContain("const scripts = HEALTH_SCRIPTS;");
+        expect(src).toContain("splitHealthGates(HEALTH_SCRIPTS)");
+        expect(src).not.toMatch(/"check:gaps"/);
     });
 
     // The census is offline and costs <1 s, so it runs in the lane, admitted

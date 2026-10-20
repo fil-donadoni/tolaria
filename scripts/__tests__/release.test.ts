@@ -7,6 +7,7 @@ import { BASE_BRANCH } from "../lib/branches";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 import {
     DEFAULT_FIX_ATTEMPTS,
+    HEALTH_GATE_ARGS,
     loopDecision,
     parseFixBound,
     publishVerdict,
@@ -437,6 +438,21 @@ describe("release.yml — dispatch under the release Environment (issue #5647)",
         expect(yml).toMatch(
             /if: \$\{\{ inputs\.dry_run \}\}\n\s+run: bun run release --no-fix --gate-only/
         );
+    });
+});
+
+/**
+ * What `release` asks health for (issue #6143): the offline gate and the
+ * release-only browser step — `--release` makes `health-main` run
+ * `check:game-download` (`health-release-steps.test.ts` drives it) — and no
+ * `check:ui` walk. The retired `--ui-all` is refused by `health-main`, so a
+ * release spawning it would never reach a GREEN.
+ */
+describe("release — the health gate it spawns (issue #6143)", () => {
+    it("is --release on the base tip: the browser step, never the full walk", () => {
+        expect(HEALTH_GATE_ARGS).toContain("--release");
+        expect(HEALTH_GATE_ARGS).not.toContain("--ui-all");
+        expect(HEALTH_GATE_ARGS.some((a) => /check:ui/.test(a))).toBe(false);
     });
 });
 

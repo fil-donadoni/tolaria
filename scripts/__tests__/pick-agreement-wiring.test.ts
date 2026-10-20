@@ -40,8 +40,8 @@ describe("held-out pick agreement wiring (issue #3982)", () => {
 
     it("is not a health gate nor asked for by health: the nightly runs it weekly (issue #5458)", () => {
         expect(HEALTH_SCRIPTS).not.toContain(PICK_AGREEMENT_STEP);
-        const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
-        expect([...offline, ...walk]).not.toContain(PICK_AGREEMENT_STEP);
+        const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
+        expect([...offline, ...browser]).not.toContain(PICK_AGREEMENT_STEP);
         for (const file of ["scripts/health-main.ts"]) {
             const src = readFileSync(join(ROOT, file), "utf8");
             expect(src, file).not.toContain("writePickRequest(");

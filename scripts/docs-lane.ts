@@ -115,8 +115,6 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "walks `.claude/hooks/**/*.sh` for an `origin/<branch>` literal — hooks are programs and stay in the `full` lane (check-lane.ts CLAUDE_PROSE_PATTERNS), so no prose diff this lane carries can red it; it reads no document",
     "scripts/__tests__/dashboard-actions.test.ts":
         "the `.claude/telemetry/telemetry.db` path is the RUNTIME telemetry store, created empty in a scratch project dir per test; it reads no repo document",
-    "scripts/__tests__/health-walk-off-mutex.test.ts":
-        "the `.claude/telemetry/health/` path is the RUNTIME verdict directory and docs/notes.md is a synthetic file committed into a scratch repo; it reads no repo document",
     "scripts/__tests__/health-fix.test.ts":
         "the `.claude/telemetry/health/` path is the RUNTIME verdict directory health-main.ts writes, gitignored and machine-local; it reads no repo document",
     "scripts/__tests__/health-verdict-store.test.ts":

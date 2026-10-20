@@ -1021,6 +1021,11 @@
     },
     {
         "file": "scripts/__tests__/health-step.test.ts",
+        "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > runs no check:ui step: the full walk is by hand, a PR-receipt guard (issue #6143)",
+        "reason": "Partition check across three independently declared tiers (HEALTH_SCRIPTS, HEALTH_ONLY_GUARDS, PR_RECEIPT_GUARDS): check:ui lives in the PR-receipt tier only, so no automated run walks it."
+    },
+    {
+        "file": "scripts/__tests__/health-step.test.ts",
         "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > never runs a maintenance script, nor a health-only guard as maintenance",
         "reason": "Disjointness census over MAINTENANCE_SCRIPTS vs HEALTH_SCRIPTS and HEALTH_ONLY_GUARDS, for every member, not a literal."
     },

@@ -49,8 +49,8 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("the offline phase no longer contains the audit", () => {
     it("is not a health gate, whatever the batch owes", () => {
-        const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
-        expect([...offline, ...walk]).not.toContain("blade:robustness");
+        const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
+        expect([...offline, ...browser]).not.toContain("blade:robustness");
     });
 });
 

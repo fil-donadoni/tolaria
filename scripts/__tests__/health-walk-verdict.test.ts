@@ -1,7 +1,9 @@
-// The browser walk inside a health run (issue #4962): an environment failure
-// is INFRA, never RED; a walk the tree failed is RED (its probation retired,
-// issue #5378); and the walk is cut away from the offline gates so it can run
-// off the heavy mutex.
+// A browser step inside a health run (issue #4962): an environment failure
+// is INFRA, never RED; one the tree failed is RED (the probation retired,
+// issue #5378); and the browser steps are cut away from the offline gates so
+// they run off the heavy mutex. `walkRunVerdict` reads `check:ui`'s receipt
+// shape, which `check:game-download` — since issue #6143 the one browser
+// step — shares.
 import { describe, expect, it } from "vitest";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 import { healthRunInFlight } from "../lib/health-gate-skip";
@@ -117,23 +119,23 @@ describe("walkRunVerdict — the walk's own receipt says whose failure it was (i
     });
 });
 
-describe("infraCause reads the walk's verdict on the check:ui step only", () => {
+describe("infraCause reads walkRunVerdict on a browser step only", () => {
     const failedWalk = (exitCode: number | null, output: string) =>
         infraCause({
             ok: false,
             startedAt: 1_000,
             lastSleepAt: null,
-            step: "check:ui --all",
+            step: "check:game-download",
             exitCode,
             output,
         });
 
-    it("exit 2 → ui-walk", () => {
-        expect(failedWalk(2, "")).toBe("ui-walk");
+    it("exit 2 → browser-step", () => {
+        expect(failedWalk(2, "")).toBe("browser-step");
     });
 
-    it("all-INFRA rows → ui-walk", () => {
-        expect(failedWalk(1, run(BANNER, INFRA_ROW))).toBe("ui-walk");
+    it("all-INFRA rows → browser-step", () => {
+        expect(failedWalk(1, run(BANNER, INFRA_ROW))).toBe("browser-step");
     });
 
     it("one real ASSERT FAIL → no cause (the tree's)", () => {
@@ -156,12 +158,12 @@ describe("infraCause reads the walk's verdict on the check:ui step only", () => 
     });
 });
 
-describe("splitHealthGates — the walk is cut away from the offline gates", () => {
+describe("splitHealthGates — the browser steps are cut away from the offline gates", () => {
     it("offline keeps every other gate in order; the blade audit is not one (issue #5079)", () => {
-        const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
-        expect(walk).toEqual(["check:ui --all", "check:game-download"]);
+        const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
+        expect(browser).toEqual(["check:game-download"]);
         expect(offline).toEqual(
-            HEALTH_SCRIPTS.filter((g) => !walk.includes(g))
+            HEALTH_SCRIPTS.filter((g) => !browser.includes(g))
         );
         expect(offline).not.toContain("blade:robustness");
     });
@@ -171,7 +173,7 @@ describe("healthRunInFlight counts from the current phase", () => {
     const T0 = Date.parse("2026-10-02T10:00:00Z");
     const HOUR = 60 * 60 * 1000;
 
-    it("a walk that began after a long offline phase is still in flight", () => {
+    it("browser steps that began after a long offline phase are still in flight", () => {
         expect(
             healthRunInFlight(
                 {
