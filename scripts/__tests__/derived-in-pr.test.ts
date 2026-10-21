@@ -8,11 +8,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import {
-    DERIVED_PATHS,
-    DERIVE_SYNC_COMMIT_SUBJECT,
-    LOCKFILE_PATH,
-} from "../lib/derive-sync";
+import { DERIVE_SYNC_COMMIT_SUBJECT, LOCKFILE_PATH } from "../lib/derive-sync";
 import {
     CATALOGUE_DERIVED_PATHS,
     carriesNothing,
