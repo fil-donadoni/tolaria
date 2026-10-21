@@ -132,7 +132,7 @@ For each function or rule:
 **Never restate a test that already exists.** Before writing a block, grep for
 the behaviour: if the engine suite (or the callee's suite) already asserts it,
 do not copy it into the card or caller file — a duplicate block is a project
-antipattern, red on `health` (`scripts/__tests__/duplicate-test-blocks.test.ts`,
+antipattern, refused by `land` (`bun run check:duplicate-test-blocks`,
 issue #4620). Same shape, different inputs → `it.each`.
 
 ## Running tests
