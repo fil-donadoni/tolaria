@@ -1,8 +1,8 @@
 # The merge queue (ADR 0156 §3 and §8, Amendment I; issue #5642). Since the
 # cut-over (issue #5643) Mergify is the only merger of a `ready-to-land` PR
-# and the land-runner is retired. `land:ready` still adds `queue:shadow` to a
-# PR the queue admits: a marker `pr-refresh` reads (issue #5983), no longer a
-# condition here.
+# and the land-runner is retired. `land:ready` adds `merge:manual` to a PR
+# the queue refuses: a marker `pr-refresh` reads (issues #5983, #6213), never
+# a condition here.
 #
 # Mergify reads this file from the BASE branch: a PR cannot loosen the rules
 # it is judged by, and a PR touching `.github/` or this file never enters the

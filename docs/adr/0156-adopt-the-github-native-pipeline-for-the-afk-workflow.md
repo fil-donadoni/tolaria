@@ -338,7 +338,7 @@ PRD A, no PRD B, no new workflow feature). Each phase names what proves it.
 - **Phase 1 — the queue.** `pr-gate.yml` (`trusted-author`, `base-health`),
   `pr-refresh.yml`, the `check:ui` receipt and preset-scenario checks in
   `pr-check.yml`; `.mergify.yml` with two parallel checks, in shadow (acts
-  only on a `queue:shadow` label), then cut-over: `land:ready` becomes the
+  only on a `queue:shadow` label — inverted and renamed `merge:manual` by issue #6213), then cut-over: `land:ready` becomes the
   label, the land-runner stops, with its launchd agent and failure notification (issues #5598, #5599). Proof:
   20 PRs merged by the queue; failed-land share ≤ today's; a rejected PR
   carries `land-failed` and re-fires its pass; a conflicting generated file

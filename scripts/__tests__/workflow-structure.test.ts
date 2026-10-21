@@ -653,11 +653,11 @@ describe("workflow structure guard", () => {
         }
     });
 
-    it("refuses a queue rule still requiring the shadow label (issue #5643)", () => {
+    it("refuses a queue rule requiring a marker label (issues #5643, #6213)", () => {
         const mergify = edit(
             MERGIFY,
             "      - label=ready-to-land\n",
-            "      - label=ready-to-land\n      - label=queue:shadow\n"
+            "      - label=ready-to-land\n      - label=merge:manual\n"
         );
         expect(rules(fixture({ mergify }))).toEqual(["queue-entry"]);
     });

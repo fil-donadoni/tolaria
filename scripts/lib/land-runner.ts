@@ -15,10 +15,10 @@
  * backoff): only `needs-pass` costs a pass.
  */
 import { classifyRed, type FixKey, type LaneJson } from "../pr-fixup";
-import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "./land-labels";
+import { FAILED_LABEL, READY_LABEL, MANUAL_LABEL } from "./land-labels";
 import { healthAdmission, type GateState } from "./pr-gate";
 
-export { FAILED_LABEL, READY_LABEL, SHADOW_LABEL };
+export { FAILED_LABEL, READY_LABEL, MANUAL_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
  *  admits for a `land` invocation. */
 export const RUNNER_ENV = "TOLARIA_LAND_RUNNER";
@@ -55,7 +55,7 @@ export interface QueuedPr {
 /** What one tick does with the queue. */
 export interface TickPlan {
     /** Left alone — not landed, not unlabelled: Mergify's queue owns it. */
-    shadowed: { pr: number; reason: string }[];
+    queued: { pr: number; reason: string }[];
     /** Unlabel and log: the PR is closed/merged or its branch is gone. */
     stale: { pr: number; reason: string }[];
     /** Left as it is for a later tick: a non-repair PR under RED, or a row
@@ -70,9 +70,9 @@ export interface TickPlan {
  * number), stale ones unlabelled, and — under RED — only a declared repair
  * (a PR closing a recorded `/health-fix` issue — `healthAdmission`, the rule
  * `pr-gate`'s `base-health` posts too) lands; the rest stay queued until the
- * lineage reads AMBER or GREEN. A PR labelled `queue:shadow` is Mergify's
- * (issue #5642, the shadow phase): the runner never lands, unlabels nor
- * relabels it, merged or closed included — one merger per PR.
+ * lineage reads AMBER or GREEN. A PR without `merge:manual` is Mergify's
+ * (issues #5642, #6213): the runner never lands, unlabels nor relabels it,
+ * merged or closed included — one merger per PR.
  *
  * A row is read by its OWN labels, never by the list's filter (issue #5941):
  * the `--label`/`--search` read goes through GitHub's search index, which
@@ -96,17 +96,17 @@ export function planTick(
         now?: number;
     }
 ): TickPlan {
-    const plan: TickPlan = { shadowed: [], stale: [], held: [], next: null };
+    const plan: TickPlan = { queued: [], stale: [], held: [], next: null };
     const ordered = [...prs].sort(
         (a, b) =>
             Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
             a.number - b.number
     );
     for (const pr of ordered) {
-        if (pr.labels.some((l) => l.name === SHADOW_LABEL)) {
-            plan.shadowed.push({
+        if (!pr.labels.some((l) => l.name === MANUAL_LABEL)) {
+            plan.queued.push({
                 pr: pr.number,
-                reason: `labelled \`${SHADOW_LABEL}\` — the Mergify queue lands it`,
+                reason: `not labelled \`${MANUAL_LABEL}\` — the Mergify queue lands it`,
             });
             continue;
         }
@@ -312,8 +312,8 @@ export function owesPresetSeed(paths: readonly string[]): boolean {
  * owner's decision of 2026-10-18), else to the runner. The queue admits only
  * a PR whose `trusted-author` status is green — `pr-gate`'s own decision,
  * read whole (`trustedAuthorStatus`): a PR it refuses, labelled
- * `queue:shadow`, would have no merger. A repair of a PR the runner failed
- * goes to the queue too (issue #5986): the shadow count needs every merge.
+ * `merge:manual`, would have no merger. A repair of a PR the runner failed
+ * goes to the queue too (issue #5986): the queue count needs every merge.
  */
 export function handsToQueue(input: { trustedAuthor: GateState }): boolean {
     return input.trustedAuthor === "success";
@@ -339,19 +339,19 @@ export function bodyWithClosingRef(
 
 /** `gh` argv for each label move — one place, so tests pin them. */
 export const labelArgs = {
-    /** `shadow` (`handsToQueue`): the PR goes to the Mergify queue, else to
-     *  the runner — and loses a `queue:shadow` it carried, so it never sits
+    /** `manual` (`!handsToQueue`): the owner merges the PR, so it carries
+     *  `merge:manual`; a queue PR loses one it carried, so it never sits
      *  with no merger (issue #5952). */
-    ready: (pr: number, opts: { shadow: boolean }): string[] => [
+    ready: (pr: number, opts: { manual: boolean }): string[] => [
         "pr",
         "edit",
         String(pr),
         "--add-label",
         READY_LABEL,
-        ...(opts.shadow ? ["--add-label", SHADOW_LABEL] : []),
+        ...(opts.manual ? ["--add-label", MANUAL_LABEL] : []),
         "--remove-label",
         FAILED_LABEL,
-        ...(opts.shadow ? [] : ["--remove-label", SHADOW_LABEL]),
+        ...(opts.manual ? [] : ["--remove-label", MANUAL_LABEL]),
     ],
     unqueue: (pr: number): string[] => [
         "pr",
@@ -433,9 +433,9 @@ export function runsHere(config: LandRunnerConfig, platform: string): boolean {
 /**
  * What the runner's code is, read as `git rev-parse HEAD:<path>` in the
  * primary checkout it runs from (issue #5941). The process never reloads its
- * modules: one started 2026-10-15 ran without the shadow skip (issue #5642)
+ * modules: one started 2026-10-15 ran without the queue skip (issue #5642)
  * and the RED hold until a manual restart on 2026-10-18 — it touched a
- * `queue:shadow` PR and failed five healthy PRs under RED. The `scripts`
+ * queue-landed PR and failed five healthy PRs under RED. The `scripts`
  * tree covers the entry, every `scripts/lib` module it imports and the
  * top-level scripts it imports (`land.ts`, `loop-doctor.ts`) in one id; the
  * config is read once at start. A change to an unrelated script costs a
