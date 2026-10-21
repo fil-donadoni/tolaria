@@ -15,14 +15,19 @@
 //       `health` statuses, issue counts, the `afk-pass` records, the
 //       `queue-lane` JSON — plus every `machine.json` under `--machines`,
 //       and prints the summary markdown (`lib/workflow-trends.ts`). `--json`
-//       also writes the trends, the artifact the cockpit can read.
+//       also writes the trends.
+//
+// `gatherFacts` and `readMachine` are this file's reads as functions:
+// `bun run cockpit` (`scripts/cockpit.ts`) calls them for a window ending
+// now, with an artifact cache that survives between its runs.
 //
 // Exit code: 0 on a report, 1 when GitHub could not be read — a reporter,
 // never a gate. Nothing here prints Claude output or an issue body: the job
 // log is public.
 
-import { spawnSync, execFileSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import {
+    existsSync,
     mkdtempSync,
     readFileSync,
     readdirSync,
@@ -30,6 +35,7 @@ import {
     statSync,
     writeFileSync,
 } from "node:fs";
+import { promisify } from "node:util";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { gh, netEnv } from "./lib/gh";
@@ -54,11 +60,14 @@ import {
     type PrTimeline,
     type QueueRun,
     type TrendFacts,
+    type TrendWindow,
 } from "./lib/workflow-trends";
 
 /** The artifact `queue-lane.yml` uploads its `lane.json` as. */
 export const QUEUE_LANE_ARTIFACT = "queue-lane-json";
 const QUEUE_WORKFLOW = "queue-lane.yml";
+/** The label of the queue the drain forecast counts. */
+const READY_FOR_AGENT = "ready-for-agent";
 /** The file each machine job writes and uploads. */
 const MACHINE_FILE = "machine.json";
 
@@ -96,15 +105,11 @@ function telemetryJson(script: string): { json: unknown; error?: string } {
     return { json: null, error: line.slice(0, 200) };
 }
 
-function machineMain(): void {
-    const out = argOf("--out");
-    if (!out) die("machine needs --out <file>");
-    const host =
-        hostOfRunnerName(process.env.RUNNER_NAME ?? "") ??
-        sanitizeHost(hostname());
+/** THIS machine's reading of the last seven days. */
+export function readMachine(host: string): MachineReading {
     const budget = telemetryJson("scripts/telemetry-budget.ts");
     const latency = telemetryJson("scripts/telemetry-latency.ts");
-    const reading: MachineReading = {
+    return {
         host,
         budget: budget.json,
         latency: latency.json,
@@ -113,9 +118,18 @@ function machineMain(): void {
             ...(latency.error ? { latency: latency.error } : {}),
         },
     };
+}
+
+function machineMain(): void {
+    const out = argOf("--out");
+    if (!out) die("machine needs --out <file>");
+    const reading = readMachine(
+        hostOfRunnerName(process.env.RUNNER_NAME ?? "") ??
+            sanitizeHost(hostname())
+    );
     writeFileSync(out, `${JSON.stringify(reading)}\n`);
     console.log(
-        `weekly-report: machine reading written (budget ${budget.error ? "none" : "ok"}, latency ${latency.error ? "none" : "ok"})`
+        `weekly-report: machine reading written (budget ${reading.errors.budget ? "none" : "ok"}, latency ${reading.errors.latency ? "none" : "ok"})`
     );
 }
 
@@ -230,78 +244,167 @@ function runs(workflow: string, fromDay: string): RunRow[] {
     ) as RunRow[];
 }
 
-/** One file of a run's artifact, or `null` when the run has none. */
-function artifactText(
+const execFileAsync = promisify(execFile);
+
+/** How many `gh run download`s run at once: ~1.2 s each, and a week of the
+ *  queue's ceiling is hundreds of runs. */
+const DOWNLOADS_AT_ONCE = 8;
+
+/** `fn` over `items`, at most `n` at a time, results in `items`' order. */
+async function pooled<T, R>(
+    items: readonly T[],
+    n: number,
+    fn: (item: T) => Promise<R>
+): Promise<R[]> {
+    const out: R[] = new Array(items.length);
+    let next = 0;
+    const worker = async () => {
+        while (next < items.length) {
+            const i = next++;
+            out[i] = await fn(items[i]);
+        }
+    };
+    await Promise.all(
+        Array.from({ length: Math.min(n, items.length) }, worker)
+    );
+    return out;
+}
+
+/** One file of a run's artifact, or `null` when the run has none. A
+ *  completed run's artifact never changes, so a file already under `dir` is
+ *  read, not downloaded again. */
+async function artifactText(
     dir: string,
     runId: number,
     artifact: string,
     file: string
-): string | null {
+): Promise<string | null> {
     const into = join(dir, `${artifact}-${runId}`);
+    const path = join(into, file);
+    if (!existsSync(path)) {
+        try {
+            await execFileAsync(
+                "gh",
+                [
+                    "run",
+                    "download",
+                    String(runId),
+                    "--name",
+                    artifact,
+                    "--dir",
+                    into,
+                ],
+                { env: netEnv() }
+            );
+        } catch {
+            return null;
+        }
+    }
     try {
-        execFileSync(
-            "gh",
-            [
-                "run",
-                "download",
-                String(runId),
-                "--name",
-                artifact,
-                "--dir",
-                into,
-            ],
-            { stdio: "ignore", env: netEnv() }
-        );
-        return readFileSync(join(into, file), "utf8");
+        return readFileSync(path, "utf8");
     } catch {
         return null;
     }
 }
 
-function passRecords(
+async function passRecords(
     dir: string,
     rows: readonly RunRow[]
-): { passes: PassRecord[]; missing: number } {
+): Promise<{ passes: PassRecord[]; missing: number }> {
+    const done = rows.filter((r) => r.status === "completed");
+    const texts = await pooled(done, DOWNLOADS_AT_ONCE, (r) =>
+        artifactText(dir, r.databaseId, PASS_RECORD_ARTIFACT, "record.json")
+    );
     const passes: PassRecord[] = [];
     let missing = 0;
-    for (const r of rows) {
-        if (r.status !== "completed") continue;
-        const text = artifactText(
-            dir,
-            r.databaseId,
-            PASS_RECORD_ARTIFACT,
-            "record.json"
-        );
+    done.forEach((r, i) => {
+        const text = texts[i];
         const rec = text === null ? null : parsePassRecord(text);
         if (rec) passes.push(rec);
         else if (r.conclusion === "success" || r.conclusion === "failure")
             missing++;
-    }
+    });
     return { passes, missing };
 }
 
-function queueRuns(dir: string, rows: readonly RunRow[]): QueueRun[] {
-    const out: QueueRun[] = [];
-    for (const r of rows) {
-        // A cancelled draft was superseded (issue #6020): no verdict.
-        if (r.status !== "completed" || r.conclusion === "cancelled") continue;
+async function queueRuns(
+    dir: string,
+    rows: readonly RunRow[]
+): Promise<QueueRun[]> {
+    // A cancelled draft was superseded (issue #6020): no verdict.
+    const done = rows.filter(
+        (r) => r.status === "completed" && r.conclusion !== "cancelled"
+    );
+    const texts = await pooled(done, DOWNLOADS_AT_ONCE, (r) =>
+        artifactText(dir, r.databaseId, QUEUE_LANE_ARTIFACT, "lane.json")
+    );
+    return done.map((r, i) => {
         const m = /Merge of #(\d+)/.exec(r.displayTitle);
-        const rec = laneRecord(
-            artifactText(dir, r.databaseId, QUEUE_LANE_ARTIFACT, "lane.json")
-        );
-        out.push({
+        return {
             pr: m ? Number(m[1]) : null,
             conclusion: r.conclusion || null,
             updatedAt: r.updatedAt,
-            ...rec,
-        });
+            ...laneRecord(texts[i]),
+        };
+    });
+}
+
+/** Each issue's `area:*` label, the prefix cut — one aliased read per 50
+ *  issues. A batch GitHub cannot answer leaves its issues without an area. */
+function issueAreas(
+    repo: string,
+    issues: readonly number[]
+): Record<number, string> {
+    const [owner, name] = repo.split("/");
+    const out: Record<number, string> = {};
+    const unique = [...new Set(issues)];
+    for (let i = 0; i < unique.length; i += 50) {
+        const batch = unique.slice(i, i + 50);
+        const fields = batch
+            .map(
+                (n) =>
+                    `i${n}: issue(number:${n}){labels(first:30){nodes{name}}}`
+            )
+            .join(" ");
+        type Answer = {
+            data: {
+                repository: Record<
+                    string,
+                    { labels: { nodes: { name: string }[] } } | null
+                >;
+            };
+        };
+        let answer: Answer;
+        try {
+            answer = JSON.parse(
+                gh([
+                    "api",
+                    "graphql",
+                    "-f",
+                    `query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){${fields}}}`,
+                    "-F",
+                    `owner=${owner}`,
+                    "-F",
+                    `name=${name}`,
+                ])
+            ) as Answer;
+        } catch {
+            continue;
+        }
+        for (const n of batch) {
+            const area = answer.data.repository[`i${n}`]?.labels.nodes
+                .map((l) => l.name)
+                .filter((l) => l.startsWith("area:"))
+                .sort()[0];
+            if (area) out[n] = area.slice("area:".length);
+        }
     }
     return out;
 }
 
 /** Every `machine.json` under `dir` (`gh run download` nests each artifact
  *  in its own directory). */
-function machineReadings(dir: string | undefined): MachineReading[] {
+export function machineReadings(dir: string | undefined): MachineReading[] {
     if (!dir) return [];
     const out: MachineReading[] = [];
     const walk = (d: string) => {
@@ -324,28 +427,41 @@ function machineReadings(dir: string | undefined): MachineReading[] {
     return out;
 }
 
-function reportMain(): void {
-    const days = Number(argOf("--days") ?? 7);
-    if (!Number.isFinite(days) || days <= 0)
-        die("--days is not a positive number");
-    const toMs = argOf("--to") ? Date.parse(argOf("--to")!) : Date.now();
-    if (!Number.isFinite(toMs)) die("--to is not a date");
-    // Whole seconds: GitHub's search reads `2026-10-13T06:00:00Z`.
+/** The `days` before `toMs`, in whole seconds — GitHub's search reads
+ *  `2026-10-13T06:00:00Z`. */
+export function windowEnding(toMs: number, days: number): TrendWindow {
     const iso = (t: number) =>
         new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
-    const window = { from: iso(toMs - days * 86_400_000), to: iso(toMs) };
+    return { from: iso(toMs - days * 86_400_000), to: iso(toMs) };
+}
+
+export interface GatherOptions {
+    window: TrendWindow;
+    machines: MachineReading[];
+    /** Where run artifacts are kept between calls; without it, a temporary
+     *  directory removed on return. */
+    artifactCache?: string;
+}
+
+/** Every fact the trends read, from GitHub. Throws when GitHub cannot be
+ *  read. */
+export async function gatherFacts(opts: GatherOptions): Promise<TrendFacts> {
+    const { window } = opts;
     const range = `${window.from}..${window.to}`;
     // A RED episode open when the window starts must be seen opening.
-    const before = iso(Date.parse(window.from) - 7 * 86_400_000);
+    const before = new Date(Date.parse(window.from) - 7 * 86_400_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, "Z");
     const repo = originRepo(primaryCheckout());
-    const dir = mkdtempSync(join(tmpdir(), "weekly-report-"));
-    let facts: TrendFacts;
+    const dir =
+        opts.artifactCache ?? mkdtempSync(join(tmpdir(), "weekly-report-"));
     try {
-        const pass = passRecords(
-            dir,
-            runs(PASS_WORKFLOW, window.from.slice(0, 10))
-        );
-        facts = {
+        const fromDay = window.from.slice(0, 10);
+        const [pass, queue] = await Promise.all([
+            passRecords(dir, runs(PASS_WORKFLOW, fromDay)),
+            queueRuns(dir, runs(QUEUE_WORKFLOW, fromDay)),
+        ]);
+        return {
             window,
             prs: prTimelines(repo, window.from, window.to),
             issuesOpened: issueCount(`repo:${repo} is:issue created:${range}`),
@@ -357,18 +473,38 @@ function reportMain(): void {
             flakyIssues: issueTitles(
                 `repo:${repo} is:issue in:title "Flaky" created:${range}`
             ).filter((t) => /^Flaky (test|health step): /.test(t)),
-            queueRuns: queueRuns(
-                dir,
-                runs(QUEUE_WORKFLOW, window.from.slice(0, 10))
-            ),
+            queueRuns: queue,
             passes: pass.passes,
             passRecordsMissing: pass.missing,
-            machines: machineReadings(argOf("--machines")),
+            machines: opts.machines,
+            readyForAgent: issueCount(
+                `repo:${repo} is:issue is:open label:${READY_FOR_AGENT}`
+            ),
+            issueAreas: issueAreas(
+                repo,
+                pass.passes.map((p) => p.issue)
+            ),
         };
+    } finally {
+        if (opts.artifactCache === undefined)
+            rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+async function reportMain(): Promise<void> {
+    const days = Number(argOf("--days") ?? 7);
+    if (!Number.isFinite(days) || days <= 0)
+        die("--days is not a positive number");
+    const toMs = argOf("--to") ? Date.parse(argOf("--to")!) : Date.now();
+    if (!Number.isFinite(toMs)) die("--to is not a date");
+    let facts: TrendFacts;
+    try {
+        facts = await gatherFacts({
+            window: windowEnding(toMs, days),
+            machines: machineReadings(argOf("--machines")),
+        });
     } catch (e) {
         die(`GitHub could not be read: ${(e as Error).message.split("\n")[0]}`);
-    } finally {
-        rmSync(dir, { recursive: true, force: true });
     }
     const trends = weeklyTrends(facts);
     const json = argOf("--json");
@@ -378,5 +514,8 @@ function reportMain(): void {
 
 if (import.meta.main) {
     if (process.argv[2] === "machine") machineMain();
-    else reportMain();
+    else
+        reportMain().catch((e: unknown) =>
+            die((e as Error).message.split("\n")[0])
+        );
 }

@@ -1,0 +1,44 @@
+[
+    {
+        "busy": true,
+        "labels": ["self-hosted", "lane", "Linux", "X64", "host:huawei"],
+        "name": "huawei-lane-1",
+        "status": "online"
+    },
+    {
+        "busy": true,
+        "labels": ["self-hosted", "pass", "Linux", "X64", "host:huawei"],
+        "name": "huawei-pass-1",
+        "status": "online"
+    },
+    {
+        "busy": true,
+        "labels": ["self-hosted", "pass", "Linux", "X64", "host:huawei"],
+        "name": "huawei-pass-2",
+        "status": "online"
+    },
+    {
+        "busy": true,
+        "labels": ["self-hosted", "macOS", "ARM64", "host:macbook", "lane"],
+        "name": "macbook-lane-1",
+        "status": "online"
+    },
+    {
+        "busy": true,
+        "labels": ["self-hosted", "macOS", "ARM64", "pass", "host:macbook"],
+        "name": "macbook-pass-1",
+        "status": "online"
+    },
+    {
+        "busy": true,
+        "labels": ["self-hosted", "macOS", "ARM64", "pass", "host:macbook"],
+        "name": "macbook-pass-2",
+        "status": "online"
+    },
+    {
+        "busy": false,
+        "labels": ["self-hosted", "macOS", "ARM64", "host:macbook", "seed"],
+        "name": "macbook-seed-1",
+        "status": "online"
+    }
+]

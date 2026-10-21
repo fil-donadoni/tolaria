@@ -7,19 +7,21 @@
 // `telemetry:latency` reading — and this module turns them into the sections
 // of `.github/workflows/weekly-report.yml`'s job summary:
 //
-//   throughput        — PRs merged per hour, issues opened vs closed
+//   throughput        — PRs merged per hour, issues opened vs closed, the
+//                       `ready-for-agent` drain forecast, the window by day
 //   failed landings   — `land-failed` episodes by cause, Amendment I's
 //                       taxonomy (§ Failed landings: what moves the number)
 //   RED episodes      — time to green and the share closed without the
 //                       owner, against the target (≥ 80 %, p90 < 6 h)
 //   flaky tests       — the queue's one re-run, health's fresh run, the
 //                       flaky-test issues filed
-//   cost per issue    — the passes' JSON, and each machine's budget reading
+//   cost per issue    — the passes' JSON (by model, by area), and each
+//                       machine's budget reading
 //   latency           — the pass, the queue (`ready-to-land` → merged), and
 //                       each machine's `/next-ticket` session wall clock
 //
-// PURE — no clock, no network, no files: the cockpit reuses it over the same
-// facts, and the tests run it on recorded responses.
+// PURE — no clock, no network, no files: the cockpit (`scripts/cockpit.ts`)
+// renders the same trends, and the tests run it on recorded responses.
 
 import type { PassRecord } from "./afk-dispatch";
 import { decodeStatus } from "./health-verdict-store";
@@ -27,6 +29,14 @@ import { escalationTitle } from "./health-ladder";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import type { LaneFlake } from "./health-retry";
 import { classifyLane } from "../pr-fixup";
+import { classifyModel, weightedTokens } from "./usage-window";
+import {
+    LANDING_CAUSES,
+    LANDING_CAUSE_LABEL,
+    type LandingCause,
+} from "./landing-causes";
+
+export { LANDING_CAUSES, LANDING_CAUSE_LABEL, type LandingCause };
 
 // ─────────────────────────────────────────────────────────────────────────
 // The facts
@@ -119,6 +129,12 @@ export interface TrendFacts {
     /** Finished `afk-pass` runs whose record could not be read. */
     passRecordsMissing: number;
     machines: MachineReading[];
+    /** Open `ready-for-agent` issues when the facts were read; `null` when
+     *  not read. */
+    readyForAgent: number | null;
+    /** Each passed issue's `area:*` label, the prefix cut; an issue without
+     *  one is absent. */
+    issueAreas: Record<number, string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -181,40 +197,79 @@ export function throughput(f: TrendFacts): Throughput {
     };
 }
 
+export interface DrainForecast {
+    /** Open `ready-for-agent` issues; `null` when not read. */
+    ready: number | null;
+    closedPerDay: number;
+    /** Closed minus opened, per day. */
+    netPerDay: number;
+    /** Days to drain `ready` at the window's close rate, new issues
+     *  excluded — ADR 0156's forecast; `null` with no count or no close. */
+    days: number | null;
+    /** Days at the net rate; `null` when the backlog is not shrinking. */
+    netDays: number | null;
+}
+
+export function drainForecast(f: TrendFacts, tp: Throughput): DrainForecast {
+    const days = tp.hours / 24;
+    const closedPerDay = days > 0 ? tp.issuesClosed / days : 0;
+    const netPerDay = days > 0 ? (tp.issuesClosed - tp.issuesOpened) / days : 0;
+    const at = (rate: number) =>
+        f.readyForAgent === null || rate <= 0 ? null : f.readyForAgent / rate;
+    return {
+        ready: f.readyForAgent,
+        closedPerDay,
+        netPerDay,
+        days: at(closedPerDay),
+        netDays: at(netPerDay),
+    };
+}
+
+/** One UTC day of the window. */
+export interface DayPoint {
+    day: string;
+    merged: number;
+    failedLandings: number;
+    passes: number;
+    passUsd: number;
+}
+
+/** The window day by day (UTC), every day present, oldest first. */
+export function dailySeries(
+    f: TrendFacts,
+    episodes: readonly LandingEpisode[]
+): DayPoint[] {
+    const days = new Map<string, DayPoint>();
+    const last = new Date(ms(f.window.to) - 1).toISOString().slice(0, 10);
+    for (
+        let d = f.window.from.slice(0, 10);
+        d <= last;
+        d = new Date(ms(`${d}T00:00:00Z`) + 86_400_000)
+            .toISOString()
+            .slice(0, 10)
+    )
+        days.set(d, {
+            day: d,
+            merged: 0,
+            failedLandings: 0,
+            passes: 0,
+            passUsd: 0,
+        });
+    const at = (iso: string) => days.get(iso.slice(0, 10));
+    for (const p of f.prs)
+        if (inWindow(p.mergedAt, f.window)) at(p.mergedAt!)!.merged++;
+    for (const e of episodes) at(e.at)!.failedLandings++;
+    for (const p of passesIn(f)) {
+        const d = at(p.endedAt)!;
+        d.passes++;
+        d.passUsd += p.costUsd ?? 0;
+    }
+    return [...days.values()];
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Failed landings — Amendment I's taxonomy
 // ─────────────────────────────────────────────────────────────────────────
-
-/** Why a landing failed (ADR 0156 Amendment I § Failed landings). */
-export type LandingCause =
-    | "rebase"
-    | "red-base"
-    | "defect"
-    | "stale-artefact"
-    | "environment"
-    /** A red queue lane whose run left no `lane.json` to tell which red. */
-    | "red-lane"
-    | "other";
-
-export const LANDING_CAUSES: readonly LandingCause[] = [
-    "rebase",
-    "red-base",
-    "defect",
-    "stale-artefact",
-    "environment",
-    "red-lane",
-    "other",
-];
-
-export const LANDING_CAUSE_LABEL: Readonly<Record<LandingCause, string>> = {
-    rebase: "rebase conflict",
-    "red-base": "refused: RED base",
-    defect: "red lane: the PR's own defect",
-    "stale-artefact": "red lane: stale generated artefact",
-    environment: "red lane: environment or flaky",
-    "red-lane": "red lane: unclassified (no `lane.json`)",
-    other: "other (no recognised comment)",
-};
 
 /** A `land-failed` comment's cause, `"red-lane"` when only the queue-lane
  *  run can tell which red, or `null` for a comment that labels nothing. */
@@ -571,6 +626,98 @@ export function passCost(f: TrendFacts): PassCost {
     };
 }
 
+/** The issues of one model or one area, and what each cost. */
+export interface CostGroup {
+    key: string;
+    issues: number;
+    passes: number;
+    totalUsd: number;
+    perIssueUsd: Spread;
+}
+
+/** An issue's model when its passes recorded no tokens. */
+export const UNRECORDED_MODEL = "(unrecorded)";
+/** An issue's area when it carries no `area:*` label. */
+export const NO_AREA = "(none)";
+
+interface IssueSpend {
+    usd: number;
+    passes: number;
+    /** Weighted tokens per model tier (`usage-window`'s table, the one the
+     *  pass record's tokens are kept for) — only to pick the issue's model. */
+    byModel: Map<string, number>;
+}
+
+function issueSpend(f: TrendFacts): Map<number, IssueSpend> {
+    const out = new Map<number, IssueSpend>();
+    for (const p of passesIn(f)) {
+        const s = out.get(p.issue) ?? {
+            usd: 0,
+            passes: 0,
+            byModel: new Map<string, number>(),
+        };
+        s.usd += p.costUsd ?? 0;
+        s.passes++;
+        for (const [model, c] of Object.entries(p.models)) {
+            const tier = classifyModel(model);
+            const units = weightedTokens({ models: { [model]: c } });
+            s.byModel.set(tier, (s.byModel.get(tier) ?? 0) + units);
+        }
+        out.set(p.issue, s);
+    }
+    return out;
+}
+
+/** The model tier that drew most of an issue's weighted tokens. */
+function issueModel(s: IssueSpend): string {
+    let best: [string, number] | null = null;
+    for (const [m, units] of s.byModel)
+        if (
+            best === null ||
+            units > best[1] ||
+            (units === best[1] && m < best[0])
+        )
+            best = [m, units];
+    return best === null ? UNRECORDED_MODEL : best[0];
+}
+
+function costGroups(
+    f: TrendFacts,
+    keyOf: (issue: number, s: IssueSpend) => string
+): CostGroup[] {
+    const groups = new Map<
+        string,
+        { issues: number; passes: number; usd: number[] }
+    >();
+    for (const [issue, s] of issueSpend(f)) {
+        const key = keyOf(issue, s);
+        const g = groups.get(key) ?? { issues: 0, passes: 0, usd: [] };
+        g.issues++;
+        g.passes += s.passes;
+        g.usd.push(s.usd);
+        groups.set(key, g);
+    }
+    return [...groups.entries()]
+        .map(([key, g]) => ({
+            key,
+            issues: g.issues,
+            passes: g.passes,
+            totalUsd: g.usd.reduce((a, b) => a + b, 0),
+            perIssueUsd: spread(g.usd),
+        }))
+        .sort((a, b) => b.totalUsd - a.totalUsd || a.key.localeCompare(b.key));
+}
+
+/** Cost per issue by the model tier that ran it (most weighted tokens). */
+export function costByModel(f: TrendFacts): CostGroup[] {
+    return costGroups(f, (_, s) => issueModel(s));
+}
+
+/** Cost per issue by the issue's `area:*` label. */
+export function costByArea(f: TrendFacts): CostGroup[] {
+    return costGroups(f, (issue) => f.issueAreas[issue] ?? NO_AREA);
+}
+
 export interface PassLatency {
     /** Minutes per pass. */
     minutes: Spread;
@@ -736,9 +883,11 @@ export function laneRecord(text: string | null): {
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface Trends {
-    version: 1;
+    version: 2;
     window: TrendWindow;
     throughput: Throughput;
+    drain: DrainForecast;
+    daily: DayPoint[];
     landings: LandingFailures;
     landingEpisodes: LandingEpisode[];
     red: RedSummary;
@@ -746,6 +895,8 @@ export interface Trends {
     flaky: FlakyRow[];
     flakyIssues: string[];
     cost: PassCost;
+    costByModel: CostGroup[];
+    costByArea: CostGroup[];
     pass: PassLatency;
     queueHours: Spread;
     machines: MachineTrend[];
@@ -756,9 +907,11 @@ export function weeklyTrends(f: TrendFacts): Trends {
     const episodes = landingEpisodes(f);
     const reds = redEpisodes(f);
     return {
-        version: 1,
+        version: 2,
         window: f.window,
         throughput: tp,
+        drain: drainForecast(f, tp),
+        daily: dailySeries(f, episodes),
         landings: landingFailures(episodes, tp.merged),
         landingEpisodes: episodes,
         red: redSummary(reds),
@@ -766,6 +919,8 @@ export function weeklyTrends(f: TrendFacts): Trends {
         flaky: flakyRows(f),
         flakyIssues: [...f.flakyIssues].sort(),
         cost: passCost(f),
+        costByModel: costByModel(f),
+        costByArea: costByArea(f),
         pass: passLatency(f),
         queueHours: queueHours(f),
         machines: [...f.machines]
@@ -782,6 +937,19 @@ const mark = (ok: boolean | null) => (ok === null ? "—" : ok ? "✅" : "❌");
 const spreadCell = (s: Spread | null, fmt: (n: number | null) => string) =>
     s === null || s.n === 0 ? "n/a" : `${fmt(s.median)} / ${fmt(s.p90)}`;
 
+function costTable(by: string, groups: readonly CostGroup[]): string[] {
+    if (groups.length === 0) return [];
+    return [
+        "",
+        `| ${by} | issues | passes | total | per issue, median / p90 |`,
+        "| --- | --- | --- | --- | --- |",
+        ...groups.map(
+            (g) =>
+                `| ${g.key} | ${g.issues} | ${g.passes} | ${usd(g.totalUsd)} | ${spreadCell(g.perIssueUsd, usd)} |`
+        ),
+    ];
+}
+
 /** The job summary: numbers, PR and issue numbers, test file names — never
  *  a host name (hosts read `machine 1`, `machine 2`), never Claude output. */
 export function summaryMarkdown(t: Trends): string {
@@ -793,6 +961,7 @@ export function summaryMarkdown(t: Trends): string {
         "",
         `- PRs merged: ${t.throughput.merged} (${fx(t.throughput.prsPerHour, 2)} per hour over ${fx(t.throughput.hours, 0)} h)`,
         `- issues: ${t.throughput.issuesClosed} closed vs ${t.throughput.issuesOpened} opened (net ${t.throughput.issuesClosed - t.throughput.issuesOpened >= 0 ? "+" : ""}${t.throughput.issuesClosed - t.throughput.issuesOpened})`,
+        `- drain forecast: ${t.drain.ready ?? "n/a"} \`ready-for-agent\` — ${fx(t.drain.days)} days at ${fx(t.drain.closedPerDay)} closed a day, new ones excluded; ${t.drain.netDays === null ? "not shrinking net of new ones" : `${fx(t.drain.netDays)} days net of new ones`}`,
         "",
         "### Failed landings by cause",
         "",
@@ -847,6 +1016,8 @@ export function summaryMarkdown(t: Trends): string {
         ...(t.cost.recordsMissing
             ? [`- finished passes with no record: ${t.cost.recordsMissing}`]
             : []),
+        ...costTable("model", t.costByModel),
+        ...costTable("area", t.costByArea),
         "",
         "### Pass and queue latency",
         "",
