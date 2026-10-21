@@ -2427,9 +2427,10 @@ describe("land.ts — a RED-ladder revert lands without a walk only when it rest
 
     it("a commit outside the tree's history grants nothing", () => {
         git("checkout", "-q", "-b", "elsewhere", `${culprit}^`);
-        // Its parent matches HEAD on every path: only the history check
-        // stands between it and the exemption.
-        write("src/lib/foreign.ts", "export const foreign = 1;\n");
+        // The culprit's twin: same paths, same parent, so only the history
+        // check stands between it and the exemption.
+        write(DIALOG, "export const Dialog = () => 1;\n");
+        write(DETAIL, "export const Detail = () => 1;\n");
         const foreign = commitAll("never landed");
         git("checkout", "-q", BASE_BRANCH);
         expect(invalid(bodyFor(foreign))).toBe(true);
