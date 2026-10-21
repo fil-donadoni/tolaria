@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { WorkflowRun } from "../lib/afk-dispatch";
 import {
     classifyClaim,
     buildClaimFacts,
@@ -9,6 +12,7 @@ import {
     defaultProcessProbe,
     releaseRecord,
     DEFAULT_MIN_AGE_HOURS,
+    UNPROVEN_CLAIM_HOURS,
     CLAIM_VERDICT_STATES,
     countUnpushedCommits,
     classifyClaims,
@@ -20,6 +24,10 @@ import {
     type ClaimOwner,
     type ProcessProbe,
     fetchUnclaimedIssues,
+    localWorkSince,
+    parseClaimTimes,
+    porcelainPath,
+    type ShRunner,
 } from "../loop-doctor";
 
 /**
@@ -44,7 +52,7 @@ describe("loop-doctor — classifyClaim", () => {
     it("calls an old claim with no branch and no PR an orphan", () => {
         const v = classifyClaim(base);
         expect(v.state).toBe("orphan");
-        expect(v.reason).toMatch(/no branch, no PR/);
+        expect(v.reason).toMatch(/no run, no owner, no pushed work/);
     });
 
     it("never releases a claim with an open PR", () => {
@@ -111,13 +119,25 @@ describe("loop-doctor — classifyClaim", () => {
         expect(v.reason).toMatch(/healthy pass/);
     });
 
-    it("takes the age threshold as a parameter, and the boundary is inclusive-above", () => {
-        expect(classifyClaim({ ...base, ageHours: 2 }).state).toBe("orphan");
-        expect(classifyClaim({ ...base, ageHours: 1.99 }).state).toBe(
+    it("takes both thresholds as parameters, and each boundary is inclusive-above", () => {
+        // Past `minAgeHours` an unproven claim is still `suspect` — absence
+        // is not death (issue #6223) — and only the reason changes; past
+        // `unprovenHours` it is an orphan.
+        expect(classifyClaim({ ...base, ageHours: 1.99 }).reason).toMatch(
+            /healthy pass/
+        );
+        expect(classifyClaim({ ...base, ageHours: 2 }).reason).toMatch(
+            /absence is not death/
+        );
+        expect(classifyClaim({ ...base, ageHours: 5 }, 6).reason).toMatch(
+            /healthy pass/
+        );
+        expect(classifyClaim({ ...base, ageHours: 24 }).state).toBe("orphan");
+        expect(classifyClaim({ ...base, ageHours: 23.99 }).state).toBe(
             "suspect"
         );
-        expect(classifyClaim({ ...base, ageHours: 5 }, 6).state).toBe(
-            "suspect"
+        expect(classifyClaim({ ...base, ageHours: 10 }, 2, 8).state).toBe(
+            "orphan"
         );
     });
 
@@ -129,10 +149,18 @@ describe("loop-doctor — classifyClaim", () => {
         // constant, not merely a coincidentally-equal literal beside it.
         expect(DEFAULT_MIN_AGE_HOURS).toBe(2);
         expect(
-            classifyClaim({ ...base, ageHours: DEFAULT_MIN_AGE_HOURS }).state
-        ).toBe("orphan");
+            classifyClaim({ ...base, ageHours: DEFAULT_MIN_AGE_HOURS }).reason
+        ).toMatch(/absence is not death/);
         expect(
             classifyClaim({ ...base, ageHours: DEFAULT_MIN_AGE_HOURS - 0.01 })
+                .reason
+        ).toMatch(/healthy pass/);
+        expect(UNPROVEN_CLAIM_HOURS).toBe(24);
+        expect(
+            classifyClaim({ ...base, ageHours: UNPROVEN_CLAIM_HOURS }).state
+        ).toBe("orphan");
+        expect(
+            classifyClaim({ ...base, ageHours: UNPROVEN_CLAIM_HOURS - 0.01 })
                 .state
         ).toBe("suspect");
     });
@@ -557,7 +585,7 @@ describe("loop-doctor — owner liveness (#2627)", () => {
         for (const ageHours of [0, 1.99, 2, 5, 23.9, 24, 100]) {
             expect(
                 classifyClaim({ ...base, ageHours, ownerAlive: null }).state
-            ).toBe(ageHours < 2 ? "suspect" : "orphan");
+            ).toBe(ageHours < 24 ? "suspect" : "orphan");
             expect(
                 classifyClaim({
                     ...base,
@@ -605,6 +633,7 @@ describe("loop-doctor — parseClaimOwners", () => {
             session: "sess-A",
             pid: 4242,
             startedAt: "Mon Aug 24 09:00:00 2026",
+            claimedAtMs: 1000,
         });
     });
 
@@ -1013,5 +1042,401 @@ describe("fetchUnclaimedIssues — advisory, never fatal (issue #5551)", () => {
             "",
         ])
             expect(fetchUnclaimedIssues(answer(out)).size).toBe(0);
+    });
+});
+
+/**
+ * ONE verdict for a claim (issue #6223). The doctor and the dispatcher judged
+ * the same claim by different evidence and disagreed; every shape the issue
+ * names goes through `classifyClaims` — the pipeline both now call — with
+ * the union of their evidence: claim time, `afk-pass` runs, journal owner,
+ * local and pushed branches, open PRs and their queue state.
+ */
+describe("one claim verdict over the union of the evidence (issue #6223)", () => {
+    const NOW = Date.parse("2026-10-21T12:00:00Z");
+    const ago = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+    const CLAIMED = ago(8);
+    const run = (
+        title: string,
+        over: Partial<WorkflowRun> = {}
+    ): WorkflowRun => ({
+        id: 1,
+        title,
+        status: "completed",
+        conclusion: "failure",
+        createdAt: ago(7.9),
+        updatedAt: ago(7.8),
+        ...over,
+    });
+    // The journal row of THIS claim: written just after its label event.
+    const owner = (
+        pid: number,
+        rowAt = Date.parse(CLAIMED) + 60_000
+    ): ClaimOwner => ({
+        session: "s",
+        pid,
+        startedAt: "stamp",
+        claimedAtMs: rowAt,
+    });
+    // pid 1 is alive with the recorded stamp; every other pid is gone.
+    const probe: ProcessProbe = (pid) => (pid === 1 ? "stamp" : "");
+
+    type Shape = {
+        runs?: WorkflowRun[] | null;
+        owner?: ClaimOwner;
+        remote?: string[];
+        local?: string[];
+        pr?: { branch: string; queue?: "ready" | "failed" };
+        claimedAt?: string | null;
+        localWork?: boolean | null;
+    };
+    function verdict(shape: Shape) {
+        const prs = new Map<string, number | null>(
+            shape.pr ? [[shape.pr.branch, 70]] : []
+        );
+        const [c] = classifyClaims(
+            [
+                {
+                    number: 7,
+                    title: "x",
+                    updatedAt: ago(0.1),
+                    claimedAt:
+                        shape.claimedAt === undefined
+                            ? CLAIMED
+                            : shape.claimedAt,
+                },
+            ],
+            {
+                prBranches: new Set(prs.keys()),
+                prs,
+                landQueue: new Map(
+                    shape.pr?.queue ? [[shape.pr.branch, shape.pr.queue]] : []
+                ),
+                branches: {
+                    local: shape.local ?? [],
+                    remote: shape.remote ?? [],
+                },
+                owners: new Map(shape.owner ? [[7, shape.owner]] : []),
+                baseRef: "origin/staging",
+                now: NOW,
+                probe,
+                countRunner: () => "0",
+                worktreeQuiet: () => null,
+                localWork: () => shape.localWork ?? null,
+                passRuns: shape.runs === undefined ? [] : shape.runs,
+            }
+        );
+        return c.verdict.state;
+    }
+    const dead = [run("afk-pass #7")];
+
+    it.each<[string, Shape, string]>([
+        [
+            "a run-matched dead pass with no push → orphan (release)",
+            { runs: dead },
+            "orphan",
+        ],
+        [
+            "a run-matched dead pass with a pushed branch → stranded (resume)",
+            { runs: dead, remote: ["refs/heads/fix/issue-7"] },
+            "stranded",
+        ],
+        [
+            "a run-matched dead pass with a `land-failed` PR → stranded (resume)",
+            {
+                runs: dead,
+                remote: ["refs/heads/fix/issue-7"],
+                pr: { branch: "fix/issue-7", queue: "failed" },
+            },
+            "stranded",
+        ],
+        [
+            "a run-matched dead pass with an unlabelled open PR → stranded (resume)",
+            {
+                runs: dead,
+                remote: ["refs/heads/fix/issue-7"],
+                pr: { branch: "fix/issue-7" },
+            },
+            "stranded",
+        ],
+        [
+            "a bare-titled run, a dead journal owner, no work → orphan",
+            { runs: [run("afk-pass")], owner: owner(2) },
+            "orphan",
+        ],
+        [
+            "no run, a dead journal owner, no work → orphan",
+            { owner: owner(2) },
+            "orphan",
+        ],
+        [
+            "no run, a dead journal owner, a stale local branch → orphan",
+            { owner: owner(2), local: ["fix/issue-7"], localWork: false },
+            "orphan",
+        ],
+        [
+            "a run-matched dead pass, a stale local branch → orphan, not `could still be implementing`",
+            { runs: dead, local: ["fix/issue-7"], localWork: false },
+            "orphan",
+        ],
+        [
+            "a run-matched dead pass, local work newer than the claim → recoverable",
+            { runs: dead, local: ["fix/issue-7"], localWork: true },
+            "recoverable",
+        ],
+        [
+            "a dead owner from an EARLIER claim of the issue proves nothing about this one → suspect",
+            { owner: owner(2, Date.parse(CLAIMED) - 3_600_000) },
+            "suspect",
+        ],
+        [
+            "a dead owner with an unreadable claim time cannot be tied to the claim → suspect",
+            { owner: owner(2), claimedAt: null },
+            "suspect",
+        ],
+        [
+            "a live journal owner → live, whatever the runs say",
+            { runs: dead, owner: owner(1) },
+            "live",
+        ],
+        [
+            "an active run → live, whatever the journal says",
+            {
+                runs: [
+                    run("afk-pass #7", {
+                        status: "in_progress",
+                        conclusion: null,
+                    }),
+                ],
+                owner: owner(2),
+            },
+            "live",
+        ],
+        [
+            "a claim younger than the cutoff, nothing else → suspect",
+            { claimedAt: ago(0.5) },
+            "suspect",
+        ],
+        [
+            "no run, no owner on record, no work → suspect: absence is not death",
+            {},
+            "suspect",
+        ],
+        [
+            "an older run of the issue proves nothing about a newer claim",
+            { runs: [run("afk-pass #7", { createdAt: ago(30) })] },
+            "suspect",
+        ],
+        [
+            "unreadable runs, no owner → suspect: unknown evidence never releases",
+            { runs: null, claimedAt: ago(48) },
+            "suspect",
+        ],
+        [
+            "unknown claim time, a completed run → suspect: the run cannot be attributed",
+            { runs: dead, claimedAt: null },
+            "suspect",
+        ],
+        [
+            "queued for the land-runner → pr-open",
+            {
+                runs: dead,
+                remote: ["refs/heads/fix/issue-7"],
+                pr: { branch: "fix/issue-7", queue: "ready" },
+            },
+            "pr-open",
+        ],
+    ])("%s", (_name, shape, state) => {
+        expect(verdict(shape)).toBe(state);
+    });
+
+    it("a claim with no proof either way is released only past a day", () => {
+        expect(verdict({ claimedAt: ago(23.9) })).toBe("suspect");
+        expect(verdict({ claimedAt: ago(24) })).toBe("orphan");
+    });
+});
+
+describe("a local branch is work only if newer than the claim (issue #6223)", () => {
+    const CLAIM = Date.parse("2026-10-21T08:00:00Z");
+    const sec = (iso: string) => String(Date.parse(iso) / 1000);
+    const runner =
+        (ct: string, worktrees = "", status = ""): ShRunner =>
+        (_cmd, args) => {
+            if (args[0] === "log") return ct;
+            if (args[0] === "worktree") return worktrees;
+            if (args.includes("status")) return status;
+            throw new Error(`unexpected ${args.join(" ")}`);
+        };
+    const local = ["staging", "fix/issue-7"];
+
+    it("a commit after the claim is work", () => {
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner(sec("2026-10-21T09:00:00Z"))
+            )
+        ).toBe(true);
+    });
+
+    it("a branch whose newest own commit predates the claim, with no worktree, is not", () => {
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner(sec("2026-10-12T09:00:00Z"))
+            )
+        ).toBe(false);
+        // No commit past the base at all.
+        expect(
+            localWorkSince(7, CLAIM, local, "origin/staging", runner(""))
+        ).toBe(false);
+    });
+
+    it("an uncommitted edit after the claim is work; one before it is not", () => {
+        const wt = "worktree /w/7\nHEAD abc\nbranch refs/heads/fix/issue-7\n";
+        const r = runner("", wt, " M scripts/a.ts");
+        const at = (ms: number) => () => ms;
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                r,
+                at(CLAIM + 60_000)
+            )
+        ).toBe(true);
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                r,
+                at(CLAIM - 60_000)
+            )
+        ).toBe(false);
+    });
+
+    it("the FIRST status line, trimmed by `shChecked`, keeps its whole path", () => {
+        const wt = "worktree /w/7\nHEAD abc\nbranch refs/heads/fix/issue-7\n";
+        const seen: string[] = [];
+        const at = (p: string) => {
+            seen.push(p);
+            return CLAIM + 60_000;
+        };
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner("", wt, "M scripts/a.ts\n M scripts/b.ts"),
+                at
+            )
+        ).toBe(true);
+        expect(seen[0]).toBe("/w/7/scripts/a.ts");
+        expect(porcelainPath("M scripts/a.ts")).toBe("scripts/a.ts");
+        expect(porcelainPath(" M scripts/a.ts")).toBe("scripts/a.ts");
+        expect(porcelainPath("R  old.ts -> new.ts")).toBe("new.ts");
+        expect(porcelainPath("?? dir/")).toBe("dir/");
+    });
+
+    it("an edit whose age cannot be read (a deletion) is unknown, never `not work`", () => {
+        const wt = "worktree /w/7\nHEAD abc\nbranch refs/heads/fix/issue-7\n";
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner("", wt, " D scripts/gone.ts"),
+                () => null
+            )
+        ).toBeNull();
+    });
+
+    it("an unreadable branch is unknown, never `not work`", () => {
+        const boom: ShRunner = () => {
+            throw new Error("git failed");
+        };
+        expect(
+            localWorkSince(7, CLAIM, local, "origin/staging", boom)
+        ).toBeNull();
+        expect(
+            localWorkSince(7, NaN, local, "origin/staging", runner(""))
+        ).toBeNull();
+    });
+});
+
+describe("claim times from one GraphQL search (issue #6223)", () => {
+    it("takes each issue's newest `in-progress` label event; others stay unknown", () => {
+        const text = JSON.stringify({
+            data: {
+                search: {
+                    nodes: [
+                        {
+                            number: 7,
+                            timelineItems: {
+                                nodes: [
+                                    {
+                                        createdAt: "2026-10-20T01:00:00Z",
+                                        label: { name: "in-progress" },
+                                    },
+                                    {
+                                        createdAt: "2026-10-20T02:00:00Z",
+                                        label: { name: "bug" },
+                                    },
+                                    {
+                                        createdAt: "2026-10-21T03:00:00Z",
+                                        label: { name: "in-progress" },
+                                    },
+                                ],
+                            },
+                        },
+                        { number: 8, timelineItems: { nodes: [] } },
+                        { number: 99, timelineItems: { nodes: [] } },
+                    ],
+                },
+            },
+        });
+        expect(parseClaimTimes(text, [7, 8])).toEqual({
+            7: "2026-10-21T03:00:00Z",
+            8: null,
+        });
+        expect(parseClaimTimes("not json", [7])).toEqual({});
+    });
+});
+
+describe("one caller path for the claim verdict (issue #6223)", () => {
+    const src = (rel: string) =>
+        readFileSync(join(__dirname, "..", rel), "utf8");
+
+    it("the dispatcher judges claims through `classifyClaims`, never a private rule", () => {
+        const script = src("afk-dispatch.ts");
+        expect(script).toMatch(/classifyClaims\(/);
+        expect(script).toMatch(/from "\.\/loop-doctor"/);
+        // The picker and the dispatcher's decisions consume a verdict state;
+        // none of the evidence a liveness rule is made of appears there.
+        for (const rel of [
+            "lib/picker.ts",
+            "lib/afk-dispatch.ts",
+            "afk-dispatch.ts",
+        ])
+            expect(src(rel)).not.toMatch(
+                /\b(liveRun|branchPushed|hasRemoteBranch|hasLocalBranch|ownerAlive)\b/
+            );
+    });
+
+    it("`loop:doctor` hands its classifier the dispatcher's run evidence", () => {
+        expect(src("loop-doctor.ts")).toMatch(
+            /passRuns: fetchPassRuns\(runner\)/
+        );
+        expect(src("loop-doctor.ts")).toMatch(/^\s+passRuns,$/m);
     });
 });
