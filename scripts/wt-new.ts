@@ -28,6 +28,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import {
     isAdoptableWorktree,
     issueWorktree,
@@ -39,6 +40,7 @@ import {
     logSessionAdmission,
     sessionRefusal,
 } from "./lib/machine-admission";
+import { claimLedgerPath } from "./loop-doctor";
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
@@ -87,6 +89,20 @@ function main(): void {
         console.error(`wt:new: ${worktree} already exists`);
         console.log(worktree);
         return;
+    }
+    // Nothing is created for an issue this session never claimed (issue #5996).
+    const refusal = checkClaimGate(
+        issue,
+        `wt:new ${issue}${argv.includes("--fix") ? " --fix" : ""}${argv.includes("--resume") ? " --resume" : ""}`,
+        process.env,
+        realClaimGateDeps(
+            claimLedgerPath,
+            process.env.CLAUDE_PROJECT_DIR ?? primary
+        )
+    );
+    if (refusal !== null) {
+        console.error(`✗ wt:new: ${refusal}`);
+        process.exit(1);
     }
     const machine = admitSessionNow({
         override: process.env[OVER_CAP_ENV] === "1",
