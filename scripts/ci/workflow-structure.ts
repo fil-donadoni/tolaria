@@ -96,6 +96,10 @@
  *     PR merged with the broken base): that red is the base's, so it holds
  *     the PR; `pr-refresh` rebases it on the next base push (a fresh lane) and
  *     `pr-gate`'s GREEN requeues it.
+ *   - `owner-merge-trigger` — `owner-merge.yml` fires on anything but
+ *     `pull_request_target` `labeled`, its job lacks the `ready-to-land`
+ *     label filter, or checks out nothing: one hand-off, one email (issue
+ *     #6188).
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
@@ -142,6 +146,7 @@ export type RuleId =
     | "queue-superseded"
     | "host-pinned"
     | "pass-run-name"
+    | "owner-merge-trigger"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -853,6 +858,56 @@ function checkPassRunName(workflows: SourceFile[], out: Violation[]): void {
     }
 }
 
+export const OWNER_MERGE_WORKFLOW_FILE = ".github/workflows/owner-merge.yml";
+
+/** The hand-merge email (issue #6188) is one failed run per hand-off: the
+ *  workflow fires only on `pull_request_target` `labeled` (no re-fire on a
+ *  push, edit, status or sweep), and its job runs only for `ready-to-land`
+ *  (a skipped job sends no email). The base-only checkout is
+ *  `pr-target-head-checkout`'s; here it must also EXIST. */
+function checkOwnerMergeTrigger(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    const f = workflows.find((w) => w.path === OWNER_MERGE_WORKFLOW_FILE);
+    if (!f) return;
+    let doc: unknown;
+    try {
+        doc = parse(f.text);
+    } catch {
+        return; // reported by checkWorkflow
+    }
+    const fail = (job: string | null, message: string): void => {
+        out.push({ file: f.path, job, rule: "owner-merge-trigger", message });
+    };
+    const trig = triggers(isObj(doc) ? doc.on : undefined);
+    const prt = trig.get("pull_request_target");
+    const types = isObj(prt) ? asArray(prt.types).map(String) : [];
+    if (trig.size !== 1 || types.length !== 1 || types[0] !== "labeled")
+        fail(
+            null,
+            "the only trigger must be `pull_request_target` with `types: [labeled]` — any other event sends a second email for one hand-off"
+        );
+    const jobs = isObj(doc) && isObj(doc.jobs) ? Object.entries(doc.jobs) : [];
+    for (const [id, job] of jobs) {
+        if (!isObj(job)) continue;
+        if (
+            !/github\.event\.label\.name\s*==\s*'ready-to-land'/.test(
+                String(job.if ?? "")
+            )
+        )
+            fail(
+                id,
+                "the job must carry `if: github.event.label.name == 'ready-to-land'` — another label would run (and fail) it"
+            );
+        if (!asArray(job.steps).some((s) => isCheckout(stepUses(s))))
+            fail(
+                id,
+                "the job must check out the base (`actions/checkout`, no `ref:`)"
+            );
+    }
+}
+
 export function checkStructure(input: StructureInput): Violation[] {
     const out: Violation[] = [];
     const localActions = new Set(
@@ -861,6 +916,7 @@ export function checkStructure(input: StructureInput): Violation[] {
     for (const f of input.workflows) checkWorkflow(f, localActions, out);
     for (const f of input.actions) checkAction(f, out);
     checkPassRunName(input.workflows, out);
+    checkOwnerMergeTrigger(input.workflows, out);
     if (input.mergify) {
         checkMergify(input.mergify, out);
         checkAdvisoryLaneSkipsDrafts(input.workflows, out);

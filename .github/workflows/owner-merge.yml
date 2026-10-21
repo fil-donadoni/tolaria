@@ -1,0 +1,47 @@
+# owner-merge — emails the owner when a `ready-to-land` PR needs a hand merge
+# (issue #6188, ADR 0156 §5). A PR touching `.github/` or `.mergify.yml` (or
+# by an untrusted author) is never queueable: `trusted-author` is red by
+# design and nobody else will merge it. The job decides with `land:ready`'s
+# own verdict (scripts/lib/owner-merge.ts) and FAILS ON PURPOSE when the queue
+# will not land it — GitHub's native failed-run email to the actor who added
+# the label is the notification. Any other label skips the job (a skipped job
+# sends no email); no `synchronize` / `edited` / `status` / `schedule`
+# trigger, so one hand-off sends one email.
+#
+# The label's actor is the owner's account: a session's `land:ready` and an
+# `afk-pass` job both run `gh` with the owner's login. A label added with a
+# job's own `GITHUB_TOKEN` fires no workflow at all, so none may add it.
+#
+# Same safety shape as pr-gate: `pull_request_target` runs the BASE's code
+# (checkout without `ref:` / `repository:`), reads the PR as data through the
+# API, interpolates nothing of the PR into a `run:` line. GitHub-hosted, no
+# secret. docs/guides/github-pipeline.md § owner-merge.
+name: owner-merge
+
+# `run-name` is the email subject; the PR number is an integer.
+run-name: "merge by hand: PR #${{ github.event.pull_request.number }}"
+
+on:
+    pull_request_target:
+        types: [labeled]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    notify:
+        name: merge by hand
+        if: github.event.label.name == 'ready-to-land'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: Decide and notify
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
+              run: bun scripts/owner-merge.ts
