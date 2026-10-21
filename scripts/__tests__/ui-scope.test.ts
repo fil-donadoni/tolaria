@@ -11,6 +11,10 @@ import {
     computeUiScope,
     isStaffOnlyRouteEntry,
     hasNoWalkOwedLine,
+    hasScopeUndecidedLine,
+    isAfkSession,
+    renderScopeDecision,
+    walkImpact,
     renderUiScope,
     renderWalkOwed,
     uiWalkOwed,
@@ -192,8 +196,10 @@ describe("computeUiScope — scoped", () => {
 
     it("convex/_generated keeps its placement — never server-only (issue #5074)", () => {
         expect(scopeOf("convex/_generated/api.d.ts")).toEqual({
-            kind: "full",
-            reason: "convex/_generated/api.d.ts is in no surface's closure and no rule places it",
+            kind: "undecided",
+            reasons: [
+                "convex/_generated/api.d.ts is in no surface's closure and no rule places it",
+            ],
         });
     });
 
@@ -204,8 +210,10 @@ describe("computeUiScope — scoped", () => {
         "%s is loaded by the client through import.meta.glob — never server-only (issue #5074 review)",
         (artifact) => {
             expect(scopeOf(artifact)).toEqual({
-                kind: "full",
-                reason: `${artifact} is in no surface's closure and no rule places it`,
+                kind: "undecided",
+                reasons: [
+                    `${artifact} is in no surface's closure and no rule places it`,
+                ],
             });
         }
     );
@@ -241,17 +249,19 @@ describe("computeUiScope — the catalogue gate (issue #5379)", () => {
         });
     });
 
-    it("with no surface reading the registry, a gate-only path selects full", () => {
+    it("with no surface reading the registry, a gate-only path is undecided (issue #6144)", () => {
         const scope = computeUiScope({
             changed: ["convex/cards/sets/lea/index.cards.ts"],
             surfaces: SURFACES.filter((s) => s.id === "lobby"),
             graph: createImportGraph({ root }),
         });
         expect(scope).toEqual({
-            kind: "full",
-            reason: expect.stringContaining(
-                "no surface reads convex/cards/registry.ts"
-            ),
+            kind: "undecided",
+            reasons: [
+                expect.stringContaining(
+                    "no surface reads convex/cards/registry.ts"
+                ),
+            ],
         });
     });
 
@@ -300,7 +310,9 @@ describe("computeUiScope — staff-only routes (issue #5075)", () => {
     });
 
     it("a module a staff-only page shares with an undeclared route still selects full — walked by nothing", () => {
-        expect(scopeOf("src/components/orphan-widget.tsx").kind).toBe("full");
+        expect(scopeOf("src/components/orphan-widget.tsx").kind).toBe(
+            "undecided"
+        );
     });
 });
 
@@ -382,8 +394,10 @@ describe("computeUiScope — full (fail-closed)", () => {
         // type-inclusive closure of the shell (through the router), but it
         // is in the runtime closure too, so nothing about it is erased.
         expect(scopeOf("src/components/orphan-widget.tsx")).toEqual({
-            kind: "full",
-            reason: "src/components/orphan-widget.tsx is in no surface's closure and no rule places it",
+            kind: "undecided",
+            reasons: [
+                "src/components/orphan-widget.tsx is in no surface's closure and no rule places it",
+            ],
         });
     });
 
@@ -393,7 +407,7 @@ describe("computeUiScope — full (fail-closed)", () => {
         expect(scope.kind === "full" && scope.reason).toContain("app shell");
     });
 
-    it("an unplaced path selects full", () => {
+    it("an unplaced path is undecided, not full (issue #6144)", () => {
         for (const unplaced of [
             "src/components/dead-code.tsx",
             "tooling/gen.ts",
@@ -401,10 +415,83 @@ describe("computeUiScope — full (fail-closed)", () => {
         ]) {
             const scope = scopeOf(unplaced);
             expect(scope, unplaced).toEqual({
-                kind: "full",
-                reason: `${unplaced} is in no surface's closure and no rule places it`,
+                kind: "undecided",
+                reasons: [
+                    `${unplaced} is in no surface's closure and no rule places it`,
+                ],
             });
         }
+    });
+});
+
+describe("computeUiScope — doubt vs certainty (issue #6144)", () => {
+    it("a certain-global path beats a doubt in the same diff: FULL, not undecided", () => {
+        const scope = scopeOf("src/components/dead-code.tsx", "src/index.css");
+        expect(scope.kind).toBe("full");
+    });
+
+    it("every doubt in the diff is listed", () => {
+        const scope = scopeOf("src/components/dead-code.tsx", "tooling/gen.ts");
+        expect(scope.kind === "undecided" && scope.reasons).toHaveLength(2);
+    });
+
+    it("an unreadable surfaces.ts diff is undecided; a readable shared-helper hunk stays full", () => {
+        const withEdits = (surfaceEdits: SurfaceEdits) =>
+            computeUiScope({
+                changed: ["scripts/ui-gate/surfaces.ts"],
+                surfaces: SURFACES,
+                graph: createImportGraph({ root }),
+                surfaceEdits,
+            });
+        expect(
+            withEdits({
+                kind: "shared",
+                reason: "the surfaces.ts diff could not be read (boom)",
+                unreadable: true,
+            })
+        ).toEqual({
+            kind: "undecided",
+            reasons: [
+                "scripts/ui-gate/surfaces.ts: the surfaces.ts diff could not be read (boom)",
+            ],
+        });
+        expect(
+            withEdits({ kind: "shared", reason: "hunk outside the array" }).kind
+        ).toBe("full");
+    });
+
+    it("renders UNDECIDED with its reasons, and the decision text names the mode", () => {
+        const scope = {
+            kind: "undecided",
+            reasons: ["a.ts is unplaced"],
+        } as const;
+        expect(renderUiScope(scope, "origin/staging")).toContain("UNDECIDED");
+        const afk = renderScopeDecision(scope, ["a", "b"], 5, true);
+        expect(afk).toContain("10 cells");
+        expect(afk).toContain(
+            "check:ui: scope undecided, not walked (a.ts is unplaced)"
+        );
+        expect(renderScopeDecision(scope, ["a", "b"], 5, false)).toContain(
+            "ask the owner"
+        );
+        expect(walkImpact(["a", "b"], 5)).toMatchObject({ cells: 10 });
+    });
+
+    it("the AFK marker is the loop-drain variable or a GitHub Actions job", () => {
+        expect(isAfkSession({})).toBe(false);
+        expect(isAfkSession({ TOLARIA_LOOP_DRAIN: "1" })).toBe(true);
+        expect(isAfkSession({ GITHUB_ACTIONS: "true" })).toBe(true);
+    });
+
+    it("reads the undecided PR line only with a reason", () => {
+        expect(
+            hasScopeUndecidedLine(
+                "check:ui: scope undecided, not walked (x.ts unplaced)"
+            )
+        ).toBe(true);
+        expect(
+            hasScopeUndecidedLine("check:ui: scope undecided, not walked ()")
+        ).toBe(false);
     });
 });
 
