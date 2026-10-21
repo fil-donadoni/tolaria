@@ -136,10 +136,15 @@ export function isTransientMergeRefusal(output: string): boolean {
  * is asserted on the argv that actually ships, not on a shell string that no
  * longer contains it (#2536).
  */
-export function mergeArgs(pr: number, head?: string): string[] {
+export function mergeArgs(pr: number, head?: string, admin = false): string[] {
     const args = ["pr", "merge", String(pr), "--squash"];
     // `merge:manual` admits one head: a push after the verdict refuses.
-    return head ? [...args, "--match-head-commit", head] : args;
+    if (head) args.push("--match-head-commit", head);
+    // The ruleset requires `trusted-author`, red by design on a PR the queue
+    // refuses: only the owner's bypass merges it, after `merge:manual`'s own
+    // admission (issue #6263).
+    if (admin) args.push("--admin");
+    return args;
 }
 
 /**
@@ -180,6 +185,7 @@ export function parseArgs(argv: string[]): {
     pr: number;
     fromLand: boolean;
     head?: string;
+    admin?: boolean;
 } {
     const positional = argv.filter((a) => !a.startsWith("--"));
     const head = argv.find((a) => a.startsWith("--head="));
@@ -187,6 +193,7 @@ export function parseArgs(argv: string[]): {
         pr: Number((positional[0] ?? "").replace(/^#/, "")),
         fromLand: argv.includes("--from-land"),
         ...(head ? { head: head.slice("--head=".length) } : {}),
+        ...(argv.includes("--admin") ? { admin: true } : {}),
     };
 }
 
@@ -243,9 +250,13 @@ async function settle(pr: number): Promise<SettleVerdict> {
 }
 
 /** Returns combined stdout+stderr on failure, null on success. */
-function attemptMerge(pr: number, head?: string): string | null {
+function attemptMerge(
+    pr: number,
+    head?: string,
+    admin?: boolean
+): string | null {
     try {
-        gh(mergeArgs(pr, head));
+        gh(mergeArgs(pr, head, admin));
         return null;
     } catch (err) {
         const e = err as {
@@ -261,7 +272,7 @@ function attemptMerge(pr: number, head?: string): string | null {
 }
 
 async function main(): Promise<void> {
-    const { pr, fromLand, head } = parseArgs(process.argv.slice(2));
+    const { pr, fromLand, head, admin } = parseArgs(process.argv.slice(2));
     if (!Number.isInteger(pr) || pr <= 0) {
         fail("usage: bun scripts/pr-merge.ts <PR#> [--from-land]");
     }
@@ -278,7 +289,7 @@ async function main(): Promise<void> {
         }
         if (verdict.kind === "blocked") fail(verdict.reason);
 
-        const failure = attemptMerge(pr, head);
+        const failure = attemptMerge(pr, head, admin);
         if (failure === null) {
             console.log(`pr-merge: PR #${pr} merged (attempt ${attempt})`);
             sayWhatIsOwed();
