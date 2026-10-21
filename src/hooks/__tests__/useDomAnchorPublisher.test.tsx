@@ -7,7 +7,7 @@
 // the two player anchors SWAPPED and every player-pointing arrow landed on
 // the wrong nameplate. The `revision` parameter is the designed re-measure
 // seam: board.tsx now bumps it with the seat assignment (`me:opponent`).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { useRef } from "react";
 import {
@@ -335,5 +335,78 @@ describe("useDomAnchorPublisher — second root (#1815 review fixup round 2)", (
         // Board-root chip center would be (60, 30); bar chip center is
         // (100, 80) — the published point is the bar's, not the board's.
         expect(value.anchors.graveyard.me).toEqual({ x: 100, y: 80 });
+    });
+});
+
+// Issue #6236: the desktop debug sheet reflows the board through an animated
+// `margin-left` (issue #3493) — the board root changes size with no window
+// `resize`, so the nameplate anchors kept their pre-reflow coordinates and the
+// attack arrows ended mid-board until a reload. A root ResizeObserver is the
+// re-measure seam; happy-dom never fires one, so a fake drives it here.
+describe("useDomAnchorPublisher — board-root reflow (issue #6236)", () => {
+    let observed: { target: Element; fire: () => void }[] = [];
+
+    beforeEach(() => {
+        observed = [];
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                constructor(private readonly cb: ResizeObserverCallback) {}
+                observe(target: Element) {
+                    observed.push({
+                        target,
+                        fire: () => this.cb([], this as never),
+                    });
+                }
+                unobserve() {}
+                disconnect() {
+                    observed = [];
+                }
+            }
+        );
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    function ReflowHarness({ plate }: { plate: () => DOMRect }) {
+        const ref = useRef<HTMLDivElement>(null);
+        useDomAnchorPublisher(ref, ["player"], "rev");
+        return (
+            <div
+                data-board-root
+                ref={(el) => {
+                    if (el) el.getBoundingClientRect = () => rect(0, 0);
+                }}
+            >
+                <div ref={ref} />
+                <div
+                    data-arrow-anchor-player="p1"
+                    ref={(el) => {
+                        if (el) el.getBoundingClientRect = plate;
+                    }}
+                />
+            </div>
+        );
+    }
+
+    it("re-measures DOM anchors when the board root resizes with no window event", () => {
+        const { value } = makeRegistry();
+        let plate = rect(400, 900);
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <ReflowHarness plate={() => plate} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.player.p1).toEqual({ x: 450, y: 920 });
+
+        // The sheet closes: the board widens and the nameplate re-centres.
+        plate = rect(640, 900);
+        const root = document.querySelector("[data-board-root]");
+        const rootObs = observed.find((o) => o.target === root);
+        expect(rootObs).toBeDefined();
+        rootObs!.fire();
+
+        expect(value.anchors.player.p1).toEqual({ x: 690, y: 920 });
     });
 });

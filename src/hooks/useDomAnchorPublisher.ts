@@ -27,7 +27,7 @@ type Published = { kind: AnchorKind; id: string };
  * the cards that DO animate continuously — are published from layout placements
  * by {@link useZoneAnchorPublisher} instead, never measured here.
  *
- * Re-scans on resize, scroll, and the shared `leaderlines:reposition` event
+ * Re-scans on resize (window and board root), scroll, and the shared reposition event
  * (which the stack panel already dispatches as it is dragged), so dragging the
  * stack keeps its arrows attached. It only ever unpublishes anchors it
  * published itself (tracked in a ref), so it never fights the zone publishers
@@ -152,7 +152,18 @@ export function useDomAnchorPublisher(
         window.addEventListener("resize", onChange);
         document.addEventListener("scroll", onChange, true);
         window.addEventListener(ANCHORS_REPOSITION_EVENT, onChange);
+        // The board root can reflow with no window event (issue #6236): the
+        // desktop debug sheet gives up its width through an animated
+        // `margin-left` on the board area (issue #3493), which moves every
+        // nameplate / stack row / pile inside it. A ResizeObserver delivers at
+        // most one callback per frame, only while the root is changing size.
+        const rootObserver =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(onChange);
+        rootObserver?.observe(board);
         return () => {
+            rootObserver?.disconnect();
             for (const t of settleTimers) window.clearTimeout(t);
             window.removeEventListener("resize", onChange);
             document.removeEventListener("scroll", onChange, true);
