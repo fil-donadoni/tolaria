@@ -13,7 +13,8 @@
 //      first run that sees a failure streak exits 1, once, for the email —
 //      and so does the first that sees a repair pick (a `land-failed` PR)
 //      waiting past `afkDispatch.repairAgeHours` under a hold (issue #5957);
-//   2. orphan claims (a dead pass that pushed nothing) are released;
+//   2. orphan claims (`classifyClaim`'s verdict, the one `loop:doctor`
+//      prints) are released;
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
 //      `afk-pass.yml` with their issue and model tier.
@@ -30,7 +31,18 @@ import { gh } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { sanitizeHost } from "./lib/github-runner";
 import { releaseEditArgs, CLAIM_LABEL } from "./lib/claim-labels";
-import { pick, type IssueProvenance } from "./lib/picker";
+import { pick, type IssueProvenance, type JudgedClaim } from "./lib/picker";
+import {
+    classifyClaims,
+    fetchBranchNames,
+    fetchOpenPrRows,
+    landQueueByBranch,
+    openPrMap,
+    readClaimOwners,
+    shChecked,
+    withClaimTimes,
+    type ClaimedIssue,
+} from "./loop-doctor";
 import type { PlanConfig } from "./lib/queue-plan";
 import { DEFAULTS, liveQueuePort, readReadyQueue } from "./queue-plan";
 import {
@@ -39,7 +51,7 @@ import {
     verdictStore,
 } from "./lib/health-verdict-store";
 import { readUsageWindow, DEFAULT_PROJECTS_DIR } from "./usage-window";
-import { CONFIG_PATH } from "./lib/branches";
+import { CONFIG_PATH, ORIGIN_BASE } from "./lib/branches";
 import { FAILED_LABEL } from "./lib/land-labels";
 import {
     ACK_MARKER,
@@ -48,7 +60,6 @@ import {
     agedRepairLines,
     agedRepairNotice,
     budgetReading,
-    claimFacts,
     failureStreak,
     holdFor,
     holdReleases,
@@ -61,9 +72,10 @@ import {
     passSlots,
     planDispatch,
     usageLimitResetAt,
+    WORKFLOW_RUN_FIELDS,
+    parseWorkflowRuns,
     type BudgetConfig,
     type Dispatch,
-    type OpenPr,
     type PassRecord,
     type RepairPick,
     type RunnerRow,
@@ -113,7 +125,7 @@ function workflowRuns(
     limit: number,
     filter: string[] = []
 ): WorkflowRun[] {
-    const rows = JSON.parse(
+    return parseWorkflowRuns(
         gh([
             "run",
             "list",
@@ -123,24 +135,9 @@ function workflowRuns(
             "--limit",
             String(limit),
             "--json",
-            "databaseId,displayTitle,status,conclusion,createdAt,updatedAt",
+            WORKFLOW_RUN_FIELDS,
         ])
-    ) as {
-        databaseId: number;
-        displayTitle: string;
-        status: string;
-        conclusion: string | null;
-        createdAt: string;
-        updatedAt: string;
-    }[];
-    return rows.map((r) => ({
-        id: r.databaseId,
-        title: r.displayTitle,
-        status: r.status,
-        conclusion: r.conclusion || null,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-    }));
+    );
 }
 
 /** The workflow exists on the default branch and is enabled. */
@@ -204,32 +201,6 @@ function passRecords(
     }
 }
 
-/** When each claim was taken: its newest `in-progress` label event. `null`
- *  when unreadable — the claim is then held (`claimFacts`). */
-function claimTimes(
-    slug: string,
-    claimed: readonly number[]
-): Record<number, string | null> {
-    const out: Record<number, string | null> = {};
-    for (const n of claimed) {
-        try {
-            const times = gh([
-                "api",
-                "--paginate",
-                `repos/${slug}/issues/${n}/events`,
-                "--jq",
-                `.[] | select(.event == "labeled" and .label.name == "${CLAIM_LABEL}") | .created_at`,
-            ])
-                .split("\n")
-                .filter((l) => l.trim() !== "");
-            out[n] = times.length ? times[times.length - 1] : null;
-        } catch {
-            out[n] = null;
-        }
-    }
-    return out;
-}
-
 function runners(slug: string): RunnerRow[] {
     const lines = gh([
         "api",
@@ -244,34 +215,42 @@ function runners(slug: string): RunnerRow[] {
         .map((l) => JSON.parse(l) as RunnerRow);
 }
 
-function pushedBranches(): string[] {
-    const out = execFileSync("git", ["ls-remote", "--heads", "origin"], {
-        encoding: "utf8",
-    });
-    return out
-        .split("\n")
-        .map((l) => l.split("\t")[1] ?? "")
-        .filter((r) => r.startsWith("refs/heads/"))
-        .map((r) => r.slice("refs/heads/".length));
-}
-
-function openPrs(): OpenPr[] {
-    const rows = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--limit",
-            "200",
-            "--json",
-            "number,headRefName,labels",
-        ])
-    ) as { number: number; headRefName: string; labels: { name: string }[] }[];
-    return rows.map((r) => ({
-        number: r.number,
-        headRefName: r.headRefName,
-        labels: r.labels.map((l) => l.name),
+/**
+ * Every claim's verdict — `loop-doctor.ts`'s `classifyClaims`, the ONE
+ * authority (issue #6223), over the union of the evidence: the claim time,
+ * the `afk-pass` runs, this machine's claim journal (the primary checkout's:
+ * the job worktree shares its refs and worktrees), local and pushed branches,
+ * open PRs and their queue state. Every read is fail-closed: a failed one
+ * throws, and the caller releases nothing.
+ */
+function judgeClaims(
+    slug: string,
+    claimed: readonly ClaimedIssue[],
+    passRuns: readonly WorkflowRun[]
+): JudgedClaim[] {
+    if (claimed.length === 0) return [];
+    const rows = fetchOpenPrRows(shChecked);
+    const prs = openPrMap(rows);
+    const verdicts = classifyClaims(
+        withClaimTimes([...claimed], shChecked, slug),
+        {
+            prBranches: new Set(prs.keys()),
+            prs,
+            landQueue: landQueueByBranch(rows),
+            branches: fetchBranchNames(shChecked),
+            owners: readClaimOwners(primaryCheckout()),
+            baseRef: ORIGIN_BASE,
+            countRunner: shChecked,
+            passRuns,
+        }
+    );
+    if (DRY_RUN)
+        for (const c of verdicts)
+            say(`claim #${c.issue}: ${c.verdict.state} — ${c.verdict.reason}`);
+    return verdicts.map((c) => ({
+        issue: c.issue,
+        state: c.verdict.state,
+        pr: c.pr,
     }));
 }
 
@@ -487,18 +466,12 @@ async function main(): Promise<void> {
         let releaseFailed = false;
         try {
             if (hold.kind === "disabled") throw new Error("kill switch");
-            const claimedNow = readReadyQueue()
-                .filter((i) => i.labels.some((l) => l.name === CLAIM_LABEL))
-                .map((i) => i.number);
+            const claimedNow = readReadyQueue().filter((i) =>
+                i.labels.some((l) => l.name === CLAIM_LABEL)
+            );
             const orphans = holdReleases(
                 hold,
-                claimFacts(
-                    claimedNow,
-                    passRuns,
-                    pushedBranches(),
-                    openPrs(),
-                    claimTimes(slug, claimedNow)
-                )
+                judgeClaims(slug, claimedNow, passRuns)
             );
             if (DRY_RUN)
                 say(
@@ -566,9 +539,9 @@ async function main(): Promise<void> {
     };
     const trusted = (login: string) =>
         login === trust.owner || trust.trustedAuthors.includes(login);
-    const claimed = issues
-        .filter((i) => i.labels.some((l) => l.name === CLAIM_LABEL))
-        .map((i) => i.number);
+    const claimed = issues.filter((i) =>
+        i.labels.some((l) => l.name === CLAIM_LABEL)
+    );
     const config: PlanConfig = {
         batchCap: slots.free.length,
         staleClaimHours: DEFAULTS.staleClaimHours,
@@ -586,13 +559,7 @@ async function main(): Promise<void> {
             issues.map((i) => i.number),
             trusted
         ),
-        claims: claimFacts(
-            claimed,
-            passRuns,
-            pushedBranches(),
-            openPrs(),
-            claimTimes(slug, claimed)
-        ),
+        claims: judgeClaims(slug, claimed, passRuns),
     });
     const plan = planDispatch(picked, slots, (issue) => {
         const last = lastPassRun(passRuns, issue);

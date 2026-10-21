@@ -31,7 +31,8 @@ import {
     type UsageRecord,
     type WeightClass,
 } from "./usage-window";
-import { claimFate, type ClaimFacts, type PickResult } from "./picker";
+import { claimFate, type JudgedClaim, type PickResult } from "./picker";
+import type { PassRunState } from "../loop-doctor";
 import type { HealthMarker } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL } from "./land-labels";
@@ -84,6 +85,31 @@ export interface WorkflowRun {
     conclusion: string | null;
     createdAt: string;
     updatedAt: string;
+}
+
+/** The `gh run list --json` fields a `WorkflowRun` is read from. */
+export const WORKFLOW_RUN_FIELDS =
+    "databaseId,displayTitle,status,conclusion,createdAt,updatedAt";
+
+/** `gh run list --json WORKFLOW_RUN_FIELDS` → `WorkflowRun`s. Throws on a
+ *  torn answer: the caller decides what unreadable means. */
+export function parseWorkflowRuns(text: string): WorkflowRun[] {
+    const rows = JSON.parse(text) as {
+        databaseId: number;
+        displayTitle: string;
+        status: string;
+        conclusion: string | null;
+        createdAt: string;
+        updatedAt: string;
+    }[];
+    return rows.map((r) => ({
+        id: r.databaseId,
+        title: r.displayTitle,
+        status: r.status,
+        conclusion: r.conclusion || null,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+    }));
 }
 
 const isActive = (r: WorkflowRun): boolean => r.status !== "completed";
@@ -499,66 +525,34 @@ export const ISSUE_BRANCH = /^(?:feat|fix)\/issue-(\d+)$/;
 export const CLAIM_RUN_SLACK_MS = 2 * 60_000;
 
 /**
- * Claim facts for the picker. A claim is ALIVE (`liveRun: true`) when:
+ * What the `afk-pass` runs say about one claim (`ClaimFacts.run` in
+ * `loop-doctor.ts`, whose `classifyClaim` is the ONE verdict, issue #6223):
  *
- *   * an `afk-pass` run for it is queued or running;
- *   * it has an open PR not labelled `land-failed` (a rejected PR is a repair
- *     pick, its claim a dead pass's work) — the PR is in the queue,
- *     and the claim is released at merge;
- *   * no `afk-pass` run for it was created AFTER the claim was taken
+ *   * `active` — a run for the issue is queued or running;
+ *   * `ended`  — a run for it was created AFTER the claim was taken
  *     (`claimedAt`, the newest `in-progress` label event, less a clock
- *     slack) — the claim is a session outside the pipeline (an owner's
- *     `/next-ticket`, the old loop), or the dispatcher's own claim whose run
- *     is not listed yet; the dispatcher has no evidence and never touches
- *     it. An older run of the same issue proves nothing about a newer
- *     claim. An unknown claim time holds too (fail closed).
- *
- * Otherwise the pipeline's own pass died: a pushed branch is a resume pick,
- * no branch an orphan to release (`picker.claimFate`).
+ *     slack), and none is active: the pipeline's own pass died;
+ *   * `none`   — no run created after the claim: a session outside the
+ *     pipeline (an owner's `/next-ticket`, the old loop), or the dispatcher's
+ *     own claim whose run is not listed yet. An older run of the same issue
+ *     proves nothing about a newer claim;
+ *   * `unknown` — runs of the issue exist but the claim time is unknown, so
+ *     none can be attributed to it (fail closed — it releases nothing). No
+ *     run at all is `none` whatever the claim time: nothing to attribute.
  */
-export function claimFacts(
-    claimed: readonly number[],
+export function passRunEvidence(
+    issue: number,
     passRuns: readonly WorkflowRun[],
-    pushedBranches: readonly string[],
-    openPrs: readonly OpenPr[],
-    claimedAt: Readonly<Record<number, string | null>>
-): ClaimFacts[] {
-    const owned = (issue: number, r: WorkflowRun): boolean => {
-        const at = claimedAt[issue];
-        return (
-            typeof at === "string" &&
-            Number.isFinite(ms(at)) &&
-            ms(r.createdAt) >= ms(at) - CLAIM_RUN_SLACK_MS
-        );
-    };
-    const known = new Set<number>();
-    const active = new Set<number>();
-    for (const r of passRuns) {
-        const n = passRunIssue(r.title);
-        if (n === null) continue;
-        if (isActive(r)) active.add(n);
-        if (owned(n, r)) known.add(n);
-    }
-    const pushed = new Set<number>();
-    for (const b of pushedBranches) {
-        const m = ISSUE_BRANCH.exec(b);
-        if (m) pushed.add(Number(m[1]));
-    }
-    const prOf = new Map<number, OpenPr>();
-    for (const pr of openPrs) {
-        const m = ISSUE_BRANCH.exec(pr.headRefName);
-        if (m) prOf.set(Number(m[1]), pr);
-    }
-    return claimed.map((issue) => {
-        const pr = prOf.get(issue) ?? null;
-        const queued = pr !== null && !pr.labels.includes(FAILED_LABEL);
-        return {
-            issue,
-            liveRun: active.has(issue) || queued || !known.has(issue),
-            branchPushed: pushed.has(issue) || pr !== null,
-            pr: pr?.number ?? null,
-        };
-    });
+    claimedAt: string | null
+): PassRunState {
+    const mine = passRuns.filter((r) => passRunIssue(r.title) === issue);
+    if (mine.some(isActive)) return "active";
+    if (mine.length === 0) return "none";
+    const at = claimedAt === null ? NaN : ms(claimedAt);
+    if (!Number.isFinite(at)) return "unknown";
+    return mine.some((r) => ms(r.createdAt) >= at - CLAIM_RUN_SLACK_MS)
+        ? "ended"
+        : "none";
 }
 
 /**
@@ -569,10 +563,10 @@ export function claimFacts(
  */
 export function holdReleases(
     hold: Hold,
-    facts: readonly ClaimFacts[]
+    claims: readonly JudgedClaim[]
 ): number[] {
     if (hold.kind === "disabled") return [];
-    return facts.filter((f) => claimFate(f) === "release").map((f) => f.issue);
+    return claims.filter((c) => claimFate(c) === "release").map((c) => c.issue);
 }
 
 /** The newest completed pass run of each issue — whose runner names the host
