@@ -26,6 +26,7 @@ import {
     fetchUnclaimedIssues,
     localWorkSince,
     parseClaimTimes,
+    porcelainPath,
     type ShRunner,
 } from "../loop-doctor";
 
@@ -632,6 +633,7 @@ describe("loop-doctor — parseClaimOwners", () => {
             session: "sess-A",
             pid: 4242,
             startedAt: "Mon Aug 24 09:00:00 2026",
+            claimedAtMs: 1000,
         });
     });
 
@@ -1066,10 +1068,15 @@ describe("one claim verdict over the union of the evidence (issue #6223)", () =>
         updatedAt: ago(7.8),
         ...over,
     });
-    const owner = (pid: number): ClaimOwner => ({
+    // The journal row of THIS claim: written just after its label event.
+    const owner = (
+        pid: number,
+        rowAt = Date.parse(CLAIMED) + 60_000
+    ): ClaimOwner => ({
         session: "s",
         pid,
         startedAt: "stamp",
+        claimedAtMs: rowAt,
     });
     // pid 1 is alive with the recorded stamp; every other pid is gone.
     const probe: ProcessProbe = (pid) => (pid === 1 ? "stamp" : "");
@@ -1176,6 +1183,16 @@ describe("one claim verdict over the union of the evidence (issue #6223)", () =>
             "a run-matched dead pass, local work newer than the claim → recoverable",
             { runs: dead, local: ["fix/issue-7"], localWork: true },
             "recoverable",
+        ],
+        [
+            "a dead owner from an EARLIER claim of the issue proves nothing about this one → suspect",
+            { owner: owner(2, Date.parse(CLAIMED) - 3_600_000) },
+            "suspect",
+        ],
+        [
+            "a dead owner with an unreadable claim time cannot be tied to the claim → suspect",
+            { owner: owner(2), claimedAt: null },
+            "suspect",
         ],
         [
             "a live journal owner → live, whatever the runs say",
@@ -1304,6 +1321,44 @@ describe("a local branch is work only if newer than the claim (issue #6223)", ()
                 at(CLAIM - 60_000)
             )
         ).toBe(false);
+    });
+
+    it("the FIRST status line, trimmed by `shChecked`, keeps its whole path", () => {
+        const wt = "worktree /w/7\nHEAD abc\nbranch refs/heads/fix/issue-7\n";
+        const seen: string[] = [];
+        const at = (p: string) => {
+            seen.push(p);
+            return CLAIM + 60_000;
+        };
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner("", wt, "M scripts/a.ts\n M scripts/b.ts"),
+                at
+            )
+        ).toBe(true);
+        expect(seen[0]).toBe("/w/7/scripts/a.ts");
+        expect(porcelainPath("M scripts/a.ts")).toBe("scripts/a.ts");
+        expect(porcelainPath(" M scripts/a.ts")).toBe("scripts/a.ts");
+        expect(porcelainPath("R  old.ts -> new.ts")).toBe("new.ts");
+        expect(porcelainPath("?? dir/")).toBe("dir/");
+    });
+
+    it("an edit whose age cannot be read (a deletion) is unknown, never `not work`", () => {
+        const wt = "worktree /w/7\nHEAD abc\nbranch refs/heads/fix/issue-7\n";
+        expect(
+            localWorkSince(
+                7,
+                CLAIM,
+                local,
+                "origin/staging",
+                runner("", wt, " D scripts/gone.ts"),
+                () => null
+            )
+        ).toBeNull();
     });
 
     it("an unreadable branch is unknown, never `not work`", () => {

@@ -30,6 +30,7 @@ import { ORIGIN_BASE } from "./lib/branches";
 import { CLAIM_LABEL, releaseEditArgs } from "./lib/claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 import {
+    CLAIM_RUN_SLACK_MS,
     PASS_WORKFLOW,
     WORKFLOW_RUN_FIELDS,
     parseWorkflowRuns,
@@ -420,6 +421,8 @@ export type ClaimOwner = {
     pid: number;
     /** `ps -o lstart=` at claim time — the PID-reuse discriminator. */
     startedAt: string;
+    /** When the journal row was written, ms (its `ts`); `null` = absent. */
+    claimedAtMs?: number | null;
 };
 
 /**
@@ -507,6 +510,7 @@ export function parseClaimOwners(ledgerText: string): Map<number, ClaimOwner> {
             issue?: unknown;
             event?: unknown;
             owner?: { pid?: unknown; startedAt?: unknown } | null;
+            ts?: unknown;
         };
         try {
             row = JSON.parse(line);
@@ -532,6 +536,10 @@ export function parseClaimOwners(ledgerText: string): Map<number, ClaimOwner> {
                 session: typeof row.session === "string" ? row.session : "",
                 pid: owner.pid,
                 startedAt: owner.startedAt,
+                claimedAtMs:
+                    typeof row.ts === "number" && Number.isFinite(row.ts)
+                        ? row.ts * 1000
+                        : null,
             });
         }
     }
@@ -927,16 +935,31 @@ export function localWorkSince(
         }
         if (path === null) return false;
         const status = runner("git", ["-C", path, "status", "--porcelain"]);
+        // A path that cannot be stat'ed (a deletion, a quoted name) is an
+        // edit of unknown age: unknown, never "not work".
+        let unreadable = false;
         for (const line of status.split("\n")) {
-            const rel = line.slice(3).split(" -> ").pop()?.trim();
+            const rel = porcelainPath(line);
             if (!rel) continue;
             const m = mtimeMs(`${path}/${rel}`);
-            if (m !== null && m >= sinceMs) return true;
+            if (m === null) unreadable = true;
+            else if (m >= sinceMs) return true;
         }
-        return false;
+        return unreadable ? null : false;
     } catch {
         return null;
     }
+}
+
+/**
+ * The path of one `git status --porcelain` line (`XY path`, `XY a -> b`).
+ * Parsed by its shape, not by `slice(3)`: `shChecked` trims its stdout, so
+ * the FIRST line of ` M a.ts` arrives as `M a.ts` and a fixed offset cuts the
+ * path's first character (issue #6223 review).
+ */
+export function porcelainPath(line: string): string | null {
+    const m = /^\s*\S{1,2}\s+(.+)$/.exec(line);
+    return m ? (m[1].split(" -> ").pop()?.trim() ?? null) || null : null;
 }
 
 /**
@@ -1079,7 +1102,7 @@ export function worktreeQuietMinutes(
         if (index) see(index);
         const status = runner("git", ["-C", path, "status", "--porcelain"]);
         for (const line of status.split("\n")) {
-            const rel = line.slice(3).split(" -> ").pop()?.trim();
+            const rel = porcelainPath(line);
             if (rel) see(`${path}/${rel}`);
         }
     } catch {
@@ -1206,7 +1229,11 @@ export function classifyClaims(
             deps.prBranches,
             deps.branches,
             now,
-            isOwnerAlive(owner, deps.probe),
+            ownerOfThisClaim(
+                isOwnerAlive(owner, deps.probe),
+                owner,
+                issue.claimedAt
+            ),
             countUnpushedCommits(
                 issue.number,
                 deps.branches.local,
@@ -1255,6 +1282,29 @@ export function classifyClaims(
             pr: deps.prs ? openPrFor(issue.number, deps.prs) : null,
         };
     });
+}
+
+/**
+ * A journal owner speaks for the CURRENT claim only if its row was written at
+ * or after the claim's label event (issue #6223 review). The dispatcher's
+ * release writes no `released` row, so a dead owner from an EARLIER claim of
+ * the issue stays last-row-wins; read as `dead`, it would release the next
+ * claimant — a session on another machine — five minutes in. A death
+ * reading that cannot be tied to this claim (row older than the claim, or
+ * either time unknown) is `null`; a live process stays live whatever its row.
+ */
+export function ownerOfThisClaim(
+    alive: boolean | null,
+    owner: ClaimOwner | undefined,
+    /** `undefined` = the caller reads no claim times (the journal alone
+     *  decides, as before issue #6223); `null` = the read failed. */
+    claimedAt: string | null | undefined
+): boolean | null {
+    if (alive !== false || claimedAt === undefined) return alive;
+    const at = claimedAt === null ? NaN : Date.parse(claimedAt);
+    const rowAt = owner?.claimedAtMs ?? null;
+    if (!Number.isFinite(at) || rowAt === null) return null;
+    return rowAt >= at - CLAIM_RUN_SLACK_MS ? false : null;
 }
 
 /** The claim journal, folded to owners. Missing or unreadable → an empty map,
