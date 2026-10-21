@@ -28,6 +28,9 @@ const PLATFORM_READS: Record<string, Read> = {
         pin: "TOLARIA_LAND_RUNNER_PLATFORM",
         readIn: "scripts/lib/land-runner.ts",
     },
+    "scripts/cockpit.ts": {
+        mechanics: "browser opener: open vs xdg-open",
+    },
     "scripts/convex-ensure.ts": {
         mechanics: "systemd units exist on Linux only",
     },
