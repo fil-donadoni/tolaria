@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LOCKFILE_PATH as CHECK_GAPS_LOCKFILE_PATH } from "../check-gaps";
+import { BASE_BRANCH } from "../lib/branches";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "../lib/catalogue-merge";
 import { commitOnScratchIndex } from "../lib/commit-tree";
 import { DEFINITION_INDEX_PATH } from "../lib/definition-index";
@@ -19,7 +20,9 @@ import {
     LOCKFILE_PATH,
     derivePlan,
     derivedFreshness,
+    pushDerivedCommit,
     pushOutcome,
+    type GitRun,
 } from "../lib/derive-sync";
 import { PACKED_CORPUS_PATH } from "../lib/packed-corpus";
 import { SEARCH_INDEX_PATH } from "../lib/search-index";
@@ -242,6 +245,137 @@ describe("commitOnScratchIndex — a commit the checkout never sees (real git)",
             "s"
         );
         expect("error" in built).toBe(true);
-        expect((built as { error: string }).error).not.toBe("");
+        expect((built as { error: string }).error).toMatch(/not-a-commit/);
+    });
+});
+
+describe("pushDerivedCommit — landed / coalesced / failed against a bare remote (real git)", () => {
+    let dir: string;
+    const sh = (cwd: string, args: string[], input?: string): string => {
+        const r = spawnSync("git", args, { cwd, encoding: "utf8", input });
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
+    };
+    const runner =
+        (cwd: string): GitRun =>
+        (args, opts) => {
+            const r = spawnSync("git", args, {
+                cwd,
+                encoding: "utf8",
+                timeout: opts?.timeout,
+            });
+            return {
+                status: r.status,
+                stdout: r.stdout ?? "",
+                stderr: r.stderr ?? "",
+                timedOut:
+                    r.error !== undefined &&
+                    (r.error as { code?: string }).code === "ETIMEDOUT",
+            };
+        };
+    /** A commit on `parent` in `cwd` with `file` = `text`, not checked out. */
+    const commitOn = (
+        cwd: string,
+        parent: string,
+        file: string,
+        text: string
+    ): string => {
+        const blob = sh(cwd, ["hash-object", "-w", "--stdin"], text);
+        const built = commitOnScratchIndex(
+            (args, opts) => runner(cwd)(args, opts) as never,
+            parent,
+            [{ path: file, blob }],
+            `change ${file}`
+        );
+        if ("error" in built) throw new Error(built.error);
+        return built.sha;
+    };
+    const input = (sha: string, head: string) => ({
+        sha,
+        head,
+        baseBranch: BASE_BRANCH,
+        originBase: `origin/${BASE_BRANCH}`,
+        netTimeoutMs: 10_000,
+    });
+    let clone: string;
+    let bare: string;
+    let head: string;
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "derive-push-"));
+        bare = join(dir, "origin.git");
+        clone = join(dir, "clone");
+        mkdirSync(bare);
+        sh(bare, ["init", "-q", "--bare", "-b", BASE_BRANCH]);
+        sh(dir, ["clone", "-q", bare, clone]);
+        sh(clone, ["config", "user.email", "t@example.com"]);
+        sh(clone, ["config", "user.name", "t"]);
+        sh(clone, ["config", "commit.gpgsign", "false"]);
+        sh(clone, ["checkout", "-q", "-B", BASE_BRANCH]);
+        writeFileSync(join(clone, "a.txt"), "a\n");
+        sh(clone, ["add", "a.txt"]);
+        sh(clone, ["commit", "-q", "-m", "seed"]);
+        sh(clone, ["push", "-q", "origin", `HEAD:refs/heads/${BASE_BRANCH}`]);
+        head = sh(clone, ["rev-parse", "HEAD"]);
+    });
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
+
+    it("landed: the base tip is the derive commit", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const r = pushDerivedCommit(runner(clone), input(sha, head));
+        expect(r.outcome).toBe("landed");
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(sha);
+    });
+
+    it("coalesced: the base moved between build and push — refused, dropped, the moved tip named", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        // Somebody else lands on the base first.
+        const theirs = commitOn(clone, head, "b.txt", "theirs\n");
+        sh(clone, [
+            "push",
+            "-q",
+            "origin",
+            `${theirs}:refs/heads/${BASE_BRANCH}`,
+        ]);
+        const r = pushDerivedCommit(runner(clone), input(sha, head));
+        expect(r.outcome).toBe("coalesced");
+        expect(r.remoteTip).toBe(theirs);
+        expect(r.why).toMatch(/rejected/);
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(theirs);
+    });
+
+    it("landed, not coalesced, when the refusal is the client's and the remote tip IS our commit", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        // The push landed (a timed-out client), then the runner reports it refused.
+        sh(clone, ["push", "-q", "origin", `${sha}:refs/heads/${BASE_BRANCH}`]);
+        const real = runner(clone);
+        const lying: GitRun = (args, opts) =>
+            args[0] === "push"
+                ? { status: 1, stdout: "", stderr: "", timedOut: true }
+                : real(args, opts);
+        const r = pushDerivedCommit(lying, input(sha, head));
+        expect(r.outcome).toBe("landed");
+        expect(r.why).toMatch(/no answer within 10s/);
+    });
+
+    it("failed: refused with the base unmoved", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const real = runner(clone);
+        const refusing: GitRun = (args, opts) =>
+            args[0] === "push"
+                ? { status: 1, stdout: "", stderr: "fatal: unable to access\n" }
+                : real(args, opts);
+        const r = pushDerivedCommit(refusing, input(sha, head));
+        expect(r.outcome).toBe("failed");
+        expect(r.why).toBe("fatal: unable to access");
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(head);
     });
 });

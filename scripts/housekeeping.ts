@@ -370,7 +370,10 @@ export const DERIVE_SYNC_TIMEOUT_MS = 10 * 60_000;
  *  regenerated on the tip and pushed once; a push the base outran is
  *  coalesced into the newer tip's own run, never retried here. Runs on EVERY
  *  run, merged PRs or none: the hourly schedule is the backstop for a
- *  dropped push, and a fresh tip costs it no commit. */
+ *  dropped push, and a fresh tip costs it no commit. The hourly run with
+ *  nothing merged therefore pays the workspace (worktree add + `worktree:init`,
+ *  tens of seconds) plus the two generators (4.6 s measured) — accepted by
+ *  the ADR as the price of the backstop. */
 export const DERIVE_SYNC_STEP: Step = {
     label: "derive:sync",
     argv: ["bun", "scripts/derive-sync.ts"],

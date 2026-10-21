@@ -1475,6 +1475,11 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         git("add", DERIVED_PATHS[1]!, "c.txt");
         git("commit", "-q", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
         expect(verify(old2)).not.toBe(0);
+
+        const old3 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#3)");
+        git("commit", "-q", "--allow-empty", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(verify(old3)).not.toBe(0);
     });
 });
 

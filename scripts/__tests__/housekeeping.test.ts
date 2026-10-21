@@ -447,6 +447,28 @@ describe("housekeeping.ts — derive:sync runs every run (ADR 0157 § Option 1b,
         );
     });
 
+    it("main() runs the steps in plannedSteps' order: derive after the two pushes, before the per-PR loop, every run", () => {
+        const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        const at = (re: RegExp): number => {
+            const i = source.search(re);
+            expect(i, String(re)).toBeGreaterThan(-1);
+            return i;
+        };
+        const gaps = at(
+            /const synced = pending\.length === 0 \|\| run\(GAPS_SYNC_STEP\);/
+        );
+        const prune = at(
+            /const pruned = pending\.length === 0 \|\| run\(PRUNE_REGRESSIONS_STEP\);/
+        );
+        const derive = at(/const derived = run\(DERIVE_SYNC_STEP\);/);
+        const perPr = at(
+            /for \(const pr of pending\) \{\n\s+\/\/ A failed prune/
+        );
+        expect(gaps).toBeLessThan(prune);
+        expect(prune).toBeLessThan(derive);
+        expect(derive).toBeLessThan(perPr);
+    });
+
     it("its failure is the run's red, named in the owner's notice, never a PR's retry", () => {
         expect(redSummary({ retry: [], dropped: [], deriveFailed: true })).toBe(
             "housekeeping: derive:sync failed — the base's lockfile header or data/catalogue may be stale until the next run"

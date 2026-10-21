@@ -55,7 +55,7 @@ import {
     LOCKFILE_PATH,
     derivePlan,
     derivedFreshness,
-    pushOutcome,
+    pushDerivedCommit,
     type CatalogueEntry,
     type DerivedEntry,
     type Freshness,
@@ -133,6 +133,9 @@ export function freshness(): Freshness {
     if (!existsSync(lockPath))
         return { fresh: false, why: `${LOCKFILE_PATH} is missing` };
     const lock = parseLockfile(readFileSync(lockPath, "utf8"));
+    // `botHash` is NOT a drift condition (`lib/oracle-bot-reach.ts`): the
+    // write path carries the committed verdicts (`--carry-bot`), so a tip is
+    // judged on the three hashes `headerHashDrift` compares.
     const hashDrift = headerHashDrift(lock.header, {
         compilerHash: compilerHash(ROOT),
         registryHash: registryHash(),
@@ -240,24 +243,14 @@ function write(dryRun: boolean): number {
         complain(`could not build the commit on ${head}: ${built.error}`);
         return 1;
     }
-    const push = git(
-        ["push", "-q", "origin", `${built.sha}:refs/heads/${BASE_BRANCH}`],
-        { timeout: GIT_NET_TIMEOUT_MS }
-    );
-    const pushed = push.status === 0;
-    let remoteMoved = false;
-    if (!pushed) {
-        const fetched = git(["fetch", "-q", "origin", BASE_BRANCH], {
-            timeout: GIT_NET_TIMEOUT_MS,
-        });
-        remoteMoved =
-            fetched.status === 0 &&
-            git(["rev-parse", ORIGIN_BASE]).stdout.trim() !== head;
-    }
-    const outcome = pushOutcome({ pushed, remoteMoved });
-    const why = push.timedOut
-        ? `no answer within ${GIT_NET_TIMEOUT_MS / 1000}s`
-        : push.stderr.trim();
+    const pushed = pushDerivedCommit((args, opts) => git(args, opts), {
+        sha: built.sha,
+        head,
+        baseBranch: BASE_BRANCH,
+        originBase: ORIGIN_BASE,
+        netTimeoutMs: GIT_NET_TIMEOUT_MS,
+    });
+    const { outcome, why } = pushed;
     switch (outcome) {
         case "landed":
             say(
@@ -266,7 +259,7 @@ function write(dryRun: boolean): number {
             return 0;
         case "coalesced":
             say(
-                `push refused (${why}) and ${BASE_BRANCH} moved to ${git(["rev-parse", ORIGIN_BASE]).stdout.trim().slice(0, 10)} meanwhile — dropped, not retried: the newer tip's own run regenerates (ADR 0157)`
+                `push refused (${why}) and ${BASE_BRANCH} moved to ${pushed.remoteTip.slice(0, 10)} meanwhile — dropped, not retried: the newer tip's own run regenerates (ADR 0157)`
             );
             return 0;
         case "failed":

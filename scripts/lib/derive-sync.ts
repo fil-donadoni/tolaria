@@ -87,6 +87,80 @@ export function pushOutcome(input: {
     return input.remoteMoved ? "coalesced" : "failed";
 }
 
+/** One git invocation, as `spawnSync` answers it; `timedOut` when its
+ *  deadline passed. */
+export interface GitAnswer {
+    readonly status: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+    readonly timedOut?: boolean;
+}
+
+/** Runs `git <args>` in the repository, with an optional deadline. */
+export type GitRun = (args: string[], opts?: { timeout?: number }) => GitAnswer;
+
+/** Git's own refusal line (` ! [rejected] … (non-fast-forward)`), never its
+ *  multi-line `hint:` block. Pure. */
+export function refusalLine(stderr: string, timedOutS?: number): string {
+    if (timedOutS !== undefined) return `no answer within ${timedOutS}s`;
+    const lines = stderr.split("\n").map((l) => l.trim());
+    return (
+        lines.find((l) => l.startsWith("! ")) ??
+        lines.find((l) => l !== "" && !l.startsWith("hint:")) ??
+        "git printed no error"
+    );
+}
+
+/**
+ * Push the derive commit `sha` (built on `head`) to the base and say what
+ * happened — the I/O half of {@link pushOutcome}, over an injected runner so
+ * a real bare remote can exercise it. On a refusal the base is fetched: a
+ * remote tip that IS `sha` is a push that landed while the client timed out
+ * (landed, not coalesced); any other tip but `head` is a base that moved
+ * (coalesced); `head` itself is a refusal with the base unmoved (failed).
+ */
+export function pushDerivedCommit(
+    git: GitRun,
+    input: {
+        readonly sha: string;
+        readonly head: string;
+        readonly baseBranch: string;
+        readonly originBase: string;
+        readonly netTimeoutMs: number;
+    }
+): {
+    readonly outcome: "landed" | "coalesced" | "failed";
+    readonly why: string;
+    readonly remoteTip: string;
+} {
+    const push = git(
+        ["push", "-q", "origin", `${input.sha}:refs/heads/${input.baseBranch}`],
+        { timeout: input.netTimeoutMs }
+    );
+    const why = refusalLine(
+        push.stderr,
+        push.timedOut ? input.netTimeoutMs / 1000 : undefined
+    );
+    if (push.status === 0)
+        return { outcome: "landed", why, remoteTip: input.sha };
+    const fetched = git(["fetch", "-q", "origin", input.baseBranch], {
+        timeout: input.netTimeoutMs,
+    });
+    const remoteTip =
+        fetched.status === 0
+            ? git(["rev-parse", input.originBase]).stdout.trim()
+            : input.head;
+    if (remoteTip === input.sha) return { outcome: "landed", why, remoteTip };
+    return {
+        outcome: pushOutcome({
+            pushed: false,
+            remoteMoved: remoteTip !== input.head,
+        }),
+        why,
+        remoteTip,
+    };
+}
+
 /** A catalogue file on the tip beside what the tree generates for it. */
 export interface CatalogueEntry {
     readonly path: string;

@@ -802,9 +802,11 @@ export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
 
 /** The third tolerated push (ADR 0157 § Option 1b, issue #6247):
  *  `housekeeping`'s `derive:sync`, by its subject AND a diff within the five
- *  derived paths alone. `lib/derive-sync.ts` is a leaf, so it is imported. */
+ *  derived paths alone — a non-empty one: an empty or merge commit under
+ *  the subject is foreign. `lib/derive-sync.ts` is a leaf, so it is imported. */
 const DERIVE_SYNC_FILES_ONLY =
-    `[ -z "$(git diff-tree --no-commit-id --name-only -r "$C" | grep -vxF ` +
+    `F="$(git diff-tree --no-commit-id --name-only -r "$C")"; [ -n "$F" ] && ` +
+    `[ -z "$(printf %s "$F" | grep -vxF ` +
     DERIVED_PATHS.map((p) => `-e ${shQuote(p)}`).join(" ") +
     `)" ]`;
 
