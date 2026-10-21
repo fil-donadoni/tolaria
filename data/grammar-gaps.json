@@ -426,6 +426,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone",
+            "issue": 6267
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › tapUntap",
             "issue": 4288
         },
