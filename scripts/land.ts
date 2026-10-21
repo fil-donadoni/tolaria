@@ -133,6 +133,7 @@ import {
 } from "./ui-gate/verify-receipt.ts";
 import {
     hasNoWalkOwedLine,
+    hasScopeUndecidedLine,
     isNonDomPath,
     revertedCommitOf,
     type UiScope,
@@ -209,8 +210,8 @@ export function skinReceiptInvalidForDiff(
         scope = scopeOf(paths, root);
     } catch (err) {
         scope = {
-            kind: "full",
-            reason: `scope unavailable: ${(err as Error).message}`,
+            kind: "undecided",
+            reasons: [`scope unavailable: ${(err as Error).message}`],
         };
     }
     const receiptOk = verifyReceiptText(prBody, {
@@ -231,6 +232,10 @@ export function skinReceiptInvalidForDiff(
     } catch {
         owed = { owed: true, rule: "owed verdict unavailable", path: "" };
     }
+    // The undecided line (issue #6144) covers a scope nobody could place, or a
+    // certain-global one an AFK pass may not walk — NEVER a decided, scoped
+    // diff, which owes its receipt however the line is worded.
+    if (scope.kind !== "scoped" && hasScopeUndecidedLine(prBody)) return false;
     if (owed.owed) return true;
     return !hasNoWalkOwedLine(prBody);
 }

@@ -1862,6 +1862,54 @@ describe("land.ts — the check:ui receipt is owed by the owed predicate, whatev
         expect(invalid(["src/index.css"], laneReceipt(null), OWED)).toBe(false);
     });
 
+    describe("the undecided line (issue #6144)", () => {
+        const UNDECIDED_LINE =
+            "check:ui: scope undecided, not walked (src/x.tsx is in no surface's closure)";
+        const undecidedScope = (): UiScope => ({
+            kind: "undecided",
+            reasons: ["src/x.tsx is unplaced"],
+        });
+        const scopedScope = (): UiScope => ({
+            kind: "scoped",
+            surfaces: ["lobby"],
+        });
+        const withScope = (scopeOf: () => UiScope, body: string) =>
+            skinReceiptInvalidForDiff(
+                ["src/index.css"],
+                REPO_ROOT,
+                body,
+                scopeOf,
+                () => OWED
+            );
+
+        it("is accepted when the re-derived scope is undecided", () => {
+            expect(withScope(undecidedScope, UNDECIDED_LINE)).toBe(false);
+            expect(withScope(undecidedScope, "no receipt")).toBe(true);
+        });
+
+        it("is accepted when the scope cannot be derived at all (undecided, not full)", () => {
+            expect(
+                skinReceiptInvalidForDiff(
+                    ["src/index.css"],
+                    REPO_ROOT,
+                    UNDECIDED_LINE,
+                    () => {
+                        throw new Error("no base ref");
+                    },
+                    () => OWED
+                )
+            ).toBe(false);
+        });
+
+        it("is accepted for a certain-global full scope an AFK pass may not walk", () => {
+            expect(withScope(noScope, UNDECIDED_LINE)).toBe(false);
+        });
+
+        it("is REFUSED when the re-derived scope is decided and owes a walk", () => {
+            expect(withScope(scopedScope, UNDECIDED_LINE)).toBe(true);
+        });
+    });
+
     it("a full-lane diff (src + convex) touching an owed glob with no receipt is refused", () => {
         const diff = ["convex/gre/state.ts", "src/index.css"];
         expect(classifyLane(diff).lane).toBe("full");

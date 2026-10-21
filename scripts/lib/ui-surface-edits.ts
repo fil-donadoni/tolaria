@@ -23,7 +23,9 @@
 
 export type SurfaceEdits =
     | { kind: "surfaces"; ids: string[] }
-    | { kind: "shared"; reason: string };
+    /** `unreadable`: the registry diff could not be READ (doubt, issue #6144),
+     *  as against a hunk that reads fine and sits in a shared helper (certain). */
+    | { kind: "shared"; reason: string; unreadable?: boolean };
 
 interface ElementSpan {
     id: string;
@@ -104,14 +106,17 @@ function parseHunks(diff: string): Hunk[] {
     return hunks;
 }
 
-const shared = (reason: string): SurfaceEdits => ({ kind: "shared", reason });
+const shared = (reason: string, unreadable = false): SurfaceEdits =>
+    unreadable
+        ? { kind: "shared", reason, unreadable }
+        : { kind: "shared", reason };
 
 export function classifySurfaceEdits(
     newSource: string,
     zeroContextDiff: string
 ): SurfaceEdits {
     const parsed = parseSurfaceElements(newSource);
-    if (!parsed) return shared("the SURFACES array could not be parsed");
+    if (!parsed) return shared("the SURFACES array could not be parsed", true);
     const { open, close, elements } = parsed;
     const newLines = newSource.split("\n");
     const ids = new Set<string>();
@@ -121,7 +126,10 @@ export function classifySurfaceEdits(
     // from a tree that is not the PR's (a standalone `verify:ui-receipt`
     // from another checkout). Walk MORE, never less.
     if (hunks.length === 0) {
-        return shared("the file is listed as changed but its diff has no hunk");
+        return shared(
+            "the file is listed as changed but its diff has no hunk",
+            true
+        );
     }
     for (const hunk of hunks) {
         const { newStart: c, newCount: d } = hunk;
