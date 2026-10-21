@@ -32,7 +32,7 @@
 //      `convex dev` parent (it answers, so there is nothing to reclaim).
 //
 // A machine whose backend is a systemd user unit (`tolaria-convex.service`,
-// the Huawei, issue #5468) hands steps 3–4 to systemd: the unit active but
+// the Huawei) hands steps 3–4 to systemd: the unit active but
 // silent → wait, then `systemctl --user restart`; inactive → `start`. The
 // unit is the one process for the deployment — spawning a `convex dev` beside
 // it would be the second backend this script exists to prevent, and killing
