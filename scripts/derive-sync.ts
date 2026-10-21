@@ -6,7 +6,7 @@
  * The lockfile's header hashes (`compilerHash`, `registryHash`, `poolHash`,
  * `botHash`) and the four `data/catalogue/*` files summarise the WHOLE tree,
  * so two PRs that each change any row collide on them textually and the
- * merge queue dequeues one (issue #6164). Here the BASE regenerates them
+ * merge queue dequeues one (ADR 0157 § Context). Here the BASE regenerates them
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
@@ -33,7 +33,8 @@
  * disagrees with its source; a stale tip leaves it on the previous fresh
  * one. `--dry-run` regenerates and prints the plan, commits nothing.
  *
- * Until issue #6248 lands, PRs still carry fresh derived state, so the
+ * Until the PR stops carrying derived paths (ADR 0157's last ticket), PRs
+ * still carry fresh derived state, so the
  * write path is a no-op on most tips — the safe rollout order. Measured
  * (MacBook, load 6): `oracle:compile --check` 3.7 s, `catalogue:check`
  * 1.0 s; the write path adds the two generators' disk writes and one push.

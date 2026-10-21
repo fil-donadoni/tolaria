@@ -7,14 +7,8 @@
  * machine's PRIMARY checkout, never on the worktree they run from.
  *
  *   sync   fetch + fast-forward the primary checkout (on the MacBook
- *          `convex dev` serves the deployment from it) — to the PUSHED tip,
- *          and only when that tip is DERIVED-FRESH (`derive:sync --fresh` on
- *          the job worktree: lockfile header hashes and `data/catalogue/*`
- *          agree with the tree; ADR 0157 § Option 1b, issue #6247), so the
- *          deployment never serves a catalogue that disagrees with its
- *          source; a stale tip leaves the primary on the previous fresh one
- *          until the derive commit's own push — remove the worktree each
- *          merged PR left standing, ingest the telemetry.
+ *          `convex dev` serves the deployment from it), remove the worktree
+ *          each merged PR left standing, ingest the telemetry.
  *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
  *          no merge will ever clean up — PR closed unmerged, or no PR, no
  *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
@@ -231,6 +225,16 @@ export function fastForward(
     );
     return false;
 }
+
+/*
+ * DERIVED-FRESH TIPS (ADR 0157 § Option 1b, issue #6247). `sync` and `seed`
+ * fast-forward the primary to the PUSHED tip, and only when that tip is
+ * derived-fresh — `derive:sync --fresh` on the job worktree: the lockfile
+ * header hashes and `data/catalogue/*` agree with the tree — so the
+ * deployment never serves a catalogue that disagrees with its source. A
+ * stale tip leaves the primary on the previous fresh one until the derive
+ * commit's own push; `sync` says so and is green, `seed` is red (below).
+ */
 
 /** This script's own tree — the job worktree, at the pushed tip. */
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");

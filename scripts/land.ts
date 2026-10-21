@@ -800,10 +800,11 @@ export const GAPS_SYNC_COMMIT_SUBJECT =
 export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
     "oracle:prune-regressions — drop acknowledgements that match no regression";
 
-/** The third tolerated push (ADR 0157 § Option 1b, issue #6247):
- *  `housekeeping`'s `derive:sync`, by its subject AND a diff within the five
- *  derived paths alone — a non-empty one: an empty or merge commit under
- *  the subject is foreign. `lib/derive-sync.ts` is a leaf, so it is imported. */
+/** The THIRD push `VERIFY_MERGED_TIP` below does not count, beside the two
+ *  its doc names (ADR 0157 § Option 1b, issue #6247): `housekeeping`'s
+ *  `derive:sync`, by its subject AND a diff within the five derived paths
+ *  alone — a non-empty one: an empty or merge commit under the subject is
+ *  foreign. `lib/derive-sync.ts` is a leaf, so it is imported. */
 const DERIVE_SYNC_FILES_ONLY =
     `F="$(git diff-tree --no-commit-id --name-only -r "$C")"; [ -n "$F" ] && ` +
     `[ -z "$(printf %s "$F" | grep -vxF ` +
@@ -819,9 +820,7 @@ const DERIVE_SYNC_FILES_ONLY =
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
  *
- * Three pushes are not counted (the third, ADR 0157 / issue #6247:
- * `housekeeping`'s `derive:sync`, subject `DERIVE_SYNC_COMMIT_SUBJECT` AND a
- * diff within `DERIVED_PATHS` alone; the second, issue #6061: `housekeeping`'s
+ * Two pushes are not counted (the second, issue #6061: `housekeeping`'s
  * `oracle:prune-regressions`, subject `PRUNE_REGRESSIONS_COMMIT_SUBJECT` AND a
  * diff of `data/oracle-state-regressions.json` alone, same reasoning). The
  * first: `gaps:sync`'s own allowlist commit — its subject

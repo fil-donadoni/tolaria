@@ -52,13 +52,6 @@
  *      whole batch's gaps under P0 for one P0 PR). A failure here — a lost
  *      allowlist write-back included, `gaps:sync` exits 1 on it — does not
  *      stop the per-PR steps; it marks every PR of the batch for retry;
- *   2c. `derive:sync` (ADR 0157 § Option 1b, issue #6247) — the base writes
- *      its derived whole-file state: the lockfile header hashes and
- *      `data/catalogue/*`, regenerated on the tip and pushed once, no commit
- *      when the bytes already agree. Runs on EVERY run, merged PRs or none
- *      (the hourly schedule is the backstop for a push the base outran, which
- *      is coalesced into the newer tip's own run, never retried here); its
- *      failure is the run's red, never a PR's retry;
  *   3. per PR, oldest merge first: `grammar:residue` (issue #5222), the
  *      `in-progress` claim release (issue #3130), `umbrella:detach <issue>`
  *      (issue #4235) — for a branch naming an issue; none otherwise;
@@ -76,8 +69,7 @@
  * step 1 keeps the whole batch for the next run.
  * `grammar:residue`'s `HOLES_EXIT` is a finding, reported and never retried.
  * The watermark moves past every PR the run saw, so a second run with nothing
- * new merged runs only `derive:sync` (a no-op on a fresh tip) — and writes
- * no state.
+ * new merged is a no-op — and writes nothing.
  *
  * The merged PRs are listed by `updatedAt`, newest first, paging until a PR
  * last updated before the watermark — a merge updates a PR, so nothing merged
@@ -368,9 +360,12 @@ export const DERIVE_SYNC_TIMEOUT_MS = 10 * 60_000;
 /** Step 2c (ADR 0157 § Option 1b, issue #6247): the base writes its derived
  *  whole-file state — the lockfile header hashes and `data/catalogue/*` —
  *  regenerated on the tip and pushed once; a push the base outran is
- *  coalesced into the newer tip's own run, never retried here. Runs on EVERY
- *  run, merged PRs or none: the hourly schedule is the backstop for a
- *  dropped push, and a fresh tip costs it no commit. The hourly run with
+ *  coalesced into the newer tip's own run, never retried here. Runs after
+ *  `gaps:sync` and `oracle:prune-regressions` (it builds on their commits)
+ *  and before the per-PR steps, on EVERY run, merged PRs or none — so a run
+ *  with nothing merged is this step alone, and still writes no state: the
+ *  hourly schedule is the backstop for a dropped push, and a fresh tip costs
+ *  it no commit. Its failure is the run's red, never a PR's retry. The hourly run with
  *  nothing merged therefore pays the workspace (worktree add + `worktree:init`,
  *  tens of seconds) plus the two generators (4.6 s measured) — accepted by
  *  the ADR as the price of the backstop. */
