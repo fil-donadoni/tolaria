@@ -140,6 +140,22 @@ describe("mergeLedgers — a keyed set of independent facts (issue #3768)", () =
         expect(mergeLedgers({ base, ours, theirs }).entries[0]?.sites).toBe(3);
     });
 
+    it("keeps a count the base LOWERED — a branch ledger that predates it must not resurrect it (issue #5677)", () => {
+        const at = (sites: number) =>
+            ledger([entry("100.6", "line", { sites })]);
+        const sitesOf = (o: number, t: number, b: number) =>
+            mergeLedgers({ base: at(b), ours: at(o), theirs: at(t) }).entries[0]
+                ?.sites;
+        // base lowered 2 -> 1 (ours), branch untouched (theirs): the lowering wins.
+        expect(sitesOf(1, 2, 2)).toBe(1);
+        // Symmetric: the driver's %A side is not privileged.
+        expect(sitesOf(2, 1, 2)).toBe(1);
+        // One side raised, the other untouched: the raise wins.
+        expect(sitesOf(2, 2, 1)).toBe(2);
+        // Both moved off base: the max.
+        expect(sitesOf(2, 3, 1)).toBe(3);
+    });
+
     it("prefers the re-read rule hash when both sides confirmed and one moved", () => {
         const base = ledger([
             entry("100.6", "line", { status: "confirmed", ruleHash: HASH_A }),
