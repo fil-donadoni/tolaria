@@ -42,7 +42,7 @@ export function LandingsPanel({ trends }: { trends: Trends }) {
                 <Stat term="episodes" value={fmtNum(l.episodes)} />
                 <Stat term="attempts" value={fmtNum(l.attempts)} />
             </Stats>
-            <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div className="mt-3 flex flex-col gap-4">
                 <DataTable<LandingCause>
                     label="Failed landings by cause"
                     columns={[

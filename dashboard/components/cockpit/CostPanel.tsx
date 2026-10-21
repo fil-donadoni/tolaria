@@ -32,7 +32,7 @@ export function CostPanel({ trends }: { trends: Trends }) {
                     note="median / p90"
                 />
             </Stats>
-            <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div className="mt-3 flex flex-col gap-4">
                 <CostTable by="model" groups={trends.costByModel} />
                 <CostTable by="area" groups={trends.costByArea} />
             </div>

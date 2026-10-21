@@ -216,6 +216,10 @@ async function main(): Promise<void> {
     say("ingesting telemetry");
     const ingest = spawnSync("bun", ["scripts/telemetry-ingest.ts"], {
         cwd: ROOT,
+        // Explicit, never inherited: Bun hands a child the environment the
+        // process started with, without the line above — and an ingest with
+        // no `CLAUDE_PROJECT_DIR` writes a store into the worktree.
+        env: process.env,
         stdio: ["ignore", "ignore", "inherit"],
     });
     if (ingest.status !== 0)

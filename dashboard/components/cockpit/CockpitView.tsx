@@ -45,13 +45,13 @@ export function CockpitView({ state }: { state: CockpitState }) {
             ) : (
                 <>
                     <ThroughputPanel trends={t} />
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="grid gap-4 xl:grid-cols-2 [&>*]:min-w-0">
                         <LandingsPanel trends={t} />
                         <RedPanel trends={t} />
                     </div>
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="grid gap-4 xl:grid-cols-2 [&>*]:min-w-0">
                         <CostPanel trends={t} />
-                        <div className="flex flex-col gap-4">
+                        <div className="flex min-w-0 flex-col gap-4">
                             <LatencyPanel trends={t} />
                             <FlakyPanel trends={t} />
                         </div>

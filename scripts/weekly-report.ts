@@ -87,6 +87,9 @@ function die(msg: string): never {
 
 function telemetryJson(script: string): { json: unknown; error?: string } {
     const r = spawnSync("bun", [script, "--json"], {
+        // Explicit: Bun hands a child the environment the process STARTED
+        // with, not `process.env` as `bun run cockpit` amended it.
+        env: process.env,
         encoding: "utf8",
         maxBuffer: 256 * 1024 * 1024,
     });
