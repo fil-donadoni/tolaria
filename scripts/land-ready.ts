@@ -66,6 +66,7 @@ import {
 import {
     gatePrOf,
     parseTrustedAuthors,
+    MERGIFY_QUEUED_LABEL,
     REQUEUE_COMMENT,
     PR_FILES_JQ,
     prFilesApiPath,
@@ -278,17 +279,17 @@ function requeueAndReadBack(
     headCommittedAt: string
 ): void {
     if (
-        needsDequeueRequeue({
+        !needsDequeueRequeue({
             toQueue: true,
             lastDequeueAt: lastDequeueAt(comments),
             headCommittedAt,
         })
-    ) {
-        console.log(
-            `land:ready: PR #${pr} was dequeued on this head — posting \`${REQUEUE_COMMENT}\` (Mergify's dequeue reason is sticky)`
-        );
-        gh(["pr", "comment", String(pr), "--body", REQUEUE_COMMENT]);
-    }
+    )
+        return;
+    console.log(
+        `land:ready: PR #${pr} was dequeued on this head — posting \`${REQUEUE_COMMENT}\` (Mergify's dequeue reason is sticky)`
+    );
+    gh(["pr", "comment", String(pr), "--body", REQUEUE_COMMENT]);
     for (let waited = 0; ; waited += READ_BACK_POLL_S) {
         const verdict = readBackVerdict(prLabels(pr));
         if (verdict === "relabelled-failed") {
@@ -296,7 +297,13 @@ function requeueAndReadBack(
                 `PR #${pr} came back \`${FAILED_LABEL}\` — .mergify.yml's rule "a PR the queue rejects is a repair pick" fired on the sticky dequeue reason. Comment \`${REQUEUE_COMMENT}\` or push a new head, then re-run`
             );
         }
-        if (verdict === "queued" || waited >= READ_BACK_WAIT_S) return;
+        if (verdict === "queued") return;
+        if (waited >= READ_BACK_WAIT_S) {
+            console.log(
+                `land:ready: NOTE — PR #${pr} is not yet labelled \`${MERGIFY_QUEUED_LABEL}\` after ${waited}s; \`land-failed\` has not returned, confirm with \`gh pr view ${pr}\``
+            );
+            return;
+        }
         spawnSync("sleep", [String(READ_BACK_POLL_S)]);
     }
 }

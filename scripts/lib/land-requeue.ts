@@ -23,7 +23,9 @@ export interface PrComment {
 export function lastDequeueAt(comments: readonly PrComment[]): string | null {
     const stamps = comments
         .filter(
-            (c) => /mergify/i.test(c.author.login) && /dequeued/i.test(c.body)
+            (c) =>
+                /mergify/i.test(c.author.login) &&
+                /dequeued|removed from the queue/i.test(c.body)
         )
         .map((c) => c.createdAt)
         .sort();
