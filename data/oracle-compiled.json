@@ -14,8 +14,8 @@
             "sha256": "fe9122363a58e687b7531f1291bb5475e40f497b39ec97a0b400518adb2e2dd6"
         },
         "counts": {
-            "ready": 6393,
-            "quarantine": 364,
+            "ready": 6394,
+            "quarantine": 363,
             "unparsed": 28133,
             "total": 34890
         }
@@ -37,29 +37,29 @@
         },
         "modern": {
             "total": 22450,
-            "ready": 4395,
-            "quarantine": 237,
+            "ready": 4396,
+            "quarantine": 236,
             "unparsed": 17818,
             "pool": 656
         },
         "legacy": {
             "total": 31672,
-            "ready": 6295,
-            "quarantine": 359,
+            "ready": 6296,
+            "quarantine": 358,
             "unparsed": 25018,
             "pool": 2036
         },
         "vintage": {
             "total": 31690,
-            "ready": 6296,
-            "quarantine": 361,
+            "ready": 6297,
+            "quarantine": 360,
             "unparsed": 25033,
             "pool": 2056
         },
         "commander": {
             "total": 31830,
-            "ready": 6301,
-            "quarantine": 360,
+            "ready": 6302,
+            "quarantine": 359,
             "unparsed": 25169,
             "pool": 2069
         }
@@ -30967,7 +30967,6 @@
         {"key":"never-chosen › Sorcery › choice+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › forEach+tapUntap","outcome":"ignored","cards":1},
-        {"key":"no-legal-move › Instant target:Creature","outcome":"frozen","cards":1},
         {"key":"no-legal-move › Sorcery target:Land","outcome":"frozen","cards":1},
         {"key":"position-unmodelled › Creature","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [defender,flash]","outcome":"ignored","cards":1},
@@ -46369,7 +46368,7 @@
         {"oracleId":"716b3ea2-45b7-4a8f-af72-de7f4e510eff","name":"Goldspan Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5d360f61faf1","f3fd4d3fef3b"]},
         {"oracleId":"717152c3-2082-49aa-9274-a1a6abe54b65","name":"Chartooth Cougar","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["44e04e94fe6f"]},
         {"oracleId":"71724015-e313-46a0-a8bc-d4ad9b86c126","name":"Accident-Prone Apprentice // Amphibian Accident","state":"unparsed","gaps":["55c8e74e386e","897262e8424e"]},
-        {"oracleId":"717266b6-2bbc-4a04-8f30-e3eaf0283acd","name":"Dissension in the Ranks","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["fight"],"quarantineReasons":[{"kind":"bot-unreachable","detail":"no-legal-move › Instant target:Creature"}],"definition":{"name":"Dissension in the Ranks","types":["Instant"],"manaCost":{"X":3,"R":2},"oracleText":"Target blocking creature fights another target blocking creature.","effects":[{"op":"fight","creature":{"target":0},"other":{"target":1}}],"targetRequirement":{"type":"Creature","count":1,"combatRoleFilter":["blocking"]},"additionalTargetRequirements":[{"type":"Creature","count":1,"combatRoleFilter":["blocking"],"excludePriorTargets":true}]},"botReach":"frozen","botGap":"no-legal-move › Instant target:Creature"},
+        {"oracleId":"717266b6-2bbc-4a04-8f30-e3eaf0283acd","name":"Dissension in the Ranks","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["fight"],"definition":{"name":"Dissension in the Ranks","types":["Instant"],"manaCost":{"X":3,"R":2},"oracleText":"Target blocking creature fights another target blocking creature.","effects":[{"op":"fight","creature":{"target":0},"other":{"target":1}}],"targetRequirement":{"type":"Creature","count":1,"combatRoleFilter":["blocking"]},"additionalTargetRequirements":[{"type":"Creature","count":1,"combatRoleFilter":["blocking"],"excludePriorTargets":true}]},"botReach":"played"},
         {"oracleId":"71744428-65ae-42ac-893d-0802fd41e9b4","name":"Henge Guardian","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility"],"definition":{"name":"Henge Guardian","types":["Artifact","Creature"],"subtypes":["Dragon","Wurm"],"manaCost":{"X":5},"power":3,"toughness":4,"oracleText":"{2}: This creature gains trample until end of turn.","activatedAbilities":[{"id":"henge-guardian-ability","oracleText":"{2}: This creature gains trample until end of turn.","cost":{"mana":{"X":2}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"trample","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
         {"oracleId":"71766a05-62a5-4839-b9bf-f5dcde710251","name":"Millicent, Restless Revenant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5f8a77509129","cf0825ac5d9b"]},
         {"oracleId":"7177361a-f86f-4a50-b517-229cb1eaac07","name":"Reservoir Walker","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3585c69c3694"]},
