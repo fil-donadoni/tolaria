@@ -14,6 +14,12 @@
 merge_queue:
     # Two speculative checks, one per machine (ADR 0156 §3: 16.0 PR/h).
     max_parallel_checks: 2
+    # A commit pushed to the base outside the queue (`gaps:sync` today,
+    # `derive:sync` of ADR 0157 Option 1b) must not reset the queued drafts:
+    # Mergify's default `always` cancelled a draft 18 s after one (issue
+    # #6245). The draft is rebased on the tip it was cut from; the derived
+    # commit touches generated files the lane re-derives anyway.
+    reset_on_external_merge: never
     # The repair pick reads `land-failed` (below), never Mergify's default
     # `dequeued` label.
     dequeued_label: null
