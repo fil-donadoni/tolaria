@@ -351,6 +351,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "the allowlist's sibling: same writer (`ai:allowlist`), same per-row sorted form",
     },
     {
+        pattern: "data/issue-log-comments-baseline.json",
+        kind: "immune-by-shape",
+        why: "issue-log ratchet baseline, one key per row, sorted; a PR only drops its own rows (issue #6170)",
+    },
+    {
         pattern: "data/catalogue/shard-dictionary.json",
         kind: "sticky",
         why: "every client shard URL derives from it; `catalogue:shard-dictionary` moves it on purpose only",
