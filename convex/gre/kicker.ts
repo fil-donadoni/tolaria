@@ -903,6 +903,60 @@ export function castAnnouncedTargetGroups(
     return announced;
 }
 
+/** Why an announced group list cannot be filled: the index of the first group
+ *  that falls short, and whether it had no candidate at all (`none`, only the
+ *  primary group reports it) or too few (`short`). */
+export interface CastGroupShortfall {
+    group: number;
+    kind: "none" | "short";
+}
+
+/** CR 601.2c / 115.3 — the ONE predicate "can every announced target group be
+ *  filled?", evaluated by the cast announcement (`announceCast`, `game.ts`) and
+ *  by the castability gate (`hasEnoughLegalTargets`, `gre/rules.ts`) alike, so
+ *  the Cast affordance can never offer a spell the announcement refuses.
+ *
+ *  `groups` is {@link castAnnouncedTargetGroups}' output (primary first).
+ *  `candidatesOf` answers a group's legal candidates, `requiredOf` its minimum
+ *  count (the callers differ only in how X resolves). A group marked
+ *  `excludePriorTargets` ("another target") needs enough candidates DISTINCT
+ *  from the primary group's, when `sameInstanceAsPrimary` says the pair
+ *  belongs together (ADR 0094: another mode instance may re-pick, CR 700.2d).
+ *  Returns `undefined` when every group can be filled. */
+export function firstUnfillableCastGroup(
+    groups: readonly TargetRequirement[],
+    candidatesOf: (req: TargetRequirement) => readonly { id: string }[],
+    requiredOf: (req: TargetRequirement, index: number) => number,
+    sameInstanceAsPrimary: (index: number) => boolean = () => true
+): CastGroupShortfall | undefined {
+    if (groups.length === 0) return undefined;
+    const primaryLegal = candidatesOf(groups[0]);
+    const primaryRequired = requiredOf(groups[0], 0);
+    if (primaryLegal.length < primaryRequired) {
+        return {
+            group: 0,
+            kind: primaryLegal.length === 0 ? "none" : "short",
+        };
+    }
+    for (let i = 1; i < groups.length; i++) {
+        const extra = groups[i];
+        const extraLegal = candidatesOf(extra);
+        const extraRequired = requiredOf(extra, i);
+        if (extraLegal.length < extraRequired) {
+            return { group: i, kind: "short" };
+        }
+        if (extra.excludePriorTargets && sameInstanceAsPrimary(i)) {
+            const distinct = new Set(
+                [...primaryLegal, ...extraLegal].map((t) => t.id)
+            );
+            if (distinct.size < primaryRequired + extraRequired) {
+                return { group: i, kind: "short" };
+            }
+        }
+    }
+    return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Bot enumeration bound (issue #2081)
 // ---------------------------------------------------------------------------
