@@ -844,7 +844,17 @@ function mergeEntry(
     theirs: LedgerEntry,
     base: LedgerEntry | undefined
 ): LedgerEntry {
-    const sites = Math.max(ours.sites, theirs.sites);
+    // Three-way: a side that still equals BASE did not touch the count, so the
+    // other side's change wins — a lowered count (a cited site removed on the
+    // base branch) must not be resurrected by a branch ledger that predates it.
+    // Only when BOTH moved off base did both add sites; `cr:lint` recomputes
+    // the real count, so the max is the safe bound (issue #5677).
+    const sites =
+        ours.sites === base?.sites
+            ? theirs.sites
+            : theirs.sites === base?.sites
+              ? ours.sites
+              : Math.max(ours.sites, theirs.sites);
     const confirmed = [ours, theirs].filter((e) => e.status === "confirmed");
     if (confirmed.length === 0) {
         return { id: ours.id, line: ours.line, sites, status: "baseline" };
