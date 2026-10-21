@@ -144,6 +144,21 @@ describe("pr-merge.ts — mergeArgs", () => {
         expect(parseArgs(["6218", "--head=abc123"]).head).toBe("abc123");
     });
 
+    it("adds the admin bypass only when merge:manual asks (issue #6263)", () => {
+        expect(mergeArgs(6259, "abc123", true)).toEqual([
+            "pr",
+            "merge",
+            "6259",
+            "--squash",
+            "--match-head-commit",
+            "abc123",
+            "--admin",
+        ]);
+        expect(mergeArgs(6259)).not.toContain("--admin");
+        expect(parseArgs(["6259", "--admin"]).admin).toBe(true);
+        expect(parseArgs(["6259"]).admin).toBeUndefined();
+    });
+
     it("squash-merges the requested PR", () => {
         expect(mergeArgs(2536)).toEqual(["pr", "merge", "2536", "--squash"]);
     });
