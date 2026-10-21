@@ -15,7 +15,12 @@
 // instance from a disabled one.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { renderLaunchdUnit, type LaunchdSubstitutions } from "./launchd-render";
+import {
+    renderLaunchdUnit,
+    renderedPath,
+    runnerPathHead,
+    type LaunchdSubstitutions,
+} from "./launchd-render";
 
 export type RunnerRole = "pass" | "lane" | "seed";
 export const RUNNER_ROLES: readonly RunnerRole[] = ["pass", "lane", "seed"];
@@ -114,17 +119,31 @@ export function systemdRunnerUnit(name: string): string {
  *  launchd render (which throws on a leftover placeholder or a missing node). */
 export function renderRunnerPlist(
     template: string,
-    runner: Pick<RunnerSpec, "name" | "dir">,
+    runner: Pick<RunnerSpec, "name" | "dir" | "role">,
     subs: LaunchdSubstitutions,
     exists?: (p: string) => boolean
 ): string {
-    return renderLaunchdUnit(
+    const out = renderLaunchdUnit(
         template
             .replaceAll("__RUNNER_NAME__", () => runner.name)
             .replaceAll("__RUNNER_DIR__", () => runner.dir),
         subs,
         exists
     );
+    if (runner.role === "pass")
+        assertClaudeResolvable(renderedPath(out), exists);
+    return out;
+}
+
+/** A pass runner spawns `claude`: a PATH that cannot resolve it makes every
+ *  pass die at spawn (issue #6217), so the install refuses it. */
+export function assertClaudeResolvable(
+    path: string,
+    exists: (p: string) => boolean = existsSync
+): void {
+    if (!path.split(":").some((d) => d && exists(join(d, "claude")))) {
+        throw new Error(`claude not resolvable on the unit's PATH: ${path}`);
+    }
 }
 
 /** The PATH a runner's systemd unit carries: FIXED dirs plus node's, never
@@ -133,9 +152,7 @@ export function renderRunnerPlist(
  *  restart every runner on each re-run. */
 export function systemdRunnerPath(home: string, nodeBin: string): string {
     return [
-        `${home}/.local/bin`,
-        `${home}/.bun/bin`,
-        nodeBin,
+        ...runnerPathHead(home, nodeBin),
         "/usr/local/bin",
         "/usr/bin",
         "/bin",
@@ -152,7 +169,8 @@ export function renderRunnerSystemdTemplate(
     runnerRoot: string,
     path: string,
     repo: string,
-    exists: (p: string) => boolean = existsSync
+    exists: (p: string) => boolean = existsSync,
+    passRunners = false
 ): string {
     if ([path, runnerRoot, repo].some((v) => /[%\s]/.test(v))) {
         throw new Error(
@@ -172,6 +190,7 @@ export function renderRunnerSystemdTemplate(
     if (!path.split(":").some((d) => d && exists(join(d, "node")))) {
         throw new Error(`node not resolvable on the unit's PATH: ${path}`);
     }
+    if (passRunners) assertClaudeResolvable(path, exists);
     return out;
 }
 

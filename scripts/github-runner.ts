@@ -412,7 +412,9 @@ function main(): void {
                         ),
                         RUNNER_ROOT,
                         systemdRunnerPath(HOME, dirname(which("node"))),
-                        repo
+                        repo,
+                        undefined,
+                        runners.some((r) => r.role === "pass")
                     );
                 }
             } catch (e) {

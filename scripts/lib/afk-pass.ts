@@ -263,6 +263,54 @@ export function passOutcome(f: OutcomeFacts): PassOutcome {
     return "no-hand-off";
 }
 
+/** Why `claude` could not be started, as `ENOENT: spawn claude`, or `null`
+ *  when the spawn itself worked (a timeout is the pass running past its
+ *  bound, not a failure to start). Issue #6217: a PATH without `claude` left
+ *  only `claude exited ?` in the log. */
+export function spawnStartFailure(
+    error: (Error & { code?: string }) | undefined
+): string | null {
+    if (error === undefined || error.code === "ETIMEDOUT") return null;
+    return `${error.code ?? "ERROR"}: ${error.message}`;
+}
+
+/** The `gh` arguments that release a claim as ONE act — label and assignee
+ *  together, as `deny-guard` § 6b requires. */
+export function releaseClaimArgs(issue: number): string[] {
+    return [
+        "issue",
+        "edit",
+        String(issue),
+        "--remove-label",
+        CLAIM_LABEL,
+        "--remove-assignee",
+        "@me",
+    ];
+}
+
+/** `claude` never started: the pass did no work, so it prints why, releases
+ *  its own claim, and reports `true` (the caller records `setup-failed`,
+ *  which still counts toward the failure streak). A release that fails is
+ *  said, not thrown: the dispatcher's doctor releases what remains. */
+export function handleStartFailure(
+    issue: number,
+    error: (Error & { code?: string }) | undefined,
+    deps: { say: (line: string) => void; gh: (args: string[]) => void }
+): boolean {
+    const why = spawnStartFailure(error);
+    if (why === null) return false;
+    deps.say(`claude could not be started — ${why}`);
+    try {
+        deps.gh(releaseClaimArgs(issue));
+        deps.say(`released the claim on issue #${issue}`);
+    } catch (e) {
+        deps.say(
+            `the claim on issue #${issue} could not be released: ${String(e).split("\n")[0]}`
+        );
+    }
+    return true;
+}
+
 /** Outcomes that end the job green. A usage limit is no failure (the
  *  dispatcher holds until the reset); an abort is the skill's own verdict. */
 const GREEN: ReadonlySet<PassOutcome> = new Set([
