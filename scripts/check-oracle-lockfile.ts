@@ -66,7 +66,7 @@
  * given Scryfall snapshot, never that `premodern[]` itself still matches that
  * claim — a hand-edit or a bad merge-conflict resolution touching only the
  * array used to pass with exit 0 on a clean checkout (no corpus cache, the
- * NORMAL state — issue #2695 review finding 4). A production-consumed
+ * NORMAL state). A production-consumed
  * artifact with no drift guard at all would silently rot the moment the
  * corpus is re-pinned without re-running `oracle:legality` — sharing this
  * file's `check:oracle` wiring (rather than a second package.json script)
