@@ -383,7 +383,7 @@ describe("outcomeOf — a classified red (issue #5955)", () => {
                     ok: false,
                     outcomes: [
                         {
-                            id: "check:pr",
+                            id: "vitest(bot)",
                             status: "fail",
                             failedFiles: [BLADE],
                         },

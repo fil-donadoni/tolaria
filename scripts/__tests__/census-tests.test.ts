@@ -6,7 +6,7 @@ import {
     CENSUS_WALK_EXEMPT,
     DIRECTORY_WALK,
 } from "../lib/census-tests";
-import { generalTests } from "../lib/test-reach";
+import { botTests, generalTests } from "../lib/test-reach";
 
 /**
  * Issue #5535 — the census-test table is the lane's only way to plan a test
@@ -58,11 +58,14 @@ describe("census-tests — every directory-walking test is declared or exempt (i
         ).toEqual([]);
     });
 
-    it("every declared census is a general test, so relatedTests can plan it", () => {
+    it("every declared census is a general or a bot fast lane test, so a lane can plan it", () => {
         const general = generalTests(REPO_ROOT);
+        const bot = botTests(REPO_ROOT);
         expect(
-            CENSUS_TESTS.map(({ test }) => test).filter((t) => !general.has(t)),
-            "a CENSUS_TESTS row the lane can never run (missing file, or a bot/perf test)"
+            CENSUS_TESTS.map(({ test }) => test).filter(
+                (t) => !general.has(t) && !bot.has(t)
+            ),
+            "a CENSUS_TESTS row the lane can never run (missing file, or a perf/ladder test)"
         ).toEqual([]);
     });
 });
