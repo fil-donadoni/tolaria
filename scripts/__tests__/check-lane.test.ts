@@ -1744,12 +1744,14 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
             json: false,
             planOnly: true,
             retryFlaky: false,
+            regenerateDerived: false,
         });
         expect(parseArgs(["--plan", "--json", "--base=origin/x"])).toEqual({
             base: "origin/x",
             json: true,
             planOnly: true,
             retryFlaky: false,
+            regenerateDerived: false,
         });
         expect(parseArgs([]).planOnly).toBe(false);
     });
@@ -1758,6 +1760,14 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
     it("accepts --retry-flaky and reports it", () => {
         expect(parseArgs(["--retry-flaky"]).retryFlaky).toBe(true);
         expect(parseArgs([]).retryFlaky).toBe(false);
+    });
+
+    // CR n/a — issue #6246 (ADR 0157): the queue's draft rebuilds derived state.
+    it("accepts --regenerate-derived and reports it", () => {
+        expect(parseArgs(["--regenerate-derived"]).regenerateDerived).toBe(
+            true
+        );
+        expect(parseArgs([]).regenerateDerived).toBe(false);
     });
 
     it("still refuses an unknown argument — `--plan` is not a door for a lane flag (#2738)", () => {

@@ -113,6 +113,7 @@ import {
 } from "../../convex/cards/compiledCatalogue";
 import { packedServerCorpus } from "../../convex/cards/compiledPool";
 import type { CardDefinition } from "../../convex/cards/types";
+import { treeRole } from "../lib/derived-state";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -124,6 +125,11 @@ const serverRows = unpackCorpus(packedServerCorpus!);
 /** A vacuity floor, not a target: every assertion here passes trivially on an
  *  empty merge, and this is the one that would not. */
 const RELOCATION_FLOOR = 800;
+
+// On a queue draft the lane has just regenerated the derived files in the
+// tested tree (ADR 0157, issue #6246), so committed-bytes = regeneration is
+// true by construction there; the freshness block is the BASE's predicate.
+const baseOnly = it.skipIf(treeRole() === "draft");
 
 describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
     it("no merged artifact is committed — it was retired (issue #5124)", () => {
@@ -137,50 +143,61 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
         expect(BUILD.hash).toBe(contentHash(BUILD.bytes));
     });
 
-    it("the server's rendering and the source hash are current too (issue #3055)", () => {
-        // One generator writes them all; freshness that covered only one of
-        // them would let a regeneration reach the client and not the server,
-        // which is the exact drift ADR 0113 §2 prices.
-        expect(
-            readFileSync(
-                join(REPO_ROOT, CATALOGUE_DIR, SOURCE_HASH_FILE),
+    baseOnly(
+        "the server's rendering and the source hash are current too (issue #3055)",
+        () => {
+            // One generator writes them all; freshness that covered only one of
+            // them would let a regeneration reach the client and not the server,
+            // which is the exact drift ADR 0113 §2 prices.
+            expect(
+                readFileSync(
+                    join(REPO_ROOT, CATALOGUE_DIR, SOURCE_HASH_FILE),
+                    "utf-8"
+                )
+            ).toBe(BUILD.sourceHashBytes);
+            expect(
+                readFileSync(join(REPO_ROOT, PACKED_CORPUS_PATH), "utf-8")
+            ).toBe(BUILD.packedBytes);
+        }
+    );
+
+    baseOnly(
+        "the hand-written Definition Index is current, and deterministic (issue #4856)",
+        () => {
+            expect(
+                readFileSync(join(REPO_ROOT, DEFINITION_INDEX_PATH), "utf-8")
+            ).toBe(BUILD.definitionIndexBytes);
+            // Two runs, byte-identical: nothing in the walk reads a clock, a
+            // random source or the file system.
+            expect(
+                serializeDefinitionIndex(
+                    buildHandWrittenIndex(walkHandWrittenDefinitions())
+                )
+            ).toBe(BUILD.definitionIndexBytes);
+        }
+    );
+
+    baseOnly(
+        "the search index is current, and IS the runtime derivation (issue #4861)",
+        () => {
+            const committed = readFileSync(
+                join(REPO_ROOT, SEARCH_INDEX_PATH),
                 "utf-8"
-            )
-        ).toBe(BUILD.sourceHashBytes);
-        expect(readFileSync(join(REPO_ROOT, PACKED_CORPUS_PATH), "utf-8")).toBe(
-            BUILD.packedBytes
-        );
-    });
-
-    it("the hand-written Definition Index is current, and deterministic (issue #4856)", () => {
-        expect(
-            readFileSync(join(REPO_ROOT, DEFINITION_INDEX_PATH), "utf-8")
-        ).toBe(BUILD.definitionIndexBytes);
-        // Two runs, byte-identical: nothing in the walk reads a clock, a
-        // random source or the file system.
-        expect(
-            serializeDefinitionIndex(
-                buildHandWrittenIndex(walkHandWrittenDefinitions())
-            )
-        ).toBe(BUILD.definitionIndexBytes);
-    });
-
-    it("the search index is current, and IS the runtime derivation (issue #4861)", () => {
-        const committed = readFileSync(
-            join(REPO_ROOT, SEARCH_INDEX_PATH),
-            "utf-8"
-        );
-        expect(committed).toBe(BUILD.searchIndexBytes);
-        // The generator derives from the rows it is about to write; the
-        // catalogue derives from the rows it serves. On a current tree they
-        // are the same rows, so the two derivations must agree byte for byte
-        // — and the client's decoder must give back exactly those rows.
-        const live = buildSearchIndex();
-        expect(serializeSearchIndex(live)).toBe(committed);
-        expect(
-            fromSearchIndexWire(JSON.parse(committed) as SearchIndexWireRow[])
-        ).toEqual(live);
-    });
+            );
+            expect(committed).toBe(BUILD.searchIndexBytes);
+            // The generator derives from the rows it is about to write; the
+            // catalogue derives from the rows it serves. On a current tree they
+            // are the same rows, so the two derivations must agree byte for byte
+            // — and the client's decoder must give back exactly those rows.
+            const live = buildSearchIndex();
+            expect(serializeSearchIndex(live)).toBe(committed);
+            expect(
+                fromSearchIndexWire(
+                    JSON.parse(committed) as SearchIndexWireRow[]
+                )
+            ).toEqual(live);
+        }
+    );
 
     it("hashes the minified rows — the preimage is not the prettified one", () => {
         // The source hash is a function of these bytes, so their shape is

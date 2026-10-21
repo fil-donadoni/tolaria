@@ -56,11 +56,16 @@ jobs:
                   git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
                   git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
             - uses: ./.github/actions/job-setup
+            # `--regenerate-derived` (ADR 0157, issue #6246): the lockfile
+            # header hashes and data/catalogue/* are rebuilt in the draft's
+            # tree after its diff is classified (≈ 5 s), so the draft — base +
+            # PR + fresh derived state — is the one integration test and
+            # check:oracle compares per row.
             - name: check:lane (one flaky re-run)
               # stderr teed to lane.log: a refusal leaves lane.json empty and
               # its reason there, for the fixup step (issue #6003).
               shell: bash
-              run: bun run check:lane --json --retry-flaky 2>&1 >"$RUNNER_TEMP/lane.json" | tee "$RUNNER_TEMP/lane.log"
+              run: bun run check:lane --json --retry-flaky --regenerate-derived 2>&1 >"$RUNNER_TEMP/lane.json" | tee "$RUNNER_TEMP/lane.log"
             - name: Flakes in the job summary
               if: always()
               run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
