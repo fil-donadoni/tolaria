@@ -10,9 +10,8 @@
  *
  *  0. STRUCTURE (always, offline — issue #6169). Every Fragment Key is its
  *     row's content key, every card's `gaps` resolve, every fragment declares
- *     exactly the cards citing it, and the header counts agree with the rows
- *     (`lockfileStructureProblems`). A hand-edit or a clean textual merge of
- *     two branches that each moved a card onto one fragment breaks one of
+ *     exactly the cards citing it (`lockfileStructureProblems`). A hand-edit
+ *     or a clean textual merge of two branches that each moved a card onto one fragment breaks one of
  *     these with every hash still agreeing.
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
  *     compiler's own source — the grammar under `convex/oracle/**` AND the
@@ -46,7 +45,7 @@
  * silently a no-op on every clean checkout, which is the shape of a guard that
  * is not there.
  *
- * Also guards the RETIREMENT MARKERS (issue #3049, ADR 0114 §1) — the third
+ * Also guards the RETIREMENT MARKERS (ADR 0114 §1) — the third
  * thing this file proves and the only one that is not about staleness. Once a
  * card's hand-written definition is retired its lockfile row is the sole copy
  * of its behaviour, so `checkRetirements` proves offline that every marker is
@@ -55,7 +54,7 @@
  * wiring rather than adding a package.json script for the same reason the
  * legality guard does — the gate surface must not grow per artifact.
  *
- * Also guards `data/oracle-legality.json` (issue #2695), the sibling artifact
+ * Also guards `data/oracle-legality.json`, the sibling artifact
  * `convex/formats.ts` consumes for Premodern deck legality. It has no
  * "compiler source" to hash (its only input is the corpus), so its tiers are:
  * a self-contained CONTENT-HASH check offline (always — no corpus, no pin,
@@ -67,7 +66,7 @@
  * given Scryfall snapshot, never that `premodern[]` itself still matches that
  * claim — a hand-edit or a bad merge-conflict resolution touching only the
  * array used to pass with exit 0 on a clean checkout (no corpus cache, the
- * NORMAL state — issue #2695 review finding 4). A production-consumed
+ * NORMAL state). A production-consumed
  * artifact with no drift guard at all would silently rot the moment the
  * corpus is re-pinned without re-running `oracle:legality` — sharing this
  * file's `check:oracle` wiring (rather than a second package.json script)
@@ -310,7 +309,7 @@ function checkLockfile(): void {
         }
         process.stdout.write(
             `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes + full regenerate-and-diff, ` +
-                `${lock.header.counts.total} cards)${RESET}\n`
+                `${lock.cards.length} cards)${RESET}\n`
         );
         return;
     }

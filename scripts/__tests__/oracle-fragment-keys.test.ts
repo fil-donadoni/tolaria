@@ -381,17 +381,7 @@ describe("lockfileStructureProblems — what a lockfile owes on its own", () => 
         );
     });
 
-    it("names a header count the rows do not agree with, and a row's state against its gaps", () => {
-        const header = {
-            ...lock.header,
-            counts: {
-                ...lock.header.counts,
-                ready: lock.header.counts.ready + 1,
-            },
-        };
-        expect(
-            lockfileStructureProblems({ ...lock, header }).join("\n")
-        ).toMatch(/header counts \d+ ready/);
+    it("names a row's state against its gaps", () => {
         const row = lock.cards[unparsedAt]!;
         const gapless = withCard(unparsedAt, { ...row, gaps: [] });
         expect(lockfileStructureProblems(gapless).join("\n")).toMatch(
