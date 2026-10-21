@@ -5,7 +5,7 @@
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command) and, when the Mergify
- *      queue admits its paths, `queue:shadow` — since the cut-over a marker
+ *      queue refuses it, `merge:manual` (issue #6213) — a marker
  *      `pr-refresh` reads; the queue lands every `ready-to-land` PR (issue
  *      #5952). Since the cut-over (issue #5643) the land-runner is retired:
  *      a PR the queue refuses (one touching `.github/` or `.mergify.yml`)
@@ -49,7 +49,7 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
-import { SHADOW_LABEL } from "./lib/land-labels";
+import { MANUAL_LABEL } from "./lib/land-labels";
 import {
     bodyWithClosingRef,
     handsToQueue,
@@ -290,8 +290,8 @@ function main(): void {
         if (body !== null) gh(["pr", "edit", String(pr), "--body", body]);
     }
     const admission = queueAdmission(pr);
-    const shadow = handsToQueue({ trustedAuthor: admission.state });
-    gh(labelArgs.ready(pr, { shadow }));
+    const toQueue = handsToQueue({ trustedAuthor: admission.state });
+    gh(labelArgs.ready(pr, { manual: !toQueue }));
 
     if (issue !== null) {
         gh(prOpenEditArgs(issue));
@@ -313,9 +313,9 @@ function main(): void {
         );
     }
     console.log(
-        (shadow
-            ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${SHADOW_LABEL}\` — the Mergify queue lands it`
-            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the owner merges it by hand (the queue refuses it: ${admission.description})`) +
+        (toQueue
+            ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the Mergify queue lands it`
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${MANUAL_LABEL}\` — the owner merges it by hand (the queue refuses it: ${admission.description})`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)

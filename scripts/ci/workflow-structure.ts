@@ -77,7 +77,7 @@
  *     require `ready-to-land`, no `land-failed`, no red advisory lane (issue
  *     #5643), `trusted-author`, `base-health` and the exclusion of `.github/`
  *     and `.mergify.yml` (ADR 0156 §8 barriers 3–4); one that still requires
- *     `queue:shadow` (the shadow phase ended at the cut-over); or an advisory
+ *     a marker label such as `merge:manual` (the queue admits by status, not by label); or an advisory
  *     lane job that runs on the queue's drafts.
  *   - `queue-merge` — a queue rule whose merge conditions are anything but
  *     the queue lane alone (Amendment I: the entry gates were proven on the
@@ -98,7 +98,7 @@ import {
     FAILED_LABEL,
     HELD_LABEL,
     READY_LABEL,
-    SHADOW_LABEL,
+    MANUAL_LABEL,
 } from "../lib/land-labels";
 
 export interface SourceFile {
@@ -717,10 +717,10 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
                     "queue-entry",
                     `queue rule \`${name}\`: queue_conditions lack ${need.what}`
                 );
-        if (conds.some((c) => labelCondition(SHADOW_LABEL).test(c)))
+        if (conds.some((c) => labelCondition(MANUAL_LABEL).test(c)))
             v(
                 "queue-entry",
-                `queue rule \`${name}\`: queue_conditions require \`${SHADOW_LABEL}\` — the shadow phase ended at the cut-over (issue #5643)`
+                `queue rule \`${name}\`: queue_conditions require \`${MANUAL_LABEL}\` — the queue admits by status, not by label (issues #5643, #6213)`
             );
         const merge = isObj(rule) ? asArray(rule.merge_conditions) : [];
         if (

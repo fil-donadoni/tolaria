@@ -94,7 +94,7 @@ import {
     READY_LABEL,
     RESTART_EXIT,
     RUNNER_SOURCE_PATHS,
-    SHADOW_LABEL,
+    MANUAL_LABEL,
     RUNNER_ENV,
     runsHere,
     checkSources,
@@ -168,10 +168,10 @@ function listQueued(): QueuedPr[] {
             "list",
             "--label",
             READY_LABEL,
-            // A merged shadow PR keeps `ready-to-land`; left in, they would
+            // A merged queue PR keeps `ready-to-land`; left in, they would
             // fill the 50 rows. `planTick` skips any that slip through.
             "--search",
-            `-label:"${SHADOW_LABEL}"`,
+            `label:"${MANUAL_LABEL}"`,
             "--state",
             "all",
             "--limit",
@@ -631,7 +631,7 @@ function tick(opts: {
         if (!dryRun) tryGh(labelArgs.unqueue(s.pr), log);
     }
     for (const h of plan.held) log(`PR #${h.pr}: held — ${h.reason}`);
-    for (const s of plan.shadowed)
+    for (const s of plan.queued)
         if (dryRun) log(`PR #${s.pr}: skipped — ${s.reason}`);
     const pr = plan.next;
     if (pr === null) return false;

@@ -13,7 +13,9 @@ export const FAILED_LABEL = "land-failed";
  *  PR dequeued under a red `base-health`, so the repair-pick rule keeps
  *  standing down after the GREEN; `pr-gate` removes it when it requeues. */
 export const HELD_LABEL = "queue:held";
-/** The shadow-phase label (issue #5642, ADR 0156 Phase 1): a `ready-to-land`
- *  PR carrying it is the Mergify queue's, and the runner skips it.
- *  `land:ready` adds it when the queue would admit the PR (issue #5952). */
-export const SHADOW_LABEL = "queue:shadow";
+/** The exception marker (issue #6213, was `queue:shadow`): a `ready-to-land`
+ *  PR the Mergify queue refuses, which the owner merges by hand. `land:ready`
+ *  adds it when the queue would not admit the PR (issue #5952); a queue PR
+ *  carries no marker, and `pr-refresh` and the retired runner treat every
+ *  `ready-to-land` PR without it as the queue's. */
+export const MANUAL_LABEL = "merge:manual";

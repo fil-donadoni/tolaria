@@ -36,7 +36,12 @@ describe("selectRefreshCandidates", () => {
 
     it("takes a PR whose files the base push touched, with the overlap", () => {
         const got = selectRefreshCandidates(
-            [pr({ files: ["a.ts", "b.ts"] })],
+            [
+                pr({
+                    files: ["a.ts", "b.ts"],
+                    labels: ["ready-to-land", "merge:manual"],
+                }),
+            ],
             new Set(["b.ts", "c.ts"])
         );
         expect(got).toHaveLength(1);
@@ -44,13 +49,13 @@ describe("selectRefreshCandidates", () => {
         expect(got[0].overlap).toEqual(["b.ts"]);
     });
 
-    it("takes a queue PR only when CONFLICTING — a push dequeues it (issue #5983)", () => {
-        const shadow = ["ready-to-land", "queue:shadow"];
+    it("takes a queue PR only when CONFLICTING — a push dequeues it (issue #5983); a merge:manual PR on overlap (issue #6213)", () => {
+        const manual = ["ready-to-land", "merge:manual"];
         const got = selectRefreshCandidates(
             [
-                pr({ number: 1, labels: shadow }),
-                pr({ number: 2, labels: shadow, mergeable: "CONFLICTING" }),
-                pr({ number: 3 }),
+                pr({ number: 1 }),
+                pr({ number: 2, mergeable: "CONFLICTING" }),
+                pr({ number: 3, labels: manual }),
             ],
             new Set(["a.ts"])
         );

@@ -32,7 +32,7 @@ import {
     READY_LABEL,
     runsHere,
     SATURATED_EXIT,
-    SHADOW_LABEL,
+    MANUAL_LABEL,
     worktreeOfBranch,
     type LandFailure,
     type QueuedPr,
@@ -48,7 +48,7 @@ const pr = (
     headRefName: `feat/issue-${number}`,
     createdAt,
     body: "",
-    labels: [{ name: READY_LABEL }],
+    labels: [{ name: READY_LABEL }, { name: MANUAL_LABEL }],
     ...over,
 });
 
@@ -92,7 +92,7 @@ describe("planTick — the oldest ready-to-land PR lands first", () => {
                 red: false,
                 repairIssues: [],
             })
-        ).toEqual({ shadowed: [], stale: [], held: [], next: null });
+        ).toEqual({ queued: [], stale: [], held: [], next: null });
     });
 });
 
@@ -131,12 +131,12 @@ describe("planTick — a stale ready-to-land PR is unlabelled, never landed", ()
     });
 });
 
-describe("planTick — a queue:shadow PR is Mergify's, never touched (issue #5642)", () => {
-    const shadow = { labels: [{ name: READY_LABEL }, { name: SHADOW_LABEL }] };
+describe("planTick — a PR without merge:manual is Mergify's, never touched (issues #5642, #6213)", () => {
+    const queued = { labels: [{ name: READY_LABEL }] };
 
     it("is never landed, even when it is the oldest", () => {
         const prs = [
-            pr(1, "2026-10-12T08:00:00Z", shadow),
+            pr(1, "2026-10-12T08:00:00Z", queued),
             pr(2, "2026-10-12T09:00:00Z"),
         ];
         const plan = planTick(prs, {
@@ -145,14 +145,14 @@ describe("planTick — a queue:shadow PR is Mergify's, never touched (issue #564
             repairIssues: [],
         });
         expect(plan.next?.number).toBe(2);
-        expect(plan.shadowed.map((s) => s.pr)).toEqual([1]);
+        expect(plan.queued.map((s) => s.pr)).toEqual([1]);
     });
 
     it("is never unlabelled — merged by the queue, closed, or branch gone", () => {
         const prs = [
-            pr(1, "2026-10-12T08:00:00Z", { ...shadow, state: "MERGED" }),
-            pr(2, "2026-10-12T08:30:00Z", { ...shadow, state: "CLOSED" }),
-            pr(3, "2026-10-12T09:00:00Z", shadow),
+            pr(1, "2026-10-12T08:00:00Z", { ...queued, state: "MERGED" }),
+            pr(2, "2026-10-12T08:30:00Z", { ...queued, state: "CLOSED" }),
+            pr(3, "2026-10-12T09:00:00Z", queued),
         ];
         const plan = planTick(prs, {
             remoteBranches: new Set<string>(),
@@ -160,9 +160,9 @@ describe("planTick — a queue:shadow PR is Mergify's, never touched (issue #564
             repairIssues: [],
         });
         expect(plan).toEqual({
-            shadowed: [1, 2, 3].map((n) => ({
+            queued: [1, 2, 3].map((n) => ({
                 pr: n,
-                reason: `labelled \`${SHADOW_LABEL}\` — the Mergify queue lands it`,
+                reason: `not labelled \`${MANUAL_LABEL}\` — the Mergify queue lands it`,
             })),
             stale: [],
             held: [],
@@ -213,7 +213,11 @@ describe("planTick — a row is read by its own labels, never by the list's filt
     // The search index lists a PR for seconds after `ready-to-land` left it;
     // the row's own `labels` are already fresh (PR #5945, 2026-10-18).
     const failed = {
-        labels: [{ name: FAILED_LABEL }, { name: "area:workflow" }],
+        labels: [
+            { name: FAILED_LABEL },
+            { name: MANUAL_LABEL },
+            { name: "area:workflow" },
+        ],
     };
     const ctx = (prs: QueuedPr[]) => ({
         remoteBranches: branchesOf(prs),
@@ -236,7 +240,11 @@ describe("planTick — a row is read by its own labels, never by the list's filt
     it("holds a row carrying both labels — land-failed wins", () => {
         const prs = [
             pr(1, "2026-10-12T08:00:00Z", {
-                labels: [{ name: READY_LABEL }, { name: FAILED_LABEL }],
+                labels: [
+                    { name: READY_LABEL },
+                    { name: MANUAL_LABEL },
+                    { name: FAILED_LABEL },
+                ],
             }),
         ];
         const plan = planTick(prs, ctx(prs));
@@ -559,31 +567,31 @@ describe("the PR comments", () => {
 });
 
 describe("label moves", () => {
-    it("ready to the runner adds ready-to-land, drops land-failed and any queue:shadow (a repair re-queues with one verb; no PR is left with no merger, issue #5952)", () => {
-        expect(labelArgs.ready(5, { shadow: false })).toEqual([
+    it("ready to the owner adds ready-to-land and merge:manual, drops land-failed (issues #5952, #6213)", () => {
+        expect(labelArgs.ready(5, { manual: true })).toEqual([
             "pr",
             "edit",
             "5",
             "--add-label",
             READY_LABEL,
+            "--add-label",
+            MANUAL_LABEL,
             "--remove-label",
             FAILED_LABEL,
-            "--remove-label",
-            SHADOW_LABEL,
         ]);
     });
 
-    it("ready to the queue adds ready-to-land and queue:shadow, drops land-failed (issue #5952)", () => {
-        expect(labelArgs.ready(5, { shadow: true })).toEqual([
+    it("ready to the queue adds ready-to-land only and drops land-failed and any merge:manual (a repair re-queues with one verb; no PR is left with no merger)", () => {
+        expect(labelArgs.ready(5, { manual: false })).toEqual([
             "pr",
             "edit",
             "5",
             "--add-label",
             READY_LABEL,
-            "--add-label",
-            SHADOW_LABEL,
             "--remove-label",
             FAILED_LABEL,
+            "--remove-label",
+            MANUAL_LABEL,
         ]);
     });
 
@@ -612,7 +620,7 @@ describe("handsToQueue — who lands a handed-off PR (issue #5952)", () => {
         expect(handsToQueue({ trustedAuthor: "success" })).toBe(true);
     });
 
-    it("the runner, when the queue would refuse it — never a shadow PR with no merger", () => {
+    it("the runner, when the queue would refuse it — never a PR with no merger", () => {
         expect(handsToQueue({ trustedAuthor: "failure" })).toBe(false);
         expect(handsToQueue({ trustedAuthor: "pending" })).toBe(false);
     });

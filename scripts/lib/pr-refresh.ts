@@ -3,7 +3,7 @@
  * push to the base obliges a refresh of, and what the owner reads when one
  * cannot be refreshed. Pure — the git and `gh` I/O is the script's.
  */
-import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "./land-labels";
+import { FAILED_LABEL, READY_LABEL, MANUAL_LABEL } from "./land-labels";
 
 /** One PR as `gh pr list --label ready-to-land --json …` reads it. */
 export interface RefreshPr {
@@ -33,7 +33,7 @@ export interface RefreshCandidate {
  * merge drivers, so a generated artifact conflicts there however resolvable)
  * or the push to the base touched a file the PR changes. `baseTouched` is
  * `null` when the push's range is unknown (a first push): only the
- * conflicting ones then qualify. A `queue:shadow` PR is the Mergify queue's:
+ * conflicting ones then qualify. A PR without `merge:manual` is the Mergify queue's:
  * its draft already tests it on the moved base, and a push to it dequeues it,
  * so only `CONFLICTING` — a rebase only our merge drivers can do — takes it
  * (issue #5983).
@@ -52,7 +52,7 @@ export function selectRefreshCandidates(
             : [];
         if (pr.mergeable === "CONFLICTING") {
             out.push({ pr, reason: "conflicting", overlap });
-        } else if (overlap.length > 0 && !pr.labels.includes(SHADOW_LABEL)) {
+        } else if (overlap.length > 0 && pr.labels.includes(MANUAL_LABEL)) {
             out.push({ pr, reason: "base-touched", overlap });
         }
     }
