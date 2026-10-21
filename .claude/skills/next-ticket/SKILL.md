@@ -191,8 +191,9 @@ says no review.
 
 ## 5. Hand off — push + `ready-to-land`
 
-The pass ENDS here: the Mergify queue (or the land-runner, for a PR it
-refuses: issue #5952) lands it. A session never runs `land` nor waits.
+The pass ENDS here: the Mergify queue lands it (a PR it refuses, `.github/` or
+`.mergify.yml`, the owner merges: `owner-merge` emails them). Never run `land`
+nor wait.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).

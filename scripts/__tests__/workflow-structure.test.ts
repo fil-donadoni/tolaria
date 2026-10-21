@@ -108,6 +108,21 @@ jobs:
       - run: bun scripts/pr-gate.ts
 `;
 
+const OWNER_MERGE = `
+on:
+  pull_request_target:
+    types: [labeled]
+jobs:
+  notify:
+    if: github.event.label.name == 'ready-to-land'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@${SHA}
+      - uses: ./.github/actions/job-setup
+      - run: bun scripts/owner-merge.ts
+`;
+
 const JOB_SETUP = readFileSync(join(REPO, JOB_SETUP_FILE), "utf8");
 
 const MERGIFY = `
@@ -794,5 +809,53 @@ describe("workflow structure guard", () => {
         expect(rules(fixture({ hosted: "on: [push\n" }))).toEqual([
             "unparseable",
         ]);
+    });
+});
+
+describe("the owner-merge workflow (issue #6188)", () => {
+    const check = (text: string): RuleId[] =>
+        rules({
+            ...fixture(),
+            workflows: [
+                ...fixture().workflows,
+                { path: ".github/workflows/owner-merge.yml", text },
+            ],
+        });
+
+    it("admits the labeled trigger, the label filter and a base checkout", () => {
+        expect(check(OWNER_MERGE)).toEqual([]);
+    });
+
+    it("refuses a job without the ready-to-land label filter", () => {
+        const text = edit(
+            OWNER_MERGE,
+            "    if: github.event.label.name == 'ready-to-land'\n",
+            ""
+        );
+        expect(check(text)).toContain("owner-merge-trigger");
+    });
+
+    it("refuses a trigger beyond `labeled` (a second email per hand-off)", () => {
+        const synchronize = edit(
+            OWNER_MERGE,
+            "types: [labeled]",
+            "types: [labeled, synchronize]"
+        );
+        expect(check(synchronize)).toContain("owner-merge-trigger");
+        const extra = edit(
+            OWNER_MERGE,
+            "jobs:",
+            "  schedule:\n    - cron: '*/15 * * * *'\njobs:"
+        );
+        expect(check(extra)).toContain("owner-merge-trigger");
+    });
+
+    it("refuses a job that checks nothing out", () => {
+        const text = edit(
+            OWNER_MERGE,
+            `      - uses: actions/checkout@${SHA}\n`,
+            ""
+        );
+        expect(check(text)).toContain("owner-merge-trigger");
     });
 });

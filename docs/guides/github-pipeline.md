@@ -275,6 +275,7 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 | [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                     | `[self-hosted, pass]`, one at a time           | picks, claims and dispatches AFK passes, or holds                                         |
 | [`afk-pass`](#afk-pass)                   | dispatch (`issue`, `model`, `resume`, `host`) — from the dispatcher | `[self-hosted, pass]` (+ `host:` for a resume) | one `/next-ticket` pass, its WIP push and its record                                      |
 | [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch    | GitHub-hosted `ubuntu-24.04`                   | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses    |
+| [`owner-merge`](#owner-merge)             | `pull_request_target`, `labeled` (`ready-to-land` only)             | GitHub-hosted `ubuntu-24.04`                   | fails on purpose for a PR the queue refuses: the failed-run email is the owner's cue      |
 | [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                           | `[self-hosted, lane]`                          | the lane on the queue's rebased draft, one flaky re-run                                   |
 | [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand               | `[self-hosted, lane]`                          | regenerates a stale generated artefact and pushes it                                      |
 | [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)              | `[self-hosted, lane]`                          | the base tip's `health` verdict; a RED's flake check and bisect                           |
@@ -1205,6 +1206,37 @@ TRUSTED_AUTHORS=<login> bun scripts/pr-gate.ts --dry-run --pr <N>
 Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 (the [structure guard](#g-structure-guard)'s `queue-entry` rule).
 
+### owner-merge
+
+`.github/workflows/owner-merge.yml` tells the owner, by email, that a
+`ready-to-land` PR needs a hand merge (issue #6188). A PR touching `.github/`
+or `.mergify.yml` (or by an untrusted author) is never queueable —
+[`trusted-author`](#g-trusted-author) is red by design — and nothing else
+merges it. `scripts/owner-merge.ts` is the I/O, `scripts/lib/owner-merge.ts`
+the decision: `handsToQueue` over `trustedAuthorStatus`, the verdict
+`land:ready` uses to choose the merger, never a second protected-path list.
+
+It runs on `pull_request_target`, type `labeled` only; the job runs only when
+the label just added is `ready-to-land` (any other label skips it, and a
+skipped job sends no email). Queue-admitted → the job succeeds silently. Not
+admitted → it **fails on purpose**, and GitHub's native failed-run email
+(ADR 0156 §5) reaches the actor who added the label. Both paths add it as the
+owner: a session's `land:ready` and an `afk-pass` job both run `gh` with the
+owner's login. A label added with a job's own `GITHUB_TOKEN` fires no
+workflow, so no job may add `ready-to-land` that way.
+
+**The email.** Subject: `merge by hand: PR #N` (the run's name). The job
+summary carries the PR link and title, why the queue refuses it (the
+`trusted-author` description) and the checklist: `check:lane (advisory)` and
+`base-health` green on the PR, then merge. One email per hand-off — no
+`synchronize`, `edited`, `status` or `schedule` trigger; re-running
+`land:ready` after a repair re-adds the label and sends one more.
+
+**Owner-side setting.** GitHub → Settings → Notifications → Actions: email,
+**failed workflows only**. Without it the failed run is only a red mark on the
+Actions tab. Same safety shape as [`pr-gate`](#pr-gate): the base's code, the
+PR read as data through the API, nothing of it in a `run:` line, no secret.
+
 ### weekly-report
 
 `.github/workflows/weekly-report.yml` (issue #5651): the week's trends in one
@@ -1527,6 +1559,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                                                                                            |
 | `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                                                                                            |
 | `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link, or lacks the top-level `-check-failure=base-health` ([a hold](#a-red-dequeue-is-a-hold))                                                                                                          |
+| `owner-merge-trigger`          | `owner-merge.yml` fires on anything but `pull_request_target` `labeled`, its job lacks `if: github.event.label.name == 'ready-to-land'`, or checks out nothing ([`owner-merge`](#owner-merge))                                                                                                                                                                 |
 
 Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
 `macos-15`, …) counts as GitHub-hosted. Anything else — an expression, a
@@ -1682,7 +1715,7 @@ of its own sha.
 | a `sync` leg red: `could not fast-forward …`        | that machine's primary checkout diverged by the owner's own commits (the notice names them); `gaps:sync` strandings heal themselves. Pull it by hand                                  |
 | `housekeeping` red: `shared state … moved`          | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
 | `pr-check` red, the lane green locally              | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
-| `trusted-author` red on the owner's PR              | it touches `.github/` or `.mergify.yml`: the owner merges it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                                                |
+| `trusted-author` red on the owner's PR              | it touches `.github/` or `.mergify.yml`: the owner merges it by hand — the [`owner-merge`](#owner-merge) email says so; otherwise `TRUSTED_AUTHORS` is unset or misspelt              |
 | a shadow PR sits unqueued, its gates green          | Mergify dropped it when a queue condition failed on its draft or its own head: `@mergifyio requeue` ([the merge queue](#the-merge-queue))                                             |
 | `base-health` red with the base green               | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
 | `health` red, `health:status` names a flake         | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
