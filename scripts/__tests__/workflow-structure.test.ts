@@ -129,6 +129,8 @@ queue_rules:
 pull_request_rules:
   - name: dequeued
     conditions:
+      - -check-failure=base-health
+      - -label=queue:held
       - or:
           - queue-dequeue-reason=checks-failed
           - queue-dequeue-reason=checks-timeout
@@ -686,6 +688,13 @@ describe("workflow structure guard", () => {
             ["remove: [ready-to-land]", "remove: []"],
             ["https://example.test/run", "see the queue"],
             ["      - or:\n", "      - not:\n"],
+            // a RED is a hold, not a repair pick (issue #6110)
+            ["      - -check-failure=base-health\n", ""],
+            ["      - -label=queue:held\n", ""],
+            [
+                "      - -check-failure=base-health\n      - -label=queue:held\n      - or:\n",
+                "      - -label=queue:held\n      - or:\n          - -check-failure=base-health\n",
+            ],
         ] as const) {
             const mergify = edit(MERGIFY, from, to);
             expect(rules(fixture({ mergify })), from).toEqual([

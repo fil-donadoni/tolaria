@@ -15,9 +15,13 @@
  *    queue PRs are exempt on the same ground (issue #5978): Mergify re-checks
  *    `queue_conditions` on its draft while a PR is queued, and a draft that
  *    fails one dequeues the PR for good — no GREEN requeues it.
+ *
+ * A RED is a hold, not a PR's red (issue #6110): `.mergify.yml` leaves a PR
+ * whose `base-health` is red `ready-to-land` when the queue dequeues it, and
+ * `needsRequeue` is the GREEN that puts it back.
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
-import { READY_LABEL } from "./land-labels";
+import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import {
     DESCRIPTION_MAX,
     lineageBlocks,
@@ -95,6 +99,39 @@ export function gatePrOf(raw: RestPr, files: readonly string[]): GatePr {
 export function queuedPrs(open: readonly RestPr[]): RestPr[] {
     return open.filter((p) =>
         (p.labels ?? []).some((l) => l.name === READY_LABEL)
+    );
+}
+
+/** Mergify's own label on a PR it holds in the queue. */
+export const MERGIFY_QUEUED_LABEL = "queued";
+
+/** The comment that puts a dequeued PR back in the merge queue. */
+export const REQUEUE_COMMENT = "@mergifyio requeue";
+
+/**
+ * Whether a re-gate must requeue a PR (issue #6110). A RED dequeues the PRs
+ * in the queue, and Mergify never requeues a PR whose conditions stopped
+ * holding (issue #5978), so the GREEN does it: the PR was held (`prior`
+ * `base-health` red or pending), is released now (`next` green), would enter
+ * the queue (`ready-to-land`, no `land-failed`, `trusted-author` green) and
+ * is not in it already (`queued`, Mergify's label). Keyed on the held→green
+ * edge, so the 15-minute sweep never repeats the comment on a PR that
+ * simply waits its turn.
+ */
+export function needsRequeue(input: {
+    labels: readonly string[];
+    prior: GateState | undefined;
+    next: GateState;
+    trustedAuthor: GateState;
+}): boolean {
+    const { labels } = input;
+    return (
+        input.next === "success" &&
+        (input.prior === "failure" || input.prior === "pending") &&
+        input.trustedAuthor === "success" &&
+        labels.includes(READY_LABEL) &&
+        !labels.includes(FAILED_LABEL) &&
+        !labels.includes(MERGIFY_QUEUED_LABEL)
     );
 }
 
