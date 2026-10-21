@@ -7,7 +7,8 @@
  * runs it on a schedule (ADR 0156 §4), and `bun run health` runs it by hand. It runs the FULL gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
- * hygiene census `check:test-hygiene`, all three test suites, and — under
+ * hygiene census `check:test-hygiene`, the issue-log and duplicate-test-block
+ * guards, all three test suites, and — under
  * `--release`, which `release` passes, and only then — the browser step
  * `check:game-download`: a batch run owes none (issue #5378)) against the
  * merged tip, in a throwaway worktree. No run walks `check:ui --all` (issue
