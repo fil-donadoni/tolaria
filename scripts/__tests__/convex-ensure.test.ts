@@ -628,6 +628,127 @@ describe("convex:ensure — the backend is a systemd unit (issue #5468)", () => 
     });
 });
 
+/** A stand-in for `launchctl` driving one agent (issue #6082): the agent's
+ *  state lives in `<dir>/agent-state` (absent = not loaded), every
+ *  kickstart/bootstrap is appended to `<dir>/agent-calls` and launches the
+ *  stub backend detached — what launchd would run. */
+const STUB_LAUNCHCTL = `
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
+const [dir, serverScript, port, counter, delayMs, verb, ...rest] = process.argv.slice(2);
+const stateFile = path.join(dir, "agent-state");
+const state = fs.existsSync(stateFile) ? fs.readFileSync(stateFile, "utf8") : null;
+if (verb === "print") {
+    if (state === null) { console.error("Could not find service"); process.exit(113); }
+    console.log("gui/501/com.tolaria.convex = {\\n\\tstate = " + state + "\\n}");
+    process.exit(0);
+}
+fs.appendFileSync(path.join(dir, "agent-calls"), [verb, ...rest.filter((a) => a.startsWith("-"))].join(" ") + "\\n");
+spawn(process.execPath, [serverScript, port, counter, delayMs], { detached: true, stdio: "ignore" }).unref();
+fs.writeFileSync(stateFile, "running");
+`;
+
+describe("convex:ensure — the backend is a launchd agent (issue #6082)", () => {
+    const agentCalls = (): string[] =>
+        fs.existsSync(path.join(tmp, "agent-calls"))
+            ? fs
+                  .readFileSync(path.join(tmp, "agent-calls"), "utf8")
+                  .split("\n")
+                  .filter(Boolean)
+            : [];
+
+    async function agentArgs(extra: string[] = []) {
+        const port = await freePort();
+        const stub = path.join(tmp, "stub-launchctl.cjs");
+        fs.writeFileSync(stub, STUB_LAUNCHCTL);
+        const plist = path.join(tmp, "com.tolaria.convex.plist");
+        fs.writeFileSync(plist, "<plist/>");
+        const url = `http://127.0.0.1:${port}`;
+        return {
+            url,
+            port,
+            args: [
+                "--url",
+                url,
+                "--instance-name",
+                `test-none-${process.pid}-${port}`,
+                "--launchd",
+                "com.tolaria.convex",
+                "--launchd-plist",
+                plist,
+                "--launchctl",
+                JSON.stringify([
+                    process.execPath,
+                    stub,
+                    tmp,
+                    serverScript,
+                    String(port),
+                    counter,
+                    "500",
+                ]),
+                "--start-timeout-ms",
+                "20000",
+                ...extra,
+            ],
+        };
+    }
+
+    it("a loaded agent that never answers is waited on, then kickstarted -k — nothing spawned, no pid file", async () => {
+        const { url, args } = await agentArgs(["--wait-alive-ms", "1000"]);
+        fs.writeFileSync(path.join(tmp, "agent-state"), "running");
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stderr).toMatch(/is active but not answering/);
+        expect(r.stdout).toMatch(
+            /answers — launchctl kickstart -k gui\/\d+\/com\.tolaria\.convex/
+        );
+        expect(agentCalls()).toEqual(["kickstart -k"]);
+        expect(starts()).toBe(1);
+        expect(await answers(url)).toBe(true);
+        expect(fs.existsSync(path.join(telemetry, "convex-dev.pid"))).toBe(
+            false
+        );
+    });
+
+    it("a loaded agent that is not running is kickstarted without -k", async () => {
+        const { args } = await agentArgs();
+        fs.writeFileSync(path.join(tmp, "agent-state"), "not running");
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(agentCalls()).toEqual(["kickstart"]);
+    });
+
+    it("an agent that is not loaded is bootstrapped from its plist", async () => {
+        const { url, args } = await agentArgs();
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toMatch(/launchctl bootstrap gui\/\d+ /);
+        expect(agentCalls()).toEqual(["bootstrap"]);
+        expect(await answers(url)).toBe(true);
+    });
+
+    it("an agent that is not loaded with no plist fails closed naming the command", async () => {
+        const { args } = await agentArgs();
+        fs.rmSync(path.join(tmp, "com.tolaria.convex.plist"));
+        const r = await ensure(args);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(/is missing .*launchctl bootstrap gui\/\d+/);
+        expect(agentCalls()).toEqual([]);
+        expect(starts()).toBe(0);
+    });
+
+    it("an agent that answers is left alone", async () => {
+        const { port, args } = await agentArgs();
+        const srv = http.createServer((_q, s) => s.end("ok"));
+        servers.push(srv);
+        await new Promise<void>((r) => srv.listen(port, "127.0.0.1", r));
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(agentCalls()).toEqual([]);
+    });
+});
+
 describe("process classification", () => {
     const BACKEND =
         "/Users/x/.cache/convex/binaries/precompiled-2026-09-28-5c7cb5b/convex-local-backend --port 3210 --site-proxy-port 3211 --instance-name local-fil_5815a-tolaria --instance-secret abc";
