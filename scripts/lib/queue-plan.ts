@@ -282,6 +282,15 @@ export interface PlanConfig {
      *  ships a card. */
     appendOnlyPaths?: string[];
     /**
+     * The in-flight set (issue #6195): issues whose claim is live or whose PR
+     * is still open. Their files are OCCUPIED — a candidate overlapping one is
+     * deferred exactly like a within-plan overlap, because two PRs on the same
+     * files meet as a rebase conflict at the queue. Built by `inFlightSet`; an
+     * entry with `files: null` has an unknown blast radius and occupies
+     * nothing (it would freeze the queue), but the plan names it.
+     */
+    inFlight?: InFlightIssue[];
+    /**
      * File sets the ORCHESTRATOR inferred for issues that declare none.
      *
      * The planner will not guess a file set from prose — inference is a
@@ -434,6 +443,38 @@ export interface PlannedIssue {
     reason: string;
 }
 
+/** One in-flight issue: `files` null = unknown blast radius (issue #6195). */
+export interface InFlightIssue {
+    number: number;
+    files: string[] | null;
+}
+
+/**
+ * The in-flight set from the claims that are live or hold an open PR
+ * (issue #6195). An open PR's changed files are the real blast radius; without
+ * one the declared (else inferred) `Target files` stand in; with neither the
+ * radius is unknown (`files: null`). The caller passes ONLY claims that are
+ * live or have an open PR — a stale or released claim occupies nothing.
+ */
+export function inFlightSet(
+    claims: { issue: number; pr: number | null }[],
+    prFiles: Record<number, string[]>,
+    body: (issue: number) => string,
+    inferred: Record<number, string[]> = {}
+): InFlightIssue[] {
+    return claims.map(({ issue, pr }) => {
+        const fromPr = pr === null ? undefined : prFiles[pr];
+        if (fromPr && fromPr.length > 0)
+            return { number: issue, files: fromPr.map(normalizePath) };
+        const declared = parseTargetFiles(body(issue));
+        if (declared !== null) return { number: issue, files: declared };
+        const guess = inferred[issue];
+        if (guess && guess.length > 0)
+            return { number: issue, files: guess.map(normalizePath) };
+        return { number: issue, files: null };
+    });
+}
+
 export interface DeferredIssue {
     number: number;
     reason: string;
@@ -465,6 +506,9 @@ export interface BatchPlan {
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
     staleClaims: number[];
+    /** In-flight issues with an unknown blast radius (issue #6195): they
+     *  occupy nothing, and the plan names them — `in-flight radius unknown #N`. */
+    inFlightUnknown?: number[];
     /**
      * Issues held by a claim the planner judged LIVE — `in-progress`, not
      * stale, and not a PRD umbrella (which is skipped before the claim branch
@@ -807,6 +851,21 @@ export function planBatch(
     const staleClaims: number[] = [];
     const activeClaims: number[] = [];
 
+    // Occupied files (issue #6195): append-only paths stay excluded, as in the
+    // within-plan check.
+    const occupied = (config.inFlight ?? [])
+        .filter((f) => f.files !== null)
+        .map((f) => ({
+            number: f.number,
+            files: f.files!.filter(
+                (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
+            ),
+        }));
+    const inFlightUnknown = (config.inFlight ?? [])
+        .filter((f) => f.files === null)
+        .map((f) => f.number)
+        .sort((x, y) => x - y);
+
     // ── Stage 1: eligibility ────────────────────────────────────────────────
     const eligible: QueueIssue[] = [];
 
@@ -1128,6 +1187,22 @@ export function planBatch(
             (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
         );
 
+        // In-flight overlap (issue #6195). A repair pick is never deferred by
+        // its own PR: the issue's own entry occupies nothing against itself.
+        const busy = occupied.find(
+            (f) =>
+                f.number !== issue.number &&
+                f.files.some((a) => comparable.some((c) => pathsOverlap(a, c)))
+        );
+        if (busy) {
+            deferred.push({
+                number: issue.number,
+                reason: `target files overlap in-flight #${busy.number}`,
+                conflictsWith: busy.number,
+            });
+            continue;
+        }
+
         if (batch.length > 0) {
             if (!batchable) {
                 deferred.push({
@@ -1219,6 +1294,7 @@ export function planBatch(
         skipped,
         staleClaims,
         activeClaims,
+        ...(inFlightUnknown.length > 0 ? { inFlightUnknown } : {}),
     };
 }
 

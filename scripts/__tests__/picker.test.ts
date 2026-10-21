@@ -240,3 +240,152 @@ describe("picker — claim fate from the one verdict (issue #6223)", () => {
         }
     });
 });
+
+describe("planner — in-flight overlap (issue #6195)", () => {
+    const deferredFor = (plan: ReturnType<typeof planBatch>, n: number) =>
+        plan.deferred.find((d) => d.number === n);
+
+    it("defers a candidate overlapping a live claim's files, admits a disjoint one", () => {
+        const got = pick(
+            input({
+                issues: [
+                    issue(1, ["ready-for-agent", "in-progress"]),
+                    issue(2),
+                    issue(3),
+                ],
+                port: port({
+                    1: "scripts/a.ts",
+                    2: "scripts/a.ts",
+                    3: "scripts/b.ts",
+                }),
+                provenance: { 1: byOwner, 2: byOwner, 3: byOwner },
+                claims: [{ issue: 1, state: "live", pr: null }],
+            })
+        );
+        expect(deferredFor(got.plan, 2)).toMatchObject({
+            reason: "target files overlap in-flight #1",
+            conflictsWith: 1,
+        });
+        expect(got.plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+
+    it("an open PR occupies its changed files, not its declared Target files", () => {
+        const base = {
+            issues: [
+                issue(1, ["ready-for-agent", "in-progress"]),
+                issue(2),
+                issue(3),
+            ],
+            port: port({
+                1: "scripts/a.ts",
+                2: "scripts/a.ts",
+                3: "scripts/pr.ts",
+            }),
+            provenance: { 1: byOwner, 2: byOwner, 3: byOwner },
+            claims: [{ issue: 1, state: "pr-open", pr: 90 }],
+            prFiles: { 90: ["scripts/pr.ts"] },
+        };
+        const got = pick(input(base));
+        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+        expect(deferredFor(got.plan, 3)?.reason).toBe(
+            "target files overlap in-flight #1"
+        );
+    });
+
+    it("a released claim occupies nothing", () => {
+        const got = pick(
+            input({
+                issues: [
+                    issue(1, ["ready-for-agent", "in-progress"]),
+                    issue(2),
+                ],
+                port: port({ 1: "scripts/a.ts", 2: "scripts/a.ts" }),
+                provenance: { 1: byOwner, 2: byOwner },
+                claims: [{ issue: 1, state: "orphan", pr: null }],
+            })
+        );
+        expect(got.release).toEqual([1]);
+        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+    });
+
+    it("an unknown-radius in-flight issue occupies nothing and is named", () => {
+        const noFiles: QueuePort = {
+            ...port(),
+            issueDetail: (n) => ({
+                state: "OPEN",
+                stateReason: null,
+                labels: ["enhancement", "ready-for-agent"],
+                body:
+                    n === 1
+                        ? "no files section"
+                        : `${BODY}- \`src/f${n}.ts\`\n`,
+            }),
+        };
+        const got = pick(
+            input({
+                issues: [
+                    issue(1, ["ready-for-agent", "in-progress"]),
+                    issue(2),
+                ],
+                port: noFiles,
+                provenance: { 1: byOwner, 2: byOwner },
+                claims: [{ issue: 1, state: "live", pr: null }],
+            })
+        );
+        expect(got.plan.inFlightUnknown).toEqual([1]);
+        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+    });
+
+    it("a candidate is never deferred by its own in-flight entry", () => {
+        const plan = planBatch(
+            [issue(5)],
+            { ...CONFIG, inFlight: [{ number: 5, files: ["scripts/a.ts"] }] },
+            port({ 5: "scripts/a.ts" })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([5]);
+    });
+
+    it("append-only paths in flight do not occupy", () => {
+        const plan = planBatch(
+            [issue(2)],
+            {
+                ...CONFIG,
+                inFlight: [{ number: 1, files: ["convex/cards/index.ts"] }],
+            },
+            port({ 2: "convex/cards/index.ts" })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([2]);
+    });
+});
+
+describe("picker — in-flight edge cases (issue #6195)", () => {
+    it("an unlabelled issue with an open PR occupies the PR's files", () => {
+        const got = pick(
+            input({
+                issues: [issue(2)],
+                port: port({ 1: "scripts/a.ts", 2: "scripts/pr.ts" }),
+                provenance: { 2: byOwner },
+                prByIssue: { 1: 90 },
+                prFiles: { 90: ["scripts/pr.ts"] },
+            })
+        );
+        expect(got.plan.batch).toEqual([]);
+        expect(got.plan.deferred[0].reason).toBe(
+            "target files overlap in-flight #1"
+        );
+    });
+
+    it("a claimed issue with no claim facts occupies its declared files", () => {
+        const got = pick(
+            input({
+                issues: [
+                    issue(1, ["ready-for-agent", "in-progress"]),
+                    issue(2),
+                ],
+                port: port({ 1: "scripts/a.ts", 2: "scripts/a.ts" }),
+                provenance: { 1: byOwner, 2: byOwner },
+            })
+        );
+        expect(got.plan.batch).toEqual([]);
+    });
+});

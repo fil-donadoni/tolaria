@@ -23,6 +23,7 @@
 
 import type { ClaimVerdictState } from "../loop-doctor";
 import {
+    inFlightSet,
     planBatch,
     resumeItems,
     type BatchPlan,
@@ -62,6 +63,10 @@ export interface PickerInput {
     trust: TrustPolicy;
     provenance: Record<number, IssueProvenance>;
     claims: JudgedClaim[];
+    /** Changed files of each open PR, by PR number (issue #6195). */
+    prFiles?: Record<number, string[]>;
+    /** Open PR number by issue number (issue #6195). */
+    prByIssue?: Record<number, number>;
 }
 
 export interface PickResult {
@@ -151,7 +156,27 @@ export function pick(input: PickerInput): PickResult {
         }
     }
 
-    const planned = planBatch(competing, config, port);
+    // In-flight set (issue #6195): a live claim (a claimed issue with no
+    // facts reads live, as above) and every issue whose PR is still open —
+    // claimed or not. A release-fate claim without a PR and a resumable one
+    // without a PR occupy nothing.
+    const prByIssue = input.prByIssue ?? {};
+    const occupying = new Set<number>(Object.keys(prByIssue).map(Number));
+    for (const issue of issues)
+        if (isClaimed(issue) && claimFate(facts.get(issue.number)) === "live")
+            occupying.add(issue.number);
+    for (const c of facts.values())
+        if (claimFate(c) === "live") occupying.add(c.issue);
+    const inFlight = inFlightSet(
+        [...occupying].map((n) => ({
+            issue: n,
+            pr: prByIssue[n] ?? facts.get(n)?.pr ?? null,
+        })),
+        input.prFiles ?? {},
+        (n) => port.issueDetail(n).body,
+        config.inferredTargetFiles
+    );
+    const planned = planBatch(competing, { ...config, inFlight }, port);
     // The run is the liveness authority: `planBatch` judges a claim by issue
     // age and open PR, which would call a long-running live pass "stale".
     const liveSet = new Set(live);
