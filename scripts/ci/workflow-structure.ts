@@ -37,23 +37,22 @@
  *   - `dispatcher-serialised` — a job of a `SERIALISED_DISPATCHERS` workflow,
  *     or a `SERIALISED_JOBS` job, without a JOB-level
  *     `concurrency: { group, cancel-in-progress: false }`. The dispatcher
- *     claims issues: two runs at once could claim one issue twice (issue
- *     #5649); a shared post-merge duty (`housekeeping`, `nightly`) runs on
- *     any machine and two at once would move one watermark twice (issue
- *     #5873). A dropped pending run loses nothing in either case — the next
+ *     claims issues: two runs at once could claim one issue twice; a shared
+ *     post-merge duty (`housekeeping`, `nightly`) runs on any machine and two
+ *     at once would move one watermark twice. A dropped pending run loses nothing in either case — the next
  *     run re-reads every fact — so the group's cancel is harmless there; job
  *     level, so a run whose job is skipped (a label event that is not
  *     `ready-for-agent`, a push that fires no nightly) never displaces a
  *     pending one.
  *   - `queue-superseded` — a `SUPERSEDED_JOBS` job without exactly
- *     `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }`
- *     (issue #6020). Mergify re-creates a PR's draft on a new branch and
+ *     `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }`.
+ *     Mergify re-creates a PR's draft on a new branch and
  *     deletes the old one; without the group the old draft's lane keeps a
  *     `lane` runner the live draft waits for. The group is keyed by the PR
  *     the draft checks (its head commit, `Merge of #N`, batch size 1), the
  *     sha its fallback so a missing message never groups two PRs.
  *   - `host-pinned` — a self-hosted job whose `runs-on` names ONE machine by
- *     a literal `host:<name>` label (issue #5873): that machine offline or
+ *     a literal `host:<name>` label: that machine offline or
  *     broken holds the job for 24 h, then fails it. A per-machine duty is a
  *     matrix over the hosts (`host:${{ matrix.host }}`) or an input; a shared
  *     duty names no host at all.
@@ -70,18 +69,18 @@
  *     pinned toolchain step, or nests an action (whose post step would run
  *     after the job worktree is removed).
  *   - `corpus-exclusion-gating` — `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the
- *     hosted advisory lane's one recorded test exclusion, issue #5675) named
+ *     hosted advisory lane's one recorded test exclusion) named
  *     in a workflow holding a self-hosted job, or in a shared action: a lane
  *     on the owner's machines gates, and a gate never skips the corpus.
  *   - `queue-entry` — a `.mergify.yml` queue rule whose entry conditions do not
- *     require `ready-to-land`, no `land-failed`, no red advisory lane (issue
- *     #5643), `trusted-author`, `base-health` and the exclusion of `.github/`
+ *     require `ready-to-land`, no `land-failed`, no red advisory lane,
+ *     `trusted-author`, `base-health` and the exclusion of `.github/`
  *     and `.mergify.yml` (ADR 0156 §8 barriers 3–4); one that still requires
  *     a marker label such as `merge:manual` (the queue admits by status, not by label); or an advisory
  *     lane job that runs on the queue's drafts.
  *   - `queue-merge` — a queue rule whose merge conditions are anything but
  *     the queue lane alone (Amendment I: the entry gates were proven on the
- *     PR, and `pr-gate` posts both green on Mergify's draft, issue #5978).
+ *     PR, and `pr-gate` posts both green on Mergify's draft).
  *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 2, or a
  *     queue rule with a `batch_size` other than 1 (ADR 0156 §3).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the
@@ -89,7 +88,7 @@
  *     to `land-failed` with a comment carrying a link: the label is the
  *     repair pick's trigger, and `-label=land-failed` keeps the PR out. The
  *     rule must also carry a top-level `-check-failure=base-health`: a
- *     dequeue under a RED is a hold, not a repair pick (issue #6110).
+ *     dequeue under a RED is a hold, not a repair pick.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";

@@ -1333,7 +1333,11 @@ that is not truncated, no path under `.github/` or `.mergify/` and no
 `.mergify.yml`, a rename counting both names). Green, it adds only
 `ready-to-land` (removing any `merge:manual`) and the queue lands the PR.
 Otherwise it adds `merge:manual` and names the owner as the merger: since the cut-over the
-land-runner no longer runs, and such a PR is merged by hand. A repair goes to the queue too, a PR the runner failed included
+land-runner no longer runs, and such a PR is merged by hand with
+`bun run merge:manual <PR#>` (issue #6238). It refuses until the PR's
+`check:lane (advisory)` has concluded `success` on its current head and that
+head contains the base tip, since that run is the only lane such a PR's tree
+gets. The web UI's merge button skips the check. A repair goes to the queue too, a PR the runner failed included
 (issue #5986). The command's last line names the merger. It also makes
 sure GitHub links the PR as closing the issue its branch names (a bare
 `Closes #N`, appended when `closingIssuesReferences` lacks it), so the issue

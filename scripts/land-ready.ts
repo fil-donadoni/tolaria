@@ -1,19 +1,19 @@
 #!/usr/bin/env bun
 /**
- * `bun run land:ready <PR#>` — a session's LAST act (issue #5469): hand the
+ * `bun run land:ready <PR#>` — a session's LAST act: hand the
  * pushed PR to the land-runner. One verb, so the two halves never split:
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command) and, when the Mergify
- *      queue refuses it, `merge:manual` (issue #6213) — a marker
- *      `pr-refresh` reads; the queue lands every `ready-to-land` PR (issue
- *      #5952). Since the cut-over (issue #5643) the land-runner is retired:
- *      a PR the queue refuses (one touching `.github/` or `.mergify.yml`)
- *      is merged by the owner, by hand;
+ *      queue refuses it, `merge:manual` — a marker `pr-refresh` reads; the
+ *      queue lands every `ready-to-land` PR. The land-runner is retired: a
+ *      PR the queue refuses (one touching `.github/` or `.mergify.yml`) is
+ *      merged by the owner with `bun run merge:manual <PR#>`, which refuses
+ *      until the PR's advisory lane is green on its up-to-date head;
  *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
  *      but it holds no `sessions.cap` slot on this machine any more;
  *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
- *      shows the hand-off (issue #5562; every release path removes it).
+ *      shows the hand-off (every release path removes it).
  *
  * BEFORE it queues, it runs the lane's seconds-cost steps on the PR's own
  * worktree (issue #5554, `lib/pre-queue-steps.ts`): a red step means the
@@ -22,7 +22,7 @@
  * `pr-open` row; fix it here. The announced, logged escape for a red that is
  * base's, not the PR's: `TOLARIA_PREQUEUE_RED_OK=1`.
  *
- * It also runs `land`'s body/diff refusals FIRST (issue #5956, `pr-checks.ts`
+ * It also runs `land`'s body/diff refusals FIRST (`pr-checks.ts`
  * — the same functions `land` calls, never a copy): a missing `check:ui`
  * receipt or preset scenario refuses here, with `land`'s own words, while the
  * session can still edit the PR body. No escape: a refusal is the PR's.
@@ -315,7 +315,7 @@ function main(): void {
     console.log(
         (toQueue
             ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the Mergify queue lands it`
-            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${MANUAL_LABEL}\` — the owner merges it by hand (the queue refuses it: ${admission.description})`) +
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${MANUAL_LABEL}\` — the owner merges it with \`bun run merge:manual ${pr}\` once its advisory lane is green (the queue refuses it: ${admission.description})`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
