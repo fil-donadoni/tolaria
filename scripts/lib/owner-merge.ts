@@ -35,7 +35,7 @@ export function ownerMergeDecision(input: {
     return { notify: true, description: status.description };
 }
 
-/** The run's name: the email subject (`run-name:` cannot call a script). */
+/** The job summary: the PR, why the queue refuses it, the owner's checklist. */
 export function ownerMergeSummary(input: {
     prNumber: number;
     prUrl: string;
