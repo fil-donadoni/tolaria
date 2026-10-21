@@ -1391,8 +1391,11 @@ if (import.meta.main) {
     // The claim journal is the only place a claim's owning process is named.
     // Missing file → an empty map → every claim reads `ownerAlive: null`
     // (unknown), i.e. the pre-#2627 behaviour.
-    const ledgerFile = claimLedgerPath();
-    const owners = readClaimOwners();
+    // The primary checkout's journal, as the dispatcher reads it (issue
+    // #6223): from a worktree, `.` holds none and every owner read unknown.
+    const ledgerRoot = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
+    const ledgerFile = claimLedgerPath(ledgerRoot);
+    const owners = readClaimOwners(ledgerRoot);
     // The dispatcher's evidence too (issue #6223): one verdict, one input.
     const passRuns = fetchPassRuns();
     if (passRuns === null)
