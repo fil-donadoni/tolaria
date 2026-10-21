@@ -650,13 +650,17 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
             join(repo, "data", "oracle-compiled.json"),
             "utf8"
         );
-        const baseLock = git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`]) + "\n";
+        const baseLock =
+            git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`]) + "\n";
         expect(headerHashes(committed)).toEqual(headerHashes(baseLock));
         expect(git(["status", "--porcelain"])).toBe("");
         generate();
         expect(
             restoreHeaderHashes(
-                readFileSync(join(repo, "data", "oracle-compiled.json"), "utf8"),
+                readFileSync(
+                    join(repo, "data", "oracle-compiled.json"),
+                    "utf8"
+                ),
                 baseLock
             )
         ).toBe(committed);
@@ -804,7 +808,8 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         expect(
             restoreHeaderHashes(
                 readFileSync(join(wt, "data", "oracle-compiled.json"), "utf8"),
-                git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`], wt) + "\n"
+                git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`], wt) +
+                    "\n"
             )
         ).toBe(committed);
     });

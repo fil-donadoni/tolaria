@@ -1023,5 +1023,10 @@
         "file": "scripts/__tests__/health-fix-headless.test.ts",
         "test": "loopFixDecision — one attempt per tip, bounded > the bound is release's",
         "reason": "Drift guard: LOOP_FIX_ATTEMPTS restates release's DEFAULT_FIX_ATTEMPTS (an import would cycle release → health-fix → health-fix-attempts)."
+    },
+    {
+        "file": "scripts/__tests__/generated-artifact-merge.test.ts",
+        "test": "planResolution > the base-owned paths are derive:sync's five less the lockfile — one authority",
+        "reason": "Pins two modules' path lists to each other (lib/generated-artifacts.ts restates lib/derive-sync.ts's DERIVED_PATHS, a leaf it must not import through): a cross-module drift guard, not a literal."
     }
 ]

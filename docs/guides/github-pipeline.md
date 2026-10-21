@@ -549,13 +549,13 @@ decision sees the same `outcomes` the queue's lane does.
 `.github/workflows/post-merge.yml`: what a merge to the base obliges, now that
 `land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Five jobs:
 
-| Job            | When                    | Runner                                    | Does                                                                                                                                                                                                         |
-| -------------- | ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                            |
-| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                          |
-| `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**`                                                        |
-| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own |
-| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                |
+| Job            | When                    | Runner                                    | Does                                                                                                                                                                                                                                      |
+| -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                                                         |
+| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                                                       |
+| `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward to the pushed tip, or — stale — to `derive:sync`'s commit on top of it (waited for), then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**` |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own                              |
+| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                                             |
 
 The `host` matrix of `sync` lists the machines by their `host:<name>` label
 (`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
@@ -606,12 +606,39 @@ on the job worktree by `derive:sync --fresh` (the header-hash tier of
 second) and always to the PUSHED tip, never the latest — so the deployment
 never serves a catalogue that disagrees with its source; a stale tip is
 logged and held, not a red, and the derive commit's own push brings the
-fresh tip. `seed` is red on a stale tip (it resolves card names against the
-primary's disk): until issue #6248 lands PRs still carry fresh derived
-state, so a stale tip is a PR that merged stale, and the seed is run by hand
-(`bun run seed:scenario <PR>`) once the derive commit is in. Measured
-(MacBook, load 6): `derive:sync --fresh` 0.8 s; the write path with the
-corpus cache 4.6 s plus one push.
+fresh tip. `seed` resolves card names against the primary's disk, and every
+card PR's merge is a stale tip for a minute or two (below), so on a stale
+tip it WAITS for `derive:sync`'s commit on top of the pushed tip — a
+descendant under its subject touching derived paths only, fresh by
+construction (`awaitDeriveCommit`, up to 15 min, the job's own `GITHUB_SHA`
+could never become fresh) — and fast-forwards to THAT, never to the latest
+base; past the wait it is red and the seed is run by hand
+(`bun run seed:scenario <PR>`). Measured (MacBook, load 6):
+`derive:sync --fresh` 0.8 s; the write path with the corpus cache 4.6 s plus
+one push.
+
+**The PR never carries derived state (ADR 0157 § Option 1b, issue #6248).**
+The generators still write the five derived paths locally — a worktree's
+tests need fresh bytes — but at hand-off `bun run land:ready` restores them
+to the merge-base before its pre-queue check: the four `data/catalogue/*`
+files checked out whole, the lockfile's four header hashes rewritten over
+the PR's rows (`lib/derived-in-pr.ts`), one commit under
+`land:ready — derived state restored to the merge-base (ADR 0157)`, pushed —
+nothing carried, no commit. The pre-queue steps then judge the tree as a
+draft (`TOLARIA_TREE_ROLE=draft`): rows per row, the header the base's.
+`check:lane`'s `check:derived-in-diff` (`CHEAP_GUARDS`, `diffOnly`, ~0.3 s:
+`git diff --name-only` plus two `git show`s of the header) reds a diff that
+still moves a catalogue file or a header hash, the base's own `derive:sync`
+commits exempt by subject. The artefact resolver (`lib/rebase-resolve.ts`,
+`land` and `pr-refresh`) takes a marked catalogue file from the base instead
+of regenerating it, and puts the base's header back over a regenerated
+lockfile. So a card or grammar PR's diff is rows, sources and tests, GitHub
+merges it without our drivers, and every merge is a derived-stale tip until
+`derive:sync`'s commit lands: `health-early` and `health` judge such a tip
+`pending` — `derive:sync --fresh` after the worktree's bootstrap, before any
+gate; nothing gated, no verdict stored, exit 0 — for one housekeeping period
+(`DERIVED_GRACE_MS`, an hour), and RED at step `derive:sync` past it;
+`release` does not ask and gates the exact tip whole.
 
 **A red leg is heard.** `sync` heals a primary whose only divergence is
 stranded `gaps:sync` allowlist commits (dropped with `reset --keep`; the next

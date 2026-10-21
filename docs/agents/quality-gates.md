@@ -756,7 +756,11 @@ or not at all, never a slice): `check:test-hygiene` by a test file,
 Wide on purpose — each costs seconds, and a missed input is a violation that
 slips back to health. In practice every `engine`/`cards` landing admits all
 three; a `skin` one admits only `check:test-hygiene`, and only with a test file. The `full` lane runs all three after `check:pr`
-unconditionally — the fallback cannot say what moved. They run after
+unconditionally — the fallback cannot say what moved. `check:derived-in-diff`
+(ADR 0157, issue #6248) is a `diffOnly` row beside them: admitted by the
+lockfile or a `data/catalogue/*` path, ~0.3 s, it reds a PR diff that still
+carries a header hash or a catalogue file the base writes after the merge —
+no health step, the base tip has no diff. They run after
 `check:oracle`, so lockfile drift is the error seen first. They stay in
 `HEALTH_SCRIPTS`: health is the full gate.
 

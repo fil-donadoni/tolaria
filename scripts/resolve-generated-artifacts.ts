@@ -123,11 +123,15 @@ for (const artifact of plan.artifacts) {
 // A regenerated lockfile carries this tree's header hashes; the base's go
 // back over the regenerated rows (ADR 0157, issue #6248).
 if (plan.restoreHeader) {
-    const base = spawnSync("git", ["show", `${ORIGIN_BASE}:${BASE_OWNED_LOCKFILE}`], {
-        cwd: root,
-        encoding: "utf8",
-        maxBuffer: 256 * 1024 * 1024,
-    });
+    const base = spawnSync(
+        "git",
+        ["show", `${ORIGIN_BASE}:${BASE_OWNED_LOCKFILE}`],
+        {
+            cwd: root,
+            encoding: "utf8",
+            maxBuffer: 256 * 1024 * 1024,
+        }
+    );
     if (base.status === 0) {
         const path = join(root, BASE_OWNED_LOCKFILE);
         writeFileSync(

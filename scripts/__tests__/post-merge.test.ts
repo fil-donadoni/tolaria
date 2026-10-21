@@ -469,7 +469,11 @@ describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, 
                     subject: DERIVE_SYNC_COMMIT_SUBJECT,
                     files: [DERIVED_PATHS[0]!, DERIVED_PATHS[2]!],
                 },
-                { sha: "c", subject: DERIVE_SYNC_COMMIT_SUBJECT, files: [DERIVED_PATHS[1]!] },
+                {
+                    sha: "c",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [DERIVED_PATHS[1]!],
+                },
             ])
         ).toBe("b");
     });
@@ -478,7 +482,11 @@ describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, 
         expect(deriveCommitAmong([])).toBeNull();
         expect(
             deriveCommitAmong([
-                { sha: "a", subject: "feat: y (#2)", files: [DERIVED_PATHS[0]!] },
+                {
+                    sha: "a",
+                    subject: "feat: y (#2)",
+                    files: [DERIVED_PATHS[0]!],
+                },
                 { sha: "b", subject: DERIVE_SYNC_COMMIT_SUBJECT, files: [] },
                 {
                     sha: "c",
@@ -520,7 +528,12 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         git(["push", "-q", "origin", BASE_BRANCH], primary);
     });
     afterEach(() =>
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
     );
 
     /** The pusher lands a commit on the base and returns its sha. */
@@ -567,13 +580,16 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         const after = push("src/card.ts", "feat: a card (#7)");
         push("src/other.ts", "feat: another (#8)");
         const lines: string[] = [];
-        const spy = vi.spyOn(console, "error").mockImplementation((l) => void lines.push(String(l)));
+        const spy = vi
+            .spyOn(console, "error")
+            .mockImplementation((l) => void lines.push(String(l)));
         const log = vi.spyOn(console, "log").mockImplementation(() => {});
         try {
             expect(
                 seed(primary, before, after, {
                     judge: () => ({ kind: "stale", why: "header drift" }),
-                    deriveCommit: (sha) => awaitDeriveCommit(sha, primary, { waitMs: 0 }),
+                    deriveCommit: (sha) =>
+                        awaitDeriveCommit(sha, primary, { waitMs: 0 }),
                 })
             ).toBe(false);
         } finally {

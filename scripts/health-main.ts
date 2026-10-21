@@ -761,10 +761,10 @@ function judgeDerivedTip(
     const stale =
         r.status === 0
             ? null
-            : (
+            : ((
                   lines.find((l) => l.includes("derived-stale")) ?? lines.at(-1)
               )?.replace(/^derive:sync: (this tree is )?/, "") ??
-              `exit ${r.status ?? r.signal ?? "?"}`;
+              `exit ${r.status ?? r.signal ?? "?"}`);
     const committedAtMs =
         Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
     return derivedTipVerdict({ stale, committedAtMs, nowMs: Date.now() });

@@ -521,7 +521,16 @@ describe("health-main — a derived-stale tip is PENDING within derive:sync's gr
         const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
         const c = spawnSync(
             "git",
-            ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "late tip"],
+            [
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "-m",
+                "late tip",
+            ],
             {
                 cwd: primary,
                 encoding: "utf8",
@@ -535,7 +544,8 @@ describe("health-main — a derived-stale tip is PENDING within derive:sync's gr
         expect(c.status, c.stderr).toBe(0);
         git(["push", "-q", "origin", BASE_BRANCH], primary);
         const r = healthMain(["--under-lock"], {
-            FAKE_DERIVE_STALE: "data/catalogue/source-hash.json is not what the tree generates",
+            FAKE_DERIVE_STALE:
+                "data/catalogue/source-hash.json is not what the tree generates",
         });
         expect(r.status).toBe(1);
         expect(r.stderr).toMatch(/RED @ \w{8} \(derive:sync\)/);

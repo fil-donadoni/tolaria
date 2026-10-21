@@ -56,7 +56,9 @@ function lockfile(
         '    "botGaps": [',
         "    ],",
         '    "cards": [',
-        ...rows.map((r, i) => `        ${r}${i === rows.length - 1 ? "" : ","}`),
+        ...rows.map(
+            (r, i) => `        ${r}${i === rows.length - 1 ? "" : ","}`
+        ),
         "    ]",
         "}",
         "",
@@ -64,13 +66,6 @@ function lockfile(
 }
 
 describe("derived-in-pr — the lockfile split: header lines are the base's, rows the PR's", () => {
-    it("the catalogue paths are every derived path but the lockfile", () => {
-        expect(CATALOGUE_DERIVED_PATHS).toEqual(
-            DERIVED_PATHS.filter((p) => p !== LOCKFILE_PATH)
-        );
-        expect(CATALOGUE_DERIVED_PATHS).toHaveLength(4);
-    });
-
     it("reads the four header hashes, and names the ones that differ", () => {
         const base = lockfile({}, ['{"name":"A"}']);
         const head = lockfile(
@@ -131,7 +126,10 @@ describe("derivedCarried — what a diff carries of the derived state", () => {
     });
 
     it("rows only: nothing carried, the lockfile texts read but the header equal", () => {
-        const c = derivedCarried({ changed: [LOCKFILE_PATH], lockfile: rowsOnly });
+        const c = derivedCarried({
+            changed: [LOCKFILE_PATH],
+            lockfile: rowsOnly,
+        });
         expect(carriesNothing(c)).toBe(true);
         expect(derivedInDiffProblems(c)).toEqual([]);
     });
@@ -200,7 +198,8 @@ describe("check:derived-in-diff — over a real repository", () => {
     let repo: string;
     const git = (...args: string[]): string => {
         const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
-        if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
         return r.stdout.trim();
     };
     const write = (path: string, text: string): void => {
@@ -271,7 +270,10 @@ describe("check:derived-in-diff — over a real repository", () => {
 
     it("a derive:sync commit in the range is the base's — exempt", () => {
         write(CATALOGUE_DERIVED_PATHS[2]!, "v2\n");
-        write(LOCKFILE_PATH, lockfile({ compilerHash: "sha256:c2" }, ['{"name":"A"}']));
+        write(
+            LOCKFILE_PATH,
+            lockfile({ compilerHash: "sha256:c2" }, ['{"name":"A"}'])
+        );
         commit(DERIVE_SYNC_COMMIT_SUBJECT);
         write("src/a.ts", "export const a = 3;\n");
         commit("fix");
@@ -288,7 +290,8 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
     let repo: string;
     const git = (...args: string[]): string => {
         const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
-        if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
         return r.stdout;
     };
     const restoreGit: RestoreGit = {
@@ -327,10 +330,10 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
     it("restores the catalogue whole and the header lines over the PR's rows, in ONE commit, and the diff is then rows only", () => {
         write(
             LOCKFILE_PATH,
-            lockfile(
-                { compilerHash: "sha256:c2", poolHash: "sha256:p2" },
-                ['{"name":"A"}', '{"name":"B"}']
-            )
+            lockfile({ compilerHash: "sha256:c2", poolHash: "sha256:p2" }, [
+                '{"name":"A"}',
+                '{"name":"B"}',
+            ])
         );
         write(CATALOGUE_DERIVED_PATHS[0]!, "v2\n");
         write(CATALOGUE_DERIVED_PATHS[3]!, "v2\n");
@@ -356,15 +359,22 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
         expect(git("diff", "--name-only", "base", "HEAD").trim()).toBe(
             LOCKFILE_PATH
         );
-        expect(
-            git("show", `HEAD:${LOCKFILE_PATH}`)
-        ).toBe(lockfile({}, ['{"name":"A"}', '{"name":"B"}']));
+        expect(git("show", `HEAD:${LOCKFILE_PATH}`)).toBe(
+            lockfile({}, ['{"name":"A"}', '{"name":"B"}'])
+        );
         expect(lines.join("\n")).toContain("restoring derived state");
         // The guard agrees: nothing carried now.
         expect(
-            spawnSync("bun", [resolve(__dirname, "..", "check-derived-in-diff.ts"), "--base=base"], {
-                cwd: repo,
-            }).status
+            spawnSync(
+                "bun",
+                [
+                    resolve(__dirname, "..", "check-derived-in-diff.ts"),
+                    "--base=base",
+                ],
+                {
+                    cwd: repo,
+                }
+            ).status
         ).toBe(0);
     });
 

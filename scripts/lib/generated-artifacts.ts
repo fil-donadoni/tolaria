@@ -557,7 +557,8 @@ export function planResolution(input: {
                 `  fix: resolve by hand, or add it to REGENERATED_ARTIFACTS in scripts/lib/generated-artifacts.ts`,
         };
     }
-    if (artifacts.length === 0 && fromBase.length === 0) return { kind: "none" };
+    if (artifacts.length === 0 && fromBase.length === 0)
+        return { kind: "none" };
     if (artifacts.some((a) => a.requiresCorpus) && !input.corpusPresent) {
         return {
             kind: "refuse",

@@ -355,7 +355,11 @@ describe("derivedTipVerdict — a derived-stale tip is pending within derive:syn
 
     it("a fresh tip is gated as ever", () => {
         expect(
-            derivedTipVerdict({ stale: null, committedAtMs: t0, nowMs: t0 + 5 * 3_600_000 })
+            derivedTipVerdict({
+                stale: null,
+                committedAtMs: t0,
+                nowMs: t0 + 5 * 3_600_000,
+            })
         ).toEqual({ kind: "fresh" });
     });
 
@@ -393,8 +397,12 @@ describe("derivedTipVerdict — a derived-stale tip is pending within derive:syn
     it("the grace is one housekeeping period — an hour", () => {
         expect(DERIVED_GRACE_MS).toBe(3_600_000);
         expect(
-            derivedTipVerdict({ stale: "x", committedAtMs: t0, nowMs: t0 + 10, graceMs: 5 })
-                .kind
+            derivedTipVerdict({
+                stale: "x",
+                committedAtMs: t0,
+                nowMs: t0 + 10,
+                graceMs: 5,
+            }).kind
         ).toBe("red");
     });
 });
@@ -409,7 +417,12 @@ describe("gateSkipReason — a pending record never skips the tip (issue #6248)"
         };
         for (const retryTerminal of [true, false])
             expect(
-                gateSkipReason({ last, tip: last.sha, now: Date.now(), retryTerminal })
+                gateSkipReason({
+                    last,
+                    tip: last.sha,
+                    now: Date.now(),
+                    retryTerminal,
+                })
             ).toBeNull();
     });
 });

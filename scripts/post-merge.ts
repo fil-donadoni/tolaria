@@ -387,8 +387,10 @@ const SEED_DERIVE_POLL_MS = 20_000;
 
 /** The base's commits after `after`, oldest first, with their files. */
 function commitsAfter(after: string, primary: string): BaseCommit[] {
-    const shas = git(["rev-list", "--reverse", `${after}..${ORIGIN_BASE}`], primary)
-        .out;
+    const shas = git(
+        ["rev-list", "--reverse", `${after}..${ORIGIN_BASE}`],
+        primary
+    ).out;
     return shas === ""
         ? []
         : shas.split("\n").map((sha) => ({
@@ -397,7 +399,9 @@ function commitsAfter(after: string, primary: string): BaseCommit[] {
               files: git(
                   ["diff-tree", "--no-commit-id", "--name-only", "-r", sha],
                   primary
-              ).out.split("\n").filter((f) => f !== ""),
+              )
+                  .out.split("\n")
+                  .filter((f) => f !== ""),
           }));
 }
 

@@ -45,7 +45,12 @@
  * is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync,
+} from "node:fs";
 import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import {
@@ -174,7 +179,11 @@ function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
     const r = spawnSync(
         "bun",
         [resolve(import.meta.dirname, "gate.ts"), "light", command],
-        { stdio: "inherit", cwd, env: { ...process.env, [TREE_ROLE_ENV]: "draft" } }
+        {
+            stdio: "inherit",
+            cwd,
+            env: { ...process.env, [TREE_ROLE_ENV]: "draft" },
+        }
     );
     if (r.status === GATE_INFRA) {
         throw new Error(
