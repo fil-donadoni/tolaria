@@ -329,6 +329,7 @@ import {
     buildCastPermanentCostChoice,
     canPayKickerLegs,
     castAnnouncedTargetGroups,
+    firstUnfillableCastGroup,
     foldKickerCosts,
     kickedCountOfPayments,
     kickerLifeCost,
@@ -7010,83 +7011,47 @@ export const announceCast = mutation({
             // come from the ONE factory (CR 202.2 colours, 205.2 types, 205.3
             // subtypes, 205.4a supertypes), so none can be dropped.
             const castSource = targetingSourceFromCard(cardInHand, true);
-            const legalTargets = getLegalTargets(
-                state,
-                activeTargetRequirement,
-                castSource,
-                args.playerId,
-                chosenX
+            // CR 601.2c: must be able to choose enough legal targets for EVERY
+            // announced group — the one shared predicate the castability gate
+            // reads too (`firstUnfillableCastGroup`, `gre/kicker.ts`). A min-0
+            // requirement ("up to X" / "up to N", Pest Infestation / Force of
+            // Vigor) is legal to announce with ZERO legal targets, so
+            // `required` is resolved per group before an empty set is fatal.
+            // Groups come from the ONE list built above, so a kicker-gated
+            // group (CR 702.33g) is dropped here by the decision that dropped
+            // it from the primary slot. For a MODAL spell they come from the
+            // chosen mode (Hull Breach, issue #1953).
+            // ADR 0094 — with several mode instances the "another target" pair
+            // is only meaningful inside one instance (CR 700.2d).
+            const shortfall = firstUnfillableCastGroup(
+                announcedGroups,
+                (req) =>
+                    getLegalTargets(
+                        state,
+                        req,
+                        castSource,
+                        args.playerId,
+                        chosenX
+                    ),
+                (req, i) =>
+                    i === 0
+                        ? minTargetCount(resolvedCount!)
+                        : minTargetCount(
+                              resolveTargetCount(req.count, chosenX)
+                          ),
+                (i) =>
+                    !multiModeGroups ||
+                    multiModeGroups[i]?.instance ===
+                        multiModeGroups[0]?.instance
             );
-            // CR 601.2c: must be able to choose enough legal targets. A
-            // min-0 requirement ("up to X" / "up to N", Pest Infestation /
-            // Force of Vigor) is legal to announce with ZERO legal targets
-            // on the board — the sibling checks already get this right
-            // (`hasEnoughLegalTargets`'s `required <= 0` early return,
-            // gre/rules.ts, and the client hint's identical guard,
-            // src/lib/card-utils.ts) — so `required` must be resolved
-            // BEFORE deciding whether an empty legal-target set is fatal,
-            // not after an unconditional throw on `legalTargets.length ===
-            // 0`.
-            const required = minTargetCount(resolvedCount!);
-            if (legalTargets.length < required) {
+            if (shortfall) {
                 throw new Error(
-                    legalTargets.length === 0
+                    shortfall.kind === "none"
                         ? "No legal targets available"
                         : "Not enough legal targets"
                 );
             }
-            // CR 601.2c — a spell with additional INDEPENDENT target groups
-            // (Fumarole's "target creature AND target land") is legal only if
-            // EVERY group has enough legal candidates at announcement. Validate
-            // each additional requirement up front so a half-chosen cast can't
-            // strand on an unfillable second group. The groups are chosen in
-            // order after the primary one; `remainingRequirements` queues them.
-            // For a MODAL spell the groups come from the chosen mode (Hull
-            // Breach's "Destroy target artifact and target enchantment",
-            // issue #1953), mirroring how `activeTargetRequirement` above
-            // prefers `chosenMode.targetRequirement` — a modal card keeps its
-            // card-level requirements undefined by convention, so the `??`
-            // chain reduces to the card-level list for every non-modal spell.
-            // Issue #4220 — the tail of the ONE list built above, so a
-            // kicker-gated group (CR 702.33g) is dropped from the queue by the
-            // same decision that dropped it from the primary slot.
             const additionalRequirements = announcedGroups.slice(1);
-            for (const [g, extra] of additionalRequirements.entries()) {
-                const extraLegal = getLegalTargets(
-                    state,
-                    extra,
-                    castSource,
-                    args.playerId,
-                    chosenX
-                );
-                const extraRequired = minTargetCount(
-                    resolveTargetCount(extra.count, chosenX)
-                );
-                if (extraLegal.length < extraRequired) {
-                    throw new Error("Not enough legal targets");
-                }
-                // CR 115.3 "another target" (issue #3236) — the ability path's
-                // twin check (`activateAbilityOnState`, gre/activation.ts): a
-                // group that may not re-pick an earlier group's permanent needs
-                // enough DISTINCT candidates across both, or the announcement
-                // dead-ends on a group the first pick just emptied.
-                // ADR 0094 — the pair compared here is the PRIMARY group and
-                // this one; with several mode instances that pair is only
-                // meaningful inside one instance (CR 700.2d lets another
-                // instance re-pick). The walk excludes exactly either way.
-                const sameInstanceAsPrimary =
-                    !multiModeGroups ||
-                    multiModeGroups[g + 1]?.instance ===
-                        multiModeGroups[0]?.instance;
-                if (extra.excludePriorTargets && sameInstanceAsPrimary) {
-                    const distinct = new Set(
-                        [...legalTargets, ...extraLegal].map((t) => t.id)
-                    );
-                    if (distinct.size < required + extraRequired) {
-                        throw new Error("Not enough legal targets");
-                    }
-                }
-            }
             // Enter target selection phase before mana payment. The
             // requirement-derived filters come from the SAME builder the
             // additional-group path uses (`pendingTargetFiltersFromRequirement`
