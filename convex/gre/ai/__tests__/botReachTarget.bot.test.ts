@@ -16,6 +16,7 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import { getCardByName } from "../../../cards";
+import { enumerateMoves } from "../../moves";
 import { getLegalActions } from "../../rules";
 import {
     BOT_REACH_BUDGET,
@@ -31,6 +32,7 @@ import {
     costPose,
     targetPose,
 } from "../botReachTarget";
+import { usesCard } from "../botReachTrace";
 
 const targetPoseCards = (def: CardDefinition) => targetPose(def).cards;
 
@@ -69,6 +71,19 @@ function castable(def: CardDefinition): boolean {
         const player = state.players.find((p) => p.id === holderId)!;
         const card = player.hand.find((c) => c.id === instanceId)!;
         return getLegalActions(state, player, card).includes("cast");
+    });
+}
+
+/** Does the Bot enumerate a Move that casts this card? Stricter than
+ *  {@link castable}: `getLegalActions` reads only the first target group, while
+ *  the cast announcement and the Bot's group enumerator need EVERY group to
+ *  have a legal target (CR 601.2c). */
+function botCanCast(def: CardDefinition): boolean {
+    return withTemporaryDefinition(def, () => {
+        const { state, holderId, instanceId } = buildBotReachState(def, 0);
+        return enumerateMoves(state, holderId).some((m) =>
+            usesCard(m, instanceId)
+        );
     });
 }
 
@@ -136,6 +151,91 @@ describe("the generated position poses a declared combat (CR 508.1, 509.1)", () 
             { effects: PUMP }
         );
         expect(castable(def)).toBe(true);
+        expect(withTemporaryDefinition(def, () => playBotReach(def))).toEqual({
+            outcome: "played",
+        });
+    });
+});
+
+describe("every target group's combat role is posed (CR 115.3, 508.1, 509.1)", () => {
+    // The printed "ANOTHER target" (`excludePriorTargets`) forbids the first
+    // group's pick, which CR 115.3 alone would allow, so the second group
+    // needs a combatant of its own: one declared blocker left "another target
+    // blocking creature" with nothing to choose (issue #6060).
+    const another = (role: "attacking" | "blocking"): TargetRequirement => ({
+        type: "Creature",
+        count: 1,
+        combatRoleFilter: [role],
+        excludePriorTargets: true,
+    });
+    const FIGHT: EffectOp[] = [
+        { op: "fight", creature: { target: 0 }, other: { target: 1 } },
+    ];
+    const fight = (
+        first: "attacking" | "blocking",
+        second: "attacking" | "blocking"
+    ): CardDefinition =>
+        instant(
+            `fight-${first}-${second}`,
+            { combatRoleFilter: [first] },
+            { effects: FIGHT, additionalTargetRequirements: [another(second)] }
+        );
+
+    it.each([
+        ["two blocking creatures", "blocking", "blocking"],
+        ["two attacking creatures", "attacking", "attacking"],
+        ["an attacking and a blocking creature", "attacking", "blocking"],
+    ] as const)("%s", (_label, first, second) => {
+        expect(botCanCast(fight(first, second))).toBe(true);
+    });
+
+    it("a blocking and an attacking creature: the later group takes the declared attacker", () => {
+        // Removal of a blocker is posed with the holder attacking, and that
+        // attacker is no earlier group's pick: nothing more is declared.
+        const def = fight("blocking", "attacking");
+        expect(targetPose(def).position.combat?.attackers).toEqual([
+            "Grizzly Bears",
+        ]);
+        expect(botCanCast(def)).toBe(true);
+    });
+
+    it("a later group's toughness ceiling drops the position's +0/+2", () => {
+        const def = instant(
+            "fight-blocking-small-blocking",
+            { combatRoleFilter: ["blocking"] },
+            {
+                effects: FIGHT,
+                additionalTargetRequirements: [
+                    { ...another("blocking"), toughnessFilter: { max: 2 } },
+                ],
+            }
+        );
+        expect(botCanCast(def)).toBe(true);
+    });
+
+    it("no blocker is posed for an attacker that evasion could refuse it (CR 509.1b)", () => {
+        const def = instant(
+            "fight-flier-blocking",
+            { combatRoleFilter: ["attacking"], requireAbility: "flying" },
+            {
+                effects: FIGHT,
+                additionalTargetRequirements: [another("blocking")],
+            }
+        );
+        const combat = targetPose(def).position.combat;
+        // The first group's flier attacks; the later group gets no blocker.
+        expect(combat?.attackers).toHaveLength(1);
+        expect(combat?.blockers).toBeUndefined();
+    });
+
+    it("the blocked-attack window declares the later group's attacker too", () => {
+        const combat = blockedAttackPose(fight("attacking", "attacking"))
+            ?.position.combat;
+        expect(combat?.attackers).toHaveLength(2);
+    });
+
+    it("two blocking creatures: the Bot casts the fight", () => {
+        const def = fight("blocking", "blocking");
         expect(withTemporaryDefinition(def, () => playBotReach(def))).toEqual({
             outcome: "played",
         });
