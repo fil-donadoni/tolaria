@@ -23,13 +23,17 @@ import {
     ladderRung,
     MAX_FIX_ATTEMPTS,
     parseCulprit,
+    revertBranch,
     revertPrBody,
     type EpisodeRed,
     type LadderFacts,
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
+import { isAdoptableWorktree, issueOfBranch } from "../lib/issue-worktree";
+import { repairItems } from "../lib/queue-plan";
 import { closingIssueRefs } from "../lib/red-land-gate";
-import { prNumberOfUrl, worktreeHolding } from "../health-revert";
+import { hasNoWalkOwedLine, revertedCommitOf } from "../lib/ui-scope";
+import { prNumberOfUrl } from "../health-revert";
 
 /**
  * The RED ladder's last rungs (issue #5646, ADR 0156 Amendment I): fix
@@ -459,11 +463,33 @@ describe("the ladder's facts and texts", () => {
             issue: 6001,
             red: RED,
             culprit: CULPRIT,
+            revertedSha: "c".repeat(40),
             culpritIssues: [5690],
         });
         expect(closingIssueRefs(body)).toEqual([6001]);
         expect(body).toMatch(/^## Preset scenario$/m);
-        expect(body).toMatch(/^check:ui: no walk owed \(.+\)$/m);
+        // The verified revert line, never the bare no-walk claim `land`
+        // refuses for an owed diff (issue #6071).
+        expect(revertedCommitOf(body)).toBe("c".repeat(40));
+        expect(hasNoWalkOwedLine(body)).toBe(false);
+    });
+
+    it("the revert branch names its repair issue, so a land-failed revert is a repair pick (issue #6071)", () => {
+        const branch = revertBranch(6001);
+        expect(issueOfBranch(branch)).toBe(6001);
+        expect(isAdoptableWorktree(6001, branch)).toBe(true);
+        expect(
+            repairItems(
+                [{ number: 6002, headRefName: branch }],
+                () => ({ labels: ["bug"], body: "" }),
+                {
+                    batchCap: 1,
+                    staleClaimHours: 24,
+                    defaultImplModel: "sonnet",
+                    now: "2026-10-21T00:00:00Z",
+                }
+            ).map((r) => [r.number, r.pr])
+        ).toEqual([[6001, 6002]]);
     });
 
     it("one escalation title per RED sha", () => {
@@ -557,22 +583,6 @@ describe("review fixes — the bounds no rung can escape", () => {
         expect(mayRedispatch(MAX_HOPS - 2)).toBe(true);
         expect(mayRedispatch(MAX_HOPS - 1)).toBe(false);
         expect(mayRedispatch(Number.NaN)).toBe(false);
-    });
-
-    it("finds the worktree that holds a branch", () => {
-        const porcelain = [
-            "worktree /p",
-            "HEAD 1",
-            "branch refs/heads/staging",
-            "",
-            "worktree /p/../tolaria-revert-9",
-            "HEAD 2",
-            "branch refs/heads/revert/cccccccccccc",
-        ].join("\n");
-        expect(worktreeHolding(porcelain, "revert/cccccccccccc")).toBe(
-            "/p/../tolaria-revert-9"
-        );
-        expect(worktreeHolding(porcelain, "revert/dddddddddddd")).toBeNull();
     });
 });
 

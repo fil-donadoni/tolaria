@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, amended once (Amendment I, the gap review, same day) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended twice (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -596,6 +596,37 @@ the fallback); GitHub's failure emails carry no digest and no quiet hours
 RAM-aware admission. The deletion shrinks accordingly: what stays is listed
 above, so the estimate drops from ~110k lines to ~60k, to be measured in
 phase 4.
+
+## Amendment II (2026-10-21) — a ladder revert's `check:ui` receipt, and its branch
+
+Issue #6071. The first rung-5 revert (PR #6067, for the RED of issue #6066)
+was refused by `land` at once: its body claimed `check:ui: no walk owed`, but
+the diff deleted an overlay, so `uiWalkOwed` owed a walk and the line was
+refused. The claim behind it — "an automated revert restores the tree the last
+GREEN walked" — was false anyway: the base had moved 31 commits since that
+GREEN, and batch health never walks. And its branch, `revert/<sha12>`, named
+no issue, so the runner handed the `land-failed` PR to a human.
+
+**Receipt policy — a verified exemption, not a walk.** The ladder runs where
+no deployment and no browser are guaranteed, so it does not run `check:ui`.
+Its PR body carries instead
+`check:ui: revert of <full sha> restores its parent on every DOM path`, and
+`land` (and the `ui-receipt` check, the same function) accepts it only when
+the reverted commit is in the landing tree's history AND every DOM-reachable
+changed path (the paths `uiWalkOwed` reads) is one that commit touched and is byte-identical at HEAD to
+that commit's parent — absent on both sides counting as identical. Those
+files then return to content that already landed through the gate; nothing
+else is claimed. A revert that does not restore them exactly (a later commit
+touched the same file, a hand edit on the branch) loses the exemption and
+owes a receipt like any PR. Accepted cost: restored files can still meet
+newer neighbours they never rendered beside; the next hand-run full walk
+(issue #6143) is where that shows.
+
+**Branch — the repair issue's.** The revert is pushed on
+`fix/issue-<repair issue>`, the shape `queue:plan`'s repair pick and
+`wt:new --resume` read, so a `land-failed` revert is routed to a pass like any
+other repair. The rung's worktree is detached; the branch is named only once
+the repair issue exists, and pushed from HEAD.
 
 ## What would change the answer
 
