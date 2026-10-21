@@ -47,6 +47,7 @@ import {
 } from "./check-lane";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
+import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { MANUAL_LABEL } from "./lib/land-labels";
@@ -279,8 +280,21 @@ function main(): void {
         );
         process.exit(1);
     }
-    preQueueGate(pr, view.headRefOid, view.body);
     const issue = issueOfBranch(view.headRefName);
+    // The claim is checked before any label or journal write (issue #5996).
+    if (issue !== null) {
+        const refusal = checkClaimGate(
+            issue,
+            `land:ready ${pr}`,
+            process.env,
+            realClaimGateDeps(claimLedgerPath)
+        );
+        if (refusal !== null) {
+            console.error(`✗ land:ready: ${refusal}`);
+            process.exit(1);
+        }
+    }
+    preQueueGate(pr, view.headRefOid, view.body);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,
