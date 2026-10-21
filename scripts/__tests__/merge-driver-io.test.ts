@@ -62,6 +62,7 @@ describe("merge driver stderr survives process.exit (issue #3857)", () => {
         ).toEqual([
             "merge-driver-append-only.ts",
             "merge-driver-cr-ledger.ts",
+            "merge-driver-key-set.ts",
             "merge-driver-regenerated.ts",
         ]);
     });

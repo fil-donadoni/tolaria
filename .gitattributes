@@ -34,6 +34,11 @@ src/AGENTS.md merge=regenerated
 # the same test, and registered by the same `bun run worktree:init`.
 data/cr/citations-ledger.json merge=cr-ledger
 
+# The issue-log ratchet baseline (issue #6276): a sorted key set that only
+# shrinks. Adjacent or overlapping deletions on two branches conflict as text
+# without disagreeing; the `key-set` driver merges it as a set.
+data/issue-log-comments-baseline.json merge=key-set
+
 # Hand-written append-only lists (issue #5942): two branches appending an entry
 # at the same end conflict without disagreeing. The `append-only` driver merges
 # in diff3 style and concatenates only the hunks where both sides purely
