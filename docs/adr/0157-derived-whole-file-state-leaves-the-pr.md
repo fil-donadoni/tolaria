@@ -2,11 +2,10 @@
 
 ## Status
 
-**proposed** — awaiting the owner's choice between the options in
-§ Options (issue #6173, parent issue #6164). The recommendation is Option 1.
-No implementation ticket is cut until the owner approves a choice; the
-tickets in § Implementation tickets are the plan for Option 1 and are filed
-as children of issue #6164 on approval.
+**accepted** — the owner chose Option 1 on 2026-10-21 (issue #6173, parent
+issue #6164). Its tickets are filed as children of issue #6164: issue #6244
+(1a), issue #6245, issue #6246, issue #6247, issue #6248 (§ Implementation
+tickets).
 
 ## Context
 
@@ -211,20 +210,21 @@ the red rate.
 - `reset_on_external_merge: never` changes queue semantics for every
   out-of-queue push, not only the derive commit (§ Option 1b).
 
-## Implementation tickets (cut on approval, children of issue #6164)
+## Implementation tickets (children of issue #6164)
 
-1. **Lockfile: `counts` and `formats` derived on read** — remove them from
+1. **issue #6244 — Lockfile: `counts` and `formats` derived on read** — remove them from
    `serializeLockfile`, one derivation function for every reader; `check:oracle`
    structure tier accepts the new shape. Blocks nothing.
-2. **Mergify: `reset_on_external_merge: never`** — `.mergify.yml` (a
+2. **issue #6245 — Mergify: `reset_on_external_merge: never`** — `.mergify.yml` (a
    `merge:manual` PR, it touches `.mergify.yml`); measure with `queue:churn`
    that a `gaps:sync` commit no longer cancels drafts.
-3. **`derive:sync` in `housekeeping`** — regenerate header hashes and
+3. **issue #6247 — `derive:sync` in `housekeeping`** — regenerate header hashes and
    `data/catalogue/*` on the tip, coalescing push; post-merge `sync` moves the
-   primary only to a derived-fresh tip. Blocked by 2.
-4. **Queue-lane regenerates derived state in the draft's tree** — and
+   primary only to a derived-fresh tip. Blocked by issue #6245.
+4. **issue #6246 — Queue-lane regenerates derived state in the draft's tree** — and
    `check:oracle` compares per row in the lane, `headerHashDrift` on the base
    only; `catalogue-artifact.test.ts` freshness moves to the base predicate.
-5. **The PR stops carrying derived paths** — `land:ready` restores them to
+5. **issue #6248 — The PR stops carrying derived paths** — `land:ready` restores them to
    the merge-base, `check:lane` `derived-in-diff` guard; health treats a
-   derived-stale tip as `pending` within the grace. Blocked by 3 and 4.
+   derived-stale tip as `pending` within the grace. Blocked by issue #6247
+   and issue #6246.
