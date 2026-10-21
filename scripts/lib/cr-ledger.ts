@@ -794,9 +794,11 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
  *   - on BOTH sides with differing `status` → `confirmed` wins. A reader
  *     printed the rule; `baseline` is grandfathering, and the ledger's
  *     baseline only ever shrinks;
- *   - on BOTH sides with differing `sites` → the max. Self-correcting rather
- *     than load-bearing: `cr:lint` recomputes site counts against the tree, so
- *     a wrong value reds loudly instead of passing silently.
+ *   - on BOTH sides with differing `sites` → three-way: the side that moved
+ *     off BASE wins (a lowered count is not resurrected by a stale branch);
+ *     the max only when both moved. Self-correcting rather than load-bearing:
+ *     `cr:lint` recomputes site counts against the tree, so a wrong value
+ *     reds loudly instead of passing silently.
  *
  * A delete on one side against a MODIFY on the other resolves to the delete,
  * per the rule above. It is the honest degradation of the two: if the merged
