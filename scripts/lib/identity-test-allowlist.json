@@ -565,11 +565,6 @@
         "reason": "Drift guard: grammar's BASIC_LAND_SUBTYPE_ORDER matches catalogue's independently maintained BASIC_LAND_SUBTYPES."
     },
     {
-        "file": "dashboard/lib/__tests__/historyState.test.ts",
-        "test": "History URL round trip (#2635) > the walked key set IS the slice's key set — a field the round trip does not know about cannot exist",
-        "reason": "Drift guard: SLICE_KEYS matches DEFAULT_SLICE's own keys (codec/field parity)."
-    },
-    {
         "file": "scripts/__tests__/bot-fast-lane.test.ts",
         "test": "bot fast lane — deny-list stays honest (issue #1912) > keeps the deny-list small — it is a cost exception, not a hiding place",
         "reason": "Bound invariant: HEAVY_BOT_BASENAMES deny-list stays under MAX_DENY_LIST."
@@ -618,21 +613,6 @@
         "file": "scripts/__tests__/convex-bundle-size.test.ts",
         "test": "Convex bundle verdict: warning vs hard bound (issue #4810, ADR 0113 Amendment III) > keeps the lines ordered: warning < documented < hard bound < enforced",
         "reason": "Ordering census over four independently defined bundle bounds (warning, documented, hard bound, enforced ceiling)."
-    },
-    {
-        "file": "scripts/__tests__/dashboard-now-port.test.ts",
-        "test": "mirrored constants — the ported modules restate three server numbers > the activity chart's window equals the server's",
-        "reason": "Drift guard: dashboard's ACTIVITY_WINDOW_HOURS matches the independently maintained server constant."
-    },
-    {
-        "file": "scripts/__tests__/dashboard-now-port.test.ts",
-        "test": "mirrored constants — the ported modules restate three server numbers > the claims table's amber threshold equals the classifier's own",
-        "reason": "Drift guard: dashboard's MIN_AGE_HOURS matches the independently maintained classifier constant."
-    },
-    {
-        "file": "scripts/__tests__/dashboard-now-port.test.ts",
-        "test": "mirrored constants — the ported modules restate three server numbers > the timeline window equals the gather layer's own",
-        "reason": "Drift guard: dashboard's WINDOW_HOURS matches the independently maintained gather-layer constant."
     },
     {
         "file": "scripts/__tests__/gap-issues.test.ts",
