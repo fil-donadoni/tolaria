@@ -20,7 +20,7 @@ import {
     type Step,
     TOKEN_PLACEHOLDER,
 } from "../lib/github-runner";
-import { renderLaunchdUnit } from "../lib/launchd-render";
+import { renderedPath, renderLaunchdUnit } from "../lib/launchd-render";
 
 // Self-hosted GitHub Actions runners (ADR 0156 §7 + Amendment I, issue #5634).
 
@@ -31,6 +31,8 @@ const subs = {
     home: "/h",
 };
 const hasNode = (p: string) => p === "/h/.nvm/v24/bin/node";
+const hasNodeAndClaude = (p: string) =>
+    hasNode(p) || p === "/h/.local/bin/claude";
 const ROOT = "/h/.local/share/tolaria/actions-runner";
 const plistTpl = readFileSync(
     "scripts/runner-units/com.tolaria.gh-runner.plist",
@@ -61,7 +63,12 @@ function input(platform: "darwin" | "linux"): InstallInput {
                 ? Object.fromEntries(
                       runners.map((r) => [
                           r.name,
-                          renderRunnerPlist(plistTpl, r, subs, hasNode),
+                          renderRunnerPlist(
+                              plistTpl,
+                              r,
+                              subs,
+                              hasNodeAndClaude
+                          ),
                       ])
                   )
                 : {},
@@ -188,7 +195,7 @@ describe("runner declaration", () => {
 describe("runner units", () => {
     it("the MacBook runner runs run.sh under caffeinate, with node on PATH", () => {
         const [r] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
-        const out = renderRunnerPlist(plistTpl, r, subs, hasNode);
+        const out = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
         expect(out).toContain(
             "<string>com.tolaria.gh-runner.mac-pass-1</string>"
         );
@@ -232,6 +239,39 @@ describe("runner units", () => {
                 () => true
             )
         ).toThrow(/unsubstituted/);
+    });
+
+    it("launchd and systemd PATHs both start with the one shared head (issue #6217)", () => {
+        const [r] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
+        const plist = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
+        const head = ["/h/.local/bin", "/h/.bun/bin", "/h/.nvm/v24/bin"].join(
+            ":"
+        );
+        expect(renderedPath(plist).startsWith(`${head}:`)).toBe(true);
+        expect(systemdRunnerPath("/h", "/h/.nvm/v24/bin")).toMatch(
+            new RegExp(`^${head}:`)
+        );
+    });
+
+    it("a pass-runner unit whose PATH resolves no claude is refused", () => {
+        const [pass] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
+        expect(() => renderRunnerPlist(plistTpl, pass, subs, hasNode)).toThrow(
+            /claude not resolvable/
+        );
+        const [lane] = runnerSpecs("mac", { pass: 0, lane: 1, seed: 0 }, ROOT);
+        expect(() =>
+            renderRunnerPlist(plistTpl, lane, subs, hasNode)
+        ).not.toThrow();
+        expect(() =>
+            renderRunnerSystemdTemplate(
+                systemdTpl,
+                ROOT,
+                systemdRunnerPath("/h", "/h/.nvm/v24/bin"),
+                "/r",
+                hasNode,
+                true
+            )
+        ).toThrow(/claude not resolvable/);
     });
 
     it("the systemd PATH is fixed, never the installing shell's", () => {
