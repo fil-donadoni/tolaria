@@ -88,6 +88,81 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
     );
 }
 
+// ── Who holds issue N — the hand-off's ownership check (issue #5996) ────────
+//
+// `queue:claim` is the only verb that reads the claim before work starts, and
+// only `/next-ticket` calls it. A session that filed an issue and implemented
+// it straight away never claimed it, so `wt:new` and `land:ready` ran over a
+// claim another session held (issue #5986: two passes, one issue, found out at
+// a rejected push). `claimOwnership` is the ONE definition of "live claim" and
+// "owner" those two verbs share: the `in-progress` label is the claim (as for
+// every reader), the journal's last `claim` row names the owning session.
+
+/** Escape for `wt:new` / `land:ready` when the session knowingly works an
+ *  issue it did not claim; logged like `TOLARIA_OVER_CAP=1`. */
+export const UNCLAIMED_OK_ENV = "TOLARIA_UNCLAIMED_OK";
+
+export type ClaimOwnership =
+    | { ok: true }
+    | { ok: false; reason: "no-claim" | "foreign-owner"; message: string };
+
+/**
+ * Pure: whether `session` holds the live claim on `issue`.
+ *
+ * - no `in-progress` label, or the journal's last row for the issue is a
+ *   `released` one → no live claim;
+ * - otherwise the owner is the session of the issue's last `claim` row (a
+ *   `pr-open` row keeps the claim and the owner). Another session, no `claim`
+ *   row on this machine (another machine's claim, or a hand-typed label), or
+ *   an empty session on either side → never this session's.
+ *
+ * `ledgerText` is the raw `claims.jsonl`; torn lines are skipped, as in every
+ * other reader.
+ */
+export function claimOwnership(input: {
+    issue: number;
+    session: string;
+    hasClaimLabel: boolean;
+    ledgerText: string;
+    /** The verb refusing, named in the message. */
+    verb: string;
+}): ClaimOwnership {
+    let lastEvent: unknown = null;
+    let owner: string | null = null;
+    for (const line of input.ledgerText.split("\n")) {
+        if (line.trim() === "") continue;
+        let row: { issue?: unknown; event?: unknown; session?: unknown };
+        try {
+            row = JSON.parse(line) as typeof row;
+        } catch {
+            continue;
+        }
+        if (row.issue !== input.issue) continue;
+        lastEvent = row.event;
+        if (row.event === "claim")
+            owner = typeof row.session === "string" ? row.session : "";
+    }
+    const escape = `\`${UNCLAIMED_OK_ENV}=1 bun run ${input.verb}\` (announced, logged) accepts it anyway`;
+    if (!input.hasClaimLabel || lastEvent === "released")
+        return {
+            ok: false,
+            reason: "no-claim",
+            message:
+                `issue #${input.issue} has no live claim — run \`bun run queue:claim ${input.issue}\` first ` +
+                `(\`wt:new ${input.issue} --resume\` after it, to take over a dead pass's branch); ${escape}.`,
+        };
+    if (input.session === "" || owner === null || owner !== input.session)
+        return {
+            ok: false,
+            reason: "foreign-owner",
+            message:
+                `issue #${input.issue}'s live claim is not this session's — another pass is working it. ` +
+                `Pick another issue, or take over a dead pass's claim with \`bun run queue:claim ${input.issue}\` ` +
+                `then \`wt:new ${input.issue} --resume\`; ${escape}.`,
+        };
+    return { ok: true };
+}
+
 // ── The stale-claim rule, shared with the planner ───────────────────────────
 
 /**
