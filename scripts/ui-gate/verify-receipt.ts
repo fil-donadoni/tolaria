@@ -118,8 +118,8 @@ export function landingWalkOwed(
  * `changed` to `culprit`'s parent (issue #6071)? `culprit` must be in HEAD's
  * history — a revert of a commit that never landed proves nothing — and each
  * path's blob at HEAD must equal its blob at `culprit^`, absent on both sides
- * counting as equal. Anything that cannot be read answers `false`: the
- * exemption is lost, never granted.
+ * counting as equal; a path the culprit did not touch loses it. Anything
+ * that cannot be read answers `false`: the exemption is lost, never granted.
  */
 export function landingRestoresParent(
     culprit: string,
@@ -140,13 +140,28 @@ export function landingRestoresParent(
     if (git(["merge-base", "--is-ancestor", culprit, "HEAD"]) === null)
         return false;
     if (git(["rev-parse", "--verify", `${culprit}^`]) === null) return false;
-    return domReachablePaths(changed).every(
-        (p) =>
-            git(["rev-parse", "--verify", "--quiet", `HEAD:${p}`]) ===
-            git(["rev-parse", "--verify", "--quiet", `${culprit}^:${p}`])
-    );
+    // Only the culprit's own paths: a PR that restores some other file to an
+    // old state is not this revert.
+    const touched = git([
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        `${culprit}^`,
+        culprit,
+    ]);
+    if (touched === null) return false;
+    const own = new Set(touched.split("\n").filter(Boolean));
+    // `ls-tree` prints nothing for an absent path and fails on a git error:
+    // absent on both sides is equal, an error on both sides is not.
+    const blob = (rev: string, p: string) => git(["ls-tree", rev, "--", p]);
+    return domReachablePaths(changed).every((p) => {
+        if (!own.has(p)) return false;
+        const head = blob("HEAD", p);
+        const parent = blob(`${culprit}^`, p);
+        return head !== null && parent !== null && head === parent;
+    });
 }
-
 /**
  * Which surfaces the tree at `root` edits in `surfaces.ts` relative to the
  * merge-base with the base branch (issue #4687) — the same reference

@@ -2413,6 +2413,18 @@ describe("land.ts — a RED-ladder revert lands without a walk only when it rest
         expect(invalid(bodyFor(culprit))).toBe(true);
     });
 
+    it("a DOM path the culprit never touched grants nothing, even when unchanged since its parent", () => {
+        const other = "src/components/limited/limited-other-dialog.tsx";
+        expect(
+            skinReceiptInvalidForDiff(
+                [...PATHS, other],
+                repo,
+                bodyFor(culprit),
+                noScope
+            )
+        ).toBe(true);
+    });
+
     it("a commit outside the tree's history grants nothing", () => {
         git("checkout", "-q", "-b", "elsewhere", `${culprit}^`);
         // Its parent matches HEAD on every path: only the history check
