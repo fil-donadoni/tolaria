@@ -425,6 +425,11 @@ merge — it never re-runs the suite:
 
   bun scripts/pr-merge.ts <PR#>
 
+A \`merge:manual\` PR (one the Mergify queue refuses) merges through the command
+that waits for its advisory lane, green on its up-to-date head:
+
+  bun run merge:manual <PR#>
+
 Genuinely need to merge by hand? Say so in the command itself:
   TOLARIA_ALLOW_MANUAL_MERGE=1 gh pr merge <PR#> --squash"
 fi
