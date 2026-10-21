@@ -18,11 +18,15 @@ import {
     MERGE_DRIVER_NAME,
     OTHER_MERGE_DRIVERS,
     planResolution,
+    BASE_OWNED_LOCKFILE,
+    BASE_OWNED_PATHS,
     REGENERATE_MARKER,
     matchesUnregeneratedPattern,
     REGENERATED_ARTIFACTS,
     UNREGENERATED_DATA,
 } from "../lib/generated-artifacts";
+import { DERIVED_PATHS, LOCKFILE_PATH } from "../lib/derive-sync";
+import { headerHashes, restoreHeaderHashes } from "../lib/derived-in-pr";
 import { CORPUS_PATH } from "../oracle-corpus";
 import {
     buildLockedCommand,
@@ -369,6 +373,53 @@ describe("planResolution", () => {
         expect(plan.message).toContain("bun run oracle:compile");
     });
 
+    it("a marked lockfile is regenerated for its rows and its header put back (ADR 0157, issue #6248)", () => {
+        const plan = planResolution({
+            markedPaths: ["data/oracle-compiled.json"],
+            corpusPresent: true,
+        });
+        expect(plan.kind).toBe("regenerate");
+        if (plan.kind !== "regenerate") return;
+        expect(plan.restoreHeader).toBe(true);
+        expect(plan.fromBase).toEqual([]);
+    });
+
+    it("a marked catalogue file is taken from the base, never regenerated — and needs no corpus (ADR 0157, issue #6248)", () => {
+        const plan = planResolution({
+            markedPaths: [
+                "data/catalogue/packed-corpus.json",
+                "data/catalogue/source-hash.json",
+                "data/oracle-legality.json",
+            ],
+            corpusPresent: true,
+        });
+        expect(plan.kind).toBe("regenerate");
+        if (plan.kind !== "regenerate") return;
+        expect(plan.fromBase).toEqual([
+            "data/catalogue/packed-corpus.json",
+            "data/catalogue/source-hash.json",
+        ]);
+        expect(plan.artifacts.map((a) => a.path)).toEqual([
+            "data/oracle-legality.json",
+        ]);
+        expect(plan.restoreHeader).toBe(false);
+        const offline = planResolution({
+            markedPaths: ["data/catalogue/search-index.json"],
+            corpusPresent: false,
+        });
+        expect(offline.kind).toBe("regenerate");
+        if (offline.kind !== "regenerate") return;
+        expect(offline.artifacts).toEqual([]);
+        expect(offline.fromBase).toEqual(["data/catalogue/search-index.json"]);
+    });
+
+    it("the base-owned paths are derive:sync's five less the lockfile — one authority", () => {
+        expect(BASE_OWNED_LOCKFILE).toBe(LOCKFILE_PATH);
+        expect(BASE_OWNED_PATHS).toEqual(
+            DERIVED_PATHS.filter((p) => p !== LOCKFILE_PATH)
+        );
+    });
+
     it("refuses a marked path that is not in the class rather than guessing", () => {
         const plan = planResolution({
             markedPaths: ["data/card-index.json"],
@@ -591,17 +642,24 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
         expect(resolved.status, resolved.output).toBe(0);
         expect(existsSync(markerPath())).toBe(false);
 
-        // Byte-identical to a fresh regeneration of the rebased tree, and
-        // committed — not left dirty for the lane gate to trip over.
+        // Byte-identical to a fresh regeneration of the rebased tree — its
+        // ROWS; the header hashes are the base's (ADR 0157, issue #6248: the
+        // base writes them after the merge, a PR never carries them) — and
+        // committed, not left dirty for the lane gate to trip over.
         const committed = readFileSync(
             join(repo, "data", "oracle-compiled.json"),
             "utf8"
         );
+        const baseLock = git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`]) + "\n";
+        expect(headerHashes(committed)).toEqual(headerHashes(baseLock));
+        expect(git(["status", "--porcelain"])).toBe("");
         generate();
         expect(
-            readFileSync(join(repo, "data", "oracle-compiled.json"), "utf8")
+            restoreHeaderHashes(
+                readFileSync(join(repo, "data", "oracle-compiled.json"), "utf8"),
+                baseLock
+            )
         ).toBe(committed);
-        expect(git(["status", "--porcelain"])).toBe("");
         // Both sides' input edits survived — the artifact reflects the merged
         // tree, not either side's stale copy.
         expect(
@@ -739,12 +797,16 @@ describe("generated-artifact merge driver (real git, real resolver)", () => {
             join(wt, "data", "oracle-compiled.json"),
             "utf8"
         );
+        expect(git(["status", "--porcelain"], wt)).toBe("");
         const regen = spawnSync("bun", ["gen.mjs", "compile"], { cwd: wt });
         expect(regen.status).toBe(0);
+        // Rows regenerated, header the base's (ADR 0157).
         expect(
-            readFileSync(join(wt, "data", "oracle-compiled.json"), "utf8")
+            restoreHeaderHashes(
+                readFileSync(join(wt, "data", "oracle-compiled.json"), "utf8"),
+                git(["show", `${ORIGIN_BASE}:data/oracle-compiled.json`], wt) + "\n"
+            )
         ).toBe(committed);
-        expect(git(["status", "--porcelain"], wt)).toBe("");
     });
 
     it("a REFUSED resolution leaves the marker as an undischarged debt", () => {

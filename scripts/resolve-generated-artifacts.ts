@@ -13,11 +13,20 @@
  * `planResolution` in `lib/generated-artifacts.ts` for why that is preferred
  * over leaning on the drift guard's red, which since issue #3070 would usually
  * also fire.
+ *
+ * A derived path the PR never carries (ADR 0157 § Option 1b, issue #6248) is
+ * not regenerated: `data/catalogue/*` is checked out from the base
+ * (`fromBase`), and a regenerated lockfile gets its header hashes put back
+ * to the base's (`restoreHeader`) — the rows are the PR's, the header is the
+ * base's, and `check:derived-in-diff` would red the fresh header otherwise.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { ORIGIN_BASE } from "./lib/branches";
+import { restoreHeaderHashes } from "./lib/derived-in-pr";
 import {
+    BASE_OWNED_LOCKFILE,
     CORPUS_CACHE_REL,
     planResolution,
     REGENERATE_MARKER,
@@ -72,6 +81,16 @@ if (plan.kind === "refuse") {
     process.exit(1);
 }
 
+// The base's own paths first: their bytes are the base's, whatever the
+// driver took (ADR 0157). `ORIGIN_BASE` is the tip this tree was just rebased
+// onto — the merge-base.
+if (plan.fromBase.length > 0) {
+    process.stderr.write(
+        `${DIM}resolve-generated-artifacts: taking ${plan.fromBase.join(", ")} from ${ORIGIN_BASE} — the base writes them (ADR 0157)${RESET}\n`
+    );
+    git(["checkout", ORIGIN_BASE, "--", ...plan.fromBase], root);
+}
+
 // One run per distinct command: several artifacts share a generator
 // (`catalogue:pack` writes four, `agents:build` three), which writes them all.
 const ran = new Set<string>();
@@ -101,7 +120,27 @@ for (const artifact of plan.artifacts) {
     }
 }
 
-const paths = plan.artifacts.map((a) => a.path);
+// A regenerated lockfile carries this tree's header hashes; the base's go
+// back over the regenerated rows (ADR 0157, issue #6248).
+if (plan.restoreHeader) {
+    const base = spawnSync("git", ["show", `${ORIGIN_BASE}:${BASE_OWNED_LOCKFILE}`], {
+        cwd: root,
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+    });
+    if (base.status === 0) {
+        const path = join(root, BASE_OWNED_LOCKFILE);
+        writeFileSync(
+            path,
+            restoreHeaderHashes(readFileSync(path, "utf8"), base.stdout)
+        );
+        process.stderr.write(
+            `${DIM}resolve-generated-artifacts: ${BASE_OWNED_LOCKFILE} header hashes put back to ${ORIGIN_BASE}'s (ADR 0157)${RESET}\n`
+        );
+    }
+}
+
+const paths = [...plan.artifacts.map((a) => a.path), ...plan.fromBase];
 git(["add", "--", ...paths], root);
 rmSync(markerPath, { force: true });
 
