@@ -14,7 +14,7 @@
  * #6143): the every-surface walk is a command the owner runs by hand. It
  * leaves a durable verdict in `.claude/telemetry/health/`:
  *
- *   - `last.json`  — { sha, status: running|green|red|infra|pending, startedAt, finishedAt, log }
+ *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.
  *                    `land` warns when it exists; `bun run health:status`
  *                    prints the details. Fix-forward, then the next green run
@@ -31,18 +31,6 @@
  * step the environment cut short (a fatal exit, or every failing row
  * `INFRA`): `last.json` names the two halves, `offline` and `browser`. One the
  * tree failed is RED.
- *
- * THE DERIVED STATE (ADR 0157 § Option 1b, "Health"). After the
- * worktree's bootstrap and before any gate, a batch run asks `derive:sync
- * --fresh` whether the tip's lockfile header hashes and `data/catalogue/*`
- * are what the tree generates — a second, no corpus. A stale tip younger
- * than `DERIVED_GRACE_MS` (one housekeeping period) is `pending`: nothing
- * gated, `last.json` says so, no verdict stored, exit 0 — `derive:sync`'s
- * commit brings the tip health gates next. Stale past the grace is RED at
- * step `derive:sync` (`derivedTipVerdict`, `lib/health-step.ts`). `release`
- * does not ask: it runs the full gate on the exact tip as ever, and
- * `check:oracle` reds a stale header there (ADR 0157, "`release` is
- * unchanged").
  *
  * THE BROWSER HALF (issues #4962, #6143). `splitHealthGates` cuts the offline
  * gates from the browser steps. Only `--release` runs the browser steps:
@@ -109,6 +97,22 @@
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`),
  * `lib/health-verdict-job.ts` and `lib/corpus-exclusion.ts` (builtins) — same
  * constraint as bootstrap-worktree.
+ */
+
+/*
+ * THE DERIVED STATE (ADR 0157 § Option 1b, "Health"). After the
+ * worktree's bootstrap and before any gate, a batch run asks `derive:sync
+ * --fresh` whether the tip's lockfile header hashes and `data/catalogue/*`
+ * are what the tree generates — a second, no corpus. A stale tip younger
+ * than `DERIVED_GRACE_MS` (one housekeeping period) is `pending`: nothing
+ * gated, `last.json` says so, no verdict stored, exit 0 — `derive:sync`'s
+ * commit brings the tip health gates next. Stale past the grace is RED at
+ * step `derive:sync` (`derivedTipVerdict`, `lib/health-step.ts`). `release`
+ * does not ask: it runs the full gate on the exact tip as ever, and
+ * `check:oracle` reds a stale header there (ADR 0157, "`release` is
+ * unchanged").
+ *
+ * `last.json`'s `status` gains `pending` for it.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
