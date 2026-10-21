@@ -27,7 +27,6 @@ const no = (error: string): GitResult => ({ ok: false, error });
 const LOCKFILE = JSON.stringify({
     generator: "test",
     header: {},
-    formats: {},
     fragments: [],
     cards: [{ oracleId: "id-a", name: "Smother", state: "ready" }],
 });

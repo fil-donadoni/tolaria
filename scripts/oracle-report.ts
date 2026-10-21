@@ -51,6 +51,7 @@ import { dirname, join } from "node:path";
 import { REPORTED_FORMATS } from "./oracle-corpus";
 import { poolOracleIds } from "./oracle-compile";
 import { parseLockfile, type Lockfile } from "./lib/oracle-lockfile";
+import { deriveCounts, deriveFormats } from "./lib/oracle-tally";
 import {
     FINDINGS_PATH,
     parseFindings,
@@ -741,7 +742,9 @@ async function main(): Promise<void> {
         else reportGaps(rankGrammarGaps(lock, ids), rowCount("--gaps"), label);
     };
 
-    const { corpus, counts, grammarVersion } = lock.header;
+    const { corpus, grammarVersion } = lock.header;
+    const counts = deriveCounts(lock.cards);
+    const formats = deriveFormats(lock.cards, poolOracleIds());
     process.stdout.write(
         `\nOracle compiler — grammar ${grammarVersion}\n` +
             `corpus ${corpus.downloadUri.split("/").pop()} (Scryfall updated_at ${corpus.updatedAt})\n`
@@ -761,8 +764,7 @@ async function main(): Promise<void> {
     );
     process.stdout.write(`${"-".repeat(58)}\n`);
     for (const format of REPORTED_FORMATS) {
-        const row = lock.formats[format];
-        if (row === undefined) continue;
+        const row = formats[format];
         process.stdout.write(
             `${format.padEnd(12)}${String(row.total).padStart(8)}` +
                 `${String(row.ready).padStart(9)}${String(row.quarantine).padStart(9)}` +

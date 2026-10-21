@@ -52,12 +52,7 @@ import type { CardDefinition } from "../convex/cards/types";
 // PURE over a definition, and free of the search — see its header for why the
 // gate may import it and why the Bot hash excludes it.
 import { castShape } from "../convex/gre/ai/botReachForm";
-import {
-    readCorpus,
-    readPin,
-    REPORTED_FORMATS,
-    type CorpusCard,
-} from "./oracle-corpus";
+import { readCorpus, readPin, type CorpusCard } from "./oracle-corpus";
 import {
     compareFragmentContent,
     compilerHash,
@@ -74,6 +69,7 @@ import {
     type FragmentRow,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import { deriveCounts } from "./lib/oracle-tally";
 import {
     botGapKey,
     botHash,
@@ -210,16 +206,15 @@ function toOracleCard(card: CorpusCard): OracleCard {
 }
 
 /** The card's `poolIn`, as a row fragment — omitted when empty. */
-function poolOf(card: CorpusCard): { poolIn?: CorpusCard["poolIn"] } {
-    return card.poolIn.length > 0 ? { poolIn: card.poolIn } : {};
-}
-
-interface MutableFormatRow {
-    total: number;
-    ready: number;
-    quarantine: number;
-    unparsed: number;
-    pool: number;
+function poolOf(card: CorpusCard): {
+    poolIn?: CorpusCard["poolIn"];
+    bannedIn?: CorpusCard["poolIn"];
+} {
+    const bannedIn = card.poolIn.filter((f) => !card.legalIn.includes(f));
+    return {
+        ...(card.poolIn.length > 0 ? { poolIn: card.poolIn } : {}),
+        ...(bannedIn.length > 0 ? { bannedIn } : {}),
+    };
 }
 
 export interface BuildLockfileOptions {
@@ -310,17 +305,6 @@ export function buildLockfile(
     };
 
     const rawRows: CardRow[] = [];
-    const counts: Record<CompileState, number> = {
-        ready: 0,
-        quarantine: 0,
-        unparsed: 0,
-    };
-    const formats: Record<string, MutableFormatRow> = Object.fromEntries(
-        REPORTED_FORMATS.map((f) => [
-            f,
-            { total: 0, ready: 0, quarantine: 0, unparsed: 0, pool: 0 },
-        ])
-    );
 
     for (const card of corpus) {
         const outcome = compileCard(toOracleCard(card));
@@ -346,13 +330,6 @@ export function buildLockfile(
                 : undefined;
         const state: CompileState =
             verdict?.outcome === "frozen" ? "quarantine" : outcome.state;
-        counts[state] += 1;
-        for (const format of card.legalIn) {
-            const row = formats[format]!;
-            row.total += 1;
-            row[state] += 1;
-            if (pool.has(card.oracleId)) row.pool += 1;
-        }
         if (outcome.state === "unparsed") {
             // `cards` is the blast radius that ranks the grammar backlog (PRD
             // #2693 user story 9, and #2697–#2700 are prioritised off it), so a
@@ -417,9 +394,7 @@ export function buildLockfile(
             botHash: botReach?.hash ?? "",
             poolHash: poolHash(pool),
             corpus: pin,
-            counts: { ...counts, total: corpus.length },
         },
-        formats: formats as Lockfile["formats"],
         fragments,
         botGaps: rankBotGaps(cards),
         cards,
@@ -658,10 +633,11 @@ async function main(): Promise<void> {
     const reach = { played: 0, ignored: 0, frozen: 0 };
     for (const row of lock.cards) if (row.botReach) reach[row.botReach] += 1;
     const playedNow = swept?.played ?? narrowed?.source.playedIds().size ?? 0;
+    const counts = deriveCounts(lock.cards);
     process.stderr.write(
-        `\noracle:compile — ${lock.header.counts.total} cards: ` +
-            `${lock.header.counts.ready} ready, ${lock.header.counts.quarantine} quarantine, ` +
-            `${lock.header.counts.unparsed} unparsed -> data/oracle-compiled.json\n` +
+        `\noracle:compile — ${counts.total} cards: ` +
+            `${counts.ready} ready, ${counts.quarantine} quarantine, ` +
+            `${counts.unparsed} unparsed -> data/oracle-compiled.json\n` +
             `oracle:compile — bot reach: ${reach.played} played, ${reach.ignored} ignored, ` +
             `${reach.frozen} frozen (${playedNow} played this run, the rest cached); ` +
             `${lock.botGaps.length} Bot Gaps\n`

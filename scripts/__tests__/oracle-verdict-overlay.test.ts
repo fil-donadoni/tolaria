@@ -35,7 +35,6 @@ function lock(cards: CardRow[], tag = ""): Lockfile {
     return {
         generator: tag,
         header: {} as Lockfile["header"],
-        formats: {} as Lockfile["formats"],
         fragments: [],
         botGaps: [],
         cards,

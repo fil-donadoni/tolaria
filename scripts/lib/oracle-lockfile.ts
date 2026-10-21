@@ -65,7 +65,6 @@ export interface LockfileHeader extends HeaderHashes {
      */
     readonly botHash: string;
     readonly corpus: CorpusPin;
-    readonly counts: Record<CompileState, number> & { readonly total: number };
 }
 
 export interface FormatRow {
@@ -121,6 +120,13 @@ export interface CardRow {
      */
     readonly poolIn?: readonly ReportedFormat[];
     /**
+     * The subset of {@link poolIn} where the card is banned or restricted,
+     * not legal — omitted when empty. What lets the per-format tally
+     * (`lib/oracle-tally.ts`, ADR 0157 § 1a) count LEGAL cards from the rows
+     * alone instead of from a committed table.
+     */
+    readonly bannedIn?: readonly ReportedFormat[];
+    /**
      * The Fragment Keys of the lines the card fails on, sorted — resolved
      * through `indexFragments` (`lib/oracle-fragments.ts`), never by
      * position. Present iff
@@ -166,7 +172,6 @@ export interface CardRow {
 export interface Lockfile {
     readonly generator: string;
     readonly header: LockfileHeader;
-    readonly formats: Record<ReportedFormat, FormatRow>;
     readonly fragments: readonly FragmentRow[];
     /** The Bot Gap table (ADR 0105 § 7.2), ranked. */
     readonly botGaps: readonly BotGapRow[];
@@ -377,9 +382,6 @@ export function serializeLockfile(lock: Lockfile): string {
     lines.push(`    "generator": ${JSON.stringify(lock.generator)},`);
     lines.push(
         `    "header": ${indentBlock(JSON.stringify(lock.header, null, 4), 4)},`
-    );
-    lines.push(
-        `    "formats": ${indentBlock(JSON.stringify(lock.formats, null, 4), 4)},`
     );
     lines.push(`    "fragments": [`);
     lines.push(...rowsOf(lock.fragments));
