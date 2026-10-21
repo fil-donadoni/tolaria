@@ -10,8 +10,7 @@
  *
  *  0. STRUCTURE (always, offline — issue #6169). Every Fragment Key is its
  *     row's content key, every card's `gaps` resolve, every fragment declares
- *     exactly the cards citing it, and the header counts agree with the rows
- *     (`lockfileStructureProblems`). A hand-edit or a clean textual merge of
+ *     exactly the cards citing it (`lockfileStructureProblems`). A hand-edit or a clean textual merge of
  *     two branches that each moved a card onto one fragment breaks one of
  *     these with every hash still agreeing.
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
@@ -310,7 +309,7 @@ function checkLockfile(): void {
         }
         process.stdout.write(
             `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes + full regenerate-and-diff, ` +
-                `${lock.header.counts.total} cards)${RESET}\n`
+                `${lock.cards.length} cards)${RESET}\n`
         );
         return;
     }

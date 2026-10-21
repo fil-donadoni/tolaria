@@ -14,6 +14,7 @@ import {
     poolOracleIdsFromIndex,
     type BuildLockfileOptions,
 } from "../oracle-compile";
+import { deriveCounts, deriveFormats } from "../lib/oracle-tally";
 import { headerHashDrift } from "../check-oracle-lockfile";
 import type { CorpusCard } from "../oracle-corpus";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
@@ -201,7 +202,9 @@ describe("oracle:compile is deterministic", () => {
         const forward = buildLockfile(SYNTHETIC);
         const reversed = buildLockfile([...SYNTHETIC].reverse());
         expect(reversed.fragments).toEqual(forward.fragments);
-        expect(reversed.header.counts).toEqual(forward.header.counts);
+        expect(deriveCounts(reversed.cards)).toEqual(
+            deriveCounts(forward.cards)
+        );
     });
 
     it("orders fragments sharing a text by reason, not by insertion", () => {
@@ -291,10 +294,11 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
     });
 
     it("counts each card in every format it is legal in", () => {
-        expect(lock.formats.premodern.total).toBe(5);
-        expect(lock.formats.modern.total).toBe(1);
-        expect(lock.formats.premodern.ready).toBe(4);
-        expect(lock.formats.premodern.unparsed).toBe(1);
+        const formats = deriveFormats(lock.cards, new Set());
+        expect(formats.premodern.total).toBe(5);
+        expect(formats.modern.total).toBe(1);
+        expect(formats.premodern.ready).toBe(4);
+        expect(formats.premodern.unparsed).toBe(1);
     });
 });
 
@@ -364,19 +368,9 @@ describe("the committed lockfile", () => {
 
     it("has one row per corpus card, sorted by oracle id, with no duplicates", () => {
         const ids = lock!.cards.map((c) => c.oracleId);
-        expect(ids).toHaveLength(lock!.header.counts.total);
+        expect(ids).toHaveLength(deriveCounts(lock!.cards).total);
         expect(new Set(ids).size).toBe(ids.length);
         expect([...ids].sort()).toEqual(ids);
-    });
-
-    it("has counts that agree with the rows", () => {
-        const tally = { ready: 0, quarantine: 0, unparsed: 0 };
-        for (const card of lock!.cards) tally[card.state] += 1;
-        expect(tally).toEqual({
-            ready: lock!.header.counts.ready,
-            quarantine: lock!.header.counts.quarantine,
-            unparsed: lock!.header.counts.unparsed,
-        });
     });
 
     it("never carries a definition on an unparsed row, nor a gap on a ready one", () => {
@@ -396,7 +390,7 @@ describe("the committed lockfile", () => {
         }
     });
 
-    it("passes its own structure check: keys, order, resolution, counts (issue #6169)", () => {
+    it("passes its own structure check: keys, order, resolution (issue #6169)", () => {
         expect(lockfileStructureProblems(lock!)).toEqual([]);
     });
 
@@ -427,8 +421,9 @@ describe("the committed lockfile", () => {
         // is the first thing that can shrink this floor by design. Several
         // more ranked "migration" tickets of this same kind are queued and
         // will keep eroding it.
-        expect(lock!.formats.premodern.total).toBe(5375);
-        expect(lock!.formats.premodern.pool).toBeGreaterThanOrEqual(1284);
+        const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
+        expect(premodern.total).toBe(5375);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1284);
     });
 });
 
