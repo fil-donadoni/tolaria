@@ -150,13 +150,12 @@ export type ManaCost = {
      *  pip is paid at cast time with one mana of EITHER colour (or by a Convoke
      *  creature of either colour — CR 702.51). This field DECLARES the pips; the
      *  flat generic/single-colour requirement stays in the other keys, and
-     *  `normalizeManaCost` folds each pip into a composite `"B/G"` key (issue
-     *  #1738) so every payment consumer owes it — pool payment, the castability
-     *  probe, land AUTO-TAP (`convex/gre/autoTap.ts`, issue #1739) and the
+     *  `normalizeManaCost` folds each pip into a composite `"B/G"` key so every payment consumer owes it — pool payment, the castability
+     *  probe, land AUTO-TAP (`convex/gre/autoTap.ts`) and the
      *  payWith / convoke path (`convex/gre/payWith.ts`) alike.
      *  `manaValue` counts each pip as 1 (CR 202.3f), and `getColorsFromCost`
      *  includes BOTH colours of each pip in the card's colour (CR 105.2 / 202.2).
-     *  NARROW scope (issue #1338): only two-colour guild hybrid — MONOCOLOUR
+     *  NARROW scope: only two-colour guild hybrid — MONOCOLOUR
      *  hybrid ({2/B}) is still unmodelled (issue #1743). Shipped hybrid cards
      *  pay these pips with real mana (Figure of Fable, the ECL Elemental
      *  Incarnations, Carnage Interpreter); Hogaak is the exception only because
@@ -302,19 +301,19 @@ export interface EscapeCost {
  *  {@link KickerCost.multi} on a `"kicker"` entry (ADR 0079: repeatability is a
  *  property of ONE cost entry, not of the card).
  *
- *  Squad (CR 702.157a, issue #3220) IS a member, for the opposite reason: it is
+ *  Squad (CR 702.157a) IS a member, for the opposite reason: it is
  *  a keyword in its own right with its own CR section and its own twin trigger,
  *  and its "any number of times" clause is the SAME repeatability axis
  *  Multikicker uses — so it is a member whose row sets both `allowsMulti` and
  *  `requiresTrigger`, and whose payments are NOT kicked (CR 702.33d again
  *  defines "kicked" over kicker costs alone).
  *
- *  Replicate (CR 702.56a, issue #2100) is a member on the same terms as squad
+ *  Replicate (CR 702.56a) is a member on the same terms as squad
  *  — repeatable, never kicked, a twin trigger — except that its twin is the
  *  engine's synthesized Cast-Copy trigger rather than one the card authors,
  *  which its row states as `castCopyTrigger`.
  *
- *  Splice (CR 702.47a, issue #2394) is the family's first member whose cost
+ *  Splice (CR 702.47a) is the family's first member whose cost
  *  entry is NOT declared on the card being cast: "you pay [cost] as an
  *  additional cost to cast that spell" prices a card revealed from HAND, so its
  *  entries are SYNTHESIZED per cast by `gre/splice.ts` from the caster's hand
@@ -5131,7 +5130,7 @@ export interface SpellContext {
      *      Headliner Scarlett, Expressive Iteration). The permission is revoked
      *      at the CLEANUP step of the turn it was granted, while the card stays
      *      exiled.
-     *    - "until-next-end-step" (issue #1557): "you may play that card
+     *    - "until-next-end-step": "you may play that card
      *      until your next end step" (Inti, Seneschal of the Sun). Unlike
      *      "this-turn", this window is relative to `playerId` and can span
      *      PAST the current turn's cleanup when the grant is created outside
@@ -5139,14 +5138,14 @@ export interface SpellContext {
      *      instant-speed discard) — see `untilNextEndStepTurn` in
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
-     *    - "until-your-next-upkeep" (issue #2108): "Until the beginning of
+     *    - "until-your-next-upkeep": "Until the beginning of
      *      your next upkeep, you may play that card" (Elkin Bottle). Spans
      *      the rest of this turn and every opponent turn in between; revoked
      *      as `playerId`'s next upkeep BEGINS (CR 500.4), stamped on their
      *      own turn count so extra/skipped turns cannot bend it
      *      (`castableFromExileUntilOwnUpkeep`).
      *
-     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1156) —
+     *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
      *  may play it this turn without paying its mana cost"), stamping
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
@@ -5154,7 +5153,7 @@ export interface SpellContext {
      *  shape (Ice Cauldron, Robber of the Rich — cast for the normal
      *  printed cost).
      *
-     *  `opts.includesLand` (CR 305.9, issue #1689) — true iff the GRANTING
+     *  `opts.includesLand` (CR 305.9) — true iff the GRANTING
      *  Oracle text says "play" rather than "cast" (Headliner Scarlett:
      *  "you may look at and play that card this turn"; Expressive
      *  Iteration; Elkin Bottle; Inti, Seneschal of the Sun; Laelia, the
@@ -13504,7 +13503,7 @@ export interface EffectCountSpec {
      *  (it would ask the engine to read cards the counting player may not see)
      *  and the validator rejects it.
      *
-     *  `hand` admits a `filter` (issue #2150): the hand is hidden (CR 402.3),
+     *  `hand` admits a `filter`: the hand is hidden (CR 402.3),
      *  but a `reveal { player, zone: "hand" }` EARLIER IN THE SAME SCRIPT
      *  (CR 701.20a) makes the whole hand public, and every printed clause of
      *  this shape reveals before it counts — Darigaaz, the Igniter's "that
@@ -13604,16 +13603,16 @@ export interface EffectCountSpec {
  *  WITHIN that field (CR 205 "an artifact creature" needs both dimensions
  *  true, but a fetchland's "a Forest or Island card" is one dimension with
  *  two acceptable values — mirrors `PermanentFilter.subtypes`' OR-of-array
- *  semantics). `supertype` (issue #677) is the "search your library for a
+ *  semantics). `supertype` is the "search your library for a
  *  BASIC land card" restriction (Fabled Passage, Prismatic Vista) — a printed
- *  supertype, not a type/subtype. `color` (issue #677) is the mana-cost-
+ *  supertype, not a type/subtype. `color` is the mana-cost-
  *  derived color restriction (Natural Order's "a green creature card").
- *  `manaValueAtMost` (issue #677) is a mana-value ceiling: a FIXED literal
+ *  `manaValueAtMost` is a mana-value ceiling: a FIXED literal
  *  (Spellseeker's "mana value 2 or less", Brightglass Gearhulk's "mana value 1
- *  or less") OR a DYNAMIC `{ X: true }` (issue #898, Green Sun's Zenith's
+ *  or less") OR a DYNAMIC `{ X: true }` (Green Sun's Zenith's
  *  "mana value X or less" — the caster's chosen {X}, read at resolution via
  *  `ctx.getX()`, same as every other `EffectXValue` site). Deliberately small:
- *  it answers "how many X" / "search for an X card", not arbitrary predicates. `isToken` (issue #920) restricts a
+ *  it answers "how many X" / "search for an X card", not arbitrary predicates. `isToken` restricts a
  *  `zone: "battlefield"` pick to tokens (`true`, Sheoldred's Edict's "a
  *  creature TOKEN") or nontoken permanents (`false`, Sheoldred's Edict's "a
  *  NONTOKEN creature") — a direct passthrough of the `PermanentFilter.isToken`
@@ -13622,7 +13621,7 @@ export interface EffectCountSpec {
  *  for `zone: "battlefield"`: a hidden-zone pick (hand/library/graveyard) has
  *  no engine-tracked `isToken` on its card-shape reader, and tokens don't
  *  meaningfully persist off the battlefield anyway (CR 111.7). `excludeType`
- *  (issue #682) is the negative of `type` — mirrors the ALREADY-EXISTING
+ *  is the negative of `type` — mirrors the ALREADY-EXISTING
  *  `TargetRequirement.excludeTypes` field (Terror's "target nonartifact,
  *  nonblack creature") exactly, just exposed on the hand/library/graveyard
  *  filter shape too (ADR 0045 "generalize, don't add" — a symmetric field on
@@ -13672,11 +13671,11 @@ export interface EffectCardFilter {
      *  the LIVE supertype set (snow-aware) for battlefield counts. */
     excludeSupertype?: CardSupertype | CardSupertype[];
     /** CR 105.2 — the card is (any) one of these colors. A FIXED literal
-     *  colour or array of them, OR (issue #3806) the DYNAMIC
+     *  colour or array of them, OR the DYNAMIC
      *  {@link EffectSacrificedColorsRef}, `{ sacrificed: { read: "colors" } }`
      *  — the colours of the permanent sacrificed to pay THIS spell's
      *  additional cost, read as last known information (CR 608.2h). The two
-     *  shapes mirror `name`'s own literal-or-`{ ref }` pair (issue #1085/#1104)
+     *  shapes mirror `name`'s own literal-or-`{ ref }` pair
      *  exactly: one field, one meaning ("which colours"), a static and a
      *  dynamic source. The dynamic form resolves to a colour LIST and is then
      *  ORed exactly as an array literal is, so Mind Extraction's "all cards of
@@ -13692,7 +13691,7 @@ export interface EffectCardFilter {
      *  dropping the field there would be fail-OPEN — and yields the
      *  UNMATCHABLE_FILTER sentinel for an empty set. The third matcher,
      *  `handCardMatchesFilter` (which returns `true` for every field it does
-     *  NOT read, issue #3837), has no resolving context at all and therefore
+     *  NOT read), has no resolving context at all and therefore
      *  refuses the dynamic form outright rather than matching every card. */
     color?:
         | Color
@@ -13831,12 +13830,12 @@ export interface EffectCardFilter {
     controlledSinceTurnStart?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
-     *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
+     *  Accumulated Knowledge", Relentless Rats' "cards named ~"). A
      *  FIXED literal name (matched case-sensitively against the registry
-     *  name), OR a bare `{ ref: "$binding" }` naming EITHER (issue #1085) a
+     *  name), OR a bare `{ ref: "$binding" }` naming EITHER a
      *  `nameCard` Op's chosen-name binding — "put all of them with THAT name
      *  into your hand" (Desperate Research, CR 201.3 "chooses a card name") —
-     *  OR (issue #1104) a `choice` Op's picks binding — "all cards with the
+     *  OR a `choice` Op's picks binding — "all cards with the
      *  same name as the CHOSEN CARD" (Lobotomy: "you choose a card ... Search
      *  ... for all cards with the same name as the chosen card"). Both share
      *  the identical picks-family bare-binding shape (validator-checked,
@@ -13984,8 +13983,8 @@ export interface EffectCardFilter {
 export type EffectXValue = { X: true };
 
 /** counters — the number of counters of a given `type` on a selected object
- *  (CR 122.6), a thin JSON-pure skin over `SpellContext.getCounterCount`
- *  (issue #1015). A SIXTH `EffectValue` grammar member; like `X` (issue #852)
+ *  (CR 122.6), a thin JSON-pure skin over `SpellContext.getCounterCount`.
+ *  A SIXTH `EffectValue` grammar member; like `X`
  *  it is NOT an Op and NOT a new STRUCTURAL construct — it does not reopen
  *  ADR 0045 (only a fifth bind/ref/if/forEach-style construct would). `of` is
  *  an object selector resolved through the SAME `resolveObjectRef` path every
@@ -14269,7 +14268,7 @@ export interface EffectDifferenceValue {
     };
 }
 
-/** One operand of a `scaled` value (issue #2366). Deliberately a SIBLING of
+/** One operand of a `scaled` value. Deliberately a SIBLING of
  *  `EffectDifferenceOperand`, not a widening of it: this type adds
  *  `EffectXValue` to the literal-or-`count` terminal set (the whole reason
  *  `scaled` exists — "twice X" needs X as a scalable operand), while
@@ -14284,7 +14283,7 @@ export interface EffectDifferenceValue {
  *  unrepresentable in the type system, exactly as `EffectDifferenceOperand`
  *  documents.
  *
- *  `EffectRef` (issue #3813, ADR 0144) — a bare NUMERIC-binding ref
+ *  `EffectRef` (ADR 0144) — a bare NUMERIC-binding ref
  *  (`{ ref: "$flips" }`): "draw two cards for each flip" is `2 × $flips`,
  *  where the operand is a count a preceding Op bound (`coinFlipSeries`,
  *  `chooseNumber`). Still a terminal — a binding holds one integer, never an
@@ -14388,15 +14387,14 @@ export interface EffectDivideValue {
 
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
- *  chosen-cost `X` (issue #852), a `counters` count on a selected object
- *  (issue #1015), a selected object's `manaValue` (issue #680), a
- *  characteristic of the cost-`sacrificed` permanent (issue #2375), a player's
- *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
+ *  chosen-cost `X`, a `counters` count on a selected object, a selected object's `manaValue`, a
+ *  characteristic of the cost-`sacrificed` permanent, a player's
+ *  `domain`, a permanent's `escaped` flag, the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189), a player's `playerCounters` of one kind (issue #1969), the
- *  `difference` of two terminals (issue #2006), a terminal
- *  `scaled` by a fixed multiplier (issue #2366), or a terminal `divide`d by a
- *  fixed divisor with explicit rounding (issue #2385). The value grammar is
+ *  #1189), a player's `playerCounters` of one kind, the
+ *  `difference` of two terminals, a terminal
+ *  `scaled` by a fixed multiplier, or a terminal `divide`d by a
+ *  fixed divisor with explicit rounding. The value grammar is
  *  capped at these — beyond `difference`'s subtraction, `scaled`'s
  *  multiplication and `divide`'s division, none of them nestable, there is no
  *  arithmetic and there are no expressions (the frozen-grammar defence, ADR
@@ -14471,10 +14469,10 @@ export type EffectLifeGainedThisTurnValue = {
 };
 
 /** cardsDrawnThisTurn — how many cards a PLAYER has drawn so far this turn
- *  (CR 121.1, issue #3240), a thin JSON-pure skin over
+ *  (CR 121.1), a thin JSON-pure skin over
  *  `SpellContext.getCardsDrawnThisTurn`. An EIGHTEENTH `EffectValue` grammar
- *  member (the ordered census lives in `convex/cards/mechanicsRegistry.ts`); like `domain` (issue #1066), `abilityResolutionCount` (issue #1189)
- *  and `lifeGainedThisTurn` (issue #1457) it is NOT an Op and NOT a new
+ *  member (the ordered census lives in `convex/cards/mechanicsRegistry.ts`); like `domain`, `abilityResolutionCount`
+ *  and `lifeGainedThisTurn` it is NOT an Op and NOT a new
  *  STRUCTURAL construct — it does not reopen ADR 0045.
  *
  *  The exact twin of `lifeGainedThisTurn` one zone over: `of` is a PLAYER
@@ -14501,12 +14499,11 @@ export type EffectCardsDrawnThisTurnValue = {
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a
  *  PLAYER has (CR 122.1 — "A counter is a marker placed on an object or
  *  player"), a thin JSON-pure skin over `SpellContext.getPlayerCounters`. A
- *  FOURTEENTH `EffectValue` grammar member; like `domain` (issue #1066),
- *  `abilityResolutionCount` (issue #1189) and `lifeGainedThisTurn` (issue
- *  #1457) it is NOT an Op and NOT a new STRUCTURAL construct — it does not
+ *  FOURTEENTH `EffectValue` grammar member; like `domain`,
+ *  `abilityResolutionCount` and `lifeGainedThisTurn` it is NOT an Op and NOT a new STRUCTURAL construct — it does not
  *  reopen ADR 0045 (only a fifth bind/ref/if/forEach-style construct would).
  *
- *  The PLAYER-scoped sibling of `counters` (issue #1015), which reads an
+ *  The PLAYER-scoped sibling of `counters`, which reads an
  *  OBJECT's counters: `of` here is an `EffectPlayerRef`, resolved through the
  *  same `resolvePlayerRef` path every player-scoped Op uses, so `"controller"`,
  *  an announced slot and `$each` all work; an unresolvable player yields
@@ -14599,9 +14596,9 @@ export interface EffectEscapedValue {
 
 /** abilityResolutionCount — how many times (1-indexed, COUNTING this
  *  resolution) the CURRENTLY RESOLVING triggered ability has resolved this
- *  turn (CR 122 / 603.3, issue #1189), a thin JSON-pure skin over
+ *  turn (CR 122 / 603.3), a thin JSON-pure skin over
  *  `SpellContext.getAbilityResolutionCount()`. An ELEVENTH `EffectValue`
- *  grammar member; like `domain` (issue #1066) and `escaped` (issue #695) it
+ *  grammar member; like `domain` and `escaped` it
  *  is NOT an Op and NOT a new STRUCTURAL construct — it does not reopen ADR
  *  0045.
  *
@@ -15366,7 +15363,7 @@ export type EffectOp =
      *  stack. Cleared unconditionally at CLEANUP (CR 514.2). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
     | { op: "armGraveyardRedirect"; player: EffectPlayerRef }
-    /** CR 601.3 / 305.1-analog / 118.9 (issue #1156) — grant `player` permission to cast/play
+    /** CR 601.3 / 305.1-analog / 118.9 — grant `player` permission to cast/play
      *  the EXILE card a preceding `choice(zone: "exile")` Op picked (a bare
      *  picks ref, `card`), optionally ALSO waiving its mana cost. A thin
      *  declarative skin over `SpellContext.grantCastFromExile`, one execution
@@ -15381,7 +15378,7 @@ export type EffectOp =
      *  Voidwalker passes `"this-turn"` ("you may play it THIS TURN").
      *  `withoutPayingManaCost` (default false) is Dauthi's differentiator
      *  from Ice Cauldron/Robber of the Rich, which grant permission only.
-     *  `includesLand` (default false, CR 305.9, issue #1689) — true when
+     *  `includesLand` (default false, CR 305.9) — true when
      *  the granting Oracle text says "play" rather than "cast" (Dauthi
      *  Voidwalker: "you may play it this turn..."); only then does a LAND
      *  under the grant become playable — see `SpellContext.grantCastFromExile`'s
@@ -15428,10 +15425,10 @@ export type EffectOp =
            *  rejects the pair. */
           costIncrease?: ManaCost;
       }
-    /** CR 601.3 / 118.9 (issue #1344) — grant `player` permission to
+    /** CR 601.3 / 118.9 — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
      *  names it in either of the two shapes an effect can reach one
-     *  (`EffectObjectSelector`, issue #1650):
+     *  (`EffectObjectSelector`):
      *   - a bare PICKS ref (`{ ref: "$discarded" }`) — the card a preceding
      *     Op bound, typically the just-discarded card from a
      *     `choice(kind: "choose-hand-card")` + `discard` pair (Malcolm);
@@ -15443,7 +15440,7 @@ export type EffectOp =
      *     (CR 608.2b).
      *  A thin declarative skin over
      *  `SpellContext.grantCastFromGraveyard`, one execution path (ADR 0045)
-     *  — the graveyard-sourced twin of `grantCastFromExile` (issue #1156),
+     *  — the graveyard-sourced twin of `grantCastFromExile`,
      *  generalizing the SAME per-card grant shape to a second zone rather
      *  than adding a card-shaped primitive (Malcolm, Alluring Scoundrel: "If
      *  there are four or more chorus counters on Malcolm, you may cast the
@@ -15454,7 +15451,7 @@ export type EffectOp =
      *  turn-scoping (`"this-turn"` / `"while-in-graveyard"`, default
      *  `"while-in-graveyard"`).
      *
-     *  DIVERGENCE (issue #1344, out of scope): Malcolm's Oracle ruling
+     *  DIVERGENCE (out of scope): Malcolm's Oracle ruling
      *  requires the free cast to happen immediately, as part of the
      *  triggered ability's own resolution ("you can't wait to cast the
      *  spell later in the turn," ignoring the discarded card's own timing
@@ -15512,7 +15509,7 @@ export type EffectOp =
           op: "grantFlashback";
           card: EffectTargetRef;
       }
-    /** CR 608.2g (issue #1477) — PLAY a card as PART OF THIS resolution: a
+    /** CR 608.2g — PLAY a card as PART OF THIS resolution: a
      *  "you may cast/play <card>" permission with NO stated duration, which per
      *  CR 608.2g exists ONLY during the resolution of the ability that grants
      *  it. The controller (`player`) is offered an optional Cast/Decline prompt
@@ -15540,12 +15537,12 @@ export type EffectOp =
      *  `player` can't be resolved, the card selector resolved to nothing, or the
      *  card is no longer in `source`.
      *
-     *  Two mutually-exclusive card SOURCES (issue #1478):
+     *  Two mutually-exclusive card SOURCES:
      *   - `card` + `source` — the card selector, cast from its graveyard/exile
      *     zone. Either a bare PICKS ref to a card an earlier Op in the SAME
      *     script bound (Malcolm's just-discarded card), or — for a CR 607 LINKED
      *     pair of abilities, where a `bind` cannot span two separate resolutions
-     *     — `{ exiledWithSource: true }` (issue #1961), the card(s) this
+     *     — `{ exiledWithSource: true }`, the card(s) this
      *     ability's own source permanent exiled and stamped via
      *     `SpellContext.linkExileToSource` (Hideaway's "you may play the exiled
      *     card"; `source` must be `"exile"`). Exactly the selector
@@ -15555,7 +15552,7 @@ export type EffectOp =
      *     decline / unpayable cost leaves it in exile (Chandra, Torch of
      *     Defiance's +1). `card`/`source` are omitted in this shape.
      *
-     *  `includesLand` (default false, CR 116.2a / 305, issue #1961) — set it
+     *  `includesLand` (default false, CR 116.2a / 305) — set it
      *  ONLY when the granting Oracle text says "PLAY" rather than "cast"
      *  (Hideaway). Playing a land is a SPECIAL ACTION, not casting (CR 116.2a),
      *  so with `includesLand` unset a land silently passes — the official Malcolm
@@ -15574,7 +15571,7 @@ export type EffectOp =
      *  both a land and another type can only be PLAYED as a land, never cast, so
      *  the land branch always wins for such a card.
      *
-     *  `resultBind` (optional, issue #1478) names a BOOLEAN outcome binding — set
+     *  `resultBind` (optional) names a BOOLEAN outcome binding — set
      *  `true` only when a spell actually reached the stack (or a land actually
      *  entered), `false` on decline / silent pass / unmeetable-or-unpayable cost
      *  — that a downstream `if` predicate reads (Chandra's "If you don't [cast
@@ -15833,7 +15830,7 @@ export type EffectOp =
      *  attached is enforced by the ability's `canActivate` gate, not by this
      *  Op). No-op if `$source` isn't currently attached. */
     | { op: "unattach" }
-    /** CR 400.7 — move a card between zones (issue #839). A thin declarative
+    /** CR 400.7 — move a card between zones. A thin declarative
      *  skin over the SpellContext zone-movement primitives
      *  (`returnToHand` / `moveCardById` / `returnToBattlefield`), one execution
      *  path (ADR 0045). `target` names the object to move: an announced target
@@ -15850,7 +15847,7 @@ export type EffectOp =
      *  Skipped when the referenced object is gone (CR 608.2b — does as much as
      *  it can), or for a zone pair with no plain-move primitive (e.g. a
      *  battlefield permanent to exile, which needs LTB semantics — use
-     *  `exile`). `bind` (issue #680, owner slot added issue #1106) snapshots
+     *  `exile`). `bind` (owner slot added issue #1106) snapshots
      *  the object BEFORE it moves — power/toughness/controller/owner/id for a
      *  permanent, mana value (+ owner/controller both as the card's owner, 0
      *  power/toughness) for a graveyard card — so a later `ref` reads e.g.
@@ -15858,8 +15855,8 @@ export type EffectOp =
      *  that card's mana value") or a bounced permanent's OWNER (Recoil:
      *  "return it to its owner's hand, that player discards", CR 400.7 —
      *  distinct from `.controller` when a control-magic effect diverges the
-     *  two). `controller` (issue #680,
-     *  meaningful only for a graveyard-card reanimation) overrides the
+     *  two). `controller`
+     *  (meaningful only for a graveyard-card reanimation) overrides the
      *  default owner-control (CR 800.4a — Reanimate / Hymn of Rebirth's
      *  "under your control", a cross-graveyard reanimation) by passing
      *  through to `SpellContext.returnToBattlefield`'s existing optional 4th
@@ -15867,7 +15864,7 @@ export type EffectOp =
      *  "under the owner's control"). Invalid outside a `to: "battlefield"`
      *  graveyard-card move.
      *
-     *  RETURN-A-DEPARTED-OBJECT (issue #1469). A `ref` naming a snapshot bound
+     *  RETURN-A-DEPARTED-OBJECT. A `ref` naming a snapshot bound
      *  by an EARLIER `destroy` / `exile` / `sacrifice` in the same script (the
      *  "return each card put into a graveyard THIS WAY" linkage — Sorin, Lord
      *  of Innistrad's −6) refers to an object that is no longer on the
@@ -15886,7 +15883,7 @@ export type EffectOp =
      *  effect does as much as it can). `tapped: true` (CR 110.5a) makes the
      *  returned permanent enter tapped; valid only with `to: "battlefield"`.
      *
-     *  HAND SOURCE (issue #2390) — `{ ref: "$source" }` on an ability whose
+     *  HAND SOURCE — `{ ref: "$source" }` on an ability whose
      *  source is a card in its owner's HAND (`activateFromHand`) resolves to
      *  the hand-card carrier and, with `to: "battlefield"`, routes through
      *  `putFromHandOntoBattlefield` — the SAME primitive the `cards` shape's
@@ -16010,7 +16007,7 @@ export type EffectOp =
            *  permanent later leaves. */
           entersAs?: EntryTypeLine;
       }
-    /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
+    /** CR 400.7 — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.
      *  `{ ref: "$picked" }`) OUT OF `player`'s hidden `from` zone. A thin
      *  declarative skin over the SpellContext primitives `moveCardById`
@@ -16025,13 +16022,13 @@ export type EffectOp =
      *  snapshot machinery does not apply. Every picked id still in `from` is
      *  moved (in practice a tutor's `choice` asks for exactly one); pair with
      *  a trailing `libraryLook` (shuffle) Op after a `from: "library"` move,
-     *  as every real tutor/fetch oracle text does. `tapped` (issue #677,
-     *  meaningful only with `to: "battlefield"`) forces the entering
+     *  as every real tutor/fetch oracle text does. `tapped`
+     *  (meaningful only with `to: "battlefield"`) forces the entering
      *  permanent tapped regardless of its own `entersTapped` flag (Fabled
      *  Passage's "put it onto the battlefield tapped") — omitted/false enters
      *  normally. Skipped when the binding was never captured (the choice
      *  found no candidates, CR 608.2b) or the player cannot be resolved.
-     *  `from: "graveyard"` (issue #680) is the third source zone: pairs with a
+     *  `from: "graveyard"` is the third source zone: pairs with a
      *  `choice(zone: "graveyard")` Op for a "puts A card from THEIR graveyard"
      *  pick that isn't an announced target (CR 601.2b hidden-zone-adjacent —
      *  a graveyard is public, but the pick is per-player self-selection, not
@@ -16039,7 +16036,7 @@ export type EffectOp =
      *  graveyard", Titania "return target land card from YOUR graveyard" via
      *  the `TriggeredAbility`-has-no-`targetRequirement` choice-as-target
      *  substitute, ADR 0002 precedent: Banishing Light). `from: "exile"`
-     *  (issue #1570) is the fourth: pairs with a
+     * is the fourth: pairs with a
      *  `choice(zone: "exile", filter: { hasCounter })` Op for "put a card you
      *  own with a silver counter on it from exile into your hand" (Karn, Scion
      *  of Urza's −1) — the Dauthi Voidwalker-shaped retrieval generalized to a
@@ -16048,7 +16045,7 @@ export type EffectOp =
      *  routes through `returnToBattlefield` (owner control, same as the
      *  `target`-shape above); every other destination is the existing generic
      *  `moveCardById` branch (already used with a graveyard source
-     *  elsewhere). `to: "library-top"` (issue #1125) is the tutor-to-top
+     *  elsewhere). `to: "library-top"` is the tutor-to-top
      *  template — "Search your library for a card, then shuffle and put that
      *  card on top" (Vampiric Tutor, Mystical Tutor, Imperial Seal, Sterling
      *  Grove): routes through `SpellContext.putLibraryCardsOnTop`, which
@@ -16061,7 +16058,7 @@ export type EffectOp =
      *  setting it aside first, since a full shuffle including it then
      *  relocating it to the front yields the same distribution as shuffling
      *  the remainder and placing it on top), then this Op moves it to the
-     *  front. `bind` (issue #1151, closing #1120 gap 3) snapshots the
+     *  front. `bind` snapshots the
      *  permanent that just entered the battlefield — valid only alongside
      *  `to: "battlefield"` (validator-enforced) — for a follow-up Op to act on
      *  it: a haste grant, a `delayedTrigger` capture ("You may put a creature
@@ -16096,7 +16093,7 @@ export type EffectOp =
            *  EXISTING shape rather than a new Op). */
           linkToSource?: boolean;
       }
-    /** CR 400.7 (issue #1279) — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
+    /** CR 400.7 — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
      *  move. Every card currently in `from` moves to `to` — no announced
      *  `target`, no `choice`-picked `cards`, no per-card selection at all
      *  ("shuffles their hand and graveyard into their library", Timetwister /
@@ -16123,7 +16120,7 @@ export type EffectOp =
      *  when `player` cannot be resolved (CR 608.2b); a `from === to` no-op is
      *  handled by the underlying primitive itself.
      *
-     *  `bindCount` (issue #4302) names a NUMBER binding holding how many cards
+     *  `bindCount` names a NUMBER binding holding how many cards
      *  the move took out of `from` — the size of the zone read immediately
      *  before the move, so an empty zone binds 0 (a legal count, not a skip).
      *  It is what "shuffle the cards from your hand into your library, then
@@ -16134,14 +16131,14 @@ export type EffectOp =
      *  number, `bind` is a snapshot). Whole-zone shape ONLY: the other shapes
      *  move a chosen or filtered subset and bind the cards themselves.
      *
-     *  `faceDown` (issue #3812) — CR 406.3 "exiles all cards from their hand
+     *  `faceDown` — CR 406.3 "exiles all cards from their hand
      *  FACE DOWN" (Suppress): valid only with `from: "hand"` and
      *  `to: "exile"` (validator-enforced — a library/graveyard sweep would
-     *  need one batched CARDS_EXILED, issue #1558). Each card goes
+     *  need one batched CARDS_EXILED). Each card goes
      *  through `SpellContext.exileFaceDown` with NO knower — the oracle grants
      *  no look, and CR 406.3 says a card exiled face down "can't be examined by
      *  any player except when instructions allow it", its owner included.
-     *  `bindAll` (issue #3812) names a PICKS binding holding every card the
+     *  `bindAll` names a PICKS binding holding every card the
      *  move took, for a later Op in this script or a `delayedTrigger`'s
      *  `{ select: { set: "bound" } }` list capture ("returns THOSE cards");
      *  left uncaptured when the zone was empty, exactly like `mill.bindAll`. */
@@ -16244,7 +16241,7 @@ export type EffectOp =
      *  order the way a graveyard does (CR 404.3), so this is a documented
      *  simplification of the general CR 601.2c/608.2 "the appropriate
      *  player chooses" default for an unresolved multi-candidate tie,
-     *  scoped to the shape this ticket introduces (issue #1323) — the
+     *  scoped to this linked-exile shape — the
      *  common case is 0 or 1 linked card at resolution time.
      *
      *  Once located, execution funnels into the EXACT SAME graveyard-card
@@ -16398,7 +16395,7 @@ export type EffectOp =
           op: "returnToHandAtNextUntap";
           target: EffectObjectSelector;
       }
-    /** CR 611.2a / 613.1f (layer 6, issue #843) — grant an ability to a
+    /** CR 611.2a / 613.1f (layer 6) — grant an ability to a
      *  permanent for a limited duration. A thin declarative skin over the
      *  SpellContext primitives `grantStaticAbility` / `grantActivatedAbility` /
      *  `grantTriggeredAbility`, one execution path (ADR 0045). Exactly one of
@@ -16407,11 +16404,11 @@ export type EffectOp =
      *    "banding", …; a free-form keyword read at combat / rules-check time,
      *    Berserk's "target creature gains trample").
      *  - `grantedActivatedId` — the `id` of an activated-ability template on the
-     *    RESOLVING source's `grantTemplates[]` (issue #738, Touch of Vitae's
+     *    RESOLVING source's `grantTemplates[]` (Touch of Vitae's
      *    "gains '{0}: Untap this creature. Activate only once.'"). The template
      *    carries its own cost / effects / `oncePerTurn` cap.
      *  - `grantedTriggeredId` — the `id` of a triggered-ability template on the
-     *    RESOLVING source's `triggeredGrantTemplates[]` (issue #1665, Guardian
+     *    RESOLVING source's `triggeredGrantTemplates[]` (Guardian
      *    Scalelord's Backup 1 granting the attack trigger printed below it, CR
      *    702.165c). `effectiveTriggeredAbilities` unions the template into the
      *    recipient's triggers, so the trigger collector scans and resolves it as
@@ -16790,7 +16787,7 @@ export type EffectOp =
            *  Scry / Surveil / Ponder). */
           chooser?: EffectPlayerRef;
       }
-    /** CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+    /** CR 701.17 — mill: move the top `count` cards of a player's
      *  library into their graveyard. A thin declarative skin over the existing
      *  `peekLibraryTop` + `moveCardById` primitives, one execution path (ADR
      *  0045): the mill loop reads the LIVE top id each pass and moves it library
@@ -16801,7 +16798,7 @@ export type EffectOp =
      *  how many cards to mill (a non-positive count is a no-op, CR 608.2b).
      *  Deterministic — no player choice, unlike `scryReorder`.
      *
-     *  Optional `bind` (issue #1095, Loafing Giant) snapshots the FIRST card
+     *  Optional `bind` (Loafing Giant) snapshots the FIRST card
      *  that genuinely reached the graveyard (mirrors `discardAtRandom`'s
      *  `bind` shape) so a later `if`/`boundMatchesFilter` can test what came
      *  up — "if a land card was milled this way". A card a CR 614
@@ -16810,7 +16807,7 @@ export type EffectOp =
      *  the bound card; nothing binds when every card was redirected or the
      *  library was already empty (CR 608.2b).
      *
-     *  Optional `bindAll` (issue #2600) binds the SAME set `bind` takes its
+     *  Optional `bindAll` binds the SAME set `bind` takes its
      *  first element from, whole: every card that genuinely reached the
      *  graveyard, in mill order. It is a PICKS binding — the identical
      *  `string[]` runtime storage a `choice` Op's `bind` writes, not a new
@@ -18150,7 +18147,7 @@ export type EffectOp =
           bindWins?: string;
           bindLosses?: string;
       }
-    /** CR 701.20a — reveal `player`'s hand to every player (issue #920, #682).
+    /** CR 701.20a — reveal `player`'s hand to every player.
      *  A thin declarative skin over `SpellContext.markKnownToAll` (ADR 0026):
      *  every card currently in `player`'s hand is stamped with every player in
      *  `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows
@@ -18168,7 +18165,7 @@ export type EffectOp =
      *  Three shapes, exactly one of `zone` / `cards` (mutually exclusive):
      *   - `zone: "hand"` — the ALL-PLAYERS hand reveal above
      *     (Thoughtseize/Duress/Inquisition of Kozilek/Grief).
-     *   - `cards: EffectRef` (issue #945) — reveal the SPECIFIC cards a
+     *   - `cards: EffectRef` — reveal the SPECIFIC cards a
      *     preceding `choice` (search-library) Op bound (a bare picks ref,
      *     e.g. `{ ref: "$picked" }`), owned by `player`. This is the "search
      *     …, reveal it, put it into your hand, then shuffle" tutor clause (CR
@@ -18181,7 +18178,7 @@ export type EffectOp =
      *     cards still in the library (CR 701.20). No-op when the choice found
      *     nothing (the binding was never captured, CR 608.2b).
      *
-     *   - `zone: "library"` (issue #3808) — reveal the WHOLE library
+     *   - `zone: "library"` — reveal the WHOLE library
      *     ("Reveal the cards in your library", Guided Passage). The SAME
      *     `markKnownToAll` + `notifyReveal` pair as the hand shape, over
      *     `getLibraryCards(player)` instead of the hand: every library card
@@ -18382,7 +18379,7 @@ export type EffectOp =
           destination: "exile" | "graveyard";
           bind?: string;
       }
-    /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
+    /** CR 608.2 / 101.4 — a mid-resolution player choice. Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
      *  item stays on the stack, `resolutionStep` checkpoints the Op index);
@@ -19258,7 +19255,7 @@ export type EffectOp =
           prompt?: string;
       };
 
-/** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
+/** A PREDEFINED predicate form for the `if` construct (ADR 0045).
  *  The grammar is frozen at three enumerated forms — there are NO arbitrary
  *  boolean expressions, so the validator can statically check every reference
  *  and the bot can read the branch condition without executing the card:
@@ -19269,7 +19266,7 @@ export type EffectOp =
  *  - a COMPARISON between two numeric operands — each a literal, a `ref` on a
  *    bound snapshot's power/toughness, or a `count` of a declaratively-selected
  *    set — with one of the standard relational operators.
- *  - a PICKS-NONEMPTY test (issue #1287) — reads whether a `choice` Op's
+ *  - a PICKS-NONEMPTY test — reads whether a `choice` Op's
  *    picks binding actually captured anything. This is the "draw only if a
  *    card was actually discarded" gate: a chosen-discard cost paid in-effect
  *    (CR 601.2h convention, `choice(zone: "hand")` + `discard`) has no picks
@@ -19279,7 +19276,7 @@ export type EffectOp =
  *    predicate rather than a boolean binding, since `choice` has no
  *    mayPay-style yes/no outcome of its own. Krovikan Sorcerer / Mesmeric
  *    Trance: `{ picksNonEmpty: { ref: "$discarded" } }`.
- *  - a TARGET-IS-ANOTHER test (issue #1315, CR 702.165a) — true iff the
+ *  - a TARGET-IS-ANOTHER test (CR 702.165a) — true iff the
  *    named announced target slot resolves to a permanent OTHER than the
  *    currently-resolving ability's source (`ctx.sourceInstanceId`). This is
  *    Backup's "if that's another creature" gate: `{ targetIsAnother: { target: 0 } }`.
@@ -19289,7 +19286,7 @@ export type EffectOp =
  *    "self-target vs. other-target" shape any future keyword sharing Backup's
  *    "put a counter on target X; if that's ANOTHER X, do more" phrasing would
  *    also need.
- *  - a PICKS-MATCH-FILTER test (issue #1343) — reads whether at least one
+ *  - a PICKS-MATCH-FILTER test — reads whether at least one
  *    card in a `choice` Op's picks binding matches an `EffectCardFilter`,
  *    resolved via `player`'s graveyard (CR 701.9 — a discard always lands
  *    there, so this predicate is meaningful once the matching `discard` Op
@@ -19303,7 +19300,7 @@ export type EffectOp =
  *    was picked match a card shape" — reuses the SAME `matchesCardFilter`
  *    reader the `choice`/`count` constructs already share, no new filter
  *    grammar.
- *  - a TARGET-MATCHES-GRAVEYARD-FILTER test (issue #2385) — `picksMatchFilter`'s
+ *  - a TARGET-MATCHES-GRAVEYARD-FILTER test — `picksMatchFilter`'s
  *    ANNOUNCED-TARGET sibling: an object selector (`{ target: n }` / `$source`
  *    / a `forEach` `$each`) instead of a `choice` Op's picks binding, resolved
  *    against `player`'s graveyard with the SAME `matchesCardFilter` reader.
@@ -19504,7 +19501,7 @@ export interface EffectBoundMatchesFilterPredicate {
     filter: EffectCardFilter;
 }
 
-/** Live-object-matches-filter predicate (issue #1747, Figure of Destiny): true
+/** Live-object-matches-filter predicate (Figure of Destiny): true
  *  iff the referenced permanent is on the battlefield RIGHT NOW and matches
  *  `filter`.
  *
@@ -19524,7 +19521,7 @@ export interface EffectBoundMatchesFilterPredicate {
  *  (CR 608.2b). Filter fields the battlefield matcher has no counterpart for
  *  (`manaValueAtMost`, `hasCounter`, `excludeColor`) do not constrain — the
  *  same asymmetry every other battlefield-scoped filter site already carries.
- *  `manaCostEquals` (issue #1881) is a step further than a merely-unconstrained
+ *  `manaCostEquals` is a step further than a merely-unconstrained
  *  field, though: it's an EXACT structural match, so "no counterpart" means
  *  it would match every permanent rather than none — a genuine fail-open
  *  (issue #1898 finding 3). Unlike the three above, the validator (`gre/
@@ -19886,14 +19883,14 @@ export interface CardDefinition {
      *  sites (activated/triggered/modes) adopt Effect Scripts in follow-up
      *  slices. */
     effects?: EffectOp[];
-    /** AI-only shadow Effect Script (PRD #1423, issue #1431) — a `resolve()`/
+    /** AI-only shadow Effect Script (PRD #1423) — a `resolve()`/
      *  `resolveSteps` card's effect SKETCHED as an `EffectOp[]` purely for
      *  valuation: the SAME `OP_VALUERS` walker that scores a real `effects[]`
      *  script (`convex/gre/ai/opValuers.ts`) walks this one too, yielding the
      *  identical `{ points, tags }` shape a real script would — but it is
      *  NEVER executed (`getAbilityEffectFn`/the interpreter never reads this
      *  field; only the context-free valuer does). Precedence (highest first,
-     *  PRD #1423, issue #1512): the scalar `aiValue` override wins outright
+     *  PRD #1423): the scalar `aiValue` override wins outright
      *  when set, then a real `effects[]` script, then this `aiEffects`
      *  sketch, then the `base + MV` fallback
      *  (`convex/gre/cardValue.ts` `latentValue`). Mutually exclusive in
