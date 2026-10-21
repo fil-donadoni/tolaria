@@ -100,6 +100,21 @@ export function untapRestriction(
                 `the per-candidate refinement silently`
         );
     }
+    // `untapStep` reads `skipsStep` as "every player's untap step is skipped"
+    // without consulting the filter, so a narrower spec would skip too much.
+    if (
+        args.skipsStep &&
+        ((args.maxUntap ?? 0) !== 0 ||
+            args.appliesToSelf ||
+            args.dynamicMatch ||
+            args.condition)
+    ) {
+        throw new Error(
+            `untapRestriction ${args.id}: skipsStep is board-wide (maxUntap 0, ` +
+                `no appliesToSelf / dynamicMatch / condition) — the untap ` +
+                `dispatcher skips the whole step for every player`
+        );
+    }
     return {
         kind: "untap-restriction",
         id: args.id,
