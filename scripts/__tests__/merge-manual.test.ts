@@ -40,7 +40,10 @@ describe("merge-manual — manualMergeVerdict", () => {
                 checkRuns: [lane({ status: "in_progress", conclusion: null })],
             })
         );
-        expect(v.kind).toBe("refuse");
+        expect(v).toMatchObject({
+            kind: "refuse",
+            reason: /still in_progress/,
+        });
     });
 
     it("refuses a red lane", () => {
