@@ -30,6 +30,13 @@ run) finds the branch on `origin` instead: `git fetch origin feat/issue-N` (or
 `fix/`), `git switch feat/issue-N`, `git status`. An open PR → read it against
 the issue and go to § 5; a branch and no PR → finish § 3–§ 4, open the PR.
 
+## An undecided `check:ui` scope
+
+`check:ui` exiting 5 (`UNDECIDED` / `FULL`) in a job: walk nothing, ask nobody.
+The PR body carries one line, `check:ui: scope undecided, not walked
+(<reasons>)`, with the reasons it printed (issue #6144). `land` accepts it only
+against an undecided or full re-derived scope, never a decided one.
+
 ## Push early
 
 A job has a hard `timeout-minutes` and can be killed by a runner restart; its

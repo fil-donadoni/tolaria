@@ -133,6 +133,7 @@ import {
 } from "./ui-gate/verify-receipt.ts";
 import {
     hasNoWalkOwedLine,
+    hasScopeUndecidedLine,
     isNonDomPath,
     revertedCommitOf,
     type UiScope,
@@ -209,8 +210,8 @@ export function skinReceiptInvalidForDiff(
         scope = scopeOf(paths, root);
     } catch (err) {
         scope = {
-            kind: "full",
-            reason: `scope unavailable: ${(err as Error).message}`,
+            kind: "undecided",
+            reasons: [`scope unavailable: ${(err as Error).message}`],
         };
     }
     const receiptOk = verifyReceiptText(prBody, {
@@ -231,6 +232,10 @@ export function skinReceiptInvalidForDiff(
     } catch {
         owed = { owed: true, rule: "owed verdict unavailable", path: "" };
     }
+    // The undecided line (issue #6144) covers a scope nobody could place, or a
+    // certain-global one an AFK pass may not walk — NEVER a decided, scoped
+    // diff, which owes its receipt however the line is worded.
+    if (scope.kind !== "scoped" && hasScopeUndecidedLine(prBody)) return false;
     if (owed.owed) return true;
     return !hasNoWalkOwedLine(prBody);
 }
@@ -242,6 +247,7 @@ export const SKIN_RECEIPT_REFUSAL =
     "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
     "`bun run verify:ui-receipt <PR#>` names the problem. A diff that owes no walk " +
     "(`bun run check:ui -- --scope-only` says `not owed`) states `check:ui: no walk owed (<reason>)` instead; " +
+    "an undecided or global-input scope an AFK pass did not walk states `check:ui: scope undecided, not walked (<reasons>)`; " +
     "a RED-ladder revert states `check:ui: revert of <sha> restores its parent on every DOM path`, which holds only when every DOM-reachable changed path equals that commit's parent";
 
 /**

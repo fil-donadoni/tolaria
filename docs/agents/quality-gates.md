@@ -1222,6 +1222,16 @@ same terms as a receipt. What an OWED walk covers is ADR 0131's scoper,
 unchanged; `check:ui --all` is run by hand only, on neither machine by any
 automated run (issue #6143).
 
+**An undecided scope walks nothing by default (issue #6144).** The scoper's
+fail-closed FULL conflated certainty (a global input) with doubt (a path it
+cannot place). Doubt is now `undecided`, with reasons; `check:ui` on `undecided`
+or on a certain `full` scope prints the unplaced paths / the impact (cells ≈
+surfaces × viewports, minutes estimated at 11 s per cell), starts no browser and
+exits 5 (`UI_SCOPE_UNDECIDED_EXIT`). No path produces `--all` automatically. An
+attended session asks the owner and encodes the answer as a scoper rule; an AFK
+pass states `check:ui: scope undecided, not walked (<reasons>)`, which `land` and
+the PR check accept only against a re-derived scope that is not `scoped`.
+
 **What the lane WALKS is itself gated, offline** (issue #3420). `check:ui`'s
 coverage was asserted only between hand-written lists, so a new screen or
 dialog entered no list and reddened nothing. `scripts/lib/ui-census.ts`

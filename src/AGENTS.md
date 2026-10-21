@@ -48,6 +48,10 @@ components, copy, handlers, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all`: the full proof, by hand only (#6143).
 
+**Undecided / full scope** (issue #6144): `check:ui` exits 5, no browser;
+attended → ask the owner, encode the answer as a scoper rule; AFK → PR line
+`check:ui: scope undecided, not walked (<reasons>)` (`browser-verification.md`).
+
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
 runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR

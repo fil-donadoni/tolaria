@@ -206,6 +206,9 @@ import {
 } from "../lib/convex-reachable.ts";
 import {
     renderUiScope,
+    renderScopeDecision,
+    isAfkSession,
+    UI_SCOPE_UNDECIDED_EXIT,
     renderWalkOwed,
     type UiScope,
     type WalkOwed,
@@ -916,8 +919,8 @@ function computeRunScope(opts: Options): UiScope {
         changed = changedSinceBase(opts.base);
     } catch (err) {
         return {
-            kind: "full",
-            reason: `scope unavailable: ${(err as Error).message}`,
+            kind: "undecided",
+            reasons: [`scope unavailable: ${(err as Error).message}`],
         };
     }
     // The same derivation `land` re-runs on the PR's diff (issue #3628).
@@ -954,6 +957,21 @@ async function main(): Promise<number> {
     if (opts.scopeOnly) {
         log(renderWalkOwed(computeWalkOwed(opts)));
         return 0;
+    }
+
+    // A FULL or UNDECIDED scope walks nothing by itself (issue #6144): no path
+    // produces `--all` automatically. Only an explicit `--all` / `--surface=`
+    // spends browser time; otherwise the impact is printed and the run exits.
+    if (scope.kind !== "scoped" && !opts.all && !opts.surfaces) {
+        log(
+            renderScopeDecision(
+                scope,
+                SURFACE_IDS,
+                VIEWPORT_IDS.length,
+                isAfkSession()
+            )
+        );
+        return UI_SCOPE_UNDECIDED_EXIT;
     }
 
     // A run the diff scoped walks exactly its scope and prints SCOPED; a
