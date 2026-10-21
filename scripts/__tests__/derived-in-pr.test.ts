@@ -264,6 +264,23 @@ describe("check:derived-in-diff — over a real repository", () => {
         expect(r.out).toContain(`${CATALOGUE_DERIVED_PATHS[2]!} changed`);
     });
 
+    it("a moved header hash in a lockfile LARGER than spawnSync's default buffer is still red", () => {
+        // The real lockfile is 20 MB; Node's 1 MB `maxBuffer` would make
+        // `git show` ENOBUFS and an unread text pass as "no header".
+        const rows = Array.from(
+            { length: 12000 },
+            (_, i) => `{"name":"card ${i}","text":"${"x".repeat(240)}"}`
+        );
+        write(LOCKFILE_PATH, lockfile({}, rows));
+        commit("big base");
+        git("branch", "-f", "base", "HEAD");
+        write(LOCKFILE_PATH, lockfile({ registryHash: "sha256:r2" }, rows));
+        commit("regenerated header");
+        const r = run();
+        expect(r.status).toBe(1);
+        expect(r.out).toContain("header registryHash changed");
+    });
+
     it("a derive:sync commit in the range is the base's — exempt", () => {
         write(CATALOGUE_DERIVED_PATHS[2]!, "v2\n");
         write(

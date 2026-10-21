@@ -589,6 +589,50 @@ describe("health-main — a derived-stale tip is PENDING within derive:sync's gr
         expect(lastJson().status).toBe("green");
     }, 120_000);
 
+    it("pending under a standing RED keeps the red record the marker names (review of PR #6295)", () => {
+        // RED on the tip X; then a new, stale tip Y lands on top of it.
+        const red = {
+            sha: tipSha(),
+            status: "red",
+            startedAt: new Date(Date.now() - 60_000).toISOString(),
+            finishedAt: new Date(Date.now() - 30_000).toISOString(),
+            failedStep: "test",
+            log: "/somewhere/red.log",
+        };
+        fs.writeFileSync(
+            path.join(healthDir(), "last.json"),
+            JSON.stringify(red)
+        );
+        gh.seed(red.sha, {
+            state: "failure",
+            context: "health",
+            description: "RED · test · other-machine",
+        });
+        fs.writeFileSync(path.join(primary, "y.txt"), "y\n");
+        git(["add", "-A"], primary);
+        commit("tip Y");
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+        const r = healthMain(["--under-lock"], { FAKE_DERIVE_STALE: "x" });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toContain("PENDING");
+        expect(lastJson()).toEqual(red);
+    }, 120_000);
+
+    it("a predicate that gives no verdict (a crash) is RED at derive:sync at once, never pending", () => {
+        fs.writeFileSync(
+            path.join(primary, "fake-derive.js"),
+            `console.error("error: Cannot find module './catalogue-artifact'"); process.exit(1);\n`
+        );
+        git(["add", "-A"], primary);
+        commit("broken predicate");
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+        const r = healthMain(["--under-lock"], {});
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/RED @ \w{8} \(derive:sync\)/);
+        expect(lastJson().status).toBe("red");
+        expect(offlineRan()).toBe(false);
+    }, 120_000);
+
     it("a pending record does not skip the tip: the next --under-lock run re-judges it, fresh now → GREEN", () => {
         const first = healthMain(["--under-lock"], { FAKE_DERIVE_STALE: "x" });
         expect(first.status, first.stderr).toBe(0);

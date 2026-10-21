@@ -249,6 +249,42 @@ export const PR_RECEIPT_GUARDS: Readonly<
  */
 export const DERIVED_GRACE_MS = 60 * 60 * 1000;
 
+export type DerivePredicateAnswer =
+    | { kind: "fresh" }
+    | { kind: "stale"; why: string }
+    /** No verdict: a crash, a signal, a missing script — never a wait. */
+    | { kind: "broken"; why: string };
+
+/**
+ * What `bun run derive:sync --fresh` answered, pure. Exit 0 is fresh; exit 1
+ * WITH its own `derived-stale` line is stale, the reason after the dash;
+ * anything else — a crash on import, a timeout's signal, `bun run` finding
+ * no script — is `broken`: a predicate that gave no verdict must not read as
+ * "stale, wait an hour" (an hour of ungated tips) nor as fresh.
+ */
+export function derivePredicateAnswer(input: {
+    status: number | null;
+    signal: string | null;
+    output: string;
+}): DerivePredicateAnswer {
+    if (input.status === 0) return { kind: "fresh" };
+    // Its own line, not `bun run`'s trailing `error: script … exited with code 1`.
+    const lines = input.output
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "" && !/^(error: script |\$ )/.test(l));
+    const own = lines.find((l) => l.includes("derived-stale"));
+    if (input.status === 1 && own !== undefined)
+        return {
+            kind: "stale",
+            why: own.replace(/^derive:sync: this tree is derived-stale — /, ""),
+        };
+    return {
+        kind: "broken",
+        why: `${input.status === null ? `killed by ${input.signal ?? "?"}` : `exit ${input.status}`}${lines.length > 0 ? `: ${lines.at(-1)}` : ""}`,
+    };
+}
+
 export type DerivedTipVerdict =
     | { kind: "fresh" }
     /** Stale within the grace: nothing gated, re-judged next run. */

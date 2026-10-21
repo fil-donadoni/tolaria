@@ -84,9 +84,11 @@ export function headerHashesDiffering(
  */
 export function restoreHeaderHashes(head: string, base: string): string {
     const target = headerHashes(base);
+    // Bounded like `headerBlock`: the rewrite never reaches a row.
     const end = head.indexOf('"fragments"');
-    const block = end === -1 ? head : head.slice(0, end);
-    const rest = end === -1 ? "" : head.slice(end);
+    const cut = end === -1 ? Math.min(head.length, 4096) : end;
+    const block = head.slice(0, cut);
+    const rest = head.slice(cut);
     let out = block;
     for (const key of HEADER_HASH_KEYS) {
         const value = target[key];

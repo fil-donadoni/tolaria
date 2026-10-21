@@ -105,7 +105,9 @@ jobs:
         # seed a stale tree.
         if: ${{ github.event_name == 'push' }}
         runs-on: [self-hosted, seed]
-        timeout-minutes: 30
+        # 25 min of waiting for derive:sync's commit on a stale tip (ADR 0157,
+        # issue #6248, `SEED_DERIVE_WAIT_MS`) plus the seed itself.
+        timeout-minutes: 40
         steps:
             - name: Job worktree
               shell: bash

@@ -23,8 +23,16 @@ import {
     DERIVED_IN_DIFF_REMEDY,
 } from "./lib/derived-in-pr";
 
+/** `maxBuffer` well over the 20 MB lockfile: Node's 1 MB default makes
+ *  `git show` of it ENOBUFS, status null — and an empty text here would read
+ *  as "no header", a silent pass. Pinned by a > 1 MB fixture in the test. */
 function git(...args: string[]): { ok: boolean; out: string } {
-    const r = spawnSync("git", args, { encoding: "utf8" });
+    const r = spawnSync("git", args, {
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+    });
+    if (r.error !== undefined)
+        throw new Error(`git ${args.join(" ")}: ${r.error.message}`);
     return { ok: r.status === 0, out: r.stdout ?? "" };
 }
 
@@ -51,10 +59,13 @@ const changed = must(
 
 const carried = derivedCarried({
     changed,
-    lockfile: () => ({
-        head: git("show", `HEAD:${LOCKFILE_PATH}`).out || null,
-        base: git("show", `${mergeBase}:${LOCKFILE_PATH}`).out || null,
-    }),
+    lockfile: () => {
+        const at = (ref: string): string | null => {
+            const r = git("show", `${ref}:${LOCKFILE_PATH}`);
+            return r.ok ? r.out : null;
+        };
+        return { head: at("HEAD"), base: at(mergeBase) };
+    },
     subjectsTouching: (path) =>
         must("log", "--format=%s", `${mergeBase}..HEAD`, "--", path)
             .split("\n")

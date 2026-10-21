@@ -13,6 +13,7 @@ import {
     PR_RECEIPT_GUARDS,
     type HealthStep,
     DERIVED_GRACE_MS,
+    derivePredicateAnswer,
     derivedTipVerdict,
 } from "../lib/health-step";
 import { gateSkipReason } from "../lib/health-gate-skip";
@@ -424,5 +425,47 @@ describe("gateSkipReason — a pending record never skips the tip (issue #6248)"
                     retryTerminal,
                 })
             ).toBeNull();
+    });
+});
+
+describe("derivePredicateAnswer — only a clean answer is fresh or stale; anything else is broken (issue #6248 review)", () => {
+    it("exit 0 is fresh; exit 1 with its own derived-stale line is stale, the reason kept", () => {
+        expect(
+            derivePredicateAnswer({
+                status: 0,
+                signal: null,
+                output: "derive:sync: this tree is derived-fresh\n",
+            })
+        ).toEqual({ kind: "fresh" });
+        expect(
+            derivePredicateAnswer({
+                status: 1,
+                signal: null,
+                output: '$ bun scripts/derive-sync.ts --fresh\nderive:sync: this tree is derived-stale — lockfile header: compilerHash drift\nerror: script "derive:sync" exited with code 1\n',
+            })
+        ).toEqual({
+            kind: "stale",
+            why: "lockfile header: compilerHash drift",
+        });
+    });
+
+    it("a crash, a signal or a missing script is broken — never a wait", () => {
+        expect(
+            derivePredicateAnswer({
+                status: 1,
+                signal: null,
+                output: "error: Cannot find module './catalogue-artifact'\n",
+            }).kind
+        ).toBe("broken");
+        expect(
+            derivePredicateAnswer({
+                status: null,
+                signal: "SIGKILL",
+                output: "",
+            })
+        ).toEqual({ kind: "broken", why: "killed by SIGKILL" });
+        expect(
+            derivePredicateAnswer({ status: 2, signal: null, output: "" }).kind
+        ).toBe("broken");
     });
 });

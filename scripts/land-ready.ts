@@ -301,15 +301,39 @@ const REAL_RESTORE_GIT: RestoreGit = {
 function restoreAndPush(pr: number, headOid: string, branch: string): string {
     assertPrWorktree(pr, headOid);
     git(["fetch", "-q", "origin", BASE_BRANCH]);
-    const carried = restoreDerivedState(
-        process.cwd(),
-        ORIGIN_BASE,
-        REAL_RESTORE_GIT,
-        console.log
-    );
+    let carried: DerivedCarried;
+    try {
+        carried = restoreDerivedState(
+            process.cwd(),
+            ORIGIN_BASE,
+            REAL_RESTORE_GIT,
+            console.log
+        );
+    } catch (err) {
+        // The tree was asserted clean at `headOid`: put it back there, so a
+        // re-run does not die in `assertPrWorktree` on a half-made restore.
+        spawnSync("git", ["reset", "-q", "--hard", headOid]);
+        throw new Error(
+            `derived-state restore failed (${(err as Error).message}) — worktree reset to ${headOid.slice(0, 10)}; fix and re-run`
+        );
+    }
     if (carriesNothing(carried)) return headOid;
-    git(["push", "-q", "origin", `HEAD:refs/heads/${branch}`]);
     const head = git(["rev-parse", "HEAD"]).trim();
+    const pushed = spawnSync(
+        "git",
+        ["push", "-q", "origin", `HEAD:refs/heads/${branch}`],
+        { encoding: "utf8" }
+    );
+    if (pushed.status !== 0)
+        throw new Error(
+            `the restore commit ${head.slice(0, 10)} could not be pushed to ${branch} (${
+                (pushed.stderr ?? "")
+                    .trim()
+                    .split("\n")
+                    .find((l) => l.startsWith("!") || l.startsWith("error")) ??
+                "git printed no error"
+            }) — it is on this branch locally: \`git push origin HEAD:${branch}\` (after a \`git pull --rebase\` if the remote moved), then re-run`
+        );
     console.log(
         `land:ready: pushed ${head.slice(0, 10)} — \`${RESTORE_COMMIT_SUBJECT}\` (${carried.catalogue.length} catalogue file(s), header ${carried.headerKeys.join(", ") || "unchanged"})`
     );

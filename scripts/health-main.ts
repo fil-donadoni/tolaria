@@ -133,6 +133,7 @@ import {
     HEALTH_SCRIPTS,
     WORKTREE_BOOTSTRAP,
     type HealthStep,
+    derivePredicateAnswer,
     derivedTipVerdict,
 } from "./lib/health-step";
 import {
@@ -718,16 +719,28 @@ function finishRed(
  * job that waited is not a job that failed.
  */
 function finishPending(ctx: RunCtx, reason: string): never {
-    writeLast(ctx.dir, {
-        sha: ctx.tip,
-        status: "pending",
-        startedAt: ctx.startedAt,
-        finishedAt: new Date().toISOString(),
-        failedStep: DERIVE_STEP,
-        reason,
-        log: ctx.logPath,
-        browser: "not run",
-        branch: ctx.branch,
+    // Like an INFRA run it proves nothing, so while a RED stands the record
+    // stays the red one the marker names (`infraRecordToKeep`): `health:fix`
+    // reads `last.json` and refuses anything but RED.
+    recordInfra<LastRun>({
+        dir: ctx.dir,
+        infra: {
+            sha: ctx.tip,
+            status: "pending",
+            startedAt: ctx.startedAt,
+            finishedAt: new Date().toISOString(),
+            failedStep: DERIVE_STEP,
+            reason,
+            log: ctx.logPath,
+            browser: "not run",
+            branch: ctx.branch,
+        },
+        previous: ctx.previous,
+        redMarkerStanding: lineageBlocks(
+            readVerdictLineage(() =>
+                verdictStore(ctx.root, { branch: ctx.branch })
+            ).kind
+        ),
     });
     console.log(
         `health-main: PENDING @ ${ctx.tip.slice(0, 8)} (${DERIVE_STEP}) — ${reason}`
@@ -752,22 +765,26 @@ function judgeDerivedTip(
         timeout: 10 * 60_000,
         killSignal: "SIGKILL",
     });
-    // Its own line (`derive:sync: this tree is derived-stale — <why>`), not
-    // `bun run`'s trailing `error: script "derive:sync" exited with code 1`.
-    const lines = `${r.stdout ?? ""}${r.stderr ?? ""}`
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l !== "" && !/^(error: script |\$ )/.test(l));
-    const stale =
-        r.status === 0
-            ? null
-            : ((
-                  lines.find((l) => l.includes("derived-stale")) ?? lines.at(-1)
-              )?.replace(/^derive:sync: (this tree is )?/, "") ??
-              `exit ${r.status ?? r.signal ?? "?"}`);
+    const answer = derivePredicateAnswer({
+        status: r.status,
+        signal: r.signal,
+        output: `${r.stdout ?? ""}${r.stderr ?? ""}`,
+    });
+    if (answer.kind === "broken")
+        return {
+            kind: "red",
+            reason: `derive:sync --fresh gave no verdict (${answer.why}) — the predicate itself is broken on this tip, not waited on`,
+        };
+    // The tip's committer time: every base commit is made at its landing —
+    // the queue squashes, `derive:sync` / `gaps:sync` `commit-tree` — so it
+    // is when the tip appeared, and the grace counts from there.
     const committedAtMs =
         Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
-    return derivedTipVerdict({ stale, committedAtMs, nowMs: Date.now() });
+    return derivedTipVerdict({
+        stale: answer.kind === "stale" ? answer.why : null,
+        committedAtMs,
+        nowMs: Date.now(),
+    });
 }
 
 function finishGreen(

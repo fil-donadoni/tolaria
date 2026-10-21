@@ -378,11 +378,13 @@ function readPush(before: string, after: string, primary: string) {
 
 /**
  * How long `seed` waits for the derive commit of a stale tip (ADR 0157,
- * issue #6248): the post-merge job's latency is a minute or two; the hourly
- * housekeeping is `derive:sync`'s backstop, but a job that waits an hour
- * holds the seed runner — past this bound the seed is run by hand.
+ * issue #6248): `derive:sync` runs in `housekeeping` (one run at a time,
+ * up to 50 min), so the commit is usually a minute or two away but can
+ * queue behind a long run; the hourly cron is its backstop. A job that
+ * waits an hour holds the seed runner — past this bound (inside the job's
+ * `timeout-minutes`) the seed is red and run by hand.
  */
-export const SEED_DERIVE_WAIT_MS = 15 * 60_000;
+export const SEED_DERIVE_WAIT_MS = 25 * 60_000;
 const SEED_DERIVE_POLL_MS = 20_000;
 
 /** The base's commits after `after`, oldest first, with their files. */
