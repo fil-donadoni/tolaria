@@ -317,6 +317,28 @@ A diff of server-only paths alone yields an empty `scoped` result: no browser
 time owed. `land` re-derives the scope with the same function, so receipts
 follow with no format change.
 
+### Amendment — undecided scope (issue #6144)
+
+The scoper's "otherwise → `full`" mixed two situations. **Certainty** (a
+stylesheet, the shell, the build config, the lane's own tooling) keeps its
+`full` scope: every surface can move. **Doubt** — a path in no closure no rule
+places, a gate-only path no surface's registry read covers, a scope that could
+not be computed, a `surfaces.ts` diff that could not be read — is a third
+outcome, `undecided`, carrying its reasons. Neither outcome walks by itself:
+`check:ui` prints the unplaced paths or the impact (surfaces, cells, estimated
+minutes), starts no browser and exits 5; no path may produce `--all`
+automatically (owner ruling, 2026-10-20).
+
+- **Attended**: the session asks the owner once and encodes the answer in the
+  same PR as a scoper placement (a not-UI-reachable rule, or the path added to
+  the named surfaces), so the doubt does not recur; "walk everything" runs
+  `--all` and encodes nothing.
+- **AFK** (`TOLARIA_LOOP_DRAIN` or `GITHUB_ACTIONS`): no walk, no question; the
+  PR body carries `check:ui: scope undecided, not walked (<reasons>)`.
+- `land` and the advisory PR check accept that line only when the scope they
+  re-derive is `undecided` (or the certain `full` one an AFK pass may not
+  walk), never for a decided `scoped` diff that owes a receipt.
+
 ### Residual
 
 A server change that alters what the deployment serves (a query's shape, a

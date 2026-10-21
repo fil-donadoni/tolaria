@@ -41,6 +41,8 @@ agent can actually run:
 bun run check:ui                              # the surfaces this diff reaches, all five viewports
 bun run check:ui -- --all                     # every surface, whatever the diff (by hand only)
 bun run check:ui -- --scope-only              # print the scope, no browser
+                                               # (full/undecided: exit 5, impact
+                                               # printed; --all is the owner's call)
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --headed                  # watch it walk
 bun run check:ui -- --parallel=1              # N viewports at once, 1..5
@@ -668,3 +670,7 @@ the top of this page for what that is worth.
 `list_console_messages {types:["error"]}` after every state-changing step.
 React key warnings and Convex validator errors both surface here and both
 predict a broken screen for the next person.
+
+## Undecided / full scope (issue #6144)
+
+The scoper has three outcomes: `scoped`, `full` (a CERTAIN global input: stylesheet, shell, build config, the lane's tooling) and `undecided` (DOUBT: a path in no closure no rule places, a gate-only path no registry reads, a scope or registry diff that could not be computed/read). `check:ui` on `full`/`undecided` prints the unplaced paths or the impact (surfaces × viewports = cells, ~minutes), starts no browser, exits **5**. Attended: ask the owner once — "reaches no UI" or "reaches these surfaces" → encode it in `scripts/lib/ui-scope.ts` in this PR (a not-UI-reachable rule, or the path added to those surfaces' placement) and re-run; "walk everything" → `--all`, encodes nothing; a subset → `--surface=` (DIAGNOSTIC). AFK (`TOLARIA_LOOP_DRAIN` / `GITHUB_ACTIONS`): no walk, no question, the PR body line `check:ui: scope undecided, not walked (<reasons>)`. `land` and the PR check accept it only when the scope they re-derive is not `scoped`.
