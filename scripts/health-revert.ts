@@ -14,7 +14,7 @@
  * later PR depends on the culprit) records the rung `stuck` and exits 3,
  * which the next ladder run turns into the stop; then a repair issue is
  * filed and recorded on the pivot (`health-fix`, what `base-health` admits a
- * repair by), the branch pushed, the PR opened and labelled `ready-to-land`,
+ * repair by), the branch (`fix/issue-<repair issue>`, issue #6071) pushed, the PR opened and labelled `ready-to-land`,
  * and the culprit PR's closing issues reopened with the evidence and
  * `ready-for-agent` for a fresh pass, natively blocked by the repair issue
  * until the revert lands. Any other failure is a failed TRY (`transient:`,
@@ -140,16 +140,11 @@ function main(): number {
             sha: full.slice(0, 12),
             pr: prOfSubject(subject),
         };
-        const branch = revertBranch(full);
-        // A killed run's worktree would hold `branch` checked out.
+        // Detached: the branch is named after the repair issue, filed only
+        // once the revert applies; it is pushed from HEAD, never checked out
+        // here, so no local branch can be held by a killed run's worktree.
         run("git", ["worktree", "prune"], root);
-        const holder = worktreeHolding(
-            run("git", ["worktree", "list", "--porcelain"], root).out,
-            branch
-        );
-        if (holder !== null)
-            run("git", ["worktree", "remove", "--force", holder], root);
-        must("git", ["worktree", "add", "-B", branch, wt, ORIGIN_BASE], root);
+        must("git", ["worktree", "add", "--detach", wt, ORIGIN_BASE], root);
         made = true;
         const reverted = run("git", ["revert", "--no-edit", full], wt);
         if (!reverted.ok) {
@@ -159,7 +154,7 @@ function main(): number {
             record("stuck", { note });
             return 3;
         }
-        say(`reverted ${culprit.sha} (${subject}) on ${branch}`);
+        say(`reverted ${culprit.sha} (${subject})`);
         if (dryRun) {
             say("(dry run) the revert applies — nothing pushed or filed");
             return 0;
@@ -223,7 +218,12 @@ function main(): number {
                       .filter(Boolean)
                       .map(Number);
 
-        must("git", ["push", "--force", "-u", "origin", branch], wt);
+        const branch = revertBranch(issue);
+        must(
+            "git",
+            ["push", "--force", "origin", `HEAD:refs/heads/${branch}`],
+            wt
+        );
         const open = must(
             "gh",
             [
@@ -255,7 +255,13 @@ function main(): number {
                           "--title",
                           `${title} (issue #${issue})`,
                           "--body",
-                          revertPrBody({ issue, red, culprit, culpritIssues }),
+                          revertPrBody({
+                              issue,
+                              red,
+                              culprit,
+                              revertedSha: full,
+                              culpritIssues,
+                          }),
                       ],
                       wt
                   )
@@ -297,20 +303,6 @@ function main(): number {
                 cwd: root,
             });
     }
-}
-
-/** The worktree that has `branch` checked out, from `git worktree list
- *  --porcelain`, or null. */
-export function worktreeHolding(
-    porcelain: string,
-    branch: string
-): string | null {
-    let path: string | null = null;
-    for (const line of porcelain.split("\n")) {
-        if (line.startsWith("worktree ")) path = line.slice("worktree ".length);
-        else if (line === `branch refs/heads/${branch}`) return path;
-    }
-    return null;
 }
 
 function issueOfUrl(url: string): number {
