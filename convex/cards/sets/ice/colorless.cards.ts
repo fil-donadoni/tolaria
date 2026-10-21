@@ -938,7 +938,7 @@ export const jestersCap = defineCard(() => ({
                     zoneOwnerId: { target: 0 },
                     // CR 701.23b — plain "cards" states no quality, so the
                     // search is MANDATORY: exactly three, clamped to what the
-                    // library holds (CR 608.2b).
+                    // library holds (CR 609.3).
                     count: 3,
                     prompt: "Search that player's library for three cards.",
                     bind: "$found1",
