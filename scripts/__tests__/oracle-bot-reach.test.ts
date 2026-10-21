@@ -37,6 +37,7 @@ import {
     type Lockfile,
 } from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
+import { deriveCounts, deriveFormats } from "../lib/oracle-tally";
 import { botSweepInputs } from "../bot-sweep-inputs";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 
@@ -387,15 +388,17 @@ describe("buildLockfile with a Bot-play verdict (ADR 0105 § 7.2)", () => {
         expect(bear.quarantineReasons).toEqual([
             { kind: "bot-unreachable", detail: "no-legal-move › Creature" },
         ]);
-        expect(lock.header.counts.quarantine).toBe(1);
-        expect(lock.formats.premodern.quarantine).toBe(1);
+        expect(deriveCounts(lock.cards).quarantine).toBe(1);
+        expect(deriveFormats(lock.cards, new Set()).premodern.quarantine).toBe(
+            1
+        );
     });
 
     it("ignored ships the card and yields a Bot Gap row", () => {
         expect(bolt.state).toBe("ready");
         expect(bolt.botReach).toBe("ignored");
         expect(bolt.quarantineReasons).toBeUndefined();
-        expect(lock.header.counts.ready).toBe(1);
+        expect(deriveCounts(lock.cards).ready).toBe(1);
         expect(lock.botGaps).toContainEqual({
             key: `never-chosen › Instant target:any › ${bolt.opsUsed!.join("+")}`,
             outcome: "ignored",
@@ -410,7 +413,7 @@ describe("buildLockfile with a Bot-play verdict (ADR 0105 § 7.2)", () => {
     it("without a source, no row carries a verdict and nothing is withheld", () => {
         const bare = buildLockfile(CORPUS);
         expect(bare.cards.every((c) => c.botReach === undefined)).toBe(true);
-        expect(bare.header.counts.ready).toBe(2);
+        expect(deriveCounts(bare.cards).ready).toBe(2);
         expect(bare.botGaps).toEqual([]);
     });
 });

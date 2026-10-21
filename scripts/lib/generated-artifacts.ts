@@ -152,8 +152,7 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         // commit replayed survive the conflict: the driver lays them over
         // the side it takes (issue #5814, `oracle-verdict-overlay.ts`).
         args: ["--carry-bot"],
-        wholeFileState:
-            "header.compilerHash, header.registryHash, header.counts, formats[*]",
+        wholeFileState: "header.compilerHash, header.registryHash",
         requiresCorpus: true,
     },
     {

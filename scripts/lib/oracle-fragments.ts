@@ -18,13 +18,13 @@ import {
     type Lockfile,
 } from "./oracle-lockfile";
 
-/** Whether a parsed value has the lockfile's shape — tables and counts. */
+/** Whether a parsed value has the lockfile's shape — header and tables. */
 export function isLockfileShaped(value: unknown): value is Lockfile {
     const lock = value as Partial<Lockfile> | null;
     return (
         Array.isArray(lock?.fragments) &&
         Array.isArray(lock?.cards) &&
-        lock?.header?.counts !== undefined
+        lock?.header !== undefined
     );
 }
 
@@ -82,21 +82,21 @@ export function indexFragments(
 /**
  * Everything a lockfile must satisfy on its own, with no corpus: each key is
  * its row's content key, the table and the rows are in canonical order, each
- * row's `gaps` resolve, each fragment declares exactly the cards citing it,
- * and the header counts agree with the rows.
+ * row's `gaps` resolve, and each fragment declares exactly the cards citing
+ * it. (The state counts are derived from the rows on read — ADR 0157 § 1a —
+ * so there is no committed figure left to disagree with them.)
  *
  * `check:oracle` runs it on every checkout. It is also what tells a CORRECT
  * clean textual merge from a wrong one: two branches each moving one card
  * onto the same fragment edit its `cards` identically, git keeps one edit,
  * and the count is one short.
  *
- * Not re-derived here: the `botGaps` table and the per-format tallies. The
- * same identical-edit merge can leave either one short — two branches each
- * moving a `ready` card onto one Bot Gap key — and only tier 3's
- * regenerate-and-diff sees it.
+ * Not re-derived here: the `botGaps` table. The same identical-edit merge can
+ * leave it short — two branches each moving a `ready` card onto one Bot Gap
+ * key — and only tier 3's regenerate-and-diff sees it.
  */
 export function lockfileStructureProblems(
-    lock: Pick<Lockfile, "header" | "fragments" | "cards">
+    lock: Pick<Lockfile, "fragments" | "cards">
 ): string[] {
     const problems: string[] = [];
     const declared = new Map<string, number>();
@@ -116,9 +116,7 @@ export function lockfileStructureProblems(
             );
     });
     const cited = new Map<string, number>();
-    const counts = { ready: 0, quarantine: 0, unparsed: 0 };
     lock.cards.forEach((card, i) => {
-        counts[card.state] += 1;
         const prev = lock.cards[i - 1];
         if (prev !== undefined && prev.oracleId >= card.oracleId)
             problems.push(
@@ -148,15 +146,5 @@ export function lockfileStructureProblems(
                 `fragment ${key} declares ${cards} card(s), ${actual} cite it`
             );
     }
-    const header = lock.header.counts;
-    for (const state of ["ready", "quarantine", "unparsed"] as const)
-        if (header[state] !== counts[state])
-            problems.push(
-                `header counts ${header[state]} ${state}, the rows ${counts[state]}`
-            );
-    if (header.total !== lock.cards.length)
-        problems.push(
-            `header counts ${header.total} cards, the table holds ${lock.cards.length}`
-        );
     return problems;
 }
