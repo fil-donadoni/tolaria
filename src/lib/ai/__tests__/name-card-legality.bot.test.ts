@@ -30,11 +30,8 @@
 // of a submitted name — there is no search-side second door.
 
 import { describe, expect, it } from "vitest";
-import {
-    getCardByName,
-    registerTokenDefinition,
-    tryGetCardByName,
-} from "@convex/cards";
+import { getCardByName, tryGetCardByName } from "@convex/cards";
+import { withTemporaryDefinition } from "@convex/cards/registry";
 import type { CardDefinition } from "@convex/cards/types";
 import {
     makeInstance,
@@ -60,9 +57,10 @@ const HUMAN = "p1";
 /** Row D's fixture — "As this enters, choose a nonland card name", the Meddling
  *  Mage shape. Synthetic on purpose: `convex/cards/__tests__/asEntersUnion.test.ts`
  *  guarantees no SHIPPED card populates the as-enters union yet, and #2467 is
- *  the issue that ships the first one. `registerTokenDefinition` is the
- *  production seam that inserts a definition into the same registry
- *  `getDefinition` reads from. */
+ *  the issue that ships the first one. Served only inside the test that
+ *  stages it (`withTemporaryDefinition`), so no check that walks registered
+ *  definitions ever sees it — `bot-node` runs this file in a shared worker
+ *  (issue #6151). */
 const FILTERED_NAME_ID = "test-only-bot-as-enters-name-filtered";
 const filteredNameCreature: CardDefinition = {
     id: FILTERED_NAME_ID,
@@ -78,7 +76,6 @@ const filteredNameCreature: CardDefinition = {
         asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
     },
 };
-registerTokenDefinition(filteredNameCreature);
 
 /** The same fixture without the filter — row C, the unrestricted as-enters
  *  head, kept beside it so the "no restriction ⇒ unchanged answer" claim is
@@ -91,7 +88,6 @@ const plainNameCreature: CardDefinition = {
     oracleText: "As this creature enters, choose a card name.",
     entersWith: { asEnters: [{ kind: "name" }] },
 };
-registerTokenDefinition(plainNameCreature);
 
 function baseState(): GameState {
     return makeState({
@@ -211,53 +207,60 @@ describe("name-card rung 2 is legal by construction (CR 201.3 / 614.1c, #2497)",
         ).toBe(false);
     });
 
-    it("row C — an UNFILTERED as-enters head is answered exactly as before", () => {
-        const state = stageAsEnters(PLAIN_NAME_ID);
-        const name = namedCardName(rungTwo(state));
-        expect(name).toBe("Plains");
-        expect(() =>
-            applyNameCardSubmit(state, { playerId: BOT, cardName: name })
-        ).not.toThrow();
-        expect(state.stagedEntries ?? []).toHaveLength(0);
-    });
+    it("row C — an UNFILTERED as-enters head is answered exactly as before", () =>
+        withTemporaryDefinition(plainNameCreature, () => {
+            const state = stageAsEnters(PLAIN_NAME_ID);
+            const name = namedCardName(rungTwo(state));
+            expect(name).toBe("Plains");
+            expect(() =>
+                applyNameCardSubmit(state, { playerId: BOT, cardName: name })
+            ).not.toThrow();
+            expect(state.stagedEntries ?? []).toHaveLength(0);
+        }));
 
-    it("row D — the premise: a filtered as-enters head REJECTS the old 'Plains' default", () => {
-        const state = stageAsEnters(FILTERED_NAME_ID);
-        expect(() =>
-            applyNameCardSubmit(state, { playerId: BOT, cardName: "Plains" })
-        ).toThrow(/legal card name/i);
-        expect(state.stagedEntries ?? []).toHaveLength(1);
-    });
+    it("row D — the premise: a filtered as-enters head REJECTS the old 'Plains' default", () =>
+        withTemporaryDefinition(filteredNameCreature, () => {
+            const state = stageAsEnters(FILTERED_NAME_ID);
+            expect(() =>
+                applyNameCardSubmit(state, {
+                    playerId: BOT,
+                    cardName: "Plains",
+                })
+            ).toThrow(/legal card name/i);
+            expect(state.stagedEntries ?? []).toHaveLength(1);
+        }));
 
-    it("row D — the bot names a NONLAND card and the permanent finishes entering", () => {
-        const state = stageAsEnters(FILTERED_NAME_ID);
-        const name = namedCardName(rungTwo(state));
-        expect(tryGetCardByName(name)!.types).not.toContain("Land");
-        expect(() =>
-            applyNameCardSubmit(state, { playerId: BOT, cardName: name })
-        ).not.toThrow();
-        // Advanced: the staged entry finalized onto the battlefield carrying
-        // the answer (CR 614.1c).
-        expect(state.stagedEntries ?? []).toHaveLength(0);
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        const entered = state.players
-            .flatMap((p) => p.battlefield)
-            .find((c) => c.id === "staged-0");
-        expect(entered?.chosenName).toBe(name);
-    });
+    it("row D — the bot names a NONLAND card and the permanent finishes entering", () =>
+        withTemporaryDefinition(filteredNameCreature, () => {
+            const state = stageAsEnters(FILTERED_NAME_ID);
+            const name = namedCardName(rungTwo(state));
+            expect(tryGetCardByName(name)!.types).not.toContain("Land");
+            expect(() =>
+                applyNameCardSubmit(state, { playerId: BOT, cardName: name })
+            ).not.toThrow();
+            // Advanced: the staged entry finalized onto the battlefield carrying
+            // the answer (CR 614.1c).
+            expect(state.stagedEntries ?? []).toHaveLength(0);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            const entered = state.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === "staged-0");
+            expect(entered?.chosenName).toBe(name);
+        }));
 
-    it("resolveStuck's re-walk produces the SAME legal answer, not the rejected one", () => {
-        // `resolveStuck` deliberately resets the attempt counter and re-walks
-        // the ladder from the top on every click, and its catch is empty by
-        // design. Before #2497 that meant re-submitting the rejected string
-        // forever; now the re-walk is idempotent AND accepted.
-        const state = stageAsEnters(FILTERED_NAME_ID);
-        const first = namedCardName(rungTwo(state));
-        const second = namedCardName(rungTwo(state));
-        expect(second).toBe(first);
-        expect(() =>
-            applyNameCardSubmit(state, { playerId: BOT, cardName: second })
-        ).not.toThrow();
-        expect(state.stagedEntries ?? []).toHaveLength(0);
-    });
+    it("resolveStuck's re-walk produces the SAME legal answer, not the rejected one", () =>
+        withTemporaryDefinition(filteredNameCreature, () => {
+            // `resolveStuck` deliberately resets the attempt counter and re-walks
+            // the ladder from the top on every click, and its catch is empty by
+            // design. Before #2497 that meant re-submitting the rejected string
+            // forever; now the re-walk is idempotent AND accepted.
+            const state = stageAsEnters(FILTERED_NAME_ID);
+            const first = namedCardName(rungTwo(state));
+            const second = namedCardName(rungTwo(state));
+            expect(second).toBe(first);
+            expect(() =>
+                applyNameCardSubmit(state, { playerId: BOT, cardName: second })
+            ).not.toThrow();
+            expect(state.stagedEntries ?? []).toHaveLength(0);
+        }));
 });

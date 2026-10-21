@@ -19,7 +19,11 @@
 //     `chooseResolution` is actually reached with populated candidate values.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName, preloadDefinitions } from "@convex/cards";
+import { getCardByName } from "@convex/cards";
+import {
+    withTemporaryDefinition,
+    withTemporaryDefinitionAsync,
+} from "@convex/cards/registry";
 import {
     makeInstance,
     makePlayer,
@@ -43,19 +47,20 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 const SHIVAN_DRAGON = getCardByName("Shivan Dragon").id;
 
-preloadDefinitions([
-    {
-        id: ANNIHILATOR_CARD_ID,
-        name: "Synthetic Annihilator",
-        rarity: "mythic",
-        manaCost: { X: 15 },
-        types: ["Creature"],
-        subtypes: ["Eldrazi"],
-        power: 15,
-        toughness: 15,
-        staticAbilities: ["annihilator 3"],
-    } as CardDefinition,
-]);
+// Served only inside each test (`withTemporaryDefinition`), never left in the
+// registry: `bot-node` runs this file in a shared worker (issue #6151), where
+// a permanent entry would reach every check that walks registered definitions.
+const SYNTHETIC_ANNIHILATOR = {
+    id: ANNIHILATOR_CARD_ID,
+    name: "Synthetic Annihilator",
+    rarity: "mythic",
+    manaCost: { X: 15 },
+    types: ["Creature"],
+    subtypes: ["Eldrazi"],
+    power: 15,
+    toughness: 15,
+    staticAbilities: ["annihilator 3"],
+} as CardDefinition;
 
 /** Routes `submitResolutionChoice` through the SAME engine primitive the real
  *  `game.ts` mutation calls; every other mutation is unexpected here. */
@@ -163,50 +168,49 @@ function stateOwingBotAnnihilatorSacrifice(): GameState {
 }
 
 describe("bot answers Annihilator N's forced sacrifice (CR 702.86a, issue #2295)", () => {
-    it("the owed choice reaches the bot's view with the WHOLE board as candidates", () => {
-        const state = stateOwingBotAnnihilatorSacrifice();
-        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
-        expect(view.owedChoice).toMatchObject({
-            kind: "sacrifice-permanents",
-            min: 3,
-            max: 3,
-        });
-        // No filter on the choice → every permanent type is a candidate, not
-        // just creatures (CR 702.86a).
-        expect(view.owedChoice!.candidates.map((c) => c.id).sort()).toEqual([
-            "bot-bears",
-            "bot-dragon",
-            "bot-forest",
-            "bot-mountain",
-        ]);
-    });
+    it("the owed choice reaches the bot's view with the WHOLE board as candidates", () =>
+        withTemporaryDefinition(SYNTHETIC_ANNIHILATOR, () => {
+            const state = stateOwingBotAnnihilatorSacrifice();
+            const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+            expect(view.owedChoice).toMatchObject({
+                kind: "sacrifice-permanents",
+                min: 3,
+                max: 3,
+            });
+            // No filter on the choice → every permanent type is a candidate, not
+            // just creatures (CR 702.86a).
+            expect(view.owedChoice!.candidates.map((c) => c.id).sort()).toEqual(
+                ["bot-bears", "bot-dragon", "bot-forest", "bot-mountain"]
+            );
+        }));
 
-    it("answers it through the real path — no freeze — and keeps its best permanent", async () => {
-        const state = stateOwingBotAnnihilatorSacrifice();
-        const projected = projectPublicState(state, 1, BOT);
-        const view = buildBotView(projected, BOT);
-        const action = chooseOwedChoiceAction(view.owedChoice!);
-        expect(action.kind).toBe("resolution-choice");
-        const move = botActionToMove(action, projected, BOT)!;
-        expect(move).toBeTruthy();
+    it("answers it through the real path — no freeze — and keeps its best permanent", () =>
+        withTemporaryDefinitionAsync(SYNTHETIC_ANNIHILATOR, async () => {
+            const state = stateOwingBotAnnihilatorSacrifice();
+            const projected = projectPublicState(state, 1, BOT);
+            const view = buildBotView(projected, BOT);
+            const action = chooseOwedChoiceAction(view.owedChoice!);
+            expect(action.kind).toBe("resolution-choice");
+            const move = botActionToMove(action, projected, BOT)!;
+            expect(move).toBeTruthy();
 
-        await executeMove(move, {
-            gameId: "g" as never,
-            botId: BOT,
-            mutations: engineMutations(state),
-        });
+            await executeMove(move, {
+                gameId: "g" as never,
+                botId: BOT,
+                mutations: engineMutations(state),
+            });
 
-        // The queue drained and the trigger finished resolving (ADR 0047's
-        // never-freeze invariant: an owed choice the bot cannot answer would
-        // leave both of these set).
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stack).toHaveLength(0);
+            // The queue drained and the trigger finished resolving (ADR 0047's
+            // never-freeze invariant: an owed choice the bot cannot answer would
+            // leave both of these set).
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stack).toHaveLength(0);
 
-        // Exactly three sacrificed, and the survivor is the highest-value
-        // permanent — a neutral "first three in zone order" policy would have
-        // shed the Dragon along with the lands.
-        const bot = state.players.find((p) => p.id === BOT)!;
-        expect(bot.graveyard).toHaveLength(3);
-        expect(bot.battlefield.map((c) => c.id)).toEqual(["bot-dragon"]);
-    });
+            // Exactly three sacrificed, and the survivor is the highest-value
+            // permanent — a neutral "first three in zone order" policy would have
+            // shed the Dragon along with the lands.
+            const bot = state.players.find((p) => p.id === BOT)!;
+            expect(bot.graveyard).toHaveLength(3);
+            expect(bot.battlefield.map((c) => c.id)).toEqual(["bot-dragon"]);
+        }));
 });

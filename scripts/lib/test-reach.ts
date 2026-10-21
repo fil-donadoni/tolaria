@@ -56,7 +56,12 @@ import {
     specifierBase,
     type ImportAlias,
 } from "./import-graph";
-import { collect, splitScriptsTests, splitSrcTests } from "../test-env-split";
+import {
+    collect,
+    splitScriptsTests,
+    splitSrcBotTests,
+    splitSrcTests,
+} from "../test-env-split";
 import {
     admittedCensusTests,
     CENSUS_TESTS,
@@ -266,8 +271,10 @@ export function generalTests(root: string): Map<string, RelatedProject> {
  * Every bot fast lane test file with its project, mirroring `vitest.config.ts`
  * (pinned file by file by `test-reach.test.ts`): `BOT_GLOB_NODE`
  * (`convex/**` and `scripts/**` `*.bot.test.ts`) → `bot-node`,
- * `BOT_GLOB_DOM` (`src/**` `*.bot.test.{ts,tsx}`) → `bot-dom`, the ladder
- * file excluded (its own project). Repo-relative, posix.
+ * `BOT_GLOB_DOM` (`src/**` `*.bot.test.{ts,tsx}`) → `bot-dom` except the
+ * DOM-free `src` bot files `splitSrcBotTests` passes, which run in `bot-node`
+ * (issue #6151), the ladder file excluded (its own project). Repo-relative,
+ * posix.
  */
 export function botTests(root: string): Map<string, BotProject> {
     const rel = (f: string) => path.relative(root, f).split(path.sep).join("/");
@@ -277,9 +284,11 @@ export function botTests(root: string): Map<string, BotProject> {
             const r = rel(f);
             if (/\.bot\.test\.ts$/.test(r)) out.set(r, "bot-node");
         }
+    const srcBotNode = new Set(splitSrcBotTests(root).node);
     for (const f of collect(path.join(root, "src"), isTest)) {
         const r = rel(f);
-        if (isBot(r) && r !== LADDER_TEST) out.set(r, "bot-dom");
+        if (isBot(r) && r !== LADDER_TEST)
+            out.set(r, srcBotNode.has(r) ? "bot-node" : "bot-dom");
     }
     return out;
 }
