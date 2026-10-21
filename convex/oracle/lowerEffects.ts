@@ -2870,7 +2870,7 @@ function lowerSentenceBody(
             // so. A plain count is MANDATORY (CR 701.23b: plain "cards" states
             // no quality, so the search must find them); "up to N" is the
             // optional range. The interpreter clamps either to what the
-            // library holds (CR 608.2b).
+            // library holds (CR 609.3).
             const owner = playerRef(sentence.player, slots, site);
             if (!owner.ok) return owner;
             const bind = walk.nextBind("found");
