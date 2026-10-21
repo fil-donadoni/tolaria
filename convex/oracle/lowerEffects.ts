@@ -2862,6 +2862,57 @@ function lowerSentenceBody(
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);
         }
+        case "search-target-library": {
+            // CR 701.23a (search) + CR 701.24a (shuffle) — the CONTROLLER
+            // looks through the TARGET player's library (`zoneOwnerId`), the
+            // found cards leave it for exile (CR 406.1) or that player's
+            // graveyard (CR 404.1), and the owner shuffles when the line says
+            // so. A plain count is MANDATORY (CR 701.23b: plain "cards" states
+            // no quality, so the search must find them); "up to N" is the
+            // optional range. The interpreter clamps either to what the
+            // library holds (CR 609.3).
+            const owner = playerRef(sentence.player, slots, site);
+            if (!owner.ok) return owner;
+            const bind = walk.nextBind("found");
+            const noun =
+                sentence.count === 1
+                    ? "a card"
+                    : `${countWord(sentence.count)} cards`;
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    zoneOwnerId: owner.value,
+                    count: sentence.upTo
+                        ? { min: 0, max: sentence.count }
+                        : sentence.count,
+                    prompt: `Search that player's library for ${sentence.upTo ? "up to " : ""}${noun}.`,
+                    bind,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: owner.value,
+                    from: "library",
+                    to: sentence.route,
+                },
+                ...(sentence.shuffle
+                    ? [
+                          {
+                              op: "libraryLook" as const,
+                              action: "shuffle" as const,
+                              player: owner.value,
+                          },
+                      ]
+                    : []),
+            ]);
+        }
+        case "shuffle-searched-library":
+            return unlowerable(
+                '"Then that player shuffles." follows no search of a target library'
+            );
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "mill": {
