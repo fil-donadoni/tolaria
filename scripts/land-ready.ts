@@ -35,9 +35,12 @@
  * queue. `restoreDerivedState` checks the catalogue files out at the
  * merge-base, rewrites the header hashes to the merge-base's (rows kept,
  * `lib/derived-in-pr.ts`), commits with `--no-verify` and pushes — the
- * hand-off push. Nothing carried = no commit. The pre-queue steps then run
- * with the tree judged as a DRAFT (`TOLARIA_TREE_ROLE=draft`, the queue's
- * own role): `check:oracle` judges rows, never the header the base owns.
+ * hand-off push. Nothing carried = no commit, and the pre-queue steps judge
+ * the tree as before (`base`: its derived bytes are its own, fresh). After
+ * a restore they run with the tree judged as a DRAFT
+ * (`TOLARIA_TREE_ROLE=draft`, the queue's own role): `check:oracle` judges
+ * rows per row — with the corpus cache, copied from the primary checkout
+ * when the worktree lacks it — never the header the base owns.
  *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
@@ -47,6 +50,8 @@
 import { spawnSync } from "node:child_process";
 import {
     appendFileSync,
+    copyFileSync,
+    existsSync,
     mkdirSync,
     readFileSync,
     writeFileSync,
@@ -66,7 +71,8 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
-import { TREE_ROLE_ENV } from "./lib/derived-state";
+import { TREE_ROLE_ENV, type TreeRole } from "./lib/derived-state";
+import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
 import {
     carriesNothing,
     derivedCarried,
@@ -172,9 +178,16 @@ export function landRefusals(
 const GATE_INFRA = 77;
 
 /** One command at the light tier; 77 aborts (re-issue), never reads as red.
- *  The tree is judged as a DRAFT (ADR 0157): its derived state is the
- *  merge-base's after `restoreDerivedState`, and the base's to write. */
-function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
+ *  `role` is how the tree is judged (ADR 0157): `draft` once
+ *  `restoreDerivedState` made its commit — the derived state is then the
+ *  merge-base's, the base's to write, and `check:oracle` judges rows per
+ *  row; `base` when nothing was carried — the tree's derived bytes are its
+ *  own and fresh, judged as before. */
+function execLight(
+    command: string,
+    cwd: string,
+    role: TreeRole
+): { ok: boolean; ms: number } {
     const t0 = Date.now();
     const r = spawnSync(
         "bun",
@@ -182,7 +195,7 @@ function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
         {
             stdio: "inherit",
             cwd,
-            env: { ...process.env, [TREE_ROLE_ENV]: "draft" },
+            env: { ...process.env, [TREE_ROLE_ENV]: role },
         }
     );
     if (r.status === GATE_INFRA) {
@@ -298,7 +311,11 @@ const REAL_RESTORE_GIT: RestoreGit = {
  * returns the head the queue will test — the new commit's, or the one the
  * session pushed when nothing was carried.
  */
-function restoreAndPush(pr: number, headOid: string, branch: string): string {
+function restoreAndPush(
+    pr: number,
+    headOid: string,
+    branch: string
+): { head: string; role: TreeRole } {
     assertPrWorktree(pr, headOid);
     git(["fetch", "-q", "origin", BASE_BRANCH]);
     let carried: DerivedCarried;
@@ -317,7 +334,7 @@ function restoreAndPush(pr: number, headOid: string, branch: string): string {
             `derived-state restore failed (${(err as Error).message}) — worktree reset to ${headOid.slice(0, 10)}; fix and re-run`
         );
     }
-    if (carriesNothing(carried)) return headOid;
+    if (carriesNothing(carried)) return { head: headOid, role: "base" };
     const head = git(["rev-parse", "HEAD"]).trim();
     const pushed = spawnSync(
         "git",
@@ -337,10 +354,38 @@ function restoreAndPush(pr: number, headOid: string, branch: string): string {
     console.log(
         `land:ready: pushed ${head.slice(0, 10)} — \`${RESTORE_COMMIT_SUBJECT}\` (${carried.catalogue.length} catalogue file(s), header ${carried.headerKeys.join(", ") || "unchanged"})`
     );
-    return head;
+    ensureCorpusForDraft(process.cwd());
+    return { head, role: "draft" };
 }
 
-function preQueueGate(pr: number, headOid: string, prBody: string): void {
+/**
+ * A draft's `check:oracle` judges rows per row and REFUSES without the Card
+ * Corpus cache (nothing would check the lockfile): the gitignored cache is
+ * copied from the primary checkout when this worktree lacks it, as
+ * `derive:sync` does. Neither tree holding one is said, and the pre-queue
+ * step then names the fix (`bun run oracle:corpus`).
+ */
+function ensureCorpusForDraft(cwd: string): void {
+    const here = resolve(cwd, CORPUS_CACHE_REL);
+    if (existsSync(here)) return;
+    const source = resolve(primaryCheckout(cwd), CORPUS_CACHE_REL);
+    if (!existsSync(source) || source === here) {
+        console.log(
+            `land:ready: no corpus cache here nor in the primary checkout — the draft's check:oracle needs one (bun run oracle:corpus)`
+        );
+        return;
+    }
+    mkdirSync(dirname(here), { recursive: true });
+    copyFileSync(source, here);
+    console.log(`land:ready: corpus cache copied from ${source}`);
+}
+
+function preQueueGate(
+    pr: number,
+    headOid: string,
+    prBody: string,
+    role: TreeRole
+): void {
     assertPrWorktree(pr, headOid);
     const cwd = process.cwd();
     const refusals = landRefusals({ cwd, prBody }, console.log);
@@ -364,7 +409,7 @@ function preQueueGate(pr: number, headOid: string, prBody: string): void {
         plan,
         present,
         added: addedPaths(ORIGIN_BASE, cwd),
-        exec: (command) => execLight(command, cwd),
+        exec: (command) => execLight(command, cwd, role),
         log: console.log,
     });
     const seconds = Math.round((Date.now() - t0) / 1000);
@@ -518,8 +563,12 @@ function main(): void {
             process.exit(1);
         }
     }
-    const head = restoreAndPush(pr, view.headRefOid, view.headRefName);
-    preQueueGate(pr, head, view.body);
+    const { head, role } = restoreAndPush(
+        pr,
+        view.headRefOid,
+        view.headRefName
+    );
+    preQueueGate(pr, head, view.body, role);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,

@@ -624,8 +624,10 @@ to the merge-base before its pre-queue check: the four `data/catalogue/*`
 files checked out whole, the lockfile's four header hashes rewritten over
 the PR's rows (`lib/derived-in-pr.ts`), one commit under
 `land:ready — derived state restored to the merge-base (ADR 0157)`, pushed —
-nothing carried, no commit. The pre-queue steps then judge the tree as a
-draft (`TOLARIA_TREE_ROLE=draft`): rows per row, the header the base's.
+nothing carried, no commit, and the pre-queue steps judge the tree as before.
+After a restore they judge it as a draft (`TOLARIA_TREE_ROLE=draft`): rows
+per row, with the corpus cache copied from the primary checkout when the
+worktree lacks it, the header the base's.
 `check:lane`'s `check:derived-in-diff` (`CHEAP_GUARDS`, `diffOnly`, ~0.3 s:
 `git diff --name-only` plus two `git show`s of the header) reds a diff that
 still moves a catalogue file or a header hash, the base's own `derive:sync`
