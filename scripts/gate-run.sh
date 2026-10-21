@@ -452,7 +452,7 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         fi
     fi
     # A `land` retried under the same key reuses this dir and overwrites the
-    # previous attempt — the failure `workflow:kpi` counts (issue #4968). Keep
+    # previous attempt — the failure `gate_attempts` records (issue #4968). Keep
     # it in `attempts/<started>/` for `telemetry-ingest`, which reads both;
     # the dir's own KEEP_DAYS prune takes it away with the rest.
     case "$(cat "$CMD_F" 2>/dev/null)" in
