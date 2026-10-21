@@ -205,6 +205,7 @@ describe("untap locks — golden fixtures (CR 502.3)", () => {
                             ],
                         },
                         maxUntap: 0,
+                        skipsStep: true,
                     },
                 ],
             },

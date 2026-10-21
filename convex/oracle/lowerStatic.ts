@@ -550,7 +550,8 @@ export function lowerStaticClause(
                     ],
                 },
             };
-        // CR 614.10 — every permanent type, so no permanent untaps.
+        // CR 614.10 — the untap step is skipped (`skipsStep`); the filter
+        // over every permanent type still holds every permanent tapped.
         case "skip-untap-steps":
             return {
                 ok: true,
@@ -562,6 +563,7 @@ export function lowerStaticClause(
                             oracleText,
                             filter: { types: [...PERMANENT_TYPES] },
                             maxUntap: 0,
+                            skipsStep: true,
                         },
                     ],
                 },
