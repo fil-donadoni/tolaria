@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     DEFAULT_PASS_TIMEOUT_MIN,
+    handleStartFailure,
     UNKNOWN_RESET_HOLD_MS,
     issuePr,
     outcomeExitCode,
@@ -11,7 +12,9 @@ import {
     passRecord,
     passTimeoutMin,
     passTokens,
+    releaseClaimArgs,
     resultCost,
+    spawnStartFailure,
     summaryLines,
     usageLimitLine,
     usageLimitResetIso,
@@ -350,5 +353,64 @@ describe("afk-pass record", () => {
         // afk-pass.yml's run-name: `afk-pass #<N>` or `afk-pass #<N> (resume)`
         expect(passRunIssue("afk-pass #7")).toBe(7);
         expect(passRunIssue("afk-pass #7 (resume)")).toBe(7);
+    });
+});
+
+describe("claude cannot be started (issue #6217)", () => {
+    const enoent = Object.assign(new Error("spawn claude ENOENT"), {
+        code: "ENOENT",
+    });
+
+    it("names the spawn error's code and message, never only `?`", () => {
+        expect(spawnStartFailure(enoent)).toBe("ENOENT: spawn claude ENOENT");
+        expect(spawnStartFailure(undefined)).toBeNull();
+        expect(
+            spawnStartFailure(
+                Object.assign(new Error("t"), { code: "ETIMEDOUT" })
+            )
+        ).toBeNull();
+    });
+
+    it("prints why and releases label and assignee as one act", () => {
+        const said: string[] = [];
+        const calls: string[][] = [];
+        const started = handleStartFailure(6217, enoent, {
+            say: (l) => said.push(l),
+            gh: (a) => calls.push(a),
+        });
+        expect(started).toBe(true);
+        expect(said[0]).toContain("ENOENT: spawn claude");
+        expect(calls).toEqual([releaseClaimArgs(6217)]);
+        expect(calls[0]).toEqual(
+            expect.arrayContaining([
+                "--remove-label",
+                "in-progress",
+                "--remove-assignee",
+            ])
+        );
+    });
+
+    it("a spawn that worked releases nothing", () => {
+        const calls: string[][] = [];
+        expect(
+            handleStartFailure(1, undefined, {
+                say: () => {},
+                gh: (a) => calls.push(a),
+            })
+        ).toBe(false);
+        expect(calls).toEqual([]);
+    });
+
+    it("a failed release is said, not thrown", () => {
+        const said: string[] = [];
+        expect(
+            handleStartFailure(1, enoent, {
+                say: (l) => said.push(l),
+                gh: () => {
+                    throw new Error("boom");
+                },
+            })
+        ).toBe(true);
+        expect(said.join("\n")).toContain("could not be released");
     });
 });

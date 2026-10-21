@@ -6,7 +6,9 @@
   when it dies. Rendered and installed per runner by
   `bun run runner install` (docs/guides/github-pipeline.md § Install);
   __RUNNER_NAME__ and __RUNNER_DIR__ are substituted per runner, then __REPO__,
-  __BUN__, __NODE_BIN__ and __HOME__ as for every plist here. `caffeinate -i -s`
+  __BUN__, __NODE_BIN__ and __HOME__ as for every plist here.
+  __RUNNER_PATH__ is the PATH, composed in scripts/lib/launchd-render.ts from
+  the one directory list the systemd unit shares (issue #6217). `caffeinate -i -s`
   keeps the machine awake while the runner lives: a job's processes die with
   the job, and a sleeping MacBook fails every job in flight.
   TOLARIA_PRIMARY_CHECKOUT is the checkout
@@ -38,7 +40,7 @@
         <key>HOME</key>
         <string>__HOME__</string>
         <key>PATH</key>
-        <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>__RUNNER_PATH__</string>
         <key>TOLARIA_PRIMARY_CHECKOUT</key>
         <string>__REPO__</string>
     </dict>
