@@ -98,6 +98,7 @@ import {
 } from "./lib/oracle-lockfile";
 import { lockfileStructureProblems } from "./lib/oracle-fragments";
 import { ORIGIN_BASE } from "./lib/branches";
+import { derivedProblems, firstRowDrift, treeRole } from "./lib/derived-state";
 import { baseArtifact, gitRunner, type GitRunner } from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
 import {
@@ -222,7 +223,7 @@ export function headerHashDrift(
 }
 
 /** The tree's own answer to each of {@link headerHashDrift}'s three hashes. */
-function treeHashes(): HeaderHashes {
+export function treeHashes(): HeaderHashes {
     return {
         compilerHash: compilerHash(ROOT),
         registryHash: registryHash(),
@@ -255,10 +256,14 @@ function checkLockfile(): void {
             "bun run oracle:compile"
         );
 
-    // Tier 1 — header hashes.
-    const drift = headerHashDrift(lock.header, treeHashes());
-    if (drift !== null)
-        fail("oracle lockfile", drift, "bun run oracle:compile");
+    // Tier 1 — header hashes. A queue draft's header is the base's to write
+    // (ADR 0157): the lane judges rows in tier 3 instead.
+    const role = treeRole();
+    if (role === "base") {
+        const drift = headerHashDrift(lock.header, treeHashes());
+        if (drift !== null)
+            fail("oracle lockfile", drift, "bun run oracle:compile");
+    }
 
     // Tier 2 — pin agreement.
     const pin = readPin();
@@ -277,9 +282,25 @@ function checkLockfile(): void {
         // ADR 0105 § 7.2 — the gate never PLAYS: the committed Bot-play
         // verdicts are carried forward on unchanged definitions, so this tier
         // asks only whether the compiler still produces the file.
-        const regenerated = serializeLockfile(
-            buildLockfile(readCorpus(), { botReach: carriedBotReach(lock) })
-        );
+        const built = buildLockfile(readCorpus(), {
+            botReach: carriedBotReach(lock),
+        });
+        if (role === "draft") {
+            // Per row (ADR 0157): the header is the base's, the rows are the PR's.
+            const [problem] = derivedProblems(role, {
+                headerDrift: null,
+                rowDrift: firstRowDrift(lock.cards, built.cards),
+                catalogueStale: false,
+            });
+            if (problem !== undefined)
+                fail("oracle lockfile", problem, "bun run oracle:compile");
+            process.stdout.write(
+                `${GREEN}✓ oracle lockfile${RESET} ${DIM}(draft: per-row regenerate-and-diff, ` +
+                    `${lock.cards.length} cards)${RESET}\n`
+            );
+            return;
+        }
+        const regenerated = serializeLockfile(built);
         if (regenerated !== readFileSync(LOCKFILE_PATH, "utf8")) {
             fail(
                 "oracle lockfile",
@@ -293,6 +314,15 @@ function checkLockfile(): void {
         );
         return;
     }
+
+    // A draft's header was just regenerated and tier 1 skipped (ADR 0157): with
+    // no corpus nothing would judge the rows, so passing here would be a no-op.
+    if (role === "draft")
+        fail(
+            "oracle lockfile",
+            "draft without the corpus cache — the per-row regenerate-and-diff cannot run, and the header hashes were regenerated, so nothing would check the lockfile",
+            "bun run oracle:corpus   # on the lane runner, then re-run"
+        );
 
     process.stdout.write(
         `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes; corpus cache absent, ` +
@@ -620,6 +650,8 @@ function oracleGuardInputs(): GuardInputs {
             mergeBase.ok
                 ? `merge-base:${mergeBase.out.trim()}`
                 : `no-merge-base:${mergeBase.error}`,
+            // The verdict differs by role (ADR 0157): never share a record.
+            `role:${treeRole()}`,
         ],
     };
 }
