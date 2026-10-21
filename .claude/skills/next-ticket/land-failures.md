@@ -40,7 +40,11 @@ comment names.
 ## Re-queue
 
 `bun run land:ready <PR#>` — drops `land-failed`, adds `ready-to-land`, moves
-the claim back to `pr-open`. The runner retries it on its next tick. That is
+the claim back to `pr-open`. On an UNCHANGED head after a Mergify dequeue the
+dequeue reason is sticky and would relabel the PR `land-failed` within ~40 s,
+so `land:ready` also posts `@mergifyio requeue` (no empty commit) and reads the
+labels back: `land-failed` returning is a non-zero exit naming the
+`.mergify.yml` rule (issue #6163). The queue retries it on its turn. That is
 the end of the pass (`SKILL.md` § 5–§ 6).
 
 ## Not this pass's to fix

@@ -52,14 +52,23 @@ import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { MANUAL_LABEL } from "./lib/land-labels";
 import {
+    lastDequeueAt,
+    needsDequeueRequeue,
+    readBackVerdict,
+    type PrComment,
+} from "./lib/land-requeue";
+import {
     bodyWithClosingRef,
     handsToQueue,
+    FAILED_LABEL,
     labelArgs,
     READY_LABEL,
 } from "./lib/land-runner";
 import {
     gatePrOf,
     parseTrustedAuthors,
+    MERGIFY_QUEUED_LABEL,
+    REQUEUE_COMMENT,
     PR_FILES_JQ,
     prFilesApiPath,
     trustedAuthorStatus,
@@ -246,6 +255,60 @@ function queueAdmission(pr: number): GateStatus {
     return trustedAuthorStatus(gatePrOf(raw, files), trusted);
 }
 
+/** How long the read-back waits for Mergify's rules to act (they took ~40 s). */
+const READ_BACK_WAIT_S = 75;
+const READ_BACK_POLL_S = 15;
+
+function prLabels(pr: number): string[] {
+    const v = JSON.parse(
+        gh(["pr", "view", String(pr), "--json", "labels"])
+    ) as {
+        labels: { name: string }[];
+    };
+    return v.labels.map((l) => l.name);
+}
+
+/**
+ * After the label swap, a PR dequeued earlier on this very head is requeued
+ * with Mergify's own command, then the labels are read back (issue #6163):
+ * `land-failed` returning means the sticky dequeue rule fired again, and the
+ * hand-off failed whatever the label swap reported.
+ */
+function requeueAndReadBack(
+    pr: number,
+    comments: PrComment[],
+    headCommittedAt: string
+): void {
+    if (
+        !needsDequeueRequeue({
+            toQueue: true,
+            lastDequeueAt: lastDequeueAt(comments),
+            headCommittedAt,
+        })
+    )
+        return;
+    console.log(
+        `land:ready: PR #${pr} was dequeued on this head — posting \`${REQUEUE_COMMENT}\` (Mergify's dequeue reason is sticky)`
+    );
+    gh(["pr", "comment", String(pr), "--body", REQUEUE_COMMENT]);
+    for (let waited = 0; ; waited += READ_BACK_POLL_S) {
+        const verdict = readBackVerdict(prLabels(pr));
+        if (verdict === "relabelled-failed") {
+            throw new Error(
+                `PR #${pr} came back \`${FAILED_LABEL}\` — .mergify.yml's rule "a PR the queue rejects is a repair pick" fired on the sticky dequeue reason. Comment \`${REQUEUE_COMMENT}\` or push a new head, then re-run`
+            );
+        }
+        if (verdict === "queued") return;
+        if (waited >= READ_BACK_WAIT_S) {
+            console.log(
+                `land:ready: NOTE — PR #${pr} is not yet labelled \`${MERGIFY_QUEUED_LABEL}\` after ${waited}s; \`land-failed\` has not returned, confirm with \`gh pr view ${pr}\``
+            );
+            return;
+        }
+        spawnSync("sleep", [String(READ_BACK_POLL_S)]);
+    }
+}
+
 function main(): void {
     const numbers = process.argv.slice(2).filter((a) => /^#?\d+$/.test(a));
     if (numbers.length !== 1) {
@@ -259,7 +322,7 @@ function main(): void {
             "view",
             String(pr),
             "--json",
-            "state,headRefName,baseRefName,headRefOid,body,labels,closingIssuesReferences",
+            "state,headRefName,baseRefName,headRefOid,body,labels,closingIssuesReferences,comments,commits",
         ])
     ) as {
         state: string;
@@ -269,6 +332,8 @@ function main(): void {
         body: string;
         labels: { name: string }[];
         closingIssuesReferences: { number: number }[];
+        comments: PrComment[];
+        commits: { committedDate: string }[];
     };
     if (view.state !== "OPEN") {
         console.error(`✗ land:ready: PR #${pr} is ${view.state}, not OPEN`);
@@ -306,6 +371,12 @@ function main(): void {
     const admission = queueAdmission(pr);
     const toQueue = handsToQueue({ trustedAuthor: admission.state });
     gh(labelArgs.ready(pr, { manual: !toQueue }));
+    if (toQueue)
+        requeueAndReadBack(
+            pr,
+            view.comments,
+            view.commits.at(-1)?.committedDate ?? ""
+        );
 
     if (issue !== null) {
         gh(prOpenEditArgs(issue));
