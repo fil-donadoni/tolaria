@@ -5,8 +5,9 @@ import { createHash } from "crypto";
 /**
  * The duplicate-test-block detector (issue #4620). The rule, what the
  * fingerprint is and what it misses by construction: the guard's header,
- * `scripts/__tests__/duplicate-test-blocks.test.ts`. Pure: builtins and
- * `typescript` only, so a script can run it over any tree.
+ * `scripts/check-duplicate-test-blocks.ts`, which feeds it the repo's test
+ * files. Pure: builtins and `typescript` only, so a script can run it over
+ * any tree.
  */
 
 const TEST_BLOCK_CALLEES = new Set(["it", "test"]);
@@ -287,4 +288,60 @@ export function findDuplicateTestBlocks(blocks: TestBlock[]): TestBlock[][] {
         else byPrint.set(b.fingerprint, [b]);
     }
     return [...byPrint.values()].filter((g) => g.length > 1);
+}
+
+/** Directories the repo sweep walks — same set as the vacuous-alias guard. */
+export const DUPLICATE_SCAN_ROOTS = ["convex", "src", "scripts", "dashboard"];
+
+/**
+ * Test files exempted from the sweep, with the reason. FILE-scoped, like the
+ * vacuous-alias guard: coarse on purpose, so every entry costs a sentence.
+ * An entry belongs here only when running the same block in two files IS the
+ * test.
+ */
+export const DUPLICATE_ALLOWLIST: ReadonlyMap<string, string> = new Map([
+    [
+        "scripts/__tests__/vitest-setup-freeze-once-b.test.ts",
+        "the deliberate twin of vitest-setup-freeze-once.test.ts: the claim is " +
+            "per WORKER, so two files asserting it is the test (issue #4484)",
+    ],
+]);
+
+/**
+ * The sweep's verdict over every block of the corpus: one finding per
+ * duplicate group outside the allowlist, and one per allowlist entry that is
+ * no longer needed — lifting its exemption would not red the sweep on that
+ * file — or carries no reason.
+ */
+export function duplicateTestBlockVerdict(
+    blocks: readonly TestBlock[],
+    allowlist: ReadonlyMap<string, string>
+): { ok: boolean; findings: string[] } {
+    const groups = findDuplicateTestBlocks(
+        blocks.filter((b) => !allowlist.has(b.file))
+    );
+    const flagged = new Set(
+        findDuplicateTestBlocks([...blocks])
+            .flat()
+            .map((b) => b.file)
+    );
+    const findings = [
+        ...groups.map(
+            (g) =>
+                `${g.length} identical blocks — keep the one in the module that ` +
+                `owns the behaviour, delete the others:\n` +
+                g.map((b) => `    ${b.file}:${b.line} ${b.name}`).join("\n")
+        ),
+        ...[...allowlist]
+            .filter(([file]) => !flagged.has(file))
+            .map(
+                ([file]) =>
+                    `allowlist entry ${file} is no longer needed — no block in it ` +
+                    `duplicates another; drop it from DUPLICATE_ALLOWLIST`
+            ),
+        ...[...allowlist]
+            .filter(([, reason]) => reason.length === 0)
+            .map(([file]) => `allowlist entry ${file} carries no reason`),
+    ];
+    return { ok: findings.length === 0, findings };
 }
