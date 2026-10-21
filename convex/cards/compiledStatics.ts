@@ -351,6 +351,9 @@ export type CompiledStaticEffect =
           readonly maxUntap: number;
           readonly whileSourceUntapped?: true;
           readonly nonManaActivatedAbility?: true;
+          /** CR 614.10 — "Players skip their untap steps": the step itself is
+           *  skipped, not just the untapping. */
+          readonly skipsStep?: true;
       }
     /**
      * CR 614.1d — "Artifacts and lands enter tapped": a replacement effect on
@@ -726,6 +729,7 @@ export function resolveCompiledStatic(
                               hasNonManaActivatedAbility(def),
                       }
                     : {}),
+                ...(descriptor.skipsStep === true ? { skipsStep: true } : {}),
             });
         case "enters-tapped-restriction": {
             const filter = descriptor.filter;

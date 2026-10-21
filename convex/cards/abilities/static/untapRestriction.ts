@@ -78,6 +78,9 @@ export interface UntapRestrictionArgs {
      *  held permanent anyway (CR 503.1a). See
      *  `StaticUntapRestriction.untapEscapeCost`. */
     untapEscapeCost?: ManaCost;
+    /** The restriction skips the whole untap step (CR 614.10). See
+     *  `StaticUntapRestriction.skipsStep`. */
+    skipsStep?: true;
 }
 
 /** Builds a `StaticUntapRestriction` for `staticEffects[]`. The engine
@@ -97,6 +100,21 @@ export function untapRestriction(
                 `the per-candidate refinement silently`
         );
     }
+    // `untapStep` reads `skipsStep` as "every player's untap step is skipped"
+    // without consulting the filter, so a narrower spec would skip too much.
+    if (
+        args.skipsStep &&
+        ((args.maxUntap ?? 0) !== 0 ||
+            args.appliesToSelf ||
+            args.dynamicMatch ||
+            args.condition)
+    ) {
+        throw new Error(
+            `untapRestriction ${args.id}: skipsStep is board-wide (maxUntap 0, ` +
+                `no appliesToSelf / dynamicMatch / condition) — the untap ` +
+                `dispatcher skips the whole step for every player`
+        );
+    }
     return {
         kind: "untap-restriction",
         id: args.id,
@@ -110,5 +128,6 @@ export function untapRestriction(
         ...(args.untapEscapeCost
             ? { untapEscapeCost: args.untapEscapeCost }
             : {}),
+        ...(args.skipsStep ? { skipsStep: true as const } : {}),
     };
 }

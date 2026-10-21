@@ -88,4 +88,33 @@ describe("untapRestriction factory", () => {
             "Players can't untap more than one land during their untap steps."
         );
     });
+
+    it("CR 614.10 — skipsStep is board-wide: a capped or self-scoped spec is refused at build time", () => {
+        expect(() =>
+            untapRestriction({
+                id: "bad",
+                oracleText: "x",
+                filter: {},
+                maxUntap: 1,
+                skipsStep: true,
+            })
+        ).toThrow(/skipsStep is board-wide/);
+        expect(() =>
+            untapRestriction({
+                id: "bad2",
+                oracleText: "x",
+                filter: {},
+                appliesToSelf: true,
+                skipsStep: true,
+            })
+        ).toThrow(/skipsStep is board-wide/);
+        expect(
+            untapRestriction({
+                id: "ok",
+                oracleText: "x",
+                filter: {},
+                skipsStep: true,
+            }).skipsStep
+        ).toBe(true);
+    });
 });
