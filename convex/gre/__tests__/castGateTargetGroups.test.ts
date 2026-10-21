@@ -15,11 +15,11 @@ import { firstUnfillableCastGroup } from "../kicker";
 
 const BEARS = getCardByName("Grizzly Bears").id;
 
-const base = {
+const base: Pick<CardDefinition, "rarity" | "manaCost" | "types"> = {
     rarity: "common",
     manaCost: { R: 1 },
     types: ["Instant"],
-} as const;
+};
 
 function castable(def: CardDefinition, creatures: number): boolean {
     const spell = makeInstance(def.id, {
