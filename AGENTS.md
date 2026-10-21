@@ -137,7 +137,7 @@ rules in `sba.ts`; cards declare only `sbaMods` exceptions.
 
 **Autonomous**: Claude implements, tests, validates end-to-end; user sets
 features and strategy. Ask only on significant architecture choices or genuine
-CR ambiguity affecting behavior.
+CR ambiguity affecting behavior — or an **undecided `check:ui` scope** (attended: ask once, encode a scoper rule; AFK: walk nothing, #6144).
 
 ### Subagent model routing (cost)
 
@@ -405,6 +405,9 @@ the card sits in a 24px-tall container.
 `owed`/`not owed`; not owed → PR line `check:ui: no walk owed (<reason>)`
 replaces the receipt. Leaf components, copy, handlers, tests, non-`src/` diffs:
 say so in one line, move on.
+
+**Exit 5 = `UNDECIDED`/`FULL`, no browser** (issue #6144; `src/CLAUDE.md`): AFK
+walks nothing, PR line `check:ui: scope undecided, not walked (<reasons>)`.
 
 **Run `bun run check:ui`** (#2580): own Vite + headless Chrome, signs in, walks
 the runbook surfaces at all five viewports (ADR 0101), probes, runs axe; nine

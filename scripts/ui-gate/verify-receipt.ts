@@ -190,6 +190,7 @@ export function surfaceEditsSinceBase(root: string): SurfaceEdits {
     } catch (err) {
         return {
             kind: "shared",
+            unreadable: true,
             reason: `the surfaces.ts diff could not be read (${(err as Error).message})`,
         };
     }
@@ -530,6 +531,13 @@ export function landableScope(
         return {
             problems: [
                 "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run land`, or paste a full RECEIPT",
+            ],
+        };
+    }
+    if (expected.scope.kind === "undecided") {
+        return {
+            problems: [
+                `the landing diff's scope is undecided (${expected.scope.reasons.join("; ")}) — no receipt can cover it; an AFK pass states \`check:ui: scope undecided, not walked (<reasons>)\`, an attended session asks the owner and encodes the answer as a scoper rule`,
             ],
         };
     }

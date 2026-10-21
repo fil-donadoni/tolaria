@@ -66,7 +66,7 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
  * above to ~2%: the slack the old 35,500 left was room for regrowth, not for
  * norms.
  */
-const RESIDENT_CEILING_BYTES = 28_700;
+const RESIDENT_CEILING_BYTES = 28_970; // +270: the undecided-`check:ui` ask rule, two pointer lines (issue #6144)
 
 /**
  * Measured 2026-09-28: 24,718 bytes across `convex/CLAUDE.md` (20,370) and
@@ -92,7 +92,7 @@ const RESIDENT_CEILING_BYTES = 28_700;
  * Raised by 354 for the doc-comment convention (ticket 6170): a new norm
  * the guard `check:issue-log-comments` enforces.
  */
-const ON_DEMAND_CEILING_BYTES = 25_204;
+const ON_DEMAND_CEILING_BYTES = 25_454; // +250: the undecided-scope pointer in src/CLAUDE.md (issue #6144)
 
 /**
  * TIER 3 — SKILL MANIFEST (PRD #5096 D6, issue #5100). A skill's `SKILL.md`
@@ -128,7 +128,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 33_135,
-    "next-ticket": 11_300, // +285 B: the `job.md` pointer and its one-line cue (issue #5641)
+    "next-ticket": 11_380, // +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144)
     prototype: 2_931,
     retro: 4_760,
     "to-prd": 6_076,
