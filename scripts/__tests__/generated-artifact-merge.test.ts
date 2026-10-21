@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import {
     CORPUS_CACHE_REL,
     APPEND_ONLY_MERGE_DRIVER_NAME,
+    KEY_SET_MERGE_DRIVER_NAME,
     LEDGER_MERGE_DRIVER_NAME,
     MERGE_DRIVER_NAME,
     OTHER_MERGE_DRIVERS,
@@ -225,6 +226,19 @@ describe("generated-artifact class — wiring", () => {
         );
         expect(src.replace(/\s+/g, " ")).toContain(
             "`merge.${APPEND_ONLY_MERGE_DRIVER_NAME}.driver`, APPEND_ONLY_MERGE_DRIVER_COMMAND"
+        );
+    });
+
+    it("the bootstrap registers the key-set driver", () => {
+        const src = readFileSync(
+            join(REPO_ROOT, "scripts", "bootstrap-worktree.ts"),
+            "utf8"
+        );
+        expect(src).toContain(
+            `const KEY_SET_MERGE_DRIVER_NAME = "${KEY_SET_MERGE_DRIVER_NAME}"`
+        );
+        expect(src.replace(/\s+/g, " ")).toContain(
+            "`merge.${KEY_SET_MERGE_DRIVER_NAME}.driver`, KEY_SET_MERGE_DRIVER_COMMAND"
         );
     });
 
