@@ -156,6 +156,7 @@ import {
     type LandingKind,
 } from "./lib/red-land-gate";
 import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
+import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "./lib/derive-sync";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -799,6 +800,14 @@ export const GAPS_SYNC_COMMIT_SUBJECT =
 export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
     "oracle:prune-regressions — drop acknowledgements that match no regression";
 
+/** The third tolerated push (ADR 0157 § Option 1b, issue #6247):
+ *  `housekeeping`'s `derive:sync`, by its subject AND a diff within the five
+ *  derived paths alone. `lib/derive-sync.ts` is a leaf, so it is imported. */
+const DERIVE_SYNC_FILES_ONLY =
+    `[ -z "$(git diff-tree --no-commit-id --name-only -r "$C" | grep -vxF ` +
+    DERIVED_PATHS.map((p) => `-e ${shQuote(p)}`).join(" ") +
+    `)" ]`;
+
 /**
  * Shell fragment that fails the WHOLE locked command (before `green-sha` is
  * written) unless `origin/main` advanced by EXACTLY one commit — our squash
@@ -808,7 +817,9 @@ export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
  *
- * Two pushes are not counted (the second, issue #6061: `housekeeping`'s
+ * Three pushes are not counted (the third, ADR 0157 / issue #6247:
+ * `housekeeping`'s `derive:sync`, subject `DERIVE_SYNC_COMMIT_SUBJECT` AND a
+ * diff within `DERIVED_PATHS` alone; the second, issue #6061: `housekeeping`'s
  * `oracle:prune-regressions`, subject `PRUNE_REGRESSIONS_COMMIT_SUBJECT` AND a
  * diff of `data/oracle-state-regressions.json` alone, same reasoning). The
  * first: `gaps:sync`'s own allowlist commit — its subject
@@ -834,7 +845,8 @@ export const VERIFY_MERGED_TIP =
     `case "$(git log -1 --format=%s "$C")" in ${shQuote(GAPS_SYNC_COMMIT_SUBJECT)}) ` +
     `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; ` +
     `${shQuote(PRUNE_REGRESSIONS_COMMIT_SUBJECT)}) ` +
-    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/oracle-state-regressions.json" ] && continue;; esac; ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/oracle-state-regressions.json" ] && continue;; ` +
+    `${shQuote(DERIVE_SYNC_COMMIT_SUBJECT)}) ${DERIVE_SYNC_FILES_ONLY} && continue;; esac; ` +
     `N=$((N+1)); done; ` +
     `[ "$N" = "1" ] || ` +
     `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +

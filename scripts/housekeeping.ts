@@ -52,6 +52,13 @@
  *      whole batch's gaps under P0 for one P0 PR). A failure here — a lost
  *      allowlist write-back included, `gaps:sync` exits 1 on it — does not
  *      stop the per-PR steps; it marks every PR of the batch for retry;
+ *   2c. `derive:sync` (ADR 0157 § Option 1b, issue #6247) — the base writes
+ *      its derived whole-file state: the lockfile header hashes and
+ *      `data/catalogue/*`, regenerated on the tip and pushed once, no commit
+ *      when the bytes already agree. Runs on EVERY run, merged PRs or none
+ *      (the hourly schedule is the backstop for a push the base outran, which
+ *      is coalesced into the newer tip's own run, never retried here); its
+ *      failure is the run's red, never a PR's retry;
  *   3. per PR, oldest merge first: `grammar:residue` (issue #5222), the
  *      `in-progress` claim release (issue #3130), `umbrella:detach <issue>`
  *      (issue #4235) — for a branch naming an issue; none otherwise;
@@ -69,7 +76,8 @@
  * step 1 keeps the whole batch for the next run.
  * `grammar:residue`'s `HOLES_EXIT` is a finding, reported and never retried.
  * The watermark moves past every PR the run saw, so a second run with nothing
- * new merged is a no-op — and writes nothing.
+ * new merged runs only `derive:sync` (a no-op on a fresh tip) — and writes
+ * no state.
  *
  * The merged PRs are listed by `updatedAt`, newest first, paging until a PR
  * last updated before the watermark — a merge updates a PR, so nothing merged
@@ -291,11 +299,19 @@ export function redSummary(input: {
     reason?: string;
     /** The shared-state write failed: the watermark did not move. */
     writeFailed?: string;
+    /** `derive:sync` failed (ADR 0157): the base's derived state may be
+     *  stale until the next run; not tied to any PR, so never retried by
+     *  the retry list. */
+    deriveFailed?: boolean;
 }): string | null {
     if (input.reason !== undefined) return `housekeeping: ${input.reason}`;
     const parts: string[] = [];
     if (input.writeFailed !== undefined)
         parts.push(`state not written (${input.writeFailed})`);
+    if (input.deriveFailed === true)
+        parts.push(
+            "derive:sync failed — the base's lockfile header or data/catalogue may be stale until the next run"
+        );
     if (input.retry.length > 0)
         parts.push(
             `${input.retry.length} PR(s) left to retry: ${input.retry.map((r) => `#${r.number}`).join(" ")}`
@@ -342,6 +358,40 @@ export const PRUNE_REGRESSIONS_STEP: Step = {
     argv: ["bun", "scripts/oracle-prune-regressions.ts"],
     timeoutMs: GAPS_SYNC_TIMEOUT_MS,
 };
+
+/** `derive:sync`'s ceiling: its generators are seconds with the corpus cache
+ *  (`oracle:compile --check` 3.7 s, `catalogue:check` 1.0 s measured), a
+ *  cold worktree pays its module graph once, and the push has its own
+ *  deadline (`GIT_NET_TIMEOUT_MS`). */
+export const DERIVE_SYNC_TIMEOUT_MS = 10 * 60_000;
+
+/** Step 2c (ADR 0157 § Option 1b, issue #6247): the base writes its derived
+ *  whole-file state — the lockfile header hashes and `data/catalogue/*` —
+ *  regenerated on the tip and pushed once; a push the base outran is
+ *  coalesced into the newer tip's own run, never retried here. Runs on EVERY
+ *  run, merged PRs or none: the hourly schedule is the backstop for a
+ *  dropped push, and a fresh tip costs it no commit. */
+export const DERIVE_SYNC_STEP: Step = {
+    label: "derive:sync",
+    argv: ["bun", "scripts/derive-sync.ts"],
+    timeoutMs: DERIVE_SYNC_TIMEOUT_MS,
+};
+
+/**
+ * The steps of one run, in order (what `--dry-run` prints): the batch steps
+ * and the per-PR steps only when something merged; `derive:sync` always.
+ * Pure.
+ */
+export function plannedSteps(pending: readonly MergedPr[]): Step[] {
+    if (pending.length === 0) return [DERIVE_SYNC_STEP];
+    return [
+        GAPS_SYNC_STEP,
+        PRUNE_REGRESSIONS_STEP,
+        DERIVE_SYNC_STEP,
+        ...pending.flatMap((pr) => prSteps(pr)),
+        SWEEP_STEP,
+    ];
+}
 
 /** Whether a PR's steps left it for retry: the batch's `gaps:sync` failed
  *  (a lost allowlist write-back included, issue #5871), or one of its own
@@ -736,34 +786,17 @@ function main(): void {
     }
 
     const pending = pendingPrs(merged, state);
-    if (pending.length === 0) {
-        say(`nothing merged since ${state.since}`);
-        // Nothing changed: no write — except the first shared state (a
-        // migration or a first run) and an explicit `--since`.
-        if (shared.raw === null || sinceArg !== null) {
-            const why = writeState(state);
-            if (why !== null)
-                return bail(
-                    `${why} — nothing to do, but the first shared state is not written`
-                );
-        }
-        forgetNotice(noticeMarker);
-        return exit(0);
-    }
-    say(
-        `${pending.length} PR(s) since ${state.since}: ${pending.map((p) => `#${p.number}`).join(" ")}`
-    );
+    if (pending.length === 0) say(`nothing merged since ${state.since}`);
+    else
+        say(
+            `${pending.length} PR(s) since ${state.since}: ${pending.map((p) => `#${p.number}`).join(" ")}`
+        );
 
     if (dryRun) {
         say(
             `would create the workspace ${workspacePath(primary, process.pid)} at ${ORIGIN_BASE}`
         );
-        for (const step of [
-            GAPS_SYNC_STEP,
-            PRUNE_REGRESSIONS_STEP,
-            ...pending.flatMap((pr) => prSteps(pr)),
-            SWEEP_STEP,
-        ])
+        for (const step of plannedSteps(pending))
             say(`would run: ${step.argv.join(" ")}`);
         return exit(0);
     }
@@ -808,8 +841,36 @@ function main(): void {
 
     // Step 2: one sync for the batch. A failure does not hold back the claim
     // releases and detaches below, but every PR is retried for it.
-    const synced = run(GAPS_SYNC_STEP);
-    const pruned = run(PRUNE_REGRESSIONS_STEP);
+    const synced = pending.length === 0 || run(GAPS_SYNC_STEP);
+    const pruned = pending.length === 0 || run(PRUNE_REGRESSIONS_STEP);
+    // Step 2c: the base's derived state, every run (ADR 0157, issue #6247) —
+    // after the two pushes above, so it builds on their commits. Its red is
+    // the run's, never a PR's retry.
+    const derived = run(DERIVE_SYNC_STEP);
+
+    if (pending.length === 0) {
+        closeSync(log);
+        // Nothing merged: no write — except the first shared state (a
+        // migration or a first run) and an explicit `--since`.
+        if (shared.raw === null || sinceArg !== null) {
+            const why = writeState(state);
+            if (why !== null)
+                return bail(
+                    `${why} — nothing to do, but the first shared state is not written`
+                );
+        }
+        const summary = redSummary({
+            retry: [],
+            dropped: [],
+            deriveFailed: !derived,
+        });
+        if (summary === null) forgetNotice(noticeMarker);
+        else if (
+            notifyOnce(noticeMarker, summary, summary, "Tolaria housekeeping")
+        )
+            say(`notifying the owner: ${summary}`);
+        return exit(derived ? 0 : 1);
+    }
 
     // Step 3: per PR.
     const failed = new Set<number>();
@@ -836,6 +897,7 @@ function main(): void {
     const summary = redSummary({
         retry: next.state.retry,
         dropped: next.dropped,
+        deriveFailed: !derived,
     });
     const writeFailed = writeState(withNotice(next.state, summary));
     // A failed write is part of the red — and leaves nothing to dedupe by,
@@ -847,6 +909,7 @@ function main(): void {
                   retry: next.state.retry,
                   dropped: next.dropped,
                   writeFailed: writeFailed.split(" — ")[0]!,
+                  deriveFailed: !derived,
               });
     if (writeFailed !== null) {
         if (notifyOnce(noticeMarker, full!, full!, "Tolaria housekeeping"))
@@ -856,7 +919,7 @@ function main(): void {
         notifyOwner(summary!, "Tolaria housekeeping");
         forgetNotice(noticeMarker);
     } else if (summary === null) forgetNotice(noticeMarker);
-    return exit(writeFailed === null && failed.size === 0 ? 0 : 1);
+    return exit(writeFailed === null && failed.size === 0 && derived ? 0 : 1);
 }
 
 if (import.meta.main) main();

@@ -3,8 +3,12 @@
 # checkout, remove the merged PR's worktree and ingest the telemetry; on the
 # `seed` machine, seed the PR's preset scenario (and every preset list when a
 # card set changed); on ANY one lane runner, `housekeeping` (gaps:sync with its
-# direct push, grammar residue, claim release, umbrella detach). Two schedules
-# cover what no push triggers: housekeeping's hourly retry and `health:nightly`.
+# direct push, derive:sync — the base regenerates its lockfile header hashes and
+# data/catalogue/* on the tip and pushes once, ADR 0157 / issue #6247 — grammar
+# residue, claim release, umbrella detach). Two schedules cover what no push
+# triggers: housekeeping's hourly retry (and derive:sync's backstop for a push
+# the base outran) and `health:nightly`. `sync` fast-forwards the primary only
+# to a derived-fresh tip (`derive:sync --fresh` on the job worktree).
 # They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
 # The hourly schedule also runs `sweep` on EVERY machine (issue #6083):
 # worktrees are machine-local, so the issue worktrees no merge cleans up (PR

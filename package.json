@@ -57,6 +57,7 @@
         "cr:lint": "bun scripts/check-cr-citations.ts",
         "cr:sync": "bun scripts/cr.ts sync",
         "derive:regenerate": "bun scripts/derive-regenerate.ts",
+        "derive:sync": "bun scripts/derive-sync.ts",
         "dev": "bun run catalogue:ensure && bun run prints:ensure && vite",
         "docs:ship": "bun scripts/docs-lane.ts ship",
         "findings": "bun scripts/findings.ts",

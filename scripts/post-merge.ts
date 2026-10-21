@@ -7,8 +7,14 @@
  * machine's PRIMARY checkout, never on the worktree they run from.
  *
  *   sync   fetch + fast-forward the primary checkout (on the MacBook
- *          `convex dev` serves the deployment from it), remove the worktree
- *          each merged PR left standing, ingest the telemetry.
+ *          `convex dev` serves the deployment from it) — to the PUSHED tip,
+ *          and only when that tip is DERIVED-FRESH (`derive:sync --fresh` on
+ *          the job worktree: lockfile header hashes and `data/catalogue/*`
+ *          agree with the tree; ADR 0157 § Option 1b, issue #6247), so the
+ *          deployment never serves a catalogue that disagrees with its
+ *          source; a stale tip leaves the primary on the previous fresh one
+ *          until the derive commit's own push — remove the worktree each
+ *          merged PR left standing, ingest the telemetry.
  *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
  *          no merge will ever clean up — PR closed unmerged, or no PR, no
  *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
@@ -143,11 +149,13 @@ export function fastForwardRefusal(r: {
     return `it diverged from the base${held} (${why})`;
 }
 
-/** The primary checkout's commits not on `origin/<base>`, with their files. */
+/** The primary checkout's commits not on `target` (`origin/<base>`, or the
+ *  tip a leg fast-forwards to), with their files. */
 export function localCommits(
-    primary: string
+    primary: string,
+    target: string = ORIGIN_BASE
 ): { subject: string; files: string[] }[] {
-    const shas = git(["rev-list", `${ORIGIN_BASE}..HEAD`], primary).out;
+    const shas = git(["rev-list", `${target}..HEAD`], primary).out;
     return shas === ""
         ? []
         : shas.split("\n").map((sha) => ({
@@ -160,13 +168,23 @@ export function localCommits(
 }
 
 /**
- * Fetch, then fast-forward the primary checkout — only when it has the base
- * branch checked out, and `--ff-only` on top: anything else would move a
- * branch of the owner's work in progress (the guard `land` always had). A
- * refusal over stranded `gaps:sync` commits alone is healed (issue #5873):
- * they are dropped and the fast-forward retried.
+ * Fetch, then fast-forward the primary checkout to `target` — only when it
+ * has the base branch checked out, and `--ff-only` on top: anything else
+ * would move a branch of the owner's work in progress (the guard `land`
+ * always had). A refusal over stranded `gaps:sync` commits alone is healed
+ * (issue #5873): they are dropped and the fast-forward retried.
+ *
+ * `target` is the PUSHED tip a leg was dispatched for (ADR 0157, issue
+ * #6247), never the latest `origin/<base>`: a leg moves the primary only to
+ * a tip it has judged derived-fresh (`judgeTip`), and a later push's own leg
+ * judges its own tip. A primary already past `target` is left where it is
+ * (`--ff-only` on an ancestor is a no-op). The default is the base tip, for
+ * a hand run.
  */
-export function fastForward(primary: string): boolean {
+export function fastForward(
+    primary: string,
+    target: string = ORIGIN_BASE
+): boolean {
     if (
         !git(["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], primary)
             .ok
@@ -181,13 +199,13 @@ export function fastForward(primary: string): boolean {
         );
         return false;
     }
-    const merged = git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary);
+    const merged = git(["merge", "--ff-only", "--quiet", target], primary);
     if (merged.ok) return true;
-    const local = localCommits(primary);
+    const local = localCommits(primary, target);
     if (strandedAllowlistOnly(local)) {
         if (
-            git(["reset", "--keep", "--quiet", ORIGIN_BASE], primary).ok &&
-            git(["merge", "--ff-only", "--quiet", ORIGIN_BASE], primary).ok
+            git(["reset", "--keep", "--quiet", target], primary).ok &&
+            git(["merge", "--ff-only", "--quiet", target], primary).ok
         ) {
             console.log(
                 `post-merge: healed ${primary} — dropped ${local.length} stranded gaps:sync commit(s) (the next sync re-derives them)`
@@ -200,11 +218,11 @@ export function fastForward(primary: string): boolean {
         return false;
     }
     console.error(
-        `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} — ${fastForwardRefusal(
+        `post-merge: could not fast-forward ${BASE_BRANCH} in ${primary} to ${target} — ${fastForwardRefusal(
             {
                 gitError: merged.err,
                 headOnBase: git(
-                    ["merge-base", "--is-ancestor", "HEAD", ORIGIN_BASE],
+                    ["merge-base", "--is-ancestor", "HEAD", target],
                     primary
                 ).ok,
                 local,
@@ -212,6 +230,58 @@ export function fastForward(primary: string): boolean {
         )} — pull it by hand`
     );
     return false;
+}
+
+/** This script's own tree — the job worktree, at the pushed tip. */
+const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
+
+/** Whether the pushed tip may be deployed (ADR 0157 § Option 1b,
+ *  "Deployment"): `fresh` / `stale` by `derive:sync --fresh` on this tree;
+ *  `unjudged` when this tree is not at that tip (a hand run from another
+ *  checkout), which fast-forwards as before, saying so. */
+export type TipJudgement =
+    | { kind: "fresh" }
+    | { kind: "stale"; why: string }
+    | { kind: "unjudged"; why: string };
+
+/**
+ * Judge `sha` on THIS tree — the hashes and the catalogue generators can
+ * speak only for the tree they are imported with, so a tree at another
+ * commit cannot judge it. `derive:sync --fresh` is a second or so, offline.
+ */
+export function judgeTip(sha: string, root: string = ROOT): TipJudgement {
+    const head = git(["rev-parse", "HEAD"], root).out;
+    if (head !== sha)
+        return {
+            kind: "unjudged",
+            why: `this tree is at ${head.slice(0, 10)}, not ${sha.slice(0, 10)}`,
+        };
+    const r = spawnSync("bun", ["scripts/derive-sync.ts", "--fresh"], {
+        cwd: root,
+        encoding: "utf8",
+        timeout: STEP_WALL_MS,
+        killSignal: "SIGKILL",
+    });
+    if (r.status === 0) return { kind: "fresh" };
+    const last =
+        `${r.stdout ?? ""}${r.stderr ?? ""}`
+            .trim()
+            .split("\n")
+            .filter((l) => l.trim() !== "")
+            .at(-1) ?? `exit ${r.status ?? r.signal ?? "?"}`;
+    return { kind: "stale", why: last.replace(/^derive:sync: /, "") };
+}
+
+/** The line a leg prints for a tip it does not deploy. Pure. */
+export function tipHeldLine(
+    sha: string,
+    primary: string,
+    judged: TipJudgement
+): string | null {
+    if (judged.kind === "fresh") return null;
+    if (judged.kind === "unjudged")
+        return `post-merge: ${sha.slice(0, 10)} not judged derived-fresh (${judged.why}) — fast-forwarding regardless`;
+    return `post-merge: ${sha.slice(0, 10)} is derived-stale (${judged.why}) — ${primary} stays on its previous tip until derive:sync lands (ADR 0157)`;
 }
 
 /** The I/O `removeMergedWorktree` does — a seam for the test. */
@@ -299,20 +369,44 @@ function readPush(before: string, after: string, primary: string) {
     return { prs: mergedPrNumbers(subjects), files };
 }
 
-/** The failing steps of a `sync`, by name — what the owner's notice lists. */
+/** The I/O `syncSteps` and `seed` reach past git — a seam for the test. */
+export interface SyncIo {
+    judge: (sha: string) => TipJudgement;
+    ingest: (primary: string) => boolean;
+    removeWorktree: (primary: string, pr: number) => boolean;
+}
+
+const SYNC_IO: SyncIo = {
+    judge: judgeTip,
+    ingest: (primary) =>
+        bun(["scripts/telemetry-ingest.ts", "--quick"], primary),
+    removeWorktree: removeMergedWorktree,
+};
+
+/**
+ * The failing steps of a `sync`, by name — what the owner's notice lists. The
+ * fast-forward goes to the pushed tip, and only when it is derived-fresh
+ * (ADR 0157, issue #6247): a stale tip is held, said, and is not a failure —
+ * the derive commit's own push brings a fresh tip within the housekeeping
+ * window.
+ */
 export function syncSteps(
     primary: string,
     before: string,
-    after: string
+    after: string,
+    io: SyncIo = SYNC_IO
 ): string[] {
     const failed: string[] = [];
-    if (!fastForward(primary)) failed.push(`fast-forward of ${primary}`);
+    const judged = io.judge(after);
+    const held = tipHeldLine(after, primary, judged);
+    if (held !== null) console.log(held);
+    if (judged.kind !== "stale" && !fastForward(primary, after))
+        failed.push(`fast-forward of ${primary}`);
     const { prs } = readPush(before, after, primary);
     for (const pr of prs)
-        if (!removeMergedWorktree(primary, pr))
+        if (!io.removeWorktree(primary, pr))
             failed.push(`worktree of PR #${pr}`);
-    if (!bun(["scripts/telemetry-ingest.ts", "--quick"], primary))
-        failed.push("telemetry ingest");
+    if (!io.ingest(primary)) failed.push("telemetry ingest");
     return failed;
 }
 
@@ -335,10 +429,30 @@ export function sync(primary: string, before: string, after: string): boolean {
     return failed.length === 0;
 }
 
-export function seed(primary: string, before: string, after: string): boolean {
-    const ff = fastForward(primary);
+/**
+ * The seed resolves card names against the primary's disk, so it needs the
+ * primary AT the pushed tip — and the primary moves only to a derived-fresh
+ * one (ADR 0157). A stale tip is therefore a red here, named: until issue
+ * #6248 lands, PRs carry fresh derived state and a stale tip is a PR that
+ * merged stale, worth the red; once they stop, the seed must wait for the
+ * derive commit instead (issue #6248's to decide — see its note in the PR).
+ */
+export function seed(
+    primary: string,
+    before: string,
+    after: string,
+    io: Pick<SyncIo, "judge"> = SYNC_IO
+): boolean {
+    const judged = io.judge(after);
+    const held = tipHeldLine(after, primary, judged);
+    if (held !== null) console.log(held);
+    const ff = judged.kind !== "stale" && fastForward(primary, after);
     const { prs, files } = readPush(before, after, primary);
     const plan = seedPlan(ff, prs, files);
+    if (judged.kind === "stale")
+        console.error(
+            `post-merge: nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"} — seed by hand (bun run seed:scenario <PR>) once derive:sync has landed`
+        );
     if (!ff) return false;
     let ok = true;
     for (const pr of plan.scenarios)
