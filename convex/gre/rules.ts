@@ -27,6 +27,7 @@ import {
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
+    declaresAsEntersMode,
     getManaTapOptionsDetailed,
     hasInstantSpeed,
     isTapLockedBySummoningSickness,
@@ -38,6 +39,7 @@ import {
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import { castAnnouncedTargetGroups, firstUnfillableCastGroup } from "./kicker";
 import {
     isProtectedFrom,
     playerHasProtectionFromEverything,
@@ -112,6 +114,7 @@ import {
     getManaSubstitutions,
     landPlayLockActive,
     normalizeManaCost,
+    resolveTargetRequirementCount,
     restrictedUnitAllowsSpell,
     emitBecameTargetEvents,
 } from "./state";
@@ -1796,59 +1799,105 @@ function hasEnoughLegalTargets(
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return true;
     const def = tryGetDefinition(cardId);
-    const requirement = def?.targetRequirement;
-    if (!requirement) return true;
-    // Does a single target requirement have enough legal targets on the board?
-    // Preserves every prior early-return semantic: an "X" count (X = 0 path,
-    // CR 107.3) or a required count ≤ 0 leaves the cast legal regardless of
-    // board state.
-    const checkRequirement = (req: TargetRequirement): boolean => {
-        if (req.count === "X") return true;
-        const required =
-            typeof req.count === "number" ? req.count : req.count.min;
-        if (required <= 0) return true;
+    if (!def) return true;
+    // CR 700.2d (ADR 0094) — a multi-instance mode list ("choose two") builds
+    // its groups per instance with no card-level fallback; that announcement is
+    // not modelled here, so the gate stays open for it.
+    const modes =
+        def.modes && def.modes.length > 0 && !declaresAsEntersMode(def)
+            ? def.modes
+            : undefined;
+    if (modes && def.modeSelection) return true;
+    // CR 601.2c — the groups the announcement would open, per variant. A
+    // single-choice modal spell announces ONE mode (CR 700.2a), so it is
+    // castable when any mode's list can be filled; the mode's own primary
+    // group falls back to the card level exactly as `announceCast` does.
+    // CR 702.33 — the kicker is chosen at announcement, AFTER this gate: a
+    // KICKED list can widen the legal set (Bloodchief's Thirst, Tear Asunder)
+    // or hold a kicker-gated group (CR 702.33g), so the spell stays castable if
+    // EITHER the unkicked OR the kicked announcement can be filled.
+    const variantGroups = (wasKicked: boolean): TargetRequirement[][] => {
+        const primary =
+            wasKicked && def.kickedTargetRequirement
+                ? def.kickedTargetRequirement
+                : def.targetRequirement;
+        return (modes ?? [undefined]).map((mode) =>
+            castAnnouncedTargetGroups(
+                [
+                    mode?.targetRequirement ?? primary,
+                    ...(mode?.additionalTargetRequirements ??
+                        def.additionalTargetRequirements ??
+                        []),
+                ],
+                wasKicked
+            )
+        );
+    };
+    const kickable =
+        !!def.kickedTargetRequirement ||
+        [
+            def.targetRequirement,
+            ...(def.additionalTargetRequirements ?? []),
+            ...(modes ?? []).flatMap((m) => [
+                m.targetRequirement,
+                ...(m.additionalTargetRequirements ?? []),
+            ]),
+        ].some((g) => g?.announcedOnlyIfKicked);
+    const lists = [
+        ...variantGroups(false),
+        ...(kickable ? variantGroups(true) : []),
+    ];
+    return lists.some((groups) => {
+        // A list with no group announces nothing: castable.
+        if (groups.length === 0) return true;
         // CR 107.3 / 202.3 — an X-dependent mv ceiling (Dominate, Spell Blast:
         // `mvFilter { max: "X" }`) exposes a wider legal-target set as X rises.
-        // Probing only X = 0 (the historical `undefined` → 0 resolution) judged
-        // the spell uncastable whenever no target sat under the X = 0 ceiling,
-        // even though a larger — and affordable — X would reach one. Probe every
-        // announceable X (0..maxAffordableX) and accept if ANY yields enough
-        // legal targets, mirroring the move enumerator's X loop. Non-X
-        // requirements keep the single X-agnostic pass. `state` is forwarded
-        // into `maxAffordableX` (issue #1751 finding 5) — it is already in
-        // scope as this function's own param — so the X ceiling itself is
-        // board-aware: an {X} spell funded by a board-dependent mana source
-        // no longer gets an under-estimated ceiling here.
-        const xValues = mvFilterUsesX(req)
+        // Probe every announceable X (0..maxAffordableX) and accept if ANY
+        // yields a fillable list, mirroring the move enumerator's X loop.
+        // `state` is forwarded into `maxAffordableX` so the X ceiling is
+        // board-aware. Non-X lists keep the single X-agnostic pass.
+        const xValues = groups.some(mvFilterUsesX)
             ? Array.from(
                   { length: maxAffordableX(player, card, state) + 1 },
                   (_, i) => i
               )
             : [undefined];
         return xValues.some((chosenX) => {
-            const legalTargets = getLegalTargets(
-                state,
-                req,
-                // hasEnoughLegalTargets gates the Cast UI — the source is a
-                // spell (CR 113.3).
-                targetingSourceFromCard(card, true),
-                player.id,
-                chosenX
+            // CR 107.3: an "X" count resolves to 0 when X is 0, and a primary
+            // group that then takes no targets ends the announcement's target
+            // walk — cast stays legal regardless of board state.
+            const resolved = (req: TargetRequirement) =>
+                resolveTargetRequirementCount(req.count, chosenX ?? 0);
+            const countOf = (req: TargetRequirement): number => {
+                const c = resolved(req);
+                return typeof c === "number" ? c : c.min;
+            };
+            const primaryCount = resolved(groups[0]);
+            if (
+                typeof primaryCount === "number"
+                    ? primaryCount <= 0
+                    : primaryCount.max === 0
+            ) {
+                return true;
+            }
+            return (
+                firstUnfillableCastGroup(
+                    groups,
+                    (req) =>
+                        getLegalTargets(
+                            state,
+                            req,
+                            // The gate precedes the cast: the source is a
+                            // spell (CR 113.3).
+                            targetingSourceFromCard(card, true),
+                            player.id,
+                            chosenX
+                        ),
+                    countOf
+                ) === undefined
             );
-            return legalTargets.length >= required;
         });
-    };
-    // CR 702.33 — the kicker is chosen at announcement, AFTER this castability
-    // gate. A spell whose KICKED target requirement widens the legal-target set
-    // (Bloodchief's Thirst: MV ≤ 2 → any; Tear Asunder: artifact/enchantment →
-    // any nonland permanent) stays castable if EITHER the base OR the kicked
-    // requirement has enough legal targets — paying the kicker reaches the
-    // wider set. Gating on only the base requirement wrongly judged such a
-    // spell uncastable whenever only the widened set had a legal target.
-    if (checkRequirement(requirement)) return true;
-    const kicked = def?.kickedTargetRequirement;
-    if (kicked && checkRequirement(kicked)) return true;
-    return false;
+    });
 }
 
 /** The RAW `requireTap: true` mana-tap option list for one permanent, plus the
