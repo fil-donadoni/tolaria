@@ -263,6 +263,30 @@ try {
     );
 }
 
+// ── merge driver for the issue-log baseline (issue #6276) ───────────────────
+// A FOURTH driver: `.gitattributes` names `merge=key-set` for the ratchet
+// baseline, a sorted key set where adjacent deletions conflict as text.
+const KEY_SET_MERGE_DRIVER_NAME = "key-set";
+const KEY_SET_MERGE_DRIVER_COMMAND =
+    "bun scripts/merge-driver-key-set.ts %O %A %B %P";
+try {
+    git(
+        "config",
+        `merge.${KEY_SET_MERGE_DRIVER_NAME}.name`,
+        "merge a sorted key set: base minus removals plus additions (issue #6276)"
+    );
+    git(
+        "config",
+        `merge.${KEY_SET_MERGE_DRIVER_NAME}.driver`,
+        KEY_SET_MERGE_DRIVER_COMMAND
+    );
+    done.push(`merge.${KEY_SET_MERGE_DRIVER_NAME} driver (git config)`);
+} catch (err) {
+    failed.push(
+        `git config merge.${KEY_SET_MERGE_DRIVER_NAME}.driver — ${String(err)}`
+    );
+}
+
 // ── receipt ─────────────────────────────────────────────────────────────────
 const label = primary ? `worktree of ${primary}` : "primary checkout";
 console.log(`\nworktree:init — ${label}`);

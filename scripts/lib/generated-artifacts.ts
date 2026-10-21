@@ -278,6 +278,9 @@ export const LEDGER_MERGE_DRIVER_NAME = "cr-ledger";
 /** The merge-driver name of the hand-written append-only lists (issue #5942). */
 export const APPEND_ONLY_MERGE_DRIVER_NAME = "append-only";
 
+/** The merge-driver name of the issue-log ratchet baseline (issue #6276). */
+export const KEY_SET_MERGE_DRIVER_NAME = "key-set";
+
 export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
     {
         path: LEDGER_PATH,
@@ -286,6 +289,15 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
         why:
             "not re-derivable (`cr:ledger` upserts and prunes, it never regenerates), " +
             "but a keyed set of independent facts — merged by (id, line) against the base",
+    },
+    {
+        path: "data/issue-log-comments-baseline.json",
+        driver: KEY_SET_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-key-set.ts",
+        why:
+            "a sorted set of keys that only shrinks; the guard reds on stale keys, so PRs " +
+            "delete rows of files they never touched and adjacent deletions conflict as text " +
+            "(issue #6276) — merged as base minus removals plus additions",
     },
     // Hand-written, append-only lists (issue #5942): two branches appending at
     // the same end conflict without disagreeing. The driver concatenates only
@@ -348,11 +360,6 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         pattern: "data/ai-effects-inert.json",
         kind: "immune-by-shape",
         why: "the allowlist's sibling: same writer (`ai:allowlist`), same per-row sorted form",
-    },
-    {
-        pattern: "data/issue-log-comments-baseline.json",
-        kind: "immune-by-shape",
-        why: "issue-log ratchet baseline, one key per row, sorted; a PR only drops its own rows (issue #6170)",
     },
     {
         pattern: "data/catalogue/shard-dictionary.json",
