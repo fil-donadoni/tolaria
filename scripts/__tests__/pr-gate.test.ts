@@ -12,6 +12,7 @@ import {
     gatePrOf,
     healthAdmission,
     isMergifyQueuePr,
+    laneJobToRerun,
     needsRequeue,
     parseTrustedAuthors,
     protectedPaths,
@@ -402,5 +403,51 @@ describe("needsRequeue — the GREEN that releases a held PR (issue #6110)", () 
         expect(needsRequeue(labels("ready-to-land", "queued"))).toBe(false);
         expect(needsRequeue(labels("enhancement"))).toBe(false);
         expect(needsRequeue({ ...held, trustedAuthor: "failure" })).toBe(false);
+    });
+});
+
+describe("laneJobToRerun — the lane a RED redded runs again (issue #6256)", () => {
+    const HEAD = "a".repeat(40);
+    const lane = (id: number, status: string, conclusion: string | null) => ({
+        id,
+        name: "check:lane (advisory)",
+        headSha: HEAD,
+        status,
+        conclusion,
+    });
+
+    it("re-runs the latest lane job when it went red", () => {
+        expect(
+            laneJobToRerun(
+                [
+                    lane(1, "completed", "success"),
+                    lane(2, "completed", "failure"),
+                ],
+                HEAD
+            )
+        ).toBe(2);
+    });
+
+    it("leaves a green, pending or absent lane alone", () => {
+        expect(laneJobToRerun([lane(3, "completed", "success")], HEAD)).toBe(
+            null
+        );
+        expect(laneJobToRerun([lane(4, "in_progress", null)], HEAD)).toBe(null);
+        expect(laneJobToRerun([], HEAD)).toBe(null);
+    });
+
+    it("ignores another check and another head", () => {
+        expect(
+            laneJobToRerun(
+                [
+                    { ...lane(5, "completed", "failure"), name: "scenario" },
+                    {
+                        ...lane(6, "completed", "failure"),
+                        headSha: "b".repeat(40),
+                    },
+                ],
+                HEAD
+            )
+        ).toBe(null);
     });
 });

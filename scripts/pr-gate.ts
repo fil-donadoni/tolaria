@@ -19,7 +19,8 @@
  * `--dry-run` prints the statuses and posts nothing. Each status is decided
  * and posted on its own: one that cannot be read or written is reported and
  * skipped, and the run exits 1. A PR whose `base-health` turns green after
- * being held gets `@mergifyio requeue` (issue #6110). An unreadable verdict store posts
+ * being held gets `@mergifyio requeue` (issue #6110), its red advisory lane
+ * re-run first. An unreadable verdict store posts
  * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
@@ -38,6 +39,7 @@ import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
     gatePrOf,
+    laneJobToRerun,
     needsRequeue,
     REQUEUE_COMMENT,
     parseTrustedAuthors,
@@ -50,6 +52,7 @@ import {
     type GateStatus,
     type RestPr,
 } from "./lib/pr-gate";
+import type { CheckRunView } from "./lib/merge-manual";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -216,6 +219,27 @@ function main(): number {
             console.log(`PR #${raw.number}: ${REQUEUE_COMMENT}`);
             if (!dryRun)
                 try {
+                    // The lane the RED redded runs again first (issue #6256):
+                    // a re-run is pending, never a failure, so the PR enters.
+                    const job = laneJobToRerun(
+                        ghLines<CheckRunView>(
+                            run,
+                            `repos/${repo}/commits/${raw.head.sha}/check-runs?per_page=100`,
+                            ".check_runs[] | {id, name, headSha: .head_sha, status, conclusion} | tojson"
+                        ),
+                        raw.head.sha
+                    );
+                    if (job !== null) {
+                        console.log(
+                            `PR #${raw.number}: re-running lane job ${job}`
+                        );
+                        gh(run, [
+                            "api",
+                            "-X",
+                            "POST",
+                            `repos/${repo}/actions/jobs/${job}/rerun`,
+                        ]);
+                    }
                     gh(run, [
                         "pr",
                         "edit",

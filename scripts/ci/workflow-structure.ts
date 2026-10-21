@@ -89,6 +89,12 @@
  *     repair pick's trigger, and `-label=land-failed` keeps the PR out. The
  *     rule must also carry a top-level `-check-failure=base-health`: a
  *     dequeue under a RED is a hold, not a repair pick.
+ *   - `queue-refusal-hold` — a `pull_request_rules` entry that adds
+ *     `land-failed` without the same top-level hold exemption, or no entry
+ *     labelling `queue:held` a PR whose advisory lane is red while
+ *     `base-health` is red. A RED reds every PR's lane (the lane tests the
+ *     PR merged with the broken base): that red is the base's, so it holds
+ *     the PR, and `pr-gate`'s GREEN re-runs the lane and requeues it.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
@@ -129,6 +135,7 @@ export type RuleId =
     | "queue-merge"
     | "queue-shape"
     | "queue-dequeue"
+    | "queue-refusal-hold"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
     | "queue-superseded"
@@ -684,6 +691,37 @@ function relabelsDequeue(rule: unknown): boolean {
     );
 }
 
+/** Top-level conditions carry the hold exemption: a RED stands it down. */
+function holdExempt(rule: Record<string, unknown>): boolean {
+    const top = strings(rule.conditions);
+    return HOLD_EXEMPT.every((re) => top.some((c) => re.test(c)));
+}
+
+/** A rule that labels a PR `land-failed`. */
+function addsFailed(rule: unknown): rule is Record<string, unknown> {
+    return (
+        isObj(rule) &&
+        isObj(rule.actions) &&
+        isObj(rule.actions.label) &&
+        strings(rule.actions.label.add).includes(FAILED_LABEL)
+    );
+}
+
+/** A rule that holds a PR whose advisory lane went red under a RED. */
+function holdsRefusal(rule: unknown): boolean {
+    if (!isObj(rule) || !isObj(rule.actions)) return false;
+    const label = isObj(rule.actions.label) ? rule.actions.label : {};
+    const top = strings(rule.conditions);
+    const lane = new RegExp(
+        `^check-failure\\s*=\\s*${ADVISORY_LANE_CHECK.replace(/[()]/g, "\\$&")}$`
+    );
+    return (
+        strings(label.add).includes(HELD_LABEL) &&
+        top.some((c) => /^check-failure\s*=\s*base-health$/.test(c)) &&
+        flatConditions(rule.conditions).some((c) => lane.test(c))
+    );
+}
+
 function checkMergify(f: SourceFile, out: Violation[]): void {
     let doc: unknown;
     try {
@@ -749,6 +787,18 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
         v(
             "queue-dequeue",
             `no pull_request_rule labels a PR dequeued on ${DEQUEUE_REASONS.join("/")} \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`) with a comment carrying a link, unless held (\`-check-failure=base-health\` and \`-label=${HELD_LABEL}\`: a RED is a hold, issue #6110)`
+        );
+    prRules.forEach((rule, i) => {
+        if (addsFailed(rule) && !holdExempt(rule))
+            v(
+                "queue-refusal-hold",
+                `pull_request_rule \`${String(rule.name ?? i + 1)}\` adds \`${FAILED_LABEL}\` without top-level \`-check-failure=base-health\` and \`-label=${HELD_LABEL}\`: under a RED every PR's lane is red, and that red is the base's (issue #6256)`
+            );
+    });
+    if (!prRules.some(holdsRefusal))
+        v(
+            "queue-refusal-hold",
+            `no pull_request_rule labels \`${HELD_LABEL}\` a PR whose \`${ADVISORY_LANE_CHECK}\` is red while \`base-health\` is red (issue #6256)`
         );
 }
 

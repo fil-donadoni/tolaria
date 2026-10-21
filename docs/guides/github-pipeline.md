@@ -1297,6 +1297,17 @@ no `queued` label), so nothing needs a human or a pass. A `queue-lane` red
 leaves `base-health` green: it stays a repair pick. The structure guard's
 `queue-dequeue` row pins the exemption.
 
+A RED also reds every PR's own `check:lane (advisory)`: the lane tests the PR
+merged with the base, so the base's red is in it (issue #6256). The
+land-refusal rule carries the same two exemptions, and a third rule
+(`a red advisory lane under a RED is a hold`) puts `queue:held` on the PR. On
+the GREEN, `pr-gate` re-runs the PR's red lane job (`laneJobToRerun`, then
+`actions/jobs/{id}/rerun`; the job needs `actions: write`) before the requeue
+comment. A re-run is pending, not failed, so the PR can enter; if it goes red
+again, the red is the PR's own and the refusal rule labels it `land-failed`.
+The structure guard's `queue-refusal-hold` row pins both rules: no rule may
+add `land-failed` without the hold exemption.
+
 Not verified live yet: that Mergify honours `@mergifyio requeue` from the
 `github-actions` token, and that a requeue clears the dequeue reason. If a
 held PR is not requeued at GREEN, comment it by hand.
