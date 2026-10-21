@@ -398,17 +398,17 @@ function isValueOrArray(
 /** `{ type?, excludeType?, subtype?, supertype?, color?, excludeColor?,
  *  manaValueAtMost?, isToken?, enteredThisTurn?, name? }` — the minimal card filter for a
  *  `count` set or a `choice` Op's
- *  zone-restricted candidates (issue #677). `type`/`excludeType`/`subtype`/
+ *  zone-restricted candidates. `type`/`excludeType`/`subtype`/
  *  `color`/`excludeColor` accept a single value OR a non-empty array (OR
  *  within the field — a fetchland's "a Forest or Island card"). `excludeType`
- *  (issue #682) is the negative of `type` — Thoughtseize's "nonland card",
+ *  is the negative of `type` — Thoughtseize's "nonland card",
  *  Duress's "noncreature, nonland card". `supertype` is the "search for a
  *  BASIC land card" restriction (CR 205.4a) and its value must be a real
  *  printed supertype (reuses `TOKEN_SUPERTYPES`). `color` reuses
- *  `TOKEN_COLORS`; `excludeColor` (issue #1287) is its negative — Krovikan
+ *  `TOKEN_COLORS`; `excludeColor` is its negative — Krovikan
  *  Sorcerer's "a NONBLACK card". `manaValueAtMost` is a mana-value ceiling: a
  *  non-negative integer literal (Spellseeker's "mana value 2 or less") OR the
- *  dynamic chosen-cost `{ X: true }` (issue #898, Green Sun's Zenith's "mana
+ *  dynamic chosen-cost `{ X: true }` (Green Sun's Zenith's "mana
  *  value X or less", resolved via `ctx.getX()` at resolution — the same shape
  *  every other `EffectXValue` site uses). */
 function isCardFilter(
@@ -547,17 +547,17 @@ function isCardFilter(
         if (k === "enteredThisTurn") {
             return typeof v === "boolean";
         }
-        // issue #1085 — a FIXED literal name, or a bare `{ ref: "$binding" }`
+        // A FIXED literal name, or a bare `{ ref: "$binding" }`
         // naming a `nameCard` Op's chosen-name binding (Desperate Research's
         // "put all of them with THAT name into your hand"). The ref's
         // binding existence / family is checked by the ordered ref pass, not
         // here (shape-only, mirrors every other field in this function).
-        // issue #2065 — OR the reserved `{ ref: "$target<N>.name" }`, the
+        // OR the reserved `{ ref: "$target<N>.name" }`, the
         // announced target's own live name (Winnow). Shape-only here too: it
         // is the ONLY property-path ref a `name` position accepts, and the
         // ordered ref pass re-checks that (a `$target0.power` in this position
         // is a static error, not a runtime `undefined`).
-        // issue #2711 — OR a `{ ref: "$binding.name" }` snapshot property path:
+        // OR a `{ ref: "$binding.name" }` snapshot property path:
         // the CR 608.2h last-known name of an object an earlier Op bound
         // (Haunting Echoes' graveyard-set `forEach` member). Shape-only here
         // too; the ordered ref pass enforces the SNAPSHOT family, so a picks
@@ -1402,11 +1402,11 @@ function isCountValue(value: unknown): boolean {
     } else if (!isPlayerRef(s.controller)) {
         return false;
     }
-    // `hasAbility` / `isAttacking` (issue #1097) are honest only on the
+    // `hasAbility` / `isAttacking` are honest only on the
     // "battlefield" branch — `countZoneForPlayer` (`gre/effects/interpreter.ts`)
     // reads them via the LIVE `toPermanentFilter`/`requireAbility`/`isAttacking`
     // path there, but falls back to `matchesCardFilter` for the "graveyard" and
-    // (issue #2150) "hand" branches, which have no ability or combat-role data
+    // "hand" branches, which have no ability or combat-role data
     // for a hidden-zone card at all.
     // `manaCostEquals` (issue #1898 finding 3) is the INVERSE gate: honest
     // for the "graveyard"/"hand" branches (`matchesCardFilter` via
@@ -1864,15 +1864,13 @@ function isDivideValue(value: unknown): boolean {
 }
 
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
- *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
- *  on a selected object (issue #1015), a selected object's `manaValue` (issue
- *  #680), a characteristic of the cost-`sacrificed` permanent (issue #2375),
- *  a player's `domain` (issue #1066), an object's `escaped` flag
- *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
- *  (issue #1189), the `difference` of two terminals (issue #2006), a
- *  terminal `scaled` by a fixed multiplier (issue #2366), a terminal
- *  `divide`d by a fixed divisor with explicit rounding (issue #2385), or the
- *  `sum` of one characteristic over a bound SET of cards (issue #3243).
+ *  a `ref`, a `count`, the chosen-cost `X`, a `counters` count
+ *  on a selected object, a selected object's `manaValue`, a characteristic of the cost-`sacrificed` permanent,
+ *  a player's `domain`, an object's `escaped` flag, the resolving triggered ability's `abilityResolutionCount`,
+ *  the `difference` of two terminals, a
+ *  terminal `scaled` by a fixed multiplier, a terminal
+ *  `divide`d by a fixed divisor with explicit rounding, or the
+ *  `sum` of one characteristic over a bound SET of cards.
  *  Exactly those — one non-nestable subtraction, one non-nestable
  *  multiplication, one non-nestable division, and beyond them no arithmetic
  *  and no expressions. */
@@ -2483,11 +2481,11 @@ function isNameRestriction(value: unknown): boolean {
     return value === "no-basic-land" || value === "no-land";
 }
 
-/** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
+/** The destination zones a `moveZone` Op may name (EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7), plus `"library-top"`
  *  — the ORDERED library destination the plain `"library"` zone cannot name:
  *  the `cards`-shape tutor-to-top ("search … then shuffle and put that card on
- *  top", Vampiric Tutor, issue #1125) and, since issue #2713, the
+ *  top", Vampiric Tutor) and the
  *  announced-target shape ("put target creature card from your graveyard on
  *  top of your library", Volrath's Stronghold). */
 function isMoveZone(value: unknown): boolean {
@@ -2545,15 +2543,15 @@ function isNegatedValue(value: unknown): boolean {
     return isEffectValue((value as { negate: unknown }).negate);
 }
 
-/** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
+/** A SIGNED effect value, for a `pump` Op's P/T amounts. Unlike
  *  `isEffectValue` (whose literal branch is a positive count, CR 107.1), a
  *  pump amount is a signed integer literal — a negative is a shrink (Weakness),
  *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` / chosen-cost `X` /
  *  `counters` count (all non-negative by nature; Howl from Beyond's +X/+0,
- *  issue #852; a "+1/+1 per fuse counter" pump, issue #1015) — or a
+ *  a "+1/+1 per fuse counter" pump) — or a
  *  `negate`-wrapped value member for the negative of one of those
- *  non-negative-by-nature reads (issue #926 — Toxic Deluge's "-X/-X"), or the
- *  `setSize` of a bound set (issue #3244 — Myr Battlesphere's "+X/+0" where X
+ *  non-negative-by-nature reads (Toxic Deluge's "-X/-X"), or the
+ *  `setSize` of a bound set (Myr Battlesphere's "+X/+0" where X
  *  is how many Myr were tapped). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
@@ -3336,12 +3334,12 @@ function isPredicate(value: unknown): boolean {
         keys.includes("objectMatchesFilter") &&
         keys.includes("filter")
     ) {
-        // The interpreter (issue #1747) resolves the ref, then hard-requires
+        // The interpreter resolves the ref, then hard-requires
         // `target.type === "permanent"` AND battlefield membership before
         // matching — a non-permanent or off-battlefield resolution reads
         // `false` rather than falling through to this filter. So `filter`
         // here is ALWAYS tested against a live battlefield object —
-        // `hasAbility` / `isAttacking` (issue #1097) are honest here the same
+        // `hasAbility` / `isAttacking` are honest here the same
         // way they are for a `forEach { set: "permanents" }` member, and
         // (issue #1898 finding 3) `manaCostEquals` is REJECTED here for the
         // same reason: `toPermanentFilter` (the reader this form actually
@@ -3483,11 +3481,11 @@ function isRedirectEnd(value: unknown): boolean {
     );
 }
 
-/** The `forEach` construct's set selector (ADR 0045, issue #807) — `{ set:
+/** The `forEach` construct's set selector (ADR 0045) — `{ set:
  *  "players" }`, `{ set: "permanents", zone: "battlefield", controller?,
  *  filter?, excludeSource? }` (`excludeSource` — issue #1957 — drops the
  *  resolving ability/spell's own source from the frozen member set), `{ set:
- *  "graveyard", controller?, filter? }` (issue #1056), or `{ set: "bound",
+ *  "graveyard", controller?, filter? }`, or `{ set: "bound",
  *  ref }`. Unknown keys are rejected (the grammar is frozen; selector SHAPES
  *  may grow like vocabulary, but only by extending this checker). */
 function isForEachSelector(value: unknown): boolean {
@@ -3903,16 +3901,16 @@ isLibraryPosition.fieldKind = "amount" as const;
 isEffectTokenSpec.fieldKind = "scriptScope" as const;
 
 const OP_SCHEMAS: OpSchemaTable = {
-    // CR 615.12 (issue #1065) — `unpreventable` skips every CR 615 prevention
+    // CR 615.12 — `unpreventable` skips every CR 615 prevention
     // step, protection's damage leg included (CR 702.16e words itself "is
-    // prevented", issue #2231). Omitted/false is the default preventable path
+    // prevented"). Omitted/false is the default preventable path
     // every other `dealDamage` card uses.
-    // CR 614.9 (issue #2231) — `unredirectable` skips REDIRECTION replacements
+    // CR 614.9 — `unredirectable` skips REDIRECTION replacements
     // only ("…or dealt instead to another permanent or player", Lava Burst).
     // Independent of `unpreventable`, NOT implied by it: kicked Urza's Rage is
     // unpreventable and still redirectable, so the two are validated (and
     // authored) separately.
-    // CR 120.1 (issue #1416) — optional `source` names a bound PERMANENT that
+    // CR 120.1 — optional `source` names a bound PERMANENT that
     // is the damage source instead of the resolving stack item (Backlash: the
     // tapped creature deals the damage). An object selector (a `$c`-style bind
     // ref); routed through the permanent-source player-damage pipeline.
@@ -4152,7 +4150,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // caster; `free` (optional) waives the mana cost (Malcolm); `includesLand`
     // (optional, CR 116.2a/305) opts the LAND branch in — set it only when the
     // Oracle text says "play" (Hideaway); `resultBind` (optional) names a
-    // boolean outcome binding a downstream `if` reads (Chandra, issue #1478).
+    // boolean outcome binding a downstream `if` reads (Chandra).
     // Two mutually-exclusive card SOURCES:
     //   - `card` + `source` ("graveyard"/"exile") — either a bare picks ref
     //     (Malcolm) or the CR 607 linked-exile selector
@@ -4295,25 +4293,25 @@ const OP_SCHEMAS: OpSchemaTable = {
     // No target field — legality of "currently attached" is enforced by the
     // ability's own `canActivate` gate, not by this Op.
     unattach: { required: {} },
-    // CR 400.7 (issue #839) — a plain zone change. `target` is an object
+    // CR 400.7 — a plain zone change. `target` is an object
     // selector (announced slot or a bare snapshot ref like `$source`); `to` is
     // the destination zone. The source zone is inferred from the object's kind,
-    // so there is no `from` field. `bind` (issue #680) snapshots the object
+    // so there is no `from` field. `bind` snapshots the object
     // BEFORE the move — valid alongside `target` always, or alongside `cards`
-    // ONLY when `to: "battlefield"` (issue #1151, below).
-    // SECOND SHAPE (issue #677, #680): `cards` (a bare choice-picks ref) +
+    // ONLY when `to: "battlefield"` (below).
+    // SECOND SHAPE: `cards` (a bare choice-picks ref) +
     // `player` + `from` — the search/self-select half of a tutor/fetch/
     // graveyard-pick effect, consuming a `choice(zone: "library" | "hand" |
     // "graveyard")` Op's picks (a hidden zone has no announced-target form,
     // CR 601.2b; a graveyard pick is a self-selection, not a spell target).
     // `tapped` (optional) is valid only alongside `cards` AND
     // `to: "battlefield"` (Fabled Passage's forced-tapped fetch). `bind`
-    // (issue #1151, closing #1120 gap 3) is likewise valid alongside `cards`
+    // is likewise valid alongside `cards`
     // only with `to: "battlefield"` — it snapshots the permanent that just
     // entered, unblocking a follow-up Op (haste grant, delayed-sacrifice
     // capture) on a hand-sourced permanent (Sneak Attack, Cauldron Dance's
     // hand-side clause).
-    // THIRD SHAPE (issue #1279) — a bulk WHOLE-ZONE move: `player` + `from`,
+    // THIRD SHAPE — a bulk WHOLE-ZONE move: `player` + `from`,
     // no `target` and no `cards`. Every card in `from` moves to `to`, no
     // selection (Timetwister / Echo of Eons's "shuffles their hand and
     // graveyard into their library"). Exactly one of `target` / `cards` /
@@ -5088,9 +5086,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             // CR 508.1d (issue #1972) — "attacks each combat if able".
             attackRequirement: (v: unknown) => v === true,
             // CR 611.2b / 611.2c — omitted is an INDEFINITE grant on ALL THREE
-            // legs: keyword (`grantStaticAbilityPermanent`, issue #1746),
-            // triggered (`grantTriggeredAbilityPermanent`, issue #1665) and
-            // activated (`grantActivatedAbilityPermanent`, issue #1880).
+            // legs: keyword (`grantStaticAbilityPermanent`),
+            // triggered (`grantTriggeredAbilityPermanent`) and
+            // activated (`grantActivatedAbilityPermanent`).
             duration: isDurationSpec,
         },
         // Exactly one payload: a keyword static grant (`ability`) OR an
@@ -5299,7 +5297,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         // library). Omitted = the library owner chooses (ordinary Scry/Surveil).
         optional: { prompt: isNonEmptyString, chooser: isPlayerRef },
     },
-    // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+    // CR 701.17 — mill: move the top `count` cards of a player's
     // library into their graveyard (deterministic; no choice). `player` names
     // whose library is milled; `count` is how many cards.
     // issue #1095 — optional `bind` snapshots the FIRST card that genuinely
@@ -5402,12 +5400,12 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
         // `filter` restricts the keep-eligible subset (Narset's "noncreature,
         // nonland card"); `optional` makes the keep a "may" (min 0);
-        // `destination` (issue #1101) is where the un-kept cards go
+        // `destination` is where the un-kept cards go
         // (`library-bottom` default / `graveyard` — mirrors `scryReorder` —
-        // or `exile` with `counters`, Karn's +1, issue #1570); `chooser`
-        // (issue #1570) names who picks when it isn't the library owner;
-        // `randomBottom` bottoms the rest unordered + unknown (issue #1266,
-        // meaningless for a graveyard/exile destination); `bind` names the
+        // or `exile` with `counters`, Karn's +1); `chooser`
+        // names who picks when it isn't the library owner;
+        // `randomBottom` bottoms the rest unordered + unknown
+        // (meaningless for a graveyard/exile destination); `bind` names the
         // kept-card snapshot binding.
         optional: {
             take: isEffectValue,
@@ -5731,7 +5729,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: { player: isPlayerRef },
         optional: { looker: isPlayerRef },
     },
-    // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
+    // CR 608.2 / 101.4 — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
     // picks nothing consumes is meaningless. `filter` is valid with any zone:
     // "battlefield" (the submit validator applies it directly to public
@@ -5741,7 +5739,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // `choiceCandidates`'s graveyard branch now precomputes the same
     // allow-list from the filter, e.g. Titania's "a LAND card", Exhume's "a
     // CREATURE card" — a graveyard is a public zone, so no filter at all
-    // admits every card, CR 400.7). `zoneOwnerId` (issue #920) names the zone
+    // admits every card, CR 400.7). `zoneOwnerId` names the zone
     // owner when it differs from the chooser (`player`) — "target player
     // reveals their hand, YOU choose a card from it", Thoughtseize/Duress.
     choice: {
@@ -6170,12 +6168,12 @@ const OP_SCHEMAS: OpSchemaTable = {
             return [];
         },
     },
-    // forEach — the `forEach` structural construct (ADR 0045, issue #807).
+    // forEach — the `forEach` structural construct (ADR 0045).
     // The `select` selector shape is checked here; body Op validity, the
     // nesting ban, and `$each` ref references are checked by the recursive
     // schema / ordered ref passes. `simultaneous` names one of two exact
     // selector/body pairings — graveyard batch reanimation (CR 400.7 /
-    // 614-batch, issue #1094) or players choices-then-actions (CR 101.4,
+    // 614-batch) or players choices-then-actions (CR 101.4,
     // issue #1872) — checked below.
     forEach: {
         required: { select: isForEachSelector, effects: isOpList },
@@ -6192,11 +6190,11 @@ const OP_SCHEMAS: OpSchemaTable = {
             // walk (a silent fallback is how a card ships reading
             // "simultaneously" and behaving sequentially).
             //
-            //   graveyard (issue #1094, CR 400.7 / 614-batch) — a single
+            //   graveyard (CR 400.7 / 614-batch) — a single
             //     reanimating `moveZone`, handed WHOLE to the batch primitive.
-            //   players   (issue #1872, CR 101.4) — `[choice, sacrifice |
+            //   players   (CR 101.4) — `[choice, sacrifice |
             //     discard]`, re-sequenced by the interpreter into
-            //     every-choice-then-every-action; or (issue #3712) a lone
+            //     every-choice-then-every-action; or a lone
             //     `chooseCategorized` with a `sweep`, split the same way.
             if (entry.simultaneous === true) {
                 const select = entry.select as { set?: unknown } | undefined;
@@ -6687,7 +6685,7 @@ interface RefUse {
  *  under a `cards` / `permanents` key is a picks ref (issues #805/#807 — reads
  *  a choice Op's picks); a ref under a `target` / `to` / `of` key is an object
  *  ref (issue #807 — acts ON / reads the referenced permanent, `$each`; `of` is
- *  a `counters` value's object selector, issue #1015); any other ref is
+ *  a `counters` value's object selector); any other ref is
  *  numeric (amount / count). `count` specs are traversed so a ref in their
  *  `controller` is caught too. `if` predicates and branch Op lists are NOT
  *  walked here — the caller handles them explicitly (boolean-binding refs and
@@ -6968,7 +6966,7 @@ function parseRef(ref: string): { binding: string; property: string } | null {
  *  picks, an `if` binding predicate reads a boolean, object positions read a
  *  snapshot, bare player positions read a player — so the interpreter
  *  interprets the persisted value unambiguously. */
-// A LIST binding (ADR 0049, issue #866) stores a frozen `string[]` of instance
+// A LIST binding (ADR 0049) stores a frozen `string[]` of instance
 // ids captured by a `delayedTrigger` list-valued capture; only a
 // `forEach { set: "bound", ref }` reads it (as its iterated member set), so it
 // has no scalar ref position — a `.property` / object / player / picks / boolean
@@ -6980,7 +6978,7 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // (below, in `checkOpListRefs`) accepts either.
 // A NUMBER binding (CR 107.1c / 107.3f, issues #1701 / #1421) stores the
 // amount a numeric nomination settled on — paid (`payVariableMana`) or merely
-// chosen (`chooseNumber`) — or (issue #4302) the count a whole-zone `moveZone`
+// chosen (`chooseNumber`) — or the count a whole-zone `moveZone`
 // moved (`bindCount`), as a TAGGED single value. It is read ONLY
 // by a bare ref in a NUMERIC value position (`count: { ref: "$paid" }`) — a
 // position that had no bare-ref reader at all before this family existed, so
@@ -8054,8 +8052,8 @@ function checkOpListRefs(
                     );
                 }
             }
-            // "this-turn-creature-blocks" (issue #884) and
-            // "until-next-turn-creature-attacks-you" (issue #2385) are the
+            // "this-turn-creature-blocks" and
+            // "until-next-turn-creature-attacks-you" are the
             // TWO delayed timings whose firing event is still live at fire
             // time: each re-fires per its own combat event, and
             // `triggers.ts` threads that event onto the built StackItem
@@ -8064,9 +8062,9 @@ function checkOpListRefs(
             // timing's body runs at a phase boundary / after the watched
             // permanent already left, so `$event` stays illegal there (ADR
             // 0049) — `inDelayedBody` flips on for those.
-            // "becomes-blocked-by" (issue #3809) is the third: it fires per
+            // "becomes-blocked-by" is the third: it fires per
             // BLOCKERS_CONFIRMED pair and threads that event the same way.
-            // "this-turn-watched-creature-deals-combat-damage" (issue #2142)
+            // "this-turn-watched-creature-deals-combat-damage"
             // is the fourth: it fires per combat DAMAGE_DEALT event.
             const eventBody =
                 entry.timing === "this-turn-creature-blocks" ||
