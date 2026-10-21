@@ -90,9 +90,15 @@ import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 import { failingFiles } from "./lib/health-evidence";
 import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
+import { matchesBotGlob } from "./lib/bot-globs";
+import { isBotSourceFile } from "./lib/bot-source-files";
 import {
+    botRelatedTests,
+    botTests,
     reachIndex,
     relatedTests,
+    type BotProject,
+    type BotRelatedTests,
     type ReachIndex,
     type RelatedTests,
 } from "./lib/test-reach";
@@ -115,6 +121,16 @@ function defaultRelated(paths: string[]): RelatedTests {
     memoisedIndex ??= reachIndex(REPO_ROOT);
     return relatedTests(memoisedIndex, paths);
 }
+
+/** The bot fast lane's own index (issue #6149), walked only by a `full`
+ *  diff that touches no Bot input: ~1.5 s over 352 files. */
+let memoisedBotIndex: ReachIndex<BotProject> | null = null;
+const botIndex = () =>
+    (memoisedBotIndex ??= reachIndex(REPO_ROOT, botTests(REPO_ROOT)));
+const defaultBotReach: BotReachSource = {
+    total: () => botIndex().tests.size,
+    related: (paths) => botRelatedTests(botIndex(), paths),
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -440,6 +456,19 @@ export interface LanePlan {
     files: string[];
     run: PlannedCheck[];
     skip: SkippedCheck[];
+    /**
+     * `full` only (issue #6149): how many bot fast lane files the plan runs,
+     * of how many — `--plan` prints it, the receipt carries it.
+     */
+    botReach?: { run: number; total: number; why: string };
+}
+
+/** What the `full` lane's bot half asks of the bot walk (issue #6149). */
+export interface BotReachSource {
+    /** How many files the bot fast lane holds (`botTests`) — no walk. */
+    total(): number;
+    /** The bot fast lane files `paths` reach, per project — the walk. */
+    related(paths: string[]): BotRelatedTests;
 }
 
 /** Extensions `prettier --check` has a parser for (see package.json § format). */
@@ -508,31 +537,43 @@ export function classifyLane(
      * Content-decided classes (issue #5456): `package.json` only, from
      * `packageJsonClass`. Absent ⇒ the path-only class, which is `full`.
      */
-    overrides: ReadonlyMap<string, PathClass> = new Map()
+    overrides: ReadonlyMap<string, PathClass> = new Map(),
+    /**
+     * The bot fast lane files the diff reaches (issue #6149), injectable for
+     * the reason `related` is. Called ONLY in the `full` branch.
+     */
+    botReach: BotReachSource = defaultBotReach
 ): LanePlan {
     const files = [...changedPaths];
-    const lane = laneFor(files.map((p) => overrides.get(p) ?? classifyPath(p)));
+    const classOf = (p: string) => overrides.get(p) ?? classifyPath(p);
+    const lane = laneFor(files.map(classOf));
 
     if (lane === "full") {
+        const bot = botHalf(files, classOf, botReach);
         return {
             lane,
             rationale: fullRationale(files),
             files,
-            // Verbatim delegation: the fallback path is `check:pr` exactly as
-            // it is today, so it cannot rot while the lanes get attention
-            // (#2738 § Explicitly unchanged).
+            // Verbatim delegation EXCEPT the bot half (issue #6149):
+            // `check:pr:app` is `check:pr` with `check:guards`' bot fast
+            // lane cut out (both pinned to `check:pr` by
+            // `check-guards-scope.test.ts`), so the rest cannot rot while the
+            // lanes get attention (#2738 § Explicitly unchanged). The bot
+            // half is `botHalf`'s: the files the diff reaches, or whole.
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
-            // `blade-index` repeats a file `check:guards`' bot run already
-            // ran — 2 s, cheaper than a second rule for one lane.
+            // `blade-index` may repeat a file the bot run already ran — 2 s,
+            // cheaper than a second rule for one lane.
             run: [
-                { id: "check:pr", command: "bun run check:pr" },
+                { id: "check:pr:app", command: "bun run check:pr:app" },
+                ...bot.run,
                 ...CHEAP_GUARDS.map((guard) => ({
                     id: guard.id,
                     command: cheapGuardCommand(guard),
                 })),
             ],
-            skip: [],
+            skip: bot.skip,
+            botReach: bot.reach,
         };
     }
 
@@ -913,6 +954,99 @@ function pushRelated(
 /** Related files past which the named projects run whole (see above). */
 export const WHOLE_PROJECT_AT = 400;
 
+/** The `full` lane's bot step id, scoped or whole. */
+export const BOT_STEP = "vitest(bot)";
+
+/** `check:guards`' bot segment as a lane command: the bot fast lane, whole. */
+export const BOT_FAST_LANE =
+    "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node --project bot-dom";
+
+/**
+ * A changed path the bot walk cannot scope (issue #6149), so the `full` lane
+ * runs the bot fast lane WHOLE:
+ *
+ *   - a Bot input — under `BOT_GLOBS` or in the Bot hash (`isBotSourceFile`):
+ *     the search's budgets, the evaluation's terms and the blade registry move
+ *     the byte-identity pins and `must` entries of tests that reach them
+ *     through `applyMove`, the catalogue or a scenario table; the issue's
+ *     measurement put `evaluate` at 75 % reach and `search` at 60 %, and the
+ *     Bot doctrine (`/bot-change`) owes the whole lane on a Bot change;
+ *   - a path that forces the full gate on its own (`classifyPath` →
+ *     `full`): the dependency set, the build/test/type configuration, the
+ *     vitest setup files whose closure no walk enters, anything unrecognised
+ *     — no import edge names what such a path can move.
+ *
+ * Everything else in a `full` diff is a `src/**` + `convex/**` mix, each
+ * path one the walk sees — the case the scoping exists for: 64 % of 328
+ * non-docs commits reached under 10 % of the bot tests.
+ */
+export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
+    return matchesBotGlob(path) || isBotSourceFile(path) || cls === "full";
+}
+
+/**
+ * The `full` lane's bot half (issue #6149): the bot fast lane over the files
+ * the diff reaches through the import graph — the same walk, the same census
+ * admission the `engine` and `skin` lanes use — or WHOLE when a path forces it
+ * (`forcesWholeBotLane`) or the reach passes `WHOLE_PROJECT_AT`. Nothing
+ * reached → a skip line, never an empty run.
+ */
+function botHalf(
+    files: string[],
+    classOf: (p: string) => PathClass,
+    source: BotReachSource
+): {
+    run: PlannedCheck[];
+    skip: SkippedCheck[];
+    reach: NonNullable<LanePlan["botReach"]>;
+} {
+    const total = source.total();
+    const whole = (why: string) => ({
+        run: [{ id: BOT_STEP, command: BOT_FAST_LANE }],
+        skip: [],
+        reach: { run: total, total, why },
+    });
+    const forcing = files.find((p) => forcesWholeBotLane(p, classOf(p)));
+    if (forcing !== undefined)
+        return whole(
+            matchesBotGlob(forcing) || isBotSourceFile(forcing)
+                ? `whole: ${forcing} is a Bot input`
+                : `whole: ${forcing} forces the full gate on its own, and no walk sees its reach`
+        );
+    const reach = source.related(files);
+    const named = (["bot-node", "bot-dom"] as const).filter(
+        (p) => reach[p].length > 0
+    );
+    const reached = named.flatMap((p) => reach[p]);
+    if (reached.length > WHOLE_PROJECT_AT)
+        return whole(
+            `whole: ${reached.length} files reached, past WHOLE_PROJECT_AT`
+        );
+    const why = "scoped by the import graph (ADR 0154 §2)";
+    if (reached.length === 0)
+        return {
+            run: [],
+            skip: [
+                {
+                    id: BOT_STEP,
+                    reason: "no bot fast lane test reaches a changed path through the import graph and no path is a Bot input — an unreachable bot test is health's (ADR 0154 §2/§3)",
+                },
+            ],
+            reach: { run: 0, total, why },
+        };
+    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
+    return {
+        run: [
+            {
+                id: BOT_STEP,
+                command: `TOLARIA_BOT_FAST=1 bunx vitest run ${projectFlags} ${reached.map(shellQuote).join(" ")}`,
+            },
+        ],
+        skip: [],
+        reach: { run: reached.length, total, why },
+    };
+}
+
 /**
  * Prose in a code lane (ADR 0136 §3): the run list ENDS with the docs lane's
  * own node test list — the guards that READ prose, exactly the set
@@ -992,6 +1126,10 @@ export function renderPlan(plan: LanePlan, head: string): string {
     const lines: string[] = [];
     lines.push(`lane:  ${plan.lane}   (HEAD ${head}, ${plan.rationale})`);
     lines.push(`run:   ${plan.run.map((c) => c.id).join(" ")}`);
+    if (plan.botReach) {
+        const { run, total, why } = plan.botReach;
+        lines.push(`bot:   ${run}/${total} bot fast lane files (${why})`);
+    }
     if (plan.skip.length > 0) {
         const width = Math.max(...plan.skip.map((s) => s.id.length));
         plan.skip.forEach((s, i) => {

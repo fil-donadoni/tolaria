@@ -19,13 +19,16 @@ import {
     stashListOf,
     CHEAP_GUARDS,
     WHOLE_PROJECT_AT,
+    BOT_FAST_LANE,
+    BOT_STEP,
+    type BotReachSource,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
-import type { RelatedTests } from "../lib/test-reach";
+import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
 import { ORIGIN_BASE } from "../lib/branches";
 import {
     HEALTH_ONLY_GUARDS,
@@ -617,7 +620,8 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         ]);
         expect(plan.lane).toBe("full");
         expect(ids(plan.run)).toEqual([
-            "check:pr",
+            "check:pr:app",
+            "vitest(bot)",
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
@@ -1053,9 +1057,10 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         }
     });
 
-    it("full delegates to check:pr verbatim, then the census guards, and skips nothing", () => {
+    it("full delegates to check:pr verbatim minus its bot half, then the bot half, then the census guards, and skips nothing", () => {
         expect(ids(full.run)).toEqual([
-            "check:pr",
+            "check:pr:app",
+            "vitest(bot)",
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
@@ -2327,6 +2332,12 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
             )?.[1];
             if (inner && seen.has(inner)) seen.add(name);
         }
+        // `check:pr` / `check:guards` are their `:app` halves plus the bot
+        // fast lane (pinned by `check-guards-scope.test.ts`), which the
+        // `full` lane runs as `vitest(bot)` (issue #6149).
+        if (plans.some((p) => p.lane === "full" && !scopedOnly))
+            for (const name of ["check:pr", "check:guards"])
+                if (seen.has(`${name}:app`)) seen.add(name);
         return seen;
     }
 
@@ -2401,5 +2412,164 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
         const reach = laneReachable();
         for (const n of ["check:oracle", "check:convex-bundle", "check:guards"])
             expect(reach.has(n), n).toBe(true);
+    });
+});
+
+/**
+ * Issue #6149 — the `full` lane is `check:pr` verbatim EXCEPT its bot half:
+ * `check:pr:app` (pinned to `check:pr` by `check-guards-scope.test.ts`), then
+ * the bot fast lane over the files the diff reaches through the import graph,
+ * or whole when a path is a Bot input or forces the full gate on its own. The
+ * bot walk is pinned in `test-reach.test.ts`; here, the plan built from it.
+ */
+describe("the full lane's bot half is scoped by the import graph (issue #6149)", () => {
+    const MIX = ["src/components/board/Card.tsx", "convex/game.ts"];
+    const TOTAL = 352;
+    /** A bot walk answering `r`; `asked` records every diff it was asked. */
+    const botOnly = (r: Partial<BotRelatedTests>) => {
+        const asked: string[][] = [];
+        const source: BotReachSource = {
+            total: () => TOTAL,
+            related: (paths) => {
+                asked.push(paths);
+                return { "bot-node": [], "bot-dom": [], ...r };
+            },
+        };
+        return { source, asked };
+    };
+    const plan = (files: string[], source: BotReachSource) =>
+        classifyLane(files, undefined, undefined, undefined, source);
+    const botStep = (p: LanePlan) => p.run.find((c) => c.id === BOT_STEP);
+
+    it("a src + convex diff that touches no Bot input runs only the reached bot files", () => {
+        const { source, asked } = botOnly({
+            "bot-node": ["convex/__tests__/a.bot.test.ts"],
+            "bot-dom": ["src/lib/b.bot.test.ts"],
+        });
+        const p = plan(MIX, source);
+        expect(p.lane).toBe("full");
+        expect(asked).toEqual([MIX]);
+        expect(botStep(p)).toEqual({
+            id: BOT_STEP,
+            command:
+                "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node --project bot-dom 'convex/__tests__/a.bot.test.ts' 'src/lib/b.bot.test.ts'",
+        });
+        expect(p.botReach).toMatchObject({ run: 2, total: TOTAL });
+        // The app half is still `check:pr`'s, whole.
+        expect(p.run[0]).toEqual({
+            id: "check:pr:app",
+            command: "bun run check:pr:app",
+        });
+    });
+
+    it("a bot project with no reached file is never named", () => {
+        const { source } = botOnly({
+            "bot-dom": ["src/lib/b.bot.test.ts"],
+        });
+        expect(botStep(plan(MIX, source))!.command).toBe(
+            "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-dom 'src/lib/b.bot.test.ts'"
+        );
+    });
+
+    it("nothing reached ⇒ a skip line naming health, never an empty run", () => {
+        const { source } = botOnly({});
+        const p = plan(MIX, source);
+        expect(botStep(p)).toBeUndefined();
+        expect(p.skip.find((s) => s.id === BOT_STEP)?.reason).toMatch(
+            /import graph.*health/
+        );
+        expect(p.botReach).toMatchObject({ run: 0, total: TOTAL });
+    });
+
+    it("a BOT_GLOBS diff runs the whole bot fast lane, without asking the walk", () => {
+        for (const bot of [
+            "convex/gre/ai/blade/scenarios.ts",
+            "convex/gre/evaluate.ts",
+            "src/lib/ai/brain-client.ts",
+        ]) {
+            const { source, asked } = botOnly({
+                "bot-node": ["convex/__tests__/a.bot.test.ts"],
+            });
+            const p = plan([...MIX, bot], source);
+            expect(p.lane, bot).toBe("full");
+            expect(botStep(p), bot).toEqual({
+                id: BOT_STEP,
+                command: BOT_FAST_LANE,
+            });
+            expect(p.botReach, bot).toMatchObject({ run: TOTAL, total: TOTAL });
+            expect(p.botReach!.why, bot).toContain(`${bot} is a Bot input`);
+            expect(asked, bot).toEqual([]);
+        }
+    });
+
+    it("a Bot hash input outside BOT_GLOBS runs it whole too", () => {
+        // `convex/gre/state.ts` is in the hash (`isBotSourceFile`), not a glob.
+        const { source } = botOnly({});
+        const p = plan([...MIX, "convex/gre/state.ts"], source);
+        expect(botStep(p)!.command).toBe(BOT_FAST_LANE);
+    });
+
+    it("a path that forces the full gate on its own runs it whole — no walk sees its reach", () => {
+        for (const forcing of ["bun.lock", "vitest.setup.node.ts", "foo/x"]) {
+            const { source, asked } = botOnly({});
+            const p = plan(["src/x.tsx", forcing], source);
+            expect(p.lane, forcing).toBe("full");
+            expect(botStep(p)?.command, forcing).toBe(BOT_FAST_LANE);
+            expect(asked, forcing).toEqual([]);
+        }
+    });
+
+    it("past WHOLE_PROJECT_AT reached files the bot fast lane runs whole", () => {
+        const many = Array.from(
+            { length: WHOLE_PROJECT_AT + 1 },
+            (_, i) => `convex/t${i}.bot.test.ts`
+        );
+        const { source } = botOnly({ "bot-node": many });
+        expect(botStep(plan(MIX, source))!.command).toBe(BOT_FAST_LANE);
+    });
+
+    it("--plan prints the bot reach, files run over total", () => {
+        const { source } = botOnly({
+            "bot-node": ["convex/__tests__/a.bot.test.ts"],
+        });
+        const out = renderPlan(plan(MIX, source), "4f2a91c");
+        expect(out).toMatch(
+            new RegExp(`^bot:\\s+1/${TOTAL} bot fast lane files \\(scoped`, "m")
+        );
+        const whole = renderPlan(
+            plan([...MIX, "convex/gre/search.ts"], botOnly({}).source),
+            "4f2a91c"
+        );
+        expect(whole).toMatch(
+            new RegExp(
+                `^bot:\\s+${TOTAL}/${TOTAL} bot fast lane files \\(whole: convex/gre/search\\.ts is a Bot input`,
+                "m"
+            )
+        );
+        // A scoped lane has no bot half to print.
+        expect(renderPlan(classifyLane(["docs/adr/0111.md"]), "x")).not.toMatch(
+            /^bot:/m
+        );
+    });
+
+    it("no other lane asks the bot walk", () => {
+        for (const files of [
+            ["src/components/board/Card.tsx"],
+            ["convex/gre/combat.ts"],
+            ["convex/cards/sets/lea/red.cards.ts"],
+            ["docs/adr/0111.md"],
+        ]) {
+            const { source, asked } = botOnly({});
+            const p = classifyLane(
+                files,
+                undefined,
+                () => ({ "node-engine": [], "node-tooling": [], dom: [] }),
+                undefined,
+                source
+            );
+            expect(p.lane, files[0]).not.toBe("full");
+            expect(asked, files[0]).toEqual([]);
+            expect(p.botReach, files[0]).toBeUndefined();
+        }
     });
 });

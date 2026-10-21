@@ -77,22 +77,24 @@ describe("classifyLane", () => {
         ).toBeNull();
     });
 
-    // A `full` lane runs the drift test inside `check:pr` (issue #5955):
-    // the files decide, read from the step's captured output.
-    it("a check:pr red whose only failed file is the drift test is the `blade-index` fix", () => {
+    // A `full` lane runs the drift test inside its bot half (issue #5955,
+    // issue #6149): the files decide, read from the step's captured output.
+    it("a vitest(bot) red whose only failed file is the drift test is the `blade-index` fix", () => {
         expect(
             classifyLane(
-                lane([{ id: "check:pr", status: "fail", failedFiles: [BLADE] }])
+                lane([
+                    { id: "vitest(bot)", status: "fail", failedFiles: [BLADE] },
+                ])
             )
         ).toEqual(["blade-index"]);
         expect(
-            classifyLane(lane([{ id: "check:pr", status: "fail" }]))
+            classifyLane(lane([{ id: "vitest(bot)", status: "fail" }]))
         ).toBeNull();
         expect(
             classifyLane(
                 lane([
                     {
-                        id: "check:pr",
+                        id: "vitest(bot)",
                         status: "fail",
                         failedFiles: [
                             BLADE,
@@ -269,16 +271,19 @@ const LOG_5932 = [
 const HEALTH_UI = "scripts/__tests__/health-ui-walk.test.ts";
 
 describe("classifyRed — one decision for every red (issue #5955)", () => {
-    it("PR #5863's landing: blade-index drift inside check:pr is regenerable", () => {
+    it("PR #5863's landing: blade-index drift inside the bot half is regenerable", () => {
         // The link the runner relies on: `check:lane` records the failed
         // step's files from its captured output (`failingFiles`), and the
-        // row cures `check:pr` on exactly that file.
+        // row cures the `full` lane's bot step on exactly that file (it ran
+        // inside `check:pr` until issue #6149).
         expect(BLADE).toBe(BLADE_INDEX_DRIFT_TEST);
         const failedFiles = failingFiles(LOG_5863);
         expect(failedFiles).toEqual([BLADE]);
         expect(
             classifyRed({
-                lane: lane([{ id: "check:pr", status: "fail", failedFiles }]),
+                lane: lane([
+                    { id: "vitest(bot)", status: "fail", failedFiles },
+                ]),
                 subjects: ["fix: exile-held pile opens (issue #5515)"],
                 output: LOG_5863,
             })
