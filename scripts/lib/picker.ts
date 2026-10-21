@@ -23,6 +23,7 @@
 
 import type { ClaimVerdictState } from "../loop-doctor";
 import {
+    inFlightSet,
     planBatch,
     resumeItems,
     type BatchPlan,
@@ -62,6 +63,8 @@ export interface PickerInput {
     trust: TrustPolicy;
     provenance: Record<number, IssueProvenance>;
     claims: JudgedClaim[];
+    /** Changed files of each open PR, by PR number (issue #6195). */
+    prFiles?: Record<number, string[]>;
 }
 
 export interface PickResult {
@@ -151,7 +154,19 @@ export function pick(input: PickerInput): PickResult {
         }
     }
 
-    const planned = planBatch(competing, config, port);
+    // In-flight set (issue #6195): a live claim, or a claim whose PR is still
+    // open. A release-fate claim (no live run, nothing pushed) occupies
+    // nothing; neither does a resumable one without a PR.
+    const inFlight = inFlightSet(
+        [...facts.values()]
+            .filter((c) => claimFate(c) === "live" || c.pr !== null)
+            .filter((c) => claimFate(c) !== "release")
+            .map((c) => ({ issue: c.issue, pr: c.pr })),
+        input.prFiles ?? {},
+        (n) => port.issueDetail(n).body,
+        config.inferredTargetFiles
+    );
+    const planned = planBatch(competing, { ...config, inFlight }, port);
     // The run is the liveness authority: `planBatch` judges a claim by issue
     // age and open PR, which would call a long-running live pass "stale".
     const liveSet = new Set(live);

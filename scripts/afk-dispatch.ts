@@ -44,7 +44,12 @@ import {
     type ClaimedIssue,
 } from "./loop-doctor";
 import type { PlanConfig } from "./lib/queue-plan";
-import { DEFAULTS, liveQueuePort, readReadyQueue } from "./queue-plan";
+import {
+    DEFAULTS,
+    liveQueuePort,
+    openPrFiles,
+    readReadyQueue,
+} from "./queue-plan";
 import {
     lineageBlocks,
     readVerdictLineage,
@@ -550,6 +555,7 @@ async function main(): Promise<void> {
         excludeHitl: true,
     };
     const picked = pick({
+        prFiles: openPrFiles().files,
         issues,
         config,
         port: liveQueuePort(),
