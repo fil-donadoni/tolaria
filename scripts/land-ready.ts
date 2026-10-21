@@ -400,7 +400,7 @@ function main(): void {
     console.log(
         (toQueue
             ? `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the Mergify queue lands it`
-            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${MANUAL_LABEL}\` — the owner merges it with \`bun run merge:manual ${pr}\` once its advisory lane is green (the queue refuses it: ${admission.description})`) +
+            : `land:ready: PR #${pr} labelled \`${READY_LABEL}\` + \`${MANUAL_LABEL}\` — the owner merges it with \`bun run merge:manual ${pr}\` once its advisory lane is green (the queue refuses it: ${admission.description}); the \`owner-merge\` run emails them`) +
             (issue === null
                 ? ""
                 : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
