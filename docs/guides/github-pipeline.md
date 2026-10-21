@@ -130,6 +130,13 @@ by `bun run runner prune [--dry-run]`. `bun run machine` lists any it finds.
   `convex dev` that `convex:ensure` started still holds the port: stop it
   (`pkill -f 'convex dev'`) and the agent takes over within 10 s. Log:
   `~/.cache/tolaria/convex/agent.log`.
+- **`convex:ensure` knows the agent** (issue #6082): it hands a silent backend
+  to launchd — wait, then `launchctl kickstart -k gui/$UID/com.tolaria.convex`;
+  not loaded → `launchctl bootstrap` from the installed plist (fail closed
+  naming the command when it is missing). It never SIGTERMs the agent's
+  process (that only races `KeepAlive`), never spawns a `convex dev` beside
+  it and writes no `convex-dev.pid`. A darwin checkout without the agent keeps
+  the reclaim/spawn path.
 - Every plist carries `node` on its `PATH` (the render refuses one without,
   issue #5598).
 
