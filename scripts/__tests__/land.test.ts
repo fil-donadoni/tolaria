@@ -43,6 +43,7 @@ import {
 } from "../land";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import { PRUNE_COMMIT_SUBJECT } from "../oracle-prune-regressions";
+import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "../lib/derive-sync";
 import {
     admissionOrder,
     waiterSince,
@@ -1454,6 +1455,26 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         const old = git("rev-parse", "HEAD");
         commit("data/grammar-gaps.json", ALLOWLIST_COMMIT_SUBJECT);
         expect(verify(old)).not.toBe(0);
+    });
+
+    it("tolerates derive:sync's commit on any subset of the derived paths (ADR 0157, issue #6247), and nothing else under its subject", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#1)");
+        // Two of the five paths in one commit.
+        mkdirSync(join(repo, "data", "catalogue"), { recursive: true });
+        writeFileSync(join(repo, DERIVED_PATHS[0]!), "header\n");
+        writeFileSync(join(repo, DERIVED_PATHS[2]!), "packed\n");
+        git("add", DERIVED_PATHS[0]!, DERIVED_PATHS[2]!);
+        git("commit", "-q", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(verify(old)).toBe(0);
+
+        const old2 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#2)");
+        writeFileSync(join(repo, DERIVED_PATHS[1]!), "hash\n");
+        writeFileSync(join(repo, "c.txt"), "smuggled\n");
+        git("add", DERIVED_PATHS[1]!, "c.txt");
+        git("commit", "-q", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(verify(old2)).not.toBe(0);
     });
 });
 

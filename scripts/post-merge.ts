@@ -400,7 +400,10 @@ export function syncSteps(
     const judged = io.judge(after);
     const held = tipHeldLine(after, primary, judged);
     if (held !== null) console.log(held);
-    if (judged.kind !== "stale" && !fastForward(primary, after))
+    if (judged.kind === "stale")
+        // Held, not moved — but the push's commits are still read below.
+        git(["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], primary);
+    else if (!fastForward(primary, after))
         failed.push(`fast-forward of ${primary}`);
     const { prs } = readPush(before, after, primary);
     for (const pr of prs)

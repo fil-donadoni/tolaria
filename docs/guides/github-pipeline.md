@@ -541,13 +541,13 @@ decision sees the same `outcomes` the queue's lane does.
 `.github/workflows/post-merge.yml`: what a merge to the base obliges, now that
 `land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Five jobs:
 
-| Job            | When                    | Runner                                    | Does                                                                                                                                                  |
-| -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout), remove the merged PR's worktree, telemetry ingest                |
-| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                   |
-| `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**` |
-| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, grammar residue, claim release, umbrella detach — in a worktree of its own                  |
-| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                         |
+| Job            | When                    | Runner                                    | Does                                                                                                                                                                                                         |
+| -------------- | ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                            |
+| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                          |
+| `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**`                                                        |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time  | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own |
+| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time  | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                |
 
 The `host` matrix of `sync` lists the machines by their `host:<name>` label
 (`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
@@ -574,6 +574,36 @@ each to one run across machines without cancelling a run in progress; the
 structure guard's `host-pinned` rule refuses a literal `host:<name>` on any
 job, and `dispatcher-serialised` requires the group on these two. A machine
 that is offline or broken therefore costs exactly its own `sync` leg.
+
+**The base writes its own derived state (ADR 0157 § Option 1b, issue
+#6247).** The Oracle lockfile's header hashes and the four `data/catalogue/*`
+files summarise the whole tree, so every PR that changed any row moved them
+and two queued PRs collided on them textually. `housekeeping` runs
+`derive:sync` (`scripts/derive-sync.ts`) on EVERY run, after `gaps:sync` and
+`oracle:prune-regressions` so it builds on their commits: `oracle:compile
+--carry-bot` and `catalogue:pack` on the tip in its worktree (the corpus
+cache is copied from the primary checkout when the worktree lacks it), the
+five paths compared blob by blob with the tip's, and ONE commit with exactly
+the changed paths — none when the bytes agree — built on a scratch index
+(`lib/commit-tree.ts`, the `gaps:sync` mechanics) and pushed once. A push
+the base outran is **coalesced**: not rebuilt on the fetched tip, not
+retried — the newer tip's own post-merge run regenerates from scratch, and
+the hourly run is the backstop; a push refused with the base unmoved is the
+run's red. The queue does not reset on the commit
+(`merge_queue.reset_on_external_merge: never`, issue #6245), and `land`'s
+`VERIFY_MERGED_TIP` tolerates it by its subject and its files. `sync` then
+fast-forwards the primary checkout only to a **derived-fresh** tip — judged
+on the job worktree by `derive:sync --fresh` (the header-hash tier of
+`check:oracle` plus `catalogue:check`'s byte comparison, offline, about a
+second) and always to the PUSHED tip, never the latest — so the deployment
+never serves a catalogue that disagrees with its source; a stale tip is
+logged and held, not a red, and the derive commit's own push brings the
+fresh tip. `seed` is red on a stale tip (it resolves card names against the
+primary's disk): until issue #6248 lands PRs still carry fresh derived
+state, so a stale tip is a PR that merged stale, and the seed is run by hand
+(`bun run seed:scenario <PR>`) once the derive commit is in. Measured
+(MacBook, load 6): `derive:sync --fresh` 0.8 s; the write path with the
+corpus cache 4.6 s plus one push.
 
 **A red leg is heard.** `sync` heals a primary whose only divergence is
 stranded `gaps:sync` allowlist commits (dropped with `reset --keep`; the next

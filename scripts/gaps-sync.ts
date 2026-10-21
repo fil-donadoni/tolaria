@@ -90,7 +90,7 @@ import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, type Allowlist, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import { commitOnScratchIndex } from "./lib/scratch-commit";
+import { commitOnScratchIndex } from "./lib/commit-tree";
 import {
     gh,
     issueBlockedBy,

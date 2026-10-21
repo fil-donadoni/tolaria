@@ -16,7 +16,7 @@
  *   2. the five derived paths compared, blob by blob, with the tip's
  *      (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no commit;
  *   3. else ONE commit with exactly the changed paths, built on a scratch
- *      index (`lib/scratch-commit.ts`, the `gaps:sync` mechanics) and pushed
+ *      index (`lib/commit-tree.ts`, the `gaps:sync` mechanics) and pushed
  *      to the base;
  *   4. COALESCING: a refused push is not rebuilt on the fetched tip and
  *      retried — if the base moved meanwhile, the newer tip's own post-merge
@@ -68,7 +68,7 @@ import {
 } from "./lib/oracle-lockfile";
 import { PACKED_CORPUS_PATH } from "./lib/packed-corpus";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { commitOnScratchIndex } from "./lib/scratch-commit";
+import { commitOnScratchIndex } from "./lib/commit-tree";
 import { SEARCH_INDEX_PATH } from "./lib/search-index";
 import { poolOracleIds } from "./oracle-compile";
 import { CORPUS_PATH, corpusIsCached } from "./oracle-corpus";

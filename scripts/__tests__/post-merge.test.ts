@@ -21,7 +21,10 @@ import {
     gitErrorLine,
     removeMergedWorktree,
     strandedAllowlistOnly,
+    syncSteps,
+    tipHeldLine,
     type MergedWorktreeIo,
+    type SyncIo,
 } from "../post-merge";
 
 describe("strandedAllowlistOnly (issue #5873)", () => {
@@ -355,5 +358,99 @@ describe("fastForward", () => {
         const before = git(["rev-parse", "HEAD"], primary).stdout;
         expect(fastForward(primary)).toBe(false);
         expect(git(["rev-parse", "HEAD"], primary).stdout).toBe(before);
+    });
+
+    /** The pusher lands one more commit `d` after `c`; returns `c`'s sha. */
+    const pushD = (): string => {
+        const pusher = join(dir, "pusher");
+        const c = git(["rev-parse", "HEAD"], pusher).stdout.trim();
+        writeFileSync(join(pusher, "d"), "d");
+        git(["add", "."], pusher);
+        git(["commit", "-qm", "d"], pusher);
+        git(["push", "-q", "origin", BASE_BRANCH], pusher);
+        return c;
+    };
+
+    it("fast-forwards to the GIVEN tip, not past it (ADR 0157, issue #6247)", () => {
+        const primary = join(dir, "primary");
+        const c = pushD();
+        expect(fastForward(primary, c)).toBe(true);
+        expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(c);
+        expect(git(["rev-parse", "HEAD"], primary).stdout).not.toBe(
+            git(["rev-parse", `origin/${BASE_BRANCH}`], primary).stdout
+        );
+    });
+
+    describe("syncSteps — the derived-fresh predicate decides the move (ADR 0157 § Option 1b)", () => {
+        const io = (judge: SyncIo["judge"]): SyncIo => ({
+            judge,
+            ingest: () => true,
+            removeWorktree: () => true,
+        });
+        const quiet = () => {
+            const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+            return () => spy.mockRestore();
+        };
+
+        it("a derived-stale tip holds the primary where it is — and is not a failed step", () => {
+            const primary = join(dir, "primary");
+            const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
+            const after = git(
+                ["rev-parse", "HEAD"],
+                join(dir, "pusher")
+            ).stdout.trim();
+            const restore = quiet();
+            try {
+                expect(
+                    syncSteps(
+                        primary,
+                        before,
+                        after,
+                        io(() => ({ kind: "stale", why: "header drift" }))
+                    )
+                ).toEqual([]);
+            } finally {
+                restore();
+            }
+            expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(
+                before
+            );
+        });
+
+        it("a derived-fresh tip is fast-forwarded to", () => {
+            const primary = join(dir, "primary");
+            const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
+            const after = git(
+                ["rev-parse", "HEAD"],
+                join(dir, "pusher")
+            ).stdout.trim();
+            expect(
+                syncSteps(
+                    primary,
+                    before,
+                    after,
+                    io(() => ({ kind: "fresh" }))
+                )
+            ).toEqual([]);
+            expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(
+                after
+            );
+        });
+
+        it("tipHeldLine: silent on fresh, says 'regardless' on unjudged, names the stale reason and the ADR", () => {
+            expect(tipHeldLine("abc", "/p", { kind: "fresh" })).toBeNull();
+            expect(
+                tipHeldLine("abcdef0123456789", "/p", {
+                    kind: "unjudged",
+                    why: "elsewhere",
+                })
+            ).toMatch(/abcdef0123 .*elsewhere.*regardless/);
+            expect(
+                tipHeldLine("abcdef0123456789", "/p", {
+                    kind: "stale",
+                    why: "header drift",
+                })
+            ).toMatch(/derived-stale \(header drift\) — \/p stays .*ADR 0157/);
+        });
     });
 });
