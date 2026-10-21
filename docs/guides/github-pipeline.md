@@ -1082,16 +1082,16 @@ resume is pinned — an input, never a literal (`host-pinned`).
 
 **Outcomes** (the record's `outcome`), first match wins:
 
-| Outcome        | When                                                                                                               | Run   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------ | ----- |
-| `handed-off`   | the issue's PR is labelled `ready-to-land`                                                                         | green |
-| `closed`       | the issue is closed                                                                                                | green |
-| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`)                                          | green |
-| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released)                                          | green |
-| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                                                                        | red   |
-| `error`        | `claude` exited non-zero, or the issue's state could not be read                                                   | red   |
-| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue                                               | red   |
-| `setup-failed` | the job setup failed, the dispatch's inputs are malformed, or `AFK_PASS_CLAUDE_ARGS` is unset — no session started | red   |
+| Outcome        | When                                                                                                                                                                                                                 | Run   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `handed-off`   | the issue's PR is labelled `ready-to-land`                                                                                                                                                                           | green |
+| `closed`       | the issue is closed                                                                                                                                                                                                  | green |
+| `usage-limit`  | a transcript carries the API's rate-limit refusal (`error: "rate_limit"`)                                                                                                                                            | green |
+| `aborted`      | the issue holds neither `in-progress` nor `pr-open` (`abort.md` released)                                                                                                                                            | green |
+| `timeout`      | the session ran past `AFK_PASS_TIMEOUT_MIN`                                                                                                                                                                          | red   |
+| `error`        | `claude` exited non-zero, or the issue's state could not be read                                                                                                                                                     | red   |
+| `no-hand-off`  | `claude` exited 0 with the claim still held and nothing in the queue                                                                                                                                                 | red   |
+| `setup-failed` | the job setup failed, the dispatch's inputs are malformed, `AFK_PASS_CLAUDE_ARGS` is unset, or `claude` cannot be spawned (the pass prints the spawn error and releases its claim, issue #6217) — no session started | red   |
 
 A red run counts toward the dispatcher's failure streak; its claim stands,
 and the dispatcher resumes it (branch pushed) or releases it (nothing

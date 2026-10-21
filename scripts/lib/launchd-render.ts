@@ -10,6 +10,27 @@ export interface LaunchdSubstitutions {
 
 const PLACEHOLDER = /__[A-Z_]+__/g;
 
+/** The fixed directories every runner unit's PATH starts with, on either OS:
+ *  the user's local bin first (where the `claude` CLI installs, issue #6217),
+ *  then bun's, then node's. ONE list for the launchd and systemd units so the
+ *  two cannot drift. */
+export function runnerPathHead(home: string, nodeBin: string): string[] {
+    return [`${home}/.local/bin`, `${home}/.bun/bin`, nodeBin];
+}
+
+/** The PATH a runner's launchd plist carries (`__RUNNER_PATH__`). */
+export function launchdRunnerPath(home: string, nodeBin: string): string {
+    return [
+        ...runnerPathHead(home, nodeBin),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    ].join(":");
+}
+
 /** The `PATH` a rendered plist carries, read back out of its text. */
 export function renderedPath(plist: string): string {
     const m = /<key>PATH<\/key>\s*<string>([^<]*)<\/string>/.exec(plist);
@@ -28,7 +49,10 @@ export function renderLaunchdUnit(
         .replaceAll("__REPO__", () => subs.repo)
         .replaceAll("__BUN__", () => subs.bun)
         .replaceAll("__NODE_BIN__", () => subs.nodeBin)
-        .replaceAll("__HOME__", () => subs.home);
+        .replaceAll("__HOME__", () => subs.home)
+        .replaceAll("__RUNNER_PATH__", () =>
+            launchdRunnerPath(subs.home, subs.nodeBin)
+        );
     const left = out.match(PLACEHOLDER);
     if (left) {
         throw new Error(

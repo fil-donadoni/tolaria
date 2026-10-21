@@ -46,6 +46,7 @@ import { DEFAULT_PROJECTS_DIR } from "./usage-window";
 import { quietLogPath } from "./health-fix";
 import { hostOfRunnerName, type OpenPr } from "./lib/afk-dispatch";
 import {
+    handleStartFailure,
     issuePr,
     outcomeExitCode,
     parsePassInputs,
@@ -239,7 +240,12 @@ function runPass(
     sessionId: string,
     timeoutMin: number,
     extra: readonly string[]
-): { exitCode: number | null; timedOut: boolean; stdout: string } {
+): {
+    exitCode: number | null;
+    timedOut: boolean;
+    stdout: string;
+    startError: (Error & { code?: string }) | undefined;
+} {
     const out = quietLogPath(process.env, `afk-pass-${p.issue}`);
     const err = out.replace(/\.log$/, ".stderr.log");
     mkdirSync(dirname(out), { recursive: true });
@@ -277,7 +283,12 @@ function runPass(
     } catch {
         stdout = "";
     }
-    return { exitCode: spawned.status, timedOut, stdout };
+    return {
+        exitCode: spawned.status,
+        timedOut,
+        stdout,
+        startError: spawned.error,
+    };
 }
 
 async function main(): Promise<number> {
@@ -315,6 +326,27 @@ async function main(): Promise<number> {
         extra
     );
     const endedMs = Date.now();
+
+    // No session ran: no transcript, no state to read, nothing to resume.
+    if (
+        handleStartFailure(p.issue, run.startError, {
+            say,
+            gh: (args) => void gh(args),
+        })
+    ) {
+        writeRecord(recordDir, {
+            issue: p.issue,
+            pr: null,
+            outcome: "setup-failed",
+            host,
+            startedMs,
+            endedMs,
+            models: {},
+            costUsd: null,
+            usageLimitResetAt: null,
+        });
+        return 1;
+    }
 
     const { usage, limits } = await readTranscripts(
         sessionTranscripts(DEFAULT_PROJECTS_DIR, sessionId)
