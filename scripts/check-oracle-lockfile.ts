@@ -10,8 +10,8 @@
  *
  *  0. STRUCTURE (always, offline — issue #6169). Every Fragment Key is its
  *     row's content key, every card's `gaps` resolve, every fragment declares
- *     exactly the cards citing it (`lockfileStructureProblems`). A hand-edit or a clean textual merge of
- *     two branches that each moved a card onto one fragment breaks one of
+ *     exactly the cards citing it (`lockfileStructureProblems`). A hand-edit
+ *     or a clean textual merge of two branches that each moved a card onto one fragment breaks one of
  *     these with every hash still agreeing.
  *  1. HEADER HASHES (always, offline). The lockfile header pins a hash of the
  *     compiler's own source — the grammar under `convex/oracle/**` AND the
