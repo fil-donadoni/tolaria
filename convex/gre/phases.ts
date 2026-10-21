@@ -451,7 +451,7 @@ export function untapStep(state: GameState): void {
 
     // CR 614.10 / 614.10a — "Players skip their untap steps" (Stasis): the
     // step does not happen, so nothing scheduled for it does: no phasing
-    // (CR 502.2), no marked return to hand (CR 502.4), no one-shot
+    // (CR 502.1), no marked return to hand (CR 502.3), no one-shot
     // `skipNextUntap` consumed, no optional-untap prompt. Everything below
     // that waits for "the next untap step" waits for the first one that is
     // not skipped. A plain `maxUntap: 0` hold ("doesn't untap") leaves the
