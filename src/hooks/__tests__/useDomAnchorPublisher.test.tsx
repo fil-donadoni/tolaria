@@ -351,7 +351,10 @@ describe("useDomAnchorPublisher — board-root reflow (issue #6236)", () => {
         vi.stubGlobal(
             "ResizeObserver",
             class {
-                constructor(private readonly cb: ResizeObserverCallback) {}
+                private readonly cb: ResizeObserverCallback;
+                constructor(cb: ResizeObserverCallback) {
+                    this.cb = cb;
+                }
                 observe(target: Element) {
                     observed.push({
                         target,
