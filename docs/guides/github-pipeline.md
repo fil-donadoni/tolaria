@@ -1249,8 +1249,8 @@ PR read as data through the API, nothing of it in a `run:` line, no secret.
 `.github/workflows/weekly-report.yml` (issue #5651): the week's trends in one
 job summary, every Monday at 06:07 UTC or by hand (Actions → weekly-report →
 Run workflow; input `days`, default 7, the window ending now). The numbers
-come from `scripts/lib/workflow-trends.ts`, a pure library the cockpit
-reuses; `scripts/weekly-report.ts` only reads.
+come from `scripts/lib/workflow-trends.ts`, a pure library the
+[cockpit](#cockpit) renders too; `scripts/weekly-report.ts` only reads.
 
 Two jobs:
 
@@ -1272,11 +1272,11 @@ The sections and their sources:
 
 | Section                        | Source                                                                                                                                                    | How it is counted                                                                                                                                                                                  |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Throughput                     | PRs merged in the window; issue search counts                                                                                                             | PRs per hour over the window; issues closed vs opened                                                                                                                                              |
+| Throughput                     | PRs merged in the window; issue search counts; open `ready-for-agent`                                                                                     | PRs per hour over the window; issues closed vs opened; drain forecast = `ready-for-agent` ÷ closed a day (and ÷ net)                                                                               |
 | Failed landings by cause       | each PR's `land-failed` labels and the comment posted with each; `queue-lane`'s `lane.json`                                                               | episodes, not attempts (below), over every landing attempt (merged + episodes)                                                                                                                     |
 | RED episodes and time to green | the base's `health` commit statuses; `RED ladder stopped @ <sha>` issues                                                                                  | a RED opens an episode, later REDs and AMBERs join it, the next GREEN closes it; INFRA decides nothing. Without the owner = no RED of it reached the ladder's stop rung. Target: ≥ 80 %, p90 < 6 h |
 | Flaky tests                    | `queue-lane`'s `lane.json` (`outcomes[].flake`); health GREENs reading `flake: <step> passed on a fresh run`; `Flaky test:` / `Flaky health step:` issues | per test file or health step                                                                                                                                                                       |
-| Cost per issue                 | the `afk-pass` records; each machine's `telemetry:budget`                                                                                                 | `costUsd` summed per issue; per `/next-ticket` issue, dollars and allowance share                                                                                                                  |
+| Cost per issue                 | the `afk-pass` records; each machine's `telemetry:budget`                                                                                                 | `costUsd` summed per issue, split by model tier (most weighted tokens) and `area:*` label; per `/next-ticket` issue, dollars and allowance share                                                   |
 | Pass and queue latency         | the `afk-pass` records; `ready-to-land` labels; each machine's `telemetry:latency`                                                                        | pass minutes and outcomes; last `ready-to-land` → merged; `/next-ticket` session wall clock                                                                                                        |
 
 **A failed landing's cause** is Amendment I's taxonomy, read off the comment
@@ -1306,6 +1306,38 @@ The summary is public: numbers, PR and issue numbers, test file names; the
 machines read `machine 1`, `machine 2`. The PRs are searched one day at a
 time (a search answers at most 1000 results), and a timeline is read to its
 newest 100 items, enough for any PR so far.
+
+### cockpit
+
+`bun run cockpit [--days 7] [--port 5174] [--no-open]` (issue #5652, ADR
+0156 Amendment I § The dashboard is simplified): one local page of the
+weekly report's trends over a window ending now. The Actions tab is the
+"now"; the cockpit answers "is the flow getting better". It runs, in order:
+
+1. `telemetry:ingest` into the [primary checkout](#g-primary-checkout)'s store;
+2. this machine's reading (`telemetry:budget` / `telemetry:latency`, host from
+   its runner [declaration](#g-declaration)) and the other machines' from the
+   newest `weekly-report` run's `weekly-machine-*` artifacts;
+3. the weekly report's GitHub reads (`gatherFacts` in
+   `scripts/weekly-report.ts`) — run artifacts are cached under
+   `~/.cache/tolaria/cockpit/artifacts`, so only new runs download;
+4. GitHub's runner list;
+5. writes the reading to `~/.cache/tolaria/cockpit/cockpit.json`, rebuilds
+   the page when a `dashboard/` source is newer than its build, serves it on
+   127.0.0.1 (`scripts/telemetry-serve.ts`) and opens the browser.
+
+The page: throughput and the drain forecast, failed landings by cause, RED
+episodes and time to green, flaky tests, cost per issue (by model tier, by
+area), pass and queue latency, the machines, the runners (idle / busy /
+offline). The server's one route is `GET /api/cockpit`, read from disk per
+request — a second `bun run cockpit` beside a running one finds the port
+taken, writes a fresh reading, and the open server serves it. A source it
+cannot read is a banner on the page, never an empty panel. Every caption
+explains itself on hover (`dashboard/glossary.ts`).
+
+Retired with it (issue #5652): the Now view and its action buttons, the
+History view, every other route, and `workflow:kpi` with its ceilings in
+`tolaria.config.json`. Developing the page: `bun run telemetry:dash --dev`.
 
 ### queue:churn
 
