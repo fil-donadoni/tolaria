@@ -226,7 +226,14 @@ describe("check:derived-in-diff — over a real repository", () => {
         commit("base");
         git("switch", "-q", "-c", "pr");
     });
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("a rows-only lockfile change is green", () => {
         write(LOCKFILE_PATH, lockfile({}, ['{"name":"A"}', '{"name":"B"}']));
@@ -338,7 +345,14 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
         commit("base");
         git("switch", "-q", "-c", "pr");
     });
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("restores the catalogue whole and the header lines over the PR's rows, in ONE commit, and the diff is then rows only", () => {
         write(
