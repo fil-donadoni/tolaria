@@ -9,6 +9,10 @@ import { compactState, expandState } from "../serialize";
 import { reverseManaAbilityEffectsOnUntap } from "../manaAbilityEffects";
 import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import { goblinShrine } from "../../cards/sets/drk/red.cards";
+import { stasis } from "../../cards/sets/lea/blue.cards";
+import { untapRestriction } from "../../cards/abilities/static/untapRestriction";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
 
 /** Grizzly Bears — any vanilla permanent will do. */
 const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
@@ -124,5 +128,77 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
         const land = markedLand();
         reverseManaAbilityEffectsOnUntap(land);
         expect(land.returnToHandAtUntapOf).toBeUndefined();
+    });
+});
+
+describe("returnToHandAtNextUntap under a skipped untap step (CR 614.10a, issue #6088)", () => {
+    function stasisBoard(extra: ReturnType<typeof markedLand>) {
+        const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
+        state.players[1].battlefield = [
+            makeInstance(stasis().id, {
+                id: "stasis",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+        ];
+        state.players[0].battlefield = [extra];
+        return state;
+    }
+
+    it("CR 614.10a — Stasis skips the untap step: the mark is not consumed and the land stays", () => {
+        const land = markedLand();
+        const state = stasisBoard(land);
+        untapStep(state);
+        expect(state.players[0].battlefield).toContain(land);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(land.returnToHandAtUntapOf).toBe("p1");
+        expect(land.isTapped).toBe(true);
+    });
+
+    it("CR 614.10a — the mark waits for the first untap step that is not skipped", () => {
+        const land = markedLand();
+        const state = stasisBoard(land);
+        untapStep(state);
+        // Stasis leaves: the next untap step is not skipped.
+        state.players[1].battlefield = [];
+        untapStep(state);
+        expect(state.players[0].battlefield).not.toContain(land);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("marked");
+    });
+
+    it("CR 614.10a — a skipped step does not consume a one-shot skipNextUntap", () => {
+        const land = markedLand(undefined);
+        land.skipNextUntap = true;
+        const state = stasisBoard(land);
+        untapStep(state);
+        expect(land.skipNextUntap).toBe(true);
+    });
+
+    it("CR 502.3 — a maxUntap 0 lock that is NOT a step skip keeps the step running: the return still fires", () => {
+        const lock: CardDefinition = {
+            id: "test-untap-lock",
+            rarity: "rare",
+            name: "Test Untap Lock",
+            types: ["Enchantment"],
+            staticEffects: [
+                untapRestriction({
+                    id: "test-untap-lock",
+                    oracleText: "Permanents don't untap.",
+                    filter: { types: ["Creature"] },
+                    maxUntap: 0,
+                }),
+            ],
+        };
+        withTemporaryDefinition(lock, () => {
+            const land = markedLand();
+            const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
+            state.players[1].battlefield = [
+                makeInstance(lock.id, { id: "lock", controllerId: "p2" }),
+            ];
+            state.players[0].battlefield = [land];
+            untapStep(state);
+            expect(state.players[0].battlefield).not.toContain(land);
+            expect(state.players[0].hand.map((c) => c.id)).toContain("marked");
+        });
     });
 });

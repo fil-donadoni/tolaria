@@ -8838,6 +8838,14 @@ export interface StaticUntapRestriction {
      *  and the single source of the cost the card's upkeep trigger asks for;
      *  the untap dispatcher ignores it. Meaningful with `maxUntap: 0` only. */
     untapEscapeCost?: ManaCost;
+    /** CR 614.10 — the restriction is a SKIPPED untap step, not a hold on
+     *  permanents ("Players skip their untap steps", Stasis). Everything
+     *  scheduled for the step does not happen (CR 614.10a): no untap-step
+     *  phasing (CR 502.1), no "return it at your next untap step" mark
+     *  (CR 502.3), and a one-shot `skipNextUntap` is not consumed. A plain
+     *  `maxUntap: 0` restriction ("Islands don't untap") leaves the step
+     *  running. Meaningful with `maxUntap: 0` and a board-wide filter only. */
+    skipsStep?: true;
 }
 
 /** Card-level block restriction (CR 509.1b). Declares that a permanent
