@@ -649,7 +649,9 @@ export function launchdService(
     return {
         name: label,
         live: () =>
-            /^\s*state = (running|spawn scheduled)\s*$/m.test(print().out),
+            /^\s*state = (running|spawn scheduled|xpcproxy)\s*$/m.test(
+                print().out
+            ),
         command: (verb) =>
             verb === "restart"
                 ? `launchctl kickstart -k ${target}`
