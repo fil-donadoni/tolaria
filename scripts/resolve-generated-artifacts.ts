@@ -14,7 +14,7 @@
  * over leaning on the drift guard's red, which since issue #3070 would usually
  * also fire.
  *
- * A derived path the PR never carries (ADR 0157 § Option 1b, issue #6248) is
+ * A derived path the PR never carries (ADR 0157 § Option 1b) is
  * not regenerated: `data/catalogue/*` is checked out from the base
  * (`fromBase`), and a regenerated lockfile gets its header hashes put back
  * to the base's (`restoreHeader`) — the rows are the PR's, the header is the

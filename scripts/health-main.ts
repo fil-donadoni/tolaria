@@ -32,7 +32,7 @@
  * `INFRA`): `last.json` names the two halves, `offline` and `browser`. One the
  * tree failed is RED.
  *
- * THE DERIVED STATE (ADR 0157 § Option 1b, "Health", issue #6248). After the
+ * THE DERIVED STATE (ADR 0157 § Option 1b, "Health"). After the
  * worktree's bootstrap and before any gate, a batch run asks `derive:sync
  * --fresh` whether the tip's lockfile header hashes and `data/catalogue/*`
  * are what the tree generates — a second, no corpus. A stale tip younger
