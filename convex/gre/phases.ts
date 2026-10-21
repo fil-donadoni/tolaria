@@ -399,6 +399,21 @@ export function finalizeUntapPick(
 // Re-exported here for its historical importers.
 export { effectivePermanentView };
 
+/** Per-turn flag cleanup for a permanent the untap step leaves tapped. */
+function clearUntapStepFlags(card: CardInstanceState): void {
+    card.manaCommitted = undefined;
+    card.isSummoningSick = undefined;
+    card.chosenMana = undefined;
+    card.tapBonusMana = undefined;
+    card.lifePaidThisTap = undefined;
+    card.exertedThisTap = undefined;
+    card.manaPaidThisTap = undefined;
+    // CR 502/603.3 — a becomes-tapped trigger from a prior tap is water under
+    // the bridge once the step has passed: next turn's fresh tap undoes
+    // normally.
+    card.tapTriggerCommitted = undefined;
+}
+
 /** Untap step (CR 502.1, 502.4): the active player declares which
  *  permanents they control will untap, those permanents untap
  *  simultaneously, and every permanent gets per-turn flag cleanup.
@@ -434,6 +449,17 @@ export { effectivePermanentView };
 export function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
 
+    // CR 614.10 / 614.10a — "Players skip their untap steps" (Stasis): the
+    // step does not happen, so nothing scheduled for it does: no phasing
+    // (CR 502.2), no marked return to hand (CR 502.4), no one-shot
+    // `skipNextUntap` consumed, no optional-untap prompt. Everything below
+    // that waits for "the next untap step" waits for the first one that is
+    // not skipped. A plain `maxUntap: 0` hold ("doesn't untap") leaves the
+    // step running. Only the per-turn flag cleanup still runs.
+    const stepSkipped = collectUntapRestrictions(state).some(
+        (r) => r.restriction.skipsStep === true
+    );
+
     // CR 502.1 / 702.26c,f — the phasing turn-based action happens at the very
     // start of the untap step, BEFORE the active player untaps. Phase in this
     // player's `untap-cycle` bundles now, so a phased-in permanent is on the
@@ -443,7 +469,10 @@ export function untapStep(state: GameState): void {
     // restriction-prompt re-entry must not repeat it). The skip-first-untap
     // guard inside honours CR 702.26f: a permanent phased out THIS turn waits
     // for the controller's NEXT untap step, not the same turn's.
-    if ((state.pendingUntapStep?.restrictionCursor ?? 0) === 0) {
+    if (
+        (state.pendingUntapStep?.restrictionCursor ?? 0) === 0 &&
+        !stepSkipped
+    ) {
         phaseInUntapCycleBundles(state, state.activePlayerId);
         // CR 502.3 / 502.4 (issue #5509) — "during your next untap step, as
         // you untap your permanents, return it to its owner's hand": part of
@@ -455,10 +484,8 @@ export function untapStep(state: GameState): void {
         // only (a restriction-prompt re-entry must not repeat it). The mark is
         // consumed here; the other player's untap step never matches it, and
         // a zone change already cleared it from a new object (CR 400.7).
-        // Known divergence, tracked-by: #6088 — Stasis is modelled as a
-        // `maxUntap: 0` restriction, not a skipped step, so this still runs
-        // under it (CR 614.10a would hold the mark for the next unskipped
-        // untap step).
+        // A skipped step (`stepSkipped`, CR 614.10a) never reaches it, so the
+        // mark waits for the first untap step that is not skipped.
         returnMarkedPermanentsToHand(state, state.activePlayerId);
     }
 
@@ -492,6 +519,13 @@ export function untapStep(state: GameState): void {
         }
 
         for (const card of player.battlefield) {
+            if (stepSkipped) {
+                // CR 614.10a — the step is skipped as a whole: no untap, and
+                // no per-permanent hold below is consumed. Per-turn cleanup
+                // runs as it does for a held permanent.
+                clearUntapStepFlags(card);
+                continue;
+            }
             if (card.staticAbilities.includes("does-not-untap")) {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
@@ -769,7 +803,7 @@ export function untapStep(state: GameState): void {
             !c.untapLockedBy?.length
     );
     const optionalStart = state.pendingUntapStep?.optionalCursor ?? 0;
-    for (let j = optionalStart; j < optionals.length; j++) {
+    for (let j = optionalStart; !stepSkipped && j < optionals.length; j++) {
         const card = optionals[j];
         state.pendingChoices = state.pendingChoices ?? [];
         state.pendingChoices.push({

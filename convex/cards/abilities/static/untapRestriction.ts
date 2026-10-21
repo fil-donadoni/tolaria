@@ -78,6 +78,9 @@ export interface UntapRestrictionArgs {
      *  held permanent anyway (CR 503.1a). See
      *  `StaticUntapRestriction.untapEscapeCost`. */
     untapEscapeCost?: ManaCost;
+    /** The restriction skips the whole untap step (CR 614.10). See
+     *  `StaticUntapRestriction.skipsStep`. */
+    skipsStep?: true;
 }
 
 /** Builds a `StaticUntapRestriction` for `staticEffects[]`. The engine
@@ -110,5 +113,6 @@ export function untapRestriction(
         ...(args.untapEscapeCost
             ? { untapEscapeCost: args.untapEscapeCost }
             : {}),
+        ...(args.skipsStep ? { skipsStep: true as const } : {}),
     };
 }
