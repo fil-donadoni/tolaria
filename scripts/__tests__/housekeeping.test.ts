@@ -12,8 +12,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import {
+    DERIVE_SYNC_STEP,
     FIRST_RUN_LOOKBACK_MS,
     GAPS_SYNC_STEP,
+    PRUNE_REGRESSIONS_STEP,
+    plannedSteps,
     GAPS_SYNC_TIMEOUT_MS,
     GIT_STEP_TIMEOUT_MS,
     MAX_ATTEMPTS,
@@ -355,7 +358,9 @@ describe("housekeeping.ts — the steps", () => {
         const source = readFileSync("scripts/housekeeping.ts", "utf8");
         expect(GAPS_SYNC_STEP.argv).toEqual(["bun", "scripts/gaps-sync.ts"]);
         expect(source.match(/run\(GAPS_SYNC_STEP\)/g)).toHaveLength(1);
-        expect(source).toMatch(/const synced = run\(GAPS_SYNC_STEP\);/);
+        expect(source).toMatch(
+            /const synced = pending\.length === 0 \|\| run\(GAPS_SYNC_STEP\);/
+        );
         expect(source).toMatch(/const retry = prRetried\(synced, own\);/);
         expect(source).toMatch(/if \(retry\) failed\.add\(pr\.number\);/);
     });
@@ -419,5 +424,57 @@ describe("housekeeping's steps have deadlines inside the job's (issue #5933)", (
             /"fetch",[^\]]*"origin",\s*BASE_BRANCH,\s*\],\s*GIT_STEP_TIMEOUT_MS\s*\)/
         );
         expect(GIT_STEP_TIMEOUT_MS).toBeGreaterThan(0);
+    });
+});
+
+describe("housekeeping.ts — derive:sync runs every run (ADR 0157 § Option 1b, issue #6247)", () => {
+    it("with nothing merged the run is derive:sync alone — the hourly backstop for a push the base outran", () => {
+        expect(plannedSteps([])).toEqual([DERIVE_SYNC_STEP]);
+    });
+
+    it("with a batch it follows the two pushes it must build on and precedes the per-PR steps", () => {
+        const labels = plannedSteps([
+            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457"),
+        ]).map((s) => s.label);
+        expect(labels.slice(0, 3)).toEqual([
+            GAPS_SYNC_STEP.label,
+            PRUNE_REGRESSIONS_STEP.label,
+            DERIVE_SYNC_STEP.label,
+        ]);
+        expect(labels.at(-1)).toBe(SWEEP_STEP.label);
+        expect(labels.filter((l) => l === DERIVE_SYNC_STEP.label)).toHaveLength(
+            1
+        );
+    });
+
+    it("main() runs the steps in plannedSteps' order: derive after the two pushes, before the per-PR loop, every run", () => {
+        const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        const at = (re: RegExp): number => {
+            const i = source.search(re);
+            expect(i, String(re)).toBeGreaterThan(-1);
+            return i;
+        };
+        const gaps = at(
+            /const synced = pending\.length === 0 \|\| run\(GAPS_SYNC_STEP\);/
+        );
+        const prune = at(
+            /const pruned = pending\.length === 0 \|\| run\(PRUNE_REGRESSIONS_STEP\);/
+        );
+        const derive = at(/const derived = run\(DERIVE_SYNC_STEP\);/);
+        const perPr = at(
+            /for \(const pr of pending\) \{\n\s+\/\/ A failed prune/
+        );
+        expect(gaps).toBeLessThan(prune);
+        expect(prune).toBeLessThan(derive);
+        expect(derive).toBeLessThan(perPr);
+    });
+
+    it("its failure is the run's red, named in the owner's notice, never a PR's retry", () => {
+        expect(redSummary({ retry: [], dropped: [], deriveFailed: true })).toBe(
+            "housekeeping: derive:sync failed — the base's lockfile header or data/catalogue may be stale until the next run"
+        );
+        expect(
+            redSummary({ retry: [], dropped: [], deriveFailed: false })
+        ).toBeNull();
     });
 });

@@ -156,6 +156,7 @@ import {
     type LandingKind,
 } from "./lib/red-land-gate";
 import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
+import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "./lib/derive-sync";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -799,6 +800,17 @@ export const GAPS_SYNC_COMMIT_SUBJECT =
 export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
     "oracle:prune-regressions — drop acknowledgements that match no regression";
 
+/** The THIRD push `VERIFY_MERGED_TIP` below does not count, beside the two
+ *  its doc names (ADR 0157 § Option 1b, issue #6247): `housekeeping`'s
+ *  `derive:sync`, by its subject AND a diff within the five derived paths
+ *  alone — a non-empty one: an empty or merge commit under the subject is
+ *  foreign. `lib/derive-sync.ts` is a leaf, so it is imported. */
+const DERIVE_SYNC_FILES_ONLY =
+    `F="$(git diff-tree --no-commit-id --name-only -r "$C")"; [ -n "$F" ] && ` +
+    `[ -z "$(printf %s "$F" | grep -vxF ` +
+    DERIVED_PATHS.map((p) => `-e ${shQuote(p)}`).join(" ") +
+    `)" ]`;
+
 /**
  * Shell fragment that fails the WHOLE locked command (before `green-sha` is
  * written) unless `origin/main` advanced by EXACTLY one commit — our squash
@@ -834,7 +846,8 @@ export const VERIFY_MERGED_TIP =
     `case "$(git log -1 --format=%s "$C")" in ${shQuote(GAPS_SYNC_COMMIT_SUBJECT)}) ` +
     `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; ` +
     `${shQuote(PRUNE_REGRESSIONS_COMMIT_SUBJECT)}) ` +
-    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/oracle-state-regressions.json" ] && continue;; esac; ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/oracle-state-regressions.json" ] && continue;; ` +
+    `${shQuote(DERIVE_SYNC_COMMIT_SUBJECT)}) ${DERIVE_SYNC_FILES_ONLY} && continue;; esac; ` +
     `N=$((N+1)); done; ` +
     `[ "$N" = "1" ] || ` +
     `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +

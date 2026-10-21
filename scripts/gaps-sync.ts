@@ -85,18 +85,12 @@
 
 import { loadBladeMustCovered } from "./lib/blade-must-covered";
 import { spawnSync } from "node:child_process";
-import {
-    existsSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, type Allowlist, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { commitOnScratchIndex } from "./lib/commit-tree";
 import {
     gh,
     issueBlockedBy,
@@ -732,49 +726,28 @@ export function commitAndPushAllowlist(
             return null;
         }
         if (next === shown.stdout) return "unchanged";
-        const scratch = mkdtempSync(join(tmpdir(), "gaps-sync-index-"));
-        try {
-            const env = {
-                ...process.env,
-                GIT_INDEX_FILE: join(scratch, "index"),
-            };
-            const blob = git(["hash-object", "-w", "--stdin"], { input: next });
-            const steps = [
-                blob,
-                git(["read-tree", base], { env }),
-                git(
-                    [
-                        "update-index",
-                        "--add",
-                        "--cacheinfo",
-                        `100644,${blob.stdout.trim()},${target.path}`,
-                    ],
-                    { env }
-                ),
-            ];
-            const tree = git(["write-tree"], { env });
-            const commit =
-                tree.status === 0
-                    ? git([
-                          "commit-tree",
-                          tree.stdout.trim(),
-                          "-p",
-                          base,
-                          "-m",
-                          target.subject,
-                      ])
-                    : tree;
-            const failed = [...steps, tree, commit].find((r) => r.status !== 0);
-            if (failed !== undefined) {
-                console.error(
-                    `gaps:sync: could not build the allowlist commit on ${base}: ${why(failed)}`
-                );
-                return null;
-            }
-            return commit.stdout.trim();
-        } finally {
-            rmSync(scratch, { recursive: true, force: true });
+        const blob = git(["hash-object", "-w", "--stdin"], { input: next });
+        if (blob.status !== 0) {
+            console.error(
+                `gaps:sync: could not build the allowlist commit on ${base}: ${why(blob)}`
+            );
+            return null;
         }
+        // The scratch-index mechanics are shared with `derive:sync` (ADR
+        // 0157, issue #6247): the checkout's index and tree are never touched.
+        const built = commitOnScratchIndex(
+            (args, opts) => git(args, opts),
+            base,
+            [{ path: target.path, blob: blob.stdout.trim() }],
+            target.subject
+        );
+        if ("error" in built) {
+            console.error(
+                `gaps:sync: could not build the allowlist commit on ${base}: ${built.error}`
+            );
+            return null;
+        }
+        return built.sha;
     };
     const push = (sha: string) =>
         git(["push", "-q", "origin", `${sha}:refs/heads/${BASE_BRANCH}`], {

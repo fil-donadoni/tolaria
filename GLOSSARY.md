@@ -1002,6 +1002,10 @@ _Avoid_: Parser (that's one stage of it), card generator, importer
 The generated, committed record of what the **Oracle Compiler** made of every **Card Corpus** entry — each with its **Compile State** and, where `ready`, its **Compiled Definition**. Committed precisely so a change in compiler behaviour shows up as a reviewable diff instead of a silent shift: a card that stops compiling, or compiles differently, is visible before it is shipped.
 _Avoid_: Compiler output, cache, build artifact
 
+**Derived-fresh Tip**:
+A commit on the base branch whose DERIVED whole-file state — the **Oracle Lockfile**'s header hashes (`compilerHash`, `registryHash`, `poolHash`, `botHash`) and the four committed `data/catalogue/*` files — is exactly what the tree at that commit regenerates (ADR 0157). These files summarise the whole tree, so every PR that changes any row moved them and two PRs collided on them; now the BASE writes them after each merge (`derive:sync`, in `housekeeping`), and a merge leaves a tip stale for the minute or two until that commit lands. The post-merge `sync` moves the primary checkout — the local Convex deployment — only to a derived-fresh tip, judged offline in about a second (`check:oracle`'s header-hash tier plus `catalogue:check`), so the deployment never serves a catalogue that disagrees with its source.
+_Avoid_: Clean tip (that is about the working tree), green tip (that is health's verdict), regenerated tip
+
 **Round-Trip**:
 Whether the **Oracle Compiler**, given a card's own printed text, produces that card's own **Card Definition** back. It is the measure of whether the compiler _read_ the card, and it is how a hand-written definition earns the right to be called gold. A card that does not round-trip either names the fragment that beat the grammar or sits in a shrinking baseline — never silence.
 _Avoid_: Reparse, verification, self-test

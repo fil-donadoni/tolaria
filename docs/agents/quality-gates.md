@@ -976,22 +976,23 @@ were flaky.
 prove the tree. Step costs are the MacBook's `detach.log` over the same 14
 days (green runs, range):
 
-| Step                  | Measured               | Where now                                       |
-| --------------------- | ---------------------- | ----------------------------------------------- |
-| `worktree:init`       | 1–2 s                  | health, offline                                 |
-| `check:all`           | 1 m 40 s – 2 m 08 s    | health, offline                                 |
-| `check:gaps`          | < 1 s                  | health, offline (and the lane)                  |
-| `check:targets`       | ~1 s                   | health, offline (and the lane)                  |
-| `check:test-hygiene`  | 2–3 s                  | health, offline (and the lane)                  |
-| `test`                | 6 m 19 s – 18 m 47 s   | health, offline                                 |
-| `check:game-download` | 28–35 s                | `release` only (`--release`, issue #6143)       |
-| `check:ui --all`      | 14 m 39 s green        | by hand only — no automated run (issue #6143)   |
-| `check:convex-heap`   | 4 m 45 s – 17 m 45 s   | `bun run maintenance`, by hand — never gated    |
-| `bot:reach`           | 3 m 10 s – 4 m 40 s    | `bun run health:nightly`, when the Bot moved    |
-| `seed:bot-findings`   | ~1 s                   | `bun run health:nightly`, after `bot:reach`     |
-| `gaps:sync`           | 1 m 27 s – 3 m 57 s    | `bun run health:nightly`, primary at the tip    |
-| robustness audit      | 13 m 30 s – 18 m 51 s  | `bun run health:nightly`, weekly (Sunday night) |
-| pick agreement audit  | (not separately timed) | `bun run health:nightly`, weekly                |
+| Step                  | Measured                        | Where now                                                       |
+| --------------------- | ------------------------------- | --------------------------------------------------------------- |
+| `worktree:init`       | 1–2 s                           | health, offline                                                 |
+| `check:all`           | 1 m 40 s – 2 m 08 s             | health, offline                                                 |
+| `check:gaps`          | < 1 s                           | health, offline (and the lane)                                  |
+| `check:targets`       | ~1 s                            | health, offline (and the lane)                                  |
+| `check:test-hygiene`  | 2–3 s                           | health, offline (and the lane)                                  |
+| `test`                | 6 m 19 s – 18 m 47 s            | health, offline                                                 |
+| `check:game-download` | 28–35 s                         | `release` only (`--release`, issue #6143)                       |
+| `check:ui --all`      | 14 m 39 s green                 | by hand only — no automated run (issue #6143)                   |
+| `check:convex-heap`   | 4 m 45 s – 17 m 45 s            | `bun run maintenance`, by hand — never gated                    |
+| `bot:reach`           | 3 m 10 s – 4 m 40 s             | `bun run health:nightly`, when the Bot moved                    |
+| `seed:bot-findings`   | ~1 s                            | `bun run health:nightly`, after `bot:reach`                     |
+| `gaps:sync`           | 1 m 27 s – 3 m 57 s             | `bun run health:nightly`, primary at the tip                    |
+| `derive:sync`         | 4.6 s (+ push); `--fresh` 0.8 s | `bun run housekeeping`, every run; `post-merge sync` (ADR 0157) |
+| robustness audit      | 13 m 30 s – 18 m 51 s           | `bun run health:nightly`, weekly (Sunday night)                 |
+| pick agreement audit  | (not separately timed)          | `bun run health:nightly`, weekly                                |
 
 The offline phase is ~10–15 min. `check:convex-heap` is the first member of a
 third guard tier, `MAINTENANCE_SCRIPTS` (`scripts/lib/health-step.ts`): a
