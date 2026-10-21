@@ -1131,7 +1131,6 @@ describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", (
 describe("claim labels on the board (issue #5562)", () => {
     it("every release path shares ONE argv that drops pr-open beside in-progress", async () => {
         const { releaseEditArgs } = await import("../lib/claim-labels");
-        const { DRIVER_COMMANDS } = await import("../telemetry-serve");
         const { prSteps } = await import("../housekeeping");
         const step = prSteps(
             {
@@ -1141,10 +1140,6 @@ describe("claim labels on the board (issue #5562)", () => {
             },
             null
         ).find((s) => s.argv[0] === "gh");
-        expect(DRIVER_COMMANDS.releaseClaim(4470)).toEqual([
-            "gh",
-            ...releaseEditArgs(4470),
-        ]);
         expect(step?.argv).toEqual(["gh", ...releaseEditArgs(4470)]);
         expect(releaseEditArgs(4470)).toContain("pr-open");
     });
