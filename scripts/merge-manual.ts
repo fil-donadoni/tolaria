@@ -68,7 +68,7 @@ if (verdict.kind === "refuse") fail(`PR #${pr} refused: ${verdict.reason}`);
 console.log(`merge:manual: PR #${pr} admitted — merging`);
 const merged = spawnSync(
     "bun",
-    ["scripts/pr-merge.ts", String(pr), `--head=${view.headRefOid}`],
+    ["scripts/pr-merge.ts", String(pr), `--head=${view.headRefOid}`, "--admin"],
     {
         stdio: "inherit",
     }
