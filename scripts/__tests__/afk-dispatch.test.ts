@@ -7,7 +7,6 @@ import {
     agedRepairLines,
     agedRepairNotice,
     budgetReading,
-    claimFacts,
     failureStreak,
     holdFor,
     holdReleases,
@@ -23,11 +22,13 @@ import {
     type FailureStreak,
     type Hold,
     type HoldInput,
+    type OpenPr,
     type PassRecord,
     type RunnerRow,
     type WorkflowRun,
 } from "../lib/afk-dispatch";
 import { claimFate, pick } from "../lib/picker";
+import { classifyClaims } from "../loop-doctor";
 import type {
     IssueDetail,
     PlanConfig,
@@ -89,22 +90,47 @@ function record(over: Partial<PassRecord> = {}): PassRecord {
     };
 }
 
-/** Claim facts with every claim taken well before the runs listed (a run
- *  after the claim is the pipeline's evidence), unless `at` says otherwise. */
+/** The dispatcher's claim verdicts — `classifyClaims`, the one authority
+ *  (issue #6223) — over runs, pushed branches and PRs, with no journal owner
+ *  and no local branch (this machine's evidence is pinned in
+ *  `loop-doctor.test.ts`). Every claim was taken well before the runs listed
+ *  (a run after the claim is the pipeline's evidence), unless `at` says
+ *  otherwise. */
 function facts(
     claimed: number[],
     runs: WorkflowRun[],
     branches: string[],
-    prs: Parameters<typeof claimFacts>[3],
+    prs: OpenPr[],
     at: Record<number, string | null> = {}
 ) {
-    return claimFacts(
-        claimed,
-        runs,
-        branches,
-        prs,
-        Object.fromEntries(claimed.map((n) => [n, n in at ? at[n] : iso(500)]))
+    const prMap = new Map(prs.map((p) => [p.headRefName, p.number]));
+    const landQueue = new Map(
+        prs.flatMap((p) =>
+            p.labels.includes("land-failed")
+                ? [[p.headRefName, "failed" as const]]
+                : p.labels.includes("ready-to-land")
+                  ? [[p.headRefName, "ready" as const]]
+                  : []
+        )
     );
+    return classifyClaims(
+        claimed.map((n) => ({
+            number: n,
+            title: "x",
+            updatedAt: iso(0),
+            claimedAt: n in at ? at[n] : iso(500),
+        })),
+        {
+            prBranches: new Set(prMap.keys()),
+            prs: prMap,
+            landQueue,
+            branches: { local: [], remote: branches },
+            owners: new Map(),
+            baseRef: "origin/staging",
+            now: NOW,
+            passRuns: runs,
+        }
+    ).map((c) => ({ issue: c.issue, state: c.verdict.state, pr: c.pr }));
 }
 
 const NO_STREAK: FailureStreak = { runs: [], notify: false };
@@ -443,7 +469,7 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
 
     it("a claim with no afk-pass run at all belongs to a session outside the pipeline: held", () => {
         const [f] = facts([7], [], [], []);
-        expect(f.liveRun).toBe(true);
+        expect(claimFate(f)).toBe("live");
     });
 
     it("a claim newer than every run of its issue is held: a human's, or a dispatch not listed yet", () => {
@@ -452,15 +478,15 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
             createdAt: iso(300),
         });
         const [f] = facts([7], [old], ["feat/issue-7"], [], { 7: iso(5) });
-        expect(f.liveRun).toBe(true);
+        expect(claimFate(f)).toBe("live");
         const [g] = facts([7], [old], [], [], { 7: iso(5) });
-        expect(g.liveRun).toBe(true);
+        expect(claimFate(g)).toBe("live");
         // Unknown claim time: held.
         const [h] = facts([7], [old], [], [], { 7: null });
-        expect(h.liveRun).toBe(true);
+        expect(claimFate(h)).toBe("live");
         // The run the claim dispatched (created after it): the pipeline's.
         const [k] = facts([7], [old], [], [], { 7: iso(400) });
-        expect(k.liveRun).toBe(false);
+        expect(claimFate(k)).toBe("release");
     });
 
     it("a claim with a running pass is held", () => {
@@ -470,7 +496,7 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
             [],
             []
         );
-        expect(f.liveRun).toBe(true);
+        expect(f.state).toBe("live");
     });
 
     it("a claim whose PR waits in the queue is held; a land-failed PR is a dead pass's work", () => {
@@ -481,13 +507,10 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
             [],
             [pr(7, ["ready-to-land"]), pr(8, ["land-failed"])]
         );
-        expect(queued.liveRun).toBe(true);
-        expect(failed).toEqual({
-            issue: 8,
-            liveRun: false,
-            branchPushed: true,
-            pr: 9008,
-        });
+        expect(queued.state).toBe("pr-open");
+        expect(claimFate(queued)).toBe("live");
+        expect(failed).toEqual({ issue: 8, state: "stranded", pr: 9008 });
+        expect(claimFate(failed)).toBe("resume");
     });
 
     it("a dead pass with a pushed branch resumes; with none it is an orphan", () => {
@@ -498,8 +521,8 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
             ["fix/issue-7", "main"],
             []
         );
-        expect(pushed).toMatchObject({ liveRun: false, branchPushed: true });
-        expect(orphan).toMatchObject({ liveRun: false, branchPushed: false });
+        expect(pushed.state).toBe("stranded");
+        expect(orphan.state).toBe("orphan");
     });
 
     it("parses the pass run name and the runner name", () => {

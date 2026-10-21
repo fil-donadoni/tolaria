@@ -536,8 +536,9 @@ export const CLAIM_RUN_SLACK_MS = 2 * 60_000;
  *     pipeline (an owner's `/next-ticket`, the old loop), or the dispatcher's
  *     own claim whose run is not listed yet. An older run of the same issue
  *     proves nothing about a newer claim;
- *   * `unknown` — the claim time is unknown: no run can be attributed to it
- *     (fail closed — it releases nothing).
+ *   * `unknown` — runs of the issue exist but the claim time is unknown, so
+ *     none can be attributed to it (fail closed — it releases nothing). No
+ *     run at all is `none` whatever the claim time: nothing to attribute.
  */
 export function passRunEvidence(
     issue: number,
@@ -546,6 +547,7 @@ export function passRunEvidence(
 ): PassRunState {
     const mine = passRuns.filter((r) => passRunIssue(r.title) === issue);
     if (mine.some(isActive)) return "active";
+    if (mine.length === 0) return "none";
     const at = claimedAt === null ? NaN : ms(claimedAt);
     if (!Number.isFinite(at)) return "unknown";
     return mine.some((r) => ms(r.createdAt) >= at - CLAIM_RUN_SLACK_MS)

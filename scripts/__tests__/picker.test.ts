@@ -10,6 +10,7 @@ import {
 } from "../lib/queue-plan";
 import {
     claimFate,
+    type JudgedClaim,
     isTrusted,
     pick,
     type IssueProvenance,
@@ -146,16 +147,20 @@ describe("picker — trusted authors (issue #5648)", () => {
     });
 });
 
-describe("picker — run-based claim liveness (issue #5648)", () => {
-    it("maps run + branch facts to a fate; missing facts hold the claim", () => {
-        const f = { issue: 1, liveRun: false, branchPushed: true, pr: null };
-        expect(claimFate({ ...f, liveRun: true })).toBe("live");
-        expect(claimFate(f)).toBe("resume");
-        expect(claimFate({ ...f, branchPushed: false })).toBe("release");
+describe("picker — claim fate from the one verdict (issue #6223)", () => {
+    it("maps every verdict state to a fate; a missing verdict holds the claim", () => {
+        const fate = (state: JudgedClaim["state"]) =>
+            claimFate({ issue: 1, state, pr: null });
+        expect(fate("live")).toBe("live");
+        expect(fate("suspect")).toBe("live");
+        expect(fate("pr-open")).toBe("live");
+        expect(fate("stranded")).toBe("resume");
+        expect(fate("recoverable")).toBe("resume");
+        expect(fate("orphan")).toBe("release");
         expect(claimFate(undefined)).toBe("live");
     });
 
-    it("a claim with no live run and a pushed branch is a resume pick", () => {
+    it("a stranded claim is a resume pick", () => {
         const got = pick(
             input({
                 issues: [
@@ -163,38 +168,34 @@ describe("picker — run-based claim liveness (issue #5648)", () => {
                     issue(8),
                 ],
                 provenance: { 7: byOwner, 8: byOwner },
-                claims: [
-                    { issue: 7, liveRun: false, branchPushed: true, pr: 70 },
-                ],
+                claims: [{ issue: 7, state: "stranded", pr: 70 }],
             })
         );
-        expect(got.resume.map((r) => [r.number, r.pr])).toEqual([[7, 70]]);
+        expect(got.resume.map((r) => [r.number, r.pr, r.state])).toEqual([
+            [7, 70, "stranded"],
+        ]);
         expect(got.release).toEqual([]);
         expect(got.plan.batch.map((b) => b.number)).toEqual([8]);
     });
 
-    it("a claim with no live run and no branch is released, not resumed", () => {
+    it("an orphan claim is released, not resumed", () => {
         const got = pick(
             input({
                 issues: [issue(7, ["ready-for-agent", "in-progress"])],
                 provenance: { 7: byOwner },
-                claims: [
-                    { issue: 7, liveRun: false, branchPushed: false, pr: null },
-                ],
+                claims: [{ issue: 7, state: "orphan", pr: null }],
             })
         );
         expect(got.release).toEqual([7]);
         expect(got.resume).toEqual([]);
     });
 
-    it("a claim with a live run is held, never resumed or released", () => {
+    it("a live claim is held, never resumed or released", () => {
         const got = pick(
             input({
                 issues: [issue(7, ["ready-for-agent", "in-progress"])],
                 provenance: { 7: byOwner },
-                claims: [
-                    { issue: 7, liveRun: true, branchPushed: true, pr: null },
-                ],
+                claims: [{ issue: 7, state: "live", pr: null }],
             })
         );
         expect(got.live).toEqual([7]);
@@ -202,7 +203,7 @@ describe("picker — run-based claim liveness (issue #5648)", () => {
         expect(got.release).toEqual([]);
     });
 
-    it("a live-run claim older than staleClaimHours is never in staleClaims", () => {
+    it("a live claim older than staleClaimHours is never in staleClaims", () => {
         const old = {
             ...issue(7, ["ready-for-agent", "in-progress"]),
             updatedAt: "2026-01-01T00:00:00Z",
@@ -211,27 +212,31 @@ describe("picker — run-based claim liveness (issue #5648)", () => {
             input({
                 issues: [old],
                 provenance: { 7: byOwner },
-                claims: [
-                    { issue: 7, liveRun: true, branchPushed: false, pr: null },
-                ],
+                claims: [{ issue: 7, state: "live", pr: null }],
             })
         );
         expect(got.plan.staleClaims).toEqual([]);
         expect(got.plan.activeClaims).toEqual([7]);
     });
 
-    it("duplicate facts merge toward alive", () => {
-        const got = pick(
-            input({
-                issues: [issue(7, ["ready-for-agent", "in-progress"])],
-                provenance: { 7: byOwner },
-                claims: [
-                    { issue: 7, liveRun: true, branchPushed: false, pr: null },
-                    { issue: 7, liveRun: false, branchPushed: false, pr: null },
-                ],
-            })
-        );
-        expect(got.live).toEqual([7]);
-        expect(got.release).toEqual([]);
+    it("duplicate verdicts merge toward held", () => {
+        for (const order of [
+            ["suspect", "orphan"],
+            ["orphan", "suspect"],
+        ] as const) {
+            const got = pick(
+                input({
+                    issues: [issue(7, ["ready-for-agent", "in-progress"])],
+                    provenance: { 7: byOwner },
+                    claims: order.map((state) => ({
+                        issue: 7,
+                        state,
+                        pr: null,
+                    })),
+                })
+            );
+            expect(got.live).toEqual([7]);
+            expect(got.release).toEqual([]);
+        }
     });
 });
