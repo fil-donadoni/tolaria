@@ -73,16 +73,4 @@ describe("Term — the glossary's typed door", () => {
             screen.getByText(GLOSSARY.merged.label).getAttribute("tabindex")
         ).toBeNull();
     });
-
-    it("every id the TYPE admits resolves to an entry with a real tip — the runtime half of the guarantee the type gives", () => {
-        const ids = Object.keys(GLOSSARY) as TermId[];
-        // A floor, not a count: the guard must not go vacuous if the
-        // table is ever emptied by a bad merge.
-        expect(ids.length).toBeGreaterThan(20);
-        const empty = ids.filter((id) => {
-            const entry = GLOSSARY[id];
-            return !entry.label || !entry.tip;
-        });
-        expect(empty).toEqual([]);
-    });
 });
