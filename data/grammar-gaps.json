@@ -2082,7 +2082,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Pay {…}",
-            "issue": 5203
+            "issue": 6208
         },
         {
             "kind": "grammar",
