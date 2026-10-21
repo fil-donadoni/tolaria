@@ -63,6 +63,8 @@ import {
     releasedClaims,
     planBatch,
     planFilename,
+    inFlightSet,
+    isStaleClaim,
     type BoardPriority,
     type HealthMarker,
     type IssueDetail,
@@ -191,6 +193,47 @@ export function issuesWithOpenPr(): number[] {
         .map((pr) => /^(?:feat|fix)\/issue-(\d+)$/.exec(pr.headRefName)?.[1])
         .filter((n): n is string => n !== undefined)
         .map(Number);
+}
+
+/** Each open issue PR's number and changed files (issue #6195) — the real
+ *  blast radius of an in-flight issue. Total: unreadable = nothing known, and
+ *  the in-flight set then falls back to the declared `Target files`. Shared
+ *  with the AFK dispatcher, so both pick through one rule. */
+export function openPrFiles(): {
+    byIssue: Record<number, number>;
+    files: Record<number, string[]>;
+} {
+    const byIssue: Record<number, number> = {};
+    const files: Record<number, string[]> = {};
+    try {
+        const rows = JSON.parse(
+            gh([
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--json",
+                "number,headRefName,files",
+                "--limit",
+                "100",
+            ])
+        ) as {
+            number: number;
+            headRefName: string;
+            files: { path: string }[];
+        }[];
+        for (const r of rows) {
+            const n = /^(?:feat|fix)\/issue-(\d+)$/.exec(r.headRefName)?.[1];
+            if (n === undefined) continue;
+            byIssue[Number(n)] = r.number;
+            files[r.number] = r.files.map((f) => f.path);
+        }
+    } catch (err) {
+        console.error(
+            `queue:plan: could not read open PR files (${(err as Error).message.split("\n")[0]}) — in-flight files fall back to \`Target files\``
+        );
+    }
+    return { byIssue, files };
 }
 
 /** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
@@ -891,6 +934,30 @@ function main(): void {
         }
     );
     const orphanParts = orphanPlanParts(orphans);
+
+    // In-flight set (issue #6195): live claims and open PRs occupy their
+    // files. A stale or released claim occupies nothing.
+    const releasedNow = releasedClaimsOnThisMachine();
+    const prs = openPrFiles();
+    const occupying = new Set<number>(Object.keys(prs.byIssue).map(Number));
+    for (const i of issues)
+        if (
+            i.labels.some((l) => l.name === "in-progress") &&
+            !releasedNow.includes(i.number) &&
+            !isStaleClaim(
+                i,
+                port.issuesWithOpenPr,
+                config.now,
+                config.staleClaimHours
+            )
+        )
+            occupying.add(i.number);
+    config.inFlight = inFlightSet(
+        [...occupying].map((n) => ({ issue: n, pr: prs.byIssue[n] ?? null })),
+        prs.files,
+        (n) => port.issueDetail(n).body,
+        config.inferredTargetFiles
+    );
 
     const plan = planBatch(
         issues.filter((i) => !orphanParts.excluded.has(i.number)),
