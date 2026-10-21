@@ -259,9 +259,7 @@ describe("planner — in-flight overlap (issue #6195)", () => {
                     3: "scripts/b.ts",
                 }),
                 provenance: { 1: byOwner, 2: byOwner, 3: byOwner },
-                claims: [
-                    { issue: 1, liveRun: true, branchPushed: false, pr: null },
-                ],
+                claims: [{ issue: 1, state: "live", pr: null }],
             })
         );
         expect(deferredFor(got.plan, 2)).toMatchObject({
@@ -284,7 +282,7 @@ describe("planner — in-flight overlap (issue #6195)", () => {
                 3: "scripts/pr.ts",
             }),
             provenance: { 1: byOwner, 2: byOwner, 3: byOwner },
-            claims: [{ issue: 1, liveRun: true, branchPushed: true, pr: 90 }],
+            claims: [{ issue: 1, state: "pr-open", pr: 90 }],
             prFiles: { 90: ["scripts/pr.ts"] },
         };
         const got = pick(input(base));
@@ -303,9 +301,7 @@ describe("planner — in-flight overlap (issue #6195)", () => {
                 ],
                 port: port({ 1: "scripts/a.ts", 2: "scripts/a.ts" }),
                 provenance: { 1: byOwner, 2: byOwner },
-                claims: [
-                    { issue: 1, liveRun: false, branchPushed: false, pr: null },
-                ],
+                claims: [{ issue: 1, state: "orphan", pr: null }],
             })
         );
         expect(got.release).toEqual([1]);
@@ -333,9 +329,7 @@ describe("planner — in-flight overlap (issue #6195)", () => {
                 ],
                 port: noFiles,
                 provenance: { 1: byOwner, 2: byOwner },
-                claims: [
-                    { issue: 1, liveRun: true, branchPushed: false, pr: null },
-                ],
+                claims: [{ issue: 1, state: "live", pr: null }],
             })
         );
         expect(got.plan.inFlightUnknown).toEqual([1]);
