@@ -45,7 +45,7 @@
  * silently a no-op on every clean checkout, which is the shape of a guard that
  * is not there.
  *
- * Also guards the RETIREMENT MARKERS (issue #3049, ADR 0114 §1) — the third
+ * Also guards the RETIREMENT MARKERS (ADR 0114 §1) — the third
  * thing this file proves and the only one that is not about staleness. Once a
  * card's hand-written definition is retired its lockfile row is the sole copy
  * of its behaviour, so `checkRetirements` proves offline that every marker is
@@ -54,7 +54,7 @@
  * wiring rather than adding a package.json script for the same reason the
  * legality guard does — the gate surface must not grow per artifact.
  *
- * Also guards `data/oracle-legality.json` (issue #2695), the sibling artifact
+ * Also guards `data/oracle-legality.json`, the sibling artifact
  * `convex/formats.ts` consumes for Premodern deck legality. It has no
  * "compiler source" to hash (its only input is the corpus), so its tiers are:
  * a self-contained CONTENT-HASH check offline (always — no corpus, no pin,
