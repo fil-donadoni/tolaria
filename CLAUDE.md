@@ -121,7 +121,7 @@ rules in `sba.ts`; cards declare only `sbaMods` exceptions.
 
 **Autonomous**: Claude implements, tests, validates end-to-end; user sets
 features and strategy. Ask only on significant architecture choices or genuine
-CR ambiguity affecting behavior.
+CR ambiguity affecting behavior — or an **undecided `check:ui` scope** (attended: ask once, encode a scoper rule; AFK: walk nothing, #6144).
 
 ### Subagent model routing (cost)
 

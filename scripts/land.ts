@@ -247,6 +247,7 @@ export const SKIN_RECEIPT_REFUSAL =
     "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
     "`bun run verify:ui-receipt <PR#>` names the problem. A diff that owes no walk " +
     "(`bun run check:ui -- --scope-only` says `not owed`) states `check:ui: no walk owed (<reason>)` instead; " +
+    "an undecided or global-input scope an AFK pass did not walk states `check:ui: scope undecided, not walked (<reasons>)`; " +
     "a RED-ladder revert states `check:ui: revert of <sha> restores its parent on every DOM path`, which holds only when every DOM-reachable changed path equals that commit's parent";
 
 /**

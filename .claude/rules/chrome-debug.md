@@ -15,6 +15,9 @@ at the first read of a file under `src/`. Procedure and probe:
 replaces the receipt. Leaf components, copy, handlers, tests, non-`src/` diffs:
 say so in one line, move on.
 
+**Exit 5 = `UNDECIDED`/`FULL`, no browser** (issue #6144; `src/CLAUDE.md`): AFK
+walks nothing, PR line `check:ui: scope undecided, not walked (<reasons>)`.
+
 **Run `bun run check:ui`** (#2580): own Vite + headless Chrome, signs in, walks
 the runbook surfaces at all five viewports (ADR 0101), probes, runs axe; nine
 Floors at zero (ADR 0132). It is a gate outside `check:all` (offline; this
