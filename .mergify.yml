@@ -106,9 +106,16 @@ pull_request_rules:
     # `land-failed` then, instead of leaving it dequeued on a failed
     # condition with no repair pick (issue #5978's stranding). A draft
     # carries no `ready-to-land`, so this rule never fires on one.
+    #
+    # Not under a RED: the lane tests the PR merged with the base, so a RED
+    # reds every PR's lane, and that red is the base's (issue #6256). The rule
+    # below holds the PR instead; `pr-refresh` rebases a held PR on every base
+    # push (a fresh lane on the moved base), and `pr-gate`'s GREEN requeues it.
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=ready-to-land
+          - -check-failure=base-health
+          - -label=queue:held
           - or:
                 - check-failure=check:lane (advisory)
                 - check-failure=ui-receipt
@@ -127,3 +134,12 @@ pull_request_rules:
                   **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
 
                   The red check is one of `pr-check`'s refusal jobs (see the PR's checks). Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
+    - name: a red advisory lane under a RED is a hold
+      conditions:
+          - label=ready-to-land
+          - check-failure=base-health
+          - check-failure=check:lane (advisory)
+      actions:
+          label:
+              add:
+                  - queue:held

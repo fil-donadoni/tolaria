@@ -3,7 +3,12 @@
  * push to the base obliges a refresh of, and what the owner reads when one
  * cannot be refreshed. Pure — the git and `gh` I/O is the script's.
  */
-import { FAILED_LABEL, READY_LABEL, MANUAL_LABEL } from "./land-labels";
+import {
+    FAILED_LABEL,
+    HELD_LABEL,
+    READY_LABEL,
+    MANUAL_LABEL,
+} from "./land-labels";
 
 /** One PR as `gh pr list --label ready-to-land --json …` reads it. */
 export interface RefreshPr {
@@ -18,7 +23,7 @@ export interface RefreshPr {
     files: readonly string[];
 }
 
-export type RefreshReason = "conflicting" | "base-touched";
+export type RefreshReason = "conflicting" | "base-touched" | "held";
 
 export interface RefreshCandidate {
     pr: RefreshPr;
@@ -36,7 +41,10 @@ export interface RefreshCandidate {
  * conflicting ones then qualify. A PR without `merge:manual` is the Mergify queue's:
  * its draft already tests it on the moved base, and a push to it dequeues it,
  * so only `CONFLICTING` — a rebase only our merge drivers can do — takes it
- * (issue #5983).
+ * (issue #5983). A `queue:held` PR is out of the queue, so a push costs it
+ * nothing, and every base push takes it: a RED reds its advisory lane, which
+ * tests the PR merged with the base, and that run is pinned to the broken
+ * merge — only a new push re-runs the lane on the moved base (issue #6256).
  */
 export function selectRefreshCandidates(
     prs: readonly RefreshPr[],
@@ -54,6 +62,8 @@ export function selectRefreshCandidates(
             out.push({ pr, reason: "conflicting", overlap });
         } else if (overlap.length > 0 && pr.labels.includes(MANUAL_LABEL)) {
             out.push({ pr, reason: "base-touched", overlap });
+        } else if (pr.labels.includes(HELD_LABEL)) {
+            out.push({ pr, reason: "held", overlap });
         }
     }
     return out.sort((a, b) => a.pr.number - b.pr.number);

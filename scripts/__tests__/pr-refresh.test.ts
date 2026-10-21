@@ -65,6 +65,17 @@ describe("selectRefreshCandidates", () => {
         ]);
     });
 
+    it("takes a queue:held PR on any base push, the range unknown included (issue #6256)", () => {
+        const held = ["ready-to-land", "queue:held"];
+        for (const touched of [new Set(["z.ts"]), null])
+            expect(
+                selectRefreshCandidates(
+                    [pr({ number: 4, labels: held })],
+                    touched
+                ).map((c) => [c.pr.number, c.reason])
+            ).toEqual([[4, "held"]]);
+    });
+
     it("leaves a clean, untouched PR alone", () => {
         expect(selectRefreshCandidates([pr({})], new Set(["z.ts"]))).toEqual(
             []

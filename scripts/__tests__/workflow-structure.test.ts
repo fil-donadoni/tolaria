@@ -140,6 +140,26 @@ pull_request_rules:
         remove: [ready-to-land]
       comment:
         message: "dequeued — https://example.test/run"
+  - name: refusal
+    conditions:
+      - label=ready-to-land
+      - -check-failure=base-health
+      - -label=queue:held
+      - or:
+          - check-failure=check:lane (advisory)
+          - check-failure=scenario
+    actions:
+      label:
+        add: [land-failed]
+        remove: [ready-to-land]
+  - name: refusal under a RED
+    conditions:
+      - label=ready-to-land
+      - check-failure=base-health
+      - check-failure=check:lane (advisory)
+    actions:
+      label:
+        add: [queue:held]
 `;
 
 interface Over {
@@ -740,9 +760,33 @@ describe("workflow structure guard", () => {
             ],
         ] as const) {
             const mergify = edit(MERGIFY, from, to);
-            expect(rules(fixture({ mergify })), from).toEqual([
-                "queue-dequeue",
-            ]);
+            // dropping the hold exemption also reds `queue-refusal-hold`
+            expect(rules(fixture({ mergify })), from).toContain(
+                "queue-dequeue"
+            );
+        }
+    });
+
+    it("holds a PR whose lane is red under a RED, never land-failed (issue #6256)", () => {
+        for (const [from, to] of [
+            [
+                "      - label=ready-to-land\n      - -check-failure=base-health\n      - -label=queue:held\n      - or:\n          - check-failure=check:lane",
+                "      - label=ready-to-land\n      - -label=queue:held\n      - or:\n          - check-failure=check:lane",
+            ],
+            [
+                "      - -check-failure=base-health\n      - -label=queue:held\n      - or:\n          - check-failure=check:lane",
+                "      - -check-failure=base-health\n      - or:\n          - check-failure=check:lane",
+            ],
+            ["        add: [queue:held]", "        add: [land-failed]"],
+            [
+                "      - check-failure=base-health\n      - check-failure=check:lane (advisory)\n    actions:\n      label:\n        add: [queue:held]",
+                "      - check-failure=check:lane (advisory)\n    actions:\n      label:\n        add: [queue:held]",
+            ],
+        ] as const) {
+            const mergify = edit(MERGIFY, from, to);
+            expect(rules(fixture({ mergify })), to).toContain(
+                "queue-refusal-hold"
+            );
         }
     });
 
