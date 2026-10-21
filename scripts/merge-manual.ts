@@ -66,7 +66,11 @@ const verdict = manualMergeVerdict({
 if (verdict.kind === "refuse") fail(`PR #${pr} refused: ${verdict.reason}`);
 
 console.log(`merge:manual: PR #${pr} admitted — merging`);
-const merged = spawnSync("bun", ["scripts/pr-merge.ts", String(pr)], {
-    stdio: "inherit",
-});
+const merged = spawnSync(
+    "bun",
+    ["scripts/pr-merge.ts", String(pr), `--head=${view.headRefOid}`],
+    {
+        stdio: "inherit",
+    }
+);
 process.exit(merged.status ?? 1);

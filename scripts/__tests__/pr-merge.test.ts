@@ -132,6 +132,18 @@ describe("pr-merge.ts — isTransientMergeRefusal", () => {
 });
 
 describe("pr-merge.ts — mergeArgs", () => {
+    it("pins the admitted head when merge:manual passes one (issue #6238)", () => {
+        expect(mergeArgs(6218, "abc123")).toEqual([
+            "pr",
+            "merge",
+            "6218",
+            "--squash",
+            "--match-head-commit",
+            "abc123",
+        ]);
+        expect(parseArgs(["6218", "--head=abc123"]).head).toBe("abc123");
+    });
+
     it("squash-merges the requested PR", () => {
         expect(mergeArgs(2536)).toEqual(["pr", "merge", "2536", "--squash"]);
     });
