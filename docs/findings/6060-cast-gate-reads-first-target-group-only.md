@@ -1,7 +1,8 @@
 ---
 title: The cast gate reads only the first target group, so a spell with an empty later group is offered and then refused
 discoveredBy: 6060
-status: draft
+status: triaged
+issue: 6210
 confidence: high
 ---
 
