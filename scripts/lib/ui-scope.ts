@@ -118,9 +118,30 @@ export interface ScopeSurface {
     specimen?: { readonly section: string };
 }
 
+/**
+ * Three outcomes (issue #6144). `full` is CERTAINTY: the path is a global input
+ * (a stylesheet, the shell, the build config, the lane's own tooling) and every
+ * surface can move. `undecided` is DOUBT: no rule places the path, or the
+ * scope could not be computed — a question a person answers in seconds, which
+ * a 9–22 minute walk must not answer by default. Neither walks anything on its
+ * own: `check:ui` prints the impact / the doubt and exits
+ * `UI_SCOPE_UNDECIDED_EXIT`; only `--all` or `--surface=` spends browser time.
+ */
 export type UiScope =
     | { kind: "scoped"; surfaces: string[] }
-    | { kind: "full"; reason: string };
+    | { kind: "full"; reason: string }
+    | { kind: "undecided"; reasons: string[] };
+
+/** `check:ui`'s exit when the scope is full or undecided and nobody chose a
+ *  walk (issue #6144): nothing ran, no browser started. Distinct from 0–4
+ *  and from `MACHINE_SATURATED_EXIT`. */
+export const UI_SCOPE_UNDECIDED_EXIT = 5;
+
+/** The AFK marker: the driver (`loop-drain.sh`) and an `afk-pass` job each
+ *  set one; `session-origin` reads the first (issue #3144). */
+export function isAfkSession(env: NodeJS.ProcessEnv = process.env): boolean {
+    return Boolean(env.TOLARIA_LOOP_DRAIN) || env.GITHUB_ACTIONS === "true";
+}
 
 /**
  * A route entry that is staff-only tooling (ADR 0131 amendment, issue #5075):
@@ -285,9 +306,19 @@ export function computeUiScope({
     };
 
     const selected = new Set<string>();
+    // DOUBT, collected: a certain-global path later in the diff still wins.
+    const doubts: string[] = [];
     for (const path of [...changed].sort()) {
         if (path === SURFACES_FILE && surfaceEdits?.kind === "surfaces") {
             for (const id of surfaceEdits.ids) selected.add(id);
+            continue;
+        }
+        if (
+            path === SURFACES_FILE &&
+            surfaceEdits?.kind === "shared" &&
+            surfaceEdits.unreadable
+        ) {
+            doubts.push(`${path}: ${surfaceEdits.reason}`);
             continue;
         }
         if (path.startsWith(UI_GATE_DIR)) {
@@ -318,10 +349,10 @@ export function computeUiScope({
         const hits = closures.filter((c) => c.files.has(path));
         if (gateOnly.has(path)) {
             if (registryReaders.length === 0) {
-                return {
-                    kind: "full",
-                    reason: `${path} is loaded by the catalogue gate (${CATALOGUE_GATE}) and no surface reads ${CARD_REGISTRY}`,
-                };
+                doubts.push(
+                    `${path} is loaded by the catalogue gate (${CATALOGUE_GATE}) and no surface reads ${CARD_REGISTRY}`
+                );
+                continue;
             }
             for (const id of registryReaders) selected.add(id);
         }
@@ -330,13 +361,14 @@ export function computeUiScope({
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
-            return {
-                kind: "full",
-                reason: `${path} is in no surface's closure and no rule places it`,
-            };
+            doubts.push(
+                `${path} is in no surface's closure and no rule places it`
+            );
+            continue;
         }
         for (const hit of hits) selected.add(hit.id);
     }
+    if (doubts.length > 0) return { kind: "undecided", reasons: doubts };
     return {
         kind: "scoped",
         surfaces: surfaces.map((s) => s.id).filter((id) => selected.has(id)),
@@ -409,10 +441,62 @@ function surfaceClosure(
     return files;
 }
 
+/** Seconds one surface × viewport cell costs, the per-cell figure the impact
+ *  estimate multiplies. Derived from the measured uncontended full receipt
+ *  (27–30 min over ~155 cells, `ui-gate/phase-timing.ts`): an ESTIMATE, and
+ *  printed as one. */
+export const ESTIMATED_CELL_SECONDS = 11;
+
+/** What walking `surfaceIds` at `viewportCount` viewports would cost. */
+export function walkImpact(
+    surfaceIds: readonly string[],
+    viewportCount: number
+): { surfaces: number; cells: number; minutes: number } {
+    const cells = surfaceIds.length * viewportCount;
+    return {
+        surfaces: surfaceIds.length,
+        cells,
+        minutes: Math.round((cells * ESTIMATED_CELL_SECONDS) / 60),
+    };
+}
+
+/** The lines `check:ui` prints when it starts no browser on a `full` or
+ *  `undecided` scope (issue #6144): the question, the impact, the ways out. */
+export function renderScopeDecision(
+    scope: Exclude<UiScope, { kind: "scoped" }>,
+    surfaceIds: readonly string[],
+    viewportCount: number,
+    afk: boolean
+): string {
+    const impact = walkImpact(surfaceIds, viewportCount);
+    const what =
+        scope.kind === "full"
+            ? `FULL (${scope.reason})`
+            : `UNDECIDED (${scope.reasons.join("; ")})`;
+    const cost = `walking everything = ${impact.surfaces} surfaces × ${viewportCount} viewports = ${impact.cells} cells, ~${impact.minutes} min (estimated, ${ESTIMATED_CELL_SECONDS}s/cell)`;
+    const lines = [`check:ui: ${what} — no browser started`, `  ${cost}`];
+    if (afk) {
+        lines.push(
+            `  AFK pass: walk nothing; the PR body states \`check:ui: scope undecided, not walked (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")})\``
+        );
+    } else {
+        lines.push(
+            '  attended: ask the owner — "reaches no UI" / "reaches these surfaces" (encode the answer as a scoper rule in this PR, then re-run) or "walk everything" (`--all`, encodes nothing; `--surface=a,b` walks a subset as a DIAGNOSTIC)'
+        );
+    }
+    return lines.join("\n");
+}
+
 /** The lines `check:ui` prints at the start of every run. */
 export function renderUiScope(scope: UiScope, base: string): string {
     const head = `scope (diff base ${base}):`;
     if (scope.kind === "full") return `${head} FULL — ${scope.reason}`;
+    if (scope.kind === "undecided") {
+        return [
+            `${head} UNDECIDED — ${scope.reasons.length} unplaced path(s); no browser started`,
+            ...scope.reasons.map((r) => `  · ${r}`),
+        ].join("\n");
+    }
     if (scope.surfaces.length === 0) {
         return `${head} SCOPED — 0 surfaces (nothing in this diff reaches a walked route)`;
     }
@@ -540,6 +624,18 @@ export function renderWalkOwed(result: WalkOwed): string {
     return result.owed
         ? `walk: owed — ${result.path}: ${result.rule}`
         : `walk: not owed — ${result.reason}`;
+}
+
+/**
+ * The PR-body line an AFK pass states when the scope is `undecided` (or the
+ * certain-global `full` one) and nothing was walked (issue #6144). `land`
+ * accepts it only against a re-derived scope of those kinds — never for a
+ * `scoped` diff that owes a walk.
+ */
+const SCOPE_UNDECIDED_LINE =
+    /^check:ui: scope undecided, not walked \([ \t]*[^\s<)][^)\n]*\)[ \t]*$/m;
+export function hasScopeUndecidedLine(prBody: string): boolean {
+    return SCOPE_UNDECIDED_LINE.test(prBody);
 }
 
 /** The PR-body line that stands in for a receipt when no walk is owed. */
