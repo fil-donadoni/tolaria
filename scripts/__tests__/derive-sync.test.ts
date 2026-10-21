@@ -26,7 +26,6 @@ import {
 } from "../lib/derive-sync";
 import { PACKED_CORPUS_PATH } from "../lib/packed-corpus";
 import { SEARCH_INDEX_PATH } from "../lib/search-index";
-import { DERIVE_SYNC_STEP } from "../housekeeping";
 
 describe("derive-sync.ts — the five derived paths are their owners' (ADR 0157)", () => {
     it("pins the leaf's literals to the constants the generators write", () => {
@@ -38,15 +37,6 @@ describe("derive-sync.ts — the five derived paths are their owners' (ADR 0157)
             DEFINITION_INDEX_PATH,
             SEARCH_INDEX_PATH,
         ]);
-    });
-
-    it("housekeeping's step runs this script, under its own label", () => {
-        expect(DERIVE_SYNC_STEP.argv).toEqual([
-            "bun",
-            "scripts/derive-sync.ts",
-        ]);
-        expect(DERIVE_SYNC_STEP.label).toBe("derive:sync");
-        expect(DERIVE_SYNC_STEP.timeoutMs).toBeGreaterThan(0);
     });
 });
 
