@@ -628,6 +628,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "blade-index",
             "check:baseline-shrink",
             "check:issue-log-comments",
+            "check:duplicate-test-blocks",
         ]);
         expect(plan.rationale).toContain("spanning src/**");
         expect(plan.rationale).not.toContain("prose");
@@ -844,6 +845,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
             "check:baseline-shrink",
+            "check:duplicate-test-blocks",
         ]);
     });
 
@@ -1018,6 +1020,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // The engine module is not a blade registry input (issue #5940).
             "blade-index",
             "check:baseline-shrink",
+            "check:duplicate-test-blocks",
         ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
@@ -1052,6 +1055,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "dom",
             "blade-index",
             "check:baseline-shrink",
+            "check:duplicate-test-blocks",
         ]);
         const out = renderPlan(cards, "4f2a91c");
         expect(out).toMatch(/^lane:\s+cards\b/);
@@ -1071,6 +1075,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "blade-index",
             "check:baseline-shrink",
             "check:issue-log-comments",
+            "check:duplicate-test-blocks",
         ]);
         expect(full.skip).toEqual([]);
     });
