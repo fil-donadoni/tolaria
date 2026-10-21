@@ -259,7 +259,6 @@
     "scripts/check-oracle-lockfile.ts#31344b8e76",
     "scripts/check-targets.ts#4d85b9a32d",
     "scripts/check-test-hygiene.ts#3d115b0a31",
-    "scripts/convex-ensure.ts#2b85887abc",
     "scripts/convex-heap-probe.ts#6f6bf8f022",
     "scripts/cr-616-1-subrule-citations.ts#95e08b1387",
     "scripts/gaps-sync.ts#93e789098d",
