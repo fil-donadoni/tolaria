@@ -871,6 +871,16 @@ export const CHEAP_GUARDS: readonly {
         admits: /^((convex|src|scripts)\/.*\.tsx?$|data\/issue-log-comments-baseline\.json$)/,
         lacks: "no changed .ts/.tsx under convex/**, src/** or scripts/**, and the issue-log baseline did not move — no comment block can have gained a third issue ref",
     },
+    // Issue #6098: 4.4 s (`bun`, 2265 files, load ~16, 2026-10-21) — the
+    // vitest test it replaced paid 17–22 s for the same parse and timed out
+    // under health's `test:app` workers. A fingerprint reads only test-file
+    // text and import specifiers, so only a test file, the detector or the
+    // script can move it; a census, so it also runs whole in health.
+    {
+        id: "check:duplicate-test-blocks",
+        admits: /^((convex|src|scripts|dashboard)\/.*\.test\.tsx?$|scripts\/(lib\/duplicate-test-blocks|check-duplicate-test-blocks)\.ts$)/,
+        lacks: "no changed *.test.ts(x) under convex/**, src/**, scripts/** or dashboard/**, and the detector did not move — no test block can have gained a twin",
+    },
 ];
 
 /** The cheap guard's command: its own, else `bun run <id>`. */

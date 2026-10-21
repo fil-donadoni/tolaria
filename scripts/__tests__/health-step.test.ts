@@ -312,6 +312,7 @@ describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", 
                 "check:targets",
                 "check:test-hygiene",
                 "check:issue-log-comments",
+                "check:duplicate-test-blocks",
                 "test",
             ],
             // The per-game download (issue #5618), `release`'s only browser

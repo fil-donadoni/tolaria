@@ -132,13 +132,6 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/docs-lane.test.ts",
         admits: /^scripts\/__tests__\//,
     },
-    // duplicate test blocks over convex/, src/, scripts/, dashboard/
-    {
-        test: "scripts/__tests__/duplicate-test-blocks.test.ts",
-        admits: /^(convex|src|scripts|dashboard)\//,
-        healthOnly:
-            "17.3 s alone (vitest Duration), load ~19, 2026-10-12 — 20 s inside the 35-file census run",
-    },
     // docs/findings/ — every drawer entry parses
     { test: "scripts/__tests__/findings.test.ts", admits: /^docs\/findings\// },
     // data/full-catalogue/ artefacts
