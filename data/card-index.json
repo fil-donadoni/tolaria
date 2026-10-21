@@ -15022,6 +15022,16 @@
         "source": "compiled"
     },
     {
+        "name": "Denying Wind",
+        "scryfallId": "15f236ce-41ad-4a49-a6f9-7853a2395a84",
+        "oracleId": "8daed4d8-1a43-4452-85dd-51b320714489",
+        "firstSet": "pcy",
+        "firstPrintId": "15f236ce-41ad-4a49-a6f9-7853a2395a84",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Depose // Deploy",
         "scryfallId": "ab0ba4ef-9e82-4177-a80f-8fa6f6a5bd60",
         "oracleId": "c547c9ab-a303-48fb-9579-37f9de9a558b",
@@ -20007,6 +20017,16 @@
         "firstPrintId": "0576ffe8-a7b9-479b-8ea0-418b430b1aa1",
         "firstPrintSet": "usg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Extract",
+        "scryfallId": "97f99a3d-d811-4666-aac8-5957068157dc",
+        "oracleId": "36e937a9-e15e-4404-bcdd-c2b0943a34ad",
+        "firstSet": "ody",
+        "firstPrintId": "97f99a3d-d811-4666-aac8-5957068157dc",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
