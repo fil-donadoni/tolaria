@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
-import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
+import {
+    splitScriptsTests,
+    splitSrcBotTests,
+    splitSrcTests,
+} from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
 import { compiledShardUrls } from "./scripts/lib/vite-compiled-shard-urls";
 import { brainWorkerChunk } from "./scripts/lib/vite-brain-worker-chunk";
@@ -161,6 +165,26 @@ const BOT_GLOB_DOM = ["src/**/*.bot.test.{ts,tsx}"];
 // stops running while the gate stays green.
 // ─────────────────────────────────────────────────────────────────────────────
 const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AXIS 1, REFINED FOR THE BOT SUITE — DOM-free `src` bot tests run in
+// `bot-node` (issue #6151).
+//
+// `bot-dom` ran every `src/**/*.bot.test.ts` under happy-dom with isolation
+// on, so each file re-imported the card catalogue: measured, the 58 files the
+// classifier passes spent 42 s of import and 8 s of environment setup for
+// 91 CPU-s total; in shared node workers they took 33.8 CPU-s. The verdict is
+// the SAME classifier's as the app split above — a file with a DOM global, a
+// `vi.mock`, a spy or fake timers stays in `bot-dom`, and so does every
+// `.tsx` — so a moved file that grows one moves back by itself.
+//
+// What the classifier cannot see is a file that changes process-wide state
+// and restores it (the search variant, the root decision sink, …): under
+// `isolate: false` a missing restore leaks into whichever file the worker
+// runs next. `vitest.setup.bot-leaks.ts` asserts those settings back at their
+// defaults after every `bot-node` file, so a leak reds AT the leaking file.
+// ─────────────────────────────────────────────────────────────────────────────
+const SRC_BOT_NODE_TESTS = splitSrcBotTests(__dirname).node;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AXIS 1, PARTITIONED — `node-engine` / `node-tooling` (ADR 0136 §5, amending
@@ -358,9 +382,13 @@ export default defineConfig({
                     name: "bot-node",
                     environment: "node",
                     // Same shared-module-state hazard as the node projects
-                    // (`isolate: false`) — same frozen catalogue.
-                    setupFiles: ["./vitest.setup.node.ts"],
-                    include: BOT_GLOB_NODE,
+                    // (`isolate: false`) — same frozen catalogue, plus the
+                    // process-wide-settings leak detector (issue #6151).
+                    setupFiles: [
+                        "./vitest.setup.node.ts",
+                        "./vitest.setup.bot-leaks.ts",
+                    ],
+                    include: [...BOT_GLOB_NODE, ...SRC_BOT_NODE_TESTS],
                     exclude: botExclude,
                     isolate: false,
                     // A bot test runs a real ISMCTS search (production
@@ -379,7 +407,7 @@ export default defineConfig({
                     environment: "happy-dom",
                     setupFiles: ["./vitest.setup.ts"],
                     include: BOT_GLOB_DOM,
-                    exclude: botExclude,
+                    exclude: [...botExclude, ...SRC_BOT_NODE_TESTS],
                     testTimeout: 60_000,
                 },
             },

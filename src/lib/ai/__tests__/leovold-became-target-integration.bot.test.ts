@@ -13,7 +13,11 @@
 // the opponent-only filter: the controller's OWN targeting spell does not fire.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName, registerTokenDefinition } from "@convex/cards";
+import { getCardByName } from "@convex/cards";
+import {
+    withTemporaryDefinition,
+    withTemporaryDefinitionAsync,
+} from "@convex/cards/registry";
 import {
     makeInstance,
     makePlayer,
@@ -28,7 +32,7 @@ import {
 } from "@convex/gre/state";
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
-import type { EffectOp } from "@convex/cards/types";
+import type { CardDefinition, EffectOp } from "@convex/cards/types";
 import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView, botActionToMove } from "../bot-view";
 import { executeMove, type MoveMutations } from "../executor";
@@ -40,11 +44,12 @@ const BEARS = getCardByName("Balduvian Bears").id;
 
 /** A trivial opponent spell used only as a real cast that locks a permanent
  *  target — enough to exercise `emitSpellCastEvent`'s target-declaration choke.
- *  Registered under a test id so the catalogue sweep never sees it; the spell is
- *  never resolved (Leovold's trigger sits above it), so the effect body is
- *  immaterial. */
-function registerTargetedSpell(id: string): string {
-    registerTokenDefinition({
+ *  Served only inside the test that casts it (`withTemporaryDefinition`), so
+ *  no check that walks registered definitions ever sees it — `bot-node` runs
+ *  this file in a shared worker (issue #6151). The spell is never resolved
+ *  (Leovold's trigger sits above it), so the effect body is immaterial. */
+function targetedSpell(id: string): CardDefinition {
+    return {
         id,
         name: id,
         rarity: "common",
@@ -52,9 +57,10 @@ function registerTargetedSpell(id: string): string {
         types: ["Instant"],
         targetRequirement: { type: "any", count: 1 },
         effects: [{ op: "draw", player: "controller", count: 1 } as EffectOp],
-    });
-    return id;
+    };
 }
+const HUMAN_CAST = targetedSpell("test-leovold-bt-human-cast");
+const OWN_CAST = targetedSpell("test-leovold-bt-own-cast");
 
 /** Cast a real spell controlled by `caster` targeting the permanent `targetId`
  *  through the production cast choke (`emitSpellCastEvent`), then flush triggers
@@ -86,7 +92,7 @@ function castTargetingLeovold(
 
 /** Seed: the BOT controls Leovold; the HUMAN casts a real spell targeting it. */
 function seedBotLeovoldTargetedByHuman(): GameState {
-    const spellId = registerTargetedSpell("test-leovold-bt-human-cast");
+    const spellId = HUMAN_CAST.id;
     const leo = makeInstance(LEOVOLD, {
         id: "leo",
         controllerId: BOT,
@@ -163,85 +169,89 @@ function engineMutations(state: GameState): MoveMutations {
 }
 
 describe("Leovold became-target may-draw — real cast + bot driver (CR 603.2b, issue #1265)", () => {
-    it("surfaces the may-draw to the bot after a REAL opponent cast targets Leovold", () => {
-        const state = seedBotLeovoldTargetedByHuman();
-        // The optional draw suspended as a may-pay owed by Leovold's controller.
-        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
-        expect(state.pendingChoices?.[0]?.playerId).toBe(BOT);
+    it("surfaces the may-draw to the bot after a REAL opponent cast targets Leovold", () =>
+        withTemporaryDefinition(HUMAN_CAST, () => {
+            const state = seedBotLeovoldTargetedByHuman();
+            // The optional draw suspended as a may-pay owed by Leovold's controller.
+            expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+            expect(state.pendingChoices?.[0]?.playerId).toBe(BOT);
 
-        // It survives projection and reaches the bot view as an affordable
-        // (cost-free) may-pay — the drop-a-reducer bug class this test guards.
-        const projected = projectPublicState(state, 2, BOT);
-        const view = buildBotView(projected, BOT);
-        expect(view.owedChoice?.kind).toBe("may-pay");
-        expect(view.owedChoice?.affordable).toBe(true);
-    });
+            // It survives projection and reaches the bot view as an affordable
+            // (cost-free) may-pay — the drop-a-reducer bug class this test guards.
+            const projected = projectPublicState(state, 2, BOT);
+            const view = buildBotView(projected, BOT);
+            expect(view.owedChoice?.kind).toBe("may-pay");
+            expect(view.owedChoice?.affordable).toBe(true);
+        }));
 
-    it("the bot accepts and drains the choice without stalling (draws a card)", async () => {
-        const state = seedBotLeovoldTargetedByHuman();
-        const projected = projectPublicState(state, 2, BOT);
-        const view = buildBotView(projected, BOT);
+    it("the bot accepts and drains the choice without stalling (draws a card)", () =>
+        withTemporaryDefinitionAsync(HUMAN_CAST, async () => {
+            const state = seedBotLeovoldTargetedByHuman();
+            const projected = projectPublicState(state, 2, BOT);
+            const view = buildBotView(projected, BOT);
 
-        const action = chooseOwedChoiceAction(view.owedChoice!);
-        expect(action.kind).toBe("may-pay");
-        if (action.kind !== "may-pay") throw new Error("expected may-pay");
-        expect(action.accept).toBe(true);
+            const action = chooseOwedChoiceAction(view.owedChoice!);
+            expect(action.kind).toBe("may-pay");
+            if (action.kind !== "may-pay") throw new Error("expected may-pay");
+            expect(action.accept).toBe(true);
 
-        const move = botActionToMove(action, projected, BOT);
-        expect(move).not.toBeNull();
-        await executeMove(move!, {
-            gameId: "g" as never,
-            botId: BOT,
-            mutations: engineMutations(state),
-        });
+            const move = botActionToMove(action, projected, BOT);
+            expect(move).not.toBeNull();
+            await executeMove(move!, {
+                gameId: "g" as never,
+                botId: BOT,
+                mutations: engineMutations(state),
+            });
 
-        // No freeze: the choice drained and the bot drew its top card.
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.players[1].hand.map((c) => c.id)).toContain("bot-top");
-    });
+            // No freeze: the choice drained and the bot drew its top card.
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.players[1].hand.map((c) => c.id)).toContain("bot-top");
+        }));
 
-    it("declining the may-draw draws nothing (both branches legal)", () => {
-        const state = seedBotLeovoldTargetedByHuman();
-        applyMayPaySubmit(state, { playerId: BOT, accept: false });
-        expect(state.players[1].hand).toHaveLength(0);
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-    });
+    it("declining the may-draw draws nothing (both branches legal)", () =>
+        withTemporaryDefinition(HUMAN_CAST, () => {
+            const state = seedBotLeovoldTargetedByHuman();
+            applyMayPaySubmit(state, { playerId: BOT, accept: false });
+            expect(state.players[1].hand).toHaveLength(0);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+        }));
 
-    it("the controller's OWN spell targeting their own Leovold does NOT trigger (opponent-only filter)", () => {
-        const spellId = registerTargetedSpell("test-leovold-bt-own-cast");
-        const leo = makeInstance(LEOVOLD, {
-            id: "leo",
-            controllerId: BOT,
-            ownerId: BOT,
-            zone: "battlefield",
-        });
-        const state = makeState({
-            players: [
-                makePlayer(HUMAN, { life: 20 }),
-                makePlayer(BOT, {
-                    battlefield: [leo],
-                    library: [
-                        makeInstance(BEARS, {
-                            id: "bot-top",
-                            ownerId: BOT,
-                            zone: "library",
-                        }),
-                    ],
-                    life: 20,
-                }),
-            ],
-            activePlayerId: BOT,
-            priorityPlayerId: BOT,
-        });
-        // BOT casts its OWN spell at its OWN Leovold — same-controller source,
-        // so the "an opponent controls" filter rejects it: no trigger, nothing
-        // for the driver to drain, no stall.
-        castTargetingLeovold(state, spellId, BOT, "leo");
-        expect(
-            state.stack.some(
-                (s) => s.triggeredAbilityId === "leovold-target-draw"
-            )
-        ).toBe(false);
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-    });
+    it("the controller's OWN spell targeting their own Leovold does NOT trigger (opponent-only filter)", () =>
+        withTemporaryDefinition(OWN_CAST, () => {
+            const spellId = OWN_CAST.id;
+            const leo = makeInstance(LEOVOLD, {
+                id: "leo",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "battlefield",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer(HUMAN, { life: 20 }),
+                    makePlayer(BOT, {
+                        battlefield: [leo],
+                        library: [
+                            makeInstance(BEARS, {
+                                id: "bot-top",
+                                ownerId: BOT,
+                                zone: "library",
+                            }),
+                        ],
+                        life: 20,
+                    }),
+                ],
+                activePlayerId: BOT,
+                priorityPlayerId: BOT,
+            });
+            // BOT casts its OWN spell at its OWN Leovold — same-controller source,
+            // so the "an opponent controls" filter rejects it: no trigger, nothing
+            // for the driver to drain, no stall.
+            castTargetingLeovold(state, spellId, BOT, "leo");
+            expect(
+                state.stack.some(
+                    (s) => s.triggeredAbilityId === "leovold-target-draw"
+                )
+            ).toBe(false);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+        }));
 });
