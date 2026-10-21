@@ -1,12 +1,12 @@
-// ISMCTS search for the vs-AI Bot (ADR 0001, issue #112).
+// ISMCTS search for the vs-AI Bot (ADR 0001).
 //
 // `search(state, playerId, budget, seed)` upgrades the bot from greedy 1-ply
-// (issue #111) to real lookahead: Single-Observer Information-Set Monte Carlo
+// to real lookahead: Single-Observer Information-Set Monte Carlo
 // Tree Search with determinization. One persistent tree is grown over many
 // iterations; each iteration re-determinizes the hidden information
 // (`determinize`), descends the tree by UCB1 restricted to the moves legal in
 // THAT world, expands one new move, runs a truncated rollout scored by the
-// `evaluate` heuristic (issue #111), and backpropagates. After the budget is
+// `evaluate` heuristic, and backpropagates. After the budget is
 // spent it returns the most-visited root move.
 //
 // Reuse, not reinvention (acceptance criterion): the search NEVER models the
@@ -32,7 +32,7 @@
 // its own mover's interest — the opponent minimizes the bot's eval, as a real
 // adversary would.
 //
-// Material survives a decided position (issue #138): the reward is BANDED so a
+// Material survives a decided position: the reward is BANDED so a
 // won/lost outcome dominates ordering while the surviving material still
 // discriminates within the band, and each edge ALSO accumulates the raw,
 // saturation-proof `materialMargin`. Final root selection (`selectRootMove`)
@@ -290,12 +290,12 @@ const MAX_ROLLOUT_PLIES = 300;
  *  guards against a pathological no-progress cycle (e.g. mutual passing across
  *  empty turns until someone decks). */
 const MAX_TREE_DEPTH = 40;
-// `weights.rolloutEpsilon` (issue #2683, was `ROLLOUT_EPSILON`): chance the
+// `weights.rolloutEpsilon` (was `ROLLOUT_EPSILON`): chance the
 // rollout policy plays a uniform-random move instead of the immediate-best
 // one — keeps playouts from collapsing to a single line.
 //
 // `weights.rolloutEpsilonReactive` (was `ROLLOUT_EPSILON_REACTIVE`): lower
-// exploration epsilon on a REACTIVE COMBAT line (ADR 0021, issue #229): a
+// exploration epsilon on a REACTIVE COMBAT line (ADR 0021): a
 // declared combat where a player holds castable interaction. The multi-step
 // hold→attack→block→respond ambush is a narrow, response-conditioned line —
 // at the flat 0.25 epsilon a random move (skipping the in-response pump, or a
@@ -314,8 +314,8 @@ const MAX_TREE_DEPTH = 40;
 // bias; the move stays legal and explorable by the tree.
 //
 // `weights.terminalBand` (was `TERMINAL_BAND`): width of the reward band
-// reserved, at each terminal extreme, for the surviving material margin
-// (issue #138). A won position always outranks every non-won one and a lost
+// reserved, at each terminal extreme, for the surviving material margin.
+// A won position always outranks every non-won one and a lost
 // one ranks below all, but WITHIN the band the material still discriminates:
 // a win that threw a creature away for nothing scores below a win that kept
 // it, so a free chump attack never ties "no attacks". A flat `return 1` for
@@ -528,7 +528,7 @@ export function decidingPlayer(state: GameState): string | null {
 /** Map an `evaluate` score (bot perspective) to a reward in [0, 1].
  *
  *  Three monotone bands keep the win/loss OUTCOME dominant while never erasing
- *  material (issue #138):
+ *  material:
  *    * won   → [1 − BAND, 1], higher with more surviving material;
  *    * lost  → [0, BAND];
  *    * open  → (BAND, 1 − BAND), material-driven.
@@ -536,11 +536,11 @@ export function decidingPlayer(state: GameState): string | null {
  *  nothing costs the same slice of reward whether the bot is even or far ahead —
  *  the suicidal-attack signal no longer saturates away.
  *
- *  `weights` (issue #2683) defaults to `DEFAULT_EVAL_WEIGHTS` for callers
+ *  `weights` defaults to `DEFAULT_EVAL_WEIGHTS` for callers
  *  outside the search (tests, other modules); `scoreLeaf` below always passes
  *  the search's own resolved vector explicitly.
  *
- *  There is NO per-combo term here (ADR 0102, issue #3138): the deleted
+ *  There is NO per-combo term here (ADR 0102): the deleted
  *  `comboAnnotations.ts` boost was a function of the STATE, identical before
  *  and after the activation it was meant to encourage, and at its top stage it
  *  saturated the material signal — so more search converged AWAY from the
@@ -1085,11 +1085,11 @@ export function applyMoveInSearch(
                 ? effectiveActivatedAbilityEntryOf(source, move.abilityId)
                 : undefined;
             const activated = activatedEntry?.ability;
-            // CR 602.1 / 118 (issue #2155) — the mana through the tap plan,
+            // CR 602.1 / 118 — the mana through the tap plan,
             // then every non-mana cost leg, through the shared payment
-            // (`payActivationInSearch`, issue #4444), applying exactly the cards
+            // (`payActivationInSearch`), applying exactly the cards
             // `executor.ts` will name to the server: the `{T}` cost, a
-            // self-sacrifice, a graveyard-source `exileThis` (issue #2339),
+            // self-sacrifice, a graveyard-source `exileThis`,
             // and the four deferred legs the move carries in `costPicks`
             // (sacrificeFilter / tapOtherFilter / discardFilter /
             // exileFromGraveyard). Before this the ISMCTS tree applied the tap
@@ -1817,26 +1817,26 @@ function findActivationSource(
  *     1-ply policy would never value a removal / answer. The policy looks one
  *     resolution deep so it can SEE the effect: a kill makes casting pay, while a
  *     no-payoff trick (a temporary buff, excluded from material) still scores
- *     below holding. An ACTIVATED ability is the same object since issue #1920
- *     (it now reaches the stack too), so it gets the same one-resolution
+ *     below holding. An ACTIVATED ability is the same object
+ *     (it reaches the stack too), so it gets the same one-resolution
  *     lookahead: without it a ping deals no damage and a protection grants
  *     nothing at this depth, every activation is pure cost, and the board-side
  *     flexibility term would price an option the policy can never see spent.
  *     A resolution that SUSPENDS on a mid-resolution choice (CR 608.2 / 101.4)
- *     leaves the item on the stack and the choice queued, and issue #3293
- *     measured what scoring it there costs: the probe sees "the creature has
+ *     leaves the item on the stack and the choice queued, and scoring it there
+ *     costs accuracy: the probe sees "the creature has
  *     ENTERED" without "and is then sacrificed", because the sacrifice is a
- *     later Op of the same resolution. So a suspended resolution is now SETTLED
- *     first (`settleStackForBreakdown`, issue #3194's seam — the mover's own
+ *     later Op of the same resolution. So a suspended resolution is SETTLED
+ *     first (`settleStackForBreakdown` — the mover's own
  *     choices with its best answer, the opponent's with the answer worst for
- *     the mover, issue #4896), and only when the probe can finish it in
+ *     the mover), and only when the probe can finish it in
  *     ISOLATION: the suspended item must be the sole thing on the stack. With
  *     another announcement underneath, finishing this one either resolves that
  *     announcement too — which prices the move against a board it did not cause
  *     — or commits a choice whose right answer depends on it (Mother of Runes'
  *     colour pick under a Lightning Bolt is both at once, and both readings
  *     rank `pass` above an activation the policy must be neutral on,
- *     `activationTiming.bot.test.ts`, issue #1890). In that case the lookahead
+ *     `activationTiming.bot.test.ts`). In that case the lookahead
  *     still sees no payoff, exactly as before, and the deeper tree answers the
  *     choice as an in-tree decision node.
  *   * A just-declared block is scored on the pre-damage snapshot, so every block
@@ -1913,8 +1913,9 @@ export function policyProbeState(
     // rollout for the same reason, so passing never looks better either.
     //
     // Settling answers the mover's own choices with its best branch
-    // (`settleStackForBreakdown`, issue #3194) and, since issue #4896, the
-    // OPPONENT's with the branch worst for the mover: stopping there scored an
+    // (`settleStackForBreakdown`) and the
+    // OPPONENT's with the branch worst for the mover: settling only the mover's
+    // own choices scored an
     // edict or a discard spell as its cost alone (Mind Rot measured −378.7
     // cast vs −292.6 pass), so the rollout never cast one and every Eval Pair
     // priced it below passing. Bounded by `MAX_CHOICE_DEPTH` and the shared
@@ -2948,8 +2949,8 @@ function puctDescend(
  *
  *  `deniedRootKeys` are the tree keys of the root moves `searchWithTrace`
  *  removed against the REAL root state and reused here for every iteration:
- *  the provably-dominated ones (issue #1887) and the copies collapsed onto an
- *  interchangeable representative (issue #3593). Applying them at depth 0 is
+ *  the provably-dominated ones and the copies collapsed onto an
+ *  interchangeable representative. Applying them at depth 0 is
  *  what makes either bite: `selectRootMove` picks among the root's CHILD
  *  EDGES, so a move merely missing from the root `moves` list would still be
  *  opened as a child, still collect visits, and still be selectable. Filtering
@@ -4446,7 +4447,7 @@ function announcementCanSuspend(
     return verdict;
 }
 
-// --- Cast-variant ranking (issue #1888, generalises issue #365) -------------
+// --- Cast-variant ranking (generalises issue #365) -------------
 // `enumerateCastMoves` emits one Move per (mode × X × target-tuple), so every
 // answer a spell's announcement asks for — which target, which X, which mode —
 // arrives at the root as a SIBLING move of the same card. Nothing then ranked
@@ -4474,7 +4475,7 @@ function announcementCanSuspend(
 // legality change, and never a suppression: a spell with no correctly-directed
 // variant (a "target opponent draws" punisher, which can only point at the
 // opponent) has no sibling to be redirected to and is cast unchanged.
-// `weights.misdirectionWeight` (issue #2683, was the module const
+// `weights.misdirectionWeight` (was the module const
 // `MISDIRECTION_WEIGHT`).
 
 /** Rank of one announcement variant for `botId`: resolved material payoff,
@@ -4964,7 +4965,7 @@ export function selectRootMove(
         }
     }
 
-    // Announcement-variant tie-break (issue #1888, generalises issue #365).
+    // Announcement-variant tie-break (generalises issue #365).
     // When the robust pick names targets, rank it against every outcome-equal
     // SIBLING variant of the same announcement — the other targets, the other X
     // values, the other modes — by `castVariantScore` and take the best. This
@@ -4980,7 +4981,7 @@ export function selectRootMove(
     // `misdirectedTargetCount` reads `move.targets` against an `EffectOp[]` —
     // so restricting to casts only left Garruk Wildspeaker's "+1: Untap two
     // target lands" free to untap the OPPONENT's lands on rollout noise.
-    // The third site is a TRIGGER's targets (CR 603.3d, issue #5496): its
+    // The third site is a TRIGGER's targets (CR 603.3d): its
     // controller answers a raised selection with a `submit-target`, and a
     // kicked discard trigger left unranked here discarded the bot's own hand.
     //
@@ -5435,7 +5436,7 @@ export function selectRootMove(
             return finish(develop, "free-development", develop !== best);
     }
 
-    // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and
+    // Last-window FIRE — the mirror of the hold rule above, and
     // the half that makes it a discipline rather than a refusal. The hold rule
     // defers a sacrifice engine out of the mover's own main phase; something has
     // to spend it, or the bot simply never converts.
@@ -5477,7 +5478,7 @@ export function selectRootMove(
     // response window is not this rule's business anyway; the HOLD rule above
     // makes the same exclusion for the same reason.
     //
-    // The PRE-ATTACK window (issue #4768) is the same rule for an action whose
+    // The PRE-ATTACK window is the same rule for an action whose
     // last useful window comes EARLIER than the opponent's end step: a haste
     // grant cast on the bot's own summoning-sick body (`isPreAttackGrant`,
     // CR 508.1a / 302.6). Its windows are the bot's own precombat main and
@@ -5562,7 +5563,7 @@ export function selectRootMove(
  *  would still be available later — the predicate the hold-the-trick tie-break
  *  fires on. Two shapes, one rule:
  *
- *  1. **A held combat TRICK dumped at sorcery speed** (ADR 0021, issue #229) — a
+ *  1. **A held combat TRICK dumped at sorcery speed** (ADR 0021) — a
  *     `cast-spell` of an Instant whose `aiCombatHint` declares a pump, cast by
  *     the active player at a main phase (the window where it could instead be
  *     held for the combat-step ambush).
@@ -5576,7 +5577,7 @@ export function selectRootMove(
  *     never redirected to `pass`.
  *
  *  2. **An instant-speed ACTIVATION spent at sorcery speed for no material
- *     gain** (issue #1890 item 2) — a `useStack: true` ability with no timing
+ *     gain** — a `useStack: true` ability with no timing
  *     restriction that would stop it being used later
  *     (`isDeferrableStackAbility`), activated by the active player inside its
  *     OWN sorcery window (`isSorceryTimingFor` — the engine's single authority
@@ -5596,7 +5597,7 @@ export function selectRootMove(
  *     value the moment it resolves, whenever that is, and must be left to win or
  *     lose on mean reward. Without the clause this rule swallowed the latter.
  *
- *     Issue #2939 adds the SECOND justification, from the other side of the
+ *     The SECOND justification, from the other side of the
  *     trade: a cost that gives up a permanent still doing its job
  *     (`spendsStandingPermanent`). Zuran Orb's life gain and the Elemental it
  *     feeds Titania do not decay, so the transience clause is silent on it, yet
@@ -5618,8 +5619,8 @@ export function selectRootMove(
  *     more information); if a blade position ever shows it costing the bot a
  *     real play, the narrowing goes here.
  *
- *  A third shape, the FLASH PERMANENT dumped at sorcery speed (issue #2248),
- *  lived here until issue #4757 moved it into the `last-window-deferral` hold,
+ *  A third shape, the FLASH PERMANENT dumped at sorcery speed,
+ *  lives in the `last-window-deferral` hold,
  *  which reads the same option argument through the one deferral perimeter
  *  (`ai/deferral.ts`) in every window earlier than the opponent's end step.
  *
