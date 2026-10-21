@@ -627,6 +627,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:test-hygiene",
             "blade-index",
             "check:baseline-shrink",
+            "check:issue-log-comments",
         ]);
         expect(plan.rationale).toContain("spanning src/**");
         expect(plan.rationale).not.toContain("prose");
@@ -823,6 +824,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[app,scripts]",
             "cr:lint",
             "vitest(related)",
+            "check:issue-log-comments",
         ]);
         expect(ids(skin.skip)).toEqual([
             "tsc[convex,node]",
@@ -1007,6 +1009,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "check:issue-log-comments",
         ]);
         expect(ids(engine.skip)).toEqual([
             "dom",
@@ -1039,6 +1042,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "check:issue-log-comments",
         ]);
         expect(ids(cards.skip)).toEqual([
             "tsc[app,scripts]",
@@ -1066,6 +1070,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             "blade-index",
             "check:baseline-shrink",
+            "check:issue-log-comments",
         ]);
         expect(full.skip).toEqual([]);
     });

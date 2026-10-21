@@ -89,8 +89,10 @@ const RESIDENT_CEILING_BYTES = 28_700;
  * itself is a 3-line pointer at `docs/agents/gre-guards.md` (the derivation,
  * unbudgeted); the raise restores only ~130 bytes of headroom, since the
  * pointer alone already cost most of what little slack the ceiling had left.
+ * Raised by 354 for the doc-comment convention (ticket 6170): a new norm
+ * the guard `check:issue-log-comments` enforces.
  */
-const ON_DEMAND_CEILING_BYTES = 24_850;
+const ON_DEMAND_CEILING_BYTES = 25_204;
 
 /**
  * TIER 3 — SKILL MANIFEST (PRD #5096 D6, issue #5100). A skill's `SKILL.md`

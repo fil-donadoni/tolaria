@@ -455,6 +455,7 @@ describe("remainingGates — a flake closes GREEN only once its run's unreached 
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "check:issue-log-comments",
             "test",
         ]);
     });
