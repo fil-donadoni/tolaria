@@ -177,6 +177,49 @@ function edit(text: string, from: string, to: string): string {
     return text.replace(from, to);
 }
 
+describe("the pass run name (issue #6194)", () => {
+    const PASS = (name: string) => `
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        required: true
+      resume:
+        type: boolean
+run-name: ${name}
+jobs:
+  pass:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: ./.github/actions/job-setup
+`;
+    const QUOTED = `"afk-pass #\${{ inputs.issue }}\${{ inputs.resume && ' (resume)' || '' }}"`;
+    const check = (name: string) =>
+        rules({
+            ...fixture(),
+            workflows: [
+                {
+                    path: ".github/workflows/afk-pass.yml",
+                    text: PASS(name),
+                },
+            ],
+        });
+
+    it("admits the quoted name", () => {
+        expect(check(QUOTED)).not.toContain("pass-run-name");
+    });
+
+    it("refuses the unquoted name, whose ` #` starts a YAML comment", () => {
+        const unquoted = QUOTED.slice(1, -1);
+        expect(check(unquoted)).toContain("pass-run-name");
+    });
+
+    it("refuses a name without the issue", () => {
+        expect(check(`"afk-pass"`)).toContain("pass-run-name");
+    });
+});
+
 describe("workflow structure guard", () => {
     it("the fixture holds every invariant", () => {
         expect(checkStructure(fixture()).map(formatViolation)).toEqual([]);

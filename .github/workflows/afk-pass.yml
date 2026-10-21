@@ -12,7 +12,8 @@
 # OWNER's call with no default: unset, the job refuses before any session
 # starts (docs/guides/github-pipeline.md § afk-pass).
 #
-# The run name `afk-pass #<N>` is how the dispatcher reads which claim a run
+# The run name `afk-pass #<N>` (QUOTED: an unquoted ` #` starts a YAML comment
+# and every run is titled bare `afk-pass`, issue #6194) is how the dispatcher reads which claim a run
 # holds (`PASS_RUN_PREFIX`). The record (`afk-pass-record`, `record.json`) is
 # uploaded whatever happened: a finished run without one holds the dispatcher.
 # A usage limit is a green run whose record names the reset time.
@@ -25,7 +26,7 @@
 #
 # Triggers an outsider cannot fire: a dispatch only.
 name: afk-pass
-run-name: afk-pass #${{ inputs.issue }}${{ inputs.resume && ' (resume)' || '' }}
+run-name: "afk-pass #${{ inputs.issue }}${{ inputs.resume && ' (resume)' || '' }}"
 
 on:
     workflow_dispatch:
