@@ -27,8 +27,15 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
-import { releaseEditArgs } from "./lib/claim-labels";
+import { CLAIM_LABEL, releaseEditArgs } from "./lib/claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
+import {
+    PASS_WORKFLOW,
+    WORKFLOW_RUN_FIELDS,
+    parseWorkflowRuns,
+    passRunEvidence,
+    type WorkflowRun,
+} from "./lib/afk-dispatch";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { primaryCheckout } from "./lib/primary-checkout";
 
@@ -62,8 +69,35 @@ export type ClaimFacts = {
      * runner keeps its verdicts.
      */
     landQueue?: LandQueueState | null;
-    /** Hours since the issue was last updated. */
+    /**
+     * Hours since the claim was taken — its newest `in-progress` label event
+     * (issue #6223) — or, when that time is unknown, since the issue was last
+     * updated. Labelling updates the issue, so the fallback is never OLDER
+     * than the claim: an unknown claim time can only make a claim look
+     * younger, the direction that releases nothing.
+     */
     ageHours: number;
+    /**
+     * The `afk-pass` runs named for this issue (`afk-pass #N`) and created
+     * after the claim was taken (issue #6223) — the pipeline's evidence:
+     *
+     *   - `active`  — one is queued or running: the pipeline holds the claim.
+     *   - `ended`   — every such run completed: the pipeline's pass is dead.
+     *   - `none`    — no such run: a session outside the pipeline, or nothing.
+     *   - `unknown` — the runs or the claim time could not be read. Proves
+     *                 nothing, and never releases a claim on its own.
+     *
+     * Absent = `none`: a caller that reads no runs has no pipeline evidence.
+     */
+    run?: PassRunState;
+    /**
+     * Does the local-only branch hold work NEWER than the claim — a commit
+     * past the base, or an uncommitted edit (issue #6223)? `false` = a stale
+     * branch that predates the claim (a dead pass's leftover matching the
+     * issue name, 1124 commits behind): not evidence of work. `null` / absent
+     * = unknown, read as work — the reading that releases nothing.
+     */
+    localWorkSinceClaim?: boolean | null;
     /**
      * Is the OS process that took this claim still running? (#2627)
      *
@@ -136,6 +170,9 @@ export const CLAIM_VERDICT_STATES = [
     "pr-open",
 ] as const;
 
+/** What the `afk-pass` runs say about one claim — see `ClaimFacts.run`. */
+export type PassRunState = "active" | "ended" | "none" | "unknown";
+
 /** A PR's place in the land-runner's queue, by label (issue #5469). */
 export type LandQueueState = "ready" | "failed";
 
@@ -161,11 +198,35 @@ export const DEFAULT_MIN_AGE_HOURS = 2;
  *  claimant. Minutes, not the 2 h rope — it covers a write, not a pass. */
 export const DEAD_OWNER_FLOOR_MINUTES = 5;
 
+/** A claim with no proof either way — no run of its own, no owner on record
+ *  in this machine's journal, no pushed work — is held this long before it
+ *  reads `orphan` (issue #6223). Absence is not death: the session may run on
+ *  another machine, whose journal and local branches nobody here can read,
+ *  and a session pushes only at hand-off. Past a day it is not a slow pass —
+ *  nothing in this loop stays unpushed that long. */
+export const UNPROVEN_CLAIM_HOURS = 24;
+
 /** A dead owner's worktree touched more recently than this is `live`
  *  (issue #5174) — see `ClaimFacts.worktreeQuietMinutes`. */
 export const DEAD_OWNER_QUIET_MINUTES = 30;
 
 /**
+ * THE verdict on a claim (issue #6223): `loop:doctor`, the queue verbs, the
+ * AFK dispatcher (its picker and its hold-time release) and `loop:status` all
+ * call this, over the union of their evidence — no caller keeps a private
+ * age, branch or run rule. Before, the dispatcher judged claims by `afk-pass`
+ * runs alone and this file by the journal owner and age alone, and the two
+ * disagreed claim by claim: 28 claims "orphan" here sat "live" there forever.
+ *
+ * The evidence rules, in order:
+ *   - a run named for the issue proves the pipeline owns the claim: an
+ *     active one holds it, and their end proves death;
+ *   - a live owning process on this machine proves a session;
+ *   - with neither, the claim is judged by its pushed work — and a local
+ *     branch counts as work only if it holds something newer than the claim.
+ * Unknown evidence never releases: only a POSITIVE death reading (a dead
+ * journal owner, an ended run) or a day of nothing at all makes an `orphan`.
+ *
  * Pure, because the alternative to a testable classifier here is a script that
  * unclaims another session's work and is discovered by the person whose work
  * vanished.
@@ -178,18 +239,9 @@ export const DEAD_OWNER_QUIET_MINUTES = 30;
 export function classifyClaim(
     facts: ClaimFacts,
     minAgeHours = DEFAULT_MIN_AGE_HOURS,
-    localOnlyBranchHours = 24
+    unprovenHours = UNPROVEN_CLAIM_HOURS
 ): ClaimVerdict {
-    // Work that left this machine — an open PR, a pushed branch — is live
-    // unless the owner is PROVABLY gone (issue #4763). Before, both returned
-    // `live` ahead of the liveness reading, so a pass that pushed its PR and
-    // then ended its turn waiting on a background job (`claude -p`: the end of
-    // the turn is the end of the process) held a cap slot with no time bound;
-    // two such corpses refused the next pick at `3/3 live claims` with one
-    // session running. `stranded` is NOT `recoverable` (that work is on no
-    // remote) and NOT `orphan` (the label must stand — the PR is usually one
-    // `land` away). Same `=== false` as `recoverable` below: `null` keeps the
-    // `live` verdict it always had.
+    const run = facts.run ?? "none";
     // Handed to the land-runner (issue #5469): the session ended at push +
     // `ready-to-land` BY DESIGN, so a dead owner here is the normal shape, not
     // a corpse. Not `stranded` (nothing to resume — the runner lands it), not
@@ -200,26 +252,47 @@ export function classifyClaim(
             reason: "PR queued for the land-runner (`ready-to-land`) — holds no slot; the runner releases the claim at merge",
         };
     }
+    // The pipeline's own pass is at work: nothing else needs reading.
+    if (run === "active")
+        return {
+            state: "live",
+            reason: "its `afk-pass` run is queued or running",
+        };
+
+    // A live owning process outranks every death reading and age rule below
+    // (#2627). Note the explicit `=== true`: `null` means "we could not
+    // tell", and only a POSITIVE liveness reading may hold a claim.
+    const alive = facts.ownerAlive === true;
+    // Death needs a POSITIVE reading too, the mirror of `alive`: a journal
+    // owner provably gone, or the claim's own `afk-pass` runs all ended.
+    const dead = !alive && (facts.ownerAlive === false || run === "ended");
+    const died =
+        facts.ownerAlive === false
+            ? "owning process is gone"
+            : "its `afk-pass` run ended";
+
     // `land-failed` is a repair pick: whoever ran it is gone unless PROVED
     // alive (the `pr-open` row cleared the owner stamp, so `null` is the
     // ordinary reading), and the next pass resumes it.
-    if (
-        facts.hasOpenPr &&
-        facts.landQueue === "failed" &&
-        facts.ownerAlive !== true
-    ) {
+    if (facts.hasOpenPr && facts.landQueue === "failed" && !alive) {
         return {
             state: "stranded",
             reason: "the land-runner labelled its PR `land-failed` — a repair pick for the next pass; the label is NOT released",
         };
     }
+    // Work that left this machine — an open PR, a pushed branch — is live
+    // unless the owner is PROVABLY gone (issue #4763): a pass that pushed and
+    // then ended its turn waiting (`claude -p`: the end of the turn is the
+    // end of the process) held a cap slot with no time bound. `stranded` is
+    // NOT `recoverable` (that work is on no remote) and NOT `orphan` (the
+    // label must stand — the PR is usually one `land` away).
     if (facts.hasOpenPr || facts.hasRemoteBranch) {
-        if (facts.ownerAlive === false) {
+        if (dead) {
             return {
                 state: "stranded",
                 reason: facts.hasOpenPr
-                    ? "owning process is gone and its PR is open — resume it (usually one `land` away); the label is NOT released"
-                    : "owning process is gone and its branch is pushed with no PR — resume the branch; the label is NOT released",
+                    ? `${died} and its PR is open — resume it (usually one \`land\` away); the label is NOT released`
+                    : `${died} and its branch is pushed with no PR — resume the branch; the label is NOT released`,
             };
         }
         return {
@@ -228,38 +301,32 @@ export function classifyClaim(
         };
     }
 
-    // A live owning process outranks every age rule below (#2627). Note the
-    // explicit `=== true`: `null` means "we could not tell", and only a
-    // POSITIVE liveness reading may hold a claim. See `ClaimFacts.ownerAlive`.
-    if (facts.ownerAlive === true)
-        return { state: "live", reason: "owning process still alive" };
+    if (alive) return { state: "live", reason: "owning process still alive" };
 
-    // A dead owner whose branch holds COMMITTED work is its own state
-    // (issue #3698), and the distinction is not cosmetic: `live` hides it for
-    // 24 hours and `orphan` releases the label while the commits stay in a
-    // worktree nothing points at any more. Either reading loses the work.
-    // `recoverable` says the one thing an operator can act on — the pass is
-    // gone, its commits are not, here is the branch.
+    // A local branch is work only if it holds something newer than the claim
+    // (issue #6223): a stale branch matching the issue name — a long-dead
+    // pass's leftover — read as "could still be implementing" for 9 h.
+    const localWork =
+        facts.hasLocalBranch && facts.localWorkSinceClaim !== false;
+    const stale = facts.hasLocalBranch && !localWork;
+
+    // A dead owner whose branch holds work is its own state (issue #3698),
+    // and the distinction is not cosmetic: `live` hides it and `orphan`
+    // releases the label while the work stays in a worktree nothing points
+    // at any more. `recoverable` says the one thing an operator can act on —
+    // the pass is gone, its work is not, here is the branch.
     //
-    // Deliberately requires a POSITIVE death reading (`=== false`), the mirror
-    // of the `=== true` above: `null` means "we could not tell", and a claim
-    // we cannot prove dead keeps the verdicts it had before. The failure mode
-    // of this subsystem is still declaring a healthy concurrent pass dead.
-    //
-    // A provably dead owner is never `live` or `suspect` (issue #5174): the
-    // age ropes below exist to cover a pass we cannot SEE, and this one we
-    // can see is gone. The 24-hour local-branch rope held a dead P0 claim —
-    // branch created, WIP uncommitted in its worktree — as "could still be
-    // implementing" for six hours while the AFK loop picked P1 work past it.
-    // A local branch is `recoverable` whatever its commit count (the worktree
-    // may hold uncommitted edits the count cannot see); nothing at all is an
-    // `orphan` at once. Both are handed to the next pass as `resume`.
-    if (facts.ownerAlive === false && facts.hasLocalBranch) {
+    // A provably dead owner is never `live` or `suspect` on age (issue
+    // #5174): the ropes below cover a pass we cannot SEE, and this one we can
+    // see is gone. Whatever the commit count (the worktree may hold
+    // uncommitted edits the count cannot see) it is `recoverable`; nothing
+    // at all is an `orphan` at once. Both are handed to the next pass.
+    if (dead && localWork) {
         const quiet = facts.worktreeQuietMinutes ?? null;
         if (quiet !== null && quiet < DEAD_OWNER_QUIET_MINUTES) {
             return {
                 state: "live",
-                reason: `owner stamp is dead but its worktree changed ${quiet.toFixed(0)}m ago — a resumed session may be at work`,
+                reason: `${died} but its worktree changed ${quiet.toFixed(0)}m ago — a resumed session may be at work`,
             };
         }
         const n = facts.unpushedCommits ?? 0;
@@ -267,50 +334,51 @@ export function classifyClaim(
             state: "recoverable",
             reason:
                 n > 0
-                    ? `owning process is gone and its local branch holds ${n} unpushed commit${n === 1 ? "" : "s"} — the next pass resumes the branch; the label is NOT released`
-                    : "owning process is gone and its local branch holds no commit (its worktree may hold uncommitted WIP) — the next pass resumes it; the label is NOT released",
+                    ? `${died} and its local branch holds ${n} unpushed commit${n === 1 ? "" : "s"} — the next pass resumes the branch; the label is NOT released`
+                    : `${died} and its local branch holds no commit (its worktree may hold uncommitted WIP) — the next pass resumes it; the label is NOT released`,
         };
     }
-    if (
-        facts.ownerAlive === false &&
-        facts.ageHours * 60 >= DEAD_OWNER_FLOOR_MINUTES
-    ) {
+    if (dead && facts.ageHours * 60 >= DEAD_OWNER_FLOOR_MINUTES) {
         return {
             state: "orphan",
-            reason: "owning process is gone, no branch, no PR — the next pass picks it up from scratch",
+            reason: stale
+                ? `${died}, no PR, and its local branch predates the claim (not work) — the next pass picks it up from scratch`
+                : `${died}, no branch, no PR — the next pass picks it up from scratch`,
         };
     }
 
-    // A local-only branch gets a MUCH longer rope than no branch at all, and
-    // the two thresholds are not interchangeable. A claim with no branch is
-    // either seconds old (a healthy pass before `git worktree add`) or dead,
-    // and two hours separates them cleanly. A claim with a local branch is a
-    // pass that got as far as creating its worktree — it may legitimately be
-    // implementing for hours without pushing, so releasing it at two hours
-    // would unclaim live work. Past `localOnlyBranchHours` it is not a slow
-    // pass: nothing in this loop stays unpushed for a day.
-    if (facts.hasLocalBranch) {
-        if (facts.ageHours < localOnlyBranchHours) {
+    // Unreadable runs or claim time: no death reading, so nothing releases.
+    if (run === "unknown") {
+        return {
+            state: localWork ? "live" : "suspect",
+            reason: `the claim's \`afk-pass\` runs or its claim time could not be read, and no owner is proved dead — unknown evidence never releases (claimed ${facts.ageHours.toFixed(1)}h ago)`,
+        };
+    }
+
+    // No proof either way. A local branch with work is a pass that got as far
+    // as its worktree and may legitimately implement for hours unpushed; no
+    // branch here may still be a session on another machine. Both are held
+    // for `unprovenHours`; past that, nothing in this loop stays unpushed.
+    if (facts.ageHours < unprovenHours) {
+        if (localWork) {
             return {
                 state: "live",
                 reason: `local branch, claimed ${facts.ageHours.toFixed(1)}h ago — could still be implementing`,
             };
         }
         return {
-            state: "orphan",
-            reason: `local branch never pushed, untouched for ${facts.ageHours.toFixed(0)}h — the signature of a pass killed mid-edit`,
-        };
-    }
-
-    if (facts.ageHours < minAgeHours) {
-        return {
             state: "suspect",
-            reason: `no branch, no PR — but claimed ${facts.ageHours.toFixed(1)}h ago, which is what a healthy pass looks like before its first push`,
+            reason:
+                facts.ageHours < minAgeHours
+                    ? `no branch, no PR — but claimed ${facts.ageHours.toFixed(1)}h ago, which is what a healthy pass looks like before its first push`
+                    : `no run of its own, no owner on record here, no pushed work${stale ? " (its local branch predates the claim)" : ""} — claimed ${facts.ageHours.toFixed(1)}h ago, but absence is not death; held until ${unprovenHours}h`,
         };
     }
     return {
         state: "orphan",
-        reason: `no branch, no PR, untouched for ${facts.ageHours.toFixed(0)}h`,
+        reason: localWork
+            ? `local branch never pushed, untouched for ${facts.ageHours.toFixed(0)}h — the signature of a pass killed mid-edit`
+            : `no run, no owner, no pushed work for ${facts.ageHours.toFixed(0)}h`,
     };
 }
 
@@ -573,8 +641,15 @@ export const shChecked: ShRunner = (cmd, args) => {
     return r.stdout.trim();
 };
 
-/** Raw shape of one row of `gh issue list --json number,title,updatedAt`. */
-export type ClaimedIssue = { number: number; title: string; updatedAt: string };
+/** Raw shape of one row of `gh issue list --json number,title,updatedAt`,
+ *  plus the claim time when the caller read it (`fetchClaimTimes`, issue
+ *  #6223): `null` / absent = unknown. */
+export type ClaimedIssue = {
+    number: number;
+    title: string;
+    updatedAt: string;
+    claimedAt?: string | null;
+};
 
 /**
  * Every issue currently claimed (`is:open is:issue label:in-progress`).
@@ -794,12 +869,167 @@ export function buildClaimFacts(
         // healthy claim look like the dead shape.
         hasLocalBranch: !hasRemoteBranch && matches(branches.local),
         hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
-        ageHours:
-            (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
+        ageHours: (now - claimTimeMs(issue)) / (1000 * 60 * 60),
         ownerAlive,
         unpushedCommits,
         worktreeQuietMinutes,
     };
+}
+
+/** When the claim was taken, in ms: its label event, else `updatedAt` (never
+ *  older than the claim — see `ClaimFacts.ageHours`). */
+function claimTimeMs(issue: ClaimedIssue): number {
+    const at = issue.claimedAt ? Date.parse(issue.claimedAt) : NaN;
+    return Number.isFinite(at) ? at : new Date(issue.updatedAt).getTime();
+}
+
+/**
+ * Does the local-only branch for `issue` hold work newer than `sinceMs`, the
+ * claim time (issue #6223)? A commit past `baseRef` committed after the
+ * claim, or an uncommitted path in its worktree modified after it. The
+ * branch's own index is NOT work — `wt:new` writes it before a line exists.
+ * `null` on every failure shape: unknown is read as work, never released.
+ */
+export function localWorkSince(
+    issue: number,
+    sinceMs: number,
+    localBranches: string[],
+    baseRef: string,
+    runner: ShRunner = shChecked,
+    mtimeMs: (path: string) => number | null = statMtimeMs
+): boolean | null {
+    const suffix = new RegExp(`(^|/)issue-${issue}$`);
+    const branch = localBranches
+        .map((b) => b.replace(/^refs\/heads\//, "").trim())
+        .find((b) => b.length > 0 && suffix.test(b));
+    if (!branch || !Number.isFinite(sinceMs)) return null;
+    try {
+        const ct = runner("git", [
+            "log",
+            "-1",
+            "--format=%ct",
+            `${baseRef}..${branch}`,
+        ]).trim();
+        if (ct !== "") {
+            const at = Number(ct) * 1000;
+            if (!Number.isFinite(at)) return null;
+            if (at >= sinceMs) return true;
+        }
+        let path: string | null = null;
+        let current: string | null = null;
+        for (const line of runner("git", [
+            "worktree",
+            "list",
+            "--porcelain",
+        ]).split("\n")) {
+            if (line.startsWith("worktree ")) current = line.slice(9);
+            else if (line === `branch refs/heads/${branch}`) path = current;
+        }
+        if (path === null) return false;
+        const status = runner("git", ["-C", path, "status", "--porcelain"]);
+        for (const line of status.split("\n")) {
+            const rel = line.slice(3).split(" -> ").pop()?.trim();
+            if (!rel) continue;
+            const m = mtimeMs(`${path}/${rel}`);
+            if (m !== null && m >= sinceMs) return true;
+        }
+        return false;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * When each claim was taken: the newest `in-progress` label event of every
+ * claimed issue, in ONE GraphQL search (issue #6223) — a per-issue events
+ * read would cost the queue verbs a round-trip per claim. Missing from the
+ * answer, or the read failed → `null` (unknown: no run is attributed to it,
+ * and no local branch is judged stale against it).
+ */
+export function fetchClaimTimes(
+    issues: readonly number[],
+    runner: ShRunner = shChecked,
+    repo = "{owner}/{repo}"
+): Record<number, string | null> {
+    const out: Record<number, string | null> = {};
+    for (const n of issues) out[n] = null;
+    if (issues.length === 0) return out;
+    let text: string;
+    try {
+        text = runner("gh", [
+            "api",
+            "graphql",
+            "-F",
+            `q=repo:${repo} is:open is:issue label:in-progress`,
+            "-f",
+            `query=query($q:String!){search(query:$q,type:ISSUE,first:100){nodes{... on Issue{number timelineItems(itemTypes:[LABELED_EVENT],last:100){nodes{... on LabeledEvent{createdAt label{name}}}}}}}}`,
+        ]);
+    } catch {
+        return out;
+    }
+    return { ...out, ...parseClaimTimes(text, issues) };
+}
+
+/** `fetchClaimTimes`' answer, folded — pure, so a fixture can pin it. */
+export function parseClaimTimes(
+    text: string,
+    issues: readonly number[]
+): Record<number, string | null> {
+    const out: Record<number, string | null> = {};
+    let nodes: unknown;
+    try {
+        nodes = (
+            JSON.parse(text) as {
+                data?: { search?: { nodes?: unknown } };
+            }
+        ).data?.search?.nodes;
+    } catch {
+        return out;
+    }
+    if (!Array.isArray(nodes)) return out;
+    const wanted = new Set(issues);
+    for (const node of nodes as {
+        number?: unknown;
+        timelineItems?: {
+            nodes?: { createdAt?: unknown; label?: { name?: unknown } }[];
+        };
+    }[]) {
+        if (typeof node?.number !== "number" || !wanted.has(node.number))
+            continue;
+        const times = (node.timelineItems?.nodes ?? [])
+            .filter(
+                (e) =>
+                    e?.label?.name === CLAIM_LABEL &&
+                    typeof e.createdAt === "string"
+            )
+            .map((e) => e.createdAt as string);
+        out[node.number] = times.length ? times[times.length - 1] : null;
+    }
+    return out;
+}
+
+/** The `afk-pass` runs (issue #6223), newest first — the dispatcher's own
+ *  `gh run list` shape. `null` when unreadable: every claim's run evidence
+ *  is then `unknown`, which releases nothing. */
+export function fetchPassRuns(
+    runner: ShRunner = shChecked
+): WorkflowRun[] | null {
+    try {
+        return parseWorkflowRuns(
+            runner("gh", [
+                "run",
+                "list",
+                "--workflow",
+                PASS_WORKFLOW,
+                "--limit",
+                "200",
+                "--json",
+                WORKFLOW_RUN_FIELDS,
+            ])
+        );
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -958,6 +1188,14 @@ export function classifyClaims(
         countRunner?: ShRunner;
         /** `worktreeQuietMinutes` — the tests' seam. */
         worktreeQuiet?: (issue: number, now: number) => number | null;
+        /**
+         * The `afk-pass` runs (`fetchPassRuns`, issue #6223): `null` =
+         * unreadable (every claim's run evidence `unknown`); absent = not
+         * read (no pipeline evidence, `ClaimFacts.run` absent).
+         */
+        passRuns?: readonly WorkflowRun[] | null;
+        /** `localWorkSince` — the tests' seam. */
+        localWork?: (issue: number, sinceMs: number) => boolean | null;
     }
 ): ClaimClassification[] {
     const now = deps.now ?? Date.now();
@@ -978,9 +1216,35 @@ export function classifyClaims(
         );
         if (deps.landQueue)
             facts.landQueue = landQueueFor(issue.number, deps.landQueue);
+        const claimedAt = issue.claimedAt ?? null;
+        if (deps.passRuns !== undefined)
+            facts.run =
+                deps.passRuns === null
+                    ? "unknown"
+                    : passRunEvidence(issue.number, deps.passRuns, claimedAt);
+        // Against an unknown claim time no branch can be judged stale: it
+        // stays work (`null`), the reading that releases nothing.
+        if (facts.hasLocalBranch)
+            facts.localWorkSinceClaim =
+                claimedAt === null
+                    ? null
+                    : (
+                          deps.localWork ??
+                          ((n: number, since: number) =>
+                              localWorkSince(
+                                  n,
+                                  since,
+                                  deps.branches.local,
+                                  deps.baseRef,
+                                  deps.countRunner
+                              ))
+                      )(issue.number, Date.parse(claimedAt));
         // Read only where it can move a verdict: `git status` per claim is
         // not free, and only a dead owner's local branch consults it.
-        if (facts.ownerAlive === false && facts.hasLocalBranch)
+        if (
+            (facts.ownerAlive === false || facts.run === "ended") &&
+            facts.hasLocalBranch
+        )
             facts.worktreeQuietMinutes = (
                 deps.worktreeQuiet ?? worktreeQuietMinutes
             )(issue.number, now);
@@ -1061,7 +1325,7 @@ export function claimClassifications(
     try {
         const rows = fetchOpenPrRows(runner);
         const prs = openPrMap(rows);
-        return classifyClaims(issues, {
+        return classifyClaims(withClaimTimes(issues, runner), {
             prBranches: new Set(prs.keys()),
             prs,
             landQueue: landQueueByBranch(rows),
@@ -1070,16 +1334,35 @@ export function claimClassifications(
             baseRef,
             now,
             countRunner: runner,
+            passRuns: fetchPassRuns(runner),
         });
     } catch {
         return [];
     }
 }
 
+/** `issues`, each with its claim time read (`fetchClaimTimes`); a time
+ *  the caller already holds is kept. */
+export function withClaimTimes(
+    issues: ClaimedIssue[],
+    runner: ShRunner = shChecked,
+    repo?: string
+): ClaimedIssue[] {
+    const times = fetchClaimTimes(
+        issues.map((i) => i.number),
+        runner,
+        repo
+    );
+    return issues.map((i) => ({
+        ...i,
+        claimedAt: i.claimedAt ?? times[i.number] ?? null,
+    }));
+}
+
 if (import.meta.main) {
     const release = process.argv.includes("--release");
 
-    const issues = fetchClaimedIssues();
+    const issues = withClaimTimes(fetchClaimedIssues());
 
     // Unclaimed issues whose worktree still holds unpushed commits (issue
     // #5531) — invisible to the claim roster below. Reported, never released.
@@ -1110,6 +1393,12 @@ if (import.meta.main) {
     // (unknown), i.e. the pre-#2627 behaviour.
     const ledgerFile = claimLedgerPath();
     const owners = readClaimOwners();
+    // The dispatcher's evidence too (issue #6223): one verdict, one input.
+    const passRuns = fetchPassRuns();
+    if (passRuns === null)
+        console.log(
+            "loop:doctor: the `afk-pass` runs were unreadable — no claim is released on run evidence this run"
+        );
 
     const orphans: { issue: number; verdict: ClaimVerdict }[] = [];
     const recoverable: { issue: number; verdict: ClaimVerdict }[] = [];
@@ -1125,6 +1414,7 @@ if (import.meta.main) {
             branches,
             owners,
             baseRef: ORIGIN_BASE,
+            passRuns,
         }
     )) {
         const issue = { number, title };
