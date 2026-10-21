@@ -281,7 +281,7 @@ export function derivePredicateAnswer(input: {
         };
     return {
         kind: "broken",
-        why: `${input.status === null ? `killed by ${input.signal ?? "?"}` : `exit ${input.status}`}${lines.length > 0 ? `: ${lines.at(-1)}` : ""}`,
+        why: `${input.status === null ? `killed by ${input.signal ?? "?"}` : `exit ${input.status}`}${lines.length > 0 ? `: ${lines[lines.length - 1]}` : ""}`,
     };
 }
 
