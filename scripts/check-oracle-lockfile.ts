@@ -315,6 +315,15 @@ function checkLockfile(): void {
         return;
     }
 
+    // A draft's header was just regenerated and tier 1 skipped (ADR 0157): with
+    // no corpus nothing would judge the rows, so passing here would be a no-op.
+    if (role === "draft")
+        fail(
+            "oracle lockfile",
+            "draft without the corpus cache — the per-row regenerate-and-diff cannot run, and the header hashes were regenerated, so nothing would check the lockfile",
+            "bun run oracle:corpus   # on the lane runner, then re-run"
+        );
+
     process.stdout.write(
         `${GREEN}✓ oracle lockfile${RESET} ${DIM}(hashes; corpus cache absent, ` +
             `run \`bun run oracle:corpus\` — it reproduces the committed pin — for the full regenerate-and-diff)${RESET}\n`
