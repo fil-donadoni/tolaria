@@ -4,7 +4,13 @@ import { join } from "node:path";
 import type { PassRecord } from "../lib/afk-dispatch";
 import {
     LANDING_CAUSES,
+    NO_AREA,
+    UNRECORDED_MODEL,
     commentCause,
+    costByArea,
+    costByModel,
+    dailySeries,
+    drainForecast,
     flakyRows,
     landingEpisodes,
     laneRecord,
@@ -15,6 +21,7 @@ import {
     percentile,
     queueHours,
     redEpisodes,
+    throughput,
     redSummary,
     summaryMarkdown,
     weeklyTrends,
@@ -58,6 +65,8 @@ function facts(over: Partial<TrendFacts> = {}): TrendFacts {
         passes: PASSES,
         passRecordsMissing: 0,
         machines: [],
+        readyForAgent: 441,
+        issueAreas: { 5651: "workflow" },
         ...over,
     };
 }
@@ -316,6 +325,89 @@ describe("cost and latency", () => {
         expect(parseMachineReading("not json")).toBeNull();
     });
 
+    it("charges each issue to the model that drew most of its list price, and to its area", () => {
+        expect(costByModel(facts())).toEqual([
+            {
+                key: "sonnet",
+                issues: 1,
+                passes: 2,
+                totalUsd: 4.5,
+                perIssueUsd: { n: 1, median: 4.5, p90: 4.5 },
+            },
+            {
+                key: UNRECORDED_MODEL,
+                issues: 1,
+                passes: 1,
+                totalUsd: 2.25,
+                perIssueUsd: { n: 1, median: 2.25, p90: 2.25 },
+            },
+        ]);
+        expect(
+            costByArea(facts()).map((g) => [g.key, g.issues, g.totalUsd])
+        ).toEqual([
+            ["workflow", 1, 4.5],
+            [NO_AREA, 1, 2.25],
+        ]);
+        // Opus weighs more per token, yet the sonnet pass drew more.
+        const pass = (models: PassRecord["models"]): PassRecord => ({
+            ...PASSES[0],
+            issue: 7000,
+            models,
+            costUsd: 1,
+        });
+        const tokens = (output: number) => ({
+            input: 0,
+            output,
+            cacheCreation: 0,
+            cacheRead: 0,
+        });
+        const mixed = facts({
+            passes: [
+                pass({ "claude-opus-5-5": tokens(1_000) }),
+                pass({ "claude-sonnet-5-5[1m]": tokens(100_000) }),
+            ],
+        });
+        expect(costByModel(mixed)).toMatchObject([
+            { key: "sonnet", issues: 1, passes: 2, totalUsd: 2 },
+        ]);
+    });
+
+    it("forecasts the drain at the window's close rate, and net of new issues", () => {
+        const f = facts();
+        expect(drainForecast(f, throughput(f))).toEqual({
+            ready: 441,
+            closedPerDay: 47.5,
+            netPerDay: 22.5,
+            days: 441 / 47.5,
+            netDays: 441 / 22.5,
+        });
+        const growing = facts({ issuesOpened: 120, readyForAgent: null });
+        expect(drainForecast(growing, throughput(growing))).toMatchObject({
+            days: null,
+            netDays: null,
+        });
+    });
+
+    it("lays the window out day by day, every day present", () => {
+        const f = facts();
+        const t = weeklyTrends(f);
+        const days = dailySeries(f, t.landingEpisodes);
+        expect(days.map((d) => d.day)).toEqual([
+            "2026-10-18",
+            "2026-10-19",
+            "2026-10-20",
+        ]);
+        expect(days.map((d) => [d.passes, d.passUsd])).toEqual([
+            [1, 0],
+            [2, 6.75],
+            [0, 0],
+        ]);
+        const sum = (k: "merged" | "failedLandings") =>
+            days.reduce((a, d) => a + d[k], 0);
+        expect(sum("merged")).toBe(t.throughput.merged);
+        expect(sum("failedLandings")).toBe(t.landings.episodes);
+    });
+
     it("percentile is nearest-rank", () => {
         expect(percentile([], 50)).toBeNull();
         expect(percentile([3, 1, 2], 50)).toBe(2);
@@ -345,6 +437,11 @@ describe("summaryMarkdown — the job summary", () => {
             "closed without the owner: 67 % — target ≥ 80 % ❌"
         );
         expect(md).toContain("| rebase conflict | 1 |");
+        expect(md).toContain(
+            "- drain forecast: 441 `ready-for-agent` — 9.3 days at 47.5 closed a day"
+        );
+        expect(md).toContain("| sonnet | 1 | 2 | $4.50 |");
+        expect(md).toContain("| workflow | 1 | 2 | $4.50 |");
     });
 
     it("names no machine: the job summary is public", () => {
