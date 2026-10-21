@@ -1,7 +1,8 @@
 /**
  * Which tests a diff can reach through the import graph (ADR 0154 §2, issue
  * #5464) — the scoping `check:lane` runs for the `engine` and `skin` lanes in
- * place of whole vitest projects.
+ * place of whole vitest projects, and for the `full` lane's bot half
+ * (`botTests` / `botRelatedTests`, issue #6149).
  *
  * A test is RELATED to a diff when the diff contains the test itself or any
  * module in the test's transitive local import closure. That is the question
@@ -75,6 +76,13 @@ export type RelatedProject = "node-engine" | "node-tooling" | "dom";
 
 /** Related test files per vitest project, repo-relative, posix, sorted. */
 export type RelatedTests = Record<RelatedProject, string[]>;
+
+/** The bot fast lane's projects — the `full` lane's bot half walks them
+ *  (issue #6149); no scoped lane runs them (ADR 0154 §3). */
+export type BotProject = "bot-node" | "bot-dom";
+
+/** Related bot test files per bot project, repo-relative, posix, sorted. */
+export type BotRelatedTests = Record<BotProject, string[]>;
 
 const MOCK_SPECIFIER = /\bvi\.(?:mock|doMock)\(\s*["']([^"'\n]+)["']/g;
 
@@ -255,19 +263,49 @@ export function generalTests(root: string): Map<string, RelatedProject> {
 }
 
 /**
- * The walk's reusable half: every general test with its project, and a
+ * Every bot fast lane test file with its project, mirroring `vitest.config.ts`
+ * (pinned file by file by `test-reach.test.ts`): `BOT_GLOB_NODE`
+ * (`convex/**` and `scripts/**` `*.bot.test.ts`) → `bot-node`,
+ * `BOT_GLOB_DOM` (`src/**` `*.bot.test.{ts,tsx}`) → `bot-dom`, the ladder
+ * file excluded (its own project). Repo-relative, posix.
+ */
+export function botTests(root: string): Map<string, BotProject> {
+    const rel = (f: string) => path.relative(root, f).split(path.sep).join("/");
+    const out = new Map<string, BotProject>();
+    for (const dir of ["convex", "scripts"])
+        for (const f of collect(path.join(root, dir), isTest)) {
+            const r = rel(f);
+            if (/\.bot\.test\.ts$/.test(r)) out.set(r, "bot-node");
+        }
+    for (const f of collect(path.join(root, "src"), isTest)) {
+        const r = rel(f);
+        if (isBot(r) && r !== LADDER_TEST) out.set(r, "bot-dom");
+    }
+    return out;
+}
+
+/** `vitest.config.ts` `LADDER_GLOB`: the self-play ladder, its own project. */
+const LADDER_TEST = "src/lib/ai/selfplay/ladder.bot.test.ts";
+
+/**
+ * The walk's reusable half: every test of one suite with its project, and a
  * memoised `importsOf` over repo-relative node ids — each module is read once
  * per index, however many diffs ask (`check-lane.test.ts` asks dozens).
  */
-export interface ReachIndex {
-    tests: Map<string, RelatedProject>;
+export interface ReachIndex<P extends string = RelatedProject> {
+    tests: Map<string, P>;
     importsOf: (id: string) => readonly string[];
 }
 
+export function reachIndex(root: string): ReachIndex;
+export function reachIndex<P extends string>(
+    root: string,
+    tests: Map<string, P>
+): ReachIndex<P>;
 export function reachIndex(
     root: string,
-    tests: Map<string, RelatedProject> = generalTests(root)
-): ReachIndex {
+    tests: Map<string, string> = generalTests(root)
+): ReachIndex<string> {
     const fileCache = new Map<string, boolean>();
     const isFile = (rel: string): boolean => {
         let known = fileCache.get(rel);
@@ -335,6 +373,30 @@ export function relatedTests(
     changed: readonly string[],
     census: readonly CensusTest[] = CENSUS_TESTS
 ): RelatedTests {
+    return byProject(index, changed, census, {
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+}
+
+/** `relatedTests` over the bot fast lane's index (`botTests`, issue #6149):
+ *  the same walk, the same census admission — a bot census row is admitted
+ *  into its bot project, a general one is never planned here. */
+export function botRelatedTests(
+    index: ReachIndex<BotProject>,
+    changed: readonly string[],
+    census: readonly CensusTest[] = CENSUS_TESTS
+): BotRelatedTests {
+    return byProject(index, changed, census, { "bot-node": [], "bot-dom": [] });
+}
+
+function byProject<P extends string>(
+    index: ReachIndex<P>,
+    changed: readonly string[],
+    census: readonly CensusTest[],
+    out: Record<P, string[]>
+): Record<P, string[]> {
     const seeds = changed.flatMap((p) => [
         p,
         moduleKey(p),
@@ -345,12 +407,7 @@ export function relatedTests(
     );
     for (const test of admittedCensusTests(changed, census))
         if (index.tests.has(test)) reached.add(test);
-    const out: RelatedTests = {
-        "node-engine": [],
-        "node-tooling": [],
-        dom: [],
-    };
     for (const test of reached) out[index.tests.get(test)!].push(test);
-    for (const list of Object.values(out)) list.sort();
+    for (const list of Object.values<string[]>(out)) list.sort();
     return out;
 }

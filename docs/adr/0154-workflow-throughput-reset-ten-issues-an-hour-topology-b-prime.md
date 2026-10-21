@@ -6,7 +6,8 @@ accepted — owner's decision of 2026-10-11, recorded by issue #5455 under
 PRD #5454. **Overturns ADR 0104** (lane content is never diff-derived).
 **Amends ADR 0136** §5 (partitions), §6 (cadence), §7 (cap) and the
 `HEALTH_ONLY_GUARDS` rule of issue #4963. **Amends ADR 0131** (when a PR owes
-a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. The rollout
+a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. **Amended
+by issue #6149** (§ 11: the `full` lane's bot half is scoped by the walk). The rollout
 is PRD #5454's tickets, issues #5456–#5471; until a ticket lands, the script
 it names is the authority on what runs TODAY and this record on what a PR
 OWES.
@@ -185,6 +186,37 @@ queues behind every `land` and health run — 8+ min on 2026-10-11. The
 resident line now says so. The ticket that makes the lock-free reading true is
 issue #5469: landing becomes asynchronous, one `land-runner` on the MacBook
 merges, and `docs:ship` goes through the same runner.
+
+### 11. The `full` lane's bot half is scoped by the import graph — amendment of issue #6149
+
+`full` stays `check:pr` verbatim EXCEPT its bot half. Before, every `full`
+diff paid the whole bot fast lane (352 files, ~122 s median at `land`) inside
+`check:guards`, whatever it touched, while `engine` and `skin` ran none. The
+reach of one changed file over the bot tests is lopsided: core engine modules
+(state, card types, the interpreter, SBA, combat, the registry, any card set)
+reach 94–95 %, `evaluate` 75 %, `search` 60 %, `game.ts` 7 %, a `src/`
+component 0 %; over 328 non-docs commits from 2026-10-06, ~64 % reach under
+10 % of the bot tests and 33 % nearly all.
+
+So the lane runs `check:pr:app` — `check:pr` with `check:guards:app` in
+`check:guards`' place, both pinned text-for-text to the scripts they cut — and
+then ONE `vitest(bot)` step over the `bot-node` / `bot-dom` files the §2 walk
+reaches (`botTests` mirrors the two projects, pinned file by file), with the
+same `CENSUS_TESTS` admission for a bot test that reads its corpus through
+`fs`. It runs the bot fast lane **whole** when a path is a Bot input — under
+`BOT_GLOBS` or in the Bot hash, where the Bot doctrine owes the whole lane and
+a budget or a term moves pins no import edge points at — or forces `full` on
+its own (dependencies, test/type/build configuration, the vitest setup files
+the walk never enters, an unrecognised path). Nothing reached is a skip line
+naming health. The walk costs ~1.5 s, and only a `full` diff that touches no
+Bot input pays it.
+
+§3 still holds for `engine` and `skin`: their bot half is health's, because
+the byte-identity pins red on base drift there. A `full` diff already owed the
+bot lane; this amendment narrows what it owes to what it can break, which is
+§1's rule. What would change the answer: health REDs on bot tests the scoped
+half skipped, landing after landing — the fix is a `CENSUS_TESTS` row or a
+wider force-whole predicate, never the whole lane back on every `full` diff.
 
 ## Consequences
 
