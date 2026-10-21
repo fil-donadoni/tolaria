@@ -27,13 +27,25 @@
  * receipt or preset scenario refuses here, with `land`'s own words, while the
  * session can still edit the PR body. No escape: a refusal is the PR's.
  *
+ * BEFORE the pre-queue check it puts the derived whole-file state back
+ * (ADR 0157 § Option 1b, issue #6248): the generators write the lockfile's
+ * header hashes and `data/catalogue/*` locally — a worktree's tests need
+ * fresh bytes — but the base writes them after each merge (`derive:sync`),
+ * and a PR that still carries them collides with every other PR in the
+ * queue. `restoreDerivedState` checks the catalogue files out at the
+ * merge-base, rewrites the header hashes to the merge-base's (rows kept,
+ * `lib/derived-in-pr.ts`), commits with `--no-verify` and pushes — the
+ * hand-off push. Nothing carried = no commit. The pre-queue steps then run
+ * with the tree judged as a DRAFT (`TOLARIA_TREE_ROLE=draft`, the queue's
+ * own role): `check:oracle` judges rows, never the header the base owns.
+ *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
  * The decisions are `lib/land-runner.ts` and `lib/queue-claim.ts`; this file
  * is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import {
@@ -48,6 +60,16 @@ import {
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
+import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
+import { TREE_ROLE_ENV } from "./lib/derived-state";
+import {
+    carriesNothing,
+    derivedCarried,
+    derivedInDiffProblems,
+    restoreHeaderHashes,
+    RESTORE_COMMIT_SUBJECT,
+    type DerivedCarried,
+} from "./lib/derived-in-pr";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { MANUAL_LABEL } from "./lib/land-labels";
@@ -144,13 +166,15 @@ export function landRefusals(
 /** `gate.ts` exit 77: INFRA, nothing ran — never a red step. */
 const GATE_INFRA = 77;
 
-/** One command at the light tier; 77 aborts (re-issue), never reads as red. */
+/** One command at the light tier; 77 aborts (re-issue), never reads as red.
+ *  The tree is judged as a DRAFT (ADR 0157): its derived state is the
+ *  merge-base's after `restoreDerivedState`, and the base's to write. */
 function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
     const t0 = Date.now();
     const r = spawnSync(
         "bun",
         [resolve(import.meta.dirname, "gate.ts"), "light", command],
-        { stdio: "inherit", cwd }
+        { stdio: "inherit", cwd, env: { ...process.env, [TREE_ROLE_ENV]: "draft" } }
     );
     if (r.status === GATE_INFRA) {
         throw new Error(
@@ -179,6 +203,108 @@ function assertPrWorktree(pr: number, headOid: string): void {
             "working tree is dirty — commit and push first, so the check describes the tree the runner will land"
         );
     }
+}
+
+/** The git this restore needs — a seam for the test. */
+export interface RestoreGit {
+    /** `git <args>` in the worktree; throws on failure. */
+    run: (args: string[]) => string;
+    /** A file's text at a ref, or null when absent there. */
+    show: (ref: string, path: string) => string | null;
+}
+
+/**
+ * Put the derived state the PR carries back to the merge-base (ADR 0157
+ * § Option 1b, issue #6248) and commit it: the catalogue files checked out
+ * whole, the lockfile's header hashes rewritten over the PR's rows. Returns
+ * what was carried (empty = no commit made). The push is the caller's.
+ */
+export function restoreDerivedState(
+    cwd: string,
+    base: string,
+    git: RestoreGit,
+    log: (line: string) => void
+): DerivedCarried {
+    const mergeBase = git.run(["merge-base", base, "HEAD"]).trim();
+    const changed = git
+        .run(["diff", "--name-only", mergeBase, "HEAD", "--", ...DERIVED_PATHS])
+        .split("\n")
+        .filter((p) => p !== "");
+    const carried = derivedCarried({
+        changed,
+        lockfile: () => ({
+            head: git.show("HEAD", LOCKFILE_PATH),
+            base: git.show(mergeBase, LOCKFILE_PATH),
+        }),
+        subjectsTouching: (path) =>
+            git
+                .run(["log", "--format=%s", `${mergeBase}..HEAD`, "--", path])
+                .split("\n")
+                .filter((s) => s !== ""),
+    });
+    if (carriesNothing(carried)) {
+        log(
+            `land:ready: the PR carries no derived state (${changed.length === 0 ? "no derived path changed" : "lockfile rows only"})`
+        );
+        return carried;
+    }
+    log(
+        `land:ready: restoring derived state to the merge-base ${mergeBase.slice(0, 10)} (ADR 0157):\n` +
+            derivedInDiffProblems(carried)
+                .map((p) => `  ${p}`)
+                .join("\n")
+    );
+    if (carried.catalogue.length > 0)
+        git.run(["checkout", mergeBase, "--", ...carried.catalogue]);
+    if (carried.headerKeys.length > 0) {
+        const base = git.show(mergeBase, LOCKFILE_PATH);
+        if (base === null)
+            throw new Error(`${LOCKFILE_PATH} is absent at the merge-base`);
+        const path = resolve(cwd, LOCKFILE_PATH);
+        writeFileSync(
+            path,
+            restoreHeaderHashes(readFileSync(path, "utf8"), base)
+        );
+        git.run(["add", "--", LOCKFILE_PATH]);
+    }
+    // `--no-verify`: the bytes are the merge-base's, not a human's, and the
+    // pre-commit hook would lint a 20 MB generated file.
+    git.run(["commit", "-q", "--no-verify", "-m", RESTORE_COMMIT_SUBJECT]);
+    return carried;
+}
+
+const REAL_RESTORE_GIT: RestoreGit = {
+    run: (args) => git(args),
+    show: (ref, path) => {
+        const r = spawnSync("git", ["show", `${ref}:${path}`], {
+            encoding: "utf8",
+            maxBuffer: 256 * 1024 * 1024,
+        });
+        return r.status === 0 ? r.stdout : null;
+    },
+};
+
+/**
+ * The hand-off push (ADR 0157): restore, commit, push to the PR's branch;
+ * returns the head the queue will test — the new commit's, or the one the
+ * session pushed when nothing was carried.
+ */
+function restoreAndPush(pr: number, headOid: string, branch: string): string {
+    assertPrWorktree(pr, headOid);
+    git(["fetch", "-q", "origin", BASE_BRANCH]);
+    const carried = restoreDerivedState(
+        process.cwd(),
+        ORIGIN_BASE,
+        REAL_RESTORE_GIT,
+        console.log
+    );
+    if (carriesNothing(carried)) return headOid;
+    git(["push", "-q", "origin", `HEAD:refs/heads/${branch}`]);
+    const head = git(["rev-parse", "HEAD"]).trim();
+    console.log(
+        `land:ready: pushed ${head.slice(0, 10)} — \`${RESTORE_COMMIT_SUBJECT}\` (${carried.catalogue.length} catalogue file(s), header ${carried.headerKeys.join(", ") || "unchanged"})`
+    );
+    return head;
 }
 
 function preQueueGate(pr: number, headOid: string, prBody: string): void {
@@ -359,7 +485,8 @@ function main(): void {
             process.exit(1);
         }
     }
-    preQueueGate(pr, view.headRefOid, view.body);
+    const head = restoreAndPush(pr, view.headRefOid, view.headRefName);
+    preQueueGate(pr, head, view.body);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,
@@ -375,7 +502,11 @@ function main(): void {
         requeueAndReadBack(
             pr,
             view.comments,
-            view.commits.at(-1)?.committedDate ?? ""
+            // The restore commit's date when one was pushed: the head the
+            // queue tests is that one, not the session's.
+            head === view.headRefOid
+                ? (view.commits.at(-1)?.committedDate ?? "")
+                : git(["log", "-1", "--format=%cI", "HEAD"]).trim()
         );
 
     if (issue !== null) {

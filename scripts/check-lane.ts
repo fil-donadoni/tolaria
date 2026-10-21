@@ -863,6 +863,17 @@ export const CHEAP_GUARDS: readonly {
         lacks: "Guard C's baseline did not change — it cannot have gained a row",
         diffOnly: true,
     },
+    // ADR 0157, issue #6248: the base writes the lockfile header hashes and
+    // data/catalogue/* after each merge, so a PR diff that still moves them
+    // is red — a path-and-line check over `git diff --name-only` and two
+    // `git show`s of the header, ~0.3 s, no corpus. Admitted by the derived
+    // paths alone; `diffOnly`: on the base tip there is no diff.
+    {
+        id: "check:derived-in-diff",
+        admits: /^data\/(oracle-compiled\.json$|catalogue\/)/,
+        lacks: "no derived path changed — the lockfile and data/catalogue/* did not move, so the PR carries no derived state",
+        diffOnly: true,
+    },
     // Issue #6170: ~1 s (`git ls-files` + a read of ~5k sources). Any source
     // edit can mint a 3+-ref comment block, so it is admitted by every
     // .ts/.tsx; a census, so it also runs whole in health.
