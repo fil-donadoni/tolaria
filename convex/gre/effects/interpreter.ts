@@ -8,7 +8,7 @@
 // `resolve()` bodies and `effect` shorthands, so the stack-resolution engine
 // (`gre/state.ts`) never knows which authoring mode a card used.
 //
-// SUSPENSION / RESUME (issue #805). A `choice` Op requests a mid-resolution
+// SUSPENSION / RESUME. A `choice` Op requests a mid-resolution
 // player decision through `SpellContext.requestChoice` — the SAME Pending
 // Choice pipeline imperative cards use (CR 608.2 / 101.4): the engine
 // enqueues a PendingChoice, the generic prompt UI renders it, and the generic
@@ -43,7 +43,7 @@
 // The value grammar is exactly literal | ref | count | X | counters (ADR 0045
 // frozen grammar — X issue #852, counters issue #1015; both thin skins over an
 // existing SpellContext primitive, neither a new structural construct). The
-// `if` structural construct (issue #806) is a registered Op
+// `if` structural construct is a registered Op
 // (`{ op: "if", predicate, then, else? }`) whose executor runs the matching
 // branch through `runOpList`. Because a branch may itself contain a
 // suspending Op AFTER a side-effecting one, the checkpoint is a PRE-ORDER
@@ -55,7 +55,7 @@
 // on the skip side still re-evaluates its predicate (a stored, deterministic
 // binding) and descends the same branch, keeping positions aligned; a
 // completed Op nested inside that branch is skipped by the same position rule.
-// `forEach` (issue #807, the fourth and final construct — the grammar is now
+// `forEach` (the fourth and final construct — the grammar is now
 // closed) reuses the SAME cursor: each iteration re-walks the body through
 // `runOpList`, so body Ops get fresh positions per iteration and a body
 // `choice` Op resumes at its exact (iteration, Op). forEach adds two things the
@@ -171,19 +171,19 @@ type Cursor = { pos: number; readonly resume: number };
 /** Snapshot layout inside `collectedChoices` (see module doc):
  *  [0] power, [1] toughness, [2] controller, [3] instance id, [4] mana value,
  *  [5] owner — all strings (the store is the same `string[]` shape every
- *  collected answer uses). The id slot (issue #807) lets a `forEach` body act
+ *  collected answer uses). The id slot lets a `forEach` body act
  *  ON the snapshotted object (`{ ref: "$each" }` in an object position);
- *  snapshots written before #807 lack it, and readers treat a missing id as
- *  "no object". The mana-value slot (issue #680) is 0 for pre-existing
+ *  snapshots written before the id slot existed lack it, and readers treat a missing id as
+ *  "no object". The mana-value slot is 0 for pre-existing
  *  snapshots (`Number("")` reads back as `NaN`, but no card predates
  *  `ref.manaValue` support so nothing reads a missing slot). The owner slot
- *  (issue #1106) is DISTINCT from controller (CR 108.3 — ownership never
+ *  is DISTINCT from controller (CR 108.3 — ownership never
  *  changes, control can) — "return X to its OWNER's hand, that player
  *  discards" (Recoil) must read owner, not whoever currently controls a
- *  stolen permanent (Spinal Embrace). A snapshot written before #1106 lacks
+ *  stolen permanent (Spinal Embrace). A snapshot written before the owner slot existed lacks
  *  this slot; `snap[SNAP_OWNER]` then reads `undefined` and `resolvePlayerRef`
  *  skips the dependent Op (CR 608.2b) exactly like a missing id — no shipped
- *  card round-trips a pre-#1106 snapshot across this deploy, so no migration
+ *  card round-trips a pre-owner-slot snapshot across this deploy, so no migration
  *  is needed. */
 const SNAP_POWER = 0;
 const SNAP_TOUGHNESS = 1;
@@ -707,13 +707,12 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
 
 /** Resolves a numeric Op parameter (ADR 0045 value grammar): a literal, a
  *  `ref` reading a bound snapshot's power/toughness, a `count` of a selected
- *  set, the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
- *  CR 107.3 / 601.2b), a `counters` count on a selected object (issue #1015
- *  — a thin skin over `ctx.getCounterCount`, CR 122.6), a `difference` of two
- *  terminals (issue #2006), a terminal `scaled` by a fixed multiplier (issue
- *  #2366), a terminal `divide`d by a fixed divisor with explicit rounding
- *  (issue #2385), or — at a SIGNED value site (`EffectSignedValue`, today only
- *  `pump`'s power/toughness) — a `negate`-wrapped value (issue #926, one
+ *  set, the chosen-cost `X` (a thin skin over `ctx.getX()`,
+ *  CR 107.3 / 601.2b), a `counters` count on a selected object
+ *  (a thin skin over `ctx.getCounterCount`, CR 122.6), a `difference` of two
+ *  terminals, a terminal `scaled` by a fixed multiplier, a terminal `divide`d
+ *  by a fixed divisor with explicit rounding, or — at a SIGNED value site (`EffectSignedValue`, today only
+ *  `pump`'s power/toughness) — a `negate`-wrapped value (one
  *  unary sign flip, no other arithmetic). Returns `undefined` when a ref
  *  names a binding that was never captured, a selected object has left play
  *  (CR 608.2b), or the negated inner value is itself unresolvable — so the
@@ -1385,10 +1384,10 @@ function matchesCardFilter(
         if (have < (filter.hasCounter.min ?? 1)) return false;
     }
     // CR 201.2 — exact printed-name match ("each other card named Accumulated
-    // Knowledge", issue #985): a FIXED literal, or a bare `{ ref: "$binding" }`
-    // naming EITHER (issue #1085) a `nameCard` Op's chosen-name binding
+    // Knowledge"): a FIXED literal, or a bare `{ ref: "$binding" }`
+    // naming EITHER a `nameCard` Op's chosen-name binding
     // (Desperate Research's "put all of them with THAT name into your
-    // hand") OR (issue #1104) a `choice` Op's picks binding — "all cards with
+    // hand") OR a `choice` Op's picks binding — "all cards with
     // the same name as the CHOSEN CARD" (Lobotomy), where the earlier Op
     // bound the card itself, not just its name. `resolveNameRef` unifies both:
     // it treats the binding's first stored string as an instance id first
@@ -1686,15 +1685,15 @@ function countZoneForPlayer(
     if (spec.zone === "library") {
         return ctx.getLibraryCards(playerId).length;
     }
-    // hand (CR 402, issue #2006) — unfiltered, this is the library branch's
+    // hand (CR 402) — unfiltered, this is the library branch's
     // twin: the hand is hidden (CR 402.3) but its SIZE is public information
     // ("the number of cards in each player's hand" is known to all), so the
     // plain read grants no knowledge.
     //
-    // FILTERED (issue #2150, CR 701.20a) — "the number of cards of that color
+    // FILTERED (CR 701.20a) — "the number of cards of that color
     // revealed this way" (Darigaaz, the Igniter). Reads the same registry-backed
-    // characteristics the `discard { player, filter }` hand sweep (issue #2713,
-    // Cabal Therapy) already matches on, through the SAME `matchesCardFilter`
+    // characteristics the `discard { player, filter }` hand sweep
+    // (Cabal Therapy) already matches on, through the SAME `matchesCardFilter`
     // used by the graveyard branch below; `getHandCards` carries name, types,
     // subtypes, supertypes, colors, manaValue and the printed cost, so every
     // filter field the validator admits on this zone is honestly readable. The
@@ -2107,7 +2106,7 @@ function reduceGenericMana(cost: ManaCost, amount: number): ManaCost {
 const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
 
 /** Resolves a `mayPay` Op's `cost` field to the concrete `MayPayCost`
- *  `SpellContext.requestMayPay` consumes (issue #1150 / #1195). A static
+ *  `SpellContext.requestMayPay` consumes. A static
  *  cost (the historical `MayPayCost` union) passes through unchanged.
  *
  *  A `DynamicMayPayManaCost` (`{ manaCostOf, reducedBy }`) is resolved HERE,
@@ -2119,7 +2118,7 @@ const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
  *  `reducedBy` (`reduceGenericMana`) — the resulting concrete `ManaCost`
  *  becomes the `mana` leg of a `MayPayCost`.
  *
- *  A `DynamicMayPayEnergyCost` (`{ energyEqualTo }`, issue #1195 — Satya,
+ *  A `DynamicMayPayEnergyCost` (`{ energyEqualTo }`, Satya,
  *  Aetherflux Genius's "pay {E} equal to its mana value") is likewise
  *  resolved HERE: `energyEqualTo` is a full `EffectValue`, resolved through
  *  the SAME `resolveValue` every other numeric Op parameter uses (in
@@ -2129,7 +2128,7 @@ const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
  *  battlefield, CR 608.2b) skips the whole Op exactly like a gone
  *  `manaCostOf` target.
  *
- *  A `DynamicMayPayGenericManaCost` (`{ genericEqualTo }`, issue #2714 —
+ *  A `DynamicMayPayGenericManaCost` (`{ genericEqualTo }`,
  *  Circular Logic's "pays {1} for each card in your graveyard") is the energy
  *  shape's twin one resource over: the `EffectValue` resolves through the same
  *  `resolveValue`, and the tally becomes the `generic` portion of the `mana`
@@ -2724,7 +2723,7 @@ function keepPromptFor(
     return `Choose which card(s) to put ${keepPhrase}, then ${restPhrase}.`;
 }
 
-/** CR 120.1 (issue #1416, generalised to every recipient shape by issue #1565)
+/** CR 120.1 (generalised to every recipient shape by issue #1565)
  *  — when a `dealDamage` Op carries `source`, THAT bound permanent is the
  *  CR-120.1 source of the damage, not the resolving stack item. Backlash: the
  *  tapped creature (`$c`) deals its power to its controller. Pyrogoyf: the
@@ -2732,7 +2731,7 @@ function keepPromptFor(
  *  infect/lifelink/deathtouch, source-colour prevention/protection (CR 702.16e)
  *  and "a source deals damage" triggers key off the permanent, not the spell.
  *
- *  CR 615.12 / 614.9 (issue #2231) — both locks ride the permanent-source
+ *  CR 615.12 / 614.9 — both locks ride the permanent-source
  *  branch too. It used to drop them silently, so a `source`-bearing Op carrying
  *  either flag was quietly preventable AND redirectable.
  *
@@ -3577,7 +3576,7 @@ export const OP_EXECUTORS: {
     // CR 400.7 (issue #839 / #677) — a plain zone change. A thin declarative
     // skin over the SpellContext zone-movement primitives, ONE execution path
     // per shape (ADR 0045). Two shapes share the "moveZone" Op name:
-    //  - `cards` (issue #677) — the SEARCH half of a tutor/fetch effect: the
+    //  - `cards` — the SEARCH half of a tutor/fetch effect: the
     //    ids a `choice(zone: "library" | "hand")` Op picked. A hidden-zone card
     //    has no announced-target form (CR 601.2b), so this shape consumes the
     //    picks binding directly instead of `resolveObjectRef`. `to:
@@ -3587,7 +3586,7 @@ export const OP_EXECUTORS: {
     //    (Fabled Passage) via a direct `ctx.tap` immediately after entry, a
     //    simplification that skips any "as this enters tapped" replacement
     //    interaction (none of the cube cards using it need one); `bind`
-    //    (issue #1151, closing #1120 gap 3, `to: "battlefield"` only)
+    //    (`to: "battlefield"` only)
     //    snapshots the entered permanent so a follow-up Op can act on it — a
     //    haste grant + `delayedTrigger` capture for the SPECIFIC creature
     //    (Sneak Attack's "You may put a creature card from your hand onto the
@@ -3596,10 +3595,10 @@ export const OP_EXECUTORS: {
     //    through `moveCardById(player, id, from, to)` (a tutor). Skipped when
     //    the binding was never captured (no candidates, CR 608.2b) or the
     //    player cannot be resolved.
-    //  - `target` (issue #839) — the current zone is inferred from the
+    //  - `target` — the current zone is inferred from the
     //    object's kind (a permanent is on the battlefield; a graveyard-card is
     //    in the graveyard), so the Op normally carries no `from`. The ONE
-    //    exception (issue #1469) is a snapshot `ref` naming an object that has
+    //    exception is a snapshot `ref` naming an object that has
     //    already LEFT the battlefield ("return each card put into a graveyard
     //    this way" — Sorin, Lord of Innistrad's −6): there is no kind to infer
     //    from, so an explicit `from: "graveyard" | "exile"` re-derives the id
@@ -4394,16 +4393,16 @@ export const OP_EXECUTORS: {
         });
         if (!applied) return "suspend"; // enqueued the order-top choice — wait
     },
-    // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+    // CR 701.17 — mill: move the top `count` cards of a player's
     // library into their graveyard. A thin declarative skin over the single
-    // `millCards` SpellContext primitive (issue #1055), ONE execution path
+    // `millCards` SpellContext primitive, ONE execution path
     // (ADR 0045): `millCards` re-reads the LIVE top id each pass so successive
     // mills chase the receding library top, stops early once it empties (CR
     // 701.17a), AND emits a CARD_MILLED event per card so "when this card is put
     // into your graveyard from your library" self-triggers fire (Gaea's
     // Blessing) — the mill analogue of `drawCards`. Deterministic — no choice,
     // no suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
-    // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, FACE UP.
+    // CR 701.13 / 406.3 — exile the top N of a library, FACE UP.
     // The impulse first leg (The Legend of Roku I). Composition only: the same
     // `peekLibraryTop` window + per-card `moveCardById(…, "library", "exile")`
     // pair `lookDistribute`'s `destination: "exile"` leg runs, plus the
@@ -5475,7 +5474,7 @@ export const OP_EXECUTORS: {
         }
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        // CR 111.9 / 122.1 (issue #1210) — resolve any dynamic
+        // CR 111.9 / 122.1 — resolve any dynamic
         // `entersWith.counters` amount (an `EffectValue` — a literal, a bound
         // ref, a `count` construct, …) into a plain number before handing the
         // spec to `ctx.createToken` (`TokenSpec.entersWith.counters[].count`
@@ -5487,7 +5486,7 @@ export const OP_EXECUTORS: {
         // counter that doesn't resolve (uncaptured binding) or resolves to
         // ≤0 is dropped — CR 122's "put N counters" with N ≤ 0 is a no-op,
         // mirroring the `counters` Op itself.
-        // CR 707.2 (issue #2364) — `EffectTokenSpec.triggeredAbilities` is a
+        // CR 707.2 — `EffectTokenSpec.triggeredAbilities` is a
         // RESTRICTED, JSON-pure descriptor array (`TokenTriggeredAbility[]`),
         // NOT `TriggeredAbility[]` itself (`matches` is a required closure no
         // JSON-pure literal can supply) — so unlike `activatedAbilities`
@@ -5496,7 +5495,7 @@ export const OP_EXECUTORS: {
         // Destructured OUT of the spread for the same reason `entersWith` is:
         // the resolved (real-`TriggeredAbility`) shape must replace the
         // source descriptor shape, not sit alongside it.
-        // CR 208.2 (issue #2384) — `power` / `toughness` are `EffectValue`s,
+        // CR 208.2 — `power` / `toughness` are `EffectValue`s,
         // resolved here into plain numbers for the same reason `entersWith`
         // is destructured out below: `TokenSpec` takes already-resolved data.
         // An X/X token whose X does not resolve (a ref naming a binding this
@@ -7159,7 +7158,7 @@ function runOpList(
     for (const op of ops) {
         const myPos = cursor.pos++;
         // Already-completed leaf Ops never re-run. The structural constructs
-        // `if` / `forEach` (issue #807), `optionChoice` (issue #849) and
+        // `if` / `forEach`, `optionChoice` and
         // `coinFlip` / `coinFlipSync` (issue #851 / #1281) are the exceptions:
         // they must still run so they re-descend / re-iterate / re-branch into
         // the same nested Ops, keeping the pre-order positions aligned across
@@ -7935,16 +7934,16 @@ function runCastDuringResolution(
     };
 
     // Resolve the card to offer and its effective SOURCE zone. Three shapes:
-    //  - `fromTopOfLibrary` (issue #1478, Chandra +1) — exile the top card
+    //  - `fromTopOfLibrary` (Chandra +1) — exile the top card
     //    of the caster's library UNCONDITIONALLY as the first thing the Op
     //    does (CR 608.2g), then offer that exiled card; a decline / can't-
     //    pay leaves it in exile. The exiled id is persisted under the Op's
     //    checkpoint so a suspend/resume re-walk reuses it rather than
     //    exiling a second card (CR 608.3).
-    //  - `card` as a bare picks ref + `source` (issue #1477, Malcolm) — a
+    //  - `card` as a bare picks ref + `source` (Malcolm) — a
     //    card an earlier Op in the SAME script bound, played from its
     //    graveyard/exile source.
-    //  - `card` as `{ exiledWithSource: true }` (issue #1961, CR 607 LINKED
+    //  - `card` as `{ exiledWithSource: true }` (CR 607 LINKED
     //    abilities — Hideaway's "you may play the exiled card"): the card
     //    THIS ability's own source permanent exiled and stamped via
     //    `linkExileToSource`, read back through `getCardsExiledWith`. No
