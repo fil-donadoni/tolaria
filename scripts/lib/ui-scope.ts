@@ -510,9 +510,7 @@ export function uiWalkOwed(
     changed: readonly string[],
     read: (path: string) => string | null
 ): WalkOwed {
-    const reachable = [...changed]
-        .sort()
-        .filter((p) => !isNonDomPath(p) && !isServerOnlyPath(p));
+    const reachable = domReachablePaths([...changed].sort());
     for (const path of reachable) {
         const byPath = owedByPath(path);
         if (byPath) return { owed: true, rule: byPath, path };
@@ -549,4 +547,26 @@ const NO_WALK_OWED_LINE =
     /^check:ui: no walk owed \([ \t]*[^\s<)][^)\n]*\)[ \t]*$/m;
 export function hasNoWalkOwedLine(prBody: string): boolean {
     return NO_WALK_OWED_LINE.test(prBody);
+}
+
+/**
+ * The PR-body line that stands in for a receipt on the RED ladder's revert
+ * (issue #6071, ADR 0156 Amendment II): it names the reverted commit, and
+ * `land` accepts it only after checking that every DOM-reachable changed path
+ * is byte-identical to that commit's parent — the files return to a state
+ * that already landed. A claim nobody checks would be the old no-walk line.
+ */
+export function revertRestoresLine(culpritSha: string): string {
+    return `check:ui: revert of ${culpritSha} restores its parent on every DOM path`;
+}
+const REVERT_RESTORES_LINE =
+    /^check:ui: revert of ([0-9a-f]{40}) restores its parent on every DOM path[ \t]*$/m;
+/** The full sha a `revertRestoresLine` names, or `null` when there is none. */
+export function revertedCommitOf(prBody: string): string | null {
+    return REVERT_RESTORES_LINE.exec(prBody)?.[1] ?? null;
+}
+
+/** The changed paths a walk could care about: the ones `uiWalkOwed` reads. */
+export function domReachablePaths(changed: readonly string[]): string[] {
+    return changed.filter((p) => !isNonDomPath(p) && !isServerOnlyPath(p));
 }

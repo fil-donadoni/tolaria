@@ -819,18 +819,20 @@ PR [`base-health`](#g-base-health) admits, and `repair-proof` proves it.
 **The revert** (owner's decision 2026-10-14, the amendment of CLAUDE.md's
 "fix-forward FIRST": fix-forward stays first) reads the culprit off the
 RED's `- **culprit:**` evidence line. In order: the `revert` rung is
-recorded `attempting`; `git revert` of the culprit on `revert/<sha12>` off
-the base tip, in a throwaway worktree — a conflict (a later PR depends on
+recorded `attempting`; `git revert` of the culprit off
+the base tip, in a throwaway detached worktree — a conflict (a later PR depends on
 the culprit) records it `stuck` and exits 3, and the next run stops; a
-repair issue is filed and recorded on the pivot; the branch is pushed, the
-PR opened (`Closes #<repair issue>`, `## Preset scenario` none owed, a
-`check:ui` no-walk line) and labelled `ready-to-land`; the culprit PR's
+repair issue is filed and recorded on the pivot; the branch `fix/issue-<repair issue>` is pushed (a
+`land-failed` revert is then a repair pick, issue #6071), the PR opened
+(`Closes #<repair issue>`, `## Preset scenario` none owed, the
+`check:ui: revert of <sha> restores its parent on every DOM path` line) and labelled `ready-to-land`; the culprit PR's
 closing issues reopen with the evidence and `ready-for-agent` (the claim's
 `in-progress`/`pr-open` removed), natively **blocked by** the repair issue
 the revert PR closes — a revert that never lands never sends the culprit's
 issue to a pass. A failed `blocked_by`, reopen or label edit is named in the
-log. A revert of a DOM-reaching PR may still be refused by
-`ui-receipt`: that is a revert that cannot land, so the ladder stops.
+log. `land` accepts that line only when every DOM-reachable changed path equals
+the culprit's parent (ADR 0156 Amendment II); one that does not owes a
+receipt, and its `land-failed` PR goes to a pass.
 
 **The stop** is the one email: the run that stops writes a `stop` marker
 on the RED's `health-fix-attempt` record, files the escalation issue, and
