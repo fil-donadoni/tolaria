@@ -1,5 +1,5 @@
-// The pure aggregation behind `bun run loop:status` and the dashboard's
-// `GET /api/loop-status` route (#2519) — one screen answering "what is the
+// The pure aggregation behind `bun run loop:status` (#2519; the dashboard's
+// `GET /api/loop-status` route went with issue #5652) — one screen answering "what is the
 // loop working on right now", replacing the five-command mental join
 // described in the issue: claimed-issue search, `loop:doctor`, a worktree
 // grep, an open-PR list and a `tail -f` on the drain log.

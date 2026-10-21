@@ -13,15 +13,13 @@ import { join, resolve } from "node:path";
 import { dayHour } from "../lib/telemetry-db";
 
 /**
- * `telemetry:ingest --quick` and `workflow:kpi` end to end (issue #4968),
- * against a scratch project and a scratch gate-run cache. `bun:sqlite` is a
- * Bun builtin, so both run as `bun` subprocesses and the DB is read back the
- * same way. Every spawn carries a `timeout`: a blocked `spawnSync` hangs the
+ * `telemetry:ingest --quick` end to end (issue #4968), against a scratch
+ * project and a scratch gate-run cache. `bun:sqlite` is a Bun builtin, so it
+ * runs as a `bun` subprocess and the DB is read back the same way. Every spawn carries a `timeout`: a blocked `spawnSync` hangs the
  * worker rather than failing the test.
  */
 
 const INGEST = resolve(__dirname, "../telemetry-ingest.ts");
-const KPI = resolve(__dirname, "../workflow-kpi.ts");
 const SPAWN_TIMEOUT_MS = 60_000;
 
 let root: string;
@@ -293,56 +291,5 @@ describe("telemetry:ingest --quick (issue #4968)", () => {
                 (r) => r.id
             )
         ).toEqual(["x1", "x2", "x3"]);
-    });
-});
-
-describe("workflow:kpi (issue #4968)", () => {
-    it("prints the four lines per window and exits 1 over a ceiling", () => {
-        const now = Math.floor(Date.now() / 1000);
-        for (let i = 0; i < 4; i++)
-            gateRun(`land-${i}`, now - 3600 * (i + 1), {
-                command: `land ${i}`,
-                log: i === 0 ? "lane: ran\n" : "Could not apply x\n",
-                green: i === 0,
-            });
-        const r = run(KPI, []);
-        expect(r.status).toBe(1);
-        const lines = r.stdout.trimEnd().split("\n");
-        expect(lines).toHaveLength(8);
-        expect(lines[0]).toMatch(
-            /^ 7d failed lands {3}3\/4 \(75\.0%\) — rebase 3$/
-        );
-        expect(r.stderr).toContain("OVER —  7d failed lands 75.0%");
-    });
-
-    it("exits 0 when every KPI is within its ceiling", () => {
-        const now = Math.floor(Date.now() / 1000);
-        // A machine-admission wait is not a MUTEX wait (review, issue #4968):
-        // 30 minutes of it must not read as a p90 over the ceiling.
-        writeFileSync(
-            join(tel, "gate-lock.jsonl"),
-            JSON.stringify({
-                ts: now,
-                tier: "heavy",
-                event: "machine-saturated",
-                waited_ms: 1_800_000,
-            }) +
-                "\n" +
-                JSON.stringify({
-                    ts: now,
-                    tier: "heavy",
-                    event: "acquired",
-                    waited_ms: 3000,
-                }) +
-                "\n"
-        );
-        gateRun("land-1", now - 60, {
-            command: "land 1",
-            log: "lane: ran\n",
-            green: true,
-        });
-        const r = run(KPI, []);
-        expect(r.status).toBe(0);
-        expect(r.stdout).toContain("every KPI within its ceiling");
     });
 });

@@ -284,7 +284,7 @@ seg_has() {
 # server startup banner piped into a pager, which was never the failure §3
 # exists to catch.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_EXEMPT_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|loop:doctor|usage:window|telemetry:dash|format|dev|preview)$'
+GATE_EXEMPT_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|loop:doctor|usage:window|telemetry:dash|cockpit|format|dev|preview)$'
 
 # True when the given SEGMENT text reaches the gate runner.
 segment_reaches_gate() {
@@ -568,7 +568,8 @@ fi
 #
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
-# `queue:plan`, `loop:doctor`, `usage:window`, `telemetry:dash`, `format`.
+# `queue:plan`, `loop:doctor`, `usage:window`, `telemetry:dash`, `cockpit`
+# (issue #5652: a server with no verdict, like `telemetry:dash`), `format`.
 # Nothing else — in particular `lint`,
 # `format:check`, `check:ts`, `check:index`, `check:stubs` and
 # `telemetry:ingest` stay DENIED: piping any of those hides a real failure
