@@ -42,7 +42,7 @@ describe("merge-manual — manualMergeVerdict", () => {
         );
         expect(v).toMatchObject({
             kind: "refuse",
-            reason: /still in_progress/,
+            reason: expect.stringMatching(/still in_progress/),
         });
     });
 
