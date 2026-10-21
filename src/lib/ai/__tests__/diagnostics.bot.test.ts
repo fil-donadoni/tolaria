@@ -6,7 +6,7 @@
 // scaffolding that reads as "the bot was fine"), and collecting must not clear
 // — the Debug panel still shows what the report took.
 
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import { collectAiDiagnostics } from "../diagnostics";
 import {
     clearAiDecisions,
@@ -16,7 +16,10 @@ import {
     getAiDecisions,
 } from "../trace-store";
 
-beforeEach(() => {
+// After, not before: the rings are module state, and `bot-node` runs this
+// file in a shared worker (issue #6151) — what a test records must not reach
+// the next file. The detector in `vitest.setup.bot-leaks.ts` reds otherwise.
+afterEach(() => {
     clearAiDecisions();
     clearAiEscalations();
 });

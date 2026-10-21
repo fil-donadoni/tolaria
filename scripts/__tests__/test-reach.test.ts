@@ -68,9 +68,11 @@ const FIXTURE: Record<string, string> = {
     // A census: walks a directory, imports nothing it reads (issue #5535).
     "scripts/__tests__/census.test.ts": `const d = fs.readdirSync("corpus");\n`,
     "corpus/notes.txt": `notes\n`,
-    // The bot fast lane (issue #6149): a src bot test (bot-dom), the ladder
-    // (its own project, never walked), and a bot census over convex/corpus/.
-    "src/lib/ai/__tests__/five.bot.test.ts": `import { m } from "../../../m";\n`,
+    // The bot fast lane (issue #6149): a src bot test with a DOM marker
+    // (bot-dom), a DOM-free one (bot-node, issue #6151), the ladder (its own
+    // project, never walked), and a bot census over convex/corpus/.
+    "src/lib/ai/__tests__/five.bot.test.ts": `import { m } from "../../../m";\ndocument.body;\n`,
+    "src/lib/ai/__tests__/six.bot.test.ts": `import { m } from "../../../m";\n`,
     "src/lib/ai/selfplay/ladder.bot.test.ts": `import { m } from "../../../m";\n`,
     "convex/__tests__/census.bot.test.ts": `const d = fs.readdirSync("convex/corpus");\n`,
     "convex/corpus/rows.ts": `export const rows = [];\n`,
@@ -275,6 +277,7 @@ describe("test-reach — the bot fast lane is walked the same way (issue #6149)"
             "convex/__tests__/three.bot.test.ts": "bot-node",
             "convex/__tests__/census.bot.test.ts": "bot-node",
             "src/lib/ai/__tests__/five.bot.test.ts": "bot-dom",
+            "src/lib/ai/__tests__/six.bot.test.ts": "bot-node",
         });
     });
 
@@ -284,7 +287,7 @@ describe("test-reach — the bot fast lane is walked the same way (issue #6149)"
             "bot-dom": [],
         });
         expect(botRelatedTests(botIndex, ["src/m.ts"], [])).toEqual({
-            "bot-node": [],
+            "bot-node": ["src/lib/ai/__tests__/six.bot.test.ts"],
             "bot-dom": ["src/lib/ai/__tests__/five.bot.test.ts"],
         });
     });
