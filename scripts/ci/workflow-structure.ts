@@ -96,9 +96,6 @@
  *     PR merged with the broken base): that red is the base's, so it holds
  *     the PR; `pr-refresh` rebases it on the next base push (a fresh lane) and
  *     `pr-gate`'s GREEN requeues it.
- *   - `owner-merge-trigger` — `owner-merge.yml` fires on anything but
- *     `pull_request_target` `labeled`, its job lacks the `ready-to-land`
- *     label filter, or checks out nothing: one hand-off, one email.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
