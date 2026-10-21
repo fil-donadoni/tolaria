@@ -23,6 +23,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
     mkdirSync,
+    rmSync,
     readFileSync,
     readdirSync,
     statSync,
@@ -107,23 +108,17 @@ function storedReadings(): MachineReading[] {
     ]).trim();
     if (id === "") return [];
     const dir = join(cockpitArtifactCache(), `weekly-machines-${id}`);
-    try {
-        statSync(dir);
-    } catch {
-        // A failed download leaves no readings; the page names the gap.
-        spawnSync(
-            "gh",
-            [
-                "run",
-                "download",
-                id,
-                "--pattern",
-                "weekly-machine-*",
-                "--dir",
-                dir,
-            ],
-            { stdio: "ignore" }
-        );
+    const cached = machineReadings(dir);
+    if (cached.length > 0) return cached;
+    // A failed or partial download is removed, never mistaken for a cache.
+    const r = spawnSync(
+        "gh",
+        ["run", "download", id, "--pattern", "weekly-machine-*", "--dir", dir],
+        { stdio: "ignore" }
+    );
+    if (r.status !== 0) {
+        rmSync(dir, { recursive: true, force: true });
+        return [];
     }
     return machineReadings(dir);
 }
@@ -158,6 +153,10 @@ function newestSourceMs(): number {
     for (const p of [
         "dashboard",
         "src/components/ui",
+        "src/lib",
+        // The two `scripts/lib` modules the page imports at runtime.
+        "scripts/lib/cockpit-reading.ts",
+        "scripts/lib/landing-causes.ts",
         "vite.dashboard.config.ts",
     ])
         walk(join(ROOT, p));

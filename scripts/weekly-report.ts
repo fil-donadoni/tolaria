@@ -370,8 +370,8 @@ function issueAreas(
             )
             .join(" ");
         type Answer = {
-            data: {
-                repository: Record<
+            data?: {
+                repository?: Record<
                     string,
                     { labels: { nodes: { name: string }[] } } | null
                 >;
@@ -395,7 +395,7 @@ function issueAreas(
             continue;
         }
         for (const n of batch) {
-            const area = answer.data.repository[`i${n}`]?.labels.nodes
+            const area = answer.data?.repository?.[`i${n}`]?.labels.nodes
                 .map((l) => l.name)
                 .filter((l) => l.startsWith("area:"))
                 .sort()[0];
