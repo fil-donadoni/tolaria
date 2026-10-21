@@ -76,6 +76,33 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — core verdict classes and determin
         expect(frozen()).toEqual(frozen());
     });
 
+    // Issue #6210: the Cast affordance used to read only a spell's first target
+    // group, so a later empty group (CR 601.2c) read as `frozen` — the Bot's
+    // blame — instead of a position the harness did not model.
+    it("ignored — a later target group with no candidate is position-unmodelled, not frozen", () => {
+        const def: CardDefinition = {
+            ...UNTARGETABLE_INSTANT,
+            id: "bot-reach-test:empty-later-group",
+            name: "Bot Reach Empty Later Group",
+            targetRequirement: { type: "Creature", count: 1 },
+            additionalTargetRequirements: [{ type: "Planeswalker", count: 1 }],
+        };
+        withTemporaryDefinition(def, () => {
+            const posed = buildBotReachState(def, 0);
+            expect(
+                classifyNoMove(
+                    posed.state,
+                    posed.holderId,
+                    posed.instanceId,
+                    def
+                )
+            ).toMatchObject({
+                outcome: "ignored",
+                cause: "position-unmodelled",
+            });
+        });
+    });
+
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playBotReach(getCardByName("Grizzly Bears"))).toEqual({
             outcome: "played",
