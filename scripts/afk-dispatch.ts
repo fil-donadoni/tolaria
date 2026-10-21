@@ -14,7 +14,7 @@
 //      and so does the first that sees a repair pick (a `land-failed` PR)
 //      waiting past `afkDispatch.repairAgeHours` under a hold (issue #5957);
 //   2. orphan claims (`classifyClaim`'s verdict, the one `loop:doctor`
-//      prints — issue #6223) are released;
+//      prints) are released;
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
 //      `afk-pass.yml` with their issue and model tier.
