@@ -162,6 +162,12 @@ export function useDomAnchorPublisher(
                 ? null
                 : new ResizeObserver(onChange);
         rootObserver?.observe(board);
+        // The second root reflows on its own (the portrait bar's command row
+        // wraps), carrying the viewer's zone-chip anchor with it.
+        const extraRoot = extraRootSelector
+            ? document.querySelector(extraRootSelector)
+            : null;
+        if (extraRoot) rootObserver?.observe(extraRoot);
         return () => {
             rootObserver?.disconnect();
             for (const t of settleTimers) window.clearTimeout(t);
