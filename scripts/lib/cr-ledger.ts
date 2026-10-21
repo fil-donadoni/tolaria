@@ -794,9 +794,11 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
  *   - on BOTH sides with differing `status` → `confirmed` wins. A reader
  *     printed the rule; `baseline` is grandfathering, and the ledger's
  *     baseline only ever shrinks;
- *   - on BOTH sides with differing `sites` → the max. Self-correcting rather
- *     than load-bearing: `cr:lint` recomputes site counts against the tree, so
- *     a wrong value reds loudly instead of passing silently.
+ *   - on BOTH sides with differing `sites` → three-way: the side that moved
+ *     off BASE wins (a lowered count is not resurrected by a stale branch);
+ *     the max only when both moved. Self-correcting rather than load-bearing:
+ *     `cr:lint` recomputes site counts against the tree, so a wrong value
+ *     reds loudly instead of passing silently.
  *
  * A delete on one side against a MODIFY on the other resolves to the delete,
  * per the rule above. It is the honest degradation of the two: if the merged
@@ -844,7 +846,17 @@ function mergeEntry(
     theirs: LedgerEntry,
     base: LedgerEntry | undefined
 ): LedgerEntry {
-    const sites = Math.max(ours.sites, theirs.sites);
+    // Three-way: a side that still equals BASE did not touch the count, so the
+    // other side's change wins — a lowered count (a cited site removed on the
+    // base branch) must not be resurrected by a branch ledger that predates it.
+    // Only when BOTH moved off base did both add sites; `cr:lint` recomputes
+    // the real count, so the max is the safe bound (issue #5677).
+    const sites =
+        ours.sites === base?.sites
+            ? theirs.sites
+            : theirs.sites === base?.sites
+              ? ours.sites
+              : Math.max(ours.sites, theirs.sites);
     const confirmed = [ours, theirs].filter((e) => e.status === "confirmed");
     if (confirmed.length === 0) {
         return { id: ours.id, line: ours.line, sites, status: "baseline" };
