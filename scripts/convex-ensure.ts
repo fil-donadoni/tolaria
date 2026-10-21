@@ -39,7 +39,7 @@
 // its process by hand only races `Restart=`. Install and the why:
 // docs/guides/huawei-runner.md § Convex on the Huawei.
 //
-// The MacBook's backend is a launchd agent (`com.tolaria.convex`, issue #6082)
+// The MacBook's backend is a launchd agent (`com.tolaria.convex`)
 // and takes the same road with a second driver: loaded but silent → wait,
 // then `launchctl kickstart -k` (kill + restart under launchd's own
 // supervision); loaded but not running → `kickstart`; not loaded →
@@ -698,8 +698,8 @@ function installedAgent(
     return loaded || fs.existsSync(plist) ? svc : null;
 }
 
-/** Steps 3–4 when the backend is service-managed (issue #5468 systemd, issue
- *  #6082 launchd): the manager owns the process, so a silent service is
+/** Steps 3–4 when the backend is service-managed (systemd, launchd, issue
+ *  #6082): the manager owns the process, so a silent service is
  *  waited on and then restarted, a stopped one started — nothing is spawned
  *  or killed here. Runs under the lock. */
 async function ensureViaService(
