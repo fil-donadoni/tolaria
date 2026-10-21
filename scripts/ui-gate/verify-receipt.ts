@@ -43,6 +43,7 @@ import { ORIGIN_BASE } from "../lib/branches.ts";
 import { createImportGraph } from "../lib/import-graph.ts";
 import {
     computeUiScope,
+    domReachablePaths,
     SURFACES_FILE,
     uiWalkOwed,
     type UiScope,
@@ -110,6 +111,40 @@ export function landingWalkOwed(
             return null;
         }
     });
+}
+
+/**
+ * Does the tree at `root` (its HEAD) restore every DOM-reachable path of
+ * `changed` to `culprit`'s parent (issue #6071)? `culprit` must be in HEAD's
+ * history — a revert of a commit that never landed proves nothing — and each
+ * path's blob at HEAD must equal its blob at `culprit^`, absent on both sides
+ * counting as equal. Anything that cannot be read answers `false`: the
+ * exemption is lost, never granted.
+ */
+export function landingRestoresParent(
+    culprit: string,
+    changed: readonly string[],
+    root: string
+): boolean {
+    const git = (args: string[]): string | null => {
+        try {
+            return execFileSync("git", args, {
+                cwd: root,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+        } catch {
+            return null;
+        }
+    };
+    if (git(["merge-base", "--is-ancestor", culprit, "HEAD"]) === null)
+        return false;
+    if (git(["rev-parse", "--verify", `${culprit}^`]) === null) return false;
+    return domReachablePaths(changed).every(
+        (p) =>
+            git(["rev-parse", "--verify", "--quiet", `HEAD:${p}`]) ===
+            git(["rev-parse", "--verify", "--quiet", `${culprit}^:${p}`])
+    );
 }
 
 /**

@@ -22,6 +22,7 @@
 import { LADDER_MARK } from "./health-bisect";
 import type { FixAttempt } from "./health-fix-attempts";
 import { RUNNER_ROLES } from "./github-runner";
+import { revertRestoresLine } from "./ui-scope";
 
 /** Fixer attempts per RED episode (ADR 0156 Amendment I, rung 4). */
 export const MAX_FIX_ATTEMPTS = 2;
@@ -380,9 +381,11 @@ export function escalationBody(input: {
     ].join("\n");
 }
 
-/** The branch a revert of `culprit` is pushed on. */
-export function revertBranch(culpritSha: string): string {
-    return `revert/${culpritSha.slice(0, 12)}`;
+/** The branch a revert is pushed on: its repair issue's, so a `land-failed`
+ *  revert is a repair pick like any pass's PR (`queue:plan`, `wt:new
+ *  --resume` read `fix/issue-N`; issue #6071). */
+export function revertBranch(repairIssue: number): string {
+    return `fix/issue-${repairIssue}`;
 }
 
 export function revertIssueTitle(culprit: Culprit, subject: string): string {
@@ -423,6 +426,8 @@ export function revertPrBody(input: {
     issue: number;
     red: string;
     culprit: Culprit;
+    /** The reverted commit's full sha: what `land` checks the tree against. */
+    revertedSha: string;
     culpritIssues: readonly number[];
 }): string {
     const who =
@@ -438,7 +443,9 @@ export function revertPrBody(input: {
             ? `Reopened for a fresh pass: ${input.culpritIssues.map((n) => `issue #${n}`).join(", ")}.`
             : "No issue closed by the culprit to reopen.",
         "",
-        "check:ui: no walk owed (an automated revert restores the tree the last GREEN walked)",
+        // Verified by `land`, never a bare claim (issue #6071): the base has
+        // moved since the last GREEN, and batch health never walks.
+        revertRestoresLine(input.revertedSha),
         "",
         "## Preset scenario",
         "",

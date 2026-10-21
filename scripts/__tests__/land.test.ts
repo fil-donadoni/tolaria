@@ -68,7 +68,11 @@ import {
 import { SURFACES, SURFACE_IDS } from "../ui-gate/surfaces.ts";
 import { assertLabelsBySurface } from "../ui-gate/assertions.ts";
 import { VIEWPORT_IDS } from "../ui-gate/viewports.ts";
-import { landingDiffScope } from "../ui-gate/verify-receipt.ts";
+import {
+    landingDiffScope,
+    landingWalkOwed,
+} from "../ui-gate/verify-receipt.ts";
+import { revertPrBody } from "../lib/health-ladder";
 
 const GATE = resolve(__dirname, "..", "gate.ts");
 
@@ -2334,5 +2338,92 @@ describe("bot audit suggestion line (issue #4924)", () => {
         const miss = run(docs);
         expect(miss.status).toBe(0);
         expect(miss.stdout).toBe("");
+    });
+});
+
+describe("land.ts — a RED-ladder revert lands without a walk only when it restores its culprit's parent (issue #6071)", () => {
+    // The incident (issue #6066): the culprit added an overlay and edited a
+    // detail view; its revert deletes the overlay, so the walk is owed, and
+    // the old body's bare "no walk owed" line was refused.
+    const DIALOG = "src/components/limited/limited-start-unseated-dialog.tsx";
+    const DETAIL = "src/components/limited/limited-event-detail.tsx";
+    const PATHS = [DIALOG, DETAIL];
+    const noScope = (): UiScope => ({ kind: "full", reason: "stub" });
+    let repo: string;
+    const git = (...args: string[]) => {
+        const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+        if (r.status !== 0) throw new Error(r.stderr);
+        return r.stdout.trim();
+    };
+    const write = (path: string, text: string) => {
+        mkdirSync(join(repo, path, ".."), { recursive: true });
+        writeFileSync(join(repo, path), text);
+    };
+    const commitAll = (subject: string) => {
+        git("add", "-A");
+        git("commit", "-q", "-m", subject);
+        return git("rev-parse", "HEAD");
+    };
+    const bodyFor = (sha: string) =>
+        revertPrBody({
+            issue: 6070,
+            red: "a".repeat(40),
+            culprit: { sha: sha.slice(0, 12), pr: 6050 },
+            revertedSha: sha,
+            culpritIssues: [],
+        });
+    const invalid = (body: string) =>
+        skinReceiptInvalidForDiff(PATHS, repo, body, noScope);
+    let culprit: string;
+
+    beforeEach(() => {
+        repo = mkdtempSync(join(tmpdir(), "tolaria-land-revert-"));
+        git("init", "-q", "-b", BASE_BRANCH);
+        git("config", "user.email", "test@example.com");
+        git("config", "user.name", "Test");
+        write(DETAIL, "export const Detail = () => null;\n");
+        commitAll("base");
+        write(DIALOG, "export const Dialog = () => null;\n");
+        write(DETAIL, "export const Detail = () => <Dialog />;\n");
+        culprit = commitAll("culprit (#6050)");
+        write("src/lib/later.ts", "export const later = 1;\n");
+        commitAll("a later landing");
+        git("revert", "--no-edit", culprit);
+    });
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
+
+    it("the diff owes a walk, and the ladder's body is accepted as is", () => {
+        expect(landingWalkOwed(PATHS, repo).owed).toBe(true);
+        expect(invalid(bodyFor(culprit))).toBe(false);
+    });
+
+    it("a path that differs from the culprit's parent loses the exemption", () => {
+        write(
+            DETAIL,
+            "export const Detail = () => <div className='fixed' />;\n"
+        );
+        commitAll("a hand edit on the revert branch");
+        expect(invalid(bodyFor(culprit))).toBe(true);
+    });
+
+    it("a commit outside the tree's history grants nothing", () => {
+        git("checkout", "-q", "-b", "elsewhere", `${culprit}^`);
+        const foreign = commitAll("never landed");
+        git("checkout", "-q", BASE_BRANCH);
+        expect(invalid(bodyFor(foreign))).toBe(true);
+        expect(invalid(bodyFor("f".repeat(40)))).toBe(true);
+    });
+
+    it("no revert line → the owed walk still wants a receipt", () => {
+        expect(invalid("check:ui: no walk owed (an automated revert)")).toBe(
+            true
+        );
     });
 });
