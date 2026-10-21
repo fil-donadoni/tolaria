@@ -81,6 +81,7 @@ beforeEach(async () => {
                 "check:gaps": ok,
                 "check:targets": ok,
                 "check:test-hygiene": ok,
+                "check:issue-log-comments": ok,
                 test: ok,
                 "check:game-download": "bun fake-download.ts",
                 "check:ui": "bun fake-ui.js",

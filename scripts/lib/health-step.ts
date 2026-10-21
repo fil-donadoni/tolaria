@@ -135,6 +135,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:gaps",
     "check:targets",
     "check:test-hygiene",
+    "check:issue-log-comments",
     "test",
     "check:game-download",
 ];
