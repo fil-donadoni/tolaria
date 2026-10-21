@@ -109,8 +109,8 @@ pull_request_rules:
     #
     # Not under a RED: the lane tests the PR merged with the base, so a RED
     # reds every PR's lane, and that red is the base's (issue #6256). The rule
-    # below holds the PR instead; `pr-gate`'s GREEN re-runs its lane and
-    # requeues it.
+    # below holds the PR instead; `pr-refresh` rebases a held PR on every base
+    # push (a fresh lane on the moved base), and `pr-gate`'s GREEN requeues it.
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=ready-to-land

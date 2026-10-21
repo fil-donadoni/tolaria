@@ -22,7 +22,6 @@
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
-import { latestAdvisoryLane, type CheckRunView } from "./merge-manual";
 import {
     DESCRIPTION_MAX,
     lineageBlocks,
@@ -134,22 +133,6 @@ export function needsRequeue(input: {
         !labels.includes(FAILED_LABEL) &&
         !labels.includes(MERGIFY_QUEUED_LABEL)
     );
-}
-
-/**
- * The advisory-lane job a requeue must re-run first (issue #6256): its latest
- * run on the head, when that run went red. A RED reds every PR's lane, and
- * the stale red would both bar queue entry and, once the hold is lifted,
- * fire the land-refusal rule. null when the lane is green, pending or absent.
- */
-export function laneJobToRerun(
-    runs: readonly CheckRunView[],
-    headSha: string
-): number | null {
-    const lane = latestAdvisoryLane(runs, headSha);
-    return lane?.status === "completed" && lane.conclusion === "failure"
-        ? lane.id
-        : null;
 }
 
 /** `TRUSTED_AUTHORS` as the repository variable holds it: logins separated

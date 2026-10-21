@@ -1300,11 +1300,14 @@ leaves `base-health` green: it stays a repair pick. The structure guard's
 A RED also reds every PR's own `check:lane (advisory)`: the lane tests the PR
 merged with the base, so the base's red is in it (issue #6256). The
 land-refusal rule carries the same two exemptions, and a third rule
-(`a red advisory lane under a RED is a hold`) puts `queue:held` on the PR. On
-the GREEN, `pr-gate` re-runs the PR's red lane job (`laneJobToRerun`, then
-`actions/jobs/{id}/rerun`; the job needs `actions: write`) before the requeue
-comment. A re-run is pending, not failed, so the PR can enter; if it goes red
-again, the red is the PR's own and the refusal rule labels it `land-failed`.
+(`a red advisory lane under a RED is a hold`) puts `queue:held` on the PR. A
+re-run of that lane would not help: it is pinned to the merge commit built on
+the broken base. So [`pr-refresh`](#pr-refresh) rebases every `queue:held` PR
+on each push to the base (reason `held`). The PR is out of the queue, so the
+push dequeues nothing, and the lane runs again on the moved base. The repair's
+push does this before the GREEN; the GREEN's requeue then finds the lane green
+or pending. If the lane goes red once the hold is lifted, the red is the PR's
+own, and the refusal rule labels it `land-failed`.
 The structure guard's `queue-refusal-hold` row pins both rules: no rule may
 add `land-failed` without the hold exemption.
 

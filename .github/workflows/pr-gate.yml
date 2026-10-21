@@ -42,9 +42,6 @@ permissions:
     # (issue #6110). Base code only; the PR is read as data.
     pull-requests: write
     statuses: write
-    # `write`: re-run a held PR's advisory lane, which the RED redded, before
-    # the requeue (issue #6256).
-    actions: write
 
 jobs:
     gate:

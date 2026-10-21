@@ -94,7 +94,8 @@
  *     labelling `queue:held` a PR whose advisory lane is red while
  *     `base-health` is red. A RED reds every PR's lane (the lane tests the
  *     PR merged with the broken base): that red is the base's, so it holds
- *     the PR, and `pr-gate`'s GREEN re-runs the lane and requeues it.
+ *     the PR; `pr-refresh` rebases it on the next base push (a fresh lane) and
+ *     `pr-gate`'s GREEN requeues it.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
