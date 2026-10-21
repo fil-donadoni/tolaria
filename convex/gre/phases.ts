@@ -437,7 +437,7 @@ function clearUntapStepFlags(card: CardInstanceState): void {
  *    refactor: the marked permanent stays tapped regardless of any other
  *    restriction's outcome.
  *
- *  A `maxUntap: 0` restriction (e.g. Stasis) is a hard skip: matching
+ *  A `maxUntap: 0` restriction (e.g. Choke) is a hard skip: matching
  *  permanents cannot untap this step under ANY other cap, and they receive
  *  full cleanup (`manaCommitted` / `isSummoningSick` / `chosenMana` cleared)
  *  exactly as if the untap had succeeded.
