@@ -323,6 +323,7 @@
     "scripts/target-bot-reach.ts#2feb499a74",
     "scripts/ui-gate/attempt-console.ts#4edf4833a1",
     "scripts/ui-gate/index.ts#ea545a1fe8",
+    "scripts/ui-gate/index.ts#f0fe5c1c83",
     "scripts/ui-gate/parallel.ts#0b2910e7d8",
     "scripts/ui-gate/parallel.ts#7fa62e8cf8",
     "scripts/ui-gate/surfaces.ts#eecfd8e955",
