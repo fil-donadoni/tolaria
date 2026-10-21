@@ -309,7 +309,8 @@ describe("orphan-claim reap (#2627)", () => {
         const editLog = path.join(tmp, "gh-issue-edit-calls");
         const claimedJson = path.join(tmp, "claimed.json");
         // 30h stale, so `classifyClaim` reads it as an orphan on the
-        // no-branch/no-PR path (2h threshold) and `--release` would edit it.
+        // no-run/no-branch/no-PR path (24h rope, issue #6223) and
+        // `--release` would edit it.
         fs.writeFileSync(
             claimedJson,
             JSON.stringify([
@@ -330,6 +331,8 @@ describe("orphan-claim reap (#2627)", () => {
                 // The one write in the whole subsystem. Recorded, never made.
                 `  *"issue edit"*) echo "$args" >> "${editLog}" ; exit 0 ;;`,
                 `  *"pr list"*) echo '[]' ; exit 0 ;;`,
+                // No `afk-pass` run of any issue (issue #6223).
+                `  *"run list"*) echo '[]' ; exit 0 ;;`,
                 // loop-doctor's claimed-issue read (the driver's own counts
                 // ask for `--json number` only).
                 `  *"number,title,updatedAt"*) cat "${claimedJson}" ; exit 0 ;;`,

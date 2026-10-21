@@ -11,15 +11,17 @@
 //     the repository's credentials; an issue body is instructions it hands to
 //     an agent, so "who wrote it" is an admission fact, not a nicety.
 //     Unknown provenance is untrusted (fail closed).
-//   * RUN-BASED CLAIM LIVENESS — a claim label proves nothing by itself. A
-//     claim with a live `afk-pass` workflow run is held; with no live run it
-//     is a RESUME pick when its branch is pushed and an ORPHAN to release
-//     otherwise. A claim the caller supplied no run facts for is held (fail
+//   * CLAIM FATE — a claim label proves nothing by itself. Its verdict is
+//     `loop-doctor.ts`'s `classifyClaim`, the ONE authority (issue #6223),
+//     over runs, journal owner, branches and PRs; here it only maps to what
+//     the dispatcher does: hold, RESUME (a dead pass's work) or RELEASE (an
+//     orphan). A claim the caller supplied no verdict for is held (fail
 //     closed): releasing on missing evidence would double-run a live pass.
 //
 // PURE — no clock, no network, no git. The dispatcher gathers provenance and
 // run facts (I/O) and hands them in.
 
+import type { ClaimVerdictState } from "../loop-doctor";
 import {
     planBatch,
     resumeItems,
@@ -43,13 +45,10 @@ export interface TrustPolicy {
     trustedAuthors: readonly string[];
 }
 
-/** What the dispatcher saw for one claimed issue. */
-export interface ClaimFacts {
+/** One claimed issue with `classifyClaim`'s verdict on it. */
+export interface JudgedClaim {
     issue: number;
-    /** A live `afk-pass` workflow run exists for this claim. */
-    liveRun: boolean;
-    /** The claim's branch exists on the remote. */
-    branchPushed: boolean;
+    state: ClaimVerdictState;
     /** Its open PR, when it has one. */
     pr: number | null;
 }
@@ -62,7 +61,7 @@ export interface PickerInput {
     port: QueuePort;
     trust: TrustPolicy;
     provenance: Record<number, IssueProvenance>;
-    claims: ClaimFacts[];
+    claims: JudgedClaim[];
 }
 
 export interface PickResult {
@@ -70,9 +69,9 @@ export interface PickResult {
     plan: BatchPlan;
     /** Dead passes' pushed work, band-ordered; take `resume[0]` before `plan.batch[0]`. */
     resume: ResumeItem[];
-    /** Orphan claims: label with no live run and no pushed branch. */
+    /** Orphan claims: `classifyClaim` proved nothing will release them. */
     release: number[];
-    /** Claims a live run still holds. */
+    /** Claims held: live, suspect, or queued for the land-runner. */
     live: number[];
     /** Skipped for provenance; never reached `planBatch`. */
     untrusted: number[];
@@ -92,9 +91,20 @@ export function isTrusted(
     );
 }
 
-export function claimFate(facts: ClaimFacts | undefined): ClaimFate {
-    if (!facts || facts.liveRun) return "live";
-    return facts.branchPushed ? "resume" : "release";
+const FATE: Record<ClaimVerdictState, ClaimFate> = {
+    live: "live",
+    suspect: "live",
+    "pr-open": "live",
+    stranded: "resume",
+    recoverable: "resume",
+    orphan: "release",
+};
+
+/** Hold beats resume beats release: the order duplicate verdicts merge in. */
+const FATE_RANK: Record<ClaimFate, number> = { live: 0, resume: 1, release: 2 };
+
+export function claimFate(claim: JudgedClaim | undefined): ClaimFate {
+    return claim ? FATE[claim.state] : "live";
 }
 
 const isClaimed = (issue: QueueIssue): boolean =>
@@ -102,27 +112,21 @@ const isClaimed = (issue: QueueIssue): boolean =>
 
 export function pick(input: PickerInput): PickResult {
     const { issues, config, port, trust, provenance } = input;
-    // Duplicate evidence merges toward "alive": a later `liveRun: false` row
-    // must never turn a held claim into a release.
-    const facts = new Map<number, ClaimFacts>();
+    // Duplicate verdicts merge toward "held": a later orphan row must never
+    // turn a held claim into a release.
+    const facts = new Map<number, JudgedClaim>();
     for (const c of input.claims) {
         const prev = facts.get(c.issue);
-        facts.set(
-            c.issue,
-            prev
-                ? {
-                      issue: c.issue,
-                      liveRun: prev.liveRun || c.liveRun,
-                      branchPushed: prev.branchPushed || c.branchPushed,
-                      pr: prev.pr ?? c.pr,
-                  }
-                : c
-        );
+        const keep =
+            prev && FATE_RANK[claimFate(prev)] <= FATE_RANK[claimFate(c)]
+                ? prev
+                : c;
+        facts.set(c.issue, { ...keep, pr: prev?.pr ?? c.pr });
     }
 
     const live: number[] = [];
     const release: number[] = [];
-    const resumable: ClaimFacts[] = [];
+    const resumable: JudgedClaim[] = [];
     const untrusted: number[] = [];
     const competing: QueueIssue[] = [];
 
@@ -166,7 +170,7 @@ export function pick(input: PickerInput): PickResult {
     const resume = resumeItems(
         resumable.map((c) => ({
             issue: c.issue,
-            verdict: { state: "stranded" as const },
+            verdict: { state: c.state },
             pr: c.pr,
         })),
         issues,
