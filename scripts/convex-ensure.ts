@@ -39,6 +39,16 @@
 // its process by hand only races `Restart=`. Install and the why:
 // docs/guides/huawei-runner.md § Convex on the Huawei.
 //
+// The MacBook's backend is a launchd agent (`com.tolaria.convex`, issue #6082)
+// and takes the same road with a second driver: loaded but silent → wait,
+// then `launchctl kickstart -k` (kill + restart under launchd's own
+// supervision); loaded but not running → `kickstart`; not loaded →
+// `launchctl bootstrap`. launchd only watches that the process exists, so
+// reclaiming its `convex dev` by hand and spawning one beside it raced
+// `KeepAlive` into two on one deployment. No `convex-dev.pid` is written: the
+// service manager owns the pid. docs/guides/github-pipeline.md § MacBook —
+// launchd.
+//
 // Exit: 0 = the URL answers (already, after a wait, or after a start);
 // 1 = it does not and this run could not safely make it; 2 = usage.
 //
@@ -47,11 +57,15 @@
 //   --url <u> --instance-name <n> --root <dir> --telemetry-dir <dir>
 //   --start-cmd <json argv> --start-timeout-ms <n> --wait-alive-ms <n>
 //   --reclaim-grace-ms <n> --unit <name|""> --systemctl <json argv>
-// `--start-cmd` without `--unit` means "spawn this": no unit is looked for.
+//   --launchd <label|""> --launchctl <json argv> --launchd-plist <path>
+// `--start-cmd` without `--unit`/`--launchd` means "spawn this": no service
+// is looked for.
 import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as net from "node:net";
+import * as os from "node:os";
 import * as path from "node:path";
+import { LAUNCHD_CONVEX_LABEL } from "./lib/github-runner.ts";
 import { readProcessCwds } from "./lib/machine-admission.ts";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
@@ -64,11 +78,29 @@ import {
  *  (`scripts/runner-units/tolaria-convex.service`, issue #5468). */
 export const CONVEX_SYSTEMD_UNIT = "tolaria-convex.service";
 
-/** The backend as a systemd unit: its name and the `systemctl --user` argv
- *  prefix that drives it (a stub in the tests). */
-export interface ConvexUnit {
+/** A service-managed backend (systemd unit or launchd agent): the manager
+ *  owns the process, so a silent one is waited on and then restarted, a
+ *  stopped one started — never killed by hand, never spawned beside. */
+export interface ConvexService {
+    /** The unit / agent name, for messages. */
     name: string;
-    systemctl: string[];
+    /** Running or on its way. */
+    live(): boolean;
+    /** The command for `verb` — what is run and what the report names. */
+    command(verb: ServiceVerb): string;
+    /** Bring a stopped (or, for launchd, unloaded) service up. */
+    start(): ServiceCall;
+    /** Kill + start a live but silent one. */
+    restart(): ServiceCall;
+    /** Where to look after a failure. */
+    logHint: string;
+}
+
+export type ServiceVerb = "start" | "restart";
+
+export interface ServiceCall {
+    ok: boolean;
+    out: string;
 }
 
 export interface EnsureOptions {
@@ -83,9 +115,9 @@ export interface EnsureOptions {
     waitAliveMs: number;
     /** SIGTERM → SIGKILL grace, and SIGKILL → gone, when reclaiming. */
     reclaimGraceMs: number;
-    /** Non-null: the backend is this systemd unit — start or restart it,
-     *  never spawn (see the header). */
-    unit: ConvexUnit | null;
+    /** Non-null: the backend is this service — start or restart it, never
+     *  spawn (see the header). */
+    service: ConvexService | null;
     probeTimeoutMs: number;
     pollMs: number;
     log: (line: string) => void;
@@ -96,7 +128,7 @@ export type EnsureOutcome =
     | { kind: "waited"; pid: number }
     | { kind: "started"; pid: number }
     | { kind: "reclaimed"; killed: number[]; pid: number }
-    | { kind: "unit"; verb: "start" | "restart"; unit: string }
+    | { kind: "service"; command: string; service: string }
     | { kind: "failed"; reason: string };
 
 export interface ProcessRow {
@@ -559,85 +591,150 @@ async function reclaim(
     return roots.map((r) => r.pid);
 }
 
-/** A `systemctl` call's bound: a restart waits for the unit's stop
- *  (`TimeoutStopSec=30`) and its start. */
-const SYSTEMCTL_TIMEOUT_MS = 60_000;
+/** A service-manager call's bound: a restart waits for the service's stop
+ *  (`TimeoutStopSec=30` / `ExitTimeOut` 30) and its start. */
+const SERVICE_CALL_TIMEOUT_MS = 60_000;
 
-/** `systemctl --user <args>` for the unit — status and output, never a
- *  throw. */
-function systemctl(
-    unit: ConvexUnit,
-    args: string[]
-): { ok: boolean; out: string } {
-    const r = spawnSync(
-        unit.systemctl[0],
-        [...unit.systemctl.slice(1), ...args],
-        {
-            encoding: "utf8",
-            timeout: SYSTEMCTL_TIMEOUT_MS,
-        }
-    );
+/** `argv` plus `args`: status and output, never a throw. */
+function callTool(argv: string[], args: string[]): ServiceCall {
+    const r = spawnSync(argv[0], [...argv.slice(1), ...args], {
+        encoding: "utf8",
+        timeout: SERVICE_CALL_TIMEOUT_MS,
+    });
     return {
         ok: r.status === 0,
         out: `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? r.error.message : ""}`.trim(),
     };
 }
 
-/** The unit is running or on its way: `active`, `activating`, `reloading`. */
-function unitLive(unit: ConvexUnit): boolean {
-    const state = systemctl(unit, ["is-active", unit.name]).out;
-    return (
-        state === "active" || state === "activating" || state === "reloading"
-    );
+/** The backend as a systemd user unit; `systemctl` is the argv prefix that
+ *  drives it (a stub in the tests). */
+export function systemdService(
+    name: string,
+    systemctlArgv: string[]
+): ConvexService {
+    const call = (args: string[]) => callTool(systemctlArgv, args);
+    return {
+        name,
+        // `active`, `activating` or `reloading`.
+        live: () => {
+            const state = call(["is-active", name]).out;
+            return (
+                state === "active" ||
+                state === "activating" ||
+                state === "reloading"
+            );
+        },
+        command: (verb) => `systemctl --user ${verb} ${name}`,
+        start: () => call(["start", name]),
+        restart: () => call(["restart", name]),
+        logHint: `journalctl --user -u ${name} -n 50`,
+    };
 }
 
-/** Steps 3–4 when the backend is a systemd unit (issue #5468): systemd owns
- *  the process, so a silent unit is waited on and then restarted, a stopped
- *  one started — nothing is spawned or killed here. Runs under the lock. */
-async function ensureViaUnit(
+/** The backend as a launchd agent in the user's GUI domain (issue #6082).
+ *  `loaded` = `launchctl print` succeeds; live = loaded and `state =
+ *  running` — launchd keeps a loaded agent alive, so loaded-but-not-running
+ *  is a throttled or exited one that `kickstart` revives. */
+export function launchdService(
+    label: string,
+    launchctlArgv: string[],
+    plist: string,
+    uid: number
+): ConvexService {
+    const target = `gui/${uid}/${label}`;
+    const print = () => callTool(launchctlArgv, ["print", target]);
+    const loaded = () => print().ok;
+    const bootstrap = `launchctl bootstrap gui/${uid} ${plist}`;
+    return {
+        name: label,
+        live: () =>
+            /^\s*state = (running|spawn scheduled)\s*$/m.test(print().out),
+        command: (verb) =>
+            verb === "restart"
+                ? `launchctl kickstart -k ${target}`
+                : loaded()
+                  ? `launchctl kickstart ${target}`
+                  : bootstrap,
+        start: () => {
+            if (loaded()) return callTool(launchctlArgv, ["kickstart", target]);
+            if (!fs.existsSync(plist)) {
+                return {
+                    ok: false,
+                    out: `${label} is not loaded and ${plist} is missing — install it (bun run runner install), then ${bootstrap}`,
+                };
+            }
+            return callTool(launchctlArgv, ["bootstrap", `gui/${uid}`, plist]);
+        },
+        restart: () => callTool(launchctlArgv, ["kickstart", "-k", target]),
+        logHint: `tail -n 50 ${path.join(os.homedir(), ".cache", "tolaria", "convex", "agent.log")}`,
+    };
+}
+
+/** The installed systemd unit, or null: Linux with `systemctl --user cat
+ *  <unit>` succeeding. Anything else — macOS, no user manager, no unit. */
+function installedUnit(
+    systemctlArgv: string[],
+    name: string
+): ConvexService | null {
+    if (process.platform !== "linux") return null;
+    return callTool(systemctlArgv, ["cat", name]).ok
+        ? systemdService(name, systemctlArgv)
+        : null;
+}
+
+/** The installed launchd agent, or null: darwin with the agent loaded, or
+ *  its plist installed (not loaded → `bootstrap`). A plain darwin checkout
+ *  has neither. */
+function installedAgent(
+    launchctlArgv: string[],
+    label: string,
+    plist: string
+): ConvexService | null {
+    if (process.platform !== "darwin") return null;
+    const uid = process.getuid?.() ?? 0;
+    const svc = launchdService(label, launchctlArgv, plist, uid);
+    const loaded = callTool(launchctlArgv, ["print", `gui/${uid}/${label}`]).ok;
+    return loaded || fs.existsSync(plist) ? svc : null;
+}
+
+/** Steps 3–4 when the backend is service-managed (issue #5468 systemd, issue
+ *  #6082 launchd): the manager owns the process, so a silent service is
+ *  waited on and then restarted, a stopped one started — nothing is spawned
+ *  or killed here. Runs under the lock. */
+async function ensureViaService(
     o: EnsureOptions,
-    unit: ConvexUnit
+    svc: ConvexService
 ): Promise<EnsureOutcome> {
-    const journal = `journalctl --user -u ${unit.name} -n 50`;
-    let verb: "start" | "restart" = "start";
-    if (unitLive(unit)) {
+    let verb: ServiceVerb = "start";
+    if (svc.live()) {
         o.log(
-            `convex:ensure: ${unit.name} is active but not answering ${o.url} — waiting up to ${Math.round(o.waitAliveMs / 1000)} s before restarting it`
+            `convex:ensure: ${svc.name} is active but not answering ${o.url} — waiting up to ${Math.round(o.waitAliveMs / 1000)} s before restarting it`
         );
-        if (await pollUntil(o, o.waitAliveMs, () => unitLive(unit))) {
+        if (await pollUntil(o, o.waitAliveMs, () => svc.live())) {
             return { kind: "waited", pid: 0 };
         }
         verb = "restart";
     }
-    const r = systemctl(unit, [verb, unit.name]);
+    // Named before the call: `start` on launchd reads the loaded state.
+    const command = svc.command(verb);
+    const r = verb === "restart" ? svc.restart() : svc.start();
     if (!r.ok) {
         return {
             kind: "failed",
-            reason: `systemctl --user ${verb} ${unit.name} failed: ${r.out || "no output"} — see ${journal}`,
+            reason: `${command} failed: ${r.out || "no output"} — see ${svc.logHint}`,
         };
     }
     o.log(
-        `convex:ensure: systemctl --user ${verb} ${unit.name} — waiting up to ${Math.round(o.startTimeoutMs / 1000)} s for ${o.url}`
+        `convex:ensure: ${command} — waiting up to ${Math.round(o.startTimeoutMs / 1000)} s for ${o.url}`
     );
-    if (await pollUntil(o, o.startTimeoutMs, () => unitLive(unit))) {
-        return { kind: "unit", verb, unit: unit.name };
+    if (await pollUntil(o, o.startTimeoutMs, () => svc.live())) {
+        return { kind: "service", command, service: svc.name };
     }
     return {
         kind: "failed",
-        reason: `${unit.name} (${unitLive(unit) ? "still active" : "not active"}) never made ${o.url} answer after ${verb} — see ${journal}`,
+        reason: `${svc.name} (${svc.live() ? "still active" : "not active"}) never made ${o.url} answer after ${verb} — see ${svc.logHint}`,
     };
-}
-
-/** The installed unit, or null: Linux with `systemctl --user cat <unit>`
- *  succeeding. Anything else — macOS, no user manager, no unit — is the
- *  spawn path. */
-function installedUnit(
-    systemctlArgv: string[],
-    name: string
-): ConvexUnit | null {
-    if (process.platform !== "linux") return null;
-    const unit = { name, systemctl: systemctlArgv };
-    return systemctl(unit, ["cat", name]).ok ? unit : null;
 }
 
 export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
@@ -645,19 +742,19 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
 
     fs.mkdirSync(o.telemetryDir, { recursive: true });
     const lockFile = path.join(o.telemetryDir, "convex-ensure.lock");
-    // The unit path also blocks on `systemctl restart` (SYSTEMCTL_TIMEOUT_MS).
+    // The service path also blocks on the manager's restart.
     const lockDeadline =
         Date.now() +
         o.startTimeoutMs +
         o.waitAliveMs +
         30_000 +
-        (o.unit ? SYSTEMCTL_TIMEOUT_MS : 0);
+        (o.service ? SERVICE_CALL_TIMEOUT_MS : 0);
     const release = await acquireLock(lockFile, lockDeadline, o.pollMs);
     if (typeof release === "string") return { kind: "failed", reason: release };
     try {
         // Another caller may have started it while this one queued.
         if (await reachable(o.url, o.probeTimeoutMs)) return { kind: "up" };
-        if (o.unit) return await ensureViaUnit(o, o.unit);
+        if (o.service) return await ensureViaService(o, o.service);
 
         const logFile = path.join(o.telemetryDir, "convex-dev.log");
         const pidFile = path.join(o.telemetryDir, "convex-dev.pid");
@@ -771,6 +868,9 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         "reclaim-grace-ms",
         "unit",
         "systemctl",
+        "launchd",
+        "launchctl",
+        "launchd-plist",
     ]);
     for (const k of flags.keys()) {
         if (!known.has(k)) return `unknown flag: --${k}`;
@@ -794,27 +894,49 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         }
         startCommand = parsed as string[];
     }
-    let systemctlArgv = ["systemctl", "--user"];
-    if (flags.has("systemctl")) {
-        const parsed: unknown = JSON.parse(flags.get("systemctl")!);
+    const toolArgv = (flag: string, dflt: string[]): string[] | string => {
+        if (!flags.has(flag)) return dflt;
+        const parsed: unknown = JSON.parse(flags.get(flag)!);
         if (
             !Array.isArray(parsed) ||
             parsed.length === 0 ||
             !parsed.every((s) => typeof s === "string")
         ) {
-            return "--systemctl must be a non-empty JSON array of strings";
+            return `--${flag} must be a non-empty JSON array of strings`;
         }
-        systemctlArgv = parsed as string[];
+        return parsed as string[];
+    };
+    const systemctlArgv = toolArgv("systemctl", ["systemctl", "--user"]);
+    if (typeof systemctlArgv === "string") return systemctlArgv;
+    const launchctlArgv = toolArgv("launchctl", ["launchctl"]);
+    if (typeof launchctlArgv === "string") return launchctlArgv;
+    const plist =
+        flags.get("launchd-plist") ??
+        path.join(
+            os.homedir(),
+            "Library",
+            "LaunchAgents",
+            `${LAUNCHD_CONVEX_LABEL}.plist`
+        );
+    const uid = process.getuid?.() ?? 0;
+    // `--unit <name>` / `--launchd <label>` = that service, `""` = none;
+    // absent, the installed one — unless `--start-cmd` asked to spawn.
+    const spawnOnly = flags.has("start-cmd");
+    let service: ConvexService | null = null;
+    if (flags.has("unit") && flags.get("unit")) {
+        service = systemdService(flags.get("unit")!, systemctlArgv);
+    } else if (flags.has("launchd") && flags.get("launchd")) {
+        service = launchdService(
+            flags.get("launchd")!,
+            launchctlArgv,
+            plist,
+            uid
+        );
+    } else if (!flags.has("unit") && !flags.has("launchd") && !spawnOnly) {
+        service =
+            installedUnit(systemctlArgv, CONVEX_SYSTEMD_UNIT) ??
+            installedAgent(launchctlArgv, LAUNCHD_CONVEX_LABEL, plist);
     }
-    // `--unit <name>` = that unit, `--unit ""` = none; absent, the installed
-    // `tolaria-convex.service` — unless `--start-cmd` asked to spawn.
-    const unit = flags.has("unit")
-        ? flags.get("unit")
-            ? { name: flags.get("unit")!, systemctl: systemctlArgv }
-            : null
-        : flags.has("start-cmd")
-          ? null
-          : installedUnit(systemctlArgv, CONVEX_SYSTEMD_UNIT);
     const num = (k: string, d: number): number => {
         const v = flags.get(k);
         return v === undefined ? d : Number(v);
@@ -834,7 +956,7 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         startTimeoutMs: num("start-timeout-ms", 120_000),
         waitAliveMs: num("wait-alive-ms", 60_000),
         reclaimGraceMs: num("reclaim-grace-ms", 10_000),
-        unit,
+        service,
         probeTimeoutMs: 3_000,
         pollMs: 500,
         log: (line) => process.stderr.write(`${line}\n`),
@@ -854,14 +976,14 @@ async function main(): Promise<number> {
             return 0;
         case "waited":
             console.log(
-                opts.unit
-                    ? `convex:ensure: ${opts.url} answers (${opts.unit.name}, waited) — nothing started`
+                opts.service
+                    ? `convex:ensure: ${opts.url} answers (${opts.service.name}, waited) — nothing started`
                     : `convex:ensure: ${opts.url} answers (backend pid ${outcome.pid}, waited) — nothing started`
             );
             return 0;
-        case "unit":
+        case "service":
             console.log(
-                `convex:ensure: ${opts.url} answers — systemctl --user ${outcome.verb} ${outcome.unit}`
+                `convex:ensure: ${opts.url} answers — ${outcome.command}`
             );
             return 0;
         case "started":
