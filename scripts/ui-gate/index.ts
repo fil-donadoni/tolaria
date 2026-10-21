@@ -122,7 +122,7 @@
  *      the deployment serves the primary checkout's convex/ tree, and that is
  *      not this tree's (outside its own diff) — before the first cell, or
  *      mid-walk. INFRA with the reason, never `unsettled` cells.
- *   5  `UI_SCOPE_UNDECIDED_EXIT` (`lib/ui-scope.ts`, issue #6144): the diff's
+ *   5  `UI_SCOPE_UNDECIDED_EXIT` (`lib/ui-scope.ts`): the diff's
  *      scope is UNDECIDED (an unplaced path) or FULL (a global input) and no
  *      walk was chosen — printed with the impact, no browser started. Choose
  *      `--all` or `--surface=`, or encode the answer as a scoper rule.
