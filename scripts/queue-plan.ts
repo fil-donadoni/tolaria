@@ -939,23 +939,21 @@ function main(): void {
     // files. A stale or released claim occupies nothing.
     const releasedNow = releasedClaimsOnThisMachine();
     const prs = openPrFiles();
-    config.inFlight = inFlightSet(
-        issues
-            .filter(
-                (i) =>
-                    i.labels.some((l) => l.name === "in-progress") &&
-                    !releasedNow.includes(i.number) &&
-                    !isStaleClaim(
-                        i,
-                        port.issuesWithOpenPr,
-                        config.now,
-                        config.staleClaimHours
-                    )
+    const occupying = new Set<number>(Object.keys(prs.byIssue).map(Number));
+    for (const i of issues)
+        if (
+            i.labels.some((l) => l.name === "in-progress") &&
+            !releasedNow.includes(i.number) &&
+            !isStaleClaim(
+                i,
+                port.issuesWithOpenPr,
+                config.now,
+                config.staleClaimHours
             )
-            .map((i) => ({
-                issue: i.number,
-                pr: prs.byIssue[i.number] ?? null,
-            })),
+        )
+            occupying.add(i.number);
+    config.inFlight = inFlightSet(
+        [...occupying].map((n) => ({ issue: n, pr: prs.byIssue[n] ?? null })),
         prs.files,
         (n) => port.issueDetail(n).body,
         config.inferredTargetFiles

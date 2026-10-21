@@ -554,8 +554,10 @@ async function main(): Promise<void> {
         now: new Date(now).toISOString(),
         excludeHitl: true,
     };
+    const prs = openPrFiles();
     const picked = pick({
-        prFiles: openPrFiles().files,
+        prFiles: prs.files,
+        prByIssue: prs.byIssue,
         issues,
         config,
         port: liveQueuePort(),

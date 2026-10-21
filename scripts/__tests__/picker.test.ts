@@ -363,3 +363,35 @@ describe("planner — in-flight overlap (issue #6195)", () => {
         expect(plan.batch.map((b) => b.number)).toEqual([2]);
     });
 });
+
+describe("picker — in-flight edge cases (issue #6195)", () => {
+    it("an unlabelled issue with an open PR occupies the PR's files", () => {
+        const got = pick(
+            input({
+                issues: [issue(2)],
+                port: port({ 1: "scripts/a.ts", 2: "scripts/pr.ts" }),
+                provenance: { 2: byOwner },
+                prByIssue: { 1: 90 },
+                prFiles: { 90: ["scripts/pr.ts"] },
+            })
+        );
+        expect(got.plan.batch).toEqual([]);
+        expect(got.plan.deferred[0].reason).toBe(
+            "target files overlap in-flight #1"
+        );
+    });
+
+    it("a claimed issue with no claim facts occupies its declared files", () => {
+        const got = pick(
+            input({
+                issues: [
+                    issue(1, ["ready-for-agent", "in-progress"]),
+                    issue(2),
+                ],
+                port: port({ 1: "scripts/a.ts", 2: "scripts/a.ts" }),
+                provenance: { 1: byOwner, 2: byOwner },
+            })
+        );
+        expect(got.plan.batch).toEqual([]);
+    });
+});
