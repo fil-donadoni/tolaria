@@ -613,7 +613,7 @@ Its PR body carries instead
 `check:ui: revert of <full sha> restores its parent on every DOM path`, and
 `land` (and the `ui-receipt` check, the same function) accepts it only when
 the reverted commit is in the landing tree's history AND every DOM-reachable
-changed path (the paths `uiWalkOwed` reads) is byte-identical at HEAD to
+changed path (the paths `uiWalkOwed` reads) is one that commit touched and is byte-identical at HEAD to
 that commit's parent — absent on both sides counting as identical. Those
 files then return to content that already landed through the gate; nothing
 else is claimed. A revert that does not restore them exactly (a later commit
