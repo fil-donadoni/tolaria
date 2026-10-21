@@ -239,6 +239,53 @@ export const PR_RECEIPT_GUARDS: Readonly<
     },
 };
 
+/**
+ * The grace a derived-stale tip gets before it is RED (ADR 0157 § Option
+ * 1b, "Health", issue #6248): one housekeeping period. `derive:sync` runs
+ * in `post-merge.yml`'s `housekeeping` on every push and hourly at `:17`
+ * (its backstop for a coalesced push), so a tip still stale an hour after
+ * its commit has outlived the backstop: the writer is broken, and that is a
+ * RED with cause `derive:sync`, not a wait.
+ */
+export const DERIVED_GRACE_MS = 60 * 60 * 1000;
+
+export type DerivedTipVerdict =
+    | { kind: "fresh" }
+    /** Stale within the grace: nothing gated, re-judged next run. */
+    | { kind: "pending"; reason: string }
+    /** Stale past the grace: RED at `derive:sync`. */
+    | { kind: "red"; reason: string };
+
+/**
+ * What a derived-stale tip is to health, pure: the tip's committer time
+ * against now. A FRESH tip is gated as ever. A stale one younger than the
+ * grace is `pending` — `derive:sync`'s commit is on its way, and gating a
+ * tree the base will rewrite in a minute proves nothing the next tip will
+ * not prove; stale at or past the grace is `red`.
+ */
+export function derivedTipVerdict(input: {
+    /** `derive:sync --fresh`'s answer on the tip: null = fresh, else why not. */
+    stale: string | null;
+    /** The tip's committer time, ms since the epoch. */
+    committedAtMs: number;
+    nowMs: number;
+    graceMs?: number;
+}): DerivedTipVerdict {
+    if (input.stale === null) return { kind: "fresh" };
+    const grace = input.graceMs ?? DERIVED_GRACE_MS;
+    const age = input.nowMs - input.committedAtMs;
+    const minutes = Math.max(0, Math.round(age / 60_000));
+    if (age < grace)
+        return {
+            kind: "pending",
+            reason: `derived-stale (${input.stale}) ${minutes} min after its commit — derive:sync writes it within the hour; nothing gated, re-judged next run (ADR 0157)`,
+        };
+    return {
+        kind: "red",
+        reason: `derived-stale (${input.stale}) ${minutes} min after its commit, past the ${Math.round(grace / 60_000)}-minute grace — derive:sync did not write it: see \`bun run derive:sync --dry-run\` on the tip and post-merge.yml's housekeeping runs (ADR 0157)`,
+    };
+}
+
 /** The `bun run` argv for one `HEALTH_SCRIPTS` entry: the script name, then
  *  any flags the entry carries after it. */
 export function healthStepArgs(entry: string): string[] {

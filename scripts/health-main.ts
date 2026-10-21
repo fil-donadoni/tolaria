@@ -14,7 +14,7 @@
  * #6143): the every-surface walk is a command the owner runs by hand. It
  * leaves a durable verdict in `.claude/telemetry/health/`:
  *
- *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
+ *   - `last.json`  — { sha, status: running|green|red|infra|pending, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.
  *                    `land` warns when it exists; `bun run health:status`
  *                    prints the details. Fix-forward, then the next green run
@@ -31,6 +31,18 @@
  * step the environment cut short (a fatal exit, or every failing row
  * `INFRA`): `last.json` names the two halves, `offline` and `browser`. One the
  * tree failed is RED.
+ *
+ * THE DERIVED STATE (ADR 0157 § Option 1b, "Health", issue #6248). After the
+ * worktree's bootstrap and before any gate, a batch run asks `derive:sync
+ * --fresh` whether the tip's lockfile header hashes and `data/catalogue/*`
+ * are what the tree generates — a second, no corpus. A stale tip younger
+ * than `DERIVED_GRACE_MS` (one housekeeping period) is `pending`: nothing
+ * gated, `last.json` says so, no verdict stored, exit 0 — `derive:sync`'s
+ * commit brings the tip health gates next. Stale past the grace is RED at
+ * step `derive:sync` (`derivedTipVerdict`, `lib/health-step.ts`). `release`
+ * does not ask: it runs the full gate on the exact tip as ever, and
+ * `check:oracle` reds a stale header there (ADR 0157, "`release` is
+ * unchanged").
  *
  * THE BROWSER HALF (issues #4962, #6143). `splitHealthGates` cuts the offline
  * gates from the browser steps. Only `--release` runs the browser steps:
@@ -121,8 +133,10 @@ import {
     HEALTH_SCRIPTS,
     WORKTREE_BOOTSTRAP,
     type HealthStep,
+    derivedTipVerdict,
 } from "./lib/health-step";
 import {
+    DERIVE_STEP,
     convexPreflight,
     INFRA_REMEDY,
     infraCause,
@@ -695,6 +709,67 @@ function finishRed(
     process.exit(1);
 }
 
+/**
+ * The tip is derived-stale within `derive:sync`'s grace (ADR 0157, issue
+ * #6248): nothing was gated, so nothing is proven — not green, not red, not
+ * infra. Recorded here only (the store never learns of it, the `RED` marker
+ * is neither written nor cleared); the next run re-judges the tip, and the
+ * derive commit's push starts the run that gates its successor. Exit 0: a
+ * job that waited is not a job that failed.
+ */
+function finishPending(ctx: RunCtx, reason: string): never {
+    writeLast(ctx.dir, {
+        sha: ctx.tip,
+        status: "pending",
+        startedAt: ctx.startedAt,
+        finishedAt: new Date().toISOString(),
+        failedStep: DERIVE_STEP,
+        reason,
+        log: ctx.logPath,
+        browser: "not run",
+        branch: ctx.branch,
+    });
+    console.log(
+        `health-main: PENDING @ ${ctx.tip.slice(0, 8)} (${DERIVE_STEP}) — ${reason}`
+    );
+    process.exit(0);
+}
+
+/**
+ * `derive:sync --fresh` on the bootstrapped worktree, judged against the
+ * tip's committer time (`derivedTipVerdict`). A run of the predicate that
+ * fails for any reason reads as stale with that reason: an unjudged tip is
+ * not a fresh one.
+ */
+function judgeDerivedTip(
+    wt: string,
+    tip: string,
+    root: string
+): ReturnType<typeof derivedTipVerdict> {
+    const r = spawnSync("bun", ["run", "derive:sync", "--fresh"], {
+        cwd: wt,
+        encoding: "utf8",
+        timeout: 10 * 60_000,
+        killSignal: "SIGKILL",
+    });
+    // Its own line (`derive:sync: this tree is derived-stale — <why>`), not
+    // `bun run`'s trailing `error: script "derive:sync" exited with code 1`.
+    const lines = `${r.stdout ?? ""}${r.stderr ?? ""}`
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "" && !/^(error: script |\$ )/.test(l));
+    const stale =
+        r.status === 0
+            ? null
+            : (
+                  lines.find((l) => l.includes("derived-stale")) ?? lines.at(-1)
+              )?.replace(/^derive:sync: (this tree is )?/, "") ??
+              `exit ${r.status ?? r.signal ?? "?"}`;
+    const committedAtMs =
+        Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
+    return derivedTipVerdict({ stale, committedAtMs, nowMs: Date.now() });
+}
+
 function finishGreen(
     ctx: RunCtx,
     browser: BrowserStepsState,
@@ -1103,6 +1178,7 @@ async function main(): Promise<void> {
     let failedOutput: FailedOutput = { output: "", status: null, signal: null };
     let failedCause: InfraCause | null = null;
     let retry: RetryFields | undefined;
+    let pending: string | null = null;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
@@ -1145,12 +1221,32 @@ async function main(): Promise<void> {
                 };
                 break;
             }
+            // The derived state, judged once the worktree can run the
+            // predicate and before any gate (ADR 0157, issue #6248); never
+            // under `release`, which proves the exact tip whole.
+            if (step.name === WORKTREE_BOOTSTRAP && !release) {
+                const judged = judgeDerivedTip(wt, tip, root);
+                if (judged.kind === "pending") {
+                    pending = judged.reason;
+                    break;
+                }
+                if (judged.kind === "red") {
+                    failedStep = DERIVE_STEP;
+                    failedOutput = {
+                        output: `${DERIVE_STEP}: ${judged.reason}\n`,
+                        status: 1,
+                        signal: null,
+                    };
+                    break;
+                }
+            }
         }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
     }
     if (durDir !== null) reportHeadroom(durDir, logPath);
 
+    if (pending !== null) finishPending(ctx, pending);
     if (failedStep && failedCause !== null)
         finishInfra(ctx, failedCause, failedStep, logPath, {
             offline: "infra",

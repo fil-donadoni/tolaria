@@ -77,6 +77,9 @@ beforeEach(async () => {
         JSON.stringify({
             scripts: {
                 "worktree:init": ok,
+                // The tip's derived state is fresh unless a test says otherwise
+                // (ADR 0157, issue #6248: `judgeDerivedTip`).
+                "derive:sync": "bun fake-derive.js",
                 "check:all": "bun who-offline.js",
                 "check:gaps": ok,
                 "check:targets": ok,
@@ -88,6 +91,13 @@ beforeEach(async () => {
                 "check:ui": "bun fake-ui.js",
             },
         })
+    );
+    // `derive:sync --fresh` on the tip: fresh unless the run's environment
+    // says stale (`FAKE_DERIVE_STALE`), then exit 1 with the reason on
+    // stderr as the real one prints it.
+    fs.writeFileSync(
+        path.join(primary, "fake-derive.js"),
+        `if (process.env.FAKE_DERIVE_STALE) { console.error("derive:sync: this tree is derived-stale — " + process.env.FAKE_DERIVE_STALE); process.exit(1); }\nconsole.log("derive:sync: this tree is derived-fresh");\n`
     );
     fs.writeFileSync(
         path.join(primary, "who-offline.js"),
@@ -475,4 +485,108 @@ describe("health-main — a terminal verdict on the tip: an --under-lock run ski
             failedStep: PREFLIGHT_CONVEX_STEP,
         });
     }, 120_000);
+});
+
+describe("health-main — a derived-stale tip is PENDING within derive:sync's grace, RED past it, and release never asks (ADR 0157, issue #6248)", () => {
+    const healthMain = (args: string[], env: NodeJS.ProcessEnv) =>
+        spawnSync("bun", [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, ...args], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 90_000,
+            env: { ...childEnv(), ...env },
+        });
+    const healthStatuses = () =>
+        gh.statuses(tipSha()).filter((s) => s.context === "health");
+
+    it("stale and young: PENDING, exit 0, no gate ran, no verdict stored, no RED", () => {
+        const r = healthMain(["--under-lock"], {
+            FAKE_DERIVE_STALE: "lockfile header: compilerHash drift",
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/PENDING @ \w{8} \(derive:sync\)/);
+        expect(r.stdout).toContain("compilerHash drift");
+        expect(offlineRan()).toBe(false);
+        const last = lastJson();
+        expect(last.status).toBe("pending");
+        expect(last.failedStep).toBe("derive:sync");
+        expect(last.sha).toBe(tipSha());
+        expect(healthStatuses()).toEqual([]);
+        expect(redMarker()).toBe(false);
+    }, 120_000);
+
+    it("stale and older than the grace: RED at derive:sync, with the marker, no gate ran", () => {
+        // A tip committed two hours ago — past the one-hour grace.
+        fs.writeFileSync(path.join(primary, "late.txt"), "late\n");
+        git(["add", "-A"], primary);
+        const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+        const c = spawnSync(
+            "git",
+            ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "late tip"],
+            {
+                cwd: primary,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GIT_COMMITTER_DATE: twoHoursAgo,
+                    GIT_AUTHOR_DATE: twoHoursAgo,
+                },
+            }
+        );
+        expect(c.status, c.stderr).toBe(0);
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+        const r = healthMain(["--under-lock"], {
+            FAKE_DERIVE_STALE: "data/catalogue/source-hash.json is not what the tree generates",
+        });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/RED @ \w{8} \(derive:sync\)/);
+        expect(offlineRan()).toBe(false);
+        const last = lastJson();
+        expect(last.status).toBe("red");
+        expect(last.failedStep).toBe("derive:sync");
+        expect(redMarker()).toBe(true);
+    }, 120_000);
+
+    it("--release on the same stale tip runs the full gate as ever — unchanged", async () => {
+        // Async, like `release()` above: the fake deployment the preflight
+        // probes is served by this test process, which a `spawnSync` blocks.
+        const r = await new Promise<{ code: number | null; out: string }>(
+            (resolve) => {
+                const child = spawn(
+                    "bun",
+                    [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, "--release"],
+                    {
+                        cwd: primary,
+                        env: {
+                            ...childEnv(),
+                            FAKE_DERIVE_STALE:
+                                "lockfile header: compilerHash drift",
+                        },
+                    }
+                );
+                let out = "";
+                child.stdout.on("data", (c) => (out += c));
+                child.stderr.on("data", (c) => (out += c));
+                const timer = setTimeout(() => child.kill("SIGKILL"), 90_000);
+                child.on("close", (code) => {
+                    clearTimeout(timer);
+                    resolve({ code, out });
+                });
+            }
+        );
+        expect(r.code, r.out).toBe(0);
+        expect(r.out).not.toContain("PENDING");
+        expect(offlineRan()).toBe(true);
+        expect(lastJson().status).toBe("green");
+    }, 120_000);
+
+    it("a pending record does not skip the tip: the next --under-lock run re-judges it, fresh now → GREEN", () => {
+        const first = healthMain(["--under-lock"], { FAKE_DERIVE_STALE: "x" });
+        expect(first.status, first.stderr).toBe(0);
+        expect(lastJson().status).toBe("pending");
+        const second = healthMain(["--under-lock"], {});
+        expect(second.status, second.stderr).toBe(0);
+        expect(second.stdout).not.toContain("already");
+        expect(offlineRan()).toBe(true);
+        expect(lastJson().status).toBe("green");
+    }, 180_000);
 });

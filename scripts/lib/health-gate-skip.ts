@@ -72,6 +72,9 @@ export function gateSkipReason(input: {
         return `tip ${short(tip)} already green on the verdict store${input.stored.machine ? ` (${input.stored.machine})` : ""}`;
     if (last === null || last.sha !== tip) return null;
     if (last.status === "green") return `tip ${short(tip)} already green`;
+    // A derived-stale tip within its grace was not gated (ADR 0157, issue
+    // #6248): every run re-judges it — past the grace it is RED.
+    if (last.status === "pending") return null;
     if (last.status === "running")
         return healthRunInFlight(last, now, input.staleMs) === null
             ? null
