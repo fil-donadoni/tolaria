@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS test_headroom (
 -- dir, and gate-run.sh REUSES a dir for every run under the same key, so a
 -- failed land retried under TOLARIA_GATE_RUN_KEY=land-N overwrote its own
 -- failure: the attempt history -- what "% failed lands" counts -- lives here.
--- bucket is the stage a non-green land stopped in (lib/workflow-kpi.ts
+-- bucket is the stage a non-green land stopped in (lib/workflow-logs.ts
 -- classifyLandFailure); NULL on green rows and on rows backfilled from
 -- gate_runs, whose log was never kept.
 CREATE TABLE IF NOT EXISTS gate_attempts (

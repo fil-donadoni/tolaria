@@ -73,7 +73,7 @@ import {
     classifyLandFailure,
     landLogMerged,
     parseDetachLine,
-} from "./lib/workflow-kpi.ts";
+} from "./lib/workflow-logs.ts";
 import { headroomRatio, readHeadroomRun } from "./lib/test-headroom.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
@@ -1814,7 +1814,7 @@ export async function ingestOpencodeFacts(
 
 /**
  * `--quick` (issue #4968): what `land` runs after every merge. The workflow
- * sources first — they are small and they are what `workflow:kpi` reads —
+ * sources first — they are small and hold the land-attempt history —
  * then the spans backlog against the budget, then the rotation.
  */
 async function quick(): Promise<void> {

@@ -11,9 +11,9 @@
 // `classifyClaim`/`buildClaimFacts` from `loop-doctor.ts` rather than
 // re-deriving "in flight" a second time.
 //
-// `gatherLoopStatus` is EXPORTED so `telemetry-serve.ts`'s
-// `GET /api/loop-status` route calls the exact same gathering this CLI does,
-// rather than a third re-implementation of the same five-command join.
+// `gatherLoopStatus` is EXPORTED so a second caller reuses the exact same
+// gathering this CLI does, rather than re-implementing the five-command join
+// (the dashboard's `GET /api/loop-status` route was one until issue #5652).
 //
 // Usage:
 //   bun run loop:status
@@ -449,9 +449,8 @@ export interface GatheredLoopStatus {
 
 /**
  * All the impure gathering (`gh`, `git`, and the primary checkout's
- * `.claude/telemetry` + `.claude/receipts`), then `buildLoopStatus`. The one
- * function both the CLI (`main`, below) and `telemetry-serve.ts`'s
- * `/api/loop-status` route call — the join happens exactly once.
+ * `.claude/telemetry` + `.claude/receipts`), then `buildLoopStatus` — the
+ * join happens exactly once.
  *
  * The claimed-issue/PR/branch reads and the ready-queue read each go through
  * `gatherSection` with the fail-CLOSED `shChecked`/`ghChecked` runners
