@@ -74,6 +74,8 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // CR 205.3m (issue #3721) — enqueues an `option-pick` over the
     // creature-type table and suspends, exactly like `nameCard` below.
     chooseCreatureType: true,
+    // CR 205.3i — the land-type sibling, same `option-pick` and suspend.
+    chooseLandType: true,
     coinFlip: true,
     divideIntoPiles: true,
     draw: true,
