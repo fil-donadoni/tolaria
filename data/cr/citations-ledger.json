@@ -13410,6 +13410,7 @@
         {"id":"400.7","line":"* watched creature leaves the battlefield (CR 400.7 — its return is a","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"* whether the permanent it watches is still the SAME object (CR 400.7 —","sites":1,"status":"baseline"},
         {"id":"400.7","line":"* {@link PermanentView.enteredOnTurn} entry stamp (CR 400.7) — Chaos","sites":1,"status":"baseline"},
+        {"id":"400.7","line":"- **Rules first.** A blink is a zone change (CR 400.7), but the engine keeps","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"- CR 110.2a, 117.3b, 303.4f, 303.4g, 305.1, 400.7, 608.2, 608.2b, 702.26d (all","sites":1,"status":"baseline"},
         {"id":"400.7","line":"/** \"Entered the battlefield this turn\" (CR 400.7, issue #1458) — a","sites":1,"status":"baseline"},
         {"id":"400.7","line":"/** \"Entered the battlefield this turn\" (CR 400.7, issue #1458). `true`","sites":1,"status":"baseline"},
