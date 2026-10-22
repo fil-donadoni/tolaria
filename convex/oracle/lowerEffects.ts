@@ -198,6 +198,13 @@ export interface SiteAntecedents {
      * candidate, so binding it to an earlier sentence's object is a guess.
      */
     readonly headNamedObject?: true;
+    /**
+     * CR 303.4f — the creature an "enters" head on ANOTHER permanent fired
+     * for: the host "attached to that creature" names. Read only by the
+     * Aura-return sentence; the general "that creature" subject keeps its own
+     * antecedent (`creature`).
+     */
+    readonly enteringCreature?: EffectObjectSelector;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
@@ -2608,8 +2615,27 @@ function lowerSentenceBody(
                 return unlowerable(
                     "returning this card from the graveyard needs an ability that functions there"
                 );
+            if (sentence.attachedTo === undefined)
+                return lowered([
+                    {
+                        op: "moveZone",
+                        target: { ref: "$source" },
+                        to: sentence.to,
+                    },
+                ]);
+            // CR 303.4f — the effect specifies the host, so no prompt is raised.
+            if (site.antecedents?.enteringCreature === undefined)
+                return unlowerable(
+                    '"attached to that creature" needs a head that names the creature entering'
+                );
             return lowered([
-                { op: "moveZone", target: { ref: "$source" }, to: sentence.to },
+                {
+                    op: "moveZone",
+                    target: { ref: "$source" },
+                    from: "graveyard",
+                    to: "battlefield",
+                    attachTo: site.antecedents.enteringCreature,
+                },
             ]);
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);

@@ -8750,4 +8750,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "player", count: 1 },
         },
     },
+    // CR 303.4f + CR 113.6b — "you may return this card from your graveyard to
+    // the battlefield attached to that creature": an Aura returning from the
+    // graveyard to the host the effect names, the creature the head fired for.
+    // Exhibits `moveZone` of `$source` out of the graveyard with `attachTo`.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3535daf2-7dce-4fda-92ce-ad2a1ee95197",
+            name: "Dragon Breath",
+            manaCost: "{1}{R}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature has haste.\n{R}: Enchanted creature gets +1/+0 until end of turn.\nWhen a creature with mana value 6 or greater enters, you may return this card from your graveyard to the battlefield attached to that creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dragon Breath",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, R: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature has haste.\n{R}: Enchanted creature gets +1/+0 until end of turn.\nWhen a creature with mana value 6 or greater enters, you may return this card from your graveyard to the battlefield attached to that creature.",
+            activatedAbilities: [
+                {
+                    id: "dragon-breath-ability",
+                    oracleText:
+                        "{R}: Enchanted creature gets +1/+0 until end of turn.",
+                    cost: { mana: { R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$host" },
+                            power: 1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "dragon-breath-trigger",
+                    oracleText:
+                        "When a creature with mana value 6 or greater enters, you may return this card from your graveyard to the battlefield attached to that creature.",
+                    head: {
+                        kind: "entered",
+                        scope: "any",
+                        filter: { types: ["Creature"], manaValueAtLeast: 6 },
+                    },
+                    zone: "graveyard",
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Return this card from your graveyard to the battlefield attached to that creature?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    from: "graveyard",
+                                    to: "battlefield",
+                                    attachTo: { ref: "$event.instanceId" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "keyword-grant", appliesTo: "host", keyword: "haste" },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);
