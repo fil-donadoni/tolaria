@@ -88,6 +88,20 @@ describe("linked exile returned to hand (CR 607.2a)", () => {
         expect(mesmeric(RETURN).state).toBe("unparsed");
     });
 
+    it("refuses a return when a second exile instruction leaves the link unread", () => {
+        const graveyard = "{2}{B}: Exile target card from a graveyard.";
+        expect(mesmeric(`${ENTERS}\n${RETURN}\n${graveyard}`).state).toBe(
+            "unparsed"
+        );
+    });
+
+    it("refuses a return beside an exile Op on another ability", () => {
+        const creature = "{2}, {T}: Exile target creature.";
+        expect(mesmeric(`${ENTERS}\n${RETURN}\n${creature}`).state).toBe(
+            "unparsed"
+        );
+    });
+
     it("refuses the plural return", () => {
         const plural = RETURN.replace(
             "the exiled card to its",

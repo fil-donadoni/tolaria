@@ -64,7 +64,11 @@ export type ExileLink =
     /** `untilLeaves` — the card owes the CR 610.3 return trigger. */
     | { readonly ok: true; readonly untilLeaves: boolean };
 
-/** Whether the card owes the CR 610.3 return, or why it cannot compile. */
+/**
+ * Whether the card owes the CR 610.3 return, or why it cannot compile. A
+ * printed hand return stamps `linkToSource` on its exile instruction IN PLACE
+ * (the ops are the definition's own).
+ */
 export function linkExileAndReturn(
     printed: readonly (readonly EffectOp[])[],
     granted: readonly (readonly EffectOp[])[]
@@ -90,16 +94,17 @@ export function linkExileAndReturn(
     // CR 607.2a — the printed pair "exile …" / "return the exiled card to its
     // owner's hand": the two abilities are linked, so the exile instruction
     // stamps its card (`linkToSource`) for the return to name. The stamp is
-    // written here because no line can see the other. An exile instruction
-    // that is not a plain `moveZone` leaves nothing to stamp: refused.
+    // written here because no line can see the other. Exactly ONE exile
+    // instruction, a plain `moveZone`, is linkable: with two, or an `exile`
+    // Op beside it, which one the return names is unread — refused.
     if (ops.some(isLinkedReturn)) {
         const exiles = ops.filter(isExileMove);
-        if (exiles.length === 0)
+        if (exiles.length !== 1 || ops.some((op) => op.op === "exile"))
             return {
                 ok: false,
-                reason: '"the exiled card" names no exile instruction this card prints (CR 607.2a)',
+                reason: '"the exiled card" names no single exile instruction this card prints (CR 607.2a)',
             };
-        for (const exile of exiles) exile.linkToSource = true;
+        exiles[0].linkToSource = true;
     }
     return {
         ok: true,
