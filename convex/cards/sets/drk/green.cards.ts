@@ -683,7 +683,7 @@ export const venom = defineCard(() => ({
 // dealt instead to another permanent or player. When the creature dies this
 // turn, exile the creature." (CR 602 activated ability.)
 //
-// One target, three sentences, each naming it (CR 608.2h — "that creature" /
+// One target, three sentences, each naming it (CR 608.2c — "that creature" /
 // "the creature" is the creature announced in the first):
 //  - CR 701.19c — `preventRegeneration`: a regeneration shield can't replace
 //    its destruction this turn.

@@ -785,7 +785,7 @@ export type EffectSentenceIR =
            * creature this turn can't be prevented or dealt instead to another
            * permanent or player.": the RECIPIENT-bound twin of the line above,
            * both clauses on one creature for the rest of the turn. The subject
-           * is anaphora (CR 608.2h), resolved by the lowering like every other
+           * is anaphora (CR 608.2c), resolved by the lowering like every other
            * "that creature"; an announced subject ("… dealt to target
            * creature …") and either clause alone are neighbours, refused.
            */
@@ -1378,7 +1378,7 @@ export type EffectSentenceIR =
            * the creature an earlier sentence named, whose body exiles the card
            * that creature became in the graveyard. Not the replacement above:
            * the creature DIES (CR 700.4 — its dies triggers fire) and only then
-           * is exiled. The subject is anaphora (CR 608.2h), resolved by the
+           * is exiled. The subject is anaphora (CR 608.2c), resolved by the
            * lowering like every other "that creature". Other bodies behind the
            * same head ("When that creature dies this turn, you gain 3 life")
            * are neighbours, refused here.
