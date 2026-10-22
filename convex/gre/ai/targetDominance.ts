@@ -33,9 +33,9 @@
 //
 // Tree only (`withoutDominatedTriggerTargets`, `search.ts`), like the block
 // prune and for the same reason: the defect is the node's mean backup over the
-// answers it explores, and the rollout already reads each answer settled
-// (`policyProbeState`). Bot paths only: a dominated answer is LEGAL, and the
-// human affordance surface keeps the whole set.
+// answers it EXPLORES, while a rollout draws one answer per ply in the hot
+// loop. Bot paths only: a dominated answer is LEGAL, and the human affordance
+// surface keeps the whole set.
 
 import type { GameState } from "../state";
 import { getOpponentId, resolveTopOfStack } from "../state";

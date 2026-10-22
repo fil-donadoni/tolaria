@@ -774,9 +774,9 @@ function etbAbilitiesInFlight(
  *  zero, flickering one's own creature read as losing it for good and
  *  exiling an opposing one as killing it.
  *
- *  It comes back as a PERMANENT, with no cast to pay for: its body at its
- *  realized worth (`permanentRealisedValue`, the same reading it took before
- *  it left), plus its ETB Abilities at their full value against THIS board
+ *  It comes back as a PERMANENT, with no cast to pay for: its body read as
+ *  the board loop in `playerTerms` reads one standing there, plus its ETB
+ *  Abilities at their full value against THIS board
  *  (`dslEtbAbilityValueById`) — they fire on entering, and their targets are
  *  chosen among the permanents standing now. Credited to the player it
  *  returns under, in the term its body would read on the battlefield. Not
@@ -793,14 +793,22 @@ function pendingReturnsWorth(
     const worth = { creatures: 0, permanents: 0 };
     for (const { card, to } of pendingBattlefieldReturns(state)) {
         if (to !== player.id) continue;
-        const body = permanentRealisedValue(state, card, weights, pass);
         const etb = dslEtbAbilityValueById(
             String(card.card.id ?? ""),
             latentBoardFor(state, player, card, weights, seat, pass),
             weights.latent
         );
-        if (isCreature(card)) worth.creatures += body + etb;
-        else worth.permanents += body + etb;
+        worth.permanents += weights.permanentWeight;
+        if (isCreature(card)) {
+            worth.creatures +=
+                evaluateCreature(state, card, weights.latent, pass, weights) +
+                etb;
+        } else if (!isLand(card)) {
+            worth.permanents +=
+                nonCreatureBodyValue(state, card, weights, pass) + etb;
+        } else {
+            worth.permanents += landStandingAbilityValue(card, weights) + etb;
+        }
     }
     return worth;
 }

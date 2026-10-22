@@ -25,7 +25,7 @@
 import type { DelayedTriggerTiming, EffectOp } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 
-/** CR 603.7 — the timings that fire at the next occurrence of a step or
+/** The timings that fire at the next occurrence of a step or
  *  phase, unconditionally. Every other timing waits on a board event (a
  *  leave, a block, combat damage) that may never come. */
 const PHASE_BOUNDARY_TIMINGS: ReadonlySet<DelayedTriggerTiming> = new Set([
@@ -38,17 +38,21 @@ const PHASE_BOUNDARY_TIMINGS: ReadonlySet<DelayedTriggerTiming> = new Set([
     "next-cleanup-step",
 ]);
 
-type MoveZoneOp = Extract<EffectOp, { op: "moveZone" }>;
+/** A `moveZone` that names its object by `target` (not the zone-wide
+ *  `cards` form). */
+type ObjectMoveZoneOp = Extract<EffectOp, { op: "moveZone"; target: unknown }>;
 
 /** The body-level `moveZone`s of `body` that put a BOUND card onto the
  *  battlefield from exile, keyed by the binding they read. */
 function battlefieldReturnsIn(
     body: readonly EffectOp[]
-): Map<string, MoveZoneOp> {
-    const out = new Map<string, MoveZoneOp>();
+): Map<string, ObjectMoveZoneOp> {
+    const out = new Map<string, ObjectMoveZoneOp>();
     for (const op of body) {
-        if (op.op !== "moveZone" || op.to !== "battlefield") continue;
-        if (op.from !== undefined && op.from !== "exile") continue;
+        if (op.op !== "moveZone" || !("target" in op)) continue;
+        if (op.to !== "battlefield") continue;
+        const from = "from" in op ? op.from : undefined;
+        if (from !== undefined && from !== "exile") continue;
         if (!("ref" in op.target)) continue;
         out.set(op.target.ref, op);
     }
@@ -86,9 +90,10 @@ export function blinkReturnedBindings(
 export type PendingReturn = { card: CardInstanceState; to: string };
 
 /** Every exiled card `state.delayedTriggers` will return to the battlefield.
- *  The recipient is the card's OWNER (a `moveZone` with no `controller`, CR
- *  110.2 "under its owner's control") or the trigger's controller (CR 113.7,
- *  `controller: "controller"`); any other recipient is not read. */
+ *  The recipient is the card's OWNER (a `moveZone` with no `controller` — the
+ *  DSL's "under its owner's control") or the delayed trigger's controller
+ *  (`controller: "controller"`; CR 603.7e — the player who controlled the
+ *  ability that created it); any other recipient is not read. */
 export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
     const out: PendingReturn[] = [];
     for (const trigger of state.delayedTriggers ?? []) {

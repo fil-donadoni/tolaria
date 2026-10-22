@@ -1975,10 +1975,7 @@ export function policyProbeState(
             undefined,
             true
         );
-    } else if (
-        moverId &&
-        (announcedDepth === 0 || answersSoleTriggerTarget(probe, move))
-    ) {
+    } else if (moverId && announcedDepth === 0) {
         // Issue #4758 — the triggers a resolution puts on the stack are part
         // of what the move did. An ETB Ability is spent on entering and never
         // counted on the battlefield, so a probe that stopped with it still
@@ -2001,25 +1998,6 @@ export function policyProbeState(
         );
     }
     return settled;
-}
-
-/** Issue #6334 — `move` answered the target announcement (CR 603.3d) of a
- *  triggered ability that is now the WHOLE stack. Its answer is the move's
- *  entire effect, and the trigger resolves before anything else can happen
- *  to it — but left unresolved, the leaf credits an ETB Ability in flight at
- *  one context-free value whatever it targets (`etbAbilitiesInFlight`), so
- *  every answer tied and the rollout picked at random: a Flametongue Kavu
- *  returned by a delayed trigger shot itself two rollouts in three. Settled
- *  under the bound the cast branch takes (issue #4758): nothing underneath,
- *  so no other announcement is priced into the answer. */
-function answersSoleTriggerTarget(probe: GameState, move: Move): boolean {
-    if (move.kind !== "submit-target") return false;
-    if (probe.stack.length !== 1 || probe.pendingTarget) return false;
-    const item = probe.stack[0];
-    return (
-        item.triggeredAbilityId !== undefined ||
-        item.delayedTriggerId !== undefined
-    );
 }
 
 /** The SCORING half of `policyValue` (issue #3400): the leaf evaluation of an
@@ -2440,8 +2418,8 @@ function withoutDominatedBlocks(
  *  judges dominated (issue #6334): the mover's node stops exploring answers
  *  that only hurt the mover, whose mean backup otherwise debited the line
  *  that led there with the mover's own mistakes. Memoized on `node`; never
- *  emptying. Tree only — the rollout reads each answer settled
- *  (`answersSoleTriggerTarget`). */
+ *  emptying. Tree only, like `withoutDominatedBlocks` (see
+ *  `ai/targetDominance.ts`). */
 function withoutDominatedTriggerTargets(
     node: Node,
     world: GameState,
