@@ -318,7 +318,7 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
 // Parallax Tide — Fading 5 rides the getDefinition seam; the repeatable "remove
 // a fade counter: exile target land" activation and the leaves-the-battlefield
 // return are the CR 607.2a linked pair Parallax Wave carries (white.test.ts).
-describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 603.7a)", () => {
+describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 607.2a)", () => {
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -331,7 +331,7 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
         expect(tide.counters).toEqual({ fade: 5 });
     });
 
-    it("exiles the target land keyed to itself, then returns it to its owner when it leaves (CR 603.7a)", () => {
+    it("exiles the target land linked to itself, then returns it to its owner when it leaves (CR 607.2a)", () => {
         const tide = makeInstance(parallaxTide.id, {
             id: "tide",
             controllerId: "p1",
@@ -368,7 +368,7 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
         ).toBe("tide");
 
         // Tide leaves the battlefield → the return trigger fires and each owner
-        // gets their exiled card back (CR 603.7a).
+        // gets their exiled card back (CR 607.2a).
         const tideInPlay = state.players[0].battlefield.find(
             (c) => c.id === "tide"
         )!;

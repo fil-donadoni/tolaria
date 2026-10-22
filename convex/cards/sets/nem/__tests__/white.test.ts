@@ -77,7 +77,7 @@ describe("Parallax Wave — destroyed in response to its own exile activation (C
     });
 });
 
-describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; return on leave, CR 702.32 / 603.7a)", () => {
+describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; return on leave, CR 702.32 / 607.2a)", () => {
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -114,7 +114,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(back!.counters).toEqual({ fade: 5 });
     });
 
-    it("exiles the target creature keyed to itself, then returns it to its owner when it leaves (CR 603.7a)", () => {
+    it("exiles the target creature linked to itself, then returns it to its owner when it leaves (CR 607.2a)", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",
             controllerId: "p1",
@@ -151,7 +151,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         ).toBe("wave");
 
         // Wave leaves the battlefield → the return trigger fires and each owner
-        // gets their exiled card back (CR 603.7a).
+        // gets their exiled card back (CR 607.2a).
         const waveInPlay = state.players[0].battlefield.find(
             (c) => c.id === "wave"
         )!;
@@ -166,7 +166,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(returned?.ownerId).toBe("p2");
     });
 
-    it("returns EVERY creature exiled across multiple activations (bundle per activation, same sourceId)", () => {
+    it("returns EVERY creature exiled across multiple activations (one link per activation, same source)", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",
             controllerId: "p1",
