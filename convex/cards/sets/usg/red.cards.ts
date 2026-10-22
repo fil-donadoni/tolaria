@@ -6,7 +6,6 @@
 
 import { defineCard } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
-import { echoTrigger } from "../../abilities/echo";
 
 // Goblin Patrol — {R} 2/1 Goblin with Echo {R} (CR 702.30). Home set is Urza's
 // Saga, its earliest paper printing (ADR 0041 routes a card to that set); the
@@ -22,16 +21,9 @@ export const goblinPatrol = defineCard(() => ({
     subtypes: ["Goblin"],
     power: 2,
     toughness: 1,
-    // CR 702.30 — the `echo` keyword string drives the ETB `echoPending` flag
-    // (state.ts); the trigger template below performs the upkeep pay-or-sac.
-    staticAbilities: ["echo"],
-    triggeredAbilities: [
-        echoTrigger({
-            id: "goblin-patrol-echo",
-            cost: { R: 1 },
-            costLabel: "{R}",
-        }),
-    ],
+    // CR 702.30a — the `echo` cost field arms `echoPending` (state.ts) and
+    // expands into the upkeep pay-or-sacrifice trigger (ADR 0155).
+    echo: { R: 1 },
 }));
 
 // Goblin Cadets — {R} 2/1 Goblin with a control-donation drawback. Home set is

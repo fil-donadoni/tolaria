@@ -20662,6 +20662,16 @@ export interface CardDefinition {
      *  `undefined`, which means "no madness"). Used by Basking Rootwalla
      *  (`{}`), Blazing Rootwalla (`{}`), Anje's Ravager (`{ X: 1, R: 1 }`). */
     madness?: ManaCost;
+    /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
+     *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the
+     *  CR 702.30a upkeep trigger from it and the engine arms `echoPending` on
+     *  every battlefield entry and control change of a permanent carrying it.
+     *  A bare `ManaCost` or the ADR 0079 `CostLegs` union. */
+    echo?: MayPayCost;
+    /** CR 702.24a — Cumulative upkeep [cost]. The PRINTED (one-age-counter)
+     *  cost, declared as DATA (ADR 0155); the seam synthesizes the upkeep
+     *  trigger that adds an age counter and offers the cost scaled by it. */
+    cumulativeUpkeep?: MayPayCost;
     /** CR 702.138 — a static ability granting escape to EVERY nonland card in
      *  its controller's graveyard (Underworld Breach). The granted escape cost
      *  is each card's OWN mana cost plus exiling `exileOtherCount` other cards

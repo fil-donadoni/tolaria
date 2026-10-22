@@ -128,10 +128,16 @@ export interface CumulativeUpkeepArgs {
     /** Label for the cost shown in the may-pay prompt (e.g. "{1}{U}",
      *  "{B} and 1 life", "Sacrifice a land"). Used only in the prompt string. */
     costLabel: string;
+    /** The printed keyword line the default reminder opens with. Defaults to
+     *  `Cumulative upkeep <costLabel>`; the `getDefinition` expander derives it
+     *  from the cost (ADR 0155). */
+    keywordLine?: string;
 }
 
-/** Builds the cumulative-upkeep triggered ability (CR 702.24). Add it to a
- *  card's `triggeredAbilities`. The `age` counter accrues on the source; the
+/** Builds the cumulative-upkeep triggered ability (CR 702.24). A printed card
+ *  declares `cumulativeUpkeep: <cost>` and `expandEchoCumulativeUpkeep`
+ *  (ADR 0155) calls this; the GRANT sites (`grantTriggeredAbilityPermanent`)
+ *  are the only direct callers, using it as their template. The `age` counter accrues on the source; the
  *  cost paid each upkeep is the printed cost repeated once per age counter,
  *  all-or-nothing; decline or inability sacrifices the source. */
 export function cumulativeUpkeepTrigger(
@@ -139,7 +145,7 @@ export function cumulativeUpkeepTrigger(
 ): TriggeredAbility {
     const oracle =
         args.oracleText ??
-        `Cumulative upkeep ${args.costLabel} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)`;
+        `${args.keywordLine ?? `Cumulative upkeep ${args.costLabel}`} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)`;
     const trigger = phaseTrigger({
         id: args.id ?? "cumulative-upkeep",
         oracleText: oracle,

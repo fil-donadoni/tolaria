@@ -7,7 +7,6 @@ import {
     type PermanentView,
     type StaticEffectContext,
 } from "../../../../convex/cards/types";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 
 // Natural Order — {2}{G}{G} Sorcery. "As an additional cost to cast this
 // spell, sacrifice a green creature. Search your library for a green
@@ -51,8 +50,8 @@ export const naturalOrder = defineCard(() => ({
 
 // Elephant Grass — {G} Enchantment. Three clauses, all directed at the
 // controller ("you"):
-//   1. Cumulative upkeep {1} (CR 702.24 / ADR 0042) — the `cumulativeUpkeepTrigger`
-//      template. Generic {1} per age counter, all-or-nothing, sacrifice on decline.
+//   1. Cumulative upkeep {1} (CR 702.24 / ADR 0155) — the `cumulativeUpkeep`
+//      cost field. Generic {1} per age counter, all-or-nothing, sacrifice on decline.
 //   2. "Black creatures can't attack you." — a `global-attack-restriction`
 //      (CR 508.1c, the Moat kind). Because that kind is scanned board-wide with no
 //      built-in direction, the predicate itself scopes the lock to attacks against
@@ -71,13 +70,7 @@ export const elephantGrass = defineCard(() => ({
     types: ["Enchantment"],
     oracleText:
         "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nBlack creatures can't attack you.\nNonblack creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.",
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "elephant-grass-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     staticEffects: [
         {
             // Clause 2: black creatures can't attack you (CR 508.1c).

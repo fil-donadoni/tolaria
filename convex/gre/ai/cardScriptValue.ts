@@ -1312,6 +1312,11 @@ const LATENT_READ_KEYS: ReadonlySet<string> = new Set([
     "activatedAbilities",
     "triggeredAbilities",
     "delayedTriggers",
+    // ADR 0155 — the cost fields are the declaration of the upkeep trigger the
+    // `getDefinition` seam expands into `triggeredAbilities`; its `aiEffects`
+    // shadow (pay or sacrifice) IS the reading, so the field adds no unread clause.
+    "echo",
+    "cumulativeUpkeep",
     "aiValue",
     "aiCombatHint",
 ]);

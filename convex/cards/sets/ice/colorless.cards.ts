@@ -13,7 +13,6 @@ import type {
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import type { Phase } from "../../../gre/types";
 import { countSnowLands } from "../../snowReads";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -1151,13 +1150,7 @@ export const nakedSingularity = defineCard(() => ({
             Forest: "B",
         },
     },
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "naked-singularity-cumulative-upkeep",
-            cost: { X: 3 },
-            costLabel: "{3}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 3 },
 }));
 export const onyxTalisman = defineCard(() =>
     makeTalisman({
@@ -1449,13 +1442,7 @@ export const soldeviSimulacrum = defineCard(() => ({
     subtypes: ["Soldier"],
     power: 2,
     toughness: 4,
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "soldevi-simulacrum-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     activatedAbilities: [
         {
             id: "soldevi-simulacrum-firebreathing",
@@ -1865,12 +1852,8 @@ export const glacialChasm = defineCard(() => ({
             replace: () => ({ kind: "consumed" }),
         },
     ],
+    cumulativeUpkeep: { life: 2 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "glacial-chasm-cumulative-upkeep",
-            cost: { life: 2 },
-            costLabel: "Pay 2 life",
-        }),
         enteredTrigger({
             id: "glacial-chasm-etb-sacrifice-land",
             oracleText: "When this land enters, sacrifice a land.",
@@ -1917,13 +1900,7 @@ export const hallsOfMist = defineCard(() => ({
                 "Creatures that attacked during their controller's last turn can't attack (Halls of Mist).",
         },
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "halls-of-mist-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
 }));
 // Ice Floe — land-flavoured untap-lock twin of Mole Worms (CR 611.2 untap-lock
 // tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1

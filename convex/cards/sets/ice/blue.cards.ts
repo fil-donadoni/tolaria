@@ -179,13 +179,7 @@ export const arnjlotsAscent = defineCard(() => ({
         "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: Target creature gains flying until end of turn.",
     manaCost: { X: 1, U: 2 },
     types: ["Enchantment"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "arnjlots-ascent-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
-    ],
+    cumulativeUpkeep: { U: 1 },
     activatedAbilities: [
         {
             id: "arnjlots-ascent-grant-flying",
@@ -428,13 +422,7 @@ export const breathOfDreams = defineCard(() => ({
         'Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nGreen creatures have "Cumulative upkeep {1}."',
     manaCost: { X: 2, U: 2 },
     types: ["Enchantment"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "breath-of-dreams-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
-    ],
+    cumulativeUpkeep: { U: 1 },
     staticEffects: [
         // CR 113.1 / 611 — grant "Cumulative upkeep {1}" to every green creature.
         {
@@ -959,13 +947,7 @@ export const illusionaryForces = defineCard(() => ({
     power: 4,
     toughness: 4,
     staticAbilities: ["flying"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "illusionary-forces-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
-    ],
+    cumulativeUpkeep: { U: 1 },
 }));
 // Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
 // "at the beginning of your upkeep, choose a land type" trigger that grants
@@ -987,12 +969,8 @@ export const illusionaryPresence = defineCard(() => ({
     subtypes: ["Illusion"],
     power: 2,
     toughness: 2,
+    cumulativeUpkeep: { U: 1 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "illusionary-presence-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
         phaseTrigger({
             id: "illusionary-presence-landwalk",
             oracleText:
@@ -1125,13 +1103,7 @@ export const illusionaryTerrain = defineCard(() => ({
             },
         },
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "illusionary-terrain-cumulative-upkeep",
-            cost: { generic: 2 },
-            costLabel: "{2}",
-        }),
-    ],
+    cumulativeUpkeep: { generic: 2 },
 }));
 // Illusionary Wall — {4}{U} 7/4 with defender, flying, first strike and
 // cumulative upkeep {U} (CR 702.24, ADR 0042). All keywords are plain statics.
@@ -1147,13 +1119,7 @@ export const illusionaryWall = defineCard(() => ({
     power: 7,
     toughness: 4,
     staticAbilities: ["defender", "flying", "first strike"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "illusionary-wall-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
-    ],
+    cumulativeUpkeep: { U: 1 },
 }));
 // Illusions of Grandeur — {3}{U} Enchantment with cumulative upkeep {2}
 // (CR 702.24), an ETB "gain 20 life" and an LTB "lose 20 life" (the classic
@@ -1167,12 +1133,8 @@ export const illusionsOfGrandeur = defineCard(() => ({
         "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this enchantment enters, you gain 20 life.\nWhen this enchantment leaves the battlefield, you lose 20 life.",
     manaCost: { X: 3, U: 1 },
     types: ["Enchantment"],
+    cumulativeUpkeep: { X: 2 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "illusions-of-grandeur-cumulative-upkeep",
-            cost: { X: 2 },
-            costLabel: "{2}",
-        }),
         // Migrated resolve()→effects[] (ADR 0045): plain self-scoped ETB gain,
         // no LKI needed (the enchantment is still on the battlefield when
         // this fires — `ctx.controller` is always the source's controller
@@ -1398,13 +1360,7 @@ export const mesmericTrance = defineCard(() => ({
         "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{U}, Discard a card: Draw a card.",
     manaCost: { X: 1, U: 2 },
     types: ["Enchantment"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "mesmeric-trance-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     activatedAbilities: [
         // DSL (ADR 0045, issue #1287): the chosen-discard cost is paid via a
         // `choice(zone: "hand")` + `discard`, then the draw is gated on the
@@ -1503,13 +1459,7 @@ export const musician = defineCard(() => ({
     subtypes: ["Human", "Wizard"],
     power: 1,
     toughness: 3,
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "musician-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     activatedAbilities: [
         {
             id: "musician-music-counter",
@@ -1621,13 +1571,7 @@ export const mysticMight = defineCard(() => ({
             ],
         },
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "mystic-might-cumulative-upkeep",
-            cost: { X: 1, U: 1 },
-            costLabel: "{1}{U}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1, U: 1 },
 }));
 // Mystic Remora — {U} Enchantment with cumulative upkeep {1} (CR 702.24, ADR
 // 0042) plus a "draw tax" cast trigger: "Whenever an opponent casts a noncreature
@@ -1644,12 +1588,8 @@ export const mysticRemora = defineCard(() => ({
         "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.",
     manaCost: { U: 1 },
     types: ["Enchantment"],
+    cumulativeUpkeep: { X: 1 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "mystic-remora-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
         // Migrated resolve()→effects[] (ADR 0045, #1264): mayPay {4} (the
         // casting opponent, resolved via "opponent" — this engine is
         // 2-player/solo only, so "opponent" of the source's controller is
@@ -1801,19 +1741,13 @@ export const polarKraken = defineCard(() => ({
     toughness: 11,
     entersTapped: true,
     staticAbilities: ["trample"],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "polar-kraken-cumulative-upkeep",
-            cost: {
-                permanent: {
-                    action: "sacrifice",
-                    filter: { types: "Land" },
-                    count: 1,
-                },
-            },
-            costLabel: "Sacrifice a land",
-        }),
-    ],
+    cumulativeUpkeep: {
+        permanent: {
+            action: "sacrifice",
+            filter: { types: "Land" },
+            count: 1,
+        },
+    },
 }));
 // Portent — {U} Sorcery. "Look at the top three cards of target player's
 // library, then put them back in any order. You may have that player shuffle."
@@ -1959,13 +1893,7 @@ export const realityTwist = defineCard(() => ({
             Forest: "B",
         },
     },
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "reality-twist-cumulative-upkeep",
-            cost: { X: 1, U: 2 },
-            costLabel: "{1}{U}{U}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1, U: 2 },
 }));
 // Shyft — at the controller's upkeep (CR 603.6a, `phaseTrigger` scope "your"),
 // the controller MAY (CR 117.3a, `requestMayPay` cost-less) set Shyft's colour
@@ -2177,12 +2105,8 @@ export const snowfall = defineCard(() => ({
         "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an Island is tapped for mana, its controller may add an additional {U}. If that Island is snow, its controller may add an additional {U}{U} instead. Spend this mana only to pay cumulative upkeep costs.",
     manaCost: { X: 2, U: 1 },
     types: ["Enchantment"],
+    cumulativeUpkeep: { U: 1 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "snowfall-cumulative-upkeep",
-            cost: { U: 1 },
-            costLabel: "{U}",
-        }),
         tappedTrigger({
             id: "snowfall-island-mana",
             oracleText:
