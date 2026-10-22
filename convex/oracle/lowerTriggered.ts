@@ -82,6 +82,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             };
         case "library-to-graveyard":
             return { kind: "library-to-graveyard" };
+        case "power-reached":
+            return { kind: "power-reached", atLeast: head.atLeast };
         case "graveyard-entry":
             return {
                 kind: "graveyard-entry",
@@ -311,7 +313,11 @@ export function lowerTriggeredAbility(input: {
         };
     // CR 603.4 — the cycled factory takes no intervening-if, so a condition
     // behind this head would be dropped silently: refuse it instead.
-    if (input.head.kind === "cycled" && input.condition !== undefined)
+    // The state trigger likewise has no gate of its own beyond its predicate.
+    if (
+        (input.head.kind === "cycled" || input.head.kind === "power-reached") &&
+        input.condition !== undefined
+    )
         return {
             ok: false,
             reason: "an intervening-if behind a cycle head is not read",

@@ -37,6 +37,9 @@ import { COLOR_WORDS } from "./targetFilter";
 
 export const TRIGGER_HEAD = "trigger head";
 
+// CR 603.8 — "when <self>'s power is N or greater" (state trigger).
+const POWER_REACHED = /^when (.+)'s power is (\d+) or greater$/i;
+
 /** CR 603.1 — the three words a trigger condition begins with. */
 const TRIGGER_OPENER = /^(when|whenever|at) /i;
 
@@ -169,6 +172,12 @@ export type TriggerHeadIR =
      * of the body names the card itself.
      */
     | { readonly kind: "cycled" }
+    /**
+     * CR 603.8 — "when this creature's power is N or greater": a STATE trigger,
+     * not an event one. It fires whenever the source's power is at least
+     * `atLeast` at a checkpoint, once per time the state becomes true.
+     */
+    | { readonly kind: "power-reached"; readonly atLeast: number }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -546,6 +555,11 @@ export const SELF_HEADS: readonly {
  */
 export function matchSelfHead(span: string): TriggerHeadIR | null {
     const probe = span.toLowerCase();
+    // CR 603.8 — the one self head with a number in its tail, so it is a
+    // pattern rather than a table row.
+    const power = POWER_REACHED.exec(span);
+    if (power !== null && isSelfPhrase(power[1]!))
+        return { kind: "power-reached", atLeast: Number(power[2]) };
     for (const head of SELF_HEADS) {
         if (!probe.startsWith(head.opener)) continue;
         if (!probe.endsWith(head.tail)) continue;
@@ -616,6 +630,9 @@ export function headPronounReferent(
             return "source";
         // CR 702.29c — "it" is the cycled card, i.e. the source.
         case "cycled":
+            return "source";
+        // CR 603.8 — the state belongs to the source itself.
+        case "power-reached":
             return "source";
         case "phase":
         case "spell-cast":
