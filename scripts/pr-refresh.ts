@@ -25,17 +25,15 @@
  * The decisions are `lib/pr-refresh.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import {
-    copyFileSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    rmSync,
-} from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
-import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
+import {
+    pinnedSha,
+    realCorpusSeedDeps,
+    seedPinnedCorpus,
+} from "./lib/corpus-cache";
 import { gh, netEnv } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
@@ -93,24 +91,19 @@ const fetchCorpus = (dir: string): boolean =>
  * Put the gitignored Card Corpus cache (`data/oracle-corpus.json.gz`) in the
  * worktree (issue #6320). `worktree:init` does not, and without it the
  * artefact resolver refuses to re-derive a conflicted lockfile: the PR stays
- * CONFLICTING. The primary's copy is taken first (its sha is the pin's, the
- * lockfile guards the rest); only a primary without one downloads the pinned
- * bulk.
+ * CONFLICTING. The primary's copy is taken only when its sha is the
+ * worktree's pin — after a re-pin lands the two differ — else the pinned bulk
+ * is downloaded (`lib/corpus-cache.ts`, issue #6381).
  */
 export function seedCorpus(
     primary: string,
     dir: string,
     fetch: (dir: string) => boolean = fetchCorpus
 ): boolean {
-    const dest = join(dir, CORPUS_CACHE_REL);
-    if (existsSync(dest)) return true;
-    const source = join(primary, CORPUS_CACHE_REL);
-    if (existsSync(source)) {
-        mkdirSync(dirname(dest), { recursive: true });
-        copyFileSync(source, dest);
-        return true;
-    }
-    return fetch(dir);
+    return seedPinnedCorpus(dir, primary, pinnedSha(dir), {
+        ...realCorpusSeedDeps,
+        fetchPinned: fetch,
+    }).ok;
 }
 
 export const defaultPrepare = (dir: string, primary: string): boolean =>
