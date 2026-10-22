@@ -621,6 +621,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › chooseCategorized+forEach+reveal",
+            "issue": 6417
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › chooseNumber+coinFlipSeries+draw+if",
             "issue": 4470
         },
@@ -2248,6 +2253,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › this card from your graveyard",
             "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › this card from your graveyard to the battlefield attached",
+            "issue": 6415
         },
         {
             "kind": "grammar",
