@@ -14,7 +14,7 @@
  */
 
 const TOOLING: readonly RegExp[] = [
-    /^scripts\/(?!__tests__\/).+\.ts$/,
+    /^scripts\/(?!(?:.+\/)?__tests__\/).+\.(?:ts|sh|mjs)$/,
     /^package\.json$/,
     /^\.claude\/hooks\//,
     /^tolaria\.config\.json$/,

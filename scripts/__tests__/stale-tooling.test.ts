@@ -27,6 +27,16 @@ describe("stale land tooling (issue #6341)", () => {
         expect(staleToolingPaths(paths)).toEqual(paths);
     });
 
+    it("covers shell and mjs tooling, never a test at any depth", () => {
+        expect(
+            staleToolingPaths([
+                "scripts/gate-run.sh",
+                "scripts/x.mjs",
+                "scripts/lib/__tests__/y.test.ts",
+            ])
+        ).toEqual(["scripts/gate-run.sh", "scripts/x.mjs"]);
+    });
+
     it("names the paths and the fix", () => {
         const line = staleToolingRefusal(
             ["scripts/land-ready.ts"],
