@@ -3831,6 +3831,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › amount reads a permanent's \"age\" counter count — the canned generator does not pre-seed counters",
+            "issue": 6391
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › amount reads a permanent's \"charge\" counter count — the canned generator does not pre-seed counters",
             "issue": 5265
         },
