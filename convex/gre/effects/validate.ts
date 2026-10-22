@@ -6847,7 +6847,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // `target` (`{ ref: "$source" }` on Rampant
                                 // Elephant). Without a row a bare ref here
                                 // mis-tags "number" and `$source` is rejected.
-                                keyHint === "attacker"
+                                keyHint === "attacker" ||
+                                // `moveZone`'s `attachTo` (CR 303.4f) — the
+                                // host a returning Aura enters attached to, an
+                                // `EffectObjectSelector` like `target`.
+                                keyHint === "attachTo"
                               ? "object"
                               : "number",
         });

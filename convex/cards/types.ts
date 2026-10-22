@@ -16026,8 +16026,9 @@ export type EffectOp =
            *  already attached and the controller is never prompted. A host no
            *  longer on the battlefield or no longer legal for the Aura's
            *  enchant ability (CR 303.4c) means there is no legal object to
-           *  enchant and the Aura stays where it is (CR 303.4g). Ignored for a
-           *  non-Aura card. Valid only with `target` and `to: "battlefield"`
+           *  enchant and the Aura stays where it is (CR 303.4g); a named host
+           *  that is already gone ends the Op before the card moves. Has no
+           *  effect on a non-Aura card that does move. Valid only with `target` and `to: "battlefield"`
            *  (validator-enforced). Threaded to `returnToBattlefield`'s
            *  `opts.attachTo`. */
           attachTo?: EffectObjectSelector;

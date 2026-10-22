@@ -4340,6 +4340,24 @@ describe("validateEffectScript — moveZone attachTo (CR 303.4f)", () => {
         expect(errors).toEqual([]);
     });
 
+    it("accepts a bound snapshot ref as the host (an earlier Op's bind)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 1 }, bind: "$h" },
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        attachTo: { ref: "$h" },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).not.toContain("numeric position");
+        expect(errors.join("\n")).not.toContain("number position");
+    });
+
     it('rejects "attachTo" with a non-battlefield destination', () => {
         const errors = validateEffectScript(
             host({
