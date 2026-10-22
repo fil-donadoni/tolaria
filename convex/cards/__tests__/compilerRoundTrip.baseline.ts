@@ -864,8 +864,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Overgrown Tomb",
     "Palace Jailer",
     "Panic",
-    "Parallax Tide",
-    "Parallax Wave",
     "Paralyze",
     "Part Water",
     "Path to Exile",
