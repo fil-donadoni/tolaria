@@ -100,7 +100,7 @@ describe("MatchSetupPanes — advancing (issue #5934)", () => {
                     ...EMPTY_SETUP,
                     mode: "arena",
                     opponent: "bot",
-                    matchFormat: "standard",
+                    matchFormat: "alpha-40",
                 }}
             />
         );
