@@ -4249,6 +4249,17 @@ export type GameState = {
          *  declare-time target chosen here. Cleared at END_OF_COMBAT with the
          *  rest of `combat`. */
         attackTargets?: Record<string, string>;
+        /** CR 506.4 / 608.2h (issue #6333) — original instance id →
+         *  tombstone id of every permanent that LEFT THE BATTLEFIELD while in
+         *  combat. `retireDepartingCombatant` (`gre/state.ts`) renames the
+         *  departed object's slots in `attackerIds`, `blockedAttackerIds`,
+         *  `blockerAssignments`, `attackTargets` and `bands` to the tombstone,
+         *  so they read exactly as a death leaves them while a card back
+         *  under the same id (a blink, CR 400.7) is in none of them. Read only
+         *  by last-known lookups of the departed object by its original id
+         *  (`getAttackTarget`, the `combatPartnerOf` filter). Cleared at
+         *  END_OF_COMBAT with the rest of `combat`. */
+        departedCombatants?: Record<string, string>;
         /** CR 508.1g / 701.43d — the declared attackers whose controller chose
          *  to pay the OPTIONAL "you may exert this creature as it attacks"
          *  cost. Toggled while the declaration is still open (the choice is

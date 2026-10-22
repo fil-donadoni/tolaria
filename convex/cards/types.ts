@@ -1305,6 +1305,21 @@ export interface TargetSelection {
      *  misses every triggered-ability case. Undefined for every other
      *  `TargetSelection.type`. */
     stackSourceId?: string;
+    /** `type: "permanent"` ONLY (issue #6333) — the targeted object has left
+     *  the battlefield since it was targeted. CR 400.7 makes a permanent that
+     *  leaves the battlefield a new object, and CR 608.2b makes "a target
+     *  that's no longer in the zone it was in when it was targeted" illegal —
+     *  but an instance id is never reallocated, so a blink (Ephemerate) puts a
+     *  card back under the SAME id and a zone-existence lookup alone would find
+     *  it legal again. Stamped by `removePermanentTo`, the single battlefield-
+     *  departure funnel, on every stack item's selection naming the departing
+     *  id, and read only by the resolution-time legality gate.
+     *
+     *  On the SELECTION, not on a slot list beside it (`illegalTargetSlots`):
+     *  departure is a fact about the OBJECT, so every slot naming it is illegal
+     *  alike, and a retarget (a copy's new targets, CR 707.10c) replaces the
+     *  selection and drops the stamp with it — no clear site to forget. */
+    departed?: true;
 }
 
 /** The announced target slots that are still LEGAL, in announced order, with
