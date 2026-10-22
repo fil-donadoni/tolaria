@@ -1186,9 +1186,30 @@ describe("/bot-audit is keyed to the code it drives (ADR 0149, issue #4926)", ()
         }
     });
 
-    it("its seed-theme headings are keys of the closed AUDIT_THEMES list, verbatim", async () => {
-        const { AUDIT_THEMES } =
-            await import("../../convex/gre/ai/blade/auditThemes");
+    it("its seed-theme headings are keys of the closed AUDIT_THEMES list, verbatim", () => {
+        // Read from the module's SOURCE, never imported: `auditThemes.ts` is a
+        // bot-only module and this is an application test
+        // (`bot-suite-boundary.test.ts`). The keys sit one per line inside
+        // the `AUDIT_THEMES = { … } as const` literal.
+        const src = fs.readFileSync(
+            path.join(
+                REPO_ROOT,
+                "convex",
+                "gre",
+                "ai",
+                "blade",
+                "auditThemes.ts"
+            ),
+            "utf8"
+        );
+        const literal = src.slice(
+            src.indexOf("export const AUDIT_THEMES = {"),
+            src.indexOf("} as const;")
+        );
+        const themes = new Set(
+            [...literal.matchAll(/^\s{4}"([^"]+)":/gm)].map((m) => m[1]!)
+        );
+        expect(themes.size).toBeGreaterThanOrEqual(10);
         const seams = fs.readFileSync(
             path.join(REPO_ROOT, ".claude", "skills", "bot-audit", "seams.md"),
             "utf8"
@@ -1197,10 +1218,10 @@ describe("/bot-audit is keyed to the code it drives (ADR 0149, issue #4926)", ()
             (m) => m[1]!
         );
         expect(headings.length).toBeGreaterThanOrEqual(5);
-        expect(headings.filter((h) => !(h in AUDIT_THEMES))).toEqual([]);
+        expect(headings.filter((h) => !themes.has(h))).toEqual([]);
         // Every theme the list holds is named somewhere in the seam map, so a
         // theme added to the code owes the skill its seam list.
-        const unmapped = Object.keys(AUDIT_THEMES).filter(
+        const unmapped = [...themes].filter(
             (theme) => !seams.includes("`" + theme + "`")
         );
         expect(unmapped, "theme(s) with no seam list in seams.md").toEqual([]);
