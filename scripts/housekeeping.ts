@@ -439,10 +439,12 @@ export const CLOSED_CLAIMS_STEP: Step = {
 };
 
 /** Step 0b, every run (issue #6381): the primary checkout's corpus cache
- *  against ITS pin. A re-pin merging leaves the gitignored cache one bulk
- *  behind in every checkout; the workspace and every worktree seed from the
- *  primary, so a stale one costs each of them a download. Keeps a matching
- *  cache, else fetches the pinned bulk; a failure is logged and retried. */
+ *  against the pin of the tree IT has checked out. A re-pin merging leaves
+ *  the gitignored cache one bulk behind; the workspace and every worktree
+ *  seed from the primary, so a stale one costs each of them a download. Keeps
+ *  a matching cache, else fetches the pinned bulk. A primary still on the
+ *  older pin refreshes to THAT one (worktrees on the new pin download their
+ *  own); a failure is logged and retried by the next run. */
 export const CORPUS_REFRESH_STEP: Step = {
     label: "corpus:ensure (primary)",
     argv: ["bun", "scripts/ensure-corpus.ts"],
