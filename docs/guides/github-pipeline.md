@@ -1270,7 +1270,12 @@ summary carries the PR link and title, why the queue refuses it (the
 
 **Owner-side setting.** GitHub → Settings → Notifications → Actions: email,
 **failed workflows only**. Without it the failed run is only a red mark on the
-Actions tab. Same safety shape as [`pr-gate`](#pr-gate): the base's code, the
+Actions tab. The failed-run email is the pipeline's ONLY email channel, so
+the same page also turns the rest off: under _Subscriptions_, **Watching**
+and **Participating, @mentions and custom** → web only (email unchecked).
+Every PR and issue is authored by the owner's account, so with email on there
+the owner is mailed every Mergify comment, every squash merge and every
+issue closed by a `Closes #N` — at 10 issues/h, hundreds a day. Same safety shape as [`pr-gate`](#pr-gate): the base's code, the
 PR read as data through the API, nothing of it in a `run:` line, no secret.
 
 ### weekly-report
