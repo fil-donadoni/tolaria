@@ -253,6 +253,7 @@ const NEUTRAL_ROWS = [
     "becomeCopy",
     "captureBinding",
     "chooseCreatureType",
+    "chooseLandType",
     "chooseNumber",
     "coinFlipSeries",
     "delayedTrigger",
@@ -281,6 +282,7 @@ const NEUTRAL_ROWS = [
 ];
 const BINDING_ONLY = [
     "chooseCreatureType",
+    "chooseLandType",
     "chooseNumber",
     "coinFlipSeries",
     "mayPay",
