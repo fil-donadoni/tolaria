@@ -270,7 +270,8 @@ describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("choose-permanents");
         expect(head.allControllers).toBe(true);
-        expect(head.count).toEqual({ min: 0, max: 6 });
+        // "up to six" clamps to the three lands in play.
+        expect(head.count).toEqual({ min: 0, max: 3 });
 
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
