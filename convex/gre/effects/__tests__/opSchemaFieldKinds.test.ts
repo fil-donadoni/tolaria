@@ -22,6 +22,7 @@ import { isBindingDeclarationField } from "../bindingFields";
 const DECLARATIONS = [
     "castDuringResolution.resultBind:boolean",
     "chooseCreatureType.bind:picks",
+    "chooseLandType.bind:picks",
     "chooseNumber.bind:number",
     "choice.bind:picks",
     "choice.bindOther:snapshot",

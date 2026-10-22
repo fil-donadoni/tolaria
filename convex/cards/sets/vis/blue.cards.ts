@@ -42,7 +42,7 @@ export const impulse = defineCard(() => ({
 // Vision Charm — {U} instant, a three-mode "Choose one —" charm (CR 700.2).
 //
 // The caster locks in ONE mode as part of casting and announces that mode's
-// target then (CR 601.2b–c / 700.2d), so each mode carries its own
+// target then (CR 601.2b, CR 601.2c), so each mode carries its own
 // `targetRequirement` (a player, none, or an artifact).
 //   • mode "mill" — "Target player mills four cards" (CR 701.17).
 //   • mode "land-type" — NO target. Its two picks are neither modes nor

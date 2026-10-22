@@ -8146,6 +8146,34 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
         ).toBeGreaterThan(0);
     });
 
+    it('CR 205.3i — `chooseLandType` binds a land type that `setSubtype` reads under family "land"; `basic` has only a `true` form', () => {
+        const chooseLand = (extra: Record<string, unknown> = {}) => ({
+            op: "chooseLandType",
+            player: "controller",
+            prompt: "Choose a land type",
+            bind: "$type",
+            ...extra,
+        });
+        const set = {
+            op: "setSubtype",
+            target: { target: 0 },
+            subtypes: { ref: "$type" },
+            family: "land",
+            duration: { phase: "end-of-turn" },
+        };
+        expect(run([chooseLand(), set])).toEqual([]);
+        expect(run([chooseLand({ basic: true }), set])).toEqual([]);
+        expect(run([chooseLand({ basic: false }), set]).length).toBeGreaterThan(
+            0
+        );
+        const unbound = { ...chooseLand() } as Record<string, unknown>;
+        delete unbound.bind;
+        expect(run([unbound]).length).toBeGreaterThan(0);
+        expect(
+            run([chooseLand(), { ...set, family: "artifact" }]).length
+        ).toBeGreaterThan(0);
+    });
+
     it("CR 509.3d — `becomes-blocked-by` requires `watch`, reads `$event`, and alone accepts `blockerColors`", () => {
         expect(run([blocked({ blockerColors: ["G"] })])).toEqual([]);
         expect(run([blocked({})])).toEqual([]);
