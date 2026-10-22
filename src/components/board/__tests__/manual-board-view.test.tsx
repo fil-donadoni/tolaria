@@ -98,9 +98,33 @@ vi.mock("@convex/cards", () => ({
 }));
 // The Full Catalogue is a ~34k-row lazy asset; the row classifier's documented
 // fail-safe is "unresolvable → back row", which is exactly this state.
-vi.mock("~/lib/fullCatalogue", () => ({
-    useFullCatalogue: () => ({ rows: undefined, error: null }),
+// Mutable so a test can hand the catalogue over AFTER first paint (#2348).
+const catalogue = vi.hoisted(() => ({
+    rows: undefined as
+        | import("~/lib/fullCatalogue").FullCatalogueRow[]
+        | undefined,
 }));
+vi.mock("~/lib/fullCatalogue", () => ({
+    useFullCatalogue: () => ({ rows: catalogue.rows, error: null }),
+}));
+// Spy on the back-row split the REAL battlefield hands its layout (#2348):
+// happy-dom has no geometry, but the land / other counts are what the
+// classifier decides.
+const backSplits = vi.hoisted(() => [] as { left: number; right: number }[]);
+vi.mock("~/lib/board-layout", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("~/lib/board-layout")>();
+    return {
+        ...actual,
+        bandedRowsLayout: (
+            opts: Parameters<typeof actual.bandedRowsLayout>[0]
+        ) => {
+            for (const b of opts.bands) {
+                if ("split" in b && b.split) backSplits.push({ ...b.split });
+            }
+            return actual.bandedRowsLayout(opts);
+        },
+    };
+});
 vi.mock("~/hooks/useIsPortrait", () => ({ useIsPortrait: () => false }));
 vi.mock("~/hooks/useViewportMode", () => ({
     useViewportMode: () => "desktop",
@@ -139,6 +163,10 @@ function renderBoard() {
 }
 
 beforeEach(cleanup);
+beforeEach(() => {
+    catalogue.rows = undefined;
+    backSplits.length = 0;
+});
 beforeEach(() => {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
 });
@@ -501,5 +529,60 @@ describe("manual-mode QA round 3 — reveal, life steps, notes, hotkeys, peek", 
         expect(MUTATIONS.manualSetPhase).not.toHaveBeenCalled();
         expect(MUTATIONS.manualEndTurn).not.toHaveBeenCalled();
         input.remove();
+    });
+});
+
+// Issue #2348: a land dealt from a decklist sits in the lands half of the back
+// row, and cards re-classify when the Full Catalogue arrives after first paint.
+// Root cause: an id mismatch — the catalogue keeps one representative printing
+// per card while a deck holds any printing, so the print-id lookup missed and
+// the fail-safe ranked the land "other" (fixed by the NAME fallback in
+// `makeCatalogueRowLookup`).
+describe("the manual back row split through the real battlefield (#2348)", () => {
+    const catalogueRow = (name: string, typeLine: string) => ({
+        name,
+        printId: "00000000-0000-0000-0000-00000000000f",
+        typeLine,
+        manaCost: "",
+        cmc: 0,
+        colourIdentity: "",
+        set: "lea",
+        rarity: "common",
+        nameFold: name.toLowerCase(),
+        available: true,
+    });
+
+    function board() {
+        const state = manualState([
+            manualSeat("me", {
+                battlefield: [
+                    manualCard("swamp", { name: "Swamp" }),
+                    manualCard("relic", { name: "Sol Ring" }),
+                ],
+            }),
+            manualSeat("opp", { hand: [null] }),
+        ]);
+        return (
+            <ManualBoardView
+                gameId={"game-id" as never}
+                viewerId="me"
+                state={state}
+            />
+        );
+    }
+
+    const lastSplit = () => backSplits[backSplits.length - 1];
+
+    it("moves a land from the noncreature half to the lands half once the catalogue loads", () => {
+        const { rerender } = render(board());
+        expect(lastSplit()).toEqual({ left: 0, right: 2 });
+
+        // The land's print id is NOT the catalogue's representative printing.
+        catalogue.rows = [
+            catalogueRow("Swamp", "Basic Land — Swamp"),
+            catalogueRow("Sol Ring", "Artifact"),
+        ];
+        rerender(board());
+        expect(lastSplit()).toEqual({ left: 1, right: 1 });
     });
 });
