@@ -20,7 +20,12 @@ import {
     RESTORE_COMMIT_SUBJECT,
     restoreHeaderHashes,
 } from "../lib/derived-in-pr";
-import { restoreDerivedState, type RestoreGit } from "../land-ready";
+import { TREE_ROLE_ENV, treeRole } from "../lib/derived-state";
+import {
+    preQueueEnv,
+    restoreDerivedState,
+    type RestoreGit,
+} from "../land-ready";
 
 /** A lockfile text in the committed shape: header block, then the row arrays. */
 function lockfile(
@@ -419,5 +424,16 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
         ).toBe(true);
         expect(git("rev-parse", "HEAD").trim()).toBe(before);
         expect(lines[0]).toContain("carries no derived state");
+    });
+});
+
+describe("land:ready preQueueEnv — a PR tree is judged as a draft (issue #6353)", () => {
+    // A second `land:ready` (a repair, a rebase, a re-queue) finds the restore
+    // already made: nothing carried, the header the merge-base's, compiler
+    // sources moved. Judged as `base`, check:oracle's tier 1 reds on drift.
+    it("an already-restored PR (nothing carried) is still judged as a draft, never base", () => {
+        const env = preQueueEnv({ [TREE_ROLE_ENV]: "base", PATH: "/bin" });
+        expect(treeRole(env)).toBe("draft");
+        expect(env.PATH).toBe("/bin");
     });
 });

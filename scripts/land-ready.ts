@@ -35,12 +35,13 @@
  * queue. `restoreDerivedState` checks the catalogue files out at the
  * merge-base, rewrites the header hashes to the merge-base's (rows kept,
  * `lib/derived-in-pr.ts`), commits with `--no-verify` and pushes — the
- * hand-off push. Nothing carried = no commit, and the pre-queue steps judge
- * the tree as before (`base`: its derived bytes are its own, fresh). After
- * a restore they run with the tree judged as a DRAFT
- * (`TOLARIA_TREE_ROLE=draft`, the queue's own role): `check:oracle` judges
- * rows per row — with the corpus cache, copied from the primary checkout
- * when the worktree lacks it — never the header the base owns.
+ * hand-off push. Nothing carried = no commit. Either way the pre-queue steps
+ * judge the tree as a DRAFT (`TOLARIA_TREE_ROLE=draft`, the queue's own
+ * role, issue #6353): a PR tree never owns its header — "nothing carried" is
+ * also a PR an earlier `land:ready` already restored, whose header is the
+ * merge-base's while its compiler sources moved — so `check:oracle` judges
+ * rows per row, with the corpus cache copied from the primary checkout when
+ * the worktree lacks it, never the header the base owns.
  *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
@@ -72,7 +73,7 @@ import { staleToolingRefusal } from "./lib/stale-tooling";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
-import { TREE_ROLE_ENV, type TreeRole } from "./lib/derived-state";
+import { TREE_ROLE_ENV } from "./lib/derived-state";
 import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
 import {
     carriesNothing,
@@ -178,17 +179,19 @@ export function landRefusals(
 /** `gate.ts` exit 77: INFRA, nothing ran — never a red step. */
 const GATE_INFRA = 77;
 
-/** One command at the light tier; 77 aborts (re-issue), never reads as red.
- *  `role` is how the tree is judged (ADR 0157): `draft` once
- *  `restoreDerivedState` made its commit — the derived state is then the
- *  merge-base's, the base's to write, and `check:oracle` judges rows per
- *  row; `base` when nothing was carried — the tree's derived bytes are its
- *  own and fresh, judged as before. */
-function execLight(
-    command: string,
-    cwd: string,
-    role: TreeRole
-): { ok: boolean; ms: number } {
+/**
+ * The environment every pre-queue step runs in: the PR tree judged as a
+ * `draft`, the role the queue's lane gives it (ADR 0157, issue #6353). Never
+ * `base`, whatever the caller's environment says and whether or not this run
+ * made a restore commit: a PR's derived state is the merge-base's — restored
+ * now or by an earlier `land:ready` — and the base's to write.
+ */
+export function preQueueEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    return { ...env, [TREE_ROLE_ENV]: "draft" };
+}
+
+/** One command at the light tier; 77 aborts (re-issue), never reads as red. */
+function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
     const t0 = Date.now();
     const r = spawnSync(
         "bun",
@@ -196,7 +199,7 @@ function execLight(
         {
             stdio: "inherit",
             cwd,
-            env: { ...process.env, [TREE_ROLE_ENV]: role },
+            env: preQueueEnv(process.env),
         }
     );
     if (r.status === GATE_INFRA) {
@@ -312,11 +315,7 @@ const REAL_RESTORE_GIT: RestoreGit = {
  * returns the head the queue will test — the new commit's, or the one the
  * session pushed when nothing was carried.
  */
-function restoreAndPush(
-    pr: number,
-    headOid: string,
-    branch: string
-): { head: string; role: TreeRole } {
+function restoreAndPush(pr: number, headOid: string, branch: string): string {
     assertPrWorktree(pr, headOid);
     git(["fetch", "-q", "origin", BASE_BRANCH]);
     // Issue #6341 — before any write: a worktree forked before the base moved
@@ -345,7 +344,10 @@ function restoreAndPush(
             `derived-state restore failed (${(err as Error).message}) — worktree reset to ${headOid.slice(0, 10)}; fix and re-run`
         );
     }
-    if (carriesNothing(carried)) return { head: headOid, role: "base" };
+    // Both paths judge the tree as a draft (`preQueueEnv`), so both need
+    // the corpus cache.
+    ensureCorpusForDraft(process.cwd());
+    if (carriesNothing(carried)) return headOid;
     const head = git(["rev-parse", "HEAD"]).trim();
     const pushed = spawnSync(
         "git",
@@ -365,8 +367,7 @@ function restoreAndPush(
     console.log(
         `land:ready: pushed ${head.slice(0, 10)} — \`${RESTORE_COMMIT_SUBJECT}\` (${carried.catalogue.length} catalogue file(s), header ${carried.headerKeys.join(", ") || "unchanged"})`
     );
-    ensureCorpusForDraft(process.cwd());
-    return { head, role: "draft" };
+    return head;
 }
 
 /**
@@ -391,12 +392,7 @@ function ensureCorpusForDraft(cwd: string): void {
     console.log(`land:ready: corpus cache copied from ${source}`);
 }
 
-function preQueueGate(
-    pr: number,
-    headOid: string,
-    prBody: string,
-    role: TreeRole
-): void {
+function preQueueGate(pr: number, headOid: string, prBody: string): void {
     assertPrWorktree(pr, headOid);
     const cwd = process.cwd();
     const refusals = landRefusals({ cwd, prBody }, console.log);
@@ -420,7 +416,7 @@ function preQueueGate(
         plan,
         present,
         added: addedPaths(ORIGIN_BASE, cwd),
-        exec: (command) => execLight(command, cwd, role),
+        exec: (command) => execLight(command, cwd),
         log: console.log,
     });
     const seconds = Math.round((Date.now() - t0) / 1000);
@@ -574,12 +570,8 @@ function main(): void {
             process.exit(1);
         }
     }
-    const { head, role } = restoreAndPush(
-        pr,
-        view.headRefOid,
-        view.headRefName
-    );
-    preQueueGate(pr, head, view.body, role);
+    const head = restoreAndPush(pr, view.headRefOid, view.headRefName);
+    preQueueGate(pr, head, view.body);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,
