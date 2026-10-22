@@ -38,6 +38,12 @@ export type PlayerRefIR =
      */
     | { readonly kind: "that-opponent" }
     /**
+     * CR 102.1 — "each of that player's opponents": the opponents of the
+     * player the head named. The words are read here; the lowering site names
+     * the player, and a site that names none refuses the line.
+     */
+    | { readonly kind: "opponents-of-that-player" }
+    /**
      * CR 506.2 + CR 508.5 — "defending player": the player an attacking
      * creature is attacking. The words are read here; WHO they name is the
      * lowering site's to say (an attack head of the source itself), and a site
@@ -70,6 +76,8 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["target opponent", { kind: "target", opponent: true }],
     ["that player", { kind: "that-player" }],
     ["that opponent", { kind: "that-opponent" }],
+    ["each of that player's opponents", { kind: "opponents-of-that-player" }],
+    ["each of that player’s opponents", { kind: "opponents-of-that-player" }],
     ["defending player", { kind: "defending-player" }],
 ]);
 
