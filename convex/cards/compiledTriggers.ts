@@ -33,6 +33,7 @@ import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
+    CardType,
     Color,
     EffectOp,
     GameEvent,
