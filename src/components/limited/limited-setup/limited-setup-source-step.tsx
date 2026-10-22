@@ -18,12 +18,15 @@ export default function LimitedSetupSourceStep({
     sources,
     note,
     onChange,
+    onAdvance,
 }: {
     setup: LimitedSetup;
     sources: readonly PackSourceInfo[];
     /** The fallback note for a remembered source that is gone. */
     note: string | null;
     onChange: (patch: Partial<LimitedSetup>) => void;
+    /** Called after a thumbnail pick — the hero's arrows only browse. */
+    onAdvance?: () => void;
 }) {
     const selected = sources.find((s) => s.key === setup.packSource);
     if (sources.length === 0 || !selected) {
@@ -68,9 +71,10 @@ export default function LimitedSetupSourceStep({
                             source={source}
                             selected={source.key === setup.packSource}
                             disabledReason={reason}
-                            onSelect={() =>
-                                onChange({ packSource: source.key })
-                            }
+                            onSelect={() => {
+                                onChange({ packSource: source.key });
+                                onAdvance?.();
+                            }}
                         />
                     );
                 })}

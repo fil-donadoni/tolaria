@@ -7,3 +7,13 @@ export interface RecapStep<Key extends string = string> {
     /** The answer as the rail shows it; `null` while unanswered. */
     answer: string | null;
 }
+
+/** The step after `current` in walk order; `null` on the last step (or an
+ *  unknown key) — the last step has nothing to advance to. */
+export function stepAfter<Key extends string>(
+    keys: readonly Key[],
+    current: Key
+): Key | null {
+    const i = keys.indexOf(current);
+    return i === -1 ? null : (keys[i + 1] ?? null);
+}

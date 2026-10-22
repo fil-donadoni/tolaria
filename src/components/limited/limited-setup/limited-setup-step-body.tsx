@@ -11,16 +11,25 @@ export default function LimitedSetupStepBody({
     sources,
     note,
     onChange,
+    onAdvance,
 }: {
     step: LimitedStepKey;
     setup: LimitedSetup;
     sources: readonly PackSourceInfo[];
     note: string | null;
     onChange: (patch: Partial<LimitedSetup>) => void;
+    /** Opens the following step; absent on a multi-control or last step. */
+    onAdvance?: () => void;
 }) {
     switch (step) {
         case "type":
-            return <LimitedSetupTypeStep setup={setup} onChange={onChange} />;
+            return (
+                <LimitedSetupTypeStep
+                    setup={setup}
+                    onChange={onChange}
+                    onAdvance={onAdvance}
+                />
+            );
         case "packSource":
             return (
                 <LimitedSetupSourceStep
@@ -28,6 +37,7 @@ export default function LimitedSetupStepBody({
                     sources={sources}
                     note={note}
                     onChange={onChange}
+                    onAdvance={onAdvance}
                 />
             );
         case "table":

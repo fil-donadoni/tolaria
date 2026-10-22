@@ -159,6 +159,28 @@ export function stepsFor(s: MatchSetup): StepKey[] {
     return steps;
 }
 
+/**
+ * Steps with more than one control (or a control that is not a pick): a
+ * choice there never advances the flow, the Next button does. The rest are
+ * single-control — one click saves the answer and opens the following step.
+ */
+export const MULTI_CONTROL_STEPS: readonly StepKey[] = [
+    "format",
+    "table",
+    "opponentDeck",
+];
+
+/** Whether answering `step` with `patch` advances to the next step. The
+ *  Table step advances on picking a table only; entering a code is confirmed
+ *  with Next. */
+export function advancesOnChoice(
+    step: StepKey,
+    patch: Partial<MatchSetup>
+): boolean {
+    if (step === "table") return "joinTableId" in patch;
+    return !MULTI_CONTROL_STEPS.includes(step);
+}
+
 const MODE_LABEL: Record<GameMode, string> = {
     arena: "Arena",
     cockatrice: "Cockatrice",
