@@ -612,11 +612,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
 
     it("puts an age counter on the permanent at each upkeep (CR 702.24a)", () => {
         const { state, forces } = setup();
-        fireCumulativeUpkeep(
-            state,
-            forces,
-            "illusionary-forces-cumulative-upkeep"
-        );
+        fireCumulativeUpkeep(state, forces, "cumulative-upkeep");
         // Step 0 always runs (counter is added) before the may-pay suspends.
         const live = state.players[0].battlefield.find(
             (c) => c.id === "forces"
@@ -628,7 +624,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         const { state: s2 } = setup();
         const f2 = s2.players[0].battlefield.find((c) => c.id === "forces")!;
         f2.counters = { age: 1 }; // already survived one upkeep
-        fireCumulativeUpkeep(s2, f2, "illusionary-forces-cumulative-upkeep");
+        fireCumulativeUpkeep(s2, f2, "cumulative-upkeep");
         const live2 = s2.players[0].battlefield.find((c) => c.id === "forces")!;
         expect(live2.counters?.age).toBe(2);
     });
@@ -638,11 +634,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         // Second upkeep: already 1 age counter, this upkeep makes it 2.
         forces.counters = { age: 1 };
         state.players[0].manaPool = { U: 1 }; // only enough for ×1, need ×2
-        fireCumulativeUpkeep(
-            state,
-            forces,
-            "illusionary-forces-cumulative-upkeep"
-        );
+        fireCumulativeUpkeep(state, forces, "cumulative-upkeep");
         const head = state.pendingChoices![0];
         // The prompted may-pay cost is {U}{U} (×2). The pool ({U}) can't cover it.
         expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
@@ -657,11 +649,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
     it("declining sacrifices the permanent (CR 702.24a)", () => {
         const { state, forces } = setup();
         state.players[0].manaPool = { U: 5 };
-        fireCumulativeUpkeep(
-            state,
-            forces,
-            "illusionary-forces-cumulative-upkeep"
-        );
+        fireCumulativeUpkeep(state, forces, "cumulative-upkeep");
         answerMayPay(state, false);
         expect(
             state.players[0].battlefield.find((c) => c.id === "forces")
@@ -677,11 +665,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         // prompts (CR 117.3a) but accept is illegal; the bot/decline path
         // sacrifices.
         state.players[0].manaPool = {};
-        fireCumulativeUpkeep(
-            state,
-            forces,
-            "illusionary-forces-cumulative-upkeep"
-        );
+        fireCumulativeUpkeep(state, forces, "cumulative-upkeep");
         const head = state.pendingChoices![0];
         expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
         answerMayPay(state, false);
@@ -693,11 +677,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
     it("paying keeps it and the age counter survives the wire projection", () => {
         const { state, forces } = setup();
         state.players[0].manaPool = { U: 1 };
-        fireCumulativeUpkeep(
-            state,
-            forces,
-            "illusionary-forces-cumulative-upkeep"
-        );
+        fireCumulativeUpkeep(state, forces, "cumulative-upkeep");
         answerMayPay(state, true);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "forces"
@@ -713,7 +693,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
     it("sacrifice-cost CU (Polar Kraken) sacrifices N lands per age (CR 701.21)", () => {
         const { state, kraken } = setup({ lands: 3 });
         kraken.counters = { age: 1 }; // makes 2 this upkeep
-        fireCumulativeUpkeep(state, kraken, "polar-kraken-cumulative-upkeep");
+        fireCumulativeUpkeep(state, kraken, "cumulative-upkeep");
         const head = state.pendingChoices![0];
         // 3 lands available, cost is "sacrifice 2 lands" — payable.
         expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(true);
@@ -731,7 +711,7 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
     it("sacrifice-cost CU with too few lands → can't pay → sacrifice", () => {
         const { state, kraken } = setup({ lands: 1 });
         kraken.counters = { age: 1 }; // needs 2 lands
-        fireCumulativeUpkeep(state, kraken, "polar-kraken-cumulative-upkeep");
+        fireCumulativeUpkeep(state, kraken, "cumulative-upkeep");
         const head = state.pendingChoices![0];
         expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
         answerMayPay(state, false);
@@ -744,28 +724,29 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
 describe("cumulative upkeep — card definitions (CR 702.24, #638)", () => {
     it("each self-CU card carries the age-counter trigger", () => {
         const cards = [
-            { c: arnjlotsAscent, id: "arnjlots-ascent-cumulative-upkeep" },
+            { c: arnjlotsAscent, id: "cumulative-upkeep" },
             {
                 c: illusionaryForces,
-                id: "illusionary-forces-cumulative-upkeep",
+                id: "cumulative-upkeep",
             },
-            { c: illusionaryWall, id: "illusionary-wall-cumulative-upkeep" },
+            { c: illusionaryWall, id: "cumulative-upkeep" },
             {
                 c: illusionsOfGrandeur,
-                id: "illusions-of-grandeur-cumulative-upkeep",
+                id: "cumulative-upkeep",
             },
-            { c: mesmericTrance, id: "mesmeric-trance-cumulative-upkeep" },
-            { c: polarKraken, id: "polar-kraken-cumulative-upkeep" },
-            { c: fyndhornPollen, id: "fyndhorn-pollen-cumulative-upkeep" },
-            { c: maddeningWind, id: "maddening-wind-cumulative-upkeep" },
+            { c: mesmericTrance, id: "cumulative-upkeep" },
+            { c: polarKraken, id: "cumulative-upkeep" },
+            { c: fyndhornPollen, id: "cumulative-upkeep" },
+            { c: maddeningWind, id: "cumulative-upkeep" },
             {
                 c: soldeviSimulacrum,
-                id: "soldevi-simulacrum-cumulative-upkeep",
+                id: "cumulative-upkeep",
             },
         ];
         for (const { c, id } of cards) {
+            expect(c.cumulativeUpkeep).toBeDefined();
             expect(c.triggeredAbilities?.some((t) => t.id === id)).toBe(true);
-            expect(getCardByName(c.name)).toBe(c);
+            expect(getCardByName(c.name).id).toBe(c.id);
         }
     });
 
@@ -1309,7 +1290,7 @@ describe("Restricted-CU mana — Adarkar Unicorn / Snowfall (CR 106.6, ADR 0022/
         // Float CU-restricted {U} (as Adarkar Unicorn / Snowfall would).
         addRestrictedManaToPool(state.players[0], "U", 1, "cumulative-upkeep");
         // Illusionary Forces' printed CU is {U}; pay it entirely from CU mana.
-        fireCU(state, forces, "illusionary-forces-cumulative-upkeep");
+        fireCU(state, forces, "cumulative-upkeep");
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
         expect(state.pendingChoices?.[0]?.manaRestriction).toBe(
             "cumulative-upkeep"
@@ -2351,8 +2332,8 @@ describe("Mystic Might (activated-grant on enchanted land, CR 611/702.24)", () =
         expect(tmpl.cost).toMatchObject({ tap: true });
         expect(tmpl.targetRequirement).toMatchObject({ type: "Creature" });
         expect(
-            mysticMight.triggeredAbilities?.some(
-                (t) => t.id === "mystic-might-cumulative-upkeep"
+            getDefinition(mysticMight.id).triggeredAbilities?.some(
+                (t) => t.id === "cumulative-upkeep"
             )
         ).toBe(true);
     });

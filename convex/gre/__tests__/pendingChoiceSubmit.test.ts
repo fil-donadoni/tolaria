@@ -595,7 +595,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
             ],
         });
         state.players[0].manaPool = { U: 1 };
-        fireCU(state, forces, "illusionary-forces-cumulative-upkeep");
+        fireCU(state, forces, "cumulative-upkeep");
         // Suspended at the may-pay; the mutation's primitive commits the pay.
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
@@ -623,7 +623,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
                 makePlayer("p2"),
             ],
         });
-        fireCU(state, kraken, "polar-kraken-cumulative-upkeep");
+        fireCU(state, kraken, "cumulative-upkeep");
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
         // Kraken kept; the Forest paid the sacrifice leg.
         expect(
@@ -655,7 +655,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
                 makePlayer("p2"),
             ],
         });
-        fireCU(state, kraken, "polar-kraken-cumulative-upkeep");
+        fireCU(state, kraken, "cumulative-upkeep");
         applyMayPaySubmit(state, { playerId: "p1", accept: false });
         expect(
             state.players[0].battlefield.find((c) => c.id === "kraken")

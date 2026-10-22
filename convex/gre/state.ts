@@ -95,6 +95,8 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
     // the beginning of the turn" any more (`gre/controlContinuity.ts`).
     recordControlChangeThisTurn(state, card.id);
     if (card.types.includes("Creature")) card.isSummoningSick = true;
+    // CR 702.30a — a permanent that "came under your control" owes echo anew.
+    armEchoOnArrival(card);
     const from = getPlayer(state, previousControllerId);
     const idx = from.battlefield.findIndex((c) => c.id === card.id);
     if (idx !== -1) from.battlefield.splice(idx, 1);
@@ -3772,15 +3774,6 @@ function finalizeSpellResolution(
         // a creature — a manland animated the turn it entered reads sick, while
         // one controlled since a prior turn (flag already cleared) does not.
         markEnteredThisTurn(item, state.turn);
-        // CR 702.30a — Echo: a permanent that declares the `echo` keyword owes
-        // its echo cost on its controller's first upkeep after it comes under
-        // control. Flag it here (its entry into play); the echo trigger reads
-        // the flag via its intervening-if and `markEchoPaid()` clears it on
-        // payment. (Set only on the spell-resolution ETB path — the sole route
-        // any built echo card enters today.)
-        if (cardDef?.staticAbilities?.includes("echo")) {
-            item.echoPending = true;
-        }
         // CR 702.185a — Warp's second static ability functions while the card is
         // on the stack and creates a delayed triggered ability: "if this
         // spell's warp cost was paid, exile the permanent this spell becomes at
@@ -8443,6 +8436,21 @@ function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
     }
 }
 
+/** CR 702.30a — Echo: "if this permanent came under your control since the
+ *  beginning of your last upkeep". A permanent whose presented definition
+ *  carries the `echo` field owes its echo cost at its controller's next upkeep,
+ *  so the flag is armed on EVERY arrival under a controller — each battlefield
+ *  entry (`markEnteredThisTurn`: spell resolution, put onto the battlefield, a
+ *  played land) and each control change (the relocation hook above) — not only
+ *  the spell-resolution route. The echo trigger reads it through its
+ *  intervening-if and `markEchoPaid()` clears it on payment (ADR 0155). A copy
+ *  presents the copied definition (CR 707.2), so a Clone of an echo creature
+ *  owes echo too. */
+function armEchoOnArrival(card: CardInstanceState): void {
+    const def = tryGetDefinition(presentedDefId(card));
+    if (def?.echo !== undefined) card.echoPending = true;
+}
+
 /** CR 302.6 — marks a permanent as having entered the battlefield (or having
  *  changed control) this turn, starting its control-continuity clock. The
  *  `isSummoningSick` flag is set unconditionally for EVERY permanent — not just
@@ -8471,6 +8479,7 @@ export function markEnteredThisTurn(
 ): void {
     card.isSummoningSick = true;
     card.enteredOnTurn = turn;
+    armEchoOnArrival(card);
     // CR 400.7 (issue #2384) — a permanent that re-enters the battlefield is a
     // NEW object and remembers nothing its previous incarnation captured, so
     // the cross-ability binding memory is dropped at the single entry stamp
@@ -18773,6 +18782,9 @@ export function createTokenPermanents(
             // it names nothing about the placeholder — it is what a later
             // TIMED copy effect on this token reverts to (`applyTimedCopy`).
         }
+        // CR 702.30a — a token copy of an echo permanent entered under this
+        // controller too (`markEnteredThisTurn` is not on the token path).
+        armEchoOnArrival(token);
         // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
         // already on it (Incubate N: "create an Incubator token ... with N
         // +1/+1 counters on it", CR 701.53). Stamped onto the instance before

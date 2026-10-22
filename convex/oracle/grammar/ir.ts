@@ -281,7 +281,20 @@ export type SlotIR =
      * CR 702.37e — a "Morph [cost]" line: the cost to turn the permanent face
      * up, lowered onto `CardDefinition.morph`.
      */
-    | { readonly kind: "morph"; readonly cost: ManaCost };
+    | { readonly kind: "morph"; readonly cost: ManaCost }
+    /**
+     * CR 702.30a — an "Echo [cost]" line, lowered onto `CardDefinition.echo`
+     * (ADR 0155): the `getDefinition` expander derives the upkeep trigger.
+     */
+    | { readonly kind: "echo"; readonly cost: ManaCost }
+    /**
+     * CR 702.24a — a "Cumulative upkeep [cost]" line (the printed, one-age-
+     * counter cost), lowered onto `CardDefinition.cumulativeUpkeep`.
+     */
+    | {
+          readonly kind: "cumulativeUpkeep";
+          readonly cost: ManaCost | { readonly life: number };
+      };
 
 /** A line, the slot that consumed it, and what it means. */
 export interface LineParse {
