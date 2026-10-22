@@ -35,6 +35,7 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
+import { LAND_SUBTYPE_MANA } from "../gre/constants";
 import type { PermanentFilter } from "../cards/filters";
 import {
     chooseColorEffects,
@@ -3710,6 +3711,8 @@ function lowerSentenceBody(
                     ],
                 },
             ]);
+        case "choose-one-per-category":
+            return lowered(lowerChooseOnePerCategory(sentence));
         case "phase-out": {
             // CR 702.26b — one announced permanent; the Op fixes the return
             // (its controller's next untap step, CR 702.26a).
@@ -4811,4 +4814,87 @@ export function declareTargets(
     if (requirements.length > 1)
         ability.additionalTargetRequirements = requirements.slice(1);
     return null;
+}
+
+const COLOR_CATEGORIES: readonly { label: string; color: Color }[] = [
+    { label: "White", color: "W" },
+    { label: "Blue", color: "U" },
+    { label: "Black", color: "B" },
+    { label: "Red", color: "R" },
+    { label: "Green", color: "G" },
+];
+
+/**
+ * CR 101.4 + CR 701.21a / CR 701.9a — `chooseCategorized` over a closed
+ * category axis. Every player's pick is made (APNAP order) before any
+ * sacrifice, so the sacrificing leg is `simultaneous`; a hand is revealed
+ * (CR 701.20a) to everyone before the colour pick, as a pass of its own.
+ */
+function lowerChooseOnePerCategory(
+    sentence: Extract<EffectSentenceIR, { kind: "choose-one-per-category" }>
+): EffectOp[] {
+    const eachPlayer = (
+        effects: EffectOp[],
+        simultaneous = false
+    ): EffectOp => ({
+        op: "forEach",
+        select: { set: "players" },
+        ...(simultaneous ? { simultaneous: true } : {}),
+        effects,
+    });
+    const player: EffectPlayerRef = { ref: "$each" };
+    if (sentence.axis === "color")
+        return [
+            eachPlayer([{ op: "reveal", player, zone: "hand" }]),
+            eachPlayer([
+                {
+                    op: "chooseCategorized",
+                    player,
+                    zone: "hand",
+                    categories: COLOR_CATEGORIES.map(({ label, color }) => ({
+                        label,
+                        filter: { color },
+                    })),
+                    onPicked: "keep",
+                    sweep: {
+                        filter: { excludeType: "Land" },
+                        action: "discard",
+                    },
+                    prompt: "Choose one card of each color to keep.",
+                },
+            ]),
+        ];
+    const categories = Object.keys(LAND_SUBTYPE_MANA).map((subtype) => ({
+        label: subtype,
+        filter: { subtype },
+    }));
+    if (sentence.rest === "return-chosen")
+        return [
+            eachPlayer([
+                {
+                    op: "chooseCategorized",
+                    player,
+                    zone: "battlefield",
+                    categories,
+                    onPicked: "returnToHand",
+                    prompt: "Choose a land of each basic land type to return to hand.",
+                },
+            ]),
+        ];
+    return [
+        eachPlayer(
+            [
+                {
+                    op: "chooseCategorized",
+                    player,
+                    zone: "battlefield",
+                    categories,
+                    onPicked: "keep",
+                    sweep: { filter: { type: "Land" }, action: "sacrifice" },
+                    prompt: "Choose a land of each basic land type to keep; the rest are sacrificed.",
+                },
+            ],
+            true
+        ),
+    ];
 }

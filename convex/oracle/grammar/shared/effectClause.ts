@@ -1671,6 +1671,20 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 101.4 + CR 701.21a / CR 701.9a — "Each player chooses … one
+           * <permanent|card> of each <category>" over a closed category axis
+           * (the five basic land types, the five colours): every player (APNAP
+           * order) keeps one member per category — one member may answer
+           * several — and `rest` says what happens to the others, only after
+           * all the choices are made. `return-chosen` is the other leg: the
+           * picked lands go to their owners' hands and nothing else is swept.
+           */
+          readonly kind: "choose-one-per-category";
+          readonly axis: "basic-land-type" | "color";
+          readonly rest: "sacrifice" | "discard-nonland" | "return-chosen";
+      }
+    | {
+          /**
            * CR 701.22a — "Scry N": the controller looks at the top N cards of
            * their library, puts any number on the bottom and the rest back on
            * top in any order. One sentence, one action.
@@ -1909,6 +1923,14 @@ export type SentenceIR =
      * no effect of its own and is never lowered.
      */
     | { readonly role: "choose-color" }
+    /**
+     * CR 101.4 — "Each player chooses a land they control of each basic land
+     * type.": the pick whose fate the NEXT sentence ("Return those lands to
+     * their owners' hands.") names. Folded with it into one
+     * `choose-one-per-category` by `assembleSentences`; either alone is refused.
+     */
+    | { readonly role: "choose-per-basic-land-type" }
+    | { readonly role: "return-chosen-lands" }
     /**
      * CR 107.3f (issue #4529) — the two sentences of a variable payment:
      * "You may pay {X}." then "If you do, <effect>." Folded into one
@@ -2168,6 +2190,8 @@ export function assembleSentences(
         SentenceIR,
         { role: "flashback-grant" }
     > | null = null;
+    // CR 101.4 — a per-land-type pick waits for the sentence that returns it.
+    let landTypePick = false;
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
@@ -2345,6 +2369,40 @@ export function assembleSentences(
                 ok: false,
                 reason: '"If you do, …" follows no "You may pay {X}"',
             };
+        if (landTypePick) {
+            if (sentence.role !== "return-chosen-lands")
+                return {
+                    ok: false,
+                    reason: "a pick of a land of each basic land type is not followed by what happens to those lands",
+                };
+            effects.push({
+                kind: "choose-one-per-category",
+                axis: "basic-land-type",
+                rest: "return-chosen",
+            });
+            landTypePick = false;
+            continue;
+        }
+        if (sentence.role === "return-chosen-lands")
+            return {
+                ok: false,
+                reason: '"Return those lands" follows no pick of a land of each basic land type',
+            };
+        if (sentence.role === "choose-per-basic-land-type") {
+            if (
+                restrictions.length > 0 ||
+                window !== null ||
+                awaitingColorChoice ||
+                revealUntil !== null ||
+                piles !== null
+            )
+                return {
+                    ok: false,
+                    reason: "a pick per basic land type follows an unfinished sentence run",
+                };
+            landTypePick = true;
+            continue;
+        }
         if (flashbackGrant !== null) {
             if (sentence.role !== "flashback-cost")
                 return {
@@ -2953,6 +3011,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a chosen card name is never read back",
+        };
+    if (landTypePick)
+        return {
+            ok: false,
+            reason: "a pick of a land of each basic land type is the last sentence and returns nothing",
         };
     if (awaitingColorChoice)
         return {
@@ -4054,6 +4117,17 @@ const SHUFFLE_GRAVEYARD_BACK =
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
+/** CR 101.4 — the first sentence of the per-land-type bounce. */
+const CHOOSE_LAND_PER_BASIC_TYPE =
+    /^Each player chooses a land they control of each basic land type$/;
+/** CR 101.4 — its second sentence: the picked lands go back to hand. */
+const RETURN_CHOSEN_LANDS = /^Return those lands to their owners' hands$/;
+/** CR 101.4 + CR 701.21a — one land per basic land type, sacrifice the rest. */
+const KEEP_LAND_PER_BASIC_TYPE =
+    /^Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest$/;
+/** CR 701.20a + CR 701.9a — reveal the hand, keep one card per colour. */
+const KEEP_CARD_PER_COLOR =
+    /^Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards$/;
 /** CR 702.26b — "<target> phases out". */
 const PHASES_OUT = /^(Target .+) phases out$/;
 /** CR 101.4 — the keep-one-of-each edict, over a list of permanent types. */
@@ -4508,6 +4582,12 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // prints it there, so only the sentence-initial casing is read).
         if (span === "Choose a color")
             return ok({ role: "choose-color" as const });
+        // CR 101.4 — the two sentences of Planar Overlay's per-land-type
+        // bounce (the role's own doc comment).
+        if (CHOOSE_LAND_PER_BASIC_TYPE.test(span))
+            return ok({ role: "choose-per-basic-land-type" as const });
+        if (RETURN_CHOSEN_LANDS.test(span))
+            return ok({ role: "return-chosen-lands" as const });
         if (STILL_TYPE_SELF.test(span))
             return ok({
                 role: "modifier" as const,
@@ -6847,6 +6927,20 @@ function effectSentence(
             types: types as CardType[],
         } satisfies EffectSentenceIR);
     }
+
+    // ── keep one per category, sweep the rest (CR 101.4) ───────────────────
+    if (KEEP_LAND_PER_BASIC_TYPE.test(span))
+        return ok({
+            kind: "choose-one-per-category" as const,
+            axis: "basic-land-type" as const,
+            rest: "sacrifice" as const,
+        } satisfies EffectSentenceIR);
+    if (KEEP_CARD_PER_COLOR.test(span))
+        return ok({
+            kind: "choose-one-per-category" as const,
+            axis: "color" as const,
+            rest: "discard-nonland" as const,
+        } satisfies EffectSentenceIR);
 
     // ── phase out (CR 702.26b) ──────────────────────────────────────────────
     const phasesOut = span.match(PHASES_OUT);

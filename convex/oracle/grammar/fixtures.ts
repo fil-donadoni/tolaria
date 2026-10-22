@@ -8195,6 +8195,182 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 101.4 + CR 701.21a — "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest": `chooseCategorized` over the five basic land types acts on `$each`, which the canned smoke scenario does not model (issue #5501).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4a7b89b2-5fe9-4d39-9d42-3ca78bcf6d40",
+            name: "Global Ruin",
+            manaCost: "{4}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Global Ruin",
+            types: ["Sorcery"],
+            manaCost: { X: 4, W: 1 },
+            oracleText:
+                "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "chooseCategorized",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            categories: [
+                                {
+                                    label: "Plains",
+                                    filter: { subtype: "Plains" },
+                                },
+                                {
+                                    label: "Island",
+                                    filter: { subtype: "Island" },
+                                },
+                                {
+                                    label: "Swamp",
+                                    filter: { subtype: "Swamp" },
+                                },
+                                {
+                                    label: "Mountain",
+                                    filter: { subtype: "Mountain" },
+                                },
+                                {
+                                    label: "Forest",
+                                    filter: { subtype: "Forest" },
+                                },
+                            ],
+                            onPicked: "keep",
+                            sweep: {
+                                filter: { type: "Land" },
+                                action: "sacrifice",
+                            },
+                            prompt: "Choose a land of each basic land type to keep; the rest are sacrificed.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 101.4 — "Each player chooses a land they control of each basic land type. Return those lands to their owners' hands.": the two-sentence bounce, `chooseCategorized` on `$each` (issue #5501).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "a7be1624-04cc-4ed5-8b05-63b633893dee",
+            name: "Planar Overlay",
+            manaCost: "{2}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player chooses a land they control of each basic land type. Return those lands to their owners' hands.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Planar Overlay",
+            types: ["Sorcery"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Each player chooses a land they control of each basic land type. Return those lands to their owners' hands.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "chooseCategorized",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            categories: [
+                                {
+                                    label: "Plains",
+                                    filter: { subtype: "Plains" },
+                                },
+                                {
+                                    label: "Island",
+                                    filter: { subtype: "Island" },
+                                },
+                                {
+                                    label: "Swamp",
+                                    filter: { subtype: "Swamp" },
+                                },
+                                {
+                                    label: "Mountain",
+                                    filter: { subtype: "Mountain" },
+                                },
+                                {
+                                    label: "Forest",
+                                    filter: { subtype: "Forest" },
+                                },
+                            ],
+                            onPicked: "returnToHand",
+                            prompt: "Choose a land of each basic land type to return to hand.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.20a + CR 701.9a — "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards": reveal and `chooseCategorized` on `$each` (issue #5501).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "cd16634e-b894-4cff-9d5b-408932863c1f",
+            name: "Noxious Vapors",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Noxious Vapors",
+            types: ["Sorcery"],
+            manaCost: { X: 1, B: 2 },
+            oracleText:
+                "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: { ref: "$each" },
+                            zone: "hand",
+                        },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "chooseCategorized",
+                            player: { ref: "$each" },
+                            zone: "hand",
+                            categories: [
+                                { label: "White", filter: { color: "W" } },
+                                { label: "Blue", filter: { color: "U" } },
+                                { label: "Black", filter: { color: "B" } },
+                                { label: "Red", filter: { color: "R" } },
+                                { label: "Green", filter: { color: "G" } },
+                            ],
+                            onPicked: "keep",
+                            sweep: {
+                                filter: { excludeType: "Land" },
+                                action: "discard",
+                            },
+                            prompt: "Choose one card of each color to keep.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 608.2h + CR 119.3 — "Destroy target artifact. It can't be
     // regenerated. That artifact's controller gains life equal to its mana
     // value": the same acted-on controller as Swords to Plowshares, with the
