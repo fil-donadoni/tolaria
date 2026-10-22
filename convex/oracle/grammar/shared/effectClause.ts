@@ -967,7 +967,7 @@ export type EffectSentenceIR =
      */
     | { readonly kind: "assigns-no-combat-damage" }
     /**
-     * CR 508.1c + CR 611.2b — "Until your next turn, you can't be attacked
+     * CR 508.1c — "Until your next turn, you can't be attacked
      * except by creatures with flying and/or islandwalk": a player-scoped
      * attack restriction (it binds the attackers declared against the
      * controller, not a permanent) that lasts until the controller's next
