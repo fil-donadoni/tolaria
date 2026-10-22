@@ -23,7 +23,14 @@
 // exists to avoid.
 
 import { releaseEditArgs } from "./claim-labels";
-import { capRefusal, type Admission, type MachineScope } from "./queue-plan";
+import type { ClaimVerdictState } from "../loop-doctor";
+import {
+    capCensus,
+    capRefusal,
+    type Admission,
+    type CapCensus,
+    type MachineScope,
+} from "./queue-plan";
 
 // ── The decision ─────────────────────────────────────────────────────────────
 
@@ -225,6 +232,54 @@ export function liveClaimSet(
                 .map((i) => i.number)
         ),
     ].sort((a, b) => a - b);
+}
+
+/**
+ * The sets `claimDecision` reads, from ONE classification (issue #6354).
+ *
+ * The cap's census runs over the RECONCILED set (this machine's `released`
+ * rows out); the collision check over every live label, local releases kept
+ * (issue #5302 review). Classifying only the reconciled set left a claim
+ * released here and since stranded elsewhere (re-labelled by another pass,
+ * PR opened, owner dead) in neither `recoverable` nor `stranded`, so it
+ * collided and a `--resume` pass could not take it over — while
+ * `loop:doctor` listed it STRANDED. Both sets are now classified: a
+ * `released` row clears the journal owner (`parseClaimOwners`), so such a
+ * claim is `stranded` only on a positive death reading (`land-failed`, an
+ * ended `afk-pass` run) and the other machine's live work stays `live`.
+ */
+export function claimSets<I extends StaleRuleIssue>(input: {
+    claimed: I[];
+    issuesWithOpenPr: number[];
+    released: number[];
+    nowIso: string;
+    staleClaimHours: number;
+    isStale: Parameters<typeof liveClaimSet>[5];
+    /** `loop-doctor`'s `claimVerdicts`, bound — the ONE liveness classifier. */
+    classify: (issues: I[]) => Map<number, ClaimVerdictState>;
+}): CapCensus & { collide: number[] } {
+    const set = (released: number[]) =>
+        liveClaimSet(
+            input.claimed,
+            input.issuesWithOpenPr,
+            released,
+            input.nowIso,
+            input.staleClaimHours,
+            input.isStale
+        );
+    const candidates = set([]);
+    const reconciled = set(input.released);
+    const verdicts = input.classify(
+        input.claimed.filter((i) => candidates.includes(i.number))
+    );
+    const all = capCensus(candidates, verdicts);
+    // A claim proved dead (`recoverable`/`stranded`) stays out of the
+    // collision set, so a pass RESUMING one is admitted.
+    const dead = new Set([...all.recoverable, ...all.stranded]);
+    return {
+        ...capCensus(reconciled, verdicts),
+        collide: candidates.filter((n) => !dead.has(n)),
+    };
 }
 
 // ── The lock ─────────────────────────────────────────────────────────────────
