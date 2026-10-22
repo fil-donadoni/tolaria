@@ -90,9 +90,9 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "copy.ts",
-        count: 5,
+        count: 12,
         role: "copy",
-        reason: "a copy effect's CR 707.9 art-pin exception (Eternalize / Embalm token frame) is set on apply and cleared on revert.",
+        reason: "a copy effect shows the copied object's art (or its CR 707.9 token-frame pin), remembers the copier's own print and restores it on revert; a face-down source lends none (CR 708.5).",
     },
     {
         file: "effects/interpreter.ts",
