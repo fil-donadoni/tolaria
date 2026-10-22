@@ -825,8 +825,8 @@ const combatRoleFilterDescriptor = defineFilter<
 // {self}", Cromat). `value` is the partnered object's instance id, bound from
 // the `combatPartnerOfSource` directive. The relationship is read live from
 // `combatPartnerIds`, whose assignments outlive the object's leaving the
-// battlefield — the CR 608.2b last-known information of a source that is gone
-// by resolution. Both sides' OWN combat flags gate it too: a creature removed
+// battlefield under a tombstone id (`departedCombatants`, issue #6333) — the
+// CR 608.2b last-known information of a source that is gone by resolution. Both sides' OWN combat flags gate it too: a creature removed
 // from combat (CR 506.4 — e.g. one that regenerated) stops blocking or being
 // blocked by anything, even where an assignment list still names it. The
 // source's flags are read only while it is still on the battlefield.
@@ -837,9 +837,14 @@ const combatPartnerOfDescriptor = defineFilter<string>({
             const source = findPermanent(ctx.state, value);
             const sourceInCombat =
                 !source || source.isAttacking || source.isBlocking;
+            // A source that has LEFT the battlefield keeps its combat slots
+            // under a tombstone id (issue #6333, `retireDepartingCombatant`).
+            const recordId = source
+                ? value
+                : (ctx.state.combat?.departedCombatants?.[value] ?? value);
             return sourceInCombat &&
                 (card.isAttacking || card.isBlocking) &&
-                combatPartnerIds(ctx.state, value).includes(card.id)
+                combatPartnerIds(ctx.state, recordId).includes(card.id)
                 ? null
                 : "Target must be blocking or blocked by the source";
         },

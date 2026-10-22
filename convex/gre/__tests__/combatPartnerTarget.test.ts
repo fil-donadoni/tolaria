@@ -24,6 +24,7 @@ import {
     getPlayer,
     regenerateOrDestroy,
     removePermanentFromCombat,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../state";
 import { activateAbilityOnState, applyOneTargetSelection } from "../../game";
@@ -180,6 +181,24 @@ describe("Cromat — target creature blocking or blocked by {self} (CR 509.1g, i
         });
         getPlayer(state, "p1").battlefield = [];
         getPlayer(state, "p1").library.unshift({ ...cromat, zone: "library" });
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "partner")).toBe(false);
+    });
+
+    it("resolution: Cromat that left through the departure funnel still partners by last-known information (CR 608.2b, issue #6333)", () => {
+        // The production departure path, not a hand-moved card: the funnel
+        // retires Cromat's combat slots under a tombstone id, and the filter
+        // must still find them by Cromat's own id.
+        const state = board("attacking");
+        const cromat = getPlayer(state, "p1").battlefield[0];
+        state.stack.push({
+            ...cromat,
+            zone: "stack",
+            castById: "p1",
+            abilityId: DESTROY,
+            targets: [{ type: "permanent", id: "partner" }],
+        });
+        removePermanentTo(state, "cromat", "hand");
         resolveTopOfStack(state);
         expect(onBattlefield(state, "partner")).toBe(false);
     });
