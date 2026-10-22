@@ -293,6 +293,9 @@ describe("CR 508.4 — a token entering attacking chooses what it attacks (issue
 
     it("CR 506.3b: a token the attacking player does not control owes no choice and never attacks", () => {
         const state = combatWithScript(MAKE_ONE, [planeswalker("pw-1", "p2")]);
+        // A planeswalker on the ATTACKING side too, so a choice owed by p2's
+        // token would have two options and really be offered.
+        state.players[0].battlefield.push(planeswalker("pw-p1", "p1"));
         state.stack = [];
         pushSpell(state, MAKE_ONE, "p2");
         resolveTopOfStack(state);
