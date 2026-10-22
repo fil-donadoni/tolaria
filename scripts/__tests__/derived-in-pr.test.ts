@@ -14,6 +14,7 @@ import {
     carriesNothing,
     derivedCarried,
     derivedInDiffProblems,
+    handOff,
     HEADER_HASH_KEYS,
     headerHashes,
     headerHashesDiffering,
@@ -128,6 +129,22 @@ describe("derivedCarried — what a diff carries of the derived state", () => {
         });
         expect(carriesNothing(c)).toBe(true);
         expect(derivedInDiffProblems(c)).toEqual([]);
+    });
+
+    it("the hand-off judges every tree as the queue does — a draft — committing only what is carried (issue #6348)", () => {
+        // A re-run after a repair: the header was restored by the first run,
+        // so nothing is carried — but the tree still holds the merge-base's
+        // derived state, stale for a PR that changed a lockfile input.
+        const none = derivedCarried({
+            changed: [LOCKFILE_PATH],
+            lockfile: rowsOnly,
+        });
+        expect(handOff(none)).toEqual({ commit: false, role: "draft" });
+        const carried = derivedCarried({
+            changed: [CATALOGUE_DERIVED_PATHS[0]!],
+            lockfile: rowsOnly,
+        });
+        expect(handOff(carried)).toEqual({ commit: true, role: "draft" });
     });
 
     it("a changed catalogue file and a moved header hash are each a problem line", () => {

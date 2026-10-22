@@ -35,10 +35,10 @@
  * queue. `restoreDerivedState` checks the catalogue files out at the
  * merge-base, rewrites the header hashes to the merge-base's (rows kept,
  * `lib/derived-in-pr.ts`), commits with `--no-verify` and pushes — the
- * hand-off push. Nothing carried = no commit, and the pre-queue steps judge
- * the tree as before (`base`: its derived bytes are its own, fresh). After
- * a restore they run with the tree judged as a DRAFT
- * (`TOLARIA_TREE_ROLE=draft`, the queue's own role): `check:oracle` judges
+ * hand-off push. Nothing carried = no commit. Either way the pre-queue
+ * steps judge the tree as a DRAFT (`TOLARIA_TREE_ROLE=draft`, the queue's
+ * own role, `handOff`, issue #6348) — a tree carrying nothing holds the
+ * merge-base's derived state, never its own: `check:oracle` judges
  * rows per row — with the corpus cache, copied from the primary checkout
  * when the worktree lacks it — never the header the base owns.
  *
@@ -77,6 +77,7 @@ import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
 import {
     carriesNothing,
     derivedCarried,
+    handOff,
     derivedInDiffProblems,
     restoreHeaderHashes,
     RESTORE_COMMIT_SUBJECT,
@@ -179,11 +180,10 @@ export function landRefusals(
 const GATE_INFRA = 77;
 
 /** One command at the light tier; 77 aborts (re-issue), never reads as red.
- *  `role` is how the tree is judged (ADR 0157): `draft` once
- *  `restoreDerivedState` made its commit — the derived state is then the
- *  merge-base's, the base's to write, and `check:oracle` judges rows per
- *  row; `base` when nothing was carried — the tree's derived bytes are its
- *  own and fresh, judged as before. */
+ *  `role` is how the tree is judged (ADR 0157): always `draft`
+ *  (`handOff`, issue #6348) — after the restore the derived state is the
+ *  merge-base's, the base's to write, whether or not this run made the
+ *  commit, and `check:oracle` judges rows per row. */
 function execLight(
     command: string,
     cwd: string,
@@ -345,7 +345,11 @@ function restoreAndPush(
             `derived-state restore failed (${(err as Error).message}) — worktree reset to ${headOid.slice(0, 10)}; fix and re-run`
         );
     }
-    if (carriesNothing(carried)) return { head: headOid, role: "base" };
+    const decision = handOff(carried);
+    if (!decision.commit) {
+        ensureCorpusForDraft(process.cwd());
+        return { head: headOid, role: decision.role };
+    }
     const head = git(["rev-parse", "HEAD"]).trim();
     const pushed = spawnSync(
         "git",
@@ -366,7 +370,7 @@ function restoreAndPush(
         `land:ready: pushed ${head.slice(0, 10)} — \`${RESTORE_COMMIT_SUBJECT}\` (${carried.catalogue.length} catalogue file(s), header ${carried.headerKeys.join(", ") || "unchanged"})`
     );
     ensureCorpusForDraft(process.cwd());
-    return { head, role: "draft" };
+    return { head, role: decision.role };
 }
 
 /**
