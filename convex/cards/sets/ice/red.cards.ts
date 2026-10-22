@@ -11,7 +11,6 @@ import {
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
 } from "../../types";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
@@ -465,7 +464,7 @@ export const boneShaman = defineCard(() => ({
 // HOST creature's controller from casting any creature spell. The restriction is
 // read-time only — it never mutates a permanent and auto-reverts when the Aura
 // leaves play (the host loses its host, or the Aura is sacrificed to cumulative
-// upkeep). Cumulative upkeep {R} reuses `cumulativeUpkeepTrigger` (ADR 0042).
+// upkeep). Cumulative upkeep {R} is the `cumulativeUpkeep` cost field (ADR 0155).
 export const brandOfIllOmen = defineCard(() => ({
     id: "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
     name: "Brand of Ill Omen",
@@ -476,9 +475,7 @@ export const brandOfIllOmen = defineCard(() => ({
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({ cost: { R: 1 }, costLabel: "{R}" }),
-    ],
+    cumulativeUpkeep: { R: 1 },
     staticEffects: [
         {
             kind: "cast-restriction",
