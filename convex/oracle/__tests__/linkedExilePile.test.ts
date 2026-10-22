@@ -106,7 +106,9 @@ describe("linked exile pile returned to the battlefield (CR 607.2a)", () => {
     it("refuses a pile return beside an until-exile (CR 610.3 is another rule)", () => {
         const until =
             "When this enchantment enters, exile target creature an opponent controls until this enchantment leaves the battlefield.";
-        expect(wave(`${until}\n${RETURN}`).state).toBe("unparsed");
+        // The Wave's own exile is still the ONE `exile` instruction, so only
+        // the bundle beside it can refuse the card.
+        expect(wave(`${until}\n${EXILE}\n${RETURN}`).state).toBe("unparsed");
     });
 
     it('refuses "exiled with it" behind a head other than the departure', () => {
