@@ -11,12 +11,14 @@
 //     a departed card, a zone change the smoke scenario cannot stage), compared
 //     whole by `goldenFixtures.test.ts`; here it must reach `ready`.
 //  2. REFUSALS — every neighbour: a second announced target, a target an
-//     earlier sentence destroyed, an "any target" slot, an announced subject
+//     earlier sentence destroyed, a trigger head whose subject is another
+//     creature, an "any target" slot, an announced subject
 //     and a half lock on the damage line, and another body behind the dies
 //     head.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
+import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import { oracleCard } from "./oracle.fixture";
 
@@ -46,9 +48,56 @@ describe("announced-creature anaphora — golden (CR 608.2c)", () => {
     });
 
     it("binds the lock to the one creature target", () => {
-        expect(
-            state(`Target creature can't be regenerated this turn. ${LOCK}`)
-        ).not.toBe("unparsed");
+        const outcome = compileCard(
+            ability(`Target creature can't be regenerated this turn. ${LOCK}`)
+        );
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.activatedAbilities?.[0]?.effects).toEqual([
+            { op: "preventRegeneration", target: { target: 0 } },
+            { op: "lockDamage", target: { target: 0 } },
+        ]);
+    });
+
+    it("Savage Surge: any verb reading 'that creature' reaches the target", () => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleId: "0acbc9a6-0de0-4096-b35c-1a586a1312ea",
+                name: "Savage Surge",
+                manaCost: "{1}{G}",
+                typeLine: "Instant",
+                oracleText:
+                    "Target creature gets +2/+2 until end of turn. Untap that creature.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Savage Surge",
+                types: ["Instant"],
+                manaCost: { X: 1, G: 1 },
+                oracleText:
+                    "Target creature gets +2/+2 until end of turn. Untap that creature.",
+                effects: [
+                    {
+                        op: "pump",
+                        target: { target: 0 },
+                        power: 2,
+                        toughness: 2,
+                        duration: { phase: "end-of-turn" },
+                    },
+                    {
+                        op: "tapUntap",
+                        action: "untap",
+                        target: { target: 0 },
+                    },
+                ],
+                targetRequirement: { type: "Creature", count: 1 },
+            })
+        );
     });
 });
 
@@ -68,6 +117,18 @@ describe("announced-creature anaphora — refusals (CR 608.2c)", () => {
     it("refuses 'that creature' after an 'any target' slot", () => {
         expect(
             state(`This creature deals 1 damage to any target. ${LOCK}`)
+        ).toBe("unparsed");
+    });
+
+    it("refuses 'that creature' behind a head whose subject is another creature", () => {
+        expect(
+            compileCard(
+                oracleCard({
+                    name: "Test Bird",
+                    oracleText:
+                        "Whenever a creature enters, tap target creature. Put a +1/+1 counter on that creature.",
+                })
+            ).state
         ).toBe("unparsed");
     });
 
