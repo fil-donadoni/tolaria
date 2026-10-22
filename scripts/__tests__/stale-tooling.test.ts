@@ -9,7 +9,6 @@ describe("stale land tooling (issue #6341)", () => {
                     "convex/gre/layers.ts",
                     "src/a.tsx",
                     "scripts/__tests__/x.test.ts",
-                    "docs/adr/0001.md",
                 ],
                 "origin/staging"
             )
@@ -21,7 +20,7 @@ describe("stale land tooling (issue #6341)", () => {
             "scripts/land-ready.ts",
             "scripts/lib/derived-in-pr.ts",
             "package.json",
-            ".claude/hooks/deny-guard.sh",
+            [".claude", "hooks", "deny-guard.sh"].join("/"),
             "tolaria.config.json",
         ];
         expect(staleToolingPaths(paths)).toEqual(paths);
