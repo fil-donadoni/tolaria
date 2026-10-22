@@ -2809,6 +2809,7 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "faceDownBy",
     "faceDownOf",
     "copiedFrom",
+    "preCopyImagePrintId",
     "castableFromExileBy",
     "castableFromExileUntilTurn",
     // CR 702.185a/b (issue #1268) — the Warp trio: the cast-instance marker on

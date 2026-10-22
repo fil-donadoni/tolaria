@@ -455,6 +455,10 @@ export interface CardInstance {
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */
     copiedFrom?: string;
+    /** The copier's own print before it became a copy; the preview's
+     *  "original version" renders it. Mirrors
+     *  `CardInstanceState.preCopyImagePrintId`. */
+    preCopyImagePrintId?: string;
     /** CR 707.2's "except its base power and toughness are N/N" clause stamped
      *  on this copy, so a copy OF it inherits the exception (CR 707.3). Mirrors
      *  `CardInstanceState.copyExcept` in `convex/gre/state.ts`; forwarded by

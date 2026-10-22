@@ -144,3 +144,50 @@ describe("Copy card preview (CR 707.2 / 707.10)", () => {
         expect(projected.stack[0].isCopy).toBe(true);
     });
 });
+
+describe("Copy card preview — original-version art (issue #4104)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        resetPreviewSingleton();
+    });
+    afterEach(() => {
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
+        cleanup();
+    });
+
+    it("renders the copier's remembered own print as the original face", () => {
+        const copy = makeInstance(CLONE.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            imagePrintId: "print-own-promo",
+        });
+        applyCopy(
+            NO_BOARD_LAYER_VIEW,
+            copy,
+            makeInstance(SERRA.id, { imagePrintId: "print-source-promo" })
+        );
+        const state = makeState({
+            players: [
+                { ...makeState().players[0], id: "p1", battlefield: [copy] },
+                makeState().players[1],
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield[0] as CardInstance;
+        expect(slim.preCopyImagePrintId).toBe("print-own-promo");
+
+        const { container } = render(
+            <GameContext value={ctxFor(projected.players)}>
+                <CardImage card={slim} />
+            </GameContext>
+        );
+        openPreview(container.firstElementChild as HTMLElement);
+        const srcs = Array.from(anchored()!.querySelectorAll("img")).map(
+            (i) => i.getAttribute("src") ?? ""
+        );
+        expect(srcs.some((s) => s.includes("print-own-promo"))).toBe(true);
+        expect(srcs.some((s) => s.includes("print-source-promo"))).toBe(true);
+    });
+});
