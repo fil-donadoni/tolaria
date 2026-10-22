@@ -92,9 +92,8 @@ export const catharCommando = defineCard(() => ({
 // simply the first card to combine plain `createToken` with
 // `entersAttacking`; the plumbing needed no changes.
 //
-// "Attacking that player or a planeswalker they control" (CR 508.4, issue
-// #1865): the token entry site owes the as-enters `attack-target` choice —
-// the defending player or each planeswalker they control — so the plain
+// "Attacking that player or a planeswalker they control" (CR 508.4): the
+// token entry site owes the as-enters `attack-target` choice — the defending player or each planeswalker they control — so the plain
 // `entersAttacking` flag already says it. In this two-player engine "that
 // player" is the one opponent, the defending player.
 export const adelineResplendentCathar = defineCard(() => ({

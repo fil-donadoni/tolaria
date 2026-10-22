@@ -37,7 +37,7 @@ import { defineCard } from "../../types";
 //       shared helper exists (an earlier revision of this code set only
 //       `attackerIds` directly and left `isAttacking` unset, review-caught
 //       before landing).
-//       CR 508.4 (issue #1865): Satya's oracle text is silent on WHAT the
+//       CR 508.4: Satya's oracle text is silent on WHAT the
 //       token attacks, so its controller chooses as it enters — the
 //       defending player or a planeswalker they control — through the
 //       as-enters `attack-target` choice the token entry site owes
