@@ -1,7 +1,7 @@
-# /bot-audit — templates for the two doors
+# /bot-audit — templates for the doors (forced, preference, engine)
 
-Reached from `SKILL.md` step 3 (the scratch spec and the entry shape) and
-step 7 (everything else). Nothing here runs before the reviewer's word on
+Reached from `SKILL.md` step 3 (the scratch spec and the entry shape), step
+5 (the settled reading, the budget sweep) and step 7 (everything else). Nothing here runs before the reviewer's word on
 the row it serves.
 
 ## Entry template — a Minimal Pair in the registry's vocabulary
@@ -92,17 +92,31 @@ const PAIRS: RegistryBladeScenario[] = [
 describe("audit scratch — writes rows, asserts only that it wrote them", () => {
     for (const entry of PAIRS) {
         it(entry.label, () => {
-            const r = runBladeScenario(entry);
+            // § Budget sweep: AUDIT_ITERS overrides the declared budget for a
+            // rerun; unset, the entry runs at its own budget.
+            const iters = Number(
+                process.env.AUDIT_ITERS ?? entry.budget.iterations
+            );
+            const r = runBladeScenario({
+                ...entry,
+                budget: { ...entry.budget, iterations: iters },
+            });
             const failing = r.seeds.filter((s) => !s.ok).length;
             const verdict =
-                failing === r.seeds.length ? "RED" : failing === 0 ? "GREEN" : "TIE";
+                failing === r.seeds.length
+                    ? "RED"
+                    : failing === 0
+                      ? "GREEN"
+                      : "TIE";
             const row =
                 `${verdict} ${failing}/${r.seeds.length} "${entry.label}" ` +
                 r.seeds
-                    .map((s) => `[${s.seed}: ${s.moveDescription} ${s.mechanism ?? "-"}]`)
+                    .map(
+                        (s) =>
+                            `[${s.seed}: ${s.moveDescription} ${s.mechanism ?? "-"}]`
+                    )
                     .join(" ");
-            appendFileSync(OUT, row + "
-");
+            appendFileSync(OUT, row + "\n");
             // `vitest.blade.config.ts` sets `requireAssertions`: a test with no
             // `expect` fails, and only a FAILING test's console reaches the log.
             expect(row).toContain(entry.label);
@@ -111,12 +125,74 @@ describe("audit scratch — writes rows, asserts only that it wrote them", () =>
 });
 ```
 
-A diagnosis measurement (step 5) is three more lines in the same file on the
-built anchor state: `enumerateMoves(state, botId)` lists the offer,
-`evaluateBreakdown(applyMoveForSearch(state, move), botId).total` for the
-expected and the observed move reads the gap, `OP_BENEFICENCE[op]` /
-`OP_VALUERS[op]` read the sign. The state is the one the runner builds
-(`buildBladeBaseState` + `buildBladeLoadState`, `convex/gre/ai/blade/`).
+A diagnosis measurement (step 5) goes in a second untracked file beside it
+(`audit-diag.spec.ts`, same rules), on the state `buildBladeState(entry)`
+returns (`convex/gre/ai/blade/build.ts`, the runner's own build):
+`enumerateMoves(state, botId)` lists the offer, the settled reading below
+reads the gap, `OP_BENEFICENCE[op]` / `OP_VALUERS[op]` and
+`misdirectedTargetCount` (`convex/gre/ai/beneficence.ts`) read the sign.
+
+A card's name is not on its instance (`c.card.name` is `undefined`): match
+`c.card.id` against `getCardByName(name).id`, or describe a Move with
+`describeMove(move, state)` (`convex/gre/describeMove.ts`).
+
+### Settled reading
+
+`applyMoveForSearch(state, playerId, move)` is the GREEDY sandbox: it drains
+a cast's own segment, but a raised trigger target (`submit-target`) or another
+choice comes back unchanged, and the opponent's spell under a response is
+left on the Stack — so every sibling of one target selection reads the same
+total (the first audit read 577.6 for all seven Flickerwisp targets). Read the
+position the move LEADS to instead — the real search application, then both
+seats pass until the Stack is empty:
+
+```ts
+function settled(state: GameState, botId: string, move: Move): GameState {
+    const s = cloneGameState(state);
+    applyMoveInSearch(s, botId, move); // convex/gre/search.ts
+    for (let i = 0; i < 40 && s.stack.length > 0; i++) {
+        const who = decidingPlayer(s);
+        const pass =
+            who && enumerateMoves(s, who).find((m) => m.kind === "pass");
+        // A raised target or choice offers no `pass`: the walk cannot settle
+        // it by passing. Say so — never read a half-resolved Stack as settled.
+        if (!who || !pass) throw new Error("settle stalled on a decision");
+        applyMoveInSearch(s, who, pass);
+    }
+    if (s.stack.length > 0) throw new Error("settle did not empty the Stack");
+    return s;
+}
+```
+
+A stall names a decision inside the line: measure that decision as its own
+move, or play its answer before draining.
+
+`evaluateBreakdown(settled(state, botId, move), botId)` for the expected and
+the observed move is the Evaluation measurement. The same walk is the Rules
+measurement: print the board it ends on (zones, ids, `state.combat`) and set it
+beside the printed CR. A payoff later than the Stack (an end-step return, a
+combat) is walked the same way to the step it lands in, always by `pass`, and
+logged on every phase change.
+
+### Budget sweep
+
+A red anchor is rerun alone above its declared budget: the scratch template
+reads `AUDIT_ITERS` over `entry.budget.iterations`, so run
+`AUDIT_ITERS=1200` then `4000` with `-t "<label>"`. The reading follows
+`BeyondBudget` (`convex/gre/ai/blade/types.ts`), enforced by
+`convex/gre/ai/blade/__tests__/bladeShardRunner.helper.ts`:
+
+- **Green at some budget** → that budget is `passesAt` (it must exceed the
+  declared one); the cause is `branching`, `hidden-information` or
+  `horizon`, whichever step 5 measured.
+- **Red at every budget, step 5 named a blind term** → `valuation`, no
+  `passesAt`, no `sweptTo`.
+- **Red at every budget, the payoff behind a LOOP** (ADR 0102: identical
+  activations between the position and the payoff) → `horizon` with
+  `sweptTo` = the highest budget run, above the declared one.
+- **Red at every budget, anything else** → no cause yet: sweep higher, or go
+  back to step 5. `branching` and `hidden-information` always carry
+  `passesAt`; never write `sweptTo` for them.
 
 ## Forced door — the registry PR
 
@@ -164,6 +240,35 @@ report names the Discriminant no term reads → ONE issue per such Discriminant
 error) → the fit said nothing: the search checks it instead (`formatTimingSection`), and it is not an issue from this door.
 
 `verdicts:promote` rewrites the Verdict Lock and `convex/gre/ai/evalWeights.ts` together, and runs the blade `must` tier on the rewritten weights: commit that diff as its own commit on the audit's branch (`docs/guides/verdict-store.md` § Promote the corpus — both in one PR). It rides in the session's PR, which exists even when no forced pair does.
+
+**The reviewer may skip the Verdict and ask for the issue outright** ("open a
+Bot issue"): that word is the decision. File it per § Issue template, kind
+`preference`, with the pair's full `spec` and `setup` in `## Test Positions`
+(no Verdict note exists to name), both entries owed as `must` by the fix PR.
+
+## Engine door — a Rules row
+
+A Rules row (SKILL.md step 5) is an engine defect the audit found: the Bot's
+pick is right inside this engine, so the pair is not a Bot gap and enters no
+registry — none of the four `BeyondBudget` causes names a rules defect, and a
+`stretch` entry would report the engine's wrong as the Bot's.
+
+1. Print every rule the issue cites (`bun run cr <id>`) before citing it.
+2. Bound the defect with one CONTROL measurement: what the same zone change
+   already gets right (the first audit: a pump is cleared by a blink, a stack
+   target is not) — the issue then names the narrow class, not "blink is
+   broken".
+3. File it standalone, never under the umbrella (it is no Bot cause):
+   `--label bug --label area:mechanics`, `model:*` by exception. The band is
+   the reviewer's word: `P0` is hand-set on the board's `Priority` field
+   (`gh project item-add` + `gh project item-edit`, read back); `P1`-`P3` go
+   in a `## Band` body section (`docs/agents/triage-labels.md`).
+4. Body: what the CR says vs what the engine did (the settled walk, with
+   ids), the cause in code, what a fix must keep working, the pair's full
+   `spec` + `setup` + `expect` under `## Test Positions` as its reproducer,
+   acceptance with GRE tests naming the CR, `## Target files`.
+5. After the fix lands the pair re-enters a LATER audit of the same theme: if
+   the Bot still picks wrong, that is a Bot gap and a new row.
 
 ## Issue template — one per diagnosed CAUSE
 
