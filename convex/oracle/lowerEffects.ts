@@ -3886,9 +3886,10 @@ function lowerSentenceBody(
             ]);
         // CR 305.7 / 611.2 — every land of the first pick, snapshotted as the
         // `forEach` starts (CR 611.2c — the affected set is fixed when the
-        // effect begins), has its land types replaced by the second pick until `duration`. Reads the
-        // bindings the choose sentence writes; a line without it leaves the
-        // refs unbound, which `validateEffectScript` refuses.
+        // effect begins), has its land types replaced by the second pick
+        // until `duration`. Reads the bindings the choose sentence writes; a
+        // line without it leaves the refs unbound, which
+        // `validateEffectScript` refuses.
         case "set-chosen-land-type":
             return lowered([
                 {
