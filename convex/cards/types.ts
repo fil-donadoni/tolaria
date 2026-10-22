@@ -3650,7 +3650,7 @@ export type AsEntersChoice =
      *  `CardInstanceState.enterAttackingTarget` (the CR 702.49c ninjutsu stamp)
      *  and consumed as the token joins combat. Auto-answered with the
      *  defending player when they control no planeswalker. Battles are not
-     *  offered: this engine models no battle protector (CR 310), and the
+     *  offered: this engine models no battle protector (CR 310.9), and the
      *  declare-attackers action offers planeswalkers only. */
     | { kind: "attack-target" }
     /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).

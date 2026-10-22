@@ -10037,7 +10037,7 @@ function asEntersDiscardCandidates(
  *  (auto-answer when the player is the only option) and `applyAsEntersAnswer`
  *  — one derivation, so offer, auto-answer and write cannot disagree. In this
  *  two-player engine the defending player is the controller's opponent.
- *  Battles are not offered: no battle protector is modeled (CR 310). */
+ *  Battles are not offered: no battle protector is modeled (CR 310.9). */
 function asEntersAttackTargetOptions(
     state: GameState,
     entry: StagedEntry

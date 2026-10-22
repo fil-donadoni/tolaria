@@ -145,7 +145,7 @@ describe("CR 508.4 — a token entering attacking chooses what it attacks (issue
         expect(token.isAttacking).toBe(true);
         expect(token.isTapped).toBe(true);
         expect(state.combat!.attackerIds).toEqual(["atk1", token.id]);
-        // The defending player is the ABSENT entry (CR 508.1a convention).
+        // The defending player is the ABSENT entry (`combat.attackTargets`).
         expect(state.combat!.attackTargets?.[token.id]).toBeUndefined();
         expect(state.stagedEntries).toBeUndefined();
     });
