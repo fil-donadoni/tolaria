@@ -46,6 +46,7 @@ export const DOC_GATE_TESTS = [
     // first place — so the lane that merges a skill edit has to be the lane
     // that re-runs this.
     "scripts/__tests__/destructive-data-recipes.test.ts",
+    "scripts/__tests__/ensure-corpus.test.ts",
     "scripts/__tests__/findings.test.ts",
     // The ONE gate-running rule, held in two files at once (issue #3698):
     // `.claude/hooks/deny-guard.sh` § 3b and the `/next-ticket` skill. Both

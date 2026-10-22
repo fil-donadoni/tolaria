@@ -123,6 +123,22 @@ if (!existsSync(join(cwd, "node_modules")) || force) {
     skipped.push("node_modules (present)");
 }
 
+// ── corpus cache matching THIS tree's pin (issue #6381) ─────────────────────
+// Gitignored, so a fresh tree has none, and the primary's can sit one bulk
+// behind a re-pin. `ensure-corpus.ts` keeps a matching cache, copies the
+// primary's only if it matches this pin, else downloads the pinned bulk. After
+// deps on purpose (it imports repo modules). Soft: an offline run (a CI lane
+// that never compiles Oracle text) must still bootstrap; a tree left without
+// one fails loudly at `oracle:compile`, naming `bun run oracle:corpus`.
+if (existsSync(join(cwd, "node_modules"))) {
+    if (run("bun", ["scripts/ensure-corpus.ts"]))
+        done.push("data/oracle-corpus.json.gz (matches the pin)");
+    else
+        skipped.push(
+            "data/oracle-corpus.json.gz (none matching the pin — run: bun run corpus:ensure)"
+        );
+}
+
 // ── generated API checked against THIS tree (issue #5077) ──────────────────
 // The copy above describes the PRIMARY's tree, and nothing refreshes the
 // primary's when a PR lands: after a landing that adds Convex modules every
