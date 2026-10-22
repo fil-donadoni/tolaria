@@ -6924,6 +6924,14 @@ export function removePermanentTo(
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
     }
+    // CR 607.2a + CR 113.7a — the pile this object's linked exile ability
+    // exiled, read as it leaves: a return of the same id before its leaves
+    // trigger resolves (a flicker) clears the live stamps for the NEW object
+    // (`clearExileLinksToEnteringSource`), but the old object's trigger still
+    // names these cards.
+    const lkiLinkedExile = state.players.flatMap((p) =>
+        p.exile.filter((c) => c.exiledBySourceId === cardId).map((c) => c.id)
+    );
     // CR 603.10 — LTB notification for triggers that fire on the leaving
     // permanent itself ("when this Aura leaves the battlefield, ..."). The
     // matching trigger source is located by `collectTriggers` in `toZone`
@@ -6942,6 +6950,9 @@ export function removePermanentTo(
             attachedToBeforeLeave: lkiAttachedTo,
             ...(lkiAttachments.length > 0
                 ? { attachmentsBeforeLeave: lkiAttachments }
+                : {}),
+            ...(lkiLinkedExile.length > 0
+                ? { linkedExileBeforeLeave: lkiLinkedExile }
                 : {}),
             toZone,
             ...(cause ? { cause } : {}),
@@ -9654,15 +9665,15 @@ export function putReanimatedSetOnBattlefield(
         if (hosts.length === 0) {
             // CR 303.4g — no legal object to enchant (not even a non-Aura
             // sibling that entered as part of this same event): the Aura
-            // never enters, it remains in its owner's graveyard. The caller
-            // already spliced it OUT of that graveyard to make the set-wide
-            // move atomic, so put it back rather than leaving it in limbo.
-            // It never entered, so a pending entry type line expires with the
+            // never enters, it remains in its current zone — its owner's
+            // graveyard, or exile for a linked pile (CR 607.2a). The caller
+            // already spliced it OUT of that pile to make the set-wide move
+            // atomic, so put it back rather than leaving it in limbo. It
+            // never entered, so a pending entry type line expires with the
             // attempt (PR #3023 review, B1).
             discardEntryTypeLine(card);
-            card.zone = "graveyard";
             card.attachedTo = undefined;
-            getPlayer(state, card.ownerId).graveyard.push(card);
+            restoreToCurrentZone(state, card);
             continue;
         }
         if (hosts.length === 1) {
@@ -12828,33 +12839,42 @@ export function buildSpellContext(
         // entry's controller the same way `returnToBattlefield`'s 4th
         // argument does (Hymn-of-Rebirth-style "under your control"); omitted
         // defaults each entry to its own owner (Replenish, Living Death).
-        // Entries whose id is no longer in the named graveyard at resolution
-        // are silently skipped (CR 608.2b). Returns the cardInstanceIds that
-        // actually entered the battlefield — excludes vanished entries, a
-        // Worms-of-the-Earth-blocked land, and a hostless Aura (CR 303.4c).
-        returnGraveyardSetToBattlefield(
+        // Entries whose id is no longer in the named pile at resolution are
+        // silently skipped (CR 608.2b). `fromZone` names the pile, as
+        // `returnToBattlefield`'s own third argument does (default the
+        // graveyard; the exile leg is CR 607.2a's "all cards exiled with
+        // it"). Returns the cardInstanceIds that actually entered the
+        // battlefield — excludes vanished entries, a Worms-of-the-Earth-
+        // blocked land, and a hostless Aura (CR 303.4c).
+        returnCardSetToBattlefield(
             entries: { playerId: string; cardInstanceId: string }[],
-            controllerId?: string
+            controllerId?: string,
+            fromZone: "graveyard" | "exile" = "graveyard"
         ): string[] {
             const staged: { card: CardInstanceState; controllerId: string }[] =
                 [];
             for (const { playerId, cardInstanceId } of entries) {
                 const player = getPlayer(state, playerId);
-                const idx = player.graveyard.findIndex(
-                    (c) => c.id === cardInstanceId
-                );
+                const pile =
+                    fromZone === "graveyard" ? player.graveyard : player.exile;
+                const idx = pile.findIndex((c) => c.id === cardInstanceId);
                 if (idx === -1) continue; // CR 608.2b — no longer there, skip
                 // CR 111.7 / 704.5d (issue #1469) — same token guard as the
                 // single-entry `returnToBattlefield`: a token that left the
                 // battlefield ceases to exist and never returns.
-                if (player.graveyard[idx].isToken) continue;
-                const [card] = player.graveyard.splice(idx, 1);
+                if (pile[idx].isToken) continue;
+                const [card] = pile.splice(idx, 1);
                 // CR 400.7 — the batch twin of `returnToBattlefield`; each
-                // entry is its own departure from its own owner's graveyard.
-                noteGraveyardDeparture(player);
+                // entry is its own departure from its own owner's graveyard
+                // (the exile leg is not a graveyard departure).
+                if (fromZone === "graveyard") noteGraveyardDeparture(player);
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
-            return putReanimatedSetOnBattlefield(state, staged, true);
+            return putReanimatedSetOnBattlefield(
+                state,
+                staged,
+                fromZone === "graveyard"
+            );
         },
         // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
         // `cardInstanceId` in `playerId`'s library, splice it out, and put it

@@ -396,7 +396,7 @@ describe("Twilight Diviner (CR 701.25 ETB surveil 2; CR 603.4 graveyard-entry to
 
         const item = pushSpell(state, balduvianBears.id, "p1");
         const ctx = buildSpellContext(state, item);
-        const entered = ctx.returnGraveyardSetToBattlefield([
+        const entered = ctx.returnCardSetToBattlefield([
             { playerId: "p1", cardInstanceId: "corpseA" },
             { playerId: "p1", cardInstanceId: "corpseB" },
         ]);

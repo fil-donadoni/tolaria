@@ -1,12 +1,11 @@
 // NEM — white card behavior tests (ADR 0043 per-colour split). One describe per
 // non-trivial card.
 //
-// Parallax Wave is a protocol card (ADR 0028 exile-and-return bundle, resolve()):
-// Fading 5 rides the getDefinition seam, and the repeatable "remove a fade
-// counter: exile target creature" activation + the leaves-the-battlefield return
-// both use the resolve()-only `exileWithAttachments` / `returnExiledForSource`
-// pair, so it earns hand-written GRE + wire coverage per § Card testing
-// convention.
+// Parallax Wave: Fading 5 rides the getDefinition seam, and the repeatable
+// "remove a fade counter: exile target creature" activation + the leaves-the-
+// battlefield return are two LINKED abilities (CR 607.2a): the `exile` Op's
+// `linkToSource` stamp and the `forEach { set: "exiledWithSource" }` pile
+// return, the first card on both, so it carries GRE + wire coverage here.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -29,20 +28,16 @@ const parallaxWave = getDefinition("cef789e8-e4cc-4f61-bc15-debc2487777f");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
-// CR 610.3a — the ACTIVATED half of the exile-until-source-leaves family.
-// "If a resolving spell or activated ability creates the initial one-shot
-// effect that causes the object to change zones, and the specified event has
-// already occurred before that one-shot effect would occur but after that
-// spell or ability was put onto the stack, the object doesn't move."
-//
-// This is a DIFFERENT code path from the triggered case (Leyline Binding /
-// Banishing Light, CR 610.3b) and needs its own proof: `buildTriggerItem`
-// gives a trigger a FRESH stack-item id, while `buildActivatedAbilityStackItem`
-// clones the source permanent and KEEPS its id — so any guard that identifies
-// the source by scanning the stack passes the trigger test and silently does
-// nothing here.
-describe("Parallax Wave — destroyed in response to its own exile activation (CR 610.3a)", () => {
-    it("exiles nothing, strands nothing: the target stays on the battlefield", () => {
+// CR 607.2a — the exile and the return are LINKED abilities with no duration:
+// Parallax Wave's exile is not an "until" exile, so CR 610.3a's "the object
+// doesn't move" does not apply. "The second ability refers only to cards in
+// the exile zone that were put there as a result of an instruction to exile
+// them in the first ability" — and a Wave destroyed in response has already
+// returned its pile, so the late exile is permanent (the card's well-known
+// ruling). The `exileWithAttachments` encoding this card used to carry
+// applied CR 610.3a here and exiled nothing.
+describe("Parallax Wave — destroyed in response to its own exile activation (CR 607.2a)", () => {
+    it("still exiles the target, and nothing ever returns it", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",
             controllerId: "p1",
@@ -70,24 +65,19 @@ describe("Parallax Wave — destroyed in response to its own exile activation (C
             targets: [{ type: "permanent", id: "victim" }],
         });
         // ...and Parallax Wave is destroyed in response, so its leave trigger
-        // resolves first with no bundle held and returns nothing.
+        // resolves first with nothing exiled and returns nothing.
         removePermanentTo(state, "wave", "graveyard");
         processPendingActionTriggers(state);
         while (state.stack.length > 0) resolveTopOfStack(state);
 
-        // CR 610.3a — the specified event already happened, so the creature
-        // does not move. Before the guard it was exiled under a bundle keyed to
-        // a source that can never leave the battlefield again: stranded for the
-        // rest of the game.
-        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
-            "victim",
-        ]);
-        expect(state.players[1].exile).toHaveLength(0);
-        expect(state.exileHeld ?? []).toHaveLength(0);
+        // CR 607.2a — the exile instruction still resolves; the return that
+        // could name its card has come and gone.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["victim"]);
     });
 });
 
-describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; return on leave, CR 702.32 / 603.7a)", () => {
+describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; return on leave, CR 702.32 / 607.2a)", () => {
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -124,7 +114,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(back!.counters).toEqual({ fade: 5 });
     });
 
-    it("exiles the target creature keyed to itself, then returns it to its owner when it leaves (CR 603.7a)", () => {
+    it("exiles the target creature linked to itself, then returns it to its owner when it leaves (CR 607.2a)", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",
             controllerId: "p1",
@@ -154,11 +144,14 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
             true
         );
-        // ADR 0028 — the exile is keyed to this enchantment's instance id.
-        expect(state.exileHeld?.some((b) => b.sourceId === "wave")).toBe(true);
+        // CR 607.2a — the exiled card is linked to this enchantment.
+        expect(
+            state.players[1].exile.find((c) => c.id === "victim")
+                ?.exiledBySourceId
+        ).toBe("wave");
 
         // Wave leaves the battlefield → the return trigger fires and each owner
-        // gets their exiled card back (CR 603.7a).
+        // gets their exiled card back (CR 607.2a).
         const waveInPlay = state.players[0].battlefield.find(
             (c) => c.id === "wave"
         )!;
@@ -173,7 +166,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(returned?.ownerId).toBe("p2");
     });
 
-    it("returns EVERY creature exiled across multiple activations (bundle per activation, same sourceId)", () => {
+    it("returns EVERY creature exiled across multiple activations (one link per activation, same source)", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",
             controllerId: "p1",

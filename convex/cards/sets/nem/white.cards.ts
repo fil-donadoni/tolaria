@@ -5,12 +5,11 @@
 
 import { defineCard } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
-import { holdsExileBundle } from "../../abilities/exileBundle";
 
 // Parallax Wave — "Fading 5 (…) Remove a fade counter from this enchantment:
 // Exile target creature. When this enchantment leaves the battlefield, each
 // player returns to the battlefield all cards they own exiled with it."
-// (CR 702.32 Fading; CR 701.13 exile; CR 603.7a leaves-the-battlefield.)
+// (CR 702.32 Fading; CR 701.13 exile; CR 607.2a linked abilities.)
 //
 // Fading 5 is expanded implicitly at the getDefinition seam (ADR 0054): the
 // "fading 5" string injects `entersWith` five fade counters + the upkeep
@@ -18,11 +17,12 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // counters as an activation cost (`cost.removeCounter`), racing the fading
 // clock — every exile brings the sacrifice one upkeep closer.
 //
-// DSL-first (ADR 0045): the exile-and-return bundle (ADR 0028) is now the
-// `exileWithAttachments` / `returnExiledForSource` Op pair — the activated exile
-// arms a bundle keyed to `$source` (host-only, the O-Ring default), and the
-// leaves trigger returns every card exiled with this enchantment to its owner's
-// control (`returnExiledForSource` iterates every bundle keyed to this source).
+// DSL-first (ADR 0045): the exile and the return are two LINKED abilities with
+// no duration (CR 607.2a), not an O-Ring "until" exile (CR 610.3): the
+// activated `exile` stamps its card with this source (`linkToSource`), and the
+// leaves trigger returns every stamped card, each under its owner's control,
+// as one event. An exile that resolves after the Wave has left still exiles —
+// and nothing returns that card.
 const PARALLAX_WAVE_ID = "cef789e8-e4cc-4f61-bc15-debc2487777f"; // NEM 17
 export const parallaxWave = defineCard(() => ({
     id: PARALLAX_WAVE_ID,
@@ -41,23 +41,35 @@ export const parallaxWave = defineCard(() => ({
             cost: { removeCounter: { type: "fade", count: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // CR 701.13 host-only exile (auras die, equipment detaches); ADR
-            // 0028 arms the return keyed to `$source`. Op defaults
-            // includeAttachments/returnTapped false — the host-only shape.
-            effects: [{ op: "exileWithAttachments", target: { target: 0 } }],
+            // CR 607.2a — the linked exile instruction.
+            effects: [
+                { op: "exile", target: { target: 0 }, linkToSource: true },
+            ],
         },
     ],
     triggeredAbilities: [
         leftTrigger({
-            // CR 603.7a — every card exiled with this returns to its owner's
-            // battlefield when it leaves. `returnExiledForSource` returns every
-            // bundle under this sourceId, each to its own owner's control.
+            // CR 607.2a + CR 110.2a — every card exiled with this returns,
+            // each put onto the battlefield by (so under) its owner.
             id: "parallax-wave-return",
             oracleText:
                 "When this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
             scope: "self",
-            condition: holdsExileBundle,
-            effects: [{ op: "returnExiledForSource" }],
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "exiledWithSource" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "exile",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 }));

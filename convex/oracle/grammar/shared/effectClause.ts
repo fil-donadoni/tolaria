@@ -1246,6 +1246,18 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 607.2a + CR 110.2a — "Each player returns to the battlefield
+           * all cards they own exiled with it.": every card this object's
+           * LINKED exile instruction exiled comes back, each put there by its
+           * owner (so under its owner's control). No duration (CR 610.3 does
+           * not apply): a card exiled after the source left stays exiled.
+           * The hand twin ("… returns to their hand …") is a neighbour,
+           * refused here.
+           */
+          readonly kind: "return-all-exiled-with";
+      }
+    | {
+          /**
            * CR 601.3 + CR 305.1 — "Until end of turn, you may play lands and
            * cast spells from your graveyard.": a turn-scoped permission for
            * the ability's controller to play cards from their OWN graveyard
@@ -3874,6 +3886,9 @@ const RETURN_EXILED =
     "Return the exiled card to the battlefield under its owner's control";
 /** CR 607.2a + CR 400.7 — the hand-disruption family's linked return. */
 const RETURN_EXILED_TO_HAND = "Return the exiled card to its owner's hand";
+/** CR 607.2a + CR 110.2a — the Parallax family's linked return of the pile. */
+const RETURN_ALL_EXILED_WITH =
+    "Each player returns to the battlefield all cards they own exiled with it";
 /** CR 601.3 + CR 305.1 — Yawgmoth's Will's graveyard permission. */
 const GRAVEYARD_PLAY =
     "Until end of turn, you may play lands and cast spells from your graveyard";
@@ -6464,6 +6479,10 @@ function effectSentence(
         return ok({
             kind: "return-exiled" as const,
             to: span === RETURN_EXILED ? "battlefield" : "hand",
+        } satisfies EffectSentenceIR);
+    if (span === RETURN_ALL_EXILED_WITH)
+        return ok({
+            kind: "return-all-exiled-with" as const,
         } satisfies EffectSentenceIR);
 
     // ── the ordered graveyard, swept or taken from the end (CR 404.2) ──────
