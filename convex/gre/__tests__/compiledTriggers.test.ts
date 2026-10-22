@@ -118,6 +118,32 @@ registerTokenDefinition({
     ],
 } satisfies CardDefinition);
 
+/** CR 113.6b / 202.3 (issue #6317) — a compiled "When a creature with mana
+ *  value 6 or greater enters, …" that functions from the GRAVEYARD, as the
+ *  compiler emits it (`zone` carried on the descriptor). */
+const GRAVEYARD_FLOOR_ID = "test-6317-graveyard-floor";
+registerTokenDefinition({
+    id: GRAVEYARD_FLOOR_ID,
+    name: "Test Graveyard Floor",
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    compiledTriggeredAbilities: [
+        {
+            id: "test-6317-graveyard-floor-trigger",
+            oracleText:
+                "When a creature with mana value 6 or greater enters, if this card is in your graveyard, you gain 1 life.",
+            head: {
+                kind: "entered",
+                scope: "any",
+                filter: { types: ["Creature"], manaValueAtLeast: 6 },
+            },
+            zone: "graveyard",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ],
+} satisfies CardDefinition);
+
 function boardWith(defIds: string[]): GameState {
     return makeState({
         players: [
@@ -222,5 +248,51 @@ describe("the CR 603.4 intervening-if gates the trigger", () => {
         expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
             "test-2698-conditional-trigger",
         ]);
+    });
+});
+
+describe("a compiled graveyard-zone entered trigger (CR 113.6b, issue #6317)", () => {
+    const graveyardBoard = (): GameState => {
+        const state = boardWith([]);
+        getPlayer(state, "p1").graveyard.push(
+            makeInstance(GRAVEYARD_FLOOR_ID, {
+                id: "p1-gy",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        return state;
+    };
+
+    it("carries the zone onto the rebuilt ability", () => {
+        expect(
+            getDefinition(GRAVEYARD_FLOOR_ID).triggeredAbilities![0]
+        ).toMatchObject({
+            zone: "graveyard",
+        });
+    });
+
+    it("fires from the graveyard when a mana value 6 creature enters", () => {
+        const state = graveyardBoard();
+        const card = makeInstance(WARDEN_ID, {
+            id: "entering",
+            controllerId: "p2",
+            ownerId: "p2",
+            manaCostOverride: { generic: 6 },
+        });
+        getPlayer(state, "p2").battlefield.push(card);
+        emitPermanentEntered(state, card);
+        processPendingActionTriggers(state);
+        expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
+            "test-6317-graveyard-floor-trigger",
+        ]);
+    });
+
+    it("stays silent below the floor", () => {
+        const state = graveyardBoard();
+        createTokenPermanents(state, BEAR, "p2", 1);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
     });
 });
