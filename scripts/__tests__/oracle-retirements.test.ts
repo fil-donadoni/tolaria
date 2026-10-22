@@ -392,6 +392,27 @@ describe("retirementRefusal", () => {
         ).toMatch(/Fog/);
     });
 
+    // Issue #6387: a name holding a subject separator was un-acknowledgeable —
+    // its line's subject is cut at the colon and never equals the name.
+    it("acknowledges a card whose name holds a separator, by its whole name first", () => {
+        const cop = changedRetiredRows(
+            `+        {"oracleId":"${ID_A}","name":"Circle of Protection: Red","state":"ready","retired":{"at":"2026-09-02","issue":2703}},`
+        );
+        expect(
+            retirementRefusal(
+                cop,
+                "## Retired rows\n\n- Circle of Protection: Red — re-derived from the new Oracle text.\n"
+            )
+        ).toBeNull();
+        // …still name-first: prose that merely mentions it does not count.
+        expect(
+            retirementRefusal(
+                cop,
+                "## Retired rows\n\n- Moved: Circle of Protection: Red\n"
+            )
+        ).toMatch(/Circle of Protection: Red/);
+    });
+
     it("reads a line's SUBJECT, not its prose", () => {
         const names = acknowledgedNames(
             "- **Fog Bank** — quarantined\n1. Storm Crow: state unchanged\n* Ashnod's Altar\nprose about fog and crows\n"

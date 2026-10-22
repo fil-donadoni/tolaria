@@ -1,0 +1,60 @@
+# corpus-repin — the weekly Card Corpus re-pin (issue #6387): Scryfall's
+# current `oracle_cards` bulk is pinned, every artefact that follows from the
+# pin is regenerated (lockfile + Bot sweep, legality, card index, compiled
+# pool, Full Catalogue), the merge-blocking calls are settled — `ready`
+# losses acknowledged and enforced-Target claims written against one roll-up
+# issue, moved retired rows named — and the PR is handed to the queue with
+# `land:ready`. `bun run corpus:repin` is the whole job; it moves its job
+# worktree from the release branch to the base tip itself, and stops quietly
+# when a re-pin PR is still open or the bulk is the pinned one. Per-gap
+# issues for new gaps are `gaps:sync`'s, in post-merge `housekeeping`.
+#
+# Sunday 22:00 UTC (midnight in Rome in summer time, 23:00 in winter): the
+# Bot sweep holds the heavy mutex for most of an hour, when nobody lands.
+# Any lane runner (no host pinned). No `concurrency` group: a weekly
+# schedule never overlaps itself, and the script refuses while a re-pin PR is
+# open. A schedule fires from the DEFAULT branch only: the schedule starts
+# once a release carries this file there (docs/guides/github-pipeline.md
+# § corpus-repin).
+name: corpus-repin
+
+on:
+    schedule:
+        - cron: "0 22 * * 0"
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: Re-pin and regenerate, print the plan; no issue, commit, push or PR
+                type: boolean
+                default: false
+
+# `contents: read`: the issue, the push and the PR go through the runner's
+# own `gh` and git credentials (the owner's, masked by the job setup), as
+# `housekeeping`'s push does — never the workflow token.
+permissions:
+    contents: read
+
+jobs:
+    repin:
+        name: weekly corpus re-pin
+        runs-on: [self-hosted, lane]
+        # The Bot sweep alone is ~50 min (issue #6367); the bulk downloads,
+        # the generators and land:ready's pre-queue check add ~20.
+        timeout-minutes: 150
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: corpus:repin
+              env:
+                  DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+              run: bun run corpus:repin $DRY_RUN
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
