@@ -97,7 +97,12 @@ import {
 } from "./lib/oracle-lockfile";
 import { lockfileStructureProblems } from "./lib/oracle-fragments";
 import { ORIGIN_BASE } from "./lib/branches";
-import { derivedProblems, firstRowDrift, treeRole } from "./lib/derived-state";
+import {
+    derivedProblems,
+    draftWithoutCorpus,
+    firstRowDrift,
+    treeRole,
+} from "./lib/derived-state";
 import { baseArtifact, gitRunner, type GitRunner } from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
 import {
@@ -315,7 +320,15 @@ function checkLockfile(): void {
     }
 
     // A draft's header was just regenerated and tier 1 skipped (ADR 0157): with
-    // no corpus nothing would judge the rows, so passing here would be a no-op.
+    // no corpus nothing would judge the rows, so passing here would be a no-op
+    // — except on the hosted advisory lane, which gates nothing (issue #6338).
+    if (role === "draft" && draftWithoutCorpus() === "skip") {
+        process.stdout.write(
+            `${GREEN}✓ oracle lockfile${RESET} ${DIM}(draft on the hosted advisory lane: no corpus cache, ` +
+                `rows judged by the queue's lane)${RESET}\n`
+        );
+        return;
+    }
     if (role === "draft")
         fail(
             "oracle lockfile",
@@ -651,6 +664,8 @@ function oracleGuardInputs(): GuardInputs {
                 : `no-merge-base:${mergeBase.error}`,
             // The verdict differs by role (ADR 0157): never share a record.
             `role:${treeRole()}`,
+            // A corpus-less draft passes on the hosted lane only (issue #6338).
+            `draft-without-corpus:${draftWithoutCorpus()}`,
         ],
     };
 }
