@@ -50,8 +50,6 @@
 import { spawnSync } from "node:child_process";
 import {
     appendFileSync,
-    copyFileSync,
-    existsSync,
     mkdirSync,
     readFileSync,
     writeFileSync,
@@ -73,7 +71,11 @@ import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
 import { TREE_ROLE_ENV, type TreeRole } from "./lib/derived-state";
-import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
+import {
+    pinnedSha,
+    realCorpusSeedDeps,
+    seedPinnedCorpus,
+} from "./lib/corpus-cache";
 import {
     carriesNothing,
     derivedCarried,
@@ -375,24 +377,25 @@ function restoreAndPush(
 
 /**
  * A draft's `check:oracle` judges rows per row and REFUSES without the Card
- * Corpus cache (nothing would check the lockfile): the gitignored cache is
- * copied from the primary checkout when this worktree lacks it, as
- * `derive:sync` does. Neither tree holding one is said, and the pre-queue
- * step then names the fix (`bun run oracle:corpus`).
+ * Corpus cache (nothing would check the lockfile): one matching THIS tree's
+ * pin is kept, copied from the primary checkout only when it matches, else
+ * the pinned bulk is downloaded — the seeding `derive:sync` shares
+ * (`lib/corpus-cache.ts`, issue #6381). None obtainable is said, and the
+ * pre-queue step then names the fix (`bun run oracle:corpus`).
  */
 function ensureCorpusForDraft(cwd: string): void {
-    const here = resolve(cwd, CORPUS_CACHE_REL);
-    if (existsSync(here)) return;
-    const source = resolve(primaryCheckout(cwd), CORPUS_CACHE_REL);
-    if (!existsSync(source) || source === here) {
+    const seed = seedPinnedCorpus(
+        cwd,
+        primaryCheckout(cwd),
+        pinnedSha(cwd),
+        realCorpusSeedDeps
+    );
+    if (!seed.ok)
         console.log(
-            `land:ready: no corpus cache here nor in the primary checkout — the draft's check:oracle needs one (bun run oracle:corpus)`
+            `land:ready: ${seed.why} — the draft's check:oracle needs one (bun run oracle:corpus)`
         );
-        return;
-    }
-    mkdirSync(dirname(here), { recursive: true });
-    copyFileSync(source, here);
-    console.log(`land:ready: corpus cache copied from ${source}`);
+    else if (seed.how !== "kept")
+        console.log(`land:ready: corpus cache ${seed.how} for the pin`);
 }
 
 function preQueueGate(

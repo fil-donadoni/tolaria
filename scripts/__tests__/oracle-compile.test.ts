@@ -16,6 +16,7 @@ import {
 } from "../oracle-compile";
 import { deriveCounts, deriveFormats } from "../lib/oracle-tally";
 import { headerHashDrift } from "../check-oracle-lockfile";
+import { treeRole } from "../lib/derived-state";
 import type { CorpusCard } from "../oracle-corpus";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
@@ -352,19 +353,26 @@ describe("the committed lockfile", () => {
         expect(lock!.header.corpus.sha256).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("matches the compiler, registry and pool in this tree (offline drift guard)", () => {
-        // The same comparison `bun run check:oracle` makes, asserted here so the
-        // suite catches it too. If this is red, run: bun run oracle:compile
-        //
-        // `poolHash` is here because the card index was the one lockfile input
-        // no offline tier saw (issue #3068): shipping a card moved the true
-        // per-format `pool` while the committed lockfile kept the old number,
-        // and only the corpus-dependent tier noticed — on a machine that
-        // happened to have the gitignored 24 MB cache.
-        expect(lock!.header.compilerHash).toBe(compilerHash(ROOT));
-        expect(lock!.header.registryHash).toBe(registryHash());
-        expect(lock!.header.poolHash).toBe(poolHash(poolOracleIds()));
-    });
+    // Tier 1 of `check:oracle`, gated the same way: the header hashes are the
+    // BASE's to write (ADR 0157), so a draft or a PR tree — `land:ready`'s
+    // pre-queue judges the merge-base's header beside the PR's compiler —
+    // is not asked; its rows are judged per row by `check:oracle`.
+    it.runIf(treeRole() === "base")(
+        "matches the compiler, registry and pool in this tree (offline drift guard)",
+        () => {
+            // The same comparison `bun run check:oracle` makes, asserted here so the
+            // suite catches it too. If this is red, run: bun run oracle:compile
+            //
+            // `poolHash` is here because the card index was the one lockfile input
+            // no offline tier saw (issue #3068): shipping a card moved the true
+            // per-format `pool` while the committed lockfile kept the old number,
+            // and only the corpus-dependent tier noticed — on a machine that
+            // happened to have the gitignored 24 MB cache.
+            expect(lock!.header.compilerHash).toBe(compilerHash(ROOT));
+            expect(lock!.header.registryHash).toBe(registryHash());
+            expect(lock!.header.poolHash).toBe(poolHash(poolOracleIds()));
+        }
+    );
 
     it("has one row per corpus card, sorted by oracle id, with no duplicates", () => {
         const ids = lock!.cards.map((c) => c.oracleId);

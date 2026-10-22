@@ -82,7 +82,12 @@ import {
     serializeLegalityFile,
     type OracleLegalityFile,
 } from "./oracle-legality";
-import { corpusIsCached, readCorpus, readPin } from "./oracle-corpus";
+import {
+    corpusIsCached,
+    readCorpus,
+    readPin,
+    type CorpusCard,
+} from "./oracle-corpus";
 import { carriedBotReach } from "./lib/oracle-bot-reach";
 import {
     compilerHash,
@@ -177,6 +182,17 @@ function fail(
         );
     }
     process.exit(1);
+}
+
+/** The corpus a full regenerate-and-diff tier reads. A cache that is not the
+ *  pin's (issue #6381) is that tier's red, with its fix line — never a stack
+ *  trace out of the gate. */
+function pinnedCorpus(label: string): CorpusCard[] {
+    try {
+        return readCorpus();
+    } catch (e) {
+        return fail(label, (e as Error).message, "bun run oracle:corpus");
+    }
 }
 
 /**
@@ -286,7 +302,7 @@ function checkLockfile(): void {
         // ADR 0105 § 7.2 — the gate never PLAYS: the committed Bot-play
         // verdicts are carried forward on unchanged definitions, so this tier
         // asks only whether the compiler still produces the file.
-        const built = buildLockfile(readCorpus(), {
+        const built = buildLockfile(pinnedCorpus("oracle lockfile"), {
             botReach: carriedBotReach(lock),
         });
         if (role !== "base") {
@@ -388,7 +404,7 @@ function checkLegality(): void {
     // Tier "full regenerate-and-diff" — when the corpus cache is here.
     if (corpusIsCached() && pin !== null) {
         const regenerated = serializeLegalityFile(
-            buildLegalityFile(readCorpus(), pin)
+            buildLegalityFile(pinnedCorpus("oracle legality"), pin)
         );
         if (regenerated !== readFileSync(LEGALITY_PATH, "utf8")) {
             fail(
