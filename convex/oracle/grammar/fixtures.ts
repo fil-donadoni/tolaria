@@ -5374,6 +5374,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 607.2a + CR 400.7 — the PRINTED linked pair, return to hand: the enters
+    // trigger's exile instruction is stamped `linkToSource` by the card pass
+    // (`linkExile.ts`) and the leaves trigger returns `exiledWithSource` to the
+    // owner's hand. The canned smoke scenario cannot stage a hand exile and a
+    // later departure, so this fixture is the evidence that the pair the grammar
+    // emits is the one the hand-written catalogue writes (Tidehollow Sculler).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "fb46b300-8a39-40d2-8bc7-31b90c822e22",
+            name: "Mesmeric Fiend",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Nightmare Horror",
+            oracleText:
+                "When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card.\nWhen this creature leaves the battlefield, return the exiled card to its owner's hand.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mesmeric Fiend",
+            types: ["Creature"],
+            subtypes: ["Nightmare", "Horror"],
+            manaCost: { X: 1, B: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card.\nWhen this creature leaves the battlefield, return the exiled card to its owner's hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "mesmeric-fiend-trigger",
+                    oracleText:
+                        "When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        { op: "reveal", player: { target: 0 }, zone: "hand" },
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zoneOwnerId: { target: 0 },
+                            zone: "hand",
+                            filter: { excludeType: "Land" },
+                            count: 1,
+                            prompt: "Choose a nonland card from that player's hand.",
+                            bind: "$picked1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked1" },
+                            player: { target: 0 },
+                            from: "hand",
+                            to: "exile",
+                            linkToSource: true,
+                        },
+                    ],
+                },
+                {
+                    id: "mesmeric-fiend-trigger-2",
+                    oracleText:
+                        "When this creature leaves the battlefield, return the exiled card to its owner's hand.",
+                    head: { kind: "left", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { exiledWithSource: true },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 603.6c + CR 400.7e — "When this Aura is put into a graveyard from the
     // battlefield, return it to its owner's hand": the source's own exit to a
     // graveyard (`left-to-graveyard`, scope `self`), and `$source` naming the card

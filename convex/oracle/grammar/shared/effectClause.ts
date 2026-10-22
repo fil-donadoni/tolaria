@@ -1232,15 +1232,17 @@ export type EffectSentenceIR =
     | {
           /**
            * CR 607.2a — "Return the exiled card to the
-           * battlefield under its owner's control.": the card this object's
-           * LINKED exile instruction exiled comes back. Read as a whole
-           * phrase, since "the exiled card" is anaphora across abilities, not
-           * a target. Parsed so the line's refusal is precise: the card pass
-           * refuses every printed pair (`linkExile.ts` — the bundle Op is a
-           * CR 610.3 duration, this is not). The plural and a return to hand
-           * are neighbours, refused here.
+           * battlefield under its owner's control." / "… to its owner's
+           * hand.": the card this object's LINKED exile instruction exiled
+           * comes back. Read as a whole phrase, since "the exiled card" is
+           * anaphora across abilities, not a target. The battlefield return
+           * is parsed so its refusal is precise (`linkExile.ts` — the bundle
+           * Op is a CR 610.3 duration, this is not); the hand return lowers
+           * to the `exiledWithSource` selector the card pass links. The
+           * plural is a neighbour, refused here.
            */
           readonly kind: "return-exiled";
+          readonly to: "battlefield" | "hand";
       }
     | {
           /**
@@ -3870,6 +3872,8 @@ const EXILE_UNTIL_LEAVES = /^Exile (.+) until (.+) leaves the battlefield$/;
 /** CR 607.2a — the O-Ring family's linked return. */
 const RETURN_EXILED =
     "Return the exiled card to the battlefield under its owner's control";
+/** CR 607.2a + CR 400.7 — the hand-disruption family's linked return. */
+const RETURN_EXILED_TO_HAND = "Return the exiled card to its owner's hand";
 /** CR 601.3 + CR 305.1 — Yawgmoth's Will's graveyard permission. */
 const GRAVEYARD_PLAY =
     "Until end of turn, you may play lands and cast spells from your graveyard";
@@ -6456,9 +6460,10 @@ function effectSentence(
     }
 
     // ── the linked exile's card comes back (CR 607.2a) ─────────────────────
-    if (span === RETURN_EXILED)
+    if (span === RETURN_EXILED || span === RETURN_EXILED_TO_HAND)
         return ok({
             kind: "return-exiled" as const,
+            to: span === RETURN_EXILED ? "battlefield" : "hand",
         } satisfies EffectSentenceIR);
 
     // ── the ordered graveyard, swept or taken from the end (CR 404.2) ──────
