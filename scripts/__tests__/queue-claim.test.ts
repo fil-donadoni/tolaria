@@ -8,6 +8,7 @@ import {
     buildPrOpenRow,
     claimDecision,
     claimLockVerdict,
+    claimSets,
     latestPlanFor,
     liveClaimSet,
     ownsClaimLock,
@@ -26,6 +27,7 @@ import {
     claimVerdicts,
     classifyClaims,
     landQueueByBranch,
+    parseClaimOwners,
     type ClaimVerdictState,
     type ProcessProbe,
     type ShRunner,
@@ -828,7 +830,10 @@ describe("queue:claim — ONE liveness definition, imported (issue #4384)", () =
             // (queue:plan needs the stranded claims' PR numbers, issue #4763).
             expect(source).toMatch(/claimVerdicts|claimClassifications/);
             expect(source).toMatch(/from "\.\/loop-doctor"/);
-            expect(source).toMatch(/capCensus/);
+            // queue:claim's census runs in its pure half (`claimSets`).
+            expect(
+                verb === "queue-claim.ts" ? read("lib/queue-claim.ts") : source
+            ).toMatch(/capCensus\(/);
             // No private opinion on liveness: the facts and the thresholds
             // belong to `loop-doctor.ts` alone.
             expect(source).not.toMatch(/ownerAlive|unpushedCommits/);
@@ -1125,6 +1130,87 @@ describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", (
             }
         );
         expect(c.verdict.state).toBe("live");
+    });
+});
+
+describe("queue:claim — a claim released HERE and stranded since is resumable (issue #6354)", () => {
+    // Observed 2026-10-22: #5206's last local row was `loop:doctor`'s
+    // `released` (orphan); a later pass re-labelled it, opened PR #6337,
+    // died, and the PR went `land-failed`. `loop:doctor` listed it STRANDED,
+    // `queue:claim 5206` refused it: only the reconciled set was classified.
+    // End to end over the real journal fold and the real classifier.
+    const journal = [
+        { issue: 5206, event: "claim", session: "s0", owner: null },
+        {
+            issue: 5206,
+            event: "released",
+            by: "loop:doctor",
+            verdict: "orphan",
+        },
+    ]
+        .map((r) => JSON.stringify(r))
+        .join("\n");
+    const sets = (labels: string[]) => {
+        const claimed = [
+            {
+                number: 5206,
+                title: "stranded",
+                updatedAt: "2026-10-22T09:00:00Z",
+            },
+        ];
+        return claimSets({
+            claimed,
+            issuesWithOpenPr: [5206],
+            released: releasedClaims(journal),
+            nowIso: "2026-10-22T12:00:00.000Z",
+            staleClaimHours: 6,
+            isStale: isStaleClaim,
+            classify: (issues) =>
+                new Map(
+                    classifyClaims(issues, {
+                        prBranches: new Set(["fix/issue-5206"]),
+                        landQueue: landQueueByBranch([
+                            {
+                                headRefName: "fix/issue-5206",
+                                labels: labels.map((name) => ({ name })),
+                            },
+                        ]),
+                        branches: { local: [], remote: ["fix/issue-5206"] },
+                        owners: parseClaimOwners(journal),
+                        baseRef: "origin/staging",
+                        now: Date.parse("2026-10-22T12:00:00Z"),
+                        probe: () => "",
+                        countRunner: () => "0",
+                    }).map((c) => [c.issue, c.verdict.state])
+                ),
+        });
+    };
+
+    it("a land-failed PR on a locally-released claim is admitted to the resuming pass", () => {
+        const s = sets(["land-failed"]);
+        expect(s.collide).toEqual([]);
+        const d = claimDecision({
+            issue: 5206,
+            cap: 3,
+            noCap: false,
+            ...s,
+            scope: machineScope(s.live, []),
+        });
+        expect(d.admitted).toBe(true);
+    });
+
+    it("the other machine's live re-claim (open PR, no death reading) is still refused (issue #5302 review)", () => {
+        const s = sets([]);
+        expect(s.collide).toEqual([5206]);
+        const d = claimDecision({
+            issue: 5206,
+            cap: 3,
+            noCap: true,
+            ...s,
+            scope: machineScope(s.live, []),
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.refusal).toBe("claimed");
     });
 });
 
