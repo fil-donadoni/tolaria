@@ -19,6 +19,11 @@
  * passes `requireSourceOnBattlefield`), so it would exile nothing there — the
  * Op has no non-duration form, and lowering the pair onto it is a misread.
  *
+ * The hand return ("return the exiled card to its owner's hand") lowers to
+ * `moveZone` over `exiledWithSource`, the selector that reads the stamp
+ * `linkToSource` writes; `linkExileAndReturn` sets it on the card's exile
+ * instruction(s) in place.
+ *
  * Fail-closed throughout: a printed return, a card mixing it with an "until"
  * exile, and either half inside a GRANTED ability (whose `$source` is the
  * grantee, not this card) all refuse the card.
@@ -43,6 +48,17 @@ const BUNDLE_OPS: ReadonlySet<string> = new Set([
     "returnExiledForSource",
 ]);
 
+/** A printed CR 607.2a return: `moveZone` of the source's linked exile. */
+function isLinkedReturn(op: Record<string, unknown>): boolean {
+    const target = op.target as Record<string, unknown> | undefined;
+    return op.op === "moveZone" && target?.exiledWithSource === true;
+}
+
+/** The exile instruction a linked return reads back: a `moveZone` to exile. */
+function isExileMove(op: Record<string, unknown>): boolean {
+    return op.op === "moveZone" && op.to === "exile";
+}
+
 export type ExileLink =
     | { readonly ok: false; readonly reason: string }
     /** `untilLeaves` — the card owes the CR 610.3 return trigger. */
@@ -55,7 +71,11 @@ export function linkExileAndReturn(
 ): ExileLink {
     const grantedOps: Record<string, unknown>[] = [];
     for (const script of granted) collectOps(script, grantedOps);
-    if (grantedOps.some((op) => BUNDLE_OPS.has(op.op as string)))
+    if (
+        grantedOps.some(
+            (op) => BUNDLE_OPS.has(op.op as string) || isLinkedReturn(op)
+        )
+    )
         return {
             ok: false,
             reason: "a granted ability's exile-and-return keys to the grantee, not this card (CR 607.2a)",
@@ -67,6 +87,20 @@ export function linkExileAndReturn(
             ok: false,
             reason: '"the exiled card" is a CR 607.2a linked exile with no duration, which no Op encodes (the bundle Op applies CR 610.3b)',
         };
+    // CR 607.2a — the printed pair "exile …" / "return the exiled card to its
+    // owner's hand": the two abilities are linked, so the exile instruction
+    // stamps its card (`linkToSource`) for the return to name. The stamp is
+    // written here because no line can see the other. An exile instruction
+    // that is not a plain `moveZone` leaves nothing to stamp: refused.
+    if (ops.some(isLinkedReturn)) {
+        const exiles = ops.filter(isExileMove);
+        if (exiles.length === 0)
+            return {
+                ok: false,
+                reason: '"the exiled card" names no exile instruction this card prints (CR 607.2a)',
+            };
+        for (const exile of exiles) exile.linkToSource = true;
+    }
     return {
         ok: true,
         untilLeaves: ops.some((op) => op.op === "exileWithAttachments"),
