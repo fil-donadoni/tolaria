@@ -20,6 +20,31 @@ export function isAfkJob(env: NodeJS.ProcessEnv): boolean {
     return env.GITHUB_ACTIONS === "true";
 }
 
+/**
+ * Pure: what `queue:claim N` does inside an afk-pass job (issue #6330). The
+ * dispatcher already claimed the job's issue by label (`AFK_ISSUE`) and
+ * admitted the pass, so `queue:claim` on that issue is a no-op that succeeds:
+ * before this, it read the dispatcher's label as another session's live claim
+ * and the pass stopped with no hand-off. A job claiming any other issue is
+ * refused — a job is bound to its issue. `null` outside a job.
+ */
+export function afkJobClaim(
+    issue: number,
+    env: NodeJS.ProcessEnv
+): { ok: boolean; message: string } | null {
+    if (!isAfkJob(env)) return null;
+    const own = Number((env.AFK_ISSUE ?? "").trim());
+    if (Number.isInteger(own) && own > 0 && own === issue)
+        return {
+            ok: true,
+            message: `queue:claim: issue #${issue} is this afk-pass job's issue — the dispatcher's \`in-progress\` label is the claim; nothing to do (job.md § 2)`,
+        };
+    return {
+        ok: false,
+        message: `✗ queue:claim: an afk-pass job is bound to its issue (AFK_ISSUE=${env.AFK_ISSUE ?? "unset"}) and never claims #${issue} — stop and say so (job.md § 2)`,
+    };
+}
+
 export interface ClaimGateDeps {
     labels: (issue: number) => string[];
     ledger: () => string;

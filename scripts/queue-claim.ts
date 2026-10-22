@@ -21,6 +21,7 @@
 // (MAX_PASSES = 1) — this verb is not one and must never be matched by that
 // rule; § 6 denies the hand-typed claim and names this verb as the exit.
 
+import { afkJobClaim } from "./lib/claim-gate";
 import {
     mkdirSync,
     readdirSync,
@@ -310,6 +311,13 @@ async function main(): Promise<void> {
     if (numbers.length !== 1) usage();
     const issue = Number(numbers[0].replace(/^#/, ""));
     const noCap = args.includes("--no-cap");
+    // Inside an afk-pass job the dispatcher's label IS the claim (issue
+    // #6330): no admission, no lock, no journal row.
+    const job = afkJobClaim(issue, process.env);
+    if (job !== null) {
+        console.error(job.message);
+        process.exit(job.ok ? 0 : 1);
+    }
     const root = projectRoot();
     const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
     if (session === "")
