@@ -32,8 +32,8 @@ describe("linked exile returned to hand (CR 607.2a)", () => {
         if (outcome.state === "unparsed")
             throw new Error(JSON.stringify(outcome.gaps));
         const triggers = sortKeys(
-            outcome.definition
-        ).compiledTriggeredAbilities;
+            outcome.definition.compiledTriggeredAbilities
+        );
         expect(triggers).toEqual(
             sortKeys([
                 {
