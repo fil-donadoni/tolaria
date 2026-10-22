@@ -114,6 +114,9 @@ export function applyTimedCopy(
                 {
                     card: { id: presentedDefId(recipient) },
                     copyExcept: recipient.copyExcept,
+                    // The art the copy effect being covered shows now.
+                    imagePrintId: recipient.imagePrintId,
+                    faceDown: recipient.faceDown,
                 } as CopySource,
                 recipient.copyOptions ?? {}
             )

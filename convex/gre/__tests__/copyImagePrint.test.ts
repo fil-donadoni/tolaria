@@ -4,8 +4,24 @@
 // the copy ends, and a face-down source never lends its print.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
-import { applyCopy, applyTimedCopy, revertCopy } from "../copy";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup.helper";
+import {
+    applyCopy,
+    applyTimedCopy,
+    presentedDefId,
+    rematerialiseTimedCopies,
+    revertCopy,
+} from "../copy";
+import {
+    buildSpellContext,
+    removePermanentTo,
+    type CardInstanceState,
+} from "../state";
 import { turnFaceDown } from "../faceDown";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { compactState, expandState } from "../serialize";
@@ -102,6 +118,63 @@ describe("copy effects and art (CR 707.2, issue #4104)", () => {
         expect(copy.timedCopyEffects?.effects[0].sourceImagePrintId).toBe(
             SOURCE
         );
+    });
+
+    it("an expiring timed copy re-shows the indefinite copy's print it covered", () => {
+        const copy = bf(CLONE.id, { imagePrintId: OWN });
+        applyCopy(
+            NO_BOARD_LAYER_VIEW,
+            copy,
+            bf(SERRA.id, { imagePrintId: SOURCE })
+        );
+        applyTimedCopy(
+            NO_BOARD_LAYER_VIEW,
+            copy,
+            bf(BEARS.id, { imagePrintId: "print-bears" }),
+            {},
+            { phase: "end-of-turn" }
+        );
+        expect(copy.imagePrintId).toBe("print-bears");
+        const expired = copy.timedCopyEffects!.effects;
+        rematerialiseTimedCopies(NO_BOARD_LAYER_VIEW, copy, [], expired);
+        expect(presentedDefId(copy)).toBe(SERRA.id);
+        expect(copy.imagePrintId).toBe(SOURCE);
+        expect(copy.preCopyImagePrintId).toBe(OWN);
+    });
+
+    it("a token copy made from last-known information shows the departed object's print, through serialization", () => {
+        const source = bf(SERRA.id, { id: "src", imagePrintId: SOURCE });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, BEARS.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        removePermanentTo(state, "src", "graveyard");
+        const kept = expandState(compactState(state));
+        expect(kept.lastKnownCopiable?.src.imagePrintId).toBe(SOURCE);
+        const id = ctx.createTokenCopyOf("src", "p1", undefined, {
+            lastKnownCopiable: true,
+        });
+        const token = state.players[0].battlefield.find(
+            (c: CardInstanceState) => c.id === id
+        )!;
+        expect(token.imagePrintId).toBe(SOURCE);
+    });
+
+    it("a face-down permanent's departure record carries no print", () => {
+        const hidden = bf(SERRA.id, { id: "fd", imagePrintId: HIDDEN });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, hidden, "morph");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hidden] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "fd", "graveyard");
+        expect(state.lastKnownCopiable?.fd.imagePrintId).toBeUndefined();
     });
 
     it("a face-down source lends no print (CR 708.5) — through projectPublicState, both viewers", () => {

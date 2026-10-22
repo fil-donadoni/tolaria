@@ -6725,6 +6725,10 @@ export function removePermanentTo(
         ...(!creature.faceDown && creature.copyExcept
             ? { copyExcept: { ...creature.copyExcept } }
             : {}),
+        // Art follows the object the player saw; a face-down one lends none.
+        ...(!creature.faceDown && creature.imagePrintId
+            ? { imagePrintId: creature.imagePrintId }
+            : {}),
         turn: state.turn,
     };
     creature.zone = toZone;
@@ -14808,6 +14812,9 @@ export function buildSpellContext(
                           card: { id: source.defId },
                           ...(source.copyExcept
                               ? { copyExcept: source.copyExcept }
+                              : {}),
+                          ...(source.imagePrintId
+                              ? { imagePrintId: source.imagePrintId }
                               : {}),
                       }
                     : source;

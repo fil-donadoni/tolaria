@@ -4116,6 +4116,10 @@ export type LastKnownCopiable = {
      *  which contributes no exception (CR 707.2 — its copiable values are the
      *  face-down body) exactly as `applyCopy` decides for a live source. */
     copyExcept?: { basePower?: number; baseToughness?: number };
+    /** The `imagePrintId` the permanent showed at departure, so a token copy
+     *  made from this record shows the same art. Omitted for a face-down
+     *  permanent (CR 708.5: the print would name the hidden card). Cosmetic. */
+    imagePrintId?: string;
     /** `GameState.turn` at departure — the key the CR 514 cleanup prune reads.
      *  Not information about the object. */
     turn: number;
