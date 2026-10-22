@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import {
     existsSync,
     mkdirSync,
@@ -317,5 +319,24 @@ describe("seedCorpus", () => {
 
     it("reports failure when no cache can be obtained", () => {
         expect(seedCorpus(primary, wt, () => false)).toBe(false);
+    });
+
+    // Issue #6381: after a re-pin lands, the primary's cache is the OLD bulk.
+    it("downloads instead of copying a primary cache on another pin", () => {
+        writeFileSync(join(primary, CORPUS_CACHE_REL), gzipSync("old"));
+        writeFileSync(
+            join(wt, "data", "oracle-corpus.pin.json"),
+            JSON.stringify({
+                sha256: createHash("sha256").update("new").digest("hex"),
+            })
+        );
+        let fetched = false;
+        const ok = seedCorpus(primary, wt, (dir) => {
+            fetched = true;
+            writeFileSync(join(dir, CORPUS_CACHE_REL), gzipSync("new"));
+            return true;
+        });
+        expect(ok).toBe(true);
+        expect(fetched).toBe(true);
     });
 });

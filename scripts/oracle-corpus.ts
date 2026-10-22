@@ -4,7 +4,7 @@
  * fields the Oracle compiler reads, plus the format legalities the report needs.
  *
  * Usage:
- *   bun scripts/oracle-corpus.ts            # ensure (no-op when a usable cache exists)
+ *   bun scripts/oracle-corpus.ts            # ensure (no-op when the cache matches the pin)
  *   bun scripts/oracle-corpus.ts --force    # re-download THE PINNED bulk, verify its sha
  *   bun scripts/oracle-corpus.ts --repin    # take Scryfall's current bulk and re-pin
  *
@@ -53,6 +53,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { corpusCacheSha, corpusPinMismatch } from "./lib/corpus-cache";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 export const CORPUS_PATH = join(ROOT, "data", "oracle-corpus.json.gz");
@@ -281,15 +282,30 @@ async function download(choice: BulkChoice): Promise<{
     };
 }
 
+/** Fails closed on a cache the tree is not pinned to (issue #6381): the cache
+ *  is gitignored and copied between checkouts, so its bytes are only trusted
+ *  once they hash to the pin's `sha256`. A pin-less tree reads as before. */
 export function readCorpus(): CorpusCard[] {
-    if (!existsSync(CORPUS_PATH)) {
+    return readCorpusFile(CORPUS_PATH, readPin());
+}
+
+/** `readCorpus` over an explicit cache path and pin — the testable half. */
+export function readCorpusFile(
+    path: string,
+    pin: Pick<CorpusPin, "sha256"> | null
+): CorpusCard[] {
+    if (!existsSync(path)) {
         throw new Error(
-            `oracle corpus cache missing (${CORPUS_PATH}) — run: bun run oracle:corpus`
+            `oracle corpus cache missing (${path}) — run: bun run oracle:corpus`
         );
     }
-    return JSON.parse(
-        gunzipSync(readFileSync(CORPUS_PATH)).toString("utf8")
-    ) as CorpusCard[];
+    const payload = gunzipSync(readFileSync(path));
+    if (pin !== null) {
+        const sha256 = createHash("sha256").update(payload).digest("hex");
+        if (sha256 !== pin.sha256)
+            throw new Error(corpusPinMismatch(path, sha256, pin.sha256));
+    }
+    return JSON.parse(payload.toString("utf8")) as CorpusCard[];
 }
 
 export function readPin(): CorpusPin | null {
@@ -308,9 +324,19 @@ async function main(): Promise<void> {
     const repin = process.argv.includes("--repin");
     // `--force` re-downloads; it does NOT decide WHICH bulk (that is `--repin`).
     const force = process.argv.includes("--force") || repin;
-    if (!force && corpusIsCached() && readPin()) {
-        process.stderr.write(`oracle-corpus: cache present (${CORPUS_PATH})\n`);
-        return;
+    const current = readPin();
+    if (!force && corpusIsCached() && current) {
+        // A cache that is present but not the pin's (issue #6381) is treated
+        // as absent: the download below fetches THE PINNED bulk.
+        if (corpusCacheSha(CORPUS_PATH) === current.sha256) {
+            process.stderr.write(
+                `oracle-corpus: cache present (${CORPUS_PATH})\n`
+            );
+            return;
+        }
+        process.stderr.write(
+            `oracle-corpus: cache does not match the pin ${current.sha256.slice(0, 12)} — re-downloading the pinned bulk\n`
+        );
     }
     const existingPin = readPin();
     const { cards, pin } = await download(repin ? "latest" : "pinned");

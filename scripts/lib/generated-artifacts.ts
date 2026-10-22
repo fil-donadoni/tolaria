@@ -1,3 +1,4 @@
+import { CORPUS_CACHE_REL } from "./corpus-cache";
 import { LEDGER_PATH } from "./cr-ledger";
 
 /**
@@ -228,15 +229,10 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
     },
 ] as const;
 
-/**
- * The gitignored Card Corpus cache, repo-relative.
- *
- * Kept relative (rather than importing `oracle-corpus.ts`'s absolute
- * `CORPUS_PATH`) because the resolver has to ask the question about the
- * WORKTREE it was invoked in, not about the checkout the module happens to live
- * in. A test pins the two against each other so there is still one authority.
- */
-export const CORPUS_CACHE_REL = "data/oracle-corpus.json.gz";
+// The gitignored Card Corpus cache, repo-relative — defined beside the cache's
+// pin check (`corpus-cache.ts`), which `oracle-corpus.ts` imports and so must
+// not pull this module's imports into the compiler's program.
+export { CORPUS_CACHE_REL };
 
 /**
  * The merge-driver name `.gitattributes` gives every {@link

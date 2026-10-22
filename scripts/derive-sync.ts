@@ -10,9 +10,9 @@
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
- *   1. `oracle:compile --carry-bot` and `catalogue:pack` on the tip — the
- *      corpus cache is copied from the primary checkout when the worktree
- *      lacks it (gitignored; the self-hosted runners hold it);
+ *   1. `oracle:compile --carry-bot` and `catalogue:pack` on the tip — on a
+ *      corpus cache matching the tip's pin: the primary checkout's when it
+ *      matches, else the pinned bulk (`lib/corpus-cache.ts`, issue #6381);
  *   2. the five derived paths compared, blob by blob, with the tip's
  *      (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no commit;
  *   3. else ONE commit with exactly the changed paths, built on a scratch
@@ -42,7 +42,7 @@
  * The decisions are `lib/derive-sync.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildCatalogue } from "./catalogue-artifact";
 import { headerHashDrift } from "./check-oracle-lockfile";
@@ -71,8 +71,12 @@ import { PACKED_CORPUS_PATH } from "./lib/packed-corpus";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { commitOnScratchIndex } from "./lib/commit-tree";
 import { SEARCH_INDEX_PATH } from "./lib/search-index";
+import {
+    pinnedSha,
+    realCorpusSeedDeps,
+    seedPinnedCorpus,
+} from "./lib/corpus-cache";
 import { poolOracleIds } from "./oracle-compile";
-import { CORPUS_PATH, corpusIsCached } from "./oracle-corpus";
 
 /** This tree — the only tree the hashes and the generators can speak for:
  *  `registryHash()` reads the registry this file is imported with. */
@@ -145,21 +149,23 @@ export function freshness(): Freshness {
     return derivedFreshness({ hashDrift, catalogue: catalogueEntries() });
 }
 
-/** The corpus cache, copied from the primary checkout into a worktree that
- *  lacks it (gitignored). false when neither tree holds one. */
+/** A corpus cache matching THIS tree's pin (gitignored; issue #6381): kept,
+ *  copied from the primary checkout only when it matches, else the pinned
+ *  bulk downloaded. false when none can be had — never a mismatched file,
+ *  since the lockfile is a derived path and would be committed from it. */
 function ensureCorpus(): boolean {
-    if (corpusIsCached()) return true;
-    const source = join(primaryCheckout(ROOT), "data", "oracle-corpus.json.gz");
-    if (!existsSync(source) || source === CORPUS_PATH) {
-        complain(
-            `no corpus cache here nor in the primary checkout (${source}) — run \`bun run oracle:corpus\` there once`
-        );
+    const seed = seedPinnedCorpus(
+        ROOT,
+        primaryCheckout(ROOT),
+        pinnedSha(ROOT),
+        realCorpusSeedDeps
+    );
+    if (!seed.ok) {
+        complain(seed.why);
         return false;
     }
-    mkdirSync(dirname(CORPUS_PATH), { recursive: true });
-    copyFileSync(source, CORPUS_PATH);
-    say(`corpus cache copied from ${source}`);
-    return corpusIsCached();
+    if (seed.how !== "kept") say(`corpus cache ${seed.how} for the pin`);
+    return true;
 }
 
 /** One generator, inheriting stdio: its own lines are the log. */
