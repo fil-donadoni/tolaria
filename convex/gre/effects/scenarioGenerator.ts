@@ -2257,11 +2257,8 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // seeded with floating mana so the emptying is observable; a ref
             // player is unmodelable (analysePlayer records the skip).
             analysePlayer(op.player, req, false);
-            const resolved = resolveScenarioPlayer(op.player);
-            if (resolved !== "ref" && resolved !== "target")
-                req.floatingManaPlayers.add(resolved);
-            else if (resolved === "target")
-                req.floatingManaPlayers.add(OPPONENT_ID);
+            if (resolveScenarioPlayer(op.player) !== "ref")
+                req.floatingManaPlayers.add(assertionPlayerId(op.player));
             return;
         }
         case "destroy":

@@ -14,6 +14,7 @@ import {
 import { getCardByName } from "../../cards/catalogue";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
+import { projectPublicState } from "../../gameProjections";
 import { resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -127,6 +128,12 @@ describe("tap sweep + drain mana pool (CR 701.26a, CR 106.4)", () => {
             );
             expect(p1!.battlefield[0]!.isTapped).toBe(false);
             expect(p1!.manaPool.U).toBe(1);
+            // Wire format: the client's view of the drained pool is empty too.
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players.find((p) => p.id === "p2")!;
+            expect(Object.values(slim.manaPool).every((n) => n === 0)).toBe(
+                true
+            );
         });
     });
 });
