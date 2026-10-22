@@ -222,6 +222,8 @@ export interface DescriptorState {
     /** See `DescriptorIR.multicolored`. */
     multicolored?: true;
     controller?: "you" | "opponent";
+    /** CR 508.5 — `controller` came from "defending player controls". */
+    defendingPlayer?: true;
     tapped?: "tapped" | "untapped";
     combatRole?: ("attacking" | "blocking")[];
     requireAbility?: string;
@@ -436,6 +438,19 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
         (into) => {
             if (into.controller !== undefined) return "two controller clauses";
             into.controller = "opponent";
+            return null;
+        },
+    ],
+    // CR 506.2 + CR 508.5 — "defending player controls": the player the
+    // source's own attack is against. This engine is two-player (ADR 0010), so
+    // that is the source controller's one opponent — the same collapse the
+    // `defending-player` player ref lowers through (`lowerTriggered.ts`).
+    [
+        " defending player controls",
+        (into) => {
+            if (into.controller !== undefined) return "two controller clauses";
+            into.controller = "opponent";
+            into.defendingPlayer = true;
             return null;
         },
     ],
@@ -735,10 +750,26 @@ export const DESCRIPTOR_READERS: DescriptorReaders = {
  */
 const LEGACY_ANY_TARGET = "creature, planeswalker, or player";
 
+/** True when the card prints a head "<this permanent / its own name> attacks"
+ *  (CR 508.1) — a legendary's short name ("The Wasp") included. */
+const SELF_ATTACK_HEAD = /\b(?:Whenever|When) this \w+ attacks\b/;
+function selfAttackHead(ctx: unknown): boolean {
+    const card = (
+        ctx as { card?: { oracleText?: string; name?: string } } | null
+    )?.card;
+    const text = card?.oracleText;
+    if (text === undefined) return false;
+    if (SELF_ATTACK_HEAD.test(text)) return true;
+    const name = card?.name;
+    if (name === undefined) return false;
+    const names = new Set([name, name.split(",")[0]!]);
+    return [...names].some((n) => text.includes(`Whenever ${n} attacks`));
+}
+
 export function descriptorRuleWith(
     readers: DescriptorReaders
 ): Rule<DescriptorIR> {
-    return rule(DESCRIPTOR, (span) => {
+    return rule(DESCRIPTOR, (span, ctx) => {
         if (span.length === 0) return fail("empty descriptor", span);
         if (span === "any target" || span === LEGACY_ANY_TARGET) {
             return ok({ anyTarget: true as const });
@@ -746,6 +777,15 @@ export function descriptorRuleWith(
         const withQualifiers = emptyState();
         const peeled = peelQualifiers(span, withQualifiers);
         if ("error" in peeled) return fail(peeled.error, span);
+        // CR 508.5 — "defending player" is defined only for an ability of an
+        // attacking creature, and the opponent collapse below is right only
+        // when that creature is the ability's own source (its controller
+        // attacks). Any other head leaves the phrase unread.
+        if (withQualifiers.defendingPlayer === true && !selfAttackHead(ctx))
+            return fail(
+                '"defending player" is read only behind the source\'s own attack',
+                span
+            );
         const tokens = joinTypeDisjunctions(
             joinColourDisjunctions(
                 splitNegationLists(
