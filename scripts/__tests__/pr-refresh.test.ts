@@ -288,7 +288,14 @@ describe("seedCorpus", () => {
         mkdirSync(join(primary, "data"), { recursive: true });
         mkdirSync(join(wt, "data"), { recursive: true });
     });
-    afterEach(() => rmSync(root, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(root, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("copies the primary's cache into the worktree without downloading", () => {
         writeFileSync(join(primary, CORPUS_CACHE_REL), "corpus");
