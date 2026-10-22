@@ -1090,6 +1090,11 @@ export type CardInstanceState = {
      *  Rhonas's tmh3 #15 Zombie Snake Druid frame, not the MH3 creature's), and
      *  preferred by the card renderer over the definition-derived art. */
     imagePrintId?: string;
+    /** The instance's OWN `imagePrintId` before it became a copy, remembered
+     *  the way `copiedFrom` remembers the own definition id and restored by
+     *  `revertCopy`. Set once per copy anchor (a CR 707.4 re-copy leaves it
+     *  alone); absent when the copier had no print of its own. Cosmetic. */
+    preCopyImagePrintId?: string;
     /** CR 111 (ADR 0140 §6, issue #4120) — the printing a TOKEN was created
      *  from: the creating object's `imagePrintId`, else its Card ID. Stamped at
      *  token creation, opaque to every rules module (the engine-blindness
@@ -4089,6 +4094,9 @@ export type TimedCopyLayer = {
     /** The definition id the copied object presented (CR 707.2). */
     sourceDefId: string;
     sourceCopyExcept?: { basePower?: number; baseToughness?: number };
+    /** The face-up source's `imagePrintId` when the layer was recorded, so a
+     *  re-materialised layer shows the same art. Cosmetic. */
+    sourceImagePrintId?: string;
     opts: CopyEffectOptions;
 };
 

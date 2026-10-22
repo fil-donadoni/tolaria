@@ -42,7 +42,7 @@ import type { LayerStateView } from "./layers";
  *  the new field. */
 export type CopySource = Pick<
     CardInstanceState,
-    "card" | "faceDown" | "copyExcept"
+    "card" | "faceDown" | "copyExcept" | "imagePrintId"
 >;
 
 /** Re-exported alias so engine call sites import copy-option typing from the
@@ -190,6 +190,10 @@ function copyLayerOf(source: CopySource, opts: CopyOptions): TimedCopyLayer {
     return {
         sourceDefId: presentedDefId(source),
         ...(except ? { sourceCopyExcept: { ...except } } : {}),
+        // A face-down source's print names the hidden card (CR 708.5).
+        ...(!source.faceDown && source.imagePrintId
+            ? { sourceImagePrintId: source.imagePrintId }
+            : {}),
         // JSON-pure (a card's `except` clause, ADR 0046); cloned so instance
         // state never aliases a module-level `CardDefinition` array.
         opts: JSON.parse(JSON.stringify(opts)) as CopyOptions,
@@ -207,6 +211,7 @@ function applyCopyLayer(
         {
             card: { id: layer.sourceDefId },
             copyExcept: layer.sourceCopyExcept,
+            imagePrintId: layer.sourceImagePrintId,
         } as CopySource,
         layer.opts
     );
@@ -263,6 +268,7 @@ function applyCopyEffect(
 
     // Preserve the recipient's original printed id the first time it becomes
     // a copy; keep it stable across subsequent re-copies (Vesuvan).
+    const hadCopyAnchor = recipient.copiedFrom !== undefined;
     const printedId = recipient.copiedFrom ?? presentedDefId(recipient);
     recipient.copiedFrom = printedId;
     // CR 707.9 — the exceptions of the copy effect now presented, kept so a
@@ -329,10 +335,21 @@ function applyCopyEffect(
         delete recipient.manaCostOverride;
     }
 
-    // CR 111 / 707.2 — cosmetic art pin (Eternalize's own printed token card).
-    // Never a characteristic: nothing in the rules engine reads it.
-    if (opts.imagePrintId) {
-        recipient.imagePrintId = opts.imagePrintId;
+    // Art is not a copiable value (CR 707.2) — it is presentation, and follows
+    // the object the player sees. The copier's own print is remembered the
+    // first time it becomes a copy (`copiedFrom` unset), like `copiedFrom`
+    // itself, so a re-copy (CR 707.4) never overwrites it with a borrowed one.
+    if (!hadCopyAnchor && recipient.imagePrintId) {
+        recipient.preCopyImagePrintId = recipient.imagePrintId;
+    }
+    // Precedence: the copy effect's own token frame (Eternalize/Embalm), then
+    // the face-up source's print. A face-down source (CR 708.2 / 708.5) must
+    // NOT lend its print: the copy is the generic face-down body and the print
+    // would name the hidden card to every viewer.
+    const copiedPrint = source.faceDown ? undefined : source.imagePrintId;
+    const presentedPrint = opts.imagePrintId ?? copiedPrint;
+    if (presentedPrint) {
+        recipient.imagePrintId = presentedPrint;
     } else {
         delete recipient.imagePrintId;
     }
@@ -406,10 +423,16 @@ export function revertCopy(
     delete card.timedCopyEffects;
     delete card.colorOverride;
     // CR 707.2 — the copy effect (and every "except" clause riding on it) lasts
-    // only while the object is on the battlefield, so the mana-cost and art
-    // overrides an Eternalize/Embalm token carried go with it.
+    // only while the object is on the battlefield, so the mana-cost override an
+    // Eternalize/Embalm token carried goes with it. The art is the COPIER's
+    // again: its own remembered print comes back, none if it had none.
     delete card.manaCostOverride;
-    delete card.imagePrintId;
+    if (card.preCopyImagePrintId) {
+        card.imagePrintId = card.preCopyImagePrintId;
+    } else {
+        delete card.imagePrintId;
+    }
+    delete card.preCopyImagePrintId;
 }
 
 /** Triggered abilities that function for `card` while on the battlefield,
