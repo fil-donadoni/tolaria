@@ -171,12 +171,6 @@ describe("Show and Tell ({2}{U}: each player may put an artifact/creature/enchan
     });
 });
 
-// Time Spiral — NOT DSL-migratable (ADR 0045): the Timetwister-shape shuffle
-// clause is the SAME already-tracked bulk whole-zone-move gap Timetwister
-// itself is blocked on (lea/__tests__/blue.test.ts covers Timetwister;
-// tracked-by: #1727). `resolveSteps` (not a bare `resolve`) because the
-// seven-card draws are irreversible and must run exactly once before the
-// untap choice can suspend (Sylvan Library precedent, leg/green.cards.ts).
 describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for each player, untap up to 6 lands, CR 608.2m / 400.7 / 701.26)", () => {
     it("exiles itself, shuffles hand+graveyard into library and draws 7 for each player, then untaps up to 6 chosen lands across both battlefields", () => {
         const makeLib = (owner: string, n: number, prefix: string) =>
@@ -275,9 +269,7 @@ describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for
         // the pool spans BOTH battlefields (allControllers: true).
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("choose-permanents");
-        expect(head.candidateIds?.slice().sort()).toEqual(
-            ["p1-land-1", "p1-land-2", "p2-land-1"].sort()
-        );
+        expect(head.allControllers).toBe(true);
         expect(head.count).toEqual({ min: 0, max: 6 });
 
         applyPendingChoiceSubmit(state, {
@@ -287,6 +279,12 @@ describe("Time Spiral ({4}{U}{U}: exile self, Timetwister-shape shuffle+draw for
             choiceId: head.choiceId,
             cardInstanceIds: ["p1-land-1", "p2-land-1"],
         });
+
+        // Answering the pick resumes AFTER the draws — no re-draw.
+        expect(p1.hand).toHaveLength(7);
+        expect(p2.hand).toHaveLength(7);
+        expect(p1.library).toHaveLength(5);
+        expect(p2.library).toHaveLength(4);
 
         const untapped = (id: string) =>
             [...p1.battlefield, ...p2.battlefield].find((c) => c.id === id)

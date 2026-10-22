@@ -97,13 +97,20 @@ describe("Teferi, Hero of Dominaria — +1 (draw + next-end-step untap up to two
             ownerId: "p1",
             isTapped: true,
         });
+        // CR 109.2 — an unqualified "lands" spans both battlefields.
+        const oppLand = makeInstance(island.id, {
+            id: "oppLand",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", {
                     battlefield: [teferiOnBattlefield(), landA, landB, landC],
                     library: [libTop],
                 }),
-                makePlayer("p2"),
+                makePlayer("p2", { battlefield: [oppLand] }),
             ],
         });
         activate(state, PLUS1);
@@ -118,7 +125,8 @@ describe("Teferi, Hero of Dominaria — +1 (draw + next-end-step untap up to two
         resolveTopOfStack(state);
         const pick = state.pendingChoices![0];
         expect(pick.playerId).toBe("p1");
-        // "Up to two": a 0..2 range over the controller's lands.
+        // "Up to two": ONE shared 0..2 range over every land.
+        expect(pick.allControllers).toBe(true);
         expect(pick.count).toEqual({ min: 0, max: 2 });
 
         applyPendingChoiceSubmit(state, {
@@ -126,14 +134,18 @@ describe("Teferi, Hero of Dominaria — +1 (draw + next-end-step untap up to two
             stackItemId: pick.stackItemId,
             step: pick.step,
             choiceId: pick.choiceId,
-            cardInstanceIds: ["landA", "landC"],
+            cardInstanceIds: ["landA", "oppLand"],
         });
         const byId = (id: string) =>
             state.players[0].battlefield.find((c) => c.id === id)!;
         expect(byId("landA").isTapped).toBe(false);
-        expect(byId("landC").isTapped).toBe(false);
-        // The un-picked land stays tapped.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "oppLand")!
+                .isTapped
+        ).toBe(false);
+        // The un-picked lands stay tapped.
         expect(byId("landB").isTapped).toBe(true);
+        expect(byId("landC").isTapped).toBe(true);
         // Consumed: no further pending choice, trigger off the stack.
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.delayedTriggers ?? []).toHaveLength(0);

@@ -52,20 +52,17 @@ export const teferiHeroOfDominaria = defineCard(() => ({
                     // so the lands are chosen when the delayed trigger
                     // RESOLVES (a live battlefield pick, not an announced
                     // target); the body's `choice` suspends/resumes through
-                    // the standard Pending Choice pipeline.
-                    //
-                    // DIVERGENCE (tracked-by: #2785): the pick is restricted to the controller's
-                    // OWN lands — the `choice` Op picks from one player's
-                    // zone, and a cross-battlefield permanent pick is not yet
-                    // expressible (CR text allows ANY lands). Overwhelmingly
-                    // the dominant gameplay case (untapping your own lands);
-                    // tracked-by: #1727.
+                    // the standard Pending Choice pipeline. No "you control"
+                    // is printed, so "lands" is every land permanent on the
+                    // battlefield (CR 109.2): `allControllers` widens the pool
+                    // to both battlefields under ONE shared 0..2 count.
                     effects: [
                         {
                             op: "choice",
                             kind: "choose-permanents",
                             player: "controller",
                             zone: "battlefield",
+                            allControllers: true,
                             filter: { type: "Land" },
                             count: { min: 0, max: 2 },
                             prompt: "Untap up to two lands",
