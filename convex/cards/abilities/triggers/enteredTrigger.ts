@@ -178,6 +178,18 @@ function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
  *  filter matching, and CR 603.4 wiring so card authors write only
  *  the effect body. */
 export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
+    // The graveyard scan (`collectTriggers`) reads neither the per-turn cap nor
+    // the batch collapse, and a graveyard card is never the one entering: refuse
+    // the combinations that would be silently inert or silently ignored.
+    if (
+        args.zone !== undefined &&
+        (args.scope === "self" ||
+            args.oncePerEventBatch ||
+            args.maxTriggersPerTurn !== undefined)
+    )
+        throw new Error(
+            `enteredTrigger ${args.id}: zone "${args.zone}" cannot combine with scope "self", oncePerEventBatch or maxTriggersPerTurn`
+        );
     const ability: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,

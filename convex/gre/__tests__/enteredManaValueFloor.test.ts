@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    createTokenPermanents,
     emitPermanentEntered,
     getPlayer,
     processPendingActionTriggers,
@@ -18,13 +19,23 @@ import {
 import { registerTokenDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import { matchesPermanentFilter } from "../../cards/filters";
+import { effectivePermanentView } from "../permanentView";
 import { projectPublicState } from "../../gameProjections";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, TokenSpec } from "../../cards/types";
+
+/** A five-colour token: its registered definition carries one pip per colour. */
+const FIVE_COLOUR_TOKEN: TokenSpec = {
+    name: "Test Rainbow",
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+    colors: ["W", "U", "B", "R", "G"],
+};
 
 const SIX_DROP_ID = "test-6317-six-drop";
 registerTokenDefinition({
@@ -48,20 +59,6 @@ registerTokenDefinition({
     subtypes: ["Beast"],
     power: 5,
     toughness: 5,
-} satisfies CardDefinition);
-
-/** `{X}{X}{G}` — mana value 1 on the battlefield (CR 202.3e), however big the
- *  X it was cast for. A numeric `X` would be read as its value; the string
- *  placeholder is the variable-X encoding. */
-const X_CREATURE_ID = "test-6317-x-creature";
-registerTokenDefinition({
-    id: X_CREATURE_ID,
-    name: "Test X Creature",
-    rarity: "common",
-    manaCost: { X: "X", G: 1 } as unknown as CardDefinition["manaCost"],
-    types: ["Creature"],
-    power: 0,
-    toughness: 0,
 } satisfies CardDefinition);
 
 const SIX_DROP_NONCREATURE_ID = "test-6317-six-drop-artifact";
@@ -199,13 +196,13 @@ describe("PERMANENT_ENTERED carries the entering permanent's mana value (CR 202.
         );
     });
 
-    it("values {X} at 0 on the battlefield (CR 202.3e)", () => {
+    it("values a non-copy token at 0 (CR 111.3 / 202.3a), whatever its colours", () => {
         const state = board({});
-        emitEntry(state, X_CREATURE_ID);
+        createTokenPermanents(state, FIVE_COLOUR_TOKEN, "p2", 1);
         expect(state.pendingEvents).toContainEqual(
             expect.objectContaining({
                 type: "PERMANENT_ENTERED",
-                manaValue: 1,
+                manaValue: 0,
             })
         );
     });
@@ -228,14 +225,25 @@ describe("enteredTrigger with a mana-value floor, from the battlefield", () => {
         const state = board({ battlefield: [BF_WATCHER_ID] });
         expect(enter(state, SIX_DROP_NONCREATURE_ID)).toEqual([]);
     });
-
-    it("does NOT fire on an {X} creature, whose mana value is 1 off the stack", () => {
-        const state = board({ battlefield: [BF_WATCHER_ID] });
-        expect(enter(state, X_CREATURE_ID)).toEqual([]);
-    });
 });
 
 describe("enteredTrigger with zone: graveyard (CR 113.6b)", () => {
+    it("refuses combinations the graveyard scan would ignore or never reach", () => {
+        const base = {
+            id: "x",
+            oracleText: "x",
+            effects: [],
+            zone: "graveyard" as const,
+        };
+        expect(() => enteredTrigger({ ...base, scope: "self" })).toThrow();
+        expect(() =>
+            enteredTrigger({ ...base, scope: "any", oncePerEventBatch: true })
+        ).toThrow();
+        expect(() =>
+            enteredTrigger({ ...base, scope: "any", maxTriggersPerTurn: 1 })
+        ).toThrow();
+    });
+
     it("fires from the graveyard when ANOTHER creature of mana value 6 enters", () => {
         const state = board({ graveyard: [GY_WATCHER_ID] });
         expect(enter(state, SIX_DROP_ID)).toEqual([
@@ -267,5 +275,19 @@ describe("enteredTrigger with zone: graveyard (CR 113.6b)", () => {
             triggeredAbilityId: "test-6317-gy-watcher-trigger",
             card: { id: GY_WATCHER_ID },
         });
+    });
+});
+
+describe("effectivePermanentView supplies the battlefield mana value", () => {
+    it("lets manaValueAtLeast match a permanent already on the battlefield (CR 202.3)", () => {
+        const state = board({ battlefield: [SIX_DROP_ID, FIVE_DROP_ID] });
+        const [six, five] = getPlayer(state, "p1").battlefield;
+        const filter = { manaValueAtLeast: 6 };
+        expect(
+            matchesPermanentFilter(effectivePermanentView(state, six!), filter)
+        ).toBe(true);
+        expect(
+            matchesPermanentFilter(effectivePermanentView(state, five!), filter)
+        ).toBe(false);
     });
 });
