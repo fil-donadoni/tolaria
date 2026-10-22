@@ -5131,16 +5131,7 @@ export function removePermanentFromCombat(
     const found = findOnBattlefield(state, cardId);
     if (found?.card.isAttacking) found.card.isAttacking = undefined;
     if (found?.card.isBlocking) found.card.isBlocking = undefined;
-    pruneCombatRecord(state.combat, cardId);
-}
-
-/** The combat-record half of `removePermanentFromCombat`, shared with the
- *  battlefield-departure funnel (CR 506.4, issue #6333), whose card is no
- *  longer on the battlefield to be looked up. */
-function pruneCombatRecord(
-    combat: NonNullable<GameState["combat"]>,
-    cardId: string
-): void {
+    const combat = state.combat;
     combat.attackerIds = combat.attackerIds.filter((id) => id !== cardId);
     if (combat.blockedAttackerIds) {
         combat.blockedAttackerIds = combat.blockedAttackerIds.filter(
@@ -6357,8 +6348,13 @@ export function transformedSincePutOnStack(
  *  prunes itself with the stack item.
  *
  *  The resolving item itself is stamped too when its own effect moves its
- *  target (Ephemerate's exile), and that is inert: the legality gate runs once,
- *  before the first Op, and a resumed resolution never re-runs it. */
+ *  target (Ephemerate's exile), and that is inert. An Effect Script or a
+ *  `resolveSteps` card resumes from its `resolutionStep` checkpoint, past the
+ *  legality gate. An imperative `resolve()` re-runs from the top on resume and
+ *  meets the gate again, but it replays its earlier answers from
+ *  `collectedChoices` and so must do every irreversible thing AFTER its last
+ *  choice — a body that moved its own target before asking would move it
+ *  twice, stamp or no stamp. */
 function stampDepartedTargets(state: GameState, cardId: string): void {
     for (const item of state.stack) {
         if (!item.targets) continue;
@@ -6370,34 +6366,90 @@ function stampDepartedTargets(state: GameState, cardId: string): void {
     }
 }
 
-/** CR 506.4 (issue #6333) — "A permanent is removed from combat if it leaves
- *  the battlefield". Called by `removePermanentTo` on the departing card AFTER
- *  it has been spliced off the battlefield, so the combat flags are cleared on
- *  the card itself rather than through a battlefield lookup; the record is
- *  pruned in both directions by the same `pruneCombatRecord` a control change
- *  uses, so a blinked attacker comes back neither attacking nor
- *  blocked and a blinked blocker leaves its attacker blocked (CR 509.1h).
+/** CR 506.4 / 400.7 (issue #6333) — "A permanent is removed from combat if it
+ *  leaves the battlefield". Called by `removePermanentTo` on the departing card
+ *  AFTER the combat-partner snapshot and the splice: clears the card's combat
+ *  flags and RETIRES its id from every combat-record slot it occupies, renaming
+ *  it to a tombstone id that no permanent will ever carry.
  *
- *  A departing ATTACKER is first recorded in `departedAttackerIds`: CR 608.2h
- *  lets an ability whose source left the battlefield still read what that
- *  creature was attacking ("deals X damage to the player or planeswalker it's
- *  attacking", Myr Battlesphere), and the `attackTargets` entry it reads is
- *  deliberately left in place. */
-function removeDepartingPermanentFromCombat(
+ *  Retired, not pruned. The record has always kept a creature that died
+ *  mid-combat (a blocker killed by first strike, an attacker Bolted after
+ *  blocks): its slots name an id nothing on the battlefield answers to, so the
+ *  damage step skips it, and the readers that ask about the combat's HISTORY
+ *  keep their answer — the attacker stays blocked (CR 509.1h) for Veteran
+ *  Bodyguard's "unblocked creatures", False Orders' "had become blocked by
+ *  only that creature", the CR 508.8 "were attackers declared" gate. What the
+ *  engine could not do is tell that dead object from a NEW one: a blink puts a
+ *  card back under the same id, and every slot found it again — still
+ *  attacking, still blocking, still the planeswalker being attacked. The
+ *  tombstone keeps the departed object's slots exactly as a death leaves them
+ *  while the returned object, under the original id, is in none of them.
+ *
+ *  `departedCombatants` maps the original id to its tombstone for the readers
+ *  that ask about the departed object BY NAME from last known information
+ *  (CR 608.2h): what it was attacking (`getAttackTarget`), what it was
+ *  blocking or blocked by (Cromat's `combatPartnerOf`). Latest wins: a card
+ *  can re-enter combat and leave again (put onto the battlefield attacking).
+ *
+ *  `damageAssignments`, `damageAssignerIds` and `pendingBlockerId` are left
+ *  alone: they live inside a combat damage step or a blocker declaration,
+ *  windows no player holds priority in, so nothing departs while they are
+ *  set. */
+/** The separator of a retired combatant's tombstone id (`<id>~left<n>`). An
+ *  instance id never contains it, so a tombstone answers no battlefield
+ *  lookup. */
+const DEPARTED_COMBATANT_MARK = "~left";
+
+function retireDepartingCombatant(
     state: GameState,
     card: CardInstanceState
 ): void {
-    const combat = state.combat;
-    if (!combat) return;
-    if (combat.attackerIds.includes(card.id)) {
-        combat.departedAttackerIds = [
-            ...(combat.departedAttackerIds ?? []),
-            card.id,
-        ];
-    }
     card.isAttacking = undefined;
     card.isBlocking = undefined;
-    pruneCombatRecord(combat, card.id);
+    const combat = state.combat;
+    if (!combat) return;
+    const id = card.id;
+    const assignments = combat.blockerAssignments;
+    const inCombat =
+        combat.attackerIds.includes(id) ||
+        id in assignments ||
+        Object.values(assignments).some((ids) => ids.includes(id)) ||
+        !!combat.blockedAttackerIds?.includes(id) ||
+        Object.entries(combat.attackTargets ?? {}).some(
+            ([attackerId, targetId]) => attackerId === id || targetId === id
+        ) ||
+        !!combat.bands?.some((b) => b.memberIds.includes(id));
+    if (!inCombat) return;
+    const departed = (combat.departedCombatants ??= {});
+    const tombstone = `${id}${DEPARTED_COMBATANT_MARK}${Object.keys(departed).length}`;
+    departed[id] = tombstone;
+    const rename = (x: string) => (x === id ? tombstone : x);
+    combat.attackerIds = combat.attackerIds.map(rename);
+    if (combat.blockedAttackerIds) {
+        combat.blockedAttackerIds = combat.blockedAttackerIds.map(rename);
+    }
+    combat.blockerAssignments = Object.fromEntries(
+        Object.entries(assignments).map(([blockerId, attackerIds]) => [
+            rename(blockerId),
+            attackerIds.map(rename),
+        ])
+    );
+    if (combat.attackTargets) {
+        combat.attackTargets = Object.fromEntries(
+            Object.entries(combat.attackTargets).map(
+                ([attackerId, targetId]) => [
+                    rename(attackerId),
+                    rename(targetId),
+                ]
+            )
+        );
+    }
+    if (combat.bands) {
+        combat.bands = combat.bands.map((b) => ({
+            ...b,
+            memberIds: b.memberIds.map(rename),
+        }));
+    }
 }
 
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
@@ -6630,8 +6682,8 @@ export function removePermanentTo(
         : [];
     // CR 506.4 (issue #6333) — "A permanent is removed from combat if it
     // leaves the battlefield". AFTER the partner snapshot directly above,
-    // which reads the record this prunes.
-    removeDepartingPermanentFromCombat(state, creature);
+    // which reads the record under the id this retires.
+    retireDepartingCombatant(state, creature);
     // CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values, the store a
     // NON-TARGETED "create a token that's a copy of it" falls back to when its
     // source is already gone at resolution (`createTokenCopyOf` below). CR
@@ -14168,22 +14220,27 @@ export function buildSpellContext(
         // planeswalker, its absence the defending player. This is a
         // LAST-KNOWN read of the combat record: a control change or an
         // explicit removal from combat drops the id from `attackerIds`
-        // (CR 506.4) and answers nothing, but an attacker that LEFT the
-        // battlefield is recorded in `departedAttackerIds` as it is pruned
-        // (issue #6333), so it still reads what it was attacking — which is
-        // exactly what CR 608.2h wants of "it deals X damage". A
+        // (CR 506.4), but a zone change only retires it under a tombstone id,
+        // so a creature that has LEFT the battlefield still reads what it was
+        // attacking — which is exactly what CR 608.2h wants of "it deals X
+        // damage". A
         // planeswalker removed from combat (left the battlefield, changed
         // controller, stopped being a planeswalker — CR 506.4) is no longer a
         // planeswalker on the defending player's battlefield, and the creature
         // is then attacking nothing — never the player instead.
         getAttackTarget(attackerId: string): TargetSelection | undefined {
             const combat = state.combat;
+            if (!combat) return undefined;
+            // CR 608.2h (issue #6333) — an attacker that LEFT the battlefield
+            // keeps its slots under a tombstone id (`retireDepartingCombatant`)
+            // and still answers what it was attacking; a card back under the
+            // same id is a new object that is attacking nothing.
+            const recordId = combat.attackerIds.includes(attackerId)
+                ? attackerId
+                : combat.departedCombatants?.[attackerId];
             if (
-                !combat ||
-                !(
-                    combat.attackerIds.includes(attackerId) ||
-                    combat.departedAttackerIds?.includes(attackerId)
-                )
+                recordId === undefined ||
+                !combat.attackerIds.includes(recordId)
             ) {
                 return undefined;
             }
@@ -14191,7 +14248,7 @@ export function buildSpellContext(
                 (p) => p.id !== state.activePlayerId
             );
             if (!defender) return undefined;
-            const pwId = combat.attackTargets?.[attackerId];
+            const pwId = combat.attackTargets?.[recordId];
             if (pwId === undefined) {
                 return { type: "player", id: defender.id };
             }

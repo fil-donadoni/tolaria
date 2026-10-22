@@ -25,6 +25,8 @@ import {
 } from "../state";
 import { resolveCombatDamage } from "../applyMove";
 import { advancePhase } from "../phases";
+import { getEffectiveBlockGraph } from "../banding";
+import { buildStateView } from "../replacements";
 import { checkStateBasedActions } from "../sba";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { compactState, expandState } from "../serialize";
@@ -245,7 +247,7 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
 
         expect(state.combat!.attackerIds).not.toContain(bears);
         expect(state.combat!.blockedAttackerIds ?? []).not.toContain(bears);
-        expect(state.combat!.blockerAssignments[giant]).toEqual([]);
+        expect(state.combat!.blockerAssignments[giant]).not.toContain(bears);
         expect(permanentNamed(state, "Grizzly Bears")!.isAttacking).toBeFalsy();
 
         // The combat damage steps, assignments derived from the record the
@@ -300,16 +302,105 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
 
     it("the combat steps a declared attack owes still happen when its only attacker has left (CR 508.8)", () => {
         // CR 508.8 skips the rest of combat only when NO creature was declared
-        // as an attacker; pruning the departed one from `attackerIds` must not
-        // read as "nobody attacked" and jump straight to the second main
+        // as an attacker; retiring the departed one from `attackerIds` must
+        // not read as "nobody attacked" and jump straight to the second main
         // phase past the combat damage and end of combat steps.
         const state = blockedCombat("Hill Giant");
         blink(state, idOf(state, "Grizzly Bears"));
-        expect(state.combat!.attackerIds).toHaveLength(0);
+        expect(state.combat!.attackerIds).not.toContain(
+            idOf(state, "Grizzly Bears")
+        );
 
         const traversed = advancePhase(state);
 
         expect(traversed).toContain("COMBAT_DAMAGE");
         expect(state.phase).not.toBe("POSTCOMBAT_MAIN");
+    });
+
+    it("a departed co-blocker still counts in the combat's history: the attacker had become blocked by two (CR 509.1h)", () => {
+        // False Orders / Ydwen Efreet ("had become blocked by only that
+        // creature") and Veteran Bodyguard ("unblocked creatures") read the
+        // block graph; a blocker that left keeps its edge there, under an id
+        // nothing on the battlefield answers to, exactly as a dead one does.
+        const state = build({
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackers: ["Grizzly Bears"],
+                confirmed: true,
+                blockers: [
+                    { blocker: "Hill Giant", blocking: [0] },
+                    { blocker: "Savannah Lions", blocking: [0] },
+                ],
+                blockersConfirmed: true,
+            },
+        });
+        const bears = idOf(state, "Grizzly Bears");
+        const lions = idOf(state, "Savannah Lions");
+
+        blink(state, lions);
+
+        const blockers =
+            getEffectiveBlockGraph(state).blockersByAttacker[bears];
+        expect(blockers).toHaveLength(2);
+        expect(blockers).not.toContain(lions);
+        expect(
+            buildStateView(state).combat!.blockersByAttacker[bears]
+        ).toHaveLength(2);
+    });
+
+    it("a blinked PLANESWALKER being attacked comes back out of combat: its attacker attacks nothing and deals no damage (CR 506.4c)", () => {
+        const state = build({
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Wrenn and Six", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackers: ["Grizzly Bears"],
+                confirmed: true,
+                blockersConfirmed: true,
+            },
+        });
+        const bears = idOf(state, "Grizzly Bears");
+        const walker = idOf(state, "Wrenn and Six");
+        state.combat!.attackTargets = { [bears]: walker };
+        const oppLife = state.players[1].life;
+
+        blink(state, walker);
+        const loyalty = permanentNamed(state, "Wrenn and Six")!.counters
+            ?.loyalty;
+        expect(loyalty).toBeGreaterThan(0);
+
+        resolveCombatDamage(state);
+
+        expect(permanentNamed(state, "Wrenn and Six")!.counters?.loyalty).toBe(
+            loyalty
+        );
+        expect(state.players[1].life).toBe(oppLife);
     });
 });

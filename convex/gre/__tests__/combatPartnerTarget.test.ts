@@ -22,8 +22,10 @@ import {
 import type { GameState } from "../state";
 import {
     getPlayer,
+    putReanimatedSetOnBattlefield,
     regenerateOrDestroy,
     removePermanentFromCombat,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../state";
 import { activateAbilityOnState, applyOneTargetSelection } from "../../game";
@@ -182,5 +184,44 @@ describe("Cromat — target creature blocking or blocked by {self} (CR 509.1g, i
         getPlayer(state, "p1").library.unshift({ ...cromat, zone: "library" });
         resolveTopOfStack(state);
         expect(onBattlefield(state, "partner")).toBe(false);
+    });
+
+    it("resolution: Cromat that left through the departure funnel still partners by last-known information (CR 608.2b, issue #6333)", () => {
+        // The production departure path, not a hand-moved card: the funnel
+        // retires Cromat's combat slots under a tombstone id, and the filter
+        // must still find them by Cromat's own id.
+        const state = board("attacking");
+        const cromat = getPlayer(state, "p1").battlefield[0];
+        state.stack.push({
+            ...cromat,
+            zone: "stack",
+            castById: "p1",
+            abilityId: DESTROY,
+            targets: [{ type: "permanent", id: "partner" }],
+        });
+        removePermanentTo(state, "cromat", "hand");
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "partner")).toBe(false);
+    });
+
+    it("resolution: a Cromat blinked back under the same id is a new object out of combat, so nothing partners it (CR 400.7 / 506.4, issue #6333)", () => {
+        const state = board("attacking");
+        const cromat = getPlayer(state, "p1").battlefield[0];
+        state.stack.push({
+            ...cromat,
+            zone: "stack",
+            castById: "p1",
+            abilityId: DESTROY,
+            targets: [{ type: "permanent", id: "partner" }],
+        });
+        const left = removePermanentTo(state, "cromat", "exile")!;
+        const exile = getPlayer(state, "p1").exile;
+        exile.splice(exile.indexOf(left), 1);
+        putReanimatedSetOnBattlefield(state, [
+            { card: left, controllerId: "p1" },
+        ]);
+        expect(onBattlefield(state, "cromat")).toBe(true);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "partner")).toBe(true);
     });
 });
