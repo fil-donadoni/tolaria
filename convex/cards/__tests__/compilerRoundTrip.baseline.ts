@@ -1276,7 +1276,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Vicious Rivalry",
     "Vile Consumption",
     "Viridian Joiner",
-    "Vision Charm",
     "Visions",
     "Vivi Ornitier",
     "Vodalian Knights",
