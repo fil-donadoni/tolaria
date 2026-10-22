@@ -9469,7 +9469,14 @@ export function putHandCardOntoBattlefield(
  *  (excludes any Aura deferred on a host choice — those enter on submit). */
 export function putReanimatedSetOnBattlefield(
     state: GameState,
-    cards: { card: CardInstanceState; controllerId: string }[],
+    cards: {
+        card: CardInstanceState;
+        controllerId: string;
+        /** CR 303.4f — the host the effect names for an Aura member. Set, it
+         *  replaces the candidate scan: the Aura enters attached to it when it
+         *  is still a legal host (CR 303.4c), else stays put (CR 303.4g). */
+        hostId?: string;
+    }[],
     enteredFromGraveyard?: boolean
 ): string[] {
     if (cards.length === 0) return [];
@@ -9496,10 +9503,16 @@ export function putReanimatedSetOnBattlefield(
             staged.push(card);
         }
     }
-    for (const { card, controllerId } of auras) {
-        // CR 303.4f — legal hosts among the fully-staged batch + pre-existing
-        // permanents (exclude the Aura's own object).
-        const hosts = findAllLegalAuraHosts(state, card, card.id);
+    for (const { card, controllerId, hostId } of auras) {
+        // CR 303.4f — a host the effect names is the only candidate (no
+        // prompt); otherwise the legal hosts among the fully-staged batch +
+        // pre-existing permanents (exclude the Aura's own object).
+        const hosts =
+            hostId !== undefined
+                ? [resolveAuraHostCandidate(state, card, hostId)].filter(
+                      (h): h is AuraHostCandidate => h !== undefined
+                  )
+                : findAllLegalAuraHosts(state, card, card.id);
         if (hosts.length === 0) {
             // CR 303.4g — no legal object to enchant (not even a non-Aura
             // sibling that entered as part of this same event): the Aura
@@ -12545,7 +12558,7 @@ export function buildSpellContext(
             cardInstanceId: string,
             fromZone: "graveyard" | "exile",
             controllerId?: string,
-            opts?: { entersAs?: EntryTypeLine }
+            opts?: { entersAs?: EntryTypeLine; attachTo?: string }
         ): boolean {
             const player = getPlayer(state, playerId);
             const pile =
@@ -12594,7 +12607,13 @@ export function buildSpellContext(
                 // reanimator in the pool ties an "if you do" rider to it).
                 const entered = putReanimatedSetOnBattlefield(
                     state,
-                    [{ card, controllerId: controllerId ?? playerId }],
+                    [
+                        {
+                            card,
+                            controllerId: controllerId ?? playerId,
+                            hostId: opts?.attachTo,
+                        },
+                    ],
                     fromZone === "graveyard"
                 );
                 return entered.length > 0;
