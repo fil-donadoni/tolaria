@@ -96,6 +96,12 @@
  *     PR merged with the broken base): that red is the base's, so it holds
  *     the PR; `pr-refresh` rebases it on the next base push (a fresh lane) and
  *     `pr-gate`'s GREEN requeues it.
+ *   - `derived-role` — a `check:lane` run in a job that tests a PR merged
+ *     with the base (the job posting the advisory lane, a `DRAFT_LANE_JOBS`
+ *     job) without `--regenerate-derived`. ADR 0157 keeps the lockfile
+ *     header and the catalogue at the merge-base, so such a tree judged in
+ *     the `base` role reds every PR touching a lockfile input on header
+ *     drift (issue #6338).
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
@@ -137,6 +143,7 @@ export type RuleId =
     | "queue-shape"
     | "queue-dequeue"
     | "queue-refusal-hold"
+    | "derived-role"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
     | "queue-superseded"
@@ -180,6 +187,16 @@ export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
 export const SUPERSEDED_JOBS: ReadonlySet<string> = new Set([
     ".github/workflows/queue-lane.yml#queue-lane",
 ]);
+
+/** Jobs that run `check:lane` on the queue's draft (rule `derived-role`,
+ *  issue #6338): `<workflow path>#<job id>`. The advisory lane is found by
+ *  its check name, `ADVISORY_LANE_CHECK`. */
+export const DRAFT_LANE_JOBS: ReadonlySet<string> = new Set([
+    ".github/workflows/queue-lane.yml#queue-lane",
+]);
+
+/** The flag that judges a tree in the queue's `draft` role (ADR 0157). */
+export const REGENERATE_DERIVED_FLAG = "--regenerate-derived";
 
 /** The one group a `SUPERSEDED_JOBS` job may declare: the PR behind the
  *  queue's draft, never a branch (each draft is a new one). */
@@ -913,6 +930,7 @@ export function checkStructure(input: StructureInput): Violation[] {
     for (const f of input.actions) checkAction(f, out);
     checkPassRunName(input.workflows, out);
     checkOwnerMergeTrigger(input.workflows, out);
+    checkDraftLanesRegenerateDerived(input.workflows, out);
     if (input.mergify) {
         checkMergify(input.mergify, out);
         checkAdvisoryLaneSkipsDrafts(input.workflows, out);
@@ -945,6 +963,43 @@ function checkAdvisoryLaneSkipsDrafts(
                     rule: "queue-entry",
                     message: `the job posting \`${ADVISORY_LANE_CHECK}\` must skip the queue's drafts (an \`if:\` on \`${QUEUE_DRAFT_PREFIX}\`): the queue's entry reads that check`,
                 });
+        }
+    }
+}
+
+/** A lane run on a PR merged with the base — the advisory lane on the merge
+ *  ref, the queue's lane on its draft — judges a tree whose lockfile header
+ *  is the merge-base's (ADR 0157): only `--regenerate-derived` makes
+ *  `check:oracle` compare it per row, in the `draft` role (issue #6338). */
+function checkDraftLanesRegenerateDerived(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    for (const f of workflows) {
+        let doc: unknown;
+        try {
+            doc = parse(f.text);
+        } catch {
+            continue; // reported by checkWorkflow
+        }
+        const jobs = isObj(doc) && isObj(doc.jobs) ? doc.jobs : {};
+        for (const [id, job] of Object.entries(jobs)) {
+            if (!isObj(job)) continue;
+            const draftLane =
+                job.name === ADVISORY_LANE_CHECK ||
+                DRAFT_LANE_JOBS.has(`${f.path}#${id}`);
+            if (!draftLane || !Array.isArray(job.steps)) continue;
+            for (const step of job.steps) {
+                const run = stepRun(step);
+                if (run === null || !/\bcheck:lane\b/.test(run)) continue;
+                if (run.includes(REGENERATE_DERIVED_FLAG)) continue;
+                out.push({
+                    file: f.path,
+                    job: id,
+                    rule: "derived-role",
+                    message: `\`check:lane\` here tests a PR merged with the base: it must pass \`${REGENERATE_DERIVED_FLAG}\`, or every PR touching a lockfile input reds on header drift (ADR 0157)`,
+                });
+            }
         }
     }
 }

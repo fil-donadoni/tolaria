@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@${SHA}
       - uses: ./.github/actions/job-setup
-      - run: bun run check:lane
+      - run: bun run check:lane --regenerate-derived
 `;
 
 const SELF_HOSTED = `
@@ -287,8 +287,8 @@ describe("workflow structure guard", () => {
           TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"`;
         const hosted = edit(
             HOSTED,
-            "      - run: bun run check:lane",
-            `      - run: bun run check:lane${env}`
+            "      - run: bun run check:lane --regenerate-derived",
+            `      - run: bun run check:lane --regenerate-derived${env}`
         );
         expect(rules(fixture({ hosted }))).toEqual([]);
         const self = edit(
@@ -439,8 +439,8 @@ describe("workflow structure guard", () => {
         expect(rules(fixture({ hosted }))).toEqual(["no-toolchain"]);
         const late = edit(
             HOSTED,
-            "      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane\n",
-            "      - run: bun run check:lane\n      - uses: ./.github/actions/job-setup\n"
+            "      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane --regenerate-derived\n",
+            "      - run: bun run check:lane --regenerate-derived\n      - uses: ./.github/actions/job-setup\n"
         );
         expect(rules(fixture({ hosted: late }))).toEqual(["no-toolchain"]);
         // Naming the worktree script exempts only the first and last step.
@@ -714,6 +714,43 @@ describe("workflow structure guard", () => {
             "startsWith(github.head_ref"
         );
         expect(rules(fixture({ hosted: onlyDrafts }))).toEqual(["queue-entry"]);
+    });
+
+    it("requires a lane run on a PR merged with the base to regenerate derived state (issue #6338)", () => {
+        const hosted = edit(
+            HOSTED,
+            "check:lane --regenerate-derived",
+            "check:lane --json"
+        );
+        expect(
+            checkStructure(fixture({ hosted })).map(formatViolation)
+        ).toEqual([
+            ".github/workflows/hosted.yml (job lane): derived-role: `check:lane` here tests a PR merged with the base: it must pass `--regenerate-derived`, or every PR touching a lockfile input reds on header drift (ADR 0157)",
+        ]);
+        // The queue's lane, found by its job, not by its check name.
+        const lane = (flag: string, job: string) =>
+            edit(
+                SELF_HOSTED,
+                "      - uses: ./.github/actions/job-setup\n",
+                `      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane${flag}\n`
+            ).replace("  lane:\n", `  ${job}:\n`);
+        const queueLane = (text: string): StructureInput => ({
+            ...fixture(),
+            workflows: [
+                ...fixture().workflows,
+                { path: ".github/workflows/queue-lane.yml", text },
+            ],
+        });
+        expect(rules(queueLane(lane("", "queue-lane")))).toContain(
+            "derived-role"
+        );
+        expect(
+            rules(queueLane(lane(" --regenerate-derived", "queue-lane")))
+        ).not.toContain("derived-role");
+        // A lane timing the base itself (lane-timing) owes nothing.
+        expect(rules(fixture({ self: lane("", "lane") }))).not.toContain(
+            "derived-role"
+        );
     });
 
     it("refuses a queue rule that does not gate entry", () => {
