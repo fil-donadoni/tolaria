@@ -1109,10 +1109,13 @@ export type EffectSentenceIR =
            * CR 113.6b + CR 400.7 — "return this card from your graveyard to
            * your hand / the battlefield": the source itself, named by the
            * sentence as sitting in the graveyard, so the ability it prints
-           * functions from there.
+           * functions from there. The battlefield form is the Aura's, CR
+           * 303.4f: "attached to that creature" names the creature the head
+           * fired for as the host the effect specifies.
            */
           readonly kind: "return-self-from-graveyard";
-          readonly to: "hand";
+          readonly to: "hand" | "battlefield";
+          readonly attachedTo?: "entering-creature";
       }
     | {
           /**
@@ -3910,6 +3913,9 @@ const RETURN_ALL_FROM_GRAVEYARD =
 /** CR 113.6b — "return this card from your graveyard to your hand". */
 const RETURN_SELF_FROM_GRAVEYARD =
     /^Return this card from your graveyard to your hand$/;
+/** CR 303.4f — "return this card from your graveyard to the battlefield attached to that creature". */
+const RETURN_SELF_FROM_GRAVEYARD_ATTACHED =
+    /^Return this card from your graveyard to the battlefield attached to that creature$/;
 /** CR 101.4 — "Each player puts a creature card from their graveyard onto the battlefield". */
 const EACH_PLAYER_PUTS =
     /^Each player (puts|may put) an? (.+) card from their (graveyard|hand) onto the battlefield$/;
@@ -6649,6 +6655,12 @@ function effectSentence(
         return ok({
             kind: "return-self-from-graveyard" as const,
             to: "hand" as const,
+        } satisfies EffectSentenceIR);
+    if (RETURN_SELF_FROM_GRAVEYARD_ATTACHED.test(span))
+        return ok({
+            kind: "return-self-from-graveyard" as const,
+            to: "battlefield" as const,
+            attachedTo: "entering-creature" as const,
         } satisfies EffectSentenceIR);
     const putFromHand = span.match(PUT_SUBTYPE_FROM_HAND);
     if (putFromHand !== null) {
