@@ -2613,13 +2613,6 @@
     },
     {
         "class": "ability",
-        "cardId": "e56146bf-5db0-4bef-83bb-efa5ebec6684",
-        "name": "Whippoorwill",
-        "abilityId": "whippoorwill-doom",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
         "name": "Wiitigo",
         "abilityId": "wiitigo-block-marker",
