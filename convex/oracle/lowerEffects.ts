@@ -197,6 +197,13 @@ export interface SiteAntecedents {
      * candidate, so binding it to an earlier sentence's object is a guess.
      */
     readonly headNamedObject?: true;
+    /**
+     * CR 608.2c — the head's SUBJECT is an object other than the source
+     * ("Whenever a creature enters", "When enchanted creature dies"), whether
+     * or not the head exposes it as a referent. A later "that creature" may
+     * mean it, so binding the word to an announced target is a guess.
+     */
+    readonly headSubjectIsObject?: true;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
@@ -1721,6 +1728,7 @@ function announcedCreatureSite(
         walk.actedOn !== null ||
         !mentionsThatCreature(sentence) ||
         headNamesAnObject(site) ||
+        site.antecedents?.headSubjectIsObject === true ||
         soleAnnouncedCreature(walk) === null
     )
         return site;
