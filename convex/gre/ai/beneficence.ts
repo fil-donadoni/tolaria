@@ -66,6 +66,7 @@ import { type Beneficence, opBeneficence } from "./opValuers";
 import { soleChosenModeId } from "../modeSelection";
 import { childOpArrays, isTriggerBodyHost } from "./effectOpChildren";
 import { findTriggeredAbility } from "../copy";
+import { blinkReturnedBindings } from "./pendingReturn";
 
 /** Merge two signs for the same slot. Agreement keeps the sign; disagreement
  *  (a "target player draws a card and loses 2 life" shape) collapses to
@@ -136,7 +137,15 @@ function collectScriptSigns(
     effects: readonly EffectOp[],
     signs: Map<number, Beneficence>
 ): void {
+    // Issue #6334 — an `exile` whose card this same script's delayed trigger
+    // returns to the battlefield (CR 603.7a, the blink idiom) is not an attack
+    // on the exiled card's controller: what it is worth depends on the board
+    // (a fresh enters-trigger, a shed Aura, a tempo turn), which the resolved
+    // margin reads. No sign, so flickering one's own permanent draws no
+    // misdirection penalty.
+    const blinked = blinkReturnedBindings(effects);
     for (const op of effects) {
+        if (op.op === "exile" && op.bind && blinked.has(op.bind)) continue;
         // A script host carries no stake of its own; each nested Op is read
         // exactly like a top-level one (issue #4442 — a `divideIntoPiles`
         // pile names the host's announced slots too). A delayed / reflexive

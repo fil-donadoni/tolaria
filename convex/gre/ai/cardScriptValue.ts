@@ -808,6 +808,18 @@ export function dslLatentAbilityScriptOpValue(
     return etb ? mergeOpValue(discounted, etb) : discounted;
 }
 
+/** Issue #6334 — the value of `def`'s ETB Abilities ALONE, undiscounted:
+ *  what they do when the permanent next enters with no cast to pay for (a
+ *  card a delayed trigger returns from exile, CR 603.7a). A `ctx` carrying a
+ *  board lens answers each ability's target requirement against that board
+ *  (`etbGrounding`). 0 when the card has no ETB Ability. */
+export function dslEtbAbilityScriptValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number {
+    return abilityScriptOpValue(def, ctx, undefined, "etb")?.points ?? 0;
+}
+
 /** Issue #4903 — the grounding an ETB Ability is valued under: `ctx` with
  *  each target slot it cannot answer priced at a representative victim of
  *  the ability's own target TYPE rather than the 2/2. One helper for both

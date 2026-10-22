@@ -14588,4 +14588,109 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5951. Proof-of-failure: `searchCombatDamageAssignments` (`gre/ai/damageSplit.ts`) returning `buildAutoDamageAssignments` alone — the multi-blocked Wurm deals nothing — and the Bot holds the Wurm back.",
     },
+    {
+        // Issue #6334 (audit of issue #4927, theme cast × blink). An exile
+        // whose card a delayed trigger returns at the next end step is a
+        // TEMPORARY removal: Flickerwisp on the opposing Hill Giant gets it
+        // back at the end step, Flickerwisp on the bot's own Flametongue Kavu
+        // gets the Kavu back with a fresh enters trigger that kills the Giant.
+        label: "audit: cast-blink: Flickerwisp flickers its own Flametongue Kavu for the permanent kill",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the bot's other creature carries a removal ETB (Flametongue Kavu vs Grizzly Bears)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Flickerwisp", owner: "me", zone: "hand" },
+                {
+                    name: "Flametongue Kavu",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Flickerwisp", by: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        audit: { theme: "cast × blink" },
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "submit-target", target: "Flametongue Kavu" }],
+        },
+        note: "Issue #6334 — PLACEHOLDER",
+    },
+    {
+        label: "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla",
+        pairOf: {
+            anchor: "audit: cast-blink: Flickerwisp flickers its own Flametongue Kavu for the permanent kill",
+            discriminant: {
+                kind: "card",
+                detail: "the bot's other creature carries a removal ETB (Flametongue Kavu vs Grizzly Bears)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Flickerwisp", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Flickerwisp", by: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        audit: { theme: "cast × blink" },
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "submit-target", target: "Hill Giant" }],
+        },
+        note: "Issue #6334 — PLACEHOLDER",
+    },
 ];

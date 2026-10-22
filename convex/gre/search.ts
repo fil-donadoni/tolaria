@@ -168,6 +168,7 @@ import {
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
 import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
+import { pruneDominatedTriggerTargets } from "./ai/targetDominance";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -440,6 +441,12 @@ export type Node = {
      *  reads only the public board, which a later determinization at the same
      *  node does not resample. `undefined` off a block node. */
     dominatedBlockKeys?: ReadonlySet<string>;
+    /** Tree keys of the dominated answers this trigger-target node never
+     *  explores (issue #6334, `withoutDominatedTriggerTargets`). Decided
+     *  ONCE, on the node's first visit, like `dominatedBlockKeys`: the probe
+     *  resolves the trigger once per answer and reads only the public board.
+     *  `undefined` off a trigger-target node. */
+    dominatedTargetKeys?: ReadonlySet<string>;
 };
 
 function newNode(): Node {
@@ -1968,7 +1975,10 @@ export function policyProbeState(
             undefined,
             true
         );
-    } else if (moverId && announcedDepth === 0) {
+    } else if (
+        moverId &&
+        (announcedDepth === 0 || answersSoleTriggerTarget(probe, move))
+    ) {
         // Issue #4758 — the triggers a resolution puts on the stack are part
         // of what the move did. An ETB Ability is spent on entering and never
         // counted on the battlefield, so a probe that stopped with it still
@@ -1991,6 +2001,25 @@ export function policyProbeState(
         );
     }
     return settled;
+}
+
+/** Issue #6334 — `move` answered the target announcement (CR 603.3d) of a
+ *  triggered ability that is now the WHOLE stack. Its answer is the move's
+ *  entire effect, and the trigger resolves before anything else can happen
+ *  to it — but left unresolved, the leaf credits an ETB Ability in flight at
+ *  one context-free value whatever it targets (`etbAbilitiesInFlight`), so
+ *  every answer tied and the rollout picked at random: a Flametongue Kavu
+ *  returned by a delayed trigger shot itself two rollouts in three. Settled
+ *  under the bound the cast branch takes (issue #4758): nothing underneath,
+ *  so no other announcement is priced into the answer. */
+function answersSoleTriggerTarget(probe: GameState, move: Move): boolean {
+    if (move.kind !== "submit-target") return false;
+    if (probe.stack.length !== 1 || probe.pendingTarget) return false;
+    const item = probe.stack[0];
+    return (
+        item.triggeredAbilityId !== undefined ||
+        item.delayedTriggerId !== undefined
+    );
 }
 
 /** The SCORING half of `policyValue` (issue #3400): the leaf evaluation of an
@@ -2402,6 +2431,38 @@ function withoutDominatedBlocks(
         );
     }
     const denied = node.dominatedBlockKeys;
+    if (denied.size === 0) return keyed;
+    const kept = keyed.filter((k) => !denied.has(k.key));
+    return kept.length > 0 ? kept : keyed;
+}
+
+/** `keyed` without the trigger-target answers `pruneDominatedTriggerTargets`
+ *  judges dominated (issue #6334): the mover's node stops exploring answers
+ *  that only hurt the mover, whose mean backup otherwise debited the line
+ *  that led there with the mover's own mistakes. Memoized on `node`; never
+ *  emptying. Tree only — the rollout reads each answer settled
+ *  (`answersSoleTriggerTarget`). */
+function withoutDominatedTriggerTargets(
+    node: Node,
+    world: GameState,
+    pid: string,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    if (world.pendingTarget?.kind !== "trigger") return keyed;
+    if (!node.dominatedTargetKeys) {
+        const kept = new Set(
+            pruneDominatedTriggerTargets(
+                world,
+                pid,
+                keyed.map((k) => k.move),
+                (probe, move) => applyMoveInSearch(probe, pid, move)
+            )
+        );
+        node.dominatedTargetKeys = new Set(
+            keyed.filter((k) => !kept.has(k.move)).map((k) => k.key)
+        );
+    }
+    const denied = node.dominatedTargetKeys;
     if (denied.size === 0) return keyed;
     const kept = keyed.filter((k) => !denied.has(k.key));
     return kept.length > 0 ? kept : keyed;
@@ -2997,10 +3058,15 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = advanceToDecision(world);
         if (!pid) break;
-        let keyed = withoutDominatedBlocks(
+        let keyed = withoutDominatedTriggerTargets(
             node,
             world,
-            keyedMovesFor(world, pid, botId)
+            pid,
+            withoutDominatedBlocks(
+                node,
+                world,
+                keyedMovesFor(world, pid, botId)
+            )
         );
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
