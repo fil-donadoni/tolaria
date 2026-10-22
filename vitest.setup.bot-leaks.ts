@@ -111,3 +111,13 @@ afterAll(() => {
         );
     }
 });
+// TEMP-DIAG
+import { residentDefinitionIds as __rdi } from "./convex/cards/registry";
+import { expect as __e } from "vitest";
+const __before = new Set(__rdi());
+afterAll(() => {
+    const added = [...__rdi()].filter((id) => !__before.has(id));
+    console.log(`REGN ${added.length}`);
+    if (added.length)
+        console.log(`REGDIAG ${__e.getState().testPath} :: ${added.join(",")}`);
+});
