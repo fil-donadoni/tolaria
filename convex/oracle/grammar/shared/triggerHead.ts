@@ -67,6 +67,12 @@ export type TriggerHeadIR =
           readonly scope: TriggerSubjectScope;
           /** CR 603.6a — narrows the entering permanent by card type. */
           readonly creaturesOnly: boolean;
+          /**
+           * CR 202.3 — "a creature with mana value N or greater": a floor on
+           * the entering permanent's mana value (`{X}` as 0 on the
+           * battlefield, CR 202.3e). Lowers to `PermanentFilter.manaValueAtLeast`.
+           */
+          readonly manaValueAtLeast?: number;
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
@@ -640,6 +646,10 @@ export function headPronounReferent(
     }
 }
 
+/** CR 603.6a + 202.3 — an entering creature gated on a mana-value floor. */
+const ENTERS_MANA_VALUE_FLOOR =
+    /^when(?:ever)? a creature with mana value (\d+) or greater enters$/;
+
 /**
  * The head of a triggered ability, consumed whole.
  *
@@ -659,6 +669,16 @@ export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
         if (self !== null) return ok(self);
         const other = OTHER_HEADS.get(span.toLowerCase());
         if (other !== undefined) return ok(other);
+        // CR 603.6a + 202.3 — "when[ever] a creature with mana value N or
+        // greater enters": the numeral is read, not enumerated.
+        const floor = ENTERS_MANA_VALUE_FLOOR.exec(span.toLowerCase());
+        if (floor !== null)
+            return ok({
+                kind: "enters",
+                scope: "any",
+                creaturesOnly: true,
+                manaValueAtLeast: Number(floor[1]),
+            });
         return fail("not a trigger head this grammar knows", span);
     }),
     // CR 603.1 — a triggered ability opens with "when", "whenever" or "at".
