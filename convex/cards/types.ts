@@ -16569,9 +16569,10 @@ export type EffectOp =
           /** The replacement subtype list — literal, OR (issue #3809) a bare
            *  `{ ref }` read exactly as `EffectCardFilter.subtype`'s dynamic
            *  form is: a `chooseCreatureType` binding ("target creature
-           *  becomes THAT type", Unnatural Selection) or the reserved
-           *  `$source.chosenSubtype`. An unresolvable ref resolves to no
-           *  subtype and the Op is SKIPPED (CR 101.3 — an impossible
+           *  becomes THAT type", Unnatural Selection), a `chooseLandType`
+           *  binding ("becomes the second chosen type", Vision Charm) or the
+           *  reserved `$source.chosenSubtype`. An unresolvable ref resolves
+           *  to no subtype and the Op is SKIPPED (CR 101.3 — an impossible
            *  instruction), never applied as "becomes no type". */
           subtypes: string[] | EffectRef;
           /** CR 205.1a (issue #3809) — the subtype FAMILY replaced: with
@@ -16582,8 +16583,14 @@ export type EffectOp =
            *  list: a creature-type list WITHOUT it keeps the wholesale replace
            *  Oko's Elk depends on (ADR 0087 § Amendment). Requires `duration`
            *  and is REQUIRED for a `{ ref }` list; with it, a resolved value
-           *  that is not a creature type (CR 205.3m) is dropped. */
-          family?: "creature";
+           *  that is not a creature type (CR 205.3m) is dropped.
+           *
+           *  `"land"` (CR 305.7) declares the list a LAND-type list: a
+           *  resolved value outside CR 205.3i's table is dropped. It changes
+           *  nothing about WHAT is replaced — a set on a land already
+           *  replaces only its land types (`applyLandTypeReplacement`) — so
+           *  the timed ledger row carries no family for it. */
+          family?: "creature" | "land";
           /** CR 611.2 — when the replacement reverts. OMITTED is INDEFINITE
            *  (CR 611.2b, issue #1746): the permanent simply IS the new subtype
            *  line until it leaves the battlefield — "this creature becomes a
@@ -18362,10 +18369,11 @@ export type EffectOp =
      *  a creature type.
      *
      *  Named for the MECHANIC and for the CR wording, not for a generic
-     *  `chooseSubtype { family }` (issue #1917): card #1 names it, and the
-     *  generic SHAPE waits for card #2 to show the axis of variation — a land
-     *  type or an artifact type would be that second card, and neither is
-     *  shipped. */
+     *  `chooseSubtype { family }` (issue #1917). The land-type sibling
+     *  `chooseLandType` below showed the axis of variation is the option
+     *  TABLE and its narrowing (an exclusion list here, a basic-only
+     *  restriction there), not one shared field set — so the two stay
+     *  separate Ops over one shared executor core. */
     | {
           op: "chooseCreatureType";
           player: EffectPlayerRef;
@@ -18377,6 +18385,37 @@ export type EffectOp =
            *  check (`applyPendingChoiceSubmit` validates against the entry's
            *  own options) refuses them too — one list, both sides. */
           exclude?: string[];
+      }
+    /** CR 205.3i — "Choose a land type" (or, with `basic`, "a basic land
+     *  type", CR 305.6) made DURING resolution: the land-type sibling of
+     *  `chooseCreatureType`, and the same thin skin over
+     *  `SpellContext.requestOptionChoice` (ADR 0045, issue #5173 — Vision
+     *  Charm: "Choose a land type and a basic land type. Each land of the
+     *  first chosen type becomes the second chosen type until end of turn.").
+     *  The options ARE CR 205.3i's land-type table (gate-verified against the
+     *  vendored document by `scripts/__tests__/oracle-subtypes.test.ts`), each
+     *  carrying `subtype`, so the client combobox and the bot's
+     *  `subtypeModePrior` serve it unchanged.
+     *
+     *  SUSPENDS exactly like `chooseCreatureType`: the binding name doubles
+     *  as the `choiceId`, and the stored subtype string is the picks-family
+     *  binding a bare `{ ref }` reads back — in an `EffectCardFilter.subtype`
+     *  ("each land of the first chosen type") or in `setSubtype.subtypes`
+     *  with `family: "land"` ("becomes the second chosen type"). `bind` is
+     *  REQUIRED for the same reason.
+     *
+     *  Deliberately NOT `optionChoice` over the five basic types: "a land
+     *  type" is CR 205.3i's whole table (Desert, Gate, Urza's, …), and an
+     *  `optionChoice` cannot bind its answer for a later filter to read. */
+    | {
+          op: "chooseLandType";
+          player: EffectPlayerRef;
+          prompt: string;
+          bind: string;
+          /** CR 305.6 — "a BASIC land type": only Plains, Island, Swamp,
+           *  Mountain and Forest are offered, so the submit check refuses any
+           *  other land type too. Omitted = CR 205.3i's whole table. */
+          basic?: true;
       }
     /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
      *  sibling of `lookDistribute`: reveals the top `look` cards of a library to
