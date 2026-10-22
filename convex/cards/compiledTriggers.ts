@@ -134,7 +134,7 @@ export type CompiledTriggerCondition =
      */
     | { readonly kind: "cast-off-sorcery-timing" }
     /**
-     * CR 205.1a + CR 603.4 — "if this permanent is an enchantment": the
+     * CR 603.4 — "if this permanent is an enchantment": the
      * source's CURRENT card types (`self.types`, the live view), checked as
      * the trigger would trigger and again as it resolves.
      */

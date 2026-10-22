@@ -204,7 +204,7 @@ export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
 const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
 
 /**
- * CR 205.1a — the source named by its current type. "an enchantment" is the
+ * CR 603.4 — the source named by its current type. "an enchantment" is the
  * one type the corpus prints behind an intervening-if (the Opal cycle); a
  * second type waits for a card that prints it.
  */

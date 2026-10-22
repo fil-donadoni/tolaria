@@ -1,5 +1,5 @@
 // "if this permanent is an enchantment" — the intervening-if of the Opal and
-// Hidden cycles (CR 603.4 + CR 205.1a).
+// Hidden cycles (CR 603.4).
 //
 //  1. GRAMMAR — `conditionRule` reads the source named by its current type.
 //  2. CONSUMPTION — a real corpus line gets past the condition: its gap moves
@@ -27,7 +27,7 @@ import { oracleCard, parseContext } from "./oracle.fixture";
 
 const read = (span: string) => conditionRule.run(span, parseContext());
 
-describe("self-has-type condition (CR 603.4, CR 205.1a)", () => {
+describe("self-has-type condition (CR 603.4)", () => {
     it("reads 'if this permanent is an enchantment' as the source's current type", () => {
         const parsed = read("if this permanent is an enchantment");
         expect(parsed.ok && parsed.value).toEqual({
