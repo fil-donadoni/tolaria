@@ -41,8 +41,8 @@ type Fixture = {
     /** Label prefix of the blade entry — unique, resolved below. */
     labelPrefix: string;
     /** Recorded on the tree BEFORE the fast path existed (base 6a9791267);
-     *  the root digests re-recorded on issue #5155's refit of
-     *  `DEFAULT_EVAL_WEIGHTS`, and again on issue #5549's (the chosen move and the RNG counter did not
+     *  the root digests are re-recorded on each refit of
+     *  `DEFAULT_EVAL_WEIGHTS` (the chosen move and the RNG counter do not
      *  move — the pin is the fast path's byte-identity with the plain path,
      *  which the second describe below checks on every tree). */
     expected: {
@@ -63,7 +63,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
             gameRngCounter: 118,
-            rootDigest: "e5cfed12f718a743",
+            rootDigest: "2a5b61134d4287a5",
         },
     },
     {
@@ -72,7 +72,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Fireball (X=3) → Blade P2",
             gameRngCounter: 118,
-            rootDigest: "7fb1507790ba323b",
+            rootDigest: "b76aa909e9f2b32c",
         },
     },
     {
@@ -81,7 +81,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Captain's Maneuver (X=1) → Blade P1, Craw Wurm",
             gameRngCounter: 118,
-            rootDigest: "ec646cc916c2c260",
+            rootDigest: "18a4234071ddb33a",
         },
     },
 ];

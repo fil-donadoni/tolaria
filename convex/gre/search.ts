@@ -168,6 +168,7 @@ import {
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
 import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
+import { pruneDominatedTriggerTargets } from "./ai/targetDominance";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -440,6 +441,12 @@ export type Node = {
      *  reads only the public board, which a later determinization at the same
      *  node does not resample. `undefined` off a block node. */
     dominatedBlockKeys?: ReadonlySet<string>;
+    /** Tree keys of the dominated answers this trigger-target node never
+     *  explores (issue #6334, `withoutDominatedTriggerTargets`). Decided
+     *  ONCE, on the node's first visit, like `dominatedBlockKeys`: the probe
+     *  resolves the trigger once per answer and reads only the public board.
+     *  `undefined` off a trigger-target node. */
+    dominatedTargetKeys?: ReadonlySet<string>;
 };
 
 function newNode(): Node {
@@ -2407,6 +2414,41 @@ function withoutDominatedBlocks(
     return kept.length > 0 ? kept : keyed;
 }
 
+/** `keyed` without the trigger-target answers `pruneDominatedTriggerTargets`
+ *  judges dominated (issue #6334): the mover's node stops exploring answers
+ *  that only hurt the mover, whose mean backup otherwise debited the line
+ *  that led there with the mover's own mistakes. Memoized on `node`; never
+ *  emptying. Tree only, like `withoutDominatedBlocks` (see
+ *  `ai/targetDominance.ts`). */
+function withoutDominatedTriggerTargets(
+    node: Node,
+    world: GameState,
+    pid: string,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    if (world.pendingTarget?.kind !== "trigger") return keyed;
+    // Decided on the node's first world: a resolution that read a sampled
+    // hidden zone (a library card's mana value) could judge differently in
+    // another, and the first world's verdict stands for the node.
+    if (!node.dominatedTargetKeys) {
+        const kept = new Set(
+            pruneDominatedTriggerTargets(
+                world,
+                pid,
+                keyed.map((k) => k.move),
+                (probe, move) => applyMoveInSearch(probe, pid, move)
+            )
+        );
+        node.dominatedTargetKeys = new Set(
+            keyed.filter((k) => !kept.has(k.move)).map((k) => k.key)
+        );
+    }
+    const denied = node.dominatedTargetKeys;
+    if (denied.size === 0) return keyed;
+    const kept = keyed.filter((k) => !denied.has(k.key));
+    return kept.length > 0 ? kept : keyed;
+}
+
 /** The steps where a transient payoff can matter: once blocks are declared, a
  *  pump or shrink decides the exchange. BEFORE blocks it is premature (ADR
  *  0021 slice 3, case (c) of `isDiscouragedRolloutMove`), and outside combat it
@@ -2997,10 +3039,15 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = advanceToDecision(world);
         if (!pid) break;
-        let keyed = withoutDominatedBlocks(
+        let keyed = withoutDominatedTriggerTargets(
             node,
             world,
-            keyedMovesFor(world, pid, botId)
+            pid,
+            withoutDominatedBlocks(
+                node,
+                world,
+                keyedMovesFor(world, pid, botId)
+            )
         );
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is

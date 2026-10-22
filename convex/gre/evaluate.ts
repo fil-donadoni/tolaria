@@ -57,6 +57,7 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 // as well happen in a later, better-informed window (CR 117.1b / 602.5d).
 import { isDeferrableStackAbility } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
+import { pendingBattlefieldReturns } from "./ai/pendingReturn";
 import {
     hasGraveyardRecursionAccess,
     isSelfReachableInGraveyard,
@@ -97,6 +98,7 @@ import {
     creatureValueRaw,
     declaresStandingLock,
     dslEtbAbilityInFlightValueById,
+    dslEtbAbilityValueById,
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
     latentValue,
@@ -764,6 +766,51 @@ function etbAbilitiesInFlight(
         );
     }
     return total;
+}
+
+/** Issue #6334 — CR 603.7a: an exiled card a scheduled delayed trigger
+ *  returns to the battlefield ("exile … return that card at the beginning of
+ *  the next end step", the blink idiom — `ai/pendingReturn.ts`). Priced at
+ *  zero, flickering one's own creature read as losing it for good and
+ *  exiling an opposing one as killing it.
+ *
+ *  It comes back as a PERMANENT, with no cast to pay for: its body read as
+ *  the board loop in `playerTerms` reads one standing there, plus its ETB
+ *  Abilities at their full value against THIS board
+ *  (`dslEtbAbilityValueById`) — they fire on entering, and their targets are
+ *  chosen among the permanents standing now. Credited to the player it
+ *  returns under, in the term its body would read on the battlefield. Not
+ *  discounted for the wait: the trigger fires at the next phase boundary
+ *  whatever happens, and what a player can do in the meantime (attack past a
+ *  missing blocker) is the search's to read, not the leaf's. */
+function pendingReturnsWorth(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights,
+    seat: SeatView,
+    pass: Layer7Pass
+): { creatures: number; permanents: number } {
+    const worth = { creatures: 0, permanents: 0 };
+    for (const { card, to } of pendingBattlefieldReturns(state)) {
+        if (to !== player.id) continue;
+        const etb = dslEtbAbilityValueById(
+            String(card.card.id ?? ""),
+            latentBoardFor(state, player, card, weights, seat, pass),
+            weights.latent
+        );
+        worth.permanents += weights.permanentWeight;
+        if (isCreature(card)) {
+            worth.creatures +=
+                evaluateCreature(state, card, weights.latent, pass, weights) +
+                etb;
+        } else if (!isLand(card)) {
+            worth.permanents +=
+                nonCreatureBodyValue(state, card, weights, pass) + etb;
+        } else {
+            worth.permanents += landStandingAbilityValue(card, weights) + etb;
+        }
+    }
+    return worth;
 }
 
 /** Activation cost legs the board-side flexibility term is willing to price.
@@ -1792,6 +1839,11 @@ function playerTerms(
     // Issue #4758 — the realized side's counterpart of an ETB Ability in
     // flight (see `etbAbilitiesInFlight`).
     terms.creatures += etbAbilitiesInFlight(state, player, weights, pass);
+    // Issue #6334 — the permanents a scheduled delayed trigger returns from
+    // exile to this player (see `pendingReturnsWorth`).
+    const returning = pendingReturnsWorth(state, player, weights, seat, pass);
+    terms.creatures += returning.creatures;
+    terms.permanents += returning.permanents;
     const manaCensus = availableManaUnitsFor(state, player, memo);
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for

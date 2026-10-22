@@ -26,14 +26,27 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — sacrifice creatures, second half"
     // The gain-life sorcery pays only when life is scarce, so the sweep poses
     // the holder one point from dead against an attacker (`sorceryLifeGainRace`).
     it("played — a sorcery that only gains its controller life", () => {
-        for (const name of [
-            "Bountiful Harvest",
-            "Gerrard's Wisdom",
-            "Presence of the Wise",
-        ]) {
+        for (const name of ["Bountiful Harvest"]) {
             expect(playBotReachSeats(getCardByName(name)), name).toEqual([
                 { holderId: "p1", verdict: { outcome: "played" } },
                 { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
+    }, 600_000);
+
+    // The race is lost either way for seat p2 (Gerrard's Wisdom: 1 → 3 life
+    // against two attackers), so its verdict is search noise: `played` until
+    // issue #6334's refit, `ignored` (a 24/24 visit tie) after it.
+    // tracked-by: #6346
+    it("noise-pinned — seat p2 of a life gain that cannot win the race", () => {
+        for (const name of ["Gerrard's Wisdom", "Presence of the Wise"]) {
+            const seats = playBotReachSeats(getCardByName(name));
+            expect(
+                seats.map((s) => [s.holderId, s.verdict.outcome]),
+                name
+            ).toEqual([
+                ["p1", "played"],
+                ["p2", "ignored"],
             ]);
         }
     }, 600_000);
