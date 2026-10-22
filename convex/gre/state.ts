@@ -18782,6 +18782,9 @@ export function createTokenPermanents(
             // it names nothing about the placeholder — it is what a later
             // TIMED copy effect on this token reverts to (`applyTimedCopy`).
         }
+        // CR 702.30a — a token copy of an echo permanent entered under this
+        // controller too (`markEnteredThisTurn` is not on the token path).
+        armEchoOnArrival(token);
         // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
         // already on it (Incubate N: "create an Incubator token ... with N
         // +1/+1 counters on it", CR 701.53). Stamped onto the instance before

@@ -12,7 +12,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards/index";
 import { grizzlyBears, controlMagic } from "../../cards/sets/lea/index.cards";
-import { applyControlChange, putHandCardOntoBattlefield } from "../state";
+import {
+    applyControlChange,
+    createTokenPermanents,
+    putHandCardOntoBattlefield,
+} from "../state";
 
 const GOBLIN_PATROL = getDefinition("d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3");
 
@@ -86,5 +90,26 @@ describe("echoPending arming (CR 702.30a)", () => {
             (c) => c.id === "bears"
         );
         expect(moved?.echoPending).toBeUndefined();
+    });
+
+    it("arms a token copy of an echo permanent (CR 702.30a, CR 707.2)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const [id] = createTokenPermanents(
+            state,
+            {
+                name: "Goblin Patrol",
+                types: ["Creature"],
+                power: 2,
+                toughness: 1,
+            },
+            "p1",
+            1,
+            undefined,
+            { copyOf: { source: { card: { id: GOBLIN_PATROL.id } } } }
+        );
+        const token = state.players[0].battlefield.find((c) => c.id === id);
+        expect(token?.echoPending).toBe(true);
     });
 });
