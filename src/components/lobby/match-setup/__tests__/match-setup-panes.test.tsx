@@ -47,7 +47,7 @@ describe("MatchSetupPanes — the recap rail (issue #5340)", () => {
         expect(railStep("myDeck").disabled).toBe(true);
     });
 
-    it("re-opens an answered step on click, then returns to the open one", () => {
+    it("re-opens an answered step on click, then returns to the one after it", () => {
         render(
             <Harness
                 initial={{ ...EMPTY_SETUP, mode: "arena", opponent: "bot" }}
@@ -63,6 +63,50 @@ describe("MatchSetupPanes — the recap rail (issue #5340)", () => {
                 .getAttribute("aria-pressed")
         ).toBe("true");
         fireEvent.click(screen.getByRole("button", { name: /^Arena/ }));
+        expect(activeTitle()).toBe("Opponent");
+    });
+});
+
+describe("MatchSetupPanes — advancing (issue #5934)", () => {
+    it("a single-control choice opens the next step", () => {
+        render(<Harness initial={EMPTY_SETUP} />);
+        fireEvent.click(screen.getByRole("button", { name: /^Arena/ }));
+        expect(activeTitle()).toBe("Opponent");
+    });
+
+    it("a multi-control step stays put; Next is disabled until answered", () => {
+        render(
+            <Harness
+                initial={{ ...EMPTY_SETUP, mode: "arena", opponent: "solo" }}
+            />
+        );
         expect(activeTitle()).toBe("Match Format");
+        const next = () => screen.getByRole("button", { name: "Next" });
+        expect((next() as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.click(screen.getByRole("radio", { name: "Bo3" }));
+        expect(activeTitle()).toBe("Match Format");
+        fireEvent.click(screen.getByRole("button", { name: /^Alpha/ }));
+        expect(activeTitle()).toBe("Match Format");
+        expect((next() as HTMLButtonElement).disabled).toBe(false);
+        fireEvent.click(next());
+        expect(activeTitle()).toBe("Your deck");
+        expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    });
+
+    it("a re-opened step advances to the one after it, not the first open", () => {
+        render(
+            <Harness
+                initial={{
+                    ...EMPTY_SETUP,
+                    mode: "arena",
+                    opponent: "bot",
+                    matchFormat: "standard",
+                }}
+            />
+        );
+        expect(activeTitle()).toBe("Your deck");
+        fireEvent.click(railStep("mode"));
+        fireEvent.click(screen.getByRole("button", { name: /^Arena/ }));
+        expect(activeTitle()).toBe("Opponent");
     });
 });
