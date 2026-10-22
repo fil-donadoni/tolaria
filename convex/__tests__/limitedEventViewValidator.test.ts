@@ -57,6 +57,8 @@ import {
 } from "../limited/eventLogic";
 import { resolveGamesFormat } from "../limited/gamesFormat";
 import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
+import { resolveSheetCardMeta } from "../limitedCardMeta";
+import { attachPackRarity } from "../limited/draftPackOrder";
 import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
@@ -175,6 +177,21 @@ function arrangedEvent(): LimitedEventRow {
         { poolIndex: 3, column: 2, pins: { color: "color:R" } },
     ];
     seats[0] = { ...seats[0], poolArrangement: arrangement };
+    return { ...event, seats };
+}
+
+/** Same event, with the viewer's seat holding a Booster (`currentPack`) —
+ *  the card rows the Draft Room sorts by rarity (issue #5936). */
+function draftingEvent(): LimitedEventRow {
+    const event = startedEvent();
+    const seats = [...event.seats];
+    seats[0] = {
+        ...seats[0],
+        currentPack: seats[0].pool!.slice(0, 5).map((card, i) => ({
+            ...card,
+            pickId: `r0-p0-c${i}`,
+        })),
+    };
     return { ...event, seats };
 }
 
@@ -338,6 +355,12 @@ function queryReturnValue(
             return {
                 ...seatView,
                 autoBuiltDeck,
+                currentPack: seatView.currentPack
+                    ? attachPackRarity(
+                          seatView.currentPack,
+                          (id) => resolveSheetCardMeta(id)?.rarity
+                      )
+                    : null,
                 deckSummary:
                     seatView.deckSummary ??
                     (autoBuiltDeck
@@ -476,6 +499,19 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
             { gameId: "g-in", matchId: "m-in", challengerSeatIndex: 1 },
         ]);
         expect(value.viewerOutgoingChallenge).not.toBeNull();
+        expect(validationErrors(value, viewValidatorJson)).toEqual([]);
+    });
+
+    it("carries the printing's rarity on the viewer's Booster cards (issue #5936)", () => {
+        const value = queryReturnValue(draftingEvent(), "user1") as {
+            seats: {
+                seatIndex: number;
+                currentPack: { rarity?: string }[] | null;
+            }[];
+        };
+        const pack = value.seats.find((s) => s.seatIndex === 0)!.currentPack!;
+        expect(pack.length).toBe(5);
+        expect(pack.every((c) => c.rarity !== undefined)).toBe(true);
         expect(validationErrors(value, viewValidatorJson)).toEqual([]);
     });
 
