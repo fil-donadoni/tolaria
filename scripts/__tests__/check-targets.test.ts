@@ -229,6 +229,66 @@ describe("the Coverage Invariant — every enforced Target card claimed", () => 
         ]);
     });
 
+    // Issue #6387: the weekly corpus re-pin writes the missing claim itself, so
+    // every red ONE claim settles carries that claim as data — and writing
+    // exactly that claim turns the Target green.
+    it("exposes the claim that settles each unclaimed card, and writing it greens the Target", () => {
+        const cases: [string, CoverageContext][] = [
+            [
+                "mechanic",
+                {
+                    ...GREEN,
+                    claims: without(
+                        claimId("mechanic", quarantineClass(MECHANIC).key)
+                    ),
+                },
+            ],
+            [
+                "grammar",
+                { ...GREEN, claims: without(claimId("grammar", WIDESPREAD)) },
+            ],
+            [
+                "hand-tail",
+                {
+                    ...GREEN,
+                    claims: without(claimId("hand-tail", "Below Row")),
+                },
+            ],
+        ];
+        for (const [kind, ctx] of cases) {
+            const coverage = targetCoverage(
+                {
+                    row: {
+                        id: "t",
+                        kind: "name-list",
+                        source: "t.txt",
+                        enforced: true,
+                    },
+                    cards: IN_TARGET.map((id) => ({
+                        oracleId: id,
+                        name: byOracleId.get(id)!.name,
+                    })),
+                },
+                ctx
+            );
+            expect(coverage.unclaimed.length).toBeGreaterThan(0);
+            const written = new Set(ctx.claims);
+            for (const card of coverage.unclaimed) {
+                expect(card.missing?.kind).toBe(kind);
+                written.add(claimId(card.missing!.kind, card.missing!.key));
+            }
+            expect(reds({ ...ctx, claims: written })).toEqual([]);
+        }
+        // A quarantine row with no reason has no claim to write.
+        const bare = row("z", "Held Bare", "quarantine");
+        expect(
+            coverageVerdict(bare, {
+                ...GREEN,
+                byOracleId: new Map([...byOracleId, ["z", bare] as const]),
+            }).missing
+        ).toBeUndefined();
+    });
+
     it("reds a hand-tail marker on a ready card — retire the hand-written twin", () => {
         expect(
             reds({ ...GREEN, handTail: new Set(["b", "mr"]) }, [
@@ -410,6 +470,7 @@ describe("a frozen card — quarantine `bot-unreachable`, settled by a `bot` cla
         expect(coverageVerdict(frozen, ctx(new Set()))).toEqual({
             state: "unclaimed",
             why: `quarantine class \`${KEY}\` has no \`bot\` claim`,
+            missing: { kind: "bot", key: KEY },
         });
         expect(
             coverageVerdict(frozen, ctx(new Set([claimId("scenario", KEY)])))
