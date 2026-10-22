@@ -164,6 +164,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
             duration: { phase: "end-of-turn" },
         },
         copiedFrom: "def-orig",
+        preCopyImagePrintId: "print-own",
         copyExcept: { basePower: 1, baseToughness: 1 },
         copyOptions: { copyColor: true },
         timedCopyEffects: {

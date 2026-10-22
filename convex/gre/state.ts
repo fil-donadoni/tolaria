@@ -6725,6 +6725,10 @@ export function removePermanentTo(
         ...(!creature.faceDown && creature.copyExcept
             ? { copyExcept: { ...creature.copyExcept } }
             : {}),
+        // Art follows the object the player saw; a face-down one lends none.
+        ...(!creature.faceDown && creature.imagePrintId
+            ? { imagePrintId: creature.imagePrintId }
+            : {}),
         turn: state.turn,
     };
     creature.zone = toZone;
@@ -14809,6 +14813,9 @@ export function buildSpellContext(
                           ...(source.copyExcept
                               ? { copyExcept: source.copyExcept }
                               : {}),
+                          ...(source.imagePrintId
+                              ? { imagePrintId: source.imagePrintId }
+                              : {}),
                       }
                     : source;
             // Minimal placeholder body: a 0/0 creature token, overwritten by
@@ -18760,6 +18767,7 @@ export function createTokenPermanents(
             // preview's split view, revert path) — clear it so the token
             // presents as what it IS, with nothing to revert to.
             delete token.copiedFrom;
+            delete token.preCopyImagePrintId;
             // NOT cleared: `copyOptions` (issue #3236). It is the copy
             // effect's own CR 707.9 "except" clause, and unlike `copiedFrom`
             // it names nothing about the placeholder — it is what a later

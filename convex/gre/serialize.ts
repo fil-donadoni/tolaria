@@ -1577,6 +1577,7 @@ export function compactState(state: GameState): Record<string, unknown> {
                 d: internCardIdForCompact(ctx, entry.defId),
                 t: entry.turn,
                 ...(entry.copyExcept ? { e: entry.copyExcept } : {}),
+                ...(entry.imagePrintId ? { p: entry.imagePrintId } : {}),
             };
         }
         out.lastKnownCopiable = packed;
@@ -1655,6 +1656,7 @@ export function expandState(data: Record<string, unknown>): GameState {
                   d: unknown;
                   t: number;
                   e?: { basePower?: number; baseToughness?: number };
+                  p?: string;
               }
           >
         | undefined;
@@ -1665,6 +1667,7 @@ export function expandState(data: Record<string, unknown>): GameState {
                 defId: resolveCardId(entry.d, ctx),
                 turn: entry.t,
                 ...(entry.e ? { copyExcept: entry.e } : {}),
+                ...(entry.p ? { imagePrintId: entry.p } : {}),
             };
         }
         result.lastKnownCopiable = unpacked;
