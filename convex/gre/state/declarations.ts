@@ -4254,10 +4254,12 @@ export type GameState = {
          *  departing permanent from `attackerIds` but keeps its
          *  `attackTargets` entry and records it here, so "the player or
          *  planeswalker it's attacking" still answers from last known
-         *  information for an ability whose source has left. Never read as
-         *  "is attacking": a blinked attacker that is back under the same id
-         *  is a new object that is not in combat. Cleared at END_OF_COMBAT
-         *  with the rest of `combat`. */
+         *  information for an ability whose source has left, and the phase
+         *  machine still runs the combat steps a declared attack owes
+         *  (CR 508.8 keys on DECLARED attackers). Never read as "is
+         *  attacking": a blinked attacker that is back under the same id is a
+         *  new object that is not in combat. Cleared at END_OF_COMBAT with
+         *  the rest of `combat`. */
         departedAttackerIds?: string[];
         /** CR 508.1g / 701.43d — the declared attackers whose controller chose
          *  to pay the OPTIONAL "you may exert this creature as it attacks"

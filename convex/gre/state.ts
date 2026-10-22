@@ -6375,7 +6375,7 @@ function stampDepartedTargets(state: GameState, cardId: string): void {
  *  it has been spliced off the battlefield, so the combat flags are cleared on
  *  the card itself rather than through a battlefield lookup; the record is
  *  pruned in both directions by the same `pruneCombatRecord` a control change
- *  uses (CR 506.4c), so a blinked attacker comes back neither attacking nor
+ *  uses, so a blinked attacker comes back neither attacking nor
  *  blocked and a blinked blocker leaves its attacker blocked (CR 509.1h).
  *
  *  A departing ATTACKER is first recorded in `departedAttackerIds`: CR 608.2h

@@ -24,6 +24,7 @@ import {
     resolveTopOfStack,
 } from "../state";
 import { resolveCombatDamage } from "../applyMove";
+import { advancePhase } from "../phases";
 import { checkStateBasedActions } from "../sba";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { compactState, expandState } from "../serialize";
@@ -295,5 +296,20 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
 
         expect(state.players[1].life).toBe(oppLife);
         expect(permanentNamed(state, "Hill Giant")!.damageMarked ?? 0).toBe(0);
+    });
+
+    it("the combat steps a declared attack owes still happen when its only attacker has left (CR 508.8)", () => {
+        // CR 508.8 skips the rest of combat only when NO creature was declared
+        // as an attacker; pruning the departed one from `attackerIds` must not
+        // read as "nobody attacked" and jump straight to the second main
+        // phase past the combat damage and end of combat steps.
+        const state = blockedCombat("Hill Giant");
+        blink(state, idOf(state, "Grizzly Bears"));
+        expect(state.combat!.attackerIds).toHaveLength(0);
+
+        const traversed = advancePhase(state);
+
+        expect(traversed).toContain("COMBAT_DAMAGE");
+        expect(state.phase).not.toBe("POSTCOMBAT_MAIN");
     });
 });

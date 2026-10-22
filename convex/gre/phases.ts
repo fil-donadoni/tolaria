@@ -3971,7 +3971,16 @@ export function advancePhase(state: GameState): Phase[] {
     // teardown now runs on exit via `endCombatStep`, so `state.combat` is
     // still present when entering END_OF_COMBAT — attackers stay attacking
     // through the step per CR 511.2.)
-    const hadAttackers = !!state.combat && state.combat.attackerIds.length > 0;
+    //
+    // CR 508.8 skips the remaining combat steps only when NO creature was
+    // declared as an attacker. An attacker that has since left the battlefield
+    // was pruned from `attackerIds` (CR 506.4, issue #6333) but was declared,
+    // so the steps — the second damage step after a first-strike kill, the end
+    // of combat step — still happen.
+    const hadAttackers =
+        !!state.combat &&
+        (state.combat.attackerIds.length > 0 ||
+            (state.combat.departedAttackerIds?.length ?? 0) > 0);
 
     // CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a step an effect
     // says is "skipped" doesn't happen AT ALL — not merely "no draw". That
