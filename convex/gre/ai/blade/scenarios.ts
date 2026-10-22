@@ -14641,7 +14641,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "submit-target", target: "Flametongue Kavu" }],
         },
-        note: "Issue #6334 — PLACEHOLDER",
+        note: "Issue #6334. Three seams, each measured red alone at 400 iterations over seeds 0xb1ade, 1, 2, 3, 4 (Hill Giant on every seed): (1) Evaluation leaf — an exiled card a scheduled delayed trigger returns to the battlefield is credited back to the player it returns under, body plus ETB Abilities against this board (`pendingReturnsWorth`, `ai/pendingReturn.ts`); (2) `OP_BENEFICENCE` axis — an `exile` the same script's delayed trigger returns signs nothing, so the self-flicker draws no misdirection penalty (`beneficence.ts`); (3) the tree's trigger-target node stops exploring answers another answer strictly dominates once resolved (`ai/targetDominance.ts`), which otherwise backed up the returned Kavu shooting itself into the flicker's mean. Before the fix: Hill Giant 5/5 at 400 (the audit measured 3/3 at 400, 1200 and 4000). Two causes the audit missed: the reward band clips past `materialFull` here, so every Kavu target tied in the rollout and below the root, and the delayed return sits beyond the one-resolution probe.",
     },
     {
         label: "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla",
@@ -14691,6 +14691,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "submit-target", target: "Hill Giant" }],
         },
-        note: "Issue #6334 — PLACEHOLDER",
+        note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill.",
     },
 ];
