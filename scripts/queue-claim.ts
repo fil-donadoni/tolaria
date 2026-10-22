@@ -48,7 +48,6 @@ import {
     interpretPsResult,
 } from "./loop-doctor";
 import {
-    capCensus,
     heldFromJournal,
     isStaleClaim,
     machineScope,
@@ -59,8 +58,8 @@ import {
     buildClaimRow,
     claimDecision,
     claimLockVerdict,
+    claimSets,
     latestPlanFor,
-    liveClaimSet,
     ownsClaimLock,
     parsePpidComm,
     type ClaimLockOwner,
@@ -348,51 +347,26 @@ async function main(): Promise<void> {
         );
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {
-        const now = new Date().toISOString();
         const claimed = claimedIssues();
-        const openPrs = issuesWithOpenPr();
-        const reconciled = liveClaimSet(
+        // The cap counts ACTIVE sessions, so it asks `loop:doctor`'s liveness
+        // classifier, imported, never a second opinion. A claim proved
+        // `recoverable` or `stranded` keeps its label and gives up its slot —
+        // nothing here writes a release, that stays `loop:doctor --release`'s
+        // call — and is out of the collision set, so a pass RESUMING it is
+        // admitted. No verdict at all counts as live. The census reads the set
+        // reconciled against this machine's `released` rows; the collision
+        // check every live label, classified too (`claimSets`, issue #6354).
+        const { live, recoverable, stranded, collide } = claimSets({
             claimed,
-            openPrs,
-            releasedOnThisMachine(root),
-            now,
-            DEFAULTS.staleClaimHours,
-            isStaleClaim
-        );
-        // The cap counts ACTIVE sessions, so it asks the liveness classifier —
-        // `loop:doctor`'s, imported, never a second opinion (issue #4384). A
-        // claim proved `recoverable` keeps its label and gives up its slot;
-        // nothing here writes a release, which stays `loop:doctor --release`'s
-        // call alone. No verdict at all counts as live: uncertainty never
-        // authorises more concurrency.
-        // `stranded` (issue #4763: owner gone, work pushed) gives up its slot
-        // the same way — and is NOT in `live`, so a resuming pass may take
-        // the dead pass's claim over (the journal row moves the owner).
-        const { live, recoverable, stranded } = capCensus(
-            reconciled,
-            claimVerdicts(
-                claimed.filter((i) => reconciled.includes(i.number)),
-                ORIGIN_BASE,
-                root
-            )
-        );
-        // The cap counts THIS machine's claims (issue #5302); the collision
-        // check reads every live claim, and WITHOUT this machine's `released`
-        // rows: an issue claimed here, released here and re-claimed on the
-        // other machine has a local `released` last row, yet its label is the
-        // other machine's live work (issue #5302 review).
+            issuesWithOpenPr: issuesWithOpenPr(),
+            released: releasedOnThisMachine(root),
+            nowIso: new Date().toISOString(),
+            staleClaimHours: DEFAULTS.staleClaimHours,
+            isStale: isStaleClaim,
+            classify: (issues) => claimVerdicts(issues, ORIGIN_BASE, root),
+        });
+        // The cap counts THIS machine's claims (`machineScope`).
         const scope = machineScope(live, heldOnThisMachine(root));
-        // A claim the census proved dead (`recoverable`/`stranded`) stays out
-        // of it, so a pass RESUMING one is still admitted.
-        const dead = new Set([...recoverable, ...stranded]);
-        const collide = liveClaimSet(
-            claimed,
-            openPrs,
-            [],
-            now,
-            DEFAULTS.staleClaimHours,
-            isStaleClaim
-        ).filter((n) => !dead.has(n));
         const decision = claimDecision({
             issue,
             live,
