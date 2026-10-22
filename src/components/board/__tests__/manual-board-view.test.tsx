@@ -571,7 +571,8 @@ describe("the manual back row split through the real battlefield (#2348)", () =>
         );
     }
 
-    const lastSplit = () => backSplits[backSplits.length - 1];
+    const lastSplit = () =>
+        backSplits.filter((s) => s.left + s.right > 0).at(-1);
 
     it("moves a land from the noncreature half to the lands half once the catalogue loads", () => {
         const { rerender } = render(board());
