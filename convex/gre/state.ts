@@ -147,7 +147,7 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
-import { effectivePermanentView } from "./permanentView";
+import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
 import { getCardsExiledWith as getCardsExiledWithLink } from "./exileLinks";
 import {
@@ -4234,9 +4234,7 @@ export function emitPermanentEntered(
     // the permanent is not found (the filter then fails closed).
     const entered = findOnBattlefield(state, card.id)?.card;
     const manaValueOnEntry =
-        entered !== undefined
-            ? manaValue(getInstanceManaCost(entered))
-            : undefined;
+        entered !== undefined ? permanentManaValue(entered) : undefined;
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {

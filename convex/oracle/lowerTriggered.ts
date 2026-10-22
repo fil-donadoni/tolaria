@@ -304,7 +304,8 @@ export function lowerTriggeredAbility(input: {
     readonly kickers?: readonly KickerCost[];
 }): LowerTriggerResult {
     // CR 113.6b — "if this card is in your graveyard" is the ability's zone.
-    // Only a phase head has a factory that functions from the graveyard.
+    // Only a phase head or another-permanent "enters" head has a factory that
+    // functions from the graveyard.
     // CR 113.6b — a body that returns the SOURCE from the graveyard names the
     // zone it functions from (Squee, Goblin Nabob).
     const fromGraveyard =
