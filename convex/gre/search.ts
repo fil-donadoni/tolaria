@@ -1523,14 +1523,34 @@ export function rollout(
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
             const drawn = moves.filter(
-                (m) => !isRolloutPrunedSacrifice(state, pid, botId, m)
+                (m) =>
+                    !isTransientSacrificeConversion(state, pid, m) &&
+                    !isSourceConfinedSacrificeConversion(state, pid, m) &&
+                    !isRemovalExchangeSacrifice(state, pid, botId, m) &&
+                    !isDiscardExchangeSacrifice(state, pid, botId, m) &&
+                    !isDrainExchangeSacrifice(state, pid, botId, m) &&
+                    !isDrawExchangeSacrifice(state, pid, botId, m) &&
+                    !isDenialExchangeSacrifice(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
         } else {
-            const greedyPool = moves.filter(
-                (m) => !isRolloutPrunedSacrifice(state, pid, botId, m)
-            );
+            // The greedy 1-ply reading takes a lasting self-growing sacrifice
+            // as a gain, and its subtree drags the cast edge that led there
+            // below `pass`. Same prune as the tree below the root (empty stack
+            // only), and only this predicate: the transient and exchange
+            // conversions keep their windowed reading in the greedy pick.
+            const greedyPool =
+                state.stack.length === 0
+                    ? moves.filter(
+                          (m) =>
+                              !isSourceConfinedSacrificeConversion(
+                                  state,
+                                  pid,
+                                  m
+                              )
+                      )
+                    : moves;
             chosen = selectRolloutMove(
                 state,
                 pid,
@@ -1544,28 +1564,6 @@ export function rollout(
         applyMoveInSearch(state, pid, chosen, true);
     }
     return scoreLeaf(state, botId, weights);
-}
-
-/** Whether a rollout policy leaves `move` out: a sacrifice conversion the tree
- *  prunes below the root, or a transient one. Applied to BOTH policies — the
- *  random draw and the greedy pick — since the greedy 1-ply reading takes a
- *  conversion the tree refuses (a lasting self-growing sacrifice read as a
- *  gain), and its subtree then drags the edge that led there below `pass`. */
-function isRolloutPrunedSacrifice(
-    state: GameState,
-    pid: string,
-    botId: string,
-    move: Move
-): boolean {
-    return (
-        isTransientSacrificeConversion(state, pid, move) ||
-        isSourceConfinedSacrificeConversion(state, pid, move) ||
-        isRemovalExchangeSacrifice(state, pid, botId, move) ||
-        isDiscardExchangeSacrifice(state, pid, botId, move) ||
-        isDrainExchangeSacrifice(state, pid, botId, move) ||
-        isDrawExchangeSacrifice(state, pid, botId, move) ||
-        isDenialExchangeSacrifice(state, pid, botId, move)
-    );
 }
 
 /** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
