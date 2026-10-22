@@ -94,10 +94,17 @@ describe("destructive data-regeneration recipes stay out of the instructions", (
         // `scripts/oracle-corpus.ts` is the flag's HOME: it has to document
         // `--repin` in its usage block and name it in the mismatch error that
         // sends you to the deliberate escape hatch. Banning the string there
-        // would ban defining the flag at all. Everywhere else — every guard
-        // hint, every skill step — a routine fix must not reach for it.
+        // would ban defining the flag at all. `scripts/corpus-repin.ts` is the
+        // weekly scheduled re-pin (issue #6387) — the deliberate corpus bump
+        // itself, run in its own PR, never a fix's step. Everywhere else —
+        // every guard hint, every skill step — a routine fix must not reach
+        // for it.
+        const DELIBERATE_BUMP = [
+            "scripts/oracle-corpus.ts:",
+            "scripts/corpus-repin.ts:",
+        ];
         const hits = offendingLines(repin).filter(
-            (l) => !l.startsWith("scripts/oracle-corpus.ts:")
+            (l) => !DELIBERATE_BUMP.some((home) => l.startsWith(home))
         );
         expect(
             hits,
