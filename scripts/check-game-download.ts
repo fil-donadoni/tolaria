@@ -70,6 +70,7 @@ import {
     PREGAME_PLAY,
     START_MATCH,
     chooseSetup,
+    confirmSetupStep,
     currentSetupStep,
     pickPlayableDeck,
 } from "./ui-gate/surfaces";
@@ -250,8 +251,10 @@ async function startGame(
         if (step === "mode") await chooseSetup(page, "Arena");
         else if (step === "opponent")
             await chooseSetup(page, kind === "bot" ? "Bot" : "Solo");
-        else if (step === "format") await chooseSetup(page, "Freeform");
-        else if (step === "myDeck") await pickPlayableDeck(page);
+        else if (step === "format") {
+            await chooseSetup(page, "Freeform");
+            await confirmSetupStep(page);
+        } else if (step === "myDeck") await pickPlayableDeck(page);
         else break;
     }
     await page
