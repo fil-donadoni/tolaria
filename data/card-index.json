@@ -38920,6 +38920,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mesmeric Fiend",
+        "scryfallId": "b6edd4ea-c587-4d93-a675-4cdec3e0b1ca",
+        "oracleId": "fb46b300-8a39-40d2-8bc7-31b90c822e22",
+        "firstSet": "tor",
+        "firstPrintId": "b6edd4ea-c587-4d93-a675-4cdec3e0b1ca",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mesmeric Trance",
         "scryfallId": "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
         "oracleId": "d1cc6979-d786-4035-963b-768ac8cef116",
