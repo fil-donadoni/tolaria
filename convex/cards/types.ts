@@ -10867,6 +10867,12 @@ export interface PermanentEnteredEvent {
      *  available" rather than throwing. */
     power?: number;
     toughness?: number;
+    /** Mana value (CR 202.3) of the entering permanent, snapshotted at
+     *  `emitPermanentEntered` with `{X}` as 0 on the battlefield (CR 202.3e).
+     *  Read by `PermanentFilter.manaValueAtLeast` on an entry trigger ("a
+     *  creature with mana value 6 or greater enters"). Optional so a
+     *  pre-existing fixture without it fails that filter CLOSED. */
+    manaValue?: number;
     /** CR 111.1 — true iff the entering permanent is a TOKEN (issue #3220).
      *  Read by `PermanentFilter.isToken` on an entry trigger — "whenever a
      *  creature token you control enters" (Securitron Squadron's +1/+1
