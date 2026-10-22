@@ -8574,7 +8574,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "player", count: 1 },
         },
     },
-    // CR 608.2h + CR 615.12 + CR 614.9 + CR 603.7a — "that creature" / "the
+    // CR 608.2c + CR 615.12 + CR 614.9 + CR 603.7a — "that creature" / "the
     // creature" after ONE announced creature target name that target: the
     // regeneration lock, the recipient-bound damage lock and a delayed dies
     // trigger whose body exiles the card from the graveyard. Exhibits

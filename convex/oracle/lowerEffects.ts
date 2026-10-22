@@ -1701,7 +1701,7 @@ function introducedCreatureSite(
 }
 
 /**
- * CR 608.2h — a sentence reading "that creature" after the script announced
+ * CR 608.2c — a sentence reading "that creature" after the script announced
  * ONE creature target names THAT target ("Target creature can't be
  * regenerated this turn. Damage that would be dealt to that creature …"),
  * the nearer antecedent than anything the head named. Rebound for that
@@ -1735,7 +1735,7 @@ function announcedCreatureSite(
 }
 
 /**
- * CR 608.2h — the ONE creature target the script has announced, when it is
+ * CR 608.2c — the ONE creature target the script has announced, when it is
  * the only announcement and no gate sits in front of a removal of it: the
  * referent of a later "that creature". Null on every other walk.
  */

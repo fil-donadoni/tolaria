@@ -1,5 +1,5 @@
 // "that creature" after ONE announced creature target, and the two sentences
-// that read it on Whippoorwill (CR 608.2h, CR 615.12 / 614.9, CR 603.7a).
+// that read it on Whippoorwill (CR 608.2c, CR 615.12 / 614.9, CR 603.7a).
 //
 // "Target creature can't be regenerated this turn. Damage that would be dealt
 // to that creature …" — the target announced in the first sentence is the
@@ -36,7 +36,7 @@ function state(text: string) {
     return compileCard(ability(text)).state;
 }
 
-describe("announced-creature anaphora — golden (CR 608.2h)", () => {
+describe("announced-creature anaphora — golden (CR 608.2c)", () => {
     it("Whippoorwill reaches ready — its fixture clears its smoke form", () => {
         const fixture = GOLDEN_FIXTURES.find(
             (f) => f.card.name === "Whippoorwill"
@@ -52,7 +52,7 @@ describe("announced-creature anaphora — golden (CR 608.2h)", () => {
     });
 });
 
-describe("announced-creature anaphora — refusals (CR 608.2h)", () => {
+describe("announced-creature anaphora — refusals (CR 608.2c)", () => {
     it("refuses 'that creature' after two announced targets", () => {
         expect(
             state(
