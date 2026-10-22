@@ -268,7 +268,8 @@ export interface CompiledTriggeredAbility {
      * battlefield. "At the beginning of your upkeep, if this card is in your
      * graveyard, …" (Gigapede, Genesis): the printed intervening-if IS the
      * zone, so it is carried here rather than as a `condition`. Phase heads
-     * only — the one factory that takes a zone (`phaseTrigger`).
+     * and non-self `entered` heads only — the factories that take a zone
+     * (`phaseTrigger`, `enteredTrigger`).
      */
     readonly zone?: "graveyard";
     /** CR 603.3d — announced as the trigger goes on the stack. */
@@ -416,6 +417,9 @@ export function resolveCompiledTrigger(
             return enteredTrigger({
                 ...common,
                 ...(onSelf !== undefined ? { conditionOnSelf: onSelf } : {}),
+                ...(descriptor.zone !== undefined
+                    ? { zone: descriptor.zone }
+                    : {}),
                 scope: head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });

@@ -111,6 +111,7 @@ export const EVENT_FIELD_KINDS: {
         enteredFromGraveyard: "scalar",
         power: "scalar",
         toughness: "scalar",
+        manaValue: "scalar",
         isToken: "scalar",
     },
     // CR 603.6c / 603.10 — a permanent left the battlefield.
