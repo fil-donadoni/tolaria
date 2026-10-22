@@ -2106,6 +2106,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice it",
+            "issue": 6369
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Sacrifice it unless you return a basic land card from your graveyard to your hand",
             "issue": 5229
         },
