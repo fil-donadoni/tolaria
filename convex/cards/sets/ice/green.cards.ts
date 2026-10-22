@@ -15,7 +15,6 @@ import {
 } from "../../types";
 import { countSnowLands } from "../../snowReads";
 import { makeTapForMana } from "../../abilities";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -134,13 +133,7 @@ export const blizzard = defineCard(() => ({
             maxUntap: 0,
         }),
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "blizzard-cumulative-upkeep",
-            cost: { X: 2 },
-            costLabel: "{2}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 2 },
 }));
 // Brown Ouphe — {G} 1/1 Ouphe with "{1}{G}, {T}: Counter target activated
 // ability from an artifact source." (CR 701.6a counter of an ability, CR 113.7a
@@ -1858,13 +1851,7 @@ export const fyndhornPollen = defineCard(() => ({
             toughness: 0,
         },
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "fyndhorn-pollen-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     activatedAbilities: [
         {
             id: "fyndhorn-pollen-mass-shrink",
@@ -1912,12 +1899,8 @@ export const maddeningWind = defineCard(() => ({
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
+    cumulativeUpkeep: { G: 1 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "maddening-wind-cumulative-upkeep",
-            cost: { G: 1 },
-            costLabel: "{G}",
-        }),
         phaseTrigger({
             id: "maddening-wind-upkeep-damage",
             oracleText:
@@ -1948,11 +1931,5 @@ export const ritualOfSubdual = defineCard(() => ({
     manaCost: { X: 4, G: 2 },
     types: ["Enchantment"],
     landManaSubstitution: { color: "C" },
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "ritual-of-subdual-cumulative-upkeep",
-            cost: { X: 2 },
-            costLabel: "{2}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 2 },
 }));
