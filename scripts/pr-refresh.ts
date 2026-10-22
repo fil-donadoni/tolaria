@@ -25,10 +25,17 @@
  * The decisions are `lib/pr-refresh.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
+import { CORPUS_CACHE_REL } from "./lib/generated-artifacts";
 import { gh, netEnv } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
@@ -51,8 +58,11 @@ export type RefreshOutcome =
     | { kind: "skipped"; reason: string };
 
 export interface RefreshDeps {
-    /** Make the worktree runnable (`convex/_generated`, `node_modules`). */
-    prepare: (dir: string) => boolean;
+    /**
+     * Make the worktree runnable (`convex/_generated`, `node_modules`, the
+     * gitignored Card Corpus cache the artefact resolver re-derives from).
+     */
+    prepare: (dir: string, primary: string) => boolean;
     /** Push the rebased tip (false = a dry run: everything but the push). */
     push: boolean;
 }
@@ -72,9 +82,40 @@ function run(
 
 const lastLine = (s: string): string => s.trim().split("\n").slice(-1)[0] ?? "";
 
-export const defaultPrepare = (dir: string): boolean =>
+const fetchCorpus = (dir: string): boolean =>
+    spawnSync("bun", ["run", "oracle:corpus"], {
+        cwd: dir,
+        stdio: "ignore",
+        env: netEnv(),
+    }).status === 0;
+
+/**
+ * Put the gitignored Card Corpus cache (`data/oracle-corpus.json.gz`) in the
+ * worktree (issue #6320). `worktree:init` does not, and without it the
+ * artefact resolver refuses to re-derive a conflicted lockfile: the PR stays
+ * CONFLICTING. The primary's copy is taken first (its sha is the pin's, the
+ * lockfile guards the rest); only a primary without one downloads the pinned
+ * bulk.
+ */
+export function seedCorpus(
+    primary: string,
+    dir: string,
+    fetch: (dir: string) => boolean = fetchCorpus
+): boolean {
+    const dest = join(dir, CORPUS_CACHE_REL);
+    if (existsSync(dest)) return true;
+    const source = join(primary, CORPUS_CACHE_REL);
+    if (existsSync(source)) {
+        mkdirSync(dirname(dest), { recursive: true });
+        copyFileSync(source, dest);
+        return true;
+    }
+    return fetch(dir);
+}
+
+export const defaultPrepare = (dir: string, primary: string): boolean =>
     spawnSync("bun", ["run", "worktree:init"], { cwd: dir, stdio: "ignore" })
-        .status === 0;
+        .status === 0 && seedCorpus(primary, dir);
 
 /**
  * Rebase ONE PR's head in a throwaway worktree of `primary` and push it. Never
@@ -144,8 +185,11 @@ export function refreshPr(
                       reason: `rebase failed: ${lastLine(rebased.stderr)}`,
                   };
         }
-        if (!deps.prepare(dir)) {
-            return { kind: "skipped", reason: "worktree:init failed" };
+        if (!deps.prepare(dir, primary)) {
+            return {
+                kind: "skipped",
+                reason: "worktree prepare failed (worktree:init or Card Corpus cache)",
+            };
         }
         const resolved = run(
             "sh",

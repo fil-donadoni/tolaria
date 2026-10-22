@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
@@ -10,7 +17,8 @@ import {
     selectRefreshCandidates,
     type RefreshPr,
 } from "../lib/pr-refresh";
-import { refreshPr } from "../pr-refresh";
+import { CORPUS_CACHE_REL } from "../lib/generated-artifacts";
+import { refreshPr, seedCorpus } from "../pr-refresh";
 
 const pr = (over: Partial<RefreshPr>): RefreshPr => ({
     number: 1,
@@ -263,5 +271,44 @@ describe("refreshPr — real git, a bare origin", () => {
         );
         expect(out.kind).toBe("pushed");
         expect(git(["rev-parse", "feat/issue-9"], origin)).toBe(oid);
+    });
+});
+
+// Issue #6320: the refresh worktree is fresh, and the Card Corpus cache is
+// gitignored — without it the artefact resolver refuses and the PR stays
+// CONFLICTING.
+describe("seedCorpus", () => {
+    let root: string;
+    let primary: string;
+    let wt: string;
+    beforeEach(() => {
+        root = mkdtempSync(join(tmpdir(), "tolaria-seed-corpus-"));
+        primary = join(root, "primary");
+        wt = join(root, "wt");
+        mkdirSync(join(primary, "data"), { recursive: true });
+        mkdirSync(join(wt, "data"), { recursive: true });
+    });
+    afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+    it("copies the primary's cache into the worktree without downloading", () => {
+        writeFileSync(join(primary, CORPUS_CACHE_REL), "corpus");
+        let fetched = false;
+        const ok = seedCorpus(primary, wt, () => (fetched = true));
+        expect(ok).toBe(true);
+        expect(fetched).toBe(false);
+        expect(readFileSync(join(wt, CORPUS_CACHE_REL), "utf8")).toBe("corpus");
+    });
+
+    it("downloads the pinned bulk when the primary has none", () => {
+        const ok = seedCorpus(primary, wt, (dir) => {
+            writeFileSync(join(dir, CORPUS_CACHE_REL), "fetched");
+            return true;
+        });
+        expect(ok).toBe(true);
+        expect(existsSync(join(wt, CORPUS_CACHE_REL))).toBe(true);
+    });
+
+    it("reports failure when no cache can be obtained", () => {
+        expect(seedCorpus(primary, wt, () => false)).toBe(false);
     });
 });
