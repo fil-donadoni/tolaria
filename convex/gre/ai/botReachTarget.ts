@@ -506,6 +506,11 @@ export function sorceryPumpRace(
     };
 }
 
+/** The opponent's life in the life-gain race: within reach of one swing of the
+ *  holder's base creature (Grizzly Bears, power 2), so the holder only has to
+ *  live through one opposing attack for the gain to win the race. */
+const LIFE_GAIN_RACE_OPP_LIFE = 2;
+
 /** Is `def` a sorcery whose whole script is the controller gaining life? */
 function isSorceryLifeGain(def: CardDefinition): boolean {
     const [only, ...rest] = def.effects ?? [];
@@ -521,12 +526,14 @@ function isSorceryLifeGain(def: CardDefinition): boolean {
 /**
  * The race a life-gain sorcery is posed in. Life pays only when it is
  * scarce: at a full life total the Bot rightly keeps the card, so the holder
- * is one point from dead against a board that outnumbers its one blocker (the
- * position's own opposing bodies plus two more plain creatures). `null` when `def` is not a sorcery that only gains its controller life.
+ * is one point from dead against a board that outnumbers its blockers (the
+ * position's own opposing bodies plus two more plain creatures), and the
+ * opponent is one swing from dead, so surviving the attack the pass does not
+ * is worth the game. `null` when `def` is not a sorcery that only gains its controller life.
  */
 export function sorceryLifeGainRace(
     def: CardDefinition
-): { cards: ScenarioCard[]; life: { me: number } } | null {
+): { cards: ScenarioCard[]; life: { me: number; opp: number } } | null {
     if (!isSorceryLifeGain(def)) return null;
     return {
         cards: [
@@ -537,7 +544,7 @@ export function sorceryLifeGainRace(
                 count: 2,
             },
         ],
-        life: { me: 1 },
+        life: { me: 1, opp: LIFE_GAIN_RACE_OPP_LIFE },
     };
 }
 
