@@ -23,7 +23,7 @@ import {
     removePermanentTo,
     resolveTopOfStack,
 } from "../state";
-import { applyAllCombatDamage } from "../phases";
+import { resolveCombatDamage } from "../applyMove";
 import { checkStateBasedActions } from "../sba";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { compactState, expandState } from "../serialize";
@@ -247,10 +247,9 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
         expect(state.combat!.blockerAssignments[giant]).toEqual([]);
         expect(permanentNamed(state, "Grizzly Bears")!.isAttacking).toBeFalsy();
 
-        // The phase machine's damage step, with the assignment a stale record
-        // would produce: nothing in combat is left to deal or take it.
-        applyAllCombatDamage(state, {});
-        checkStateBasedActions(state);
+        // The combat damage steps, assignments derived from the record the
+        // phase machine reads: nothing in combat is left to deal or take it.
+        resolveCombatDamage(state);
 
         const returned = permanentNamed(state, "Grizzly Bears");
         expect(returned).toBeDefined();
@@ -292,8 +291,7 @@ describe("leaving the battlefield removes a permanent from combat (CR 506.4)", (
 
         // A blocked attacker with no blocker left and no trample assigns
         // nothing (CR 510.1c).
-        applyAllCombatDamage(state, {});
-        checkStateBasedActions(state);
+        resolveCombatDamage(state);
 
         expect(state.players[1].life).toBe(oppLife);
         expect(permanentNamed(state, "Hill Giant")!.damageMarked ?? 0).toBe(0);
