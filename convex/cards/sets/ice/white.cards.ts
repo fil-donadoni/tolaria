@@ -17,7 +17,6 @@ import {
     EFFECT_AFFECTS_SELF,
 } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -659,12 +658,8 @@ export const coldSnap = defineCard(() => ({
         "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of each player's upkeep, this enchantment deals damage to that player equal to the number of snow lands they control.",
     manaCost: { X: 2, W: 1 },
     types: ["Enchantment"],
+    cumulativeUpkeep: { X: 2 },
     triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "cold-snap-cumulative-upkeep",
-            cost: { X: 2 },
-            costLabel: "{2}",
-        }),
         phaseTrigger({
             id: "cold-snap-upkeep-damage",
             oracleText:
@@ -865,7 +860,7 @@ export const enduringRenewal = defineCard(() => ({
 }));
 // Energy Storm — {1}{W} Enchantment. Three data-only clauses over shipped
 // seams (issue #727):
-//   • Cumulative upkeep {1} — the ADR 0042 template (`cumulativeUpkeepTrigger`).
+//   • Cumulative upkeep {1} — the `cumulativeUpkeep` cost field (ADR 0155).
 //   • "Prevent all damage that would be dealt by instant and sorcery spells" —
 //     a continuous `replacementEffects[]` damage prevention (CR 615.1) keyed on
 //     the source's card types (`event.sourceTypes` includes Instant/Sorcery);
@@ -912,13 +907,7 @@ export const energyStorm = defineCard(() => ({
             replace: () => ({ kind: "consumed" }),
         },
     ],
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "energy-storm-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
 }));
 // Formation — {1}{W} Instant. "Target creature gains banding until end of turn"
 // (CR 702.22 banding granted via layer 6 for the turn) plus the next-upkeep
