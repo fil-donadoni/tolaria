@@ -421,6 +421,19 @@ export type EffectSentenceIR =
           readonly subject: SubjectIR;
           readonly duration: DurationIR;
       }
+    /** CR 205.3i / 305.6 — "Choose a land type and a basic land type." made
+     *  as the spell RESOLVES: two picks, the second narrowed to the five
+     *  basic land types. Carries no data, for the reason
+     *  `choose-creature-type` gives; the two answers are read back only by
+     *  `set-chosen-land-type`. */
+    | { readonly kind: "choose-land-types" }
+    /** CR 305.7 / 611.2 — "Each land of the first chosen type becomes the
+     *  second chosen type <duration>": every land carrying the first pick has
+     *  its land types replaced by the second. */
+    | {
+          readonly kind: "set-chosen-land-type";
+          readonly duration: DurationIR;
+      }
     /** CR 614.1a / 106.3 (issue #3811) — "Until end of turn, spells and
      *  abilities you control that would add colored mana instead add that
      *  much <colour> mana." The replacement is always the resolving
@@ -3585,6 +3598,13 @@ const CHOOSE_CREATURE_TYPE_EXCEPT = /^Choose a creature type other than (.+)$/;
  *  type" is the ONLY spelling read: it names the binding the choose sentence
  *  wrote; a literal type ("becomes a Wall") is a different clause. */
 const SET_CHOSEN_CREATURE_TYPE = /^(.+) becomes that type (until .+)$/;
+/** CR 205.3i / 305.6 — the two-pick land-type instruction, whole. */
+const CHOOSE_LAND_TYPES = /^Choose a land type and a basic land type$/;
+/** CR 305.7 — the two picks written back, whole but for the duration. "Each
+ *  land" is the only subject read: a narrower one ("each land you control")
+ *  is a different set this rule has no fixture for. */
+const SET_CHOSEN_LAND_TYPE =
+    /^Each land of the first chosen type becomes the second chosen type (until .+)$/;
 /** CR 614.1a (issue #3811) — the production-colour replacement, whole. */
 const REPLACE_MANA_PRODUCTION_COLOR =
     /^Until end of turn, spells and abilities you control that would add colored mana instead add that much (white|blue|black|red|green) mana$/;
@@ -5275,6 +5295,23 @@ function effectSentence(
             kind: "choose-creature-type" as const,
             exclude: [excluded],
         });
+    }
+
+    // ── choose a land type and a basic land type (CR 205.3i / 305.6) ──────
+    // Exact, for the reason the creature-type branch gives; and the written
+    // back sentence before the land-type branch below, which would otherwise
+    // read "becomes the second chosen type" as a CR 305.6 list and refuse it.
+    if (CHOOSE_LAND_TYPES.test(span)) {
+        return ok({ kind: "choose-land-types" as const });
+    }
+    const setChosenLand = span.match(SET_CHOSEN_LAND_TYPE);
+    if (setChosenLand !== null) {
+        const duration = durationRule.run(setChosenLand[1]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "set-chosen-land-type" as const,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
     }
 
     // ── chosen creature type written back (CR 205.1a, issue #4316) ─────────

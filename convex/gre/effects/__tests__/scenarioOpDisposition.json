@@ -43,6 +43,10 @@
         "code": "suspends-for-input",
         "reason": "Op \"chooseCreatureType\" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests"
     },
+    "chooseLandType": {
+        "code": "suspends-for-input",
+        "reason": "Op \"chooseLandType\" suspends for a live land-type choice (CR 205.3i) — covered by the Op's interpreter tests"
+    },
     "chooseNumber": {
         "code": "suspends-for-input",
         "reason": "Op \"chooseNumber\" suspends for a numeric nomination — covered by the Op's interpreter tests"

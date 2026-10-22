@@ -38,7 +38,10 @@ import {
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
 import { activationConditionErrors } from "../activationPrecondition";
-import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
+import {
+    CREATURE_SUBTYPES,
+    LAND_SUBTYPES,
+} from "../../oracle/grammar/shared/subtypes";
 import {
     isReservedTargetBinding,
     parseSnapshotNameRef,
@@ -5186,18 +5189,40 @@ const OP_SCHEMAS: OpSchemaTable = {
             if ("family" in entry && !("duration" in entry)) {
                 errors.push('field "family" requires "duration"');
             }
-            // A chosen type is a CREATURE type (CR 205.3m): a `{ ref }` list
-            // must declare the family so the runtime keeps only real
-            // creature types and replaces only that family (CR 205.1a).
-            if (!Array.isArray(entry.subtypes) && entry.family !== "creature") {
+            // A chosen type is a CREATURE type (CR 205.3m) or a LAND type
+            // (CR 205.3i): a `{ ref }` list must declare which, so the
+            // runtime keeps only real types of that family (CR 205.1a).
+            if (
+                !Array.isArray(entry.subtypes) &&
+                entry.family !== "creature" &&
+                entry.family !== "land"
+            ) {
                 errors.push(
-                    'a { ref } "subtypes" requires family: "creature" (CR 205.1a)'
+                    'a { ref } "subtypes" requires family: "creature" or "land" (CR 205.1a)'
                 );
+            }
+            // A literal list under a declared family must be of that family:
+            // the runtime keeps only its members, and a list filtered to
+            // nothing would replace the family with no type at all.
+            const table =
+                entry.family === "creature"
+                    ? CREATURE_SUBTYPES
+                    : entry.family === "land"
+                      ? LAND_SUBTYPES
+                      : undefined;
+            if (table !== undefined && Array.isArray(entry.subtypes)) {
+                for (const t of entry.subtypes as unknown[]) {
+                    if (typeof t !== "string" || !table.has(t)) {
+                        errors.push(
+                            `"subtypes" member ${JSON.stringify(t)} is not a ${String(entry.family)} type (CR 205.3e)`
+                        );
+                    }
+                }
             }
             return errors;
         },
         optional: {
-            family: (v) => v === "creature",
+            family: (v) => v === "creature" || v === "land",
             // CR 611.2b (issue #1746) — omitted REPLACES the subtypes
             // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,
@@ -6471,6 +6496,20 @@ const OP_SCHEMAS: OpSchemaTable = {
                 v.every(
                     (t) => typeof t === "string" && CREATURE_SUBTYPES.has(t)
                 ),
+        },
+    },
+    // CR 205.3i — "Choose a land type" during resolution, the land-type
+    // sibling of `chooseCreatureType` above; `bind` is REQUIRED for the same
+    // reason. `basic` narrows the table to the five basic land types
+    // (CR 305.6, "a basic land type"); it has no `false` form.
+    chooseLandType: {
+        required: {
+            player: isPlayerRef,
+            prompt: isNonEmptyString,
+            bind: bindingDeclaration("picks"),
+        },
+        optional: {
+            basic: (v) => v === true,
         },
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling

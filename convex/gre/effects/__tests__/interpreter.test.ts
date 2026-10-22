@@ -2327,6 +2327,204 @@ describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3
     });
 });
 
+// `chooseLandType` (CR 205.3i / 305.6) — a NEW Op, so it earns the full per-Op
+// regime. Like `chooseCreatureType` its whole product is its BINDING, read
+// back twice by Vision Charm's shape: once by an `EffectCardFilter.subtype`
+// ref ("each land of the first chosen type") and once by `setSubtype`'s ref
+// list under `family: "land"` ("becomes the second chosen type").
+describe("Op: chooseLandType + setSubtype family land (CR 205.3i, CR 305.7)", () => {
+    const DESERT_ID = "test-clt-desert";
+    registerTokenDefinition({
+        id: DESERT_ID,
+        name: DESERT_ID,
+        rarity: "common",
+        types: ["Land"],
+        subtypes: ["Desert"],
+    });
+    const ISLAND_ID = "test-clt-island";
+    registerTokenDefinition({
+        id: ISLAND_ID,
+        name: ISLAND_ID,
+        rarity: "common",
+        types: ["Land"],
+        subtypes: ["Island"],
+    });
+    /** A land creature: setting its land type must keep its creature type
+     *  (CR 305.7 — setting a land's subtype adds or removes no other type). */
+    const DRYAD_ID = "test-clt-dryad";
+    registerTokenDefinition({
+        id: DRYAD_ID,
+        name: DRYAD_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Land", "Creature"],
+        subtypes: ["Forest", "Dryad"],
+        power: 1,
+        toughness: 1,
+    });
+
+    /** Vision Charm's mode 2, as the compiler lowers it. */
+    const RETYPE: EffectOp[] = [
+        {
+            op: "chooseLandType",
+            player: "controller",
+            prompt: "Choose a land type",
+            bind: "$first",
+        },
+        {
+            op: "chooseLandType",
+            player: "controller",
+            prompt: "Choose a basic land type",
+            bind: "$second",
+            basic: true,
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Land", subtype: { ref: "$first" } },
+            },
+            effects: [
+                {
+                    op: "setSubtype",
+                    target: { ref: "$each" },
+                    subtypes: { ref: "$second" },
+                    family: "land",
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ];
+
+    function setup(effects: EffectOp[] = RETYPE) {
+        const id = registerScript(`test-clt-${Math.random()}`, effects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DESERT_ID, { id: "desert" }),
+                        makeInstance(DRYAD_ID, { id: "dryad" }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(ISLAND_ID, {
+                            id: "island",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    function answer(state: GameState, subtype: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [subtype],
+        });
+    }
+
+    const subtypesOf = (state: GameState, id: string) =>
+        state.players.flatMap((p) => p.battlefield).find((c) => c.id === id)!
+            .subtypes;
+
+    it("CR 205.3i — offers the whole land-type table, nonbasic types included", () => {
+        const state = setup();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.playerId).toBe("p1");
+        const ids = head.options!.map((o) => o.id);
+        expect(ids).toHaveLength(17);
+        expect(ids).toEqual(expect.arrayContaining(["Desert", "Urza's"]));
+        expect(head.options!.every((o) => o.subtype === o.id)).toBe(true);
+    });
+
+    it("CR 305.6 — `basic` offers the five basic land types only, in printed order", () => {
+        const state = setup();
+        answer(state, "Desert");
+        const head = state.pendingChoices![0];
+        expect(head.options!.map((o) => o.id)).toEqual([
+            "Plains",
+            "Island",
+            "Swamp",
+            "Mountain",
+            "Forest",
+        ]);
+        // The submit check reads the entry's own options: a nonbasic land
+        // type is refused at the basic pick.
+        expect(() => answer(state, "Desert")).toThrow();
+    });
+
+    it("CR 305.7 — every land of the first type, any controller's, becomes the second until end of turn", () => {
+        const state = setup();
+        answer(state, "Desert");
+        answer(state, "Mountain");
+        expect(subtypesOf(state, "desert")).toEqual(["Mountain"]);
+        expect(subtypesOf(state, "island")).toEqual(["Island"]);
+        expect(subtypesOf(state, "dryad")).toEqual(["Forest", "Dryad"]);
+        const desert = state.players[0].battlefield.find(
+            (c) => c.id === "desert"
+        )!;
+        expect(desert.temporarySubtypeChange?.duration).toEqual({
+            phase: "end-of-turn",
+        });
+        // Wire format — the change survives `projectPublicState`.
+        const wire = projectPublicState(state, 1, "p2");
+        expect(
+            wire.players[0].battlefield.find((c) => c.id === "desert")!.subtypes
+        ).toEqual(["Mountain"]);
+    });
+
+    it("CR 305.7 — a land creature keeps its creature type", () => {
+        const state = setup();
+        answer(state, "Forest");
+        answer(state, "Island");
+        expect(subtypesOf(state, "dryad")).toEqual(["Dryad", "Island"]);
+    });
+
+    it("family land FAILS CLOSED on a value that is not a land type (CR 205.3e)", () => {
+        // The ref names a CREATURE-type pick: "Goblin" is not in CR 205.3i's
+        // table, so the write is skipped (CR 101.3) — never a land typed
+        // "Goblin".
+        const state = setup([
+            {
+                op: "chooseCreatureType",
+                player: "controller",
+                prompt: "Choose a creature type",
+                bind: "$type",
+            },
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Land", subtype: "Desert" },
+                },
+                effects: [
+                    {
+                        op: "setSubtype",
+                        target: { ref: "$each" },
+                        subtypes: { ref: "$type" },
+                        family: "land",
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        answer(state, "Goblin");
+        expect(subtypesOf(state, "desert")).toEqual(["Desert"]);
+    });
+});
+
 // `{ scaled: { value, times } }` (issue #2366) — a FOURTEENTH EffectValue
 // grammar member, the value grammar's multiplication counterpart to
 // `difference`'s subtraction. Its own permanent test (new-grammar-member
