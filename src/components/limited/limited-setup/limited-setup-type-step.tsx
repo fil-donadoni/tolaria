@@ -18,9 +18,11 @@ const OPTIONS = [
 export default function LimitedSetupTypeStep({
     setup,
     onChange,
+    onAdvance,
 }: {
     setup: LimitedSetup;
     onChange: (patch: Partial<LimitedSetup>) => void;
+    onAdvance?: () => void;
 }) {
     return (
         <div
@@ -34,7 +36,10 @@ export default function LimitedSetupTypeStep({
                     title={o.title}
                     hint={o.hint}
                     selected={setup.type === o.type}
-                    onSelect={() => onChange({ type: o.type })}
+                    onSelect={() => {
+                        onChange({ type: o.type });
+                        onAdvance?.();
+                    }}
                 />
             ))}
         </div>
