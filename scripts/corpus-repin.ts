@@ -43,6 +43,7 @@ import {
     planAcknowledgements,
     planClaims,
     repinBranch,
+    settleClaims,
     repinPrBody,
     REPIN_BRANCH_PREFIX,
     retiredRowLines,
@@ -153,6 +154,45 @@ function openRepinPr(): string | null {
     return hit === undefined ? null : `PR #${hit.number} (${hit.headRefName})`;
 }
 
+/** An open issue already titled `title` — a roll-up a failed earlier run of
+ *  the same corpus date filed — or null. Reused, never filed twice. */
+function openIssueTitled(title: string): number | null {
+    const hits = JSON.parse(
+        gh([
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--search",
+            `in:title "${title}"`,
+            "--json",
+            "number,title",
+        ])
+    ) as { number: number; title: string }[];
+    return hits.find((h) => h.title === title)?.number ?? null;
+}
+
+function writeIssueBody(issue: number, body: string): void {
+    const path = join(ROOT, ".corpus-repin-issue.md");
+    writeFileSync(path, body);
+    gh(["issue", "edit", String(issue), "--body-file", path]);
+    spawnSync("rm", ["-f", path]);
+}
+
+/** The paths a re-pin commits — never `git add -A`, so a stray artefact of a
+ *  generator or of `worktree:init` cannot ride along. `data/catalogue/*` and
+ *  the header hashes are restored to the merge-base by `land:ready` (ADR 0157). */
+const REPIN_PATHS = [
+    PIN,
+    LOCKFILE,
+    "data/oracle-legality.json",
+    "data/card-index.json",
+    "data/catalogue",
+    "data/full-catalogue",
+    "data/oracle-state-regressions.json",
+    ALLOWLIST_PATH,
+];
+
 function fileIssue(title: string, body: string, labels: string[]): number {
     const path = join(ROOT, ".corpus-repin-issue.md");
     writeFileSync(path, body);
@@ -261,14 +301,27 @@ function main(): void {
         return;
     }
 
-    const rollup = needsRollup(regressions, unclaimed)
-        ? fileIssue(
-              `[Re-pin] ready losses and claims of the ${date} corpus re-pin`,
-              rollupIssueBody(facts),
-              ["enhancement", "area:mechanics", "ready-for-agent"]
-          )
-        : null;
-    if (rollup !== null) say(`roll-up issue #${rollup} filed`);
+    // A card no claim can settle fails the run BEFORE anything is filed.
+    const unsettled = planClaims(unclaimed, 0).unsettled;
+    if (unsettled.length > 0)
+        fail(
+            `no claim settles ${unsettled.map((u) => `${u.target}: ${u.name} (${u.why})`).join("; ")} — a person is owed`
+        );
+
+    const rollupTitle = `[Re-pin] ready losses and claims of the ${date} corpus re-pin`;
+    let rollup: number | null = null;
+    if (needsRollup(regressions, unclaimed)) {
+        rollup = openIssueTitled(rollupTitle);
+        if (rollup !== null) say(`roll-up issue #${rollup} reused`);
+        else {
+            rollup = fileIssue(rollupTitle, rollupIssueBody(facts), [
+                "enhancement",
+                "area:mechanics",
+                "ready-for-agent",
+            ]);
+            say(`roll-up issue #${rollup} filed`);
+        }
+    }
 
     let ledger = parseRegressionLedger(
         readFileSync(join(ROOT, REGRESSION_LEDGER_PATH), "utf8")
@@ -280,29 +333,32 @@ function main(): void {
         renderRegressionLedger(ledger)
     );
 
-    // A card can lack more than one claim (two quarantine classes, two gaps
-    // above the floor): `missing` names the FIRST, so write and look again
-    // until the enforced Targets are settled — bounded, since each pass
-    // writes at least one new row or stops.
     let claims = 0;
-    for (let pass = 0, left = unclaimed; left.length > 0; pass++) {
-        if (rollup === null || pass === 10)
-            fail(
-                `${left.length} enforced card(s) still unclaimed after ${pass} pass(es)`
-            );
-        const { rows, unsettled } = planClaims(left, rollup);
-        if (unsettled.length > 0)
-            fail(
-                `no claim settles ${unsettled.map((u) => `${u.target}: ${u.name} (${u.why})`).join("; ")} — a person is owed`
-            );
-        const path = join(ROOT, ALLOWLIST_PATH);
-        const allowlist = parseAllowlist(readFileSync(path, "utf8"));
-        writeFileSync(
-            path,
-            renderAllowlist(applyUpdatedIssues(allowlist, rows))
+    if (rollup !== null && unclaimed.length > 0) {
+        const allowlistPath = join(ROOT, ALLOWLIST_PATH);
+        const settled = settleClaims(
+            unclaimed,
+            rollup,
+            (rows) => {
+                const before = parseAllowlist(
+                    readFileSync(allowlistPath, "utf8")
+                );
+                const next = applyUpdatedIssues(before, rows);
+                writeFileSync(allowlistPath, renderAllowlist(next));
+                return (
+                    (next.claims ?? []).length - (before.claims ?? []).length
+                );
+            },
+            () => enforcedUnclaimed(current)
         );
-        claims += rows.size;
-        left = enforcedUnclaimed(current);
+        if (!settled.ok) fail(settled.why);
+        claims = settled.rows;
+        // Claims from later passes join the roll-up's list.
+        if (settled.claimed.length > unclaimed.length)
+            writeIssueBody(
+                rollup,
+                rollupIssueBody({ ...facts, unclaimed: settled.claimed })
+            );
     }
 
     step("check:oracle", ["scripts/check-oracle-lockfile.ts"]);
@@ -311,7 +367,7 @@ function main(): void {
 
     const branch = repinBranch(date);
     git(["checkout", "-b", branch]);
-    git(["add", "-A", "data/"]);
+    git(["add", "-A", "--", ...REPIN_PATHS]);
     git([
         "commit",
         "-m",

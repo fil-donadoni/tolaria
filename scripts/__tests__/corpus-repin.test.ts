@@ -10,6 +10,7 @@ import {
     retiredRowLines,
     rollupIssueBody,
     rowFieldChanges,
+    settleClaims,
     type RepinFacts,
     type UnclaimedCard,
 } from "../lib/corpus-repin";
@@ -144,6 +145,34 @@ describe("retiredRowLines", () => {
         );
     });
 
+    it("a name holding a colon still round-trips through `land`'s gate", () => {
+        const cop = row({
+            oracleId: "c1",
+            name: "Circle of Protection: Red",
+        } as Partial<CardRow>);
+        const moved = { ...cop, poolIn: ["premodern", "legacy"] } as CardRow;
+        const changed = [
+            {
+                oracleId: "c1",
+                name: "Circle of Protection: Red",
+                marker: { at: "2026-09-18", issue: 4027 },
+                change: "changed" as const,
+            },
+        ];
+        const lines = retiredRowLines(
+            changed,
+            new Map([["c1", cop]]),
+            new Map([["c1", moved]]),
+            "2026-10-22"
+        );
+        expect(
+            retirementRefusal(
+                changed,
+                `## Retired rows\n\n${lines.join("\n")}\n`
+            )
+        ).toBeNull();
+    });
+
     it("refuses a removed retirement marker — a corpus cannot do that", () => {
         expect(() =>
             retiredRowLines(
@@ -211,5 +240,73 @@ describe("the bodies", () => {
         expect(repinPrBody(facts, null, [], 0)).not.toContain(
             "## Retired rows"
         );
+    });
+});
+
+describe("settleClaims", () => {
+    const card = (name: string, key: string): UnclaimedCard => ({
+        target: "set-apc",
+        name,
+        why: "gap",
+        missing: { kind: "grammar", key },
+    });
+
+    it("writes, looks again, and returns every card claimed in any pass", () => {
+        // The card lacks two claims: the second surfaces after the first.
+        const reads = [[card("Arena", "k2")], []];
+        const written: string[][] = [];
+        const got = settleClaims(
+            [card("Arena", "k1")],
+            6400,
+            (rows) => {
+                written.push([...rows.keys()]);
+                return rows.size;
+            },
+            () => reads.shift()!
+        );
+        expect(got).toEqual({
+            ok: true,
+            claimed: [card("Arena", "k1"), card("Arena", "k2")],
+            rows: 2,
+        });
+        expect(written).toEqual([
+            [claimId("grammar", "k1")],
+            [claimId("grammar", "k2")],
+        ]);
+    });
+
+    it("fails at once when a pass adds no claim row, instead of spinning", () => {
+        let reads = 0;
+        const got = settleClaims(
+            [card("Arena", "k1")],
+            6400,
+            () => 0,
+            () => {
+                reads += 1;
+                return [card("Arena", "k1")];
+            }
+        );
+        expect(got.ok).toBe(false);
+        expect(reads).toBe(0);
+    });
+
+    it("fails on a card no claim settles, and at the pass cap", () => {
+        expect(
+            settleClaims(
+                [{ target: "t", name: "Bare", why: "no reason" }],
+                1,
+                () => 1,
+                () => []
+            )
+        ).toMatchObject({ ok: false, why: expect.stringMatching(/Bare/) });
+        expect(
+            settleClaims(
+                [card("Loop", "a")],
+                1,
+                () => 1,
+                () => [card("Loop", "a")],
+                3
+            )
+        ).toMatchObject({ ok: false, why: expect.stringMatching(/3 passes/) });
     });
 });

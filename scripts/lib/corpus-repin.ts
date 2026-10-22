@@ -117,6 +117,56 @@ export function planClaims(
     return { rows, unsettled };
 }
 
+/**
+ * Write claims until the enforced Targets are settled. `missing` names a
+ * card's FIRST missing claim, so a card lacking two (two quarantine classes,
+ * two gaps above the floor) surfaces again after the first is written: look
+ * again, write again. `write` returns how many NEW claim rows it added; a pass
+ * that adds none cannot make progress and fails at once rather than spinning
+ * to the cap. Every card claimed in any pass is returned, for the roll-up.
+ */
+export function settleClaims(
+    first: readonly UnclaimedCard[],
+    rollup: number,
+    write: (rows: ReadonlyMap<string, number>) => number,
+    readUnclaimed: () => readonly UnclaimedCard[],
+    maxPasses = 10
+):
+    | {
+          readonly ok: true;
+          readonly claimed: UnclaimedCard[];
+          readonly rows: number;
+      }
+    | { readonly ok: false; readonly why: string } {
+    const claimed: UnclaimedCard[] = [];
+    let rows = 0;
+    let left = first;
+    for (let pass = 0; left.length > 0; pass++) {
+        const still = left.map((u) => `${u.target}: ${u.name}`).join("; ");
+        if (pass === maxPasses)
+            return {
+                ok: false,
+                why: `still unclaimed after ${pass} passes: ${still}`,
+            };
+        const plan = planClaims(left, rollup);
+        if (plan.unsettled.length > 0)
+            return {
+                ok: false,
+                why: `no claim settles ${plan.unsettled.map((u) => `${u.target}: ${u.name} (${u.why})`).join("; ")} — a person is owed`,
+            };
+        const added = write(plan.rows);
+        if (added === 0)
+            return {
+                ok: false,
+                why: `the claims written did not settle ${still} — a person is owed`,
+            };
+        rows += added;
+        claimed.push(...left);
+        left = readUnclaimed();
+    }
+    return { ok: true, claimed, rows };
+}
+
 /** The keys whose values differ between two objects, sorted. */
 function changedKeys(
     before: Readonly<Record<string, unknown>>,
@@ -144,7 +194,8 @@ export function rowFieldChanges(before: CardRow, after: CardRow): string[] {
 
 /**
  * One `## Retired rows` line per retired row the re-pin moved — the card's
- * exact name first, as `land`'s `acknowledgedNames` reads it. A row that is
+ * exact name first, as `land`'s `acknowledges` reads it (a name holding
+ * a colon included). A row that is
  * still `ready` was re-derived by the compiler from the new Oracle text, and
  * `check:oracle` re-proves it is the compiler's reading of the current card;
  * a row that left the file left the corpus. A row that LOST its marker is not

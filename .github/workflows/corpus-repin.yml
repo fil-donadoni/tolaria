@@ -28,6 +28,9 @@ on:
                 type: boolean
                 default: false
 
+# `contents: read`: the issue, the push and the PR go through the runner's
+# own `gh` and git credentials (the owner's, masked by the job setup), as
+# `housekeeping`'s push does — never the workflow token.
 permissions:
     contents: read
 
