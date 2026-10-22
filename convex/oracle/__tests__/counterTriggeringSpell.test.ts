@@ -1,5 +1,6 @@
-// "Counter that spell" behind a cast head, and a source's counter-threshold
-// sacrifice (CR 603.2, CR 701.6a, CR 122.1) — Decree of Silence.
+// "Counter that spell" behind a cast head (CR 603.2, CR 701.6a), and a
+// source's counter-threshold sacrifice (CR 701.21a, CR 122.1) — Decree of
+// Silence.
 //
 //  1. GOLDEN — the real card compiles to its full Compiled Definition.
 //  2. REFUSALS — the neighbours the rule must not read stay `unparsed`.
