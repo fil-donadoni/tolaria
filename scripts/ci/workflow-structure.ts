@@ -104,8 +104,7 @@
  *     drift (issue #6338).
  *   - `draft-body-read` — a job reading `github.event.pull_request.body`
  *     that runs on the queue's drafts: there the body is Mergify's batch
- *     description, not the queued PR's, so a check judging it reds falsely
- *     (issue #6404).
+ *     description, not the queued PR's, so a check judging it reds falsely.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
