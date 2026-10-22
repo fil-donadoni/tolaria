@@ -104,6 +104,7 @@
         "oracle:behavioural": "bun scripts/oracle-behavioural.ts",
         "oracle:compile": "bun scripts/oracle-compile.ts",
         "oracle:corpus": "bun scripts/oracle-corpus.ts",
+        "corpus:ensure": "bun scripts/ensure-corpus.ts",
         "oracle:index": "bun scripts/oracle-index-backfill.ts",
         "oracle:legality": "bun scripts/oracle-legality.ts",
         "oracle:mark-regressions": "bun scripts/oracle-mark-regressions.ts",

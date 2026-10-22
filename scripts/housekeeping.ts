@@ -438,6 +438,16 @@ export const CLOSED_CLAIMS_STEP: Step = {
     argv: ["bun", "scripts/claims-sweep-closed.ts"],
 };
 
+/** Step 0b, every run (issue #6381): the primary checkout's corpus cache
+ *  against ITS pin. A re-pin merging leaves the gitignored cache one bulk
+ *  behind in every checkout; the workspace and every worktree seed from the
+ *  primary, so a stale one costs each of them a download. Keeps a matching
+ *  cache, else fetches the pinned bulk; a failure is logged and retried. */
+export const CORPUS_REFRESH_STEP: Step = {
+    label: "corpus:ensure (primary)",
+    argv: ["bun", "scripts/ensure-corpus.ts"],
+};
+
 /** Step 4: every other closed child of every censused umbrella. */
 export const SWEEP_STEP: Step = {
     label: "umbrella:detach --sweep",
@@ -752,25 +762,27 @@ function main(): void {
     };
 
     // Step 0: not tied to any merged PR, so it runs before the early returns.
-    if (dryRun) {
-        say(`would run: ${CLOSED_CLAIMS_STEP.argv.join(" ")}`);
-    } else {
-        appendFileSync(logPath, `── ${CLOSED_CLAIMS_STEP.label}\n`);
+    for (const primaryStep of [CLOSED_CLAIMS_STEP, CORPUS_REFRESH_STEP]) {
+        if (dryRun) {
+            say(`would run: ${primaryStep.argv.join(" ")}`);
+            continue;
+        }
+        appendFileSync(logPath, `── ${primaryStep.label}\n`);
         const swept = spawnSync(
-            CLOSED_CLAIMS_STEP.argv[0]!,
-            CLOSED_CLAIMS_STEP.argv.slice(1),
+            primaryStep.argv[0]!,
+            primaryStep.argv.slice(1),
             {
                 cwd: primary,
                 env: netEnv(process.env),
                 encoding: "utf8",
-                // A hung `gh` must not hold the lock past this run.
+                // A hung `gh` or download must not hold the lock past this run.
                 timeout: 300_000,
             }
         );
         appendFileSync(logPath, `${swept.stdout ?? ""}${swept.stderr ?? ""}`);
         if (swept.status !== 0)
             say(
-                `${CLOSED_CLAIMS_STEP.label} failed (exit ${swept.status ?? swept.signal ?? "?"}) — the next run retries it`
+                `${primaryStep.label} failed (exit ${swept.status ?? swept.signal ?? "?"}) — the next run retries it`
             );
     }
 

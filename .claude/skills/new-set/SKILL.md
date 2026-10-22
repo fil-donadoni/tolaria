@@ -97,12 +97,12 @@ is a judgement about a card: every number below is read back from the lockfile.
 `oracle:compile` throws `oracle corpus cache missing`:
 
 ```bash
-cp "$(git worktree list | head -1 | cut -d' ' -f1)/data/oracle-corpus.json.gz" data/
+bun run corpus:ensure   # keeps / copies from the primary only if it matches the pin / downloads the pinned bulk
 bun run oracle:compile --check >"$SCRATCHPAD/compile-check.log" 2>&1; echo "exit=$?"; tail -1 "$SCRATCHPAD/compile-check.log"
 ```
 
 `lockfile is current` is the baseline every later delta is measured against.
-(No primary copy either → `bun run oracle:corpus` fetches it.)
+(`corpus:ensure` never takes a cache that does not hash to the pin — a primary left on an older bulk is skipped and the pinned one downloaded, issue #6381.)
 
 Ensure the set's MTGJSON blob exists — `oracle:report --set` reads
 `data/json/<CODE_UPPER>.json` for the set's oracle ids, and the directory is
