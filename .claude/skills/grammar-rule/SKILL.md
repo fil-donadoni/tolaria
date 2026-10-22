@@ -55,18 +55,17 @@ them is not a rule this skill ships:
 ## 0. Setup — the corpus cache
 
 `data/oracle-corpus.json.gz` is gitignored, so a fresh worktree has none and
-`oracle:compile` throws `oracle corpus cache missing`. Copy the primary
-checkout's — `oracle:compile --check` then diffs the lockfile the cache
+`oracle:compile` throws `oracle corpus cache missing`. `bun run corpus:ensure` gives the tree one matching its pin — `oracle:compile --check` then diffs the lockfile the cache
 regenerates against the committed one, and `check:oracle` (step 6) compares the
 cache's sha256 against the committed pin (`data/oracle-corpus.pin.json`):
 
 ```bash
-cp "$(git worktree list | head -1 | cut -d' ' -f1)/data/oracle-corpus.json.gz" data/
+bun run corpus:ensure   # pin-checked: keep, copy primary, or download
 bun run oracle:compile --check >"$SCRATCHPAD/compile-check.log" 2>&1; echo "exit=$?"; tail -1 "$SCRATCHPAD/compile-check.log"
 ```
 
 `lockfile is current` is the baseline every later delta is measured against.
-(No primary copy either → `bun run oracle:corpus` fetches it.)
+(`corpus:ensure` never takes a cache off the pin, issue #6381.)
 
 ## 1. Read the gap
 

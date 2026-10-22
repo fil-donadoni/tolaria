@@ -932,10 +932,22 @@ export function gapIndex(lock: Pick<Lockfile, "cards" | "fragments">): {
     return { gapKeys, leverage };
 }
 
+/** A claim row that would settle an `unclaimed` verdict, as data — what an
+ *  automated writer (the weekly corpus re-pin, issue #6387) records against
+ *  an issue; `why` is the same fact as prose. */
+export interface MissingClaim {
+    readonly kind: GapKind;
+    readonly key: string;
+}
+
 export interface CoverageVerdict {
     readonly state: CoverageState;
     /** Present iff `state === "unclaimed"`: the first missing claim. */
     readonly why?: string;
+    /** The claim `why` names, when one claim settles it; absent when none
+     *  can (a quarantine row with no reason, a floorless Target's card no
+     *  gap holds). */
+    readonly missing?: MissingClaim;
 }
 
 /** THE state computation — `oracle:report --targets` and `check:targets`
@@ -966,6 +978,7 @@ export function coverageVerdict(
             : {
                   state: "unclaimed",
                   why: `quarantine class \`${open.key}\` has no \`${open.kind}\` claim`,
+                  missing: { kind: open.kind, key: open.key },
               };
     }
     // One gap at or above the floor is grammar owed: once those rules land,
@@ -982,6 +995,7 @@ export function coverageVerdict(
             : {
                   state: "unclaimed",
                   why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${floor}) has no \`grammar\` claim`,
+                  missing: { kind: "grammar", key: open },
               };
     }
     if (isFloorless(completion)) {
@@ -1008,6 +1022,7 @@ export function coverageVerdict(
                 ? "no Grammar Gap attributed"
                 : `every gap below the floor (${ctx.floor})`) +
             " and neither a `hand-tail` claim nor a `hand-tail:` marker",
+        missing: { kind: "hand-tail", key: row.name },
     };
 }
 
@@ -1023,6 +1038,8 @@ export function coverageState(
 export interface MigrableCard {
     readonly name: string;
     readonly why: string;
+    /** On an `unclaimed` entry: the claim that settles it, when one does. */
+    readonly missing?: MissingClaim;
 }
 
 export interface TargetCoverage {
@@ -1099,7 +1116,8 @@ export function targetCoverage(
     const closureCompiles: string[] = [];
     for (const card of target.cards) {
         const row = ctx.byOracleId.get(card.oracleId)!;
-        const { state, why: missing } = coverageVerdict(row, ctx, completion);
+        const verdict = coverageVerdict(row, ctx, completion);
+        const { state, why: missing } = verdict;
         byState[state].push(card.name);
         if (state !== "ready") notReady.push(card.name);
         const inTail = target.closedTail?.has(card.oracleId) === true;
@@ -1108,7 +1126,11 @@ export function targetCoverage(
         if (inTail && !ctx.handWritten.has(card.oracleId))
             tailNotHandWritten.push(card.name);
         if (missing !== undefined)
-            unclaimed.push({ name: card.name, why: missing });
+            unclaimed.push({
+                name: card.name,
+                why: missing,
+                ...(verdict.missing && { missing: verdict.missing }),
+            });
         if (ctx.closure.has(card.oracleId)) closureCompiles.push(card.name);
         if (state !== "ready" && !ctx.handWritten.has(card.oracleId))
             unplayable.push(card.name);

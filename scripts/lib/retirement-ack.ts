@@ -184,19 +184,46 @@ export function retirementSection(prBody: string): string | null {
  */
 export function acknowledgedNames(section: string): Set<string> {
     const out = new Set<string>();
-    for (const raw of section.split("\n")) {
-        const line = raw
-            .trim()
-            // list marker: `-`, `*`, `+`, `1.`
-            .replace(/^(?:[-*+]|\d+\.)\s+/, "")
-            // emphasis and code fences around the name
-            .replace(/[*_`]/g, "")
-            .trim();
-        if (line === "") continue;
-        const subject = line.split(/\s+[\u2014\u2013]\s*|\s+-\s+|:/)[0].trim();
+    for (const line of normalisedLines(section)) {
+        const subject = line.split(SUBJECT_END)[0].trim();
         if (subject !== "") out.add(subject.toLowerCase());
     }
     return out;
+}
+
+/** A line's subject ends at the first of these (`acknowledgedNames`). */
+const SUBJECT_END = /\s+[\u2014\u2013]\s*|\s+-\s+|:/;
+
+/** Emphasis and code fences, stripped from a line and from a name alike. */
+const unmark = (s: string): string => s.replace(/[*_`]/g, "").trim();
+
+function normalisedLines(section: string): string[] {
+    return section
+        .split("\n")
+        .map((raw) =>
+            // list marker: `-`, `*`, `+`, `1.`
+            unmark(raw.trim().replace(/^(?:[-*+]|\d+\.)\s+/, ""))
+        )
+        .filter((line) => line !== "");
+}
+
+/**
+ * Does some line of `section` acknowledge the card `name`? The line must BE
+ * the name or START with it followed by a subject separator — the same
+ * name-first format as `acknowledgedNames`, so `Fog Bank — …` still does not
+ * acknowledge Fog. Matching the whole name rather than the line's cut subject
+ * is what lets a name that itself holds a separator (`Circle of Protection:
+ * Red`) be acknowledged at all: cut at its colon, its subject never equals it
+ * (issue #6387).
+ */
+export function acknowledges(section: string, name: string): boolean {
+    const card = unmark(name).toLowerCase();
+    return normalisedLines(section).some((raw) => {
+        const line = raw.toLowerCase();
+        if (!line.startsWith(card)) return false;
+        const rest = line.slice(card.length);
+        return rest.trim() === "" || rest.search(SUBJECT_END) === 0;
+    });
 }
 
 /**
@@ -220,10 +247,8 @@ export function retirementRefusal(
 ): string | null {
     if (changed.length === 0) return null;
     const section = retirementSection(prBody);
-    const acknowledged =
-        section === null ? new Set<string>() : acknowledgedNames(section);
     const unacknowledged = changed.filter(
-        (row) => !acknowledged.has(row.name.toLowerCase())
+        (row) => section === null || !acknowledges(section, row.name)
     );
     if (unacknowledged.length === 0) return null;
     const listed = unacknowledged
