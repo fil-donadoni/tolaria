@@ -190,6 +190,34 @@ describe("LimitedSetupFlow (issue #5387)", () => {
         ).toContain("100% implemented");
     });
 
+    it("a Type pick opens Pack Source; a thumbnail pick opens Table (issue #5934)", () => {
+        render(<LimitedSetupFlow />);
+        const title = () =>
+            document.querySelector('[data-slot="panel-title"]')?.textContent;
+        expect(title()).toBe("Type");
+        fireEvent.click(screen.getByRole("button", { name: /^Sealed/ }));
+        expect(title()).toBe("Pack Source");
+        fireEvent.click(
+            screen.getByRole("button", { name: "Next Pack Source" })
+        );
+        expect(title()).toBe("Pack Source");
+        fireEvent.click(
+            document.querySelector('[data-pack-source-thumb="lea"]')!
+        );
+        expect(title()).toBe("Table");
+    });
+
+    it("re-opening a step advances to the one after it; the last step has no Next", () => {
+        render(<LimitedSetupFlow />);
+        const title = () =>
+            document.querySelector('[data-slot="panel-title"]')?.textContent;
+        fireEvent.click(railStep("table"));
+        expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+        fireEvent.click(railStep("type"));
+        fireEvent.click(screen.getByRole("button", { name: /^Draft/ }));
+        expect(title()).toBe("Pack Source");
+    });
+
     it("shows the failure and re-enables Create when the mutation fails", async () => {
         create.mockRejectedValueOnce(new Error("boom"));
         render(<LimitedSetupFlow />);

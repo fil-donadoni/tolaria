@@ -97,7 +97,7 @@ describe("Join branch", () => {
         expect(activeTitle()).toBe("Your deck");
     });
 
-    it("join by code keeps the code and moves on to the deck step", async () => {
+    it("join by code keeps the code; Next moves on to the deck step (issue #5934)", async () => {
         render(<Harness initial={joining} />);
         fireEvent.click(screen.getByRole("button", { name: "Join by code" }));
         fireEvent.change(screen.getByLabelText("Join code"), {
@@ -105,6 +105,8 @@ describe("Join branch", () => {
         });
         fireEvent.click(screen.getByRole("button", { name: "Use code" }));
         await screen.findByText(/Code ABC123/);
+        expect(activeTitle()).toBe("Table");
+        fireEvent.click(screen.getByRole("button", { name: "Next" }));
         expect(activeTitle()).toBe("Your deck");
     });
 });

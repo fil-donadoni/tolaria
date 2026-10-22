@@ -1092,6 +1092,14 @@ export async function chooseSetup(page: Page, name: string): Promise<void> {
         .click({ timeout: STEP_TIMEOUT });
 }
 
+/** Press a multi-control step's Next button (issue #5934): Match Format and
+ *  Games Format advance only once the player says the step is done. */
+export async function confirmSetupStep(page: Page): Promise<void> {
+    await page
+        .getByRole("button", { name: "Next", exact: true })
+        .click({ timeout: STEP_TIMEOUT });
+}
+
 /** The flow's step currently open (`data-setup-step` on the rail). */
 export async function currentSetupStep(page: Page): Promise<string | null> {
     return page
@@ -1134,8 +1142,10 @@ async function startSoloThroughFlow(
         const step = await currentSetupStep(page);
         if (step === "mode") await chooseSetup(page, "Arena");
         else if (step === "opponent") await chooseSetup(page, "Solo");
-        else if (step === "format") await chooseSetup(page, "Freeform");
-        else if (step === "myDeck") await pickPlayableDeck(page);
+        else if (step === "format") {
+            await chooseSetup(page, "Freeform");
+            await confirmSetupStep(page);
+        } else if (step === "myDeck") await pickPlayableDeck(page);
         else break;
     }
     if (!(await clickIfVisible(page, START_MATCH, 6000))) {
@@ -2385,8 +2395,10 @@ async function reachBotDeckStep(page: Page, ctx: WalkContext): Promise<void> {
         if (step === "opponentDeck") break;
         if (step === "mode") await chooseSetup(page, "Arena");
         else if (step === "opponent") await chooseSetup(page, "Bot");
-        else if (step === "format") await chooseSetup(page, "Freeform");
-        else if (step === "myDeck") await pickPlayableDeck(page);
+        else if (step === "format") {
+            await chooseSetup(page, "Freeform");
+            await confirmSetupStep(page);
+        } else if (step === "myDeck") await pickPlayableDeck(page);
         else {
             throw new Unreachable(
                 `the setup flow opened on an unexpected step: ${step}`
