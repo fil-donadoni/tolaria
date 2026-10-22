@@ -10608,11 +10608,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // the stronger claim). A REACHABILITY claim, so a PREDICATE, kept out
         // of the weight fit for the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
-        // Re-seeded `0xb07` → 4 by issue #5601: its refit (~0.1% weight
-        // movement) flips `0xb07` alone to `pass` — 0/20 seeds pass on the
-        // weights before it, 1/20 after (`0xb07`, `0x5eed`, 1..18 at 200
-        // iterations). A near-tie on one seed, not a valuation: issue #5629.
-        seeds: [4, 0x5eed, 1, 2, 3],
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
@@ -10623,7 +10619,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 ),
             describe: "casts Scarland Thrinax",
         },
-        note: "Bot Gap `never-chosen › Creature › counters` (4 cards). Issue #4271. Seed `0xb07` is a near-tie since issue #5601's refit (issue #5629).",
+        note: "Bot Gap `never-chosen › Creature › counters` (4 cards). Issue #4271. Issue #5629: the greedy rollout policy skips the same pruned sacrifices as the random draw, so the cast wins by margin, not by seed noise.",
     },
     {
         // The other half of the pair (CR 701.21a, issue #4271): the outlet
