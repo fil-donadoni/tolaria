@@ -16716,12 +16716,32 @@
         "source": "compiled"
     },
     {
+        "name": "Dragon Breath",
+        "scryfallId": "1832aaed-e164-4f78-9bc9-ec6c015835f5",
+        "oracleId": "3535daf2-7dce-4fda-92ce-ad2a1ee95197",
+        "firstSet": "scg",
+        "firstPrintId": "1832aaed-e164-4f78-9bc9-ec6c015835f5",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dragon Engine",
         "scryfallId": "07793a71-1106-4303-b620-e403bd378020",
         "oracleId": "727a6474-d5b5-42ab-ace3-352d28f499eb",
         "firstSet": "atq",
         "firstPrintId": "07793a71-1106-4303-b620-e403bd378020",
         "firstPrintSet": "atq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dragon Fangs",
+        "scryfallId": "9754f52f-8937-4402-8956-2c18b520898a",
+        "oracleId": "0131d2ac-d677-45fd-9729-a5428139cb5b",
+        "firstSet": "scg",
+        "firstPrintId": "9754f52f-8937-4402-8956-2c18b520898a",
+        "firstPrintSet": "scg",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16776,6 +16796,26 @@
         "source": "compiled"
     },
     {
+        "name": "Dragon Scales",
+        "scryfallId": "8e78b364-015d-4074-ad9e-55c973ce2f4b",
+        "oracleId": "04628d92-bd5e-4aff-830d-7b302bd6459e",
+        "firstSet": "scg",
+        "firstPrintId": "8e78b364-015d-4074-ad9e-55c973ce2f4b",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dragon Shadow",
+        "scryfallId": "0ec35e03-022b-417c-9987-7379cf3956f9",
+        "oracleId": "c9708a12-96b5-43c1-ac2d-d6dc6b03beb7",
+        "firstSet": "scg",
+        "firstPrintId": "0ec35e03-022b-417c-9987-7379cf3956f9",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dragon Sniper",
         "scryfallId": "074b1e00-45bb-4436-8f5e-058512b2d08a",
         "oracleId": "913dbce2-6805-453f-a9c3-64f1cc658627",
@@ -16812,6 +16852,16 @@
         "firstSet": "lea",
         "firstPrintId": "6bbf1eab-bc32-4835-b566-8634b1fe81b0",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Dragon Wings",
+        "scryfallId": "7674ab4d-9bc0-45c3-88e1-3fd2c947cfaa",
+        "oracleId": "85271333-af96-447a-8a16-9fadf0eaedb2",
+        "firstSet": "scg",
+        "firstPrintId": "7674ab4d-9bc0-45c3-88e1-3fd2c947cfaa",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dragon-Style Twins",
