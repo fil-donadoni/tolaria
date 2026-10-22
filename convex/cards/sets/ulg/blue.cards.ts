@@ -64,8 +64,6 @@ export const cloudOfFaeries = defineCard(() => ({
 // expands into the upkeep pay-or-sacrifice trigger), Goblin Patrol's
 // shape (usg/red.cards.ts). The ETB is Impulse's `lookDistribute` (vis/blue.cards.ts) one
 // card shallower: look 3, keep 1 to hand, bottom the rest (CR 401.4).
-// compiler-gap: "Echo {2}{U}" (#2693)
-// compiler-gap: "When this creature enters, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order." (#2693)
 export const ravenFamiliar = defineCard(() => ({
     id: "b104638d-29aa-490c-8cfb-e08fc94efb59", // ULG 39
     rarity: "uncommon",

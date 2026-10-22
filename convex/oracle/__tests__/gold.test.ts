@@ -290,7 +290,13 @@ describe("gold round-trip — precision", () => {
         // 56 -> 57 by issue #4569 (delayed draw): Krovikan Fetish's hand-written
         // trigger body is a closure while the line is now compiled — the same
         // move as the entries above.
-        expect(REPORT.incomparable.length).toBeLessThan(69);
+        //
+        // 68 -> 72 by issue #5505 (Echo / Cumulative upkeep): Illusions of
+        // Grandeur, Maddening Wind, Mesmeric Trance and Mystic Might carry
+        // other hand-written closures the projection cannot compare, while
+        // their keyword line is now compiled — out of "the compiler refuses it"
+        // and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(73);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
