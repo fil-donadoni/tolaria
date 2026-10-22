@@ -37,15 +37,11 @@ import { defineCard } from "../../types";
 //       shared helper exists (an earlier revision of this code set only
 //       `attackerIds` directly and left `isAttacking` unset, review-caught
 //       before landing).
-//       DIVERGENCE (tracked-by: #1865): the token always attacks the
-//       DEFENDING PLAYER — CR 508.4's controller-choice of a defending
-//       planeswalker instead is not offered. This is a REAL gap against the
-//       current pool, not a hypothetical future card: planeswalkers ship
-//       across many already-shipped sets (dka/kld/wwk/lrw/war/isd/dom/clb/
-//       znr/mh2/one), and the engine already fully models attacking them
-//       (`combat.attackTargets`, `gre/phases.ts`, `gre/moves.ts`) — so this
-//       needs its own slice rather than shipping silently narrower than the
-//       CR. Satya's own oracle text is silent on the point.
+//       CR 508.4: Satya's oracle text is silent on WHAT the
+//       token attacks, so its controller chooses as it enters — the
+//       defending player or a planeswalker they control — through the
+//       as-enters `attack-target` choice the token entry site owes
+//       (auto-answered when there is no planeswalker).
 //       `createTokenCopy`'s Op-level `entersTapped`/`entersAttacking` mirror
 //       the same two flags through to `SpellContext.createTokenCopyOf`'s new
 //       `opts` (applied to the internal placeholder token BEFORE `applyCopy`
