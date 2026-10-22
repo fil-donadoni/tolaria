@@ -14,11 +14,18 @@ import { corpusExcluded } from "./corpus-exclusion";
 
 export const TREE_ROLE_ENV = "TOLARIA_TREE_ROLE";
 
-/** `base`: committed derived bytes must be fresh. `draft`: regenerated in-tree. */
-export type TreeRole = "base" | "draft";
+/**
+ * `base`: committed derived bytes must be fresh. `draft`: regenerated in-tree.
+ * `pr`: the PR-event lane (issue #6347) — the PR carries the base's header and
+ * catalogue bytes (`land:ready` restores them, `check:derived-in-diff` enforces
+ * it), never regenerated, so only its rows are judged; no corpus on the hosted
+ * runner is not a red.
+ */
+export type TreeRole = "base" | "draft" | "pr";
 
 export function treeRole(env: NodeJS.ProcessEnv = process.env): TreeRole {
-    return env[TREE_ROLE_ENV] === "draft" ? "draft" : "base";
+    const role = env[TREE_ROLE_ENV];
+    return role === "draft" || role === "pr" ? role : "base";
 }
 
 /** What the lane's checks observed about the tree's derived state. */

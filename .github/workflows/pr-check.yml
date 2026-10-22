@@ -58,13 +58,12 @@ jobs:
               # them, and refuses to start with this set.
               env:
                   TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
-                  # The PR is judged as a DRAFT (ADR 0157, issue #6347): it
-                  # never owns the lockfile header or `data/catalogue/*`
-                  # (`land:ready` restores them to the merge-base,
-                  # `check:derived-in-diff` enforces it), so a `base` role
-                  # would red `check:oracle` on exactly the header the rule
-                  # demands. The queue's draft regenerates, then judges rows.
-                  TOLARIA_TREE_ROLE: draft
+                  # The PR never owns the lockfile header or `data/catalogue/*`
+                  # (ADR 0157, issue #6347: `land:ready` restores them to the
+                  # merge-base, `check:derived-in-diff` enforces it), so a
+                  # `base` role would red `check:oracle` on exactly the header
+                  # the rule demands. Role `pr`: rows only, no corpus is no red.
+                  TOLARIA_TREE_ROLE: pr
               # stderr teed to lane.log: a refusal leaves lane.json empty and
               # its reason there, for the fixup step (issue #6003).
               # `--regenerate-derived` (ADR 0157, issue #6338): the merge ref

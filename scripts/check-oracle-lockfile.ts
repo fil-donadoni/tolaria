@@ -289,7 +289,7 @@ function checkLockfile(): void {
         const built = buildLockfile(readCorpus(), {
             botReach: carriedBotReach(lock),
         });
-        if (role === "draft") {
+        if (role !== "base") {
             // Per row (ADR 0157): the header is the base's, the rows are the PR's.
             const [problem] = derivedProblems(role, {
                 headerDrift: null,
@@ -299,7 +299,7 @@ function checkLockfile(): void {
             if (problem !== undefined)
                 fail("oracle lockfile", problem, "bun run oracle:compile");
             process.stdout.write(
-                `${GREEN}✓ oracle lockfile${RESET} ${DIM}(draft: per-row regenerate-and-diff, ` +
+                `${GREEN}✓ oracle lockfile${RESET} ${DIM}(${role}: per-row regenerate-and-diff, ` +
                     `${lock.cards.length} cards)${RESET}\n`
             );
             return;

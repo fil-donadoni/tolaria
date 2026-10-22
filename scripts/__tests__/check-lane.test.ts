@@ -29,7 +29,7 @@ import {
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
-import { derivedProblems, TREE_ROLE_ENV } from "../lib/derived-state";
+import { derivedProblems, TREE_ROLE_ENV, treeRole } from "../lib/derived-state";
 import { ORIGIN_BASE } from "../lib/branches";
 import {
     HEALTH_ONLY_GUARDS,
@@ -2602,7 +2602,7 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
 
 // CR n/a — issue #6347 (ADR 0157): the PR-event lane judges the PR as a draft.
 describe("pr-check's lane role", () => {
-    it("runs check:lane with the tree judged as a draft", () => {
+    it("runs check:lane with the tree judged as a PR (header is the base's)", () => {
         const yml = readFileSync(
             join(__dirname, "..", "..", ".github/workflows/pr-check.yml"),
             "utf8"
@@ -2610,17 +2610,18 @@ describe("pr-check's lane role", () => {
         const step = yml.slice(yml.indexOf("- name: check:lane (one flaky"));
         const stepEnd = step.indexOf("- name:", 10);
         expect(step.slice(0, stepEnd)).toMatch(
-            new RegExp(`${TREE_ROLE_ENV}: draft`)
+            new RegExp(`${TREE_ROLE_ENV}: pr`)
         );
     });
 
-    it("a draft judges a restored header green, a base judges it red", () => {
+    it("a pr judges a restored header green, a base judges it red", () => {
         const facts = {
             headerDrift: "compiler hash drift",
             rowDrift: null,
             catalogueStale: false,
         };
-        expect(derivedProblems("draft", facts)).toEqual([]);
+        expect(derivedProblems("pr", facts)).toEqual([]);
         expect(derivedProblems("base", facts)).toEqual(["compiler hash drift"]);
+        expect(treeRole({ [TREE_ROLE_ENV]: "pr" })).toBe("pr");
     });
 });
