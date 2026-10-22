@@ -737,7 +737,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Mana Crypt",
     "Mana Drain",
     "Mana Flare",
-    "Mana Short",
     "Mana Vault",
     "Mana Vortex",
     "Manabarbs",

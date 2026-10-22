@@ -3518,6 +3518,16 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.addManaTo(playerId, op.mana, op.persistsUntil);
     },
+    // CR 106.4 (issue #5260) — "that player loses all unspent mana": a thin
+    // skin over the SpellContext primitive `drainManaPool`, ONE execution path
+    // (ADR 0045). The drained record the primitive returns is dropped — this
+    // Op hands the mana to nobody. Skipped when the player cannot be resolved
+    // (CR 608.2b).
+    drainManaPool(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.drainManaPool(playerId);
+    },
     // CR 701.8 — destroy, through the replacement layer (regeneration /
     // indestructible / destroy replacements, ADR 0125).
     destroy(ctx, op) {
