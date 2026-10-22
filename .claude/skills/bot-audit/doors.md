@@ -1,4 +1,4 @@
-# /bot-audit — templates for the two doors
+# /bot-audit — templates for the doors (forced, preference, engine)
 
 Reached from `SKILL.md` step 3 (the scratch spec and the entry shape), step
 5 (the settled reading, the budget sweep) and step 7 (everything else). Nothing here runs before the reviewer's word on
@@ -92,7 +92,15 @@ const PAIRS: RegistryBladeScenario[] = [
 describe("audit scratch — writes rows, asserts only that it wrote them", () => {
     for (const entry of PAIRS) {
         it(entry.label, () => {
-            const r = runBladeScenario(entry);
+            // § Budget sweep: AUDIT_ITERS overrides the declared budget for a
+            // rerun; unset, the entry runs at its own budget.
+            const iters = Number(
+                process.env.AUDIT_ITERS ?? entry.budget.iterations
+            );
+            const r = runBladeScenario({
+                ...entry,
+                budget: { ...entry.budget, iterations: iters },
+            });
             const failing = r.seeds.filter((s) => !s.ok).length;
             const verdict =
                 failing === r.seeds.length
@@ -130,27 +138,34 @@ A card's name is not on its instance (`c.card.name` is `undefined`): match
 
 ### Settled reading
 
-`applyMoveForSearch(state, playerId, move)` is the GREEDY sandbox: it leaves
-a raised trigger target, or the opponent's spell under a response, unresolved,
-so every sibling of one announcement reads the same total (the first audit
-read 577.6 for all seven Flickerwisp targets). Read the position the move
-LEADS to instead — the real search application, then both seats pass until
-the Stack is empty:
+`applyMoveForSearch(state, playerId, move)` is the GREEDY sandbox: it drains
+a cast's own segment, but a raised trigger target (`submit-target`) or another
+choice comes back unchanged, and the opponent's spell under a response is
+left on the Stack — so every sibling of one target selection reads the same
+total (the first audit read 577.6 for all seven Flickerwisp targets). Read the
+position the move LEADS to instead — the real search application, then both
+seats pass until the Stack is empty:
 
 ```ts
 function settled(state: GameState, botId: string, move: Move): GameState {
     const s = cloneGameState(state);
     applyMoveInSearch(s, botId, move); // convex/gre/search.ts
-    for (let i = 0; i < 10 && s.stack.length > 0; i++) {
+    for (let i = 0; i < 40 && s.stack.length > 0; i++) {
         const who = decidingPlayer(s);
         const pass =
             who && enumerateMoves(s, who).find((m) => m.kind === "pass");
-        if (!who || !pass) break;
+        // A raised target or choice offers no `pass`: the walk cannot settle
+        // it by passing. Say so — never read a half-resolved Stack as settled.
+        if (!who || !pass) throw new Error("settle stalled on a decision");
         applyMoveInSearch(s, who, pass);
     }
+    if (s.stack.length > 0) throw new Error("settle did not empty the Stack");
     return s;
 }
 ```
+
+A stall names a decision inside the line: measure that decision as its own
+move, or play its answer before draining.
 
 `evaluateBreakdown(settled(state, botId, move), botId)` for the expected and
 the observed move is the Evaluation measurement. The same walk is the Rules
@@ -161,12 +176,23 @@ logged on every phase change.
 
 ### Budget sweep
 
-A red anchor the suspects cannot explain is rerun alone above its budget:
-read the scratch spec's budget from `Number(process.env.AUDIT_ITERS ?? 400)`
-and run `AUDIT_ITERS=1200` then `4000` with `-t "<label>"`. Red at every
-step = `valuation` when step 5 named the blind term (no `passesAt`), else
-record the highest budget as `sweptTo`; green at some step = that step's
-`passesAt` (`BeyondBudget`, `convex/gre/ai/blade/types.ts`).
+A red anchor is rerun alone above its declared budget: the scratch template
+reads `AUDIT_ITERS` over `entry.budget.iterations`, so run
+`AUDIT_ITERS=1200` then `4000` with `-t "<label>"`. The reading follows
+`BeyondBudget` (`convex/gre/ai/blade/types.ts`), enforced by
+`convex/gre/ai/blade/__tests__/bladeShardRunner.helper.ts`:
+
+- **Green at some budget** → that budget is `passesAt` (it must exceed the
+  declared one); the cause is `branching`, `hidden-information` or
+  `horizon`, whichever step 5 measured.
+- **Red at every budget, step 5 named a blind term** → `valuation`, no
+  `passesAt`, no `sweptTo`.
+- **Red at every budget, the payoff behind a LOOP** (ADR 0102: identical
+  activations between the position and the payoff) → `horizon` with
+  `sweptTo` = the highest budget run, above the declared one.
+- **Red at every budget, anything else** → no cause yet: sweep higher, or go
+  back to step 5. `branching` and `hidden-information` always carry
+  `passesAt`; never write `sweptTo` for them.
 
 ## Forced door — the registry PR
 

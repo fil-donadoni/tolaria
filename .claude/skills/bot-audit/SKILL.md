@@ -28,10 +28,8 @@ Disclosed material — open a file only when its step arrives:
 
 - → `seams.md` — the seams each theme family crosses, and the concrete seam
   list of the five seed themes. Read it at step 2.
-- → `doors.md` — the registry entry template, the issue template with its
-  `## Test Positions` block, the umbrella's `## Undiagnosed pairs` block, and
-  the hand-off of a preference pair to the reviewer's account. Read it at
-  step 7.
+- → `doors.md` — the scratch spec and entry template (step 3), the settled
+  reading and budget sweep (step 5), the three doors' templates (step 7).
 
 Only the owner launches it (`disable-model-invocation`): a `/next-ticket` pass
 on an audit issue claims, opens the worktree, and hands them the command.
@@ -237,7 +235,7 @@ filed FIRST so the note can name it. It is red in-tree, report-only
 pair becomes a Verdict written by the agent and **attested by the reviewer
 under their own account** — never by the agent, never by CLI as admin
 (Attestation is a person, ADR 0128; `verdicts.submit` is tester-gated).
-`doors.md` § Preference hand-off says what to hand them. Then, in the same
+`doors.md` § Preference door says what to hand them. Then, in the same
 session: `bun run verdicts:promote`, `bun run fit:weights`, read the
 promotion's unsatisfied-pair report; commit the promotion's diff in the
 session's PR (`doors.md` § Preference door). **An issue for a preference
