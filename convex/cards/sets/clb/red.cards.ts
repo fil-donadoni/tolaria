@@ -67,7 +67,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // established "you may sacrifice X. If you do, Y" template already shipped
 // on Witherbloom Charm (`sets/sos/multicolor.cards.ts`) and DRK's colorless.ts
 // land: an OPTIONAL `choice(kind: "sacrifice-permanents")` with `count: {
-// min: 0, max: 1 }` (the "you may…" shape, issue #677) routed through the
+// min: 0, max: 1 }` (the "you may…" shape) routed through the
 // unified `sacrificeChoice` layer (never a per-card auto-pick, see
 // `convex/gre/sacrificeChoice.ts`), a `sacrifice` Op consuming the pick, then
 // an inline `if picksNonEmpty` gate on the token creation — no
@@ -81,7 +81,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // on ONLY the Creature clause. `EffectCardFilter.excludeSource` did not
 // exist before this card: the `choice` Op's battlefield filter had no way to
 // say "another" at all (unlike `TargetRequirement.excludeSource` / the
-// `forEach { set: "permanents" }` selector's own flag, issue #1957) — added
+// `forEach { set: "permanents" }` selector's own flag) — added
 // as the third generalization of that exact primitive (ADR 0045 "generalize,
 // don't add"), propagated by `toPermanentFilter` onto `PermanentFilter.
 // excludeInstanceIds` and validator-gated to `zone: "battlefield"` only
@@ -93,14 +93,9 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // onto the shared `SKELETON_TOKEN` spec (`sharedTokens.ts`) rather than
 // baked into it, so a future non-attacking Skeleton producer isn't forced to
 // inherit them.
-//
-// DIVERGENCE (tracked-by: #1865): the token always attacks the DEFENDING
-// PLAYER, never a planeswalker they control — the SAME pre-existing,
-// already-tracked engine gap `TokenSpec.entersAttacking`'s own doc comment
-// flags (Adeline hits it identically). In this two-player engine "the
-// defending player" is unambiguous, so "attacking that player" is satisfied
-// by construction; the planeswalker branch stays out of scope for this card,
-// tracked by the existing #1865, not a new issue.
+// What the Skeleton attacks — the defending player or a planeswalker they
+// control — is its controller's choice as it enters (CR 508.4),
+// the as-enters `attack-target` choice the token entry site owes.
 export const gutTrueSoulZealot = defineCard(() => ({
     id: "3d8ca18d-9099-4f1e-95c1-f04da58a26bd", // CLB 180
     rarity: "uncommon",
