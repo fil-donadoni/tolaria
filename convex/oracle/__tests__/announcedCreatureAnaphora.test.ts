@@ -91,10 +91,10 @@ describe("announced-creature anaphora — refusals (CR 608.2h)", () => {
         ).toBe("unparsed");
     });
 
-    it("refuses another body behind the dies-this-turn head", () => {
+    it("refuses another body behind the dies-this-turn head (Burn Away's)", () => {
         expect(
             state(
-                "Target creature can't be regenerated this turn. When that creature dies this turn, you gain 3 life."
+                "Target creature can't be regenerated this turn. When that creature dies this turn, exile its controller's graveyard."
             )
         ).toBe("unparsed");
     });
