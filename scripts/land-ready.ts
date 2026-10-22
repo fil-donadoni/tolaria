@@ -37,7 +37,7 @@
  * `lib/derived-in-pr.ts`), commits with `--no-verify` and pushes — the
  * hand-off push. Nothing carried = no commit. Either way the pre-queue
  * steps judge the tree as a DRAFT (`TOLARIA_TREE_ROLE=draft`, the queue's
- * own role, `handOff`, issue #6348) — a tree carrying nothing holds the
+ * own role, `handOff`) — a tree carrying nothing holds the
  * merge-base's derived state, never its own: `check:oracle` judges
  * rows per row — with the corpus cache, copied from the primary checkout
  * when the worktree lacks it — never the header the base owns.
