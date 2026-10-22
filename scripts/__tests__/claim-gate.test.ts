@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { checkClaimGate, type ClaimGateDeps } from "../lib/claim-gate";
+import {
+    afkJobClaim,
+    checkClaimGate,
+    type ClaimGateDeps,
+} from "../lib/claim-gate";
 import {
     buildClaimRow,
     buildPrOpenRow,
@@ -143,5 +147,37 @@ describe("checkClaimGate — the I/O wrapper", () => {
         expect(
             checkClaimGate(5, "land:ready 9", { GITHUB_ACTIONS: "true" }, d)
         ).toBeNull();
+    });
+});
+
+/**
+ * `queue:claim` inside an afk-pass job (issue #6330): the dispatcher's label
+ * is the job's claim. Before the fix the verb read it as another session's
+ * live claim and every job pass that ran it stopped with no hand-off.
+ */
+describe("afkJobClaim", () => {
+    const job = (issue?: string) => ({
+        GITHUB_ACTIONS: "true",
+        ...(issue === undefined ? {} : { AFK_ISSUE: issue }),
+    });
+
+    it("succeeds on the job's own issue, without touching anything", () => {
+        const r = afkJobClaim(5200, job("5200"));
+        expect(r?.ok).toBe(true);
+        expect(r?.message).toContain("#5200");
+    });
+
+    it("refuses any other issue inside a job", () => {
+        expect(afkJobClaim(5201, job("5200"))?.ok).toBe(false);
+    });
+
+    it("refuses when the job names no issue", () => {
+        expect(afkJobClaim(5200, job())?.ok).toBe(false);
+        expect(afkJobClaim(5200, job("abc"))?.ok).toBe(false);
+    });
+
+    it("is not consulted outside a job (a session claims normally)", () => {
+        expect(afkJobClaim(5200, { AFK_ISSUE: "5200" })).toBeNull();
+        expect(afkJobClaim(5200, {})).toBeNull();
     });
 });
