@@ -1574,14 +1574,20 @@ export type CardInstanceState = {
      *  `combat.attackTargets` records nothing for — so the entering creature
      *  needs no entry there either.
      *
-     *  A stamp CAN outlive its activation: an ability that is countered, or
-     *  whose card left hand in response, never reaches the consuming Op, and
-     *  nothing on the fizzle path clears it. That is inert rather than unsafe,
-     *  and deliberately so — the ONLY writer is the cost payment
-     *  (`captureNinjutsuAttackTarget`), which re-stamps or deletes on every
+     *  CR 508.4 (issue #1865) — the second writer is the as-enters
+     *  `attack-target` answer for a token entering attacking: written on the
+     *  staged token and consumed by the token entry tail in the SAME call, so
+     *  it never outlives that entry.
+     *
+     *  A ninjutsu stamp CAN outlive its activation: an ability that is
+     *  countered, or whose card left hand in response, never reaches the
+     *  consuming Op, and nothing on the fizzle path clears it. That is inert
+     *  rather than unsafe, and deliberately so — the cost payment
+     *  (`captureNinjutsuAttackTarget`) re-stamps or deletes on every
      *  activation, so the next ninjutsu of that card cannot read a stale
-     *  defender; and the only reader refuses a defender that is no longer a
-     *  live planeswalker or battle (CR 506.3c). */
+     *  defender; and the only reader (`joinCombatAttacking`) refuses a
+     *  defender that is no longer a live planeswalker or battle a defending
+     *  player has (CR 506.3c / 508.4a). */
     enterAttackingTarget?: string;
     /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
      *  for its Bestow cost and has not yet ceased to be bestowed

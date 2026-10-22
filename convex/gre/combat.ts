@@ -62,6 +62,54 @@ export function markAttacking(
     permanent.isAttacking = true;
 }
 
+/** CR 506.3c / 508.4 — a creature PUT onto the battlefield attacking joins the
+ *  CURRENT combat without ever having been declared, so it goes through
+ *  {@link markAttacking} and deliberately NOT {@link recordAttackerDeclared}:
+ *  "whenever a creature attacks" watchers never see it. The one entry for
+ *  both such paths — the ninjutsu `moveZone` rider (CR 702.49c) and a token
+ *  that enters attacking (`TokenSpec.entersAttacking`, issue #1865).
+ *
+ *  The defender is the `enterAttackingTarget` stamp: a planeswalker (or
+ *  battle) id written by the ninjutsu cost payment or by the as-enters
+ *  `attack-target` answer. Absent means the defending player, for which
+ *  `combat.attackTargets` holds no entry. Consumed even when it turns out to
+ *  be dead, so no later entry inherits it.
+ *
+ *  CR 508.4a / 506.3c — a stamped defender that is no longer a planeswalker or
+ *  battle a DEFENDING player has on the battlefield means the creature "does
+ *  enter the battlefield, but it's never considered to be an attacking
+ *  creature". Marking it attacking anyway would leave it in `attackerIds` and
+ *  `isAttacking` while attacking nothing, which every attacking-creature
+ *  static and `combatRoleFilter: "attacking"` target would then believe. */
+export function joinCombatAttacking(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    const stamped = card.enterAttackingTarget;
+    delete card.enterAttackingTarget;
+    if (!state.combat) return;
+    if (stamped === undefined) {
+        markAttacking(state, card);
+        return;
+    }
+    const defenderLive = state.players.some(
+        (p) =>
+            p.id !== card.controllerId &&
+            p.battlefield.some(
+                (c) =>
+                    c.id === stamped &&
+                    (c.types.includes("Planeswalker") ||
+                        c.types.includes("Battle"))
+            )
+    );
+    if (!defenderLive) return;
+    markAttacking(state, card);
+    state.combat.attackTargets = {
+        ...(state.combat.attackTargets ?? {}),
+        [card.id]: stamped,
+    };
+}
+
 /** CR 506.3 / 508.1 — records that `permanent` was DECLARED as an attacker
  *  this turn. Deliberately separate from {@link markAttacking}: that one means
  *  "is an attacking creature right now" and is also used for a creature PUT

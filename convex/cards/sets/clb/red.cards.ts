@@ -93,14 +93,9 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // onto the shared `SKELETON_TOKEN` spec (`sharedTokens.ts`) rather than
 // baked into it, so a future non-attacking Skeleton producer isn't forced to
 // inherit them.
-//
-// DIVERGENCE (tracked-by: #1865): the token always attacks the DEFENDING
-// PLAYER, never a planeswalker they control — the SAME pre-existing,
-// already-tracked engine gap `TokenSpec.entersAttacking`'s own doc comment
-// flags (Adeline hits it identically). In this two-player engine "the
-// defending player" is unambiguous, so "attacking that player" is satisfied
-// by construction; the planeswalker branch stays out of scope for this card,
-// tracked by the existing #1865, not a new issue.
+// What the Skeleton attacks — the defending player or a planeswalker they
+// control — is its controller's choice as it enters (CR 508.4, issue #1865),
+// the as-enters `attack-target` choice the token entry site owes.
 export const gutTrueSoulZealot = defineCard(() => ({
     id: "3d8ca18d-9099-4f1e-95c1-f04da58a26bd", // CLB 180
     rarity: "uncommon",

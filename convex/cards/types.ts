@@ -3322,16 +3322,12 @@ export interface TokenSpec {
      *  `SpellContext.getIsAttacking`, and the frontend's blocker-assignment
      *  affordance) — setting `attackerIds` alone is NOT enough, and earlier
      *  code here that did exactly that (issue #1195 review) left the token
-     *  only half-attacking. Per CR 508.4: the token's controller is NOT
-     *  offered a planeswalker/battle attack target choice here — a tracked
-     *  DIVERGENCE (tracked-by: #1865, see `cards/sets/m3c/multicolor.cards.ts`'s
-     *  Satya doc for the full rationale: this is a real gap against the
-     *  current pool, not a hypothetical future card, since planeswalkers
-     *  already ship widely and the engine already models attacking them) —
-     *  every current caller's oracle text is silent on the point and the
-     *  engine defaults to "attacks the defending player", CR 508.4's own
-     *  default absent an effect-specified target; it is NOT subject to
-     *  attack-declaration requirements/
+     *  only half-attacking. Per CR 508.4 the token's controller chooses
+     *  what it attacks AS it enters (issue #1865): the defending player or a
+     *  planeswalker they control — the as-enters `attack-target` choice
+     *  (`AsEntersChoice`) the token entry site owes, auto-answered with the
+     *  defending player when there is no planeswalker to choose; it is NOT
+     *  subject to attack-declaration requirements/
      *  restrictions (CR 508.4c — bypassed by construction, since this never
      *  runs the normal declare-attackers legality path); and it does NOT
      *  retroactively fire "whenever a creature attacks" triggers (CR 508.4 —
@@ -3644,6 +3640,19 @@ export type AsEntersChoice =
      *  with two or more legal hosts (ADR 0100 D2 folds the shipped
      *  `stagedAuraEntries` mechanism into this one). */
     | { kind: "aura-host" }
+    /** CR 508.4 — a creature put onto the battlefield attacking: "its
+     *  controller chooses which defending player, planeswalker a defending
+     *  player controls, or battle a defending player protects it's attacking
+     *  as it enters the battlefield". Not declared by any card, like
+     *  `aura-host`: the token entry site raises it itself for a spec that
+     *  enters attacking while a combat is live (`createTokenPermanents`). The
+     *  answer is the defending player's id or a planeswalker's, written to
+     *  `CardInstanceState.enterAttackingTarget` (the CR 702.49c ninjutsu stamp)
+     *  and consumed as the token joins combat. Auto-answered with the
+     *  defending player when they control no planeswalker. Battles are not
+     *  offered: this engine models no battle protector (CR 310), and the
+     *  declare-attackers action offers planeswalkers only. */
+    | { kind: "attack-target" }
     /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
      *  Declared here so the family is whole; the shipped `land-entry-tapped`
      *  provisional park keeps its own shape until #1980 reconciles the two. */
