@@ -53,6 +53,11 @@ export const LIMITED_STEP_KEYS: readonly LimitedStepKey[] = [
     "table",
 ];
 
+/** Steps with several controls: a choice there never advances the flow, the
+ *  Next button does. The others are single-control — one pick opens the
+ *  following step. */
+export const LIMITED_MULTI_CONTROL_STEPS: readonly LimitedStepKey[] = ["table"];
+
 export interface LimitedStepInfo {
     key: LimitedStepKey;
     title: string;
