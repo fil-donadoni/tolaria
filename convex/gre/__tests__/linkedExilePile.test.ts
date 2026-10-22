@@ -117,7 +117,7 @@ describe("linked exile pile (CR 607.2a)", () => {
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["unrelated"]);
     });
 
-    it("the pile enters as ONE event: an Aura ahead of its only host still finds it (CR 303.4c)", () => {
+    it("the pile enters as ONE event: an Aura ahead of its only host still finds it (CR 303.4f)", () => {
         // Exile order puts the Aura first. A per-card return would bring it
         // back to an empty battlefield, where it has nothing to enchant and
         // stays in exile (CR 303.4g); the batch stages the creature first.
