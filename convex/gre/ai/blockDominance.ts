@@ -41,6 +41,8 @@
 // there too shifted the rollout's random stream and flipped two noise-pinned
 // Bot-play sweep verdicts (Imperial Seal, Gerrard's Wisdom: `played` on 15
 // and 17 of 24 seat-seeds with it, 19 and 20 without) for no `must` gain.
+// (Gerrard's Wisdom stopped being noise-pinned once issue #6346's life-gain
+// race gave the gain a lethal clock to decide; Imperial Seal still is.)
 import type { GameState } from "../state";
 import { getOpponentId } from "../state";
 import type { Move } from "../moves";
