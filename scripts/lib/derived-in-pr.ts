@@ -22,6 +22,7 @@ import {
     DERIVE_SYNC_COMMIT_SUBJECT,
     LOCKFILE_PATH,
 } from "./derive-sync";
+import type { TreeRole } from "./derived-state";
 
 /** The header lines the base owns — `derive:regenerate` rewrites exactly
  *  these (`treeHashes` + `botHash`, carried). */
@@ -107,6 +108,23 @@ export interface DerivedCarried {
 
 export function carriesNothing(c: DerivedCarried): boolean {
     return c.catalogue.length === 0 && c.headerKeys.length === 0;
+}
+
+/**
+ * The hand-off's two decisions (issue #6348): whether the restore makes a
+ * commit, and how the pre-queue steps judge the tree. The role is ALWAYS
+ * `draft`, whatever was carried — the queue's lane judges every PR as a
+ * draft (`--regenerate-derived`), and a tree carrying nothing holds the
+ * MERGE-BASE's derived state, not its own: a PR that changed a lockfile input
+ * (or a card) has a stale header (or catalogue) by design. Judged as `base`,
+ * a re-run of `land:ready` after a repair — the header already restored by
+ * the first run — reds on `compiler hash drift`.
+ */
+export function handOff(c: DerivedCarried): {
+    commit: boolean;
+    role: TreeRole;
+} {
+    return { commit: !carriesNothing(c), role: "draft" };
 }
 
 /**
