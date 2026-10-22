@@ -561,10 +561,12 @@ function projectLibrary(
 function hideFaceDownIdentity(slimmed: {
     faceDownOf?: string;
     imagePrintId?: string;
+    preCopyImagePrintId?: string;
     sourcePrintId?: string;
 }): void {
     delete slimmed.faceDownOf;
     delete slimmed.imagePrintId;
+    delete slimmed.preCopyImagePrintId;
     delete slimmed.sourcePrintId;
 }
 

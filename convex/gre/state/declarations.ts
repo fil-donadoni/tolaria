@@ -1090,6 +1090,11 @@ export type CardInstanceState = {
      *  Rhonas's tmh3 #15 Zombie Snake Druid frame, not the MH3 creature's), and
      *  preferred by the card renderer over the definition-derived art. */
     imagePrintId?: string;
+    /** The instance's OWN `imagePrintId` before it became a copy, remembered
+     *  the way `copiedFrom` remembers the own definition id and restored by
+     *  `revertCopy`. Set once per copy anchor (a CR 707.4 re-copy leaves it
+     *  alone); absent when the copier had no print of its own. Cosmetic. */
+    preCopyImagePrintId?: string;
     /** CR 111 (ADR 0140 §6, issue #4120) — the printing a TOKEN was created
      *  from: the creating object's `imagePrintId`, else its Card ID. Stamped at
      *  token creation, opaque to every rules module (the engine-blindness
@@ -4089,6 +4094,9 @@ export type TimedCopyLayer = {
     /** The definition id the copied object presented (CR 707.2). */
     sourceDefId: string;
     sourceCopyExcept?: { basePower?: number; baseToughness?: number };
+    /** The face-up source's `imagePrintId` when the layer was recorded, so a
+     *  re-materialised layer shows the same art. Cosmetic. */
+    sourceImagePrintId?: string;
     opts: CopyEffectOptions;
 };
 
@@ -4108,6 +4116,10 @@ export type LastKnownCopiable = {
      *  which contributes no exception (CR 707.2 — its copiable values are the
      *  face-down body) exactly as `applyCopy` decides for a live source. */
     copyExcept?: { basePower?: number; baseToughness?: number };
+    /** The `imagePrintId` the permanent showed at departure, so a token copy
+     *  made from this record shows the same art. Omitted for a face-down
+     *  permanent (CR 708.5: the print would name the hidden card). Cosmetic. */
+    imagePrintId?: string;
     /** `GameState.turn` at departure — the key the CR 514 cleanup prune reads.
      *  Not information about the object. */
     turn: number;

@@ -461,14 +461,17 @@ export default function CardPreview({
     // The face-down leg shows the real card in the printing its owner chose:
     // the wire carries `imagePrintId` only to a viewer entitled to look
     // (`hideFaceDownIdentity`, gameProjections.ts). A copy's original face
-    // keeps the definition's art — the instance pin belongs to the copy.
+    // shows the copier's own remembered print (`preCopyImagePrintId`) — the
+    // instance pin belongs to the copy.
     const originalBody = secondaryDefId
         ? buildPreviewBody(
               secondaryDefId,
               undefined,
               undefined,
               undefined,
-              faceDownFace ? cardInstance?.imagePrintId : undefined
+              faceDownFace
+                  ? cardInstance?.imagePrintId
+                  : cardInstance?.preCopyImagePrintId
           )
         : null;
     // CR 708.5 / CR 406.3 — "Current"/"Original" is the COPY treatment's
