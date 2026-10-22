@@ -16,7 +16,7 @@ const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
  *  issue #1112): one card per tile, with a zoom slider (ADR 0060, issue
  *  #1247, PRD #1107 story 21) driving each card's rendered size the same way
  *  the deckbuilder's `CardZoomSlider` does. Sorted rarest-first, then by name, for
- *  display (issue #5936) — `pickId` (not array position) is what `onPick`/`onSelect`/`onOpenMenu`
+ *  display — `pickId` (not array position) is what `onPick`/`onSelect`/`onOpenMenu`
  *  send, so re-sorting never changes which physical card is targeted.
  *
  *  Gesture wiring (ADR 0060, issue #1248) — see `LimitedDraftPackCard`'s doc
