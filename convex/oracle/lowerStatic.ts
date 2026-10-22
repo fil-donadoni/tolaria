@@ -51,6 +51,7 @@ import type { PermanentFilter } from "../cards/filters";
 import type { CardDefinition, CardType, KickerCost } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
+import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import type {
     HostNoun,
     QuotedAbilityIR,
@@ -87,6 +88,14 @@ export interface LoweredStatic {
     readonly entersTapped?: true;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
+    /**
+     * CR 614.1a — "instead you may skip that draw. If you do, <body>": still
+     * IR, because the body is lowered by `lower.ts` into the card's own DRAW
+     * trigger (it needs the card's name and the trigger lowering).
+     */
+    readonly optionalDrawSkip?: {
+        readonly effects: readonly EffectSentenceIR[];
+    };
     /** CR 305.2 — additional land plays each turn. */
     readonly extraLandDrops?: number;
     /** CR 614.1a — "you may discard a <type> card instead" as it enters. */
@@ -585,6 +594,14 @@ export function lowerStaticClause(
             };
         case "skip-draw-step":
             return { ok: true, lowered: { drawStepReplacement: true } };
+        case "optional-draw-skip":
+            return {
+                ok: true,
+                lowered: {
+                    drawStepReplacement: true,
+                    optionalDrawSkip: { effects: clause.effects },
+                },
+            };
         case "extra-land-drop":
             return { ok: true, lowered: { extraLandDrops: clause.count } };
         case "as-enters-discard":

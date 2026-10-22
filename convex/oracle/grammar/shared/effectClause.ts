@@ -967,6 +967,14 @@ export type EffectSentenceIR =
      */
     | { readonly kind: "assigns-no-combat-damage" }
     /**
+     * CR 508.1c + CR 611.2b — "Until your next turn, you can't be attacked
+     * except by creatures with flying and/or islandwalk": a player-scoped
+     * attack restriction (it binds the attackers declared against the
+     * controller, not a permanent) that lasts until the controller's next
+     * turn begins. Only that printed duration and that carve-out are read.
+     */
+    | { readonly kind: "player-attack-protection" }
+    /**
      * CR 510.1c + CR 608.2c — "<effect> and <this creature> assigns no combat
      * damage this turn": the head effect, then the suppression, in printed
      * order. A wrapper over an already-read sentence, like `optional`: the
@@ -3637,6 +3645,10 @@ const PAY_VARIABLE_MANA = "you may pay {X}";
  *  variable {X} is `PAY_VARIABLE_MANA`'s; a non-mana leg ("pay 2 life") is
  *  another payment this rule does not read. */
 const PAY_FIXED_MANA = /^you may pay ((?:\{[WUBRGC0-9]+\})+)$/;
+/** CR 508.1c — the player-scoped attack restriction with its evasion
+ *  carve-out, whole. */
+const PLAYER_ATTACK_PROTECTION =
+    /^Until your next turn, you can't be attacked except by creatures with flying and\/or islandwalk$/;
 /** CR 510.1c — the source's own assignment suppression, whole. */
 const ASSIGNS_NO_COMBAT_DAMAGE = /^(.+) assigns no combat damage this turn$/;
 const AND_ASSIGNS_NO_COMBAT_DAMAGE =
@@ -5248,6 +5260,11 @@ function effectSentence(
     span: string,
     ctx: unknown
 ): RuleResult<EffectSentenceIR> {
+    // ── player-scoped attack protection (CR 508.1c) ─────────────────────
+    if (PLAYER_ATTACK_PROTECTION.test(span))
+        return ok({
+            kind: "player-attack-protection" as const,
+        } satisfies EffectSentenceIR);
     // ── source's assignment suppression (CR 510.1c) ─────────────────────
     const assignsNone = span.match(ASSIGNS_NO_COMBAT_DAMAGE);
     if (assignsNone !== null && isSelfPhrase(assignsNone[1]!))

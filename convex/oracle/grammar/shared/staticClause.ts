@@ -89,7 +89,14 @@ import {
     opponentControlsRule,
     type StaticConditionIR,
 } from "./condition";
-import { signedModifier, uncapitalise } from "./effectClause";
+import {
+    assembleSentences,
+    capitalise,
+    sentenceRule,
+    signedModifier,
+    uncapitalise,
+    type EffectSentenceIR,
+} from "./effectClause";
 import {
     descriptorRule,
     staticFilterFromDescriptor,
@@ -260,6 +267,16 @@ export type StaticClauseIR =
      *  replacement of the controller's own turn-based draw. Lowered to
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
     | { readonly kind: "skip-draw-step" }
+    /**
+     * CR 614.1a + CR 121.2 — "If you would draw a card during your draw step,
+     * instead you may skip that draw. If you do, <body>": the draw-step
+     * replacement flag plus the choice made AT the step. `effects` is the
+     * shared effect grammar's reading of the "If you do" body.
+     */
+    | {
+          readonly kind: "optional-draw-skip";
+          readonly effects: readonly EffectSentenceIR[];
+      }
     /** CR 305.2 — "You may play an additional land on each of your turns":
      *  `count` more land plays than the one CR 305.2a already grants. */
     | { readonly kind: "extra-land-drop"; readonly count: number }
@@ -1547,6 +1564,44 @@ const skipDrawStepRule: Rule<StaticClauseIR> = pattern(
     (): RuleResult<StaticClauseIR> => ok({ kind: "skip-draw-step" as const })
 );
 
+// ── Frame: the optional draw skip (CR 614.1a) ──────────────────────────────
+
+/**
+ * "If you would draw a card during your draw step, instead you may skip that
+ * draw. If you do, <body>." (Island Sanctuary.) CR 614.1a: "instead" makes the
+ * skip a replacement effect of the turn-based draw (CR 504.1), and "you may"
+ * leaves it optional — declining draws the card. The engine's encoding is the
+ * hand-written one: `drawStepReplacement` suppresses the turn-based draw and
+ * the card's own DRAW-step trigger offers the choice (see `lower.ts`).
+ *
+ * The anchored opening is the ONLY one read. Fasting's "If you would begin
+ * your draw step, you may skip that step instead" replaces the step, not a
+ * draw (CR 614.10), and stays refused. The body is the shared effect grammar:
+ * what "If you do" does is not this frame's business.
+ */
+const OPTIONAL_DRAW_SKIP =
+    /^If you would draw a card during your draw step, instead you may skip that draw\. If you do, (.+)$/;
+
+const optionalDrawSkipRule: Rule<StaticClauseIR> = rule(
+    "optional draw skip",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = span.match(OPTIONAL_DRAW_SKIP);
+        if (match === null) return fail("not the optional draw skip", span);
+        const body = sentenceRule.run(capitalise(match[1]!), ctx);
+        if (!body.ok) return body;
+        const assembled = assembleSentences([body.value], {
+            site: "optional draw skip",
+            rejectRestrictions:
+                'an activation restriction (CR 602.5) has no meaning after "If you do"',
+        });
+        if (!assembled.ok) return fail(assembled.reason, span);
+        return ok({
+            kind: "optional-draw-skip" as const,
+            effects: assembled.effects,
+        });
+    }
+);
+
 // ── Frame: the self-shuffle replacement (CR 614.1a) ─────────────────────────
 
 /**
@@ -2038,6 +2093,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         setEntersTappedRule,
         targetChoiceRequirementRule,
         skipDrawStepRule,
+        optionalDrawSkipRule,
         extraLandDropRule,
         asEntersDiscardRule,
         playerShroudRule,

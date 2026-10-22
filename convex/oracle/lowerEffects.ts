@@ -3991,6 +3991,15 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "player-attack-protection":
+            // CR 508.1c — the controller can't be attacked this way until
+            // their next turn; the Op owns the boundary (`gre/phases.ts`).
+            return lowered([
+                {
+                    op: "setIslandSanctuaryProtection",
+                    player: "controller",
+                },
+            ]);
         case "assigns-no-combat-damage":
             // CR 510.1c — the source itself assigns nothing this turn.
             return lowered([
