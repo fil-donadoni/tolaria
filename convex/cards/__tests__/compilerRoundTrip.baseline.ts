@@ -632,7 +632,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Iron-Shield Elf",
     "Ironclaw Orcs",
     "Island Fish Jasconius",
-    "Island Sanctuary",
     "Island of Wak-Wak",
     "Ivory Guardians",
     "Jace, Vryn's Prodigy",

@@ -148,6 +148,8 @@ describe("Optional draw skip — refusals (fail-closed neighbours)", () => {
         "If you would draw a card during your draw step, instead you may skip that draw. If you do, until end of turn, you can't be attacked except by creatures with flying and/or islandwalk.",
         "If you would draw a card during your draw step, instead you may skip that draw. If you do, until your next turn, you can't be attacked except by creatures with flying.",
         "If you would draw a card during your draw step, instead you may skip that draw. If you do, until your next turn, creatures can't attack you.",
+        // A target is announced before the skip-or-draw answer (CR 603.3d).
+        "If you would draw a card during your draw step, instead you may skip that draw. If you do, destroy target creature.",
         // Trailing text is never swallowed.
         `${ISLAND_SANCTUARY_TEXT} Draw a card.`,
     ];

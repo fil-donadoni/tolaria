@@ -499,6 +499,11 @@ function lowerLine(
                         : {}),
                 });
                 if (!body.ok) return body.reason;
+                // CR 603.3d — a target is announced as the trigger goes on the
+                // stack, BEFORE the skip-or-draw answer, so a targeting body
+                // would be announced even when the skip is declined.
+                if (body.ability.targetRequirement !== undefined)
+                    return "a targeting body cannot sit behind the draw-skip choice";
                 acc.compiledTriggeredAbilities.push({
                     ...body.ability,
                     effects: [
