@@ -537,8 +537,6 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // `expandCompiledStatics` sits beside it, one step further in, for the same
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
-    // ADR 0155 — `echo` / `cumulativeUpkeep` cost FIELDS desugar to their upkeep
-    // trigger here, beside the other no-op-unless-declared expanders.
     const expanded = expandEchoCumulativeUpkeep(
         expandBestow(
             expandCascade(
