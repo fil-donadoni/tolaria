@@ -91,7 +91,9 @@ describe("a blinked creature is a new object through the game mutations (issue #
         const harness = makeMutationCtx("u", [gameStateSeed(board())]);
 
         await castTargeting(harness, OPP, "bolt", "bears");
-        // Priority passes to me with the Bolt on the stack (CR 117.3c).
+        // The caster keeps priority after casting unless an auto-pass already
+        // spent it; passing hands it to me with the Bolt on the stack
+        // (CR 117.3d).
         if (harness.state().priorityPlayerId === OPP) {
             await call(harness, passPriority, { playerId: OPP });
         }
