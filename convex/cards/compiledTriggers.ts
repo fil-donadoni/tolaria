@@ -60,6 +60,7 @@ import {
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
 import { holdsExileBundle } from "./abilities/exileBundle";
+import { stateTrigger } from "./abilities/triggers/stateTrigger";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
@@ -237,6 +238,8 @@ export type CompiledTriggerHead =
     | { readonly kind: "tapped"; readonly scope: "self" }
     /** CR 702.29c — "when you cycle this card". */
     | { readonly kind: "cycled" }
+    /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
+    | { readonly kind: "power-reached"; readonly atLeast: number }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -547,6 +550,25 @@ export function resolveCompiledTrigger(
             return tappedTrigger({ ...common, scope: head.scope });
         case "cycled":
             return cycledTrigger(common);
+        case "power-reached": {
+            // CR 603.8 — the predicate is the trigger; `stateTrigger` wires the
+            // resolve-time re-check. A state trigger takes no intervening-if
+            // or other gate of its own.
+            if (descriptor.condition !== undefined)
+                throw new Error(
+                    `compiled trigger ${descriptor.id}: a state trigger takes no condition`
+                );
+            return stateTrigger({
+                id: common.id,
+                oracleText: common.oracleText,
+                // CR 613.4 — the EFFECTIVE power (counters 7c, anthems 7d), read
+                // through the layer pipeline: the server's `state` is the live
+                // GameState, whose `self` carries only the base power.
+                condition: (self, state) =>
+                    readEffectivePower(self, state) >= head.atLeast,
+                effects: common.effects,
+            });
+        }
         case "phase":
             return phaseTrigger({
                 ...common,
@@ -569,6 +591,31 @@ export function resolveCompiledTrigger(
             );
         }
     }
+}
+
+type EffectivePowerReader = (
+    self: PermanentView,
+    state: TriggerStateView
+) => number;
+
+let effectivePowerReader: EffectivePowerReader | null = null;
+
+/**
+ * `gre/layers.ts` registers its CR 613.4 power reader here. `cards/` cannot
+ * import the layer pipeline (it sits above this module in the import graph and
+ * the cycle breaks registry initialisation), so the dependency is inverted.
+ */
+export function bindEffectivePowerReader(reader: EffectivePowerReader): void {
+    effectivePowerReader = reader;
+}
+
+function readEffectivePower(
+    self: PermanentView,
+    state: TriggerStateView
+): number {
+    // Unbound only where the layer pipeline was never loaded (a pure card
+    // fixture): the printed power is then the only power there is.
+    return effectivePowerReader?.(self, state) ?? self.power ?? 0;
 }
 
 /**
