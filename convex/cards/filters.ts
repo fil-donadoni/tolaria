@@ -181,6 +181,12 @@ export interface PermanentFilter {
      *  field) does not match, so an unpopulated reader can never widen a
      *  restriction. */
     powerAtMost?: number;
+    /** Inclusive lower bound on MANA VALUE (CR 202.3) — "a creature with mana
+     *  value 6 or greater". Read off `MatchablePermanent.manaValue`, which on
+     *  the battlefield values an `{X}` in the cost at 0 (CR 202.3e). FAIL-
+     *  CLOSED like `powerAtLeast`: a caller that cannot supply `manaValue`
+     *  (an event payload predating the field) does not match. */
+    manaValueAtLeast?: number;
     /** Inclusive lower bound on effective toughness. Matches only if
      *  `card.toughness !== undefined` and `card.toughness >= toughnessAtLeast`. */
     toughnessAtLeast?: number;
@@ -335,6 +341,9 @@ export interface MatchablePermanent {
     colors?: ReadonlyArray<Color>;
     power?: number;
     toughness?: number;
+    /** Mana value (CR 202.3), `{X}` as 0 off the stack (CR 202.3e). Read by
+     *  `PermanentFilter.manaValueAtLeast`; absent → that filter fails closed. */
+    manaValue?: number;
     isAttacking?: boolean;
     isBlocking?: boolean;
     isTapped?: boolean;
@@ -511,6 +520,11 @@ export function matchesPermanentFilter(
     if (filter.powerAtMost !== undefined) {
         if (card.power === undefined) return false;
         if (card.power > filter.powerAtMost) return false;
+    }
+    // CR 202.3 — mana value floor; absent value fails closed.
+    if (filter.manaValueAtLeast !== undefined) {
+        if (card.manaValue === undefined) return false;
+        if (card.manaValue < filter.manaValueAtLeast) return false;
     }
     if (filter.toughnessAtLeast !== undefined) {
         if (card.toughness === undefined) return false;

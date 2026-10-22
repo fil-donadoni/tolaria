@@ -4222,6 +4222,14 @@ export function emitPermanentEntered(
         const bf = findOnBattlefield(state, card.id)?.card;
         if (bf) ({ power, toughness } = getEffectivePT(state, bf));
     }
+    // CR 202.3 / 202.3e — mana value snapshot, `{X}` as 0 on the battlefield.
+    // Same instance-cost authority as `SpellContext.getManaValue`. Absent when
+    // the permanent is not found (the filter then fails closed).
+    const entered = findOnBattlefield(state, card.id)?.card;
+    const manaValueOnEntry =
+        entered !== undefined
+            ? manaValue(getInstanceManaCost(entered))
+            : undefined;
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -4237,6 +4245,9 @@ export function emitPermanentEntered(
                 : {}),
             ...(power !== undefined ? { power } : {}),
             ...(toughness !== undefined ? { toughness } : {}),
+            ...(manaValueOnEntry !== undefined
+                ? { manaValue: manaValueOnEntry }
+                : {}),
             ...(isToken ? { isToken: true } : {}),
         },
     ];
