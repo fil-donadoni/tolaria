@@ -1,7 +1,8 @@
 ---
 name: bot-audit
-description: 'Run a Bot Audit (ADR 0149): print the theme census, take one Audit Theme or map a free question onto one, read the Evaluation''s seams, write Minimal Pairs, run them through the real search on several seeds, diagnose the red ones and hand the reviewer an Audit Review — then file by the reviewer''s word only. Use when the owner says `/bot-audit <theme>` or asks a question like "does it blink to save from removal?", or when `land` printed `bot audit suggested`.'
+description: "Bot Audit by hand (ADR 0149): census, theme, seams, Minimal Pairs, real search, Audit Review, two doors."
 argument-hint: '[<Audit Theme> | "<free question>"]'
+disable-model-invocation: true
 ---
 
 # /bot-audit — one theme, the pairs the Bot gets wrong, two doors

@@ -116,6 +116,7 @@ const ON_DEMAND_CEILING_BYTES = 25_454; // +250: the undecided-scope pointer in 
  */
 const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "audit-tracker": 20_944,
+    "bot-audit": 15_482, // measured 15_179 B at landing (issue #4926), ~2% headroom
     "bot-change": 20_347,
     "cluster-gaps": 11_316,
     explain: 18_771,
