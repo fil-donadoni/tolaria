@@ -45,7 +45,7 @@ function build(spec: ScenarioSpec): GameState {
 }
 
 function nameOf(card: CardInstanceState): string | undefined {
-    return getDefinition(card.card.id)?.name;
+    return getDefinition(card.card.id as string)?.name;
 }
 
 function permanentNamed(
