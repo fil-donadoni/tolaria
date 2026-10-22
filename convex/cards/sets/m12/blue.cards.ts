@@ -86,11 +86,9 @@ export const phantasmalImage = defineCard(() => ({
     // lever that actually moves this card off its printed 0/0 body.
     // Magnitude: a representative 2/2 body at this card's own mana value
     // (the committed `latentCreatureDiscount` 0.6973 ×
-    // `creatureValueRaw(2, 2, 2, [])` 168 ≈ 117 — issue #6334's refit, 116 at #5108's, 92 at
-    // issue #4797's; issue #5012 re-derived it
-    // from 143 when the fixed 0.85 became a fitted weight — a refit moves the
-    // body this tracks, which `creatureAiValueCalibration.bot.test.ts`
-    // reports) — the same
+    // `creatureValueRaw(2, 2, 2, [])` 168 ≈ 117 — a refit moves the body
+    // this tracks, which `creatureAiValueCalibration.bot.test.ts` reports)
+    // — the same
     // "unknown copied body" representative stat `createTokenCopy`'s
     // `COPY_TOKEN_REPRESENTATIVE_STAT` uses for the analogous "copies an
     // unknowable creature" shape (`gre/ai/opValuers.ts`). Deliberately an

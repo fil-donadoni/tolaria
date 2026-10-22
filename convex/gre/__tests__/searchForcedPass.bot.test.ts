@@ -41,8 +41,8 @@ type Fixture = {
     /** Label prefix of the blade entry — unique, resolved below. */
     labelPrefix: string;
     /** Recorded on the tree BEFORE the fast path existed (base 6a9791267);
-     *  the root digests re-recorded on issue #5155's refit of
-     *  `DEFAULT_EVAL_WEIGHTS`, again on issue #5549's and on issue #6334's (the chosen move and the RNG counter did not
+     *  the root digests are re-recorded on each refit of
+     *  `DEFAULT_EVAL_WEIGHTS` (the chosen move and the RNG counter do not
      *  move — the pin is the fast path's byte-identity with the plain path,
      *  which the second describe below checks on every tree). */
     expected: {
