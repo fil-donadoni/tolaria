@@ -3,7 +3,6 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import { defineCard } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
-import { echoTrigger } from "../../abilities/echo";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Cloud of Faeries — {1}{U} 1/1 Faerie with flying. "When this creature enters,
@@ -61,8 +60,8 @@ export const cloudOfFaeries = defineCard(() => ({
 // Raven Familiar — {2}{U} 1/2 Bird with flying and Echo {2}{U}. "When this
 // creature enters, look at the top three cards of your library. Put one of them
 // into your hand and the rest on the bottom of your library in any order."
-// Echo (CR 702.30a) is the `echo` keyword string (it arms `echoPending` on entry)
-// plus the shared `echoTrigger` upkeep pay-or-sacrifice template, Goblin Patrol's
+// Echo (CR 702.30a) is the `echo` cost field (ADR 0155: it arms `echoPending` and
+// expands into the upkeep pay-or-sacrifice trigger), Goblin Patrol's
 // shape (usg/red.cards.ts). The ETB is Impulse's `lookDistribute` (vis/blue.cards.ts) one
 // card shallower: look 3, keep 1 to hand, bottom the rest (CR 401.4).
 // compiler-gap: "Echo {2}{U}" (#2693)
@@ -78,13 +77,9 @@ export const ravenFamiliar = defineCard(() => ({
     subtypes: ["Bird"],
     power: 1,
     toughness: 2,
-    staticAbilities: ["flying", "echo"],
+    staticAbilities: ["flying"],
+    echo: { X: 2, U: 1 },
     triggeredAbilities: [
-        echoTrigger({
-            id: "raven-familiar-echo",
-            cost: { X: 2, U: 1 },
-            costLabel: "{2}{U}",
-        }),
         enteredTrigger({
             id: "raven-familiar-etb-look",
             oracleText:

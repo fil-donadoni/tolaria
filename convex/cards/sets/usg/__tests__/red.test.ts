@@ -36,7 +36,7 @@ const sneakAttack = getDefinition("d07dc95d-82a8-4a58-8ea2-d4513bd7316d");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const containmentPriest = getDefinition("c2c794b9-09da-49be-b258-b0e21f1663e3");
 
-const ECHO_ABILITY = "goblin-patrol-echo";
+const ECHO_ABILITY = "echo";
 
 /** A PHASE_BEGIN UPKEEP trigger event for `playerId`'s upkeep (CR 500.1). */
 const upkeepEvent = (playerId: string): StackItem["triggerEvent"] =>

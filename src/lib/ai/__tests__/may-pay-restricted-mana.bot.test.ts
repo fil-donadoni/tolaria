@@ -151,7 +151,7 @@ function seedSnowfall(retagRestriction?: ManaRestriction): GameState {
         ...snow,
         zone: "stack",
         castById: BOT,
-        triggeredAbilityId: "snowfall-cumulative-upkeep",
+        triggeredAbilityId: "cumulative-upkeep",
         triggerSourceId: "snow",
         triggerEvent: {
             type: "PHASE_BEGIN",

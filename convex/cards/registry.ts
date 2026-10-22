@@ -27,6 +27,7 @@ import { expandAnnihilator } from "./abilities/annihilator";
 import { expandCascade } from "./abilities/cascade";
 import { expandFirebending } from "./abilities/firebending";
 import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
+import { expandEchoCumulativeUpkeep } from "./abilities/echoCumulativeUpkeep";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
@@ -536,30 +537,34 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // `expandCompiledStatics` sits beside it, one step further in, for the same
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
-    const expanded = expandBestow(
-        expandCascade(
-            expandFirebending(
-                expandAnnihilator(
-                    expandHideaway(
-                        expandKeywordTriggers(
-                            expandFadingVanishing(
-                                // CR 716.2 (issue #3234) — the Class level bars sit
-                                // beside `expandChapterAbilities`: both desugar a
-                                // printed TEXT BOX SECTION declared as data, and
-                                // both must run before any expander that reads the
-                                // ability arrays they inject into.
-                                expandClassLevelBars(
-                                    expandChapterAbilities(
-                                        expandCompiledTriggers(
-                                            expandCompiledStatics(
-                                                // CR 614.1a — the compiled
-                                                // "shuffle it into its owner's
-                                                // library instead" flag, rebuilt
-                                                // innermost beside the other
-                                                // compiled descriptors.
-                                                expandShuffleFromAnywhere(
-                                                    expandDamagePreventionCounterRemoval(
-                                                        base
+    // ADR 0155 — `echo` / `cumulativeUpkeep` cost FIELDS desugar to their upkeep
+    // trigger here, beside the other no-op-unless-declared expanders.
+    const expanded = expandEchoCumulativeUpkeep(
+        expandBestow(
+            expandCascade(
+                expandFirebending(
+                    expandAnnihilator(
+                        expandHideaway(
+                            expandKeywordTriggers(
+                                expandFadingVanishing(
+                                    // CR 716.2 (issue #3234) — the Class level bars sit
+                                    // beside `expandChapterAbilities`: both desugar a
+                                    // printed TEXT BOX SECTION declared as data, and
+                                    // both must run before any expander that reads the
+                                    // ability arrays they inject into.
+                                    expandClassLevelBars(
+                                        expandChapterAbilities(
+                                            expandCompiledTriggers(
+                                                expandCompiledStatics(
+                                                    // CR 614.1a — the compiled
+                                                    // "shuffle it into its owner's
+                                                    // library instead" flag, rebuilt
+                                                    // innermost beside the other
+                                                    // compiled descriptors.
+                                                    expandShuffleFromAnywhere(
+                                                        expandDamagePreventionCounterRemoval(
+                                                            base
+                                                        )
                                                     )
                                                 )
                                             )
