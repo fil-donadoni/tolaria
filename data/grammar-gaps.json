@@ -576,6 +576,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › choice+libraryLook+moveZone",
+            "issue": 6308
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:player › discardAtRandom",
             "issue": 4072
         },
@@ -723,6 +728,11 @@
             "kind": "bot",
             "key": "position-unmodelled › Sorcery target:Instant|Sorcery",
             "issue": 4871
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Sorcery target:Land",
+            "issue": 6307
         },
         {
             "kind": "bot",
@@ -3728,6 +3738,11 @@
             "kind": "migration",
             "key": "static",
             "issue": 4030
+        },
+        {
+            "kind": "migration",
+            "key": "static + triggered",
+            "issue": 6309
         },
         {
             "kind": "migration",
