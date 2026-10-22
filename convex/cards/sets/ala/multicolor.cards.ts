@@ -54,13 +54,6 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // `knownTo` (ADR 0026 public-zone rule), and the board affordance pinning the
 // exiled card to the Sculler comes free from the `exiledBySourceId` →
 // `exiledByPermanentId` projection link (issue #791).
-//
-// The Oracle compiler has no grammar for either printed line yet — the
-// reveal-and-exile-a-chosen-hand-card clause and the linked return-on-leave
-// clause are both unconsumed slots, so Guard C is satisfied by declaring the
-// fragments rather than by a round trip (PRD #2693).
-// compiler-gap: When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card. (#2693)
-// compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
 export const tidehollowSculler = defineCard(() => ({
     id: "1abecc77-07f2-43e4-8585-0a8199cdcf01",
     name: "Tidehollow Sculler",
