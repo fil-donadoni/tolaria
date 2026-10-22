@@ -60,12 +60,12 @@ regenerates against the committed one, and `check:oracle` (step 6) compares the
 cache's sha256 against the committed pin (`data/oracle-corpus.pin.json`):
 
 ```bash
-bun run corpus:ensure   # keeps / copies from the primary only if it matches the pin / downloads the pinned bulk
+bun run corpus:ensure   # pin-checked: keep, copy primary, or download
 bun run oracle:compile --check >"$SCRATCHPAD/compile-check.log" 2>&1; echo "exit=$?"; tail -1 "$SCRATCHPAD/compile-check.log"
 ```
 
 `lockfile is current` is the baseline every later delta is measured against.
-(`corpus:ensure` never takes a cache that does not hash to the pin — a primary left on an older bulk is skipped and the pinned one downloaded, issue #6381.)
+(`corpus:ensure` never takes a cache off the pin, issue #6381.)
 
 ## 1. Read the gap
 
