@@ -484,6 +484,54 @@ function lowerLine(
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
+            if (out.optionalDrawSkip !== undefined) {
+                // CR 614.1a — declining the skip draws the replaced card, so
+                // the DRAW-step trigger offers both answers (the flag above
+                // suppressed the turn-based draw).
+                const body = lowerTriggeredAbility({
+                    id: `${slug}-draw-choice`,
+                    oracleText: parsed.line,
+                    cardName: card.name,
+                    head: { kind: "phase", phase: "DRAW", scope: "your" },
+                    effects: out.optionalDrawSkip.effects,
+                    ...(acc.kickers !== undefined
+                        ? { kickers: acc.kickers }
+                        : {}),
+                });
+                if (!body.ok) return body.reason;
+                // CR 603.3d — a target is announced as the trigger goes on the
+                // stack, BEFORE the skip-or-draw answer, so a targeting body
+                // would be announced even when the skip is declined.
+                if (body.ability.targetRequirement !== undefined)
+                    return "a targeting body cannot sit behind the draw-skip choice";
+                acc.compiledTriggeredAbilities.push({
+                    ...body.ability,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: `Skip your draw? (${card.name})`,
+                            modes: [
+                                {
+                                    id: "yes",
+                                    label: "Skip the draw",
+                                    effects: [...body.ability.effects],
+                                },
+                                {
+                                    id: "no",
+                                    label: "Draw a card",
+                                    effects: [
+                                        {
+                                            op: "draw",
+                                            player: "controller",
+                                            count: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                });
+            }
             if (out.shuffleFromAnywhere === true)
                 acc.shuffleFromAnywhere = true;
             if (out.castAsThoughFlash === true) acc.castAsThoughFlash = true;

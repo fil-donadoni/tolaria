@@ -158,11 +158,6 @@
             "issue": 4533
         },
         {
-            "key": "(op) › setIslandSanctuaryProtection",
-            "op": "setIslandSanctuaryProtection",
-            "issue": 5179
-        },
-        {
             "key": "(op) › setLevel",
             "op": "setLevel",
             "issue": 4534

@@ -294,7 +294,13 @@ describe("gold round-trip — precision", () => {
         // Raised 69 -> 73 with the Echo / Cumulative upkeep rules (issue #5505): four
         // cards (Illusions of Grandeur, Maddening Wind, Mesmeric Trance, Mystic
         // Might) keep other hand-written closures beside their now-compiled line.
-        expect(REPORT.incomparable.length).toBeLessThan(73);
+        //
+        // Raised 73 -> 74 with the optional draw-skip rule (issue #6327):
+        // Island Sanctuary's hand-written DRAW trigger is a `phaseTrigger`
+        // closure the projection cannot compare, while its line is now
+        // compiled — the same move as the entries above. The compiled
+        // definition is proven by `optionalDrawSkip.test.ts` instead.
+        expect(REPORT.incomparable.length).toBeLessThan(74);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
