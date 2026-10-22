@@ -18,7 +18,6 @@ import {
     EFFECT_AFFECTS_SELF,
 } from "../../types";
 import { legalTargetSlots } from "../../types";
-import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -757,8 +756,8 @@ export const driftOfTheDead = defineCard(() => ({
     ],
 }));
 // Flow of Maggots — "Cumulative upkeep {1}. This creature can't be blocked by
-// non-Wall creatures." (CR 702.24 cumulative upkeep via the shipped
-// `cumulativeUpkeepTrigger` template + CR 509.1b block-restriction.) The block
+// non-Wall creatures." (CR 702.24 cumulative upkeep via the
+// `cumulativeUpkeep` cost field (ADR 0155) + CR 509.1b block-restriction.) The block
 // clause is a `block-restriction` static on the attacker side: a blocker
 // qualifies only if it is a Wall. CU core has shipped (ADR 0042), so this is
 // buildable today.
@@ -773,13 +772,7 @@ export const flowOfMaggots = defineCard(() => ({
     subtypes: ["Insect"],
     power: 2,
     toughness: 2,
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "flow-of-maggots-cumulative-upkeep",
-            cost: { X: 1 },
-            costLabel: "{1}",
-        }),
-    ],
+    cumulativeUpkeep: { X: 1 },
     staticEffects: [
         {
             kind: "block-restriction",
@@ -1244,13 +1237,7 @@ export const infernalDarkness = defineCard(() => ({
     manaCost: { X: 2, B: 2 },
     types: ["Enchantment"],
     landManaSubstitution: { color: "B" },
-    triggeredAbilities: [
-        cumulativeUpkeepTrigger({
-            id: "infernal-darkness-cumulative-upkeep",
-            cost: { mana: { B: 1 }, life: 1 },
-            costLabel: "{B} and 1 life",
-        }),
-    ],
+    cumulativeUpkeep: { mana: { B: 1 }, life: 1 },
 }));
 // Infernal Denizen — "At the beginning of your upkeep, sacrifice two Swamps. If
 // you can't, tap this creature, and an opponent may gain control of a creature

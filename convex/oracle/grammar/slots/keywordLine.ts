@@ -460,6 +460,48 @@ export const morphRule: Rule<SlotIR> = rule("morph", (span) => {
     return ok({ kind: "morph" as const, cost: cost.value });
 });
 
+const ECHO_HEAD = "Echo ";
+const CUMULATIVE_UPKEEP_HEAD = "Cumulative upkeep";
+const CUMULATIVE_UPKEEP_LIFE = /^Cumulative upkeep—Pay (\d+) life\.$/;
+
+/**
+ * CR 702.30a — "Echo [cost]": the cost owed at the controller's first upkeep
+ * after the permanent came under their control. The engine reads it off
+ * `CardDefinition.echo` (ADR 0155).
+ */
+export const echoRule: Rule<SlotIR> = rule("echo", (span) => {
+    const cost = costParameter(ECHO_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "echo" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.24a — "Cumulative upkeep [cost]": a mana cost ("Cumulative upkeep
+ * {1}{U}") or the dashed life form ("Cumulative upkeep—Pay 1 life."), the
+ * printed cost per age counter. Read off `CardDefinition.cumulativeUpkeep`.
+ *
+ * Refused (CR 702.24a): a per-counter cost CHOICE ("{W} or {U}") — no
+ * `MayPayCost` shape expresses it, so it stays a gap of its own — and every
+ * other non-mana cost, which no fixture reads yet.
+ */
+export const cumulativeUpkeepRule: Rule<SlotIR> = rule(
+    "cumulative upkeep",
+    (span): RuleResult<SlotIR> => {
+        const life = CUMULATIVE_UPKEEP_LIFE.exec(span);
+        if (life !== null) {
+            const amount = Number(life[1]);
+            if (amount < 1) return fail("a life cost counts from 1", span);
+            return ok({
+                kind: "cumulativeUpkeep" as const,
+                cost: { life: amount },
+            });
+        }
+        const cost = costParameter(`${CUMULATIVE_UPKEEP_HEAD} `, span);
+        if (!cost.ok) return cost;
+        return ok({ kind: "cumulativeUpkeep" as const, cost: cost.value });
+    }
+);
+
 // ── Fading N (CR 702.32a) ──────────────────────────────────────────────────
 
 const FADING = /^Fading (\d+)$/;
@@ -505,6 +547,8 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cyclingRule,
     madnessRule,
     morphRule,
+    echoRule,
+    cumulativeUpkeepRule,
     fadingRule,
 ]);
 
