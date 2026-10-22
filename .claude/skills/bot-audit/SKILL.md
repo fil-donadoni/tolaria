@@ -137,13 +137,12 @@ Run every pair through `runBladeScenario` (`convex/gre/ai/blade/runner.ts`)
 at its declared budget on its seeds:
 
 ```bash
-L="$SCRATCHPAD/audit-run.log"
+L="$SCRATCHPAD/audit-run.log"; export AUDIT_OUT="$SCRATCHPAD/audit-rows.txt"; : >"$AUDIT_OUT"
 bunx vitest run --config vitest.blade.config.ts convex/gre/ai/blade/__tests__/audit-scratch.spec.ts >"$L" 2>&1; echo "exit=$?"
-grep -E '^(RED|TIE|GREEN) ' "$L"
+grep -E '^(RED|TIE|GREEN) ' "$AUDIT_OUT"
 ```
 
-The scratch spec prints one line per entry from `BladeResult.seeds[]`
-(`ok`, `moveDescription`, `mechanism` per seed), never asserts. Read it as
+The scratch spec writes one line per entry to `$AUDIT_OUT` from `BladeResult.seeds[]` (`ok`, `moveDescription`, `mechanism` per seed) and asserts only that the line was written — the blade config requires an assertion, and a passing test's console output is hidden under an agent (`doors.md` § The scratch spec). Read it as
 `/bot-change` Phase 0 step 2 reads a reproduction:
 
 | Seeds failing | Reading                                                            |
@@ -197,9 +196,7 @@ reviewer's word per row:
 - **Discriminant** — `<kind>: <detail>`.
 - **observed move (seeds n/m)** — the Bot's pick, with the seeds it took it on
   over the seeds run.
-- **kind** — `forced` (the wrong move loses something the rules force: a
-  creature, the game — ADR 0070 §1) or `preference` (better, not forced).
-  Written as the agent's proposal; the reviewer's word decides.
+- **kind** — `forced` (in the anchor the wrong move loses something the rules force — a creature, the game — AND in the half the expected move is the only one that does not, ADR 0070 §1: both entries will sit in the registry) or `preference` (better, not forced, on either side). Written as the agent's proposal; the reviewer's word decides.
 - **cause** — the suspect and its measurement in six words, or `undiagnosed`.
 - **proposed issue** — `new: <cause>`, `existing: issue #N`, or `—`. One issue
   per CAUSE: rows sharing a cause share the cell.
@@ -228,8 +225,7 @@ links — `docs/agents/issue-tracker.md` § Card names are Scryfall links,
 **Forced door** (`forced` + `ok`, or reclassified `forced`): the pair enters
 `convex/gre/ai/blade/scenarios.ts` — anchor as a `stretch` entry carrying
 `audit: { theme }`, `beyondBudget.cause` from step 5 and `issue #N` in
-`beyondBudget.note`; half as its `pairOf` entry, `must` (it is green at
-budget). `auditEntryProblems` (`auditThemes.ts`) reds a bare one. The issue is
+`beyondBudget.note`; half as its `pairOf` entry, `must` (green on every seed at budget). **Both are shown to bite** (ADR 0070 §1): the anchor is red by construction; the half is run once with its expectation inverted and seen red before the real one is committed — say so in the PR. `auditEntryProblems` (`auditThemes.ts`, run by `registry.bot.test.ts`) reds a bare one. The issue is
 filed FIRST so the note can name it. It is red in-tree, report-only
 (`test:blade:stretch`); the fix PR promotes it to `must` and removes
 `beyondBudget` in one diff. All forced pairs of the session land in **one PR**
@@ -241,9 +237,7 @@ under their own account** — never by the agent, never by CLI as admin
 (Attestation is a person, ADR 0128; `verdicts.submit` is tester-gated).
 `doors.md` § Preference hand-off says what to hand them. Then, in the same
 session: `bun run verdicts:promote`, `bun run fit:weights`, read the
-promotion's unsatisfied-pair report. **An issue for a preference exists only
-when that report names the pair's Discriminant as one no term reads** — never
-from the code walk (ADR 0149 §3, ADR 0148). Satisfied = not a gap = no ticket.
+promotion's unsatisfied-pair report. `verdicts:promote` rewrites the Verdict Lock and `convex/gre/ai/evalWeights.ts` together: commit that diff on the audit's branch as its own commit, in the session's PR (`docs/guides/verdict-store.md` § Promote the corpus — both in one PR; the PR exists even with no forced pair). **An issue for a preference exists only when that report names the pair's Discriminant as one no term reads** — never from the code walk (ADR 0149 §3, ADR 0148). Satisfied = not a gap = no ticket.
 
 **Issues** — one per diagnosed CAUSE, never per pair (ADR 0102, ADR 0146):
 `gh issue create` with `--label bug --label area:game-bot`, `--parent 4920`
@@ -256,14 +250,9 @@ acceptance: those entries pass as `must` at their declared budget and
 `blade:robustness` classifies them `robust`. **No `ready-for-agent`**: the
 owner labels what the queue takes.
 
-**Undiagnosed** (`ok` on an `undiagnosed` row): the entry still lands
-`stretch` (forced) with `beyondBudget.note` saying `cause undiagnosed` and
-naming the umbrella as its issue (`issue #4920`), and the pair is appended to
-the umbrella's `## Undiagnosed pairs` block — never a ticket.
+**Undiagnosed** (`ok` on an `undiagnosed` row): the entry still lands `stretch` (forced) with the `cause` the budget sweep measured — a cause the suspects could not name a TERM for is still a measured cause (`doors.md` § Entry template) — `beyondBudget.note` saying `cause undiagnosed` and naming the umbrella as its issue (`issue #4920`), and the pair is appended to the umbrella's `## Undiagnosed pairs` block — never a ticket.
 
-**Done when:** every row's word has had its action; the forced PR is handed
-off; preference Verdicts are attested, promoted and fitted; every cause issue
-is parented and read back; the undiagnosed block is appended.
+**Done when:** every row's word has had its action; the session's PR — forced pairs, the promotion's diff, or both — is handed off; preference Verdicts are attested, promoted and fitted; every cause issue is parented and read back; the undiagnosed block is appended.
 
 ## 8. Report
 

@@ -70,10 +70,7 @@ What the guards hold an entry to:
   clears them; `horizon` carries `passesAt` or, behind a loop, `sweptTo`.
 - `pairDiff.ts` (`convex/gre/ai/verdicts/`): the two specs differ by the
   Discriminant only, or the half is dropped from the corpus with a `pair` gap.
-- An undiagnosed forced pair: `cause: "valuation"` is NOT a default — leave
-  the cause the measurement supports (a re-run at a higher budget gives
-  `branching` / `horizon` their `passesAt`); when none does, the anchor's
-  note says `cause undiagnosed` and names the umbrella, `issue #4920`.
+- An undiagnosed forced pair still owes a `cause` (`BeyondBudget.cause` is required, and `auditEntryProblems` rejects an audit `stretch` entry without one). The cause is the budget SWEEP's reading, never a default: passes above budget → `branching` / `horizon` with `passesAt`; never passes up to the sweep → `valuation` (ADR 0070 §2: a position with no passing budget), the sweep recorded in the note. The note says `cause undiagnosed` — no term named — and names the umbrella, `issue #4920`.
 
 ## The scratch spec — step 3 and step 4, never committed
 
@@ -83,33 +80,32 @@ config includes `__tests__/**/*.spec.ts`, so it runs under
 `vitest.blade.config.ts` with the real `runBladeScenario`:
 
 ```ts
-import { describe, it } from "vitest";
+import { appendFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { runBladeScenario, type RegistryBladeScenario } from "..";
 
+const OUT = process.env.AUDIT_OUT!; // one row per entry; the run log hides passing output
 const PAIRS: RegistryBladeScenario[] = [
     /* the entries of § Entry template, both halves, tier as they will land */
 ];
 
-describe("audit scratch — prints, never asserts", () => {
+describe("audit scratch — writes rows, asserts only that it wrote them", () => {
     for (const entry of PAIRS) {
         it(entry.label, () => {
             const r = runBladeScenario(entry);
             const failing = r.seeds.filter((s) => !s.ok).length;
             const verdict =
-                failing === r.seeds.length
-                    ? "RED"
-                    : failing === 0
-                      ? "GREEN"
-                      : "TIE";
-            console.log(
+                failing === r.seeds.length ? "RED" : failing === 0 ? "GREEN" : "TIE";
+            const row =
                 `${verdict} ${failing}/${r.seeds.length} "${entry.label}" ` +
-                    r.seeds
-                        .map(
-                            (s) =>
-                                `[${s.seed}: ${s.moveDescription} ${s.mechanism ?? "-"}]`
-                        )
-                        .join(" ")
-            );
+                r.seeds
+                    .map((s) => `[${s.seed}: ${s.moveDescription} ${s.mechanism ?? "-"}]`)
+                    .join(" ");
+            appendFileSync(OUT, row + "
+");
+            // `vitest.blade.config.ts` sets `requireAssertions`: a test with no
+            // `expect` fails, and only a FAILING test's console reaches the log.
+            expect(row).toContain(entry.label);
         });
     }
 });
@@ -127,10 +123,7 @@ expected and the observed move reads the gap, `OP_BENEFICENCE[op]` /
 1. File the cause issue first (§ Issue template) so the note can name it.
 2. Append both entries to `BLADE_SCENARIOS` (`convex/gre/ai/blade/scenarios.ts`)
    with the issue number in the anchor's `beyondBudget.note`.
-3. Run what the diff reaches: `bunx vitest run --config vitest.blade.config.ts
-convex/gre/ai/blade/__tests__/blade.shard-0.spec.ts` (registry integrity +
-   the `must` half), and `BLADE_TIER=stretch` the same for the anchor's
-   report line. Delete the scratch spec.
+3. Run what the diff reaches: `bunx vitest run --project bot-node convex/gre/ai/blade/__tests__/registry.bot.test.ts` (`auditEntryProblems` and the pair guards), `bun run test:blade` (the `must` tier — the half sits in whichever shard `bladeShardOf` assigns it) and `bun run test:blade:stretch` (the anchor's report line). **Bite** (ADR 0070 §1): run the half once with `moves` and `forbidden` swapped and see it red; then commit the real one. Delete the scratch spec.
 4. One PR for all forced pairs of the session: the Audit Review table and the
    words in its body, `## Preset scenario` as `/next-ticket` § 5 asks
    (the anchor's spec is one), then `bun run land:ready <PR#>`.
@@ -148,20 +141,13 @@ session, never `npx convex run` as admin.
 
 Hand the reviewer, per preference row:
 
-1. The anchor's `spec` (and `setup`), loaded as a Debug scenario on
-   `/admin/scenarios` → "Test" (a fresh vs-AI game with the Bot on the seat
-   under test); the Debug panel's verdict quiz asks "which move here?" on the
-   Bot's decision. The reviewer names the expected move, says the wrong is
-   `conditional`, and types the Discriminant (kind + detail) from the review
-   row — the wrong-move form carries both.
-2. The right-hand half, written through the Debug panel's missing-half writer
-   on the anchor just stored: the spec with only the Discriminant changed,
-   prefilled from the kind. The half is the reviewer's own verdict too.
+1. The anchor's `spec` (and `setup`), loaded as a Debug scenario on `/admin/scenarios` → "Test" (a fresh vs-AI game with the Bot on the seat under test); the Debug panel's verdict quiz asks "which move here?" on the Bot's decision. The reviewer names the expected move, says the wrong is `conditional`, and types the Discriminant (kind + detail) from the review row — the wrong-move form carries both, and shows the DERIVED right-hand half (the spec with only the Discriminant changed, prefilled from the kind) to confirm, touch up, or defer.
+2. A half the reviewer deferred is written later through the Debug panel's missing-half writer on the stored anchor. Either way the half is the reviewer's own verdict too.
 3. The `note` of each: `bot-audit <date> <theme>: <row label>` — the session
    note is the provenance; author alias and email never appear (ADR 0149
    § Consequences).
 
-Then, in the same session, from a checkout with the reader key:
+Then, in the same session, from the audit's branch on a checkout with the reader key:
 
 ```bash
 bun run verdicts:promote >"$SCRATCHPAD/promote.log" 2>&1; echo "exit=$?"
@@ -175,8 +161,9 @@ both halves → the existing terms already read the Discriminant → no issue.
 One half `unsatisfied` → the fit settled on "always" or "never" and the
 report names the Discriminant no term reads → ONE issue per such Discriminant
 (§ Issue template, kind `preference`). `not-fitted` (a timing pair, a rebuild
-error) → the fit said nothing: the search checks it instead
-(`formatTimingSection`), and it is not an issue from this door.
+error) → the fit said nothing: the search checks it instead (`formatTimingSection`), and it is not an issue from this door.
+
+`verdicts:promote` rewrites the Verdict Lock and `convex/gre/ai/evalWeights.ts` together, and runs the blade `must` tier on the rewritten weights: commit that diff as its own commit on the audit's branch (`docs/guides/verdict-store.md` § Promote the corpus — both in one PR). It rides in the session's PR, which exists even when no forced pair does.
 
 ## Issue template — one per diagnosed CAUSE
 
@@ -211,6 +198,9 @@ PRD issue #4920 — Bot Audit (ADR 0149). Theme `<theme>`, audit of <date>.
 
 - "audit: <theme-slug>: <anchor label>" (`stretch`, cause `<cause>`)
 - "audit: <theme-slug>: <half label>" (`must`)
+
+<!-- a preference issue lists the pair's Verdict notes instead:
+     `bot-audit <date> <theme>: <row label>` — its reproducer is the Verdict -->
 
 ## Acceptance
 
