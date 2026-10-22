@@ -131,7 +131,13 @@ export type CompiledTriggerCondition =
      * stamped on the permanent it became (CR 307.1 / 117.1a), decided from the
      * source alone. Entered heads only, for the reason `kicker-paid` gives.
      */
-    | { readonly kind: "cast-off-sorcery-timing" };
+    | { readonly kind: "cast-off-sorcery-timing" }
+    /**
+     * CR 205.1a + CR 603.4 — "if this permanent is an enchantment": the
+     * source's CURRENT card types (`self.types`, the live view), checked as
+     * the trigger would trigger and again as it resolves.
+     */
+    | { readonly kind: "self-has-type"; readonly type: CardType };
 
 /**
  * The predicate of a condition decided from the SOURCE permanent alone — a
@@ -302,6 +308,8 @@ function conditionHolds(
         condition.kind === "cast-off-sorcery-timing"
     )
         return selfDecidedGate(condition)!(self);
+    if (condition.kind === "self-has-type")
+        return self.types.includes(condition.type);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);

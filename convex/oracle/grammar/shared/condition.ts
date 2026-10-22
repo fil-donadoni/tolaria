@@ -84,7 +84,14 @@ export type TriggerConditionIR =
      * permanent the trigger is printed on came from a spell whose NAMED kicker
      * was paid. Lowering resolves the printed cost to the card's kicker id.
      */
-    | { readonly kind: "kicked-permanent"; readonly kicked: KickedRefIR };
+    | { readonly kind: "kicked-permanent"; readonly kicked: KickedRefIR }
+    /**
+     * CR 205.1a + CR 603.4 — "if this permanent is an enchantment": the
+     * source's CURRENT card types, re-read as the trigger would trigger and
+     * as it resolves (a permanent that already became a creature has lost the
+     * type, so the second firing is gated out).
+     */
+    | { readonly kind: "self-has-type"; readonly type: "Enchantment" };
 
 const ARTICLES: readonly string[] = ["a ", "an "];
 
@@ -129,6 +136,14 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
             return isSelfPhrase(inGraveyard[1]!)
                 ? ok({ kind: "self-in-graveyard" as const })
                 : fail(`"${inGraveyard[1]}" is not the source itself`, span);
+        const selfType = clause.match(SELF_HAS_TYPE);
+        if (selfType !== null)
+            return isSelfPhrase(selfType[1]!)
+                ? ok({
+                      kind: "self-has-type" as const,
+                      type: "Enchantment" as const,
+                  })
+                : fail(`"${selfType[1]}" is not the source itself`, span);
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         return controlsRule.run(clause, ctx);
@@ -187,6 +202,13 @@ export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
 
 /** CR 113.6b — the source named in the graveyard its controller owns. */
 const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
+
+/**
+ * CR 205.1a — the source named by its current type. "an enchantment" is the
+ * one type the corpus prints behind an intervening-if (the Opal cycle); a
+ * second type waits for a card that prints it.
+ */
+const SELF_HAS_TYPE = /^(.+) is an enchantment$/;
 
 /** CR 305.6 — the domain count, over the triggering player's lands. */
 const BASIC_LAND_TYPES =

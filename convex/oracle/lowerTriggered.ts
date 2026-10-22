@@ -282,6 +282,8 @@ function lowerCondition(
                 filter: condition.filter,
                 atLeast: condition.atLeast,
             };
+        case "self-has-type":
+            return { kind: "self-has-type", type: condition.type };
         case "self-in-graveyard":
             // Lowered as the ability's zone by the caller, never as a predicate.
             return "a graveyard-zone condition is not a board predicate";
