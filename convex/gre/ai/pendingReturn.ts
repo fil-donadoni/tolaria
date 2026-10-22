@@ -96,6 +96,8 @@ export type PendingReturn = { card: CardInstanceState; to: string };
  *  ability that created it); any other recipient is not read. */
 export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
     const out: PendingReturn[] = [];
+    // Two triggers naming one card return it once.
+    const seen = new Set<string>();
     for (const trigger of state.delayedTriggers ?? []) {
         if (!trigger.effects) continue;
         if (!PHASE_BOUNDARY_TIMINGS.has(trigger.timing)) continue;
@@ -106,7 +108,8 @@ export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
             if (typeof id !== "string") continue;
             for (const owner of state.players) {
                 const card = owner.exile.find((c) => c.id === id);
-                if (!card) continue;
+                if (!card || seen.has(card.id)) continue;
+                seen.add(card.id);
                 if (op.controller === undefined) {
                     out.push({ card, to: card.ownerId });
                 } else if (op.controller === "controller") {

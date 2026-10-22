@@ -160,6 +160,68 @@ describe("pruneDominatedTriggerTargets (CR 603.3d)", () => {
         ).toHaveLength(moves.length);
     });
 
+    it("keeps an answer that only damages a survivor beside one that kills", () => {
+        // Review of issue #6334: 4 damage to Ironroot Treefolk kills nothing,
+        // 4 to Llanowar Elves kills it — but the damaged Treefolk is a state
+        // the axes cannot order (a follow-up Shock kills it), so neither
+        // answer dominates.
+        const state = buildBladeState({
+            label: "temporary exile: damaged survivor",
+            spec: {
+                cards: [
+                    { name: "Flametongue Kavu", owner: "me", zone: "hand" },
+                    {
+                        name: "Mountain",
+                        owner: "me",
+                        zone: "battlefield",
+                        count: 4,
+                    },
+                    {
+                        name: "Llanowar Elves",
+                        owner: "opp",
+                        zone: "battlefield",
+                        summoningSick: false,
+                    },
+                    {
+                        name: "Ironroot Treefolk",
+                        owner: "opp",
+                        zone: "battlefield",
+                        summoningSick: false,
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 6,
+                libraryCount: 20,
+            },
+            setup: [
+                { kind: "cast", card: "Flametongue Kavu", by: "me" },
+                { kind: "pass", seat: "opp" },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        const botId = seatPlayerId(state, "me");
+        expect(state.pendingTarget?.kind).toBe("trigger");
+        const moves = enumerateMoves(state, botId);
+        const kept = pruneDominatedTriggerTargets(
+            state,
+            botId,
+            moves,
+            apply(botId)
+        );
+        const named = kept.map((m) => {
+            if (m.kind !== "submit-target") return m.kind;
+            const card = state.players
+                .flatMap((p) => p.battlefield)
+                .find((c) => c.id === m.targets[0]?.id);
+            return card ? nameOf(card) : undefined;
+        });
+        expect(named).toContain("Ironroot Treefolk");
+        expect(named).toContain("Llanowar Elves");
+    });
+
     it("keeps only the Giant for the returned Kavu's own trigger", () => {
         const { state, botId } = exiled("Flametongue Kavu");
         // Walk to the end step: the Kavu returns and announces its target.

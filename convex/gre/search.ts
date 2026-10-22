@@ -2427,6 +2427,9 @@ function withoutDominatedTriggerTargets(
     keyed: KeyedMove[]
 ): KeyedMove[] {
     if (world.pendingTarget?.kind !== "trigger") return keyed;
+    // Decided on the node's first world: a resolution that read a sampled
+    // hidden zone (a library card's mana value) could judge differently in
+    // another, and the first world's verdict stands for the node.
     if (!node.dominatedTargetKeys) {
         const kept = new Set(
             pruneDominatedTriggerTargets(

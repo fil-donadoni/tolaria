@@ -17,7 +17,8 @@
 // permanent the mover controls after B is still there after A, no permanent
 // the opponent controls after A was gone after B, no life, poison or hand
 // count moves against the mover, both libraries are the same size, and every
-// common survivor carries the same counters — and strictly better on one of
+// common survivor is in the same state (counters, damage, tapped, P/T) — and
+// strictly better on one of
 // them. Strictness keeps both of two answers the axes cannot tell apart (a
 // pump, a tap), so no answer is ever pruned for what it does off the axes.
 // The maximal answers always survive: dropping B never removes the mover's
@@ -42,6 +43,8 @@ import { getOpponentId, resolveTopOfStack } from "../state";
 import type { Move } from "../moves";
 import { cloneGameState } from "../clone";
 import { checkStateBasedActions } from "../sba";
+import { getEffectivePT } from "../layers";
+import { isCreature } from "../constants";
 
 /** What one answer leaves behind once its trigger has resolved. */
 type TriggerOutcome = {
@@ -56,7 +59,12 @@ type TriggerOutcome = {
     libraries: string;
 };
 
-/** Each permanent `playerId` controls, keyed by id, valued by its counters. */
+/** Each permanent `playerId` controls, keyed by id, valued by its WHOLE
+ *  state: the instance (counters, marked damage, tapped, attachments) plus
+ *  its layer-derived P/T with the until-end-of-turn effects in (review of
+ *  issue #6334). A common survivor two answers left in different states
+ *  makes them incomparable, so an answer that only damages, shrinks or taps
+ *  a creature is never pruned for an answer that kills another one. */
 function controlledPermanents(
     state: GameState,
     playerId: string
@@ -65,7 +73,10 @@ function controlledPermanents(
     for (const player of state.players) {
         for (const card of player.battlefield) {
             if (card.controllerId !== playerId) continue;
-            out.set(card.id, JSON.stringify(card.counters ?? {}));
+            const pt = isCreature(card)
+                ? getEffectivePT(state, card, { includeTemporary: true })
+                : undefined;
+            out.set(card.id, JSON.stringify({ card, pt }));
         }
     }
     return out;
@@ -121,7 +132,7 @@ function resolveAnswer(
 /** -1: `a` is worse than `b` on this axis, 0: equal, 1: better. */
 type AxisOrder = -1 | 0 | 1;
 
-/** `sub ⊆ sup`, every common member carrying the same counters: 1 when the
+/** `sub ⊆ sup`, every common member in the same state: 1 when the
  *  inclusion is strict, 0 when equal, `undefined` when it does not hold. */
 function inclusion(
     sub: Map<string, string>,
