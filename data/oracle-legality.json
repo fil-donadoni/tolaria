@@ -2,10 +2,10 @@
     "generator": "oracle-legality@2",
     "corpus": {
         "source": "https://api.scryfall.com/bulk-data/oracle-cards",
-        "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260830090156.jsonl.gz",
-        "updatedAt": "2026-08-30T09:01:56.964+00:00",
-        "cardCount": 34890,
-        "sha256": "fe9122363a58e687b7531f1291bb5475e40f497b39ec97a0b400518adb2e2dd6"
+        "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20261022090154.jsonl.gz",
+        "updatedAt": "2026-10-22T09:01:54.353+00:00",
+        "cardCount": 35093,
+        "sha256": "b00e15ccf31ccf5750ef21407b67f0f3d294033b69fc3e68e9adc7206f31d23e"
     },
     "contentHash": "b364455878da7d8ca81668b8d38da7026b891aae0be117570f438841d9f3be46",
     "premodern": [
