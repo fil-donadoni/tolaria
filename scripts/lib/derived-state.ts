@@ -10,6 +10,8 @@
  * one answer.
  */
 
+import { corpusExcluded } from "./corpus-exclusion";
+
 export const TREE_ROLE_ENV = "TOLARIA_TREE_ROLE";
 
 /** `base`: committed derived bytes must be fresh. `draft`: regenerated in-tree. */
@@ -37,6 +39,21 @@ export interface DerivedFacts {
  * - draft: the header and the catalogue are the base's to write and the lane
  *   has regenerated them, so only a wrong ROW is a red.
  */
+/**
+ * What a draft with no oracle corpus cache owes (issue #6338). Its header was
+ * regenerated, so only the per-row regenerate-and-diff would judge the
+ * lockfile: everywhere that check is a gate (`land`, the queue's lane, on the
+ * owner's machines where the corpus lives) its absence is a red. The hosted
+ * advisory lane holds no corpus and gates nothing — the queue's lane judges
+ * the rows before any merge — so there, and only there (`corpusExcluded`:
+ * the variable AND a GitHub-hosted runner), it is a declared skip.
+ */
+export function draftWithoutCorpus(
+    env: NodeJS.ProcessEnv = process.env
+): "fail" | "skip" {
+    return corpusExcluded(env) ? "skip" : "fail";
+}
+
 export function derivedProblems(role: TreeRole, facts: DerivedFacts): string[] {
     const problems: string[] = [];
     if (facts.rowDrift !== null) problems.push(facts.rowDrift);

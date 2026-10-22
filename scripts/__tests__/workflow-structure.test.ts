@@ -747,6 +747,21 @@ describe("workflow structure guard", () => {
         expect(
             rules(queueLane(lane(" --regenerate-derived", "queue-lane")))
         ).not.toContain("derived-role");
+        // The flag in a comment does not reach the lane.
+        expect(
+            rules(queueLane(lane(" # --regenerate-derived", "queue-lane")))
+        ).toContain("derived-role");
+        // Another script sharing the prefix is not the lane.
+        expect(
+            rules(
+                queueLane(
+                    lane("", "queue-lane").replace(
+                        "check:lane\n",
+                        "check:lane-timing\n"
+                    )
+                )
+            )
+        ).not.toContain("derived-role");
         // A lane timing the base itself (lane-timing) owes nothing.
         expect(rules(fixture({ self: lane("", "lane") }))).not.toContain(
             "derived-role"

@@ -60,6 +60,11 @@ jobs:
                   TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
               # stderr teed to lane.log: a refusal leaves lane.json empty and
               # its reason there, for the fixup step (issue #6003).
+              # `--regenerate-derived` (ADR 0157, issue #6338): the merge ref
+              # carries the merge-base's lockfile header, so the lane rebuilds
+              # it and judges in the draft role. No oracle corpus here: the
+              # per-row diff is skipped (`draftWithoutCorpus`) and queue-lane
+              # judges the rows before any merge.
               shell: bash
               run: bun run check:lane --json --retry-flaky --regenerate-derived 2>&1 >"$RUNNER_TEMP/lane.json" | tee "$RUNNER_TEMP/lane.log"
             - name: Flakes in the job summary

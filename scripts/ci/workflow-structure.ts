@@ -197,6 +197,9 @@ export const DRAFT_LANE_JOBS: ReadonlySet<string> = new Set([
 
 /** The flag that judges a tree in the queue's `draft` role (ADR 0157). */
 export const REGENERATE_DERIVED_FLAG = "--regenerate-derived";
+const CHECK_LANE_CALL = /\bcheck:lane(?![\w:-])/;
+const LANE_REGENERATES =
+    /\bcheck:lane(?![\w:-])[^#]*\s--regenerate-derived(?![\w-])/;
 
 /** The one group a `SUPERSEDED_JOBS` job may declare: the PR behind the
  *  queue's draft, never a branch (each draft is a new one). */
@@ -991,8 +994,13 @@ function checkDraftLanesRegenerateDerived(
             if (!draftLane || !Array.isArray(job.steps)) continue;
             for (const step of job.steps) {
                 const run = stepRun(step);
-                if (run === null || !/\bcheck:lane\b/.test(run)) continue;
-                if (run.includes(REGENERATE_DERIVED_FLAG)) continue;
+                if (run === null) continue;
+                // Each `check:lane` command line (never `check:lane-timing`)
+                // carries the flag before any comment.
+                const lanes = run
+                    .split("\n")
+                    .filter((l) => CHECK_LANE_CALL.test(l));
+                if (lanes.every((l) => LANE_REGENERATES.test(l))) continue;
                 out.push({
                     file: f.path,
                     job: id,

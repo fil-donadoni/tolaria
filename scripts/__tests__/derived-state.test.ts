@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     TREE_ROLE_ENV,
     derivedProblems,
+    draftWithoutCorpus,
     firstRowDrift,
     treeRole,
 } from "../lib/derived-state";
@@ -57,6 +58,21 @@ describe("derivedProblems — the lane's decision", () => {
         expect(treeRole({})).toBe("base");
         expect(treeRole({ [TREE_ROLE_ENV]: "draft" })).toBe("draft");
         expect(treeRole({ [TREE_ROLE_ENV]: "x" })).toBe("base");
+    });
+
+    it("a draft without the corpus fails, except on the hosted advisory lane (issue #6338)", () => {
+        const hosted = {
+            TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1",
+            GITHUB_ACTIONS: "true",
+            RUNNER_ENVIRONMENT: "github-hosted",
+        };
+        expect(draftWithoutCorpus(hosted)).toBe("skip");
+        // The queue's lane and land run on the owner's machines: a gate.
+        expect(
+            draftWithoutCorpus({ ...hosted, RUNNER_ENVIRONMENT: "self-hosted" })
+        ).toBe("fail");
+        expect(draftWithoutCorpus({ GITHUB_ACTIONS: "true" })).toBe("fail");
+        expect(draftWithoutCorpus({})).toBe("fail");
     });
 });
 
