@@ -40,6 +40,7 @@ const IN_REPO_SKILLS = [
     "cluster-gaps",
     "grill",
     "triage",
+    "bot-audit",
 ];
 
 function isTracked(relPath: string): boolean {
@@ -768,6 +769,7 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
         "next-ticket",
         "to-prd",
         "to-tickets",
+        "bot-audit",
     ];
     // The whole skill, not its manifest (issue #5100): `/next-ticket` keeps
     // its filing procedure one pointer away, in `filing.md`.
@@ -1102,5 +1104,154 @@ describe("/new-card compiles first, hand-writes last (ADR 0137, issue #3836)", (
         expect(body()).toMatch(/Add a structural construct/);
         expect(body()).toMatch(/Name an Op after a card/);
         expect(body()).toMatch(/Buy coverage with leniency/);
+    });
+});
+
+/**
+ * `/bot-audit` encodes ADR 0149 as a procedure (issue #4926, PRD #4920). The
+ * contracts below key its prose to the code it drives — the closed theme list,
+ * the scripts it names, the files its seam map cites — so a rename on the code
+ * side reds the skill instead of leaving it pointing at ground that moved.
+ * The audit's own PRODUCT (entries, verdicts, issues) is tested by the blade
+ * suite, the fit and the registry guard, never here.
+ */
+describe("/bot-audit is keyed to the code it drives (ADR 0149, issue #4926)", () => {
+    const corpus = () => skillCorpus("bot-audit");
+    const manifest = () =>
+        fs.readFileSync(
+            path.join(REPO_ROOT, ".claude", "skills", "bot-audit", "SKILL.md"),
+            "utf8"
+        );
+    const pkg = () =>
+        JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+
+    it("every `bun run <script>` it tells a session to run is a package.json script", () => {
+        const named = [...corpus().matchAll(/bun run ([a-z][\w:-]*)/g)].map(
+            (m) => m[1]!
+        );
+        expect(named).toContain("blade:audit-census");
+        expect(named.filter((s) => !(s in pkg().scripts))).toEqual([]);
+    });
+
+    it("walks the seven steps in order, census first, and files only after the Audit Review", () => {
+        const text = manifest();
+        const at = (heading: string) => {
+            const i = text.indexOf(heading);
+            expect(i, heading).toBeGreaterThan(-1);
+            return i;
+        };
+        const steps = [
+            "## 0. Census",
+            "## 1. Theme",
+            "## 2. Seams",
+            "## 3. Minimal Pairs",
+            "## 4. Real search",
+            "## 5. Diagnose",
+            "## 6. Audit Review",
+            "## 7. Two doors",
+        ].map(at);
+        expect([...steps].sort((a, b) => a - b)).toEqual(steps);
+        // The refusal is a sentence, not a hope: nothing files before step 6's
+        // words, and the audit never labels its own work for the queue.
+        expect(text).toMatch(
+            /Nothing below runs before every row has its word/
+        );
+        expect(text).toMatch(/never applies `ready-for-agent`/);
+    });
+
+    it("prints the Audit Review table in the PRD's column order", () => {
+        expect(manifest()).toContain(
+            "| # | label | Discriminant | expected move | observed move (seeds n/m) | kind | cause | proposed issue |"
+        );
+    });
+
+    it("names the glossary terms and the ADRs each rule comes from", () => {
+        // Prose wraps: a citation split across lines still counts.
+        const text = corpus().replace(/\s+/g, " ");
+        for (const term of [
+            "Bot Audit",
+            "Audit Theme",
+            "Audit Review",
+            "Minimal Pair",
+            "Test Position",
+            "Verdict",
+            "Attestation",
+        ]) {
+            expect(text, term).toContain(term);
+        }
+        for (const adr of ["ADR 0149", "ADR 0148", "ADR 0070", "ADR 0141 §7"]) {
+            expect(text, adr).toContain(adr);
+        }
+    });
+
+    it("its seed-theme headings are keys of the closed AUDIT_THEMES list, verbatim", async () => {
+        const { AUDIT_THEMES } =
+            await import("../../convex/gre/ai/blade/auditThemes");
+        const seams = fs.readFileSync(
+            path.join(REPO_ROOT, ".claude", "skills", "bot-audit", "seams.md"),
+            "utf8"
+        );
+        const headings = [...seams.matchAll(/^### `([^`]+)`$/gm)].map(
+            (m) => m[1]!
+        );
+        expect(headings.length).toBeGreaterThanOrEqual(5);
+        expect(headings.filter((h) => !(h in AUDIT_THEMES))).toEqual([]);
+        // Every theme the list holds is named somewhere in the seam map, so a
+        // theme added to the code owes the skill its seam list.
+        const unmapped = Object.keys(AUDIT_THEMES).filter(
+            (theme) => !seams.includes("`" + theme + "`")
+        );
+        expect(unmapped, "theme(s) with no seam list in seams.md").toEqual([]);
+    });
+
+    it("every repository path its seam map cites exists", () => {
+        const text = corpus();
+        const cited = new Set(
+            [
+                ...text.matchAll(
+                    /`((?:convex|docs|scripts|src)\/[\w./-]+\.(?:ts|md))`/g
+                ),
+            ].map((m) => m[1]!)
+        );
+        expect(cited.size).toBeGreaterThan(10);
+        // The audit's scratch spec is UNTRACKED by contract (doors.md): the
+        // one cited path that must not exist in the tree.
+        const SCRATCH = "convex/gre/ai/blade/__tests__/audit-scratch.spec.ts";
+        expect(cited.has(SCRATCH)).toBe(true);
+        const missing = [...cited].filter(
+            (rel) =>
+                rel !== SCRATCH && !fs.existsSync(path.join(REPO_ROOT, rel))
+        );
+        expect(missing, "cited file(s) that do not exist").toEqual([]);
+    });
+
+    it("every bare module its seam map names is an engine or AI module", () => {
+        // `seams.md` names probes by file name alone (`abilityTiming.ts`),
+        // relative to the AI directory; a probe renamed or folded away must
+        // red the map, not leave it pointing at a module that is gone.
+        const seams = fs.readFileSync(
+            path.join(REPO_ROOT, ".claude", "skills", "bot-audit", "seams.md"),
+            "utf8"
+        );
+        const bare = new Set(
+            [...seams.matchAll(/`([A-Za-z]+\.ts)`/g)].map((m) => m[1]!)
+        );
+        expect(bare.size).toBeGreaterThan(10);
+        const homes = [
+            "convex/gre/ai",
+            "convex/gre/ai/blade",
+            "convex/gre/ai/verdicts",
+            "convex/gre",
+        ];
+        const missing = [...bare].filter(
+            (name) =>
+                !homes.some((h) => fs.existsSync(path.join(REPO_ROOT, h, name)))
+        );
+        expect(
+            missing,
+            "module(s) named in seams.md that exist nowhere"
+        ).toEqual([]);
     });
 });
