@@ -18,6 +18,7 @@ import type {
     LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
+import type { Rarity } from "../cards/types";
 import {
     areDraftPicksLegal,
     areRoundsRunning,
@@ -120,6 +121,14 @@ export interface DeckSummaryView {
     sideboardCount: number;
 }
 
+/** A `currentPack` card as the client receives it: the stored card plus the
+ *  dealt PRINTING's `rarity` (issue #5936), injected by the query shell
+ *  (`projectEventForViewer`) — absent here, and on the wire for a card whose
+ *  rarity cannot be resolved. */
+export interface DraftPackCardView extends DraftPackCard {
+    rarity?: Rarity;
+}
+
 export interface LimitedEventSeatView {
     seatIndex: number;
     userId?: string;
@@ -161,7 +170,7 @@ export interface LimitedEventSeatView {
      *  for the viewer's own seat — another seat's current pack is exactly
      *  the hidden information a Draft protects (PRD #1107 story 15). `null`
      *  for a Sealed event, before the draft starts, or a non-viewer seat. */
-    currentPack: DraftPackCard[] | null;
+    currentPack: DraftPackCardView[] | null;
     /** Draft only: how many packs are queued behind `currentPack` — a COUNT,
      *  never a queued pack's contents. Public for EVERY seat while the Draft
      *  is live (issue #5390: the table ring's queued-packs badge); outside a

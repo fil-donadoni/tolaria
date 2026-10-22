@@ -42,6 +42,9 @@ import {
 import type { ResolveCard } from "./formats";
 import type { ResolveCardMeta } from "./limited/eventLogic";
 import { tryGetDefinition } from "./cards";
+import type { Rarity } from "./cards/types";
+import { rarityValidator } from "./cardPrints";
+import { attachPackRarity } from "./limited/draftPackOrder";
 import {
     basicLandCardIds,
     makeResolveBasicLand,
@@ -281,6 +284,9 @@ const draftPackCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
     pickId: v.string(),
+    // The dealt PRINTING's rarity (issue #5936), injected by
+    // `projectEventForViewer`; absent when it cannot be resolved.
+    rarity: v.optional(rarityValidator),
 });
 
 // `definitionId` (Card Prints, ADR 0140/issue #4117) is stored on every
@@ -759,6 +765,9 @@ interface EventCardResolvers {
     resolveCardMeta: ResolveCardMeta;
     getCardEvalMeta: GetCardEvalMeta;
     getAutoBuildCardMeta: GetAutoBuildCardMeta;
+    /** Rarity of the exact printing a pack card was dealt as (CR 206);
+     *  `undefined` when the id resolves to nothing. */
+    resolveRarity: (scryfallId: string) => Rarity | undefined;
 }
 
 /** Every card id the event's Pack Sources can deal: each set's raw Booster
@@ -788,6 +797,7 @@ async function loadEventCardResolvers(
         ),
         getCardEvalMeta: makeCardEvalMeta(resolve),
         getAutoBuildCardMeta: makeAutoBuildCardMeta(resolve),
+        resolveRarity: (scryfallId) => resolve(scryfallId)?.rarity,
     };
 }
 
@@ -1046,10 +1056,11 @@ async function projectEventForViewer(
     );
     // Pools exist only once dealt; an `open` event (the lobby list's common
     // case) has nothing to resolve, so it pays no table reads.
-    const { getAutoBuildCardMeta } = await loadEventCardResolvers(
-        ctx,
-        arePoolsDealt(event.status) ? event.packSlots : []
-    );
+    const { getAutoBuildCardMeta, resolveRarity } =
+        await loadEventCardResolvers(
+            ctx,
+            arePoolsDealt(event.status) ? event.packSlots : []
+        );
     const resolveBasicLand = await loadBasicLandResolver(
         ctx,
         arePoolsDealt(event.status) ? (event.packSlots[0] ?? "") : ""
@@ -1081,6 +1092,12 @@ async function projectEventForViewer(
             return {
                 ...seatView,
                 autoBuiltDeck,
+                // Booster cards carry their printing's rarity (issue #5936)
+                // so the Draft Room can list them rarest-first; `null` stays
+                // `null` (another seat's pack never reaches the wire).
+                currentPack: seatView.currentPack
+                    ? attachPackRarity(seatView.currentPack, resolveRarity)
+                    : null,
                 // Bot seats have no `humanDeck`, so `projectLimitedEvent`
                 // leaves `deckSummary` null for them — fill it from the
                 // Auto-Built deck here (colors + counts only, still ungated).
