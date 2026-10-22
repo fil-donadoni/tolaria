@@ -20,6 +20,7 @@ import type {
     EffectOp,
     KickerCost,
     ManaCost,
+    MayPayCost,
     SpellMode,
     TargetRequirement,
 } from "../cards/types";
@@ -149,6 +150,8 @@ interface Accumulator {
     madness?: ManaCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
     morph?: ManaCost;
+    echo?: MayPayCost;
+    cumulativeUpkeep?: MayPayCost;
 }
 
 /**
@@ -670,6 +673,18 @@ function lowerLine(
             acc.morph = ir.cost;
             return null;
         }
+        case "echo": {
+            if (acc.echo !== undefined)
+                return "a card declares echo twice (CR 702.30a)";
+            acc.echo = ir.cost;
+            return null;
+        }
+        case "cumulativeUpkeep": {
+            if (acc.cumulativeUpkeep !== undefined)
+                return "a card declares cumulative upkeep twice (CR 702.24a)";
+            acc.cumulativeUpkeep = ir.cost;
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
@@ -1125,6 +1140,9 @@ export function lowerCard(
         definition.alternativeCosts = acc.alternativeCosts;
     if (acc.madness !== undefined) definition.madness = acc.madness;
     if (acc.morph !== undefined) definition.morph = acc.morph;
+    if (acc.echo !== undefined) definition.echo = acc.echo;
+    if (acc.cumulativeUpkeep !== undefined)
+        definition.cumulativeUpkeep = acc.cumulativeUpkeep;
 
     return {
         ok: true,
