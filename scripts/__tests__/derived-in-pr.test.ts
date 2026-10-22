@@ -20,9 +20,8 @@ import {
     RESTORE_COMMIT_SUBJECT,
     restoreHeaderHashes,
 } from "../lib/derived-in-pr";
-import { TREE_ROLE_ENV, treeRole } from "../lib/derived-state";
 import {
-    preQueueEnv,
+    preQueueRole,
     restoreDerivedState,
     type RestoreGit,
 } from "../land-ready";
@@ -427,13 +426,37 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
     });
 });
 
-describe("land:ready preQueueEnv — a PR tree is judged as a draft (issue #6353)", () => {
+describe("land:ready preQueueRole — a PR tree is never judged as base (issue #6353)", () => {
     // A second `land:ready` (a repair, a rebase, a re-queue) finds the restore
     // already made: nothing carried, the header the merge-base's, compiler
     // sources moved. Judged as `base`, check:oracle's tier 1 reds on drift.
-    it("an already-restored PR (nothing carried) is still judged as a draft, never base", () => {
-        const env = preQueueEnv({ [TREE_ROLE_ENV]: "base", PATH: "/bin" });
-        expect(treeRole(env)).toBe("draft");
-        expect(env.PATH).toBe("/bin");
+    it("an already-restored PR (rows only, nothing carried) is judged as a pr — rows, never the header", () => {
+        const carried = derivedCarried({
+            changed: [LOCKFILE_PATH],
+            lockfile: () => ({
+                head: lockfile({ compilerHash: "sha256:base" }, [
+                    '{"name":"A"}',
+                    '{"name":"B"}',
+                ]),
+                base: lockfile({ compilerHash: "sha256:base" }, [
+                    '{"name":"A"}',
+                ]),
+            }),
+        });
+        expect(carriesNothing(carried)).toBe(true);
+        expect(preQueueRole(carried)).toBe("pr");
+    });
+
+    it("a PR whose header this run restores is judged as a draft", () => {
+        const carried = derivedCarried({
+            changed: [LOCKFILE_PATH],
+            lockfile: () => ({
+                head: lockfile({ compilerHash: "sha256:pr" }, ['{"name":"A"}']),
+                base: lockfile({ compilerHash: "sha256:base" }, [
+                    '{"name":"A"}',
+                ]),
+            }),
+        });
+        expect(preQueueRole(carried)).toBe("draft");
     });
 });
