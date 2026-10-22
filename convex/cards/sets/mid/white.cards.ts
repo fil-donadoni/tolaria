@@ -92,18 +92,10 @@ export const catharCommando = defineCard(() => ({
 // simply the first card to combine plain `createToken` with
 // `entersAttacking`; the plumbing needed no changes.
 //
-// DIVERGENCE (tracked-by: #1865): the token always attacks the DEFENDING
-// PLAYER — `markAttacking` (`gre/combat.ts`) only joins `state.combat`, it
-// never assigns `combat.attackTargets`, so there is no controller choice of
-// a defending planeswalker instead. Unlike Satya (`sets/m3c/multicolor.cards.ts`,
-// whose own oracle text is silent on the point), Adeline's oracle text
-// EXPLICITLY names the alternative ("that player or a planeswalker they
-// control") — but this is the SAME pre-existing, already-tracked engine gap
-// #1865 flags on `TokenSpec.entersAttacking`'s own doc comment, not a new
-// one this card introduces. In the current two-player engine "the defending
-// player" is unambiguous (there is exactly one opponent), so "attacking that
-// player" is satisfied by construction; the planeswalker branch stays out of
-// scope for this issue, tracked by the existing #1865.
+// "Attacking that player or a planeswalker they control" (CR 508.4): the
+// token entry site owes the as-enters `attack-target` choice — the defending player or each planeswalker they control — so the plain
+// `entersAttacking` flag already says it. In this two-player engine "that
+// player" is the one opponent, the defending player.
 export const adelineResplendentCathar = defineCard(() => ({
     id: "18092f68-b96e-4084-9eba-b240d2195d81", // MID 1
     rarity: "rare",

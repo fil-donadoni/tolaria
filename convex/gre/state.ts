@@ -304,7 +304,7 @@ import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import {
     validateBlockerEligibility,
-    markAttacking,
+    joinCombatAttacking,
     markDeclaredBlockers,
 } from "./combat";
 import {
@@ -9851,6 +9851,16 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "attack-target": {
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: asEntersAttackTargetOptions(state, entry),
+                count: 1,
+                prompt: `Choose what ${subject} is attacking.`,
+            };
+            break;
+        }
         case "payLife": {
             const max = asEntersPayLifeMax(state, entry, choice.cap);
             pending = {
@@ -10020,6 +10030,28 @@ function asEntersDiscardCandidates(
         .map((c) => c.id);
 }
 
+/** CR 508.4 — what a creature entering attacking may attack: the defending
+ *  player (first, so the minimal-legal default keeps today's behaviour) and
+ *  each planeswalker they control, read LIVE as the choice is offered. Read by
+ *  `enqueueAsEntersChoice` (the prompt's allow-list), `forcedAsEntersAnswer`
+ *  (auto-answer when the player is the only option) and `applyAsEntersAnswer`
+ *  — one derivation, so offer, auto-answer and write cannot disagree. In this
+ *  two-player engine the defending player is the controller's opponent.
+ *  Battles are not offered: no battle protector is modeled (CR 310.9). */
+function asEntersAttackTargetOptions(
+    state: GameState,
+    entry: StagedEntry
+): { id: string; label: string }[] {
+    const defender = getPlayer(state, getOpponentId(state, entry.controllerId));
+    return [
+        { id: defender.id, label: `Attack ${defender.name}` },
+        ...defender.battlefield.filter(isPlaneswalker).map((pw) => ({
+            id: pw.id,
+            label: `Attack ${tryGetDefinition(presentedDefId(pw))?.name ?? "planeswalker"}`,
+        })),
+    ];
+}
+
 /** CR 707.5 / 614.12a — the permanents this staged entry may enter as a copy
  *  of, read LIVE as the choice is OFFERED rather than carried on the
  *  declaration (the `asEntersDiscardCandidates` reason: a simultaneous CR 400.7
@@ -10095,6 +10127,10 @@ function forcedAsEntersAnswer(
     }
     if (choice?.kind === "body") {
         return choice.options.length === 1 ? [choice.options[0].id] : undefined;
+    }
+    if (choice?.kind === "attack-target") {
+        const options = asEntersAttackTargetOptions(state, entry);
+        return options.length === 1 ? [options[0].id] : undefined;
     }
     if (choice?.kind === "payLife") {
         return asEntersPayLifeMax(state, entry, choice.cap) === 0
@@ -10224,6 +10260,25 @@ function applyAsEntersAnswer(
                 return { aborted: true };
             }
             card.attachedTo = resolvedHost.id;
+            return {};
+        }
+        case "attack-target": {
+            // CR 508.4 — a planeswalker pick is stamped for the token tail's
+            // `joinCombatAttacking`, which re-checks it is still live (CR
+            // 508.4a); the defending player is the absent stamp. Not
+            // re-narrowed to the LIVE options: the submit already checked the
+            // pick against the prompt, and a planeswalker that died between
+            // two batched prompts must leave the token not attacking (CR
+            // 508.4a), never quietly attacking the player instead.
+            const pick = selected[0];
+            if (
+                pick !== undefined &&
+                pick !== getOpponentId(state, entry.controllerId)
+            ) {
+                card.enterAttackingTarget = pick;
+            } else {
+                delete card.enterAttackingTarget;
+            }
             return {};
         }
         case "payLife": {
@@ -15664,47 +15719,14 @@ export function buildSpellContext(
         },
 
         // CR 506.3c / 508.4 — join the CURRENT combat as an attacker without
-        // ever having been declared as one. The single shared `markAttacking`
-        // helper sets both representations; `recordAttackerDeclared` is
-        // deliberately NOT called, so "whenever a creature attacks" watchers
-        // never see this entry.
+        // ever having been declared as one, against the defender stamped by
+        // the ninjutsu cost payment (CR 702.49c). `joinCombatAttacking` is the
+        // one entry every put-onto-the-battlefield-attacking path shares.
         enterCombatAttacking(cardInstanceId: string): void {
             if (!state.combat) return;
             const found = findOnBattlefield(state, cardInstanceId);
             if (!found) return;
-            const card = found.card;
-            // CR 508.1a / 702.49c — a stamped planeswalker or battle defender
-            // is consumed here; without one the creature attacks the defending
-            // player, for which `attackTargets` holds no entry. Consumed even
-            // when it turns out to be dead, so no later entry inherits it.
-            const stamped = card.enterAttackingTarget;
-            delete card.enterAttackingTarget;
-            // CR 506.3c — a stamped defender that is no longer on the
-            // battlefield (the planeswalker was killed in response to the
-            // ninjutsu ability) means the creature "does enter the
-            // battlefield, but it's never considered to be an attacking
-            // creature". Marking it attacking anyway left it in
-            // `attackerIds` and `isAttacking` while attacking nothing, which
-            // every attacking-creature static, `combatRoleFilter:
-            // "attacking"` target and a chained ninjutsu would then believe.
-            if (stamped) {
-                const defenderLive = state.players.some((p) =>
-                    p.battlefield.some(
-                        (c) =>
-                            c.id === stamped &&
-                            (c.types.includes("Planeswalker") ||
-                                c.types.includes("Battle"))
-                    )
-                );
-                if (!defenderLive) return;
-                markAttacking(state, card);
-                state.combat.attackTargets = {
-                    ...(state.combat.attackTargets ?? {}),
-                    [cardInstanceId]: stamped,
-                };
-                return;
-            }
-            markAttacking(state, card);
+            joinCombatAttacking(state, found.card);
         },
 
         removeFromCombat(target: TargetSelection): void {
@@ -18836,7 +18858,26 @@ export function createTokenPermanents(
             ids.push(id);
             continue;
         }
-        if (typeof enterDestination === "object") {
+        // CR 508.4 (issue #1865) — a token entering attacking owes its
+        // controller's choice of what it attacks, made AS it enters: one more
+        // as-enters choice, raised here by the entry site itself (the
+        // `aura-host` shape), queued behind any the token declares. With no
+        // planeswalker to choose it is auto-answered and the token enters
+        // in-line, exactly as before. Not owed by a token the attacking player
+        // does not control (CR 506.3b — it never attacks at all), nor by a
+        // debug board PLACING tokens (`placement`), which owes no choice.
+        const owed: AsEntersChoice[] = [
+            ...(typeof enterDestination === "object"
+                ? enterDestination.asEnters
+                : []),
+            ...(spec.entersAttacking &&
+            state.combat &&
+            !opts?.placement &&
+            controllerId === state.activePlayerId
+                ? [{ kind: "attack-target" } as const]
+                : []),
+        ];
+        if (owed.length > 0) {
             // CR 614.12a (ADR 0100 D2/D5) — this token owes "as it enters"
             // choices. Park it off every zone with everything the rest of this
             // loop body would have needed, and move on to the next token of the
@@ -18850,7 +18891,7 @@ export function createTokenPermanents(
                 token,
                 controllerId,
                 "token",
-                enterDestination.asEnters,
+                owed,
                 state.stack[state.stack.length - 1]?.id,
                 {
                     tokenEntry: {
@@ -18941,8 +18982,11 @@ function finishTokenEntry(
         emitEntersWithCounterEvents(state, token, opts.entryCounters ?? {});
         // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
         // ATTACKING: join the CURRENT combat directly through the shared
-        // `markAttacking` helper (`gre/combat.ts`) instead of running the
-        // normal declare-attackers action. `markAttacking` sets BOTH
+        // `joinCombatAttacking` helper (`gre/combat.ts`) instead of running
+        // the normal declare-attackers action, against the defender its
+        // as-enters `attack-target` answer stamped (issue #1865; CR 508.4a —
+        // a stamped planeswalker that is gone leaves it not attacking at
+        // all). Its `markAttacking` sets BOTH
         // engine-wide representations of "attacking" — `combat.attackerIds`
         // membership AND the per-permanent `isAttacking` flag — which is
         // exactly the sync every OTHER combat-scoped read (layer statics,
@@ -18954,10 +18998,10 @@ function finishTokenEntry(
         // for trigger purposes, so "whenever a creature attacks" abilities
         // (including this token's own, if it has one) correctly never see
         // this entry. No-op if there's no active combat to join (defensive —
-        // see `TokenSpec.entersAttacking`'s doc; `markAttacking` itself is
-        // also a no-op with no `state.combat`).
+        // see `TokenSpec.entersAttacking`'s doc; `joinCombatAttacking` itself
+        // is also a no-op with no `state.combat`).
         if (opts.entersAttacking && state.combat) {
-            markAttacking(state, token);
+            joinCombatAttacking(state, token);
         }
         applyExistingGrantsTo(state, token);
         beginApplyingStaticEffects(state, token);
