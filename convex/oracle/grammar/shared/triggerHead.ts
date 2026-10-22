@@ -37,9 +37,10 @@ import { COLOR_WORDS } from "./targetFilter";
 
 export const TRIGGER_HEAD = "trigger head";
 
-/** CR 603.1 — the three words a trigger condition begins with. */
+// CR 603.8 — "when <self>'s power is N or greater" (state trigger).
 const POWER_REACHED = /^when (.+)'s power is (\d+) or greater$/i;
 
+/** CR 603.1 — the three words a trigger condition begins with. */
 const TRIGGER_OPENER = /^(when|whenever|at) /i;
 
 /**
