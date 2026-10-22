@@ -17186,8 +17186,7 @@ export function buildSpellContext(
             }
             return undefined;
         },
-        // CR 701.26a: tap all lands controlled by playerId. Used by Mana Short
-        // and Drain Power.
+        // CR 701.26a: tap all lands controlled by playerId. Used by Drain Power.
         tapAllLands(playerId: string): void {
             const player = getPlayer(state, playerId);
             for (const card of player.battlefield) {

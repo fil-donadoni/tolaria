@@ -2129,12 +2129,10 @@ const addMana: Valuer<"addMana"> = (op, ctx) => {
     return { points: priced(ctx, "ramp", total), tags: ["ramp"] };
 };
 
-// CR 106.4 (issue #5260) — a player's unspent mana is lost. The Bot acts only
-// at a stable point where the pools are empty (mana floats only inside a
-// resolution), so a drain taken there removes nothing the basis can price —
-// the same reason a pure enabler like `setColor` is zero. The sign (harmful to
-// the recipient) is `OP_BENEFICENCE`'s, so a drain aimed at oneself still
-// reads as a self-harm.
+// CR 106.4 (issue #5260) — a player's unspent mana is lost. The feature basis
+// has no dimension for floating mana, so the drain prices at zero, like a pure
+// enabler such as `setColor`. The sign (harmful to the recipient) is
+// `OP_BENEFICENCE`'s, so a drain aimed at oneself still reads as a self-harm.
 const drainManaPool: Valuer<"drainManaPool"> = () => ZERO_OP_VALUE;
 
 const addSubtype: Valuer<"addSubtype"> = () => ZERO_OP_VALUE;
