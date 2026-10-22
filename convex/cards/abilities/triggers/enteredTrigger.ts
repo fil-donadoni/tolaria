@@ -50,7 +50,7 @@ export interface EnteredTriggerArgs {
      *  the entering permanent's instance id is compared to `self.id` so the
      *  source's own ETB doesn't fire the trigger. */
     scope: PermanentScope;
-    /** Zone the source functions from (CR 113.6b / 603.6e). Defaults to the
+    /** Zone the source functions from (CR 113.6b). Defaults to the
      *  battlefield; `"graveyard"` makes `collectTriggers`' graveyard scan fire
      *  it when ANOTHER permanent enters ("When a creature with mana value 6 or
      *  greater enters, return this card from your graveyard …"). Meaningless

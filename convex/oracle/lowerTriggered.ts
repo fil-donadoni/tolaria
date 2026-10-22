@@ -313,7 +313,7 @@ export function lowerTriggeredAbility(input: {
     // Only the "if this card is in your graveyard" condition IS the zone; any
     // other intervening-if still lowers to a predicate.
     const zoneCondition = input.condition?.kind === "self-in-graveyard";
-    // CR 603.6e — an "enters" head on ANOTHER permanent (scope not `self`) also
+    // CR 113.6b — an "enters" head on ANOTHER permanent (scope not `self`) also
     // has a graveyard-zone factory: `enteredTrigger` takes the zone, and the
     // graveyard scan fires it when a different permanent enters.
     const graveyardCapableHead =
