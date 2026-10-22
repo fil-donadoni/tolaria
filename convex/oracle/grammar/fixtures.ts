@@ -33,6 +33,44 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 603.2 + CR 701.6a — "Whenever a player casts an enchantment spell,
+    // counter it": the trigger announces no target, so the counter reads the
+    // `$event.spell` stack-object ref naming the spell that fired it. Exhibits
+    // a `counter` of a spell the canned smoke scenario cannot stage.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "1cb86b2f-116d-4952-b35a-1398341baaf5",
+            name: "Presence of the Master",
+            manaCost: "{3}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a player casts an enchantment spell, counter it.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Presence of the Master",
+            types: ["Enchantment"],
+            manaCost: { X: 3, W: 1 },
+            oracleText:
+                "Whenever a player casts an enchantment spell, counter it.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "presence-of-the-master-trigger",
+                    oracleText:
+                        "Whenever a player casts an enchantment spell, counter it.",
+                    head: {
+                        kind: "spell-cast",
+                        scope: "any",
+                        filter: { types: ["Enchantment"] },
+                    },
+                    effects: [
+                        { op: "counter", target: { ref: "$event.spell" } },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 500.1 + CR 603.2b — "At the beginning of the end step, return this
     // creature to its owner's hand": the unqualified phrase names EACH end step
     // (CR 500.1). Exhibits `moveZone` of `$source`, a zone change the canned

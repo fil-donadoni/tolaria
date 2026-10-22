@@ -197,7 +197,8 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : {}),
         ...(damagedPlayer !== null ? { player: damagedPlayer } : {}),
         ...(caster !== null ? { player: caster } : {}),
-        // CR 603.2 — a cast head names the spell it fired for.
+        // CR 603.2 + CR 608.2h — the spell a cast head fired on, for a stack
+        // verb ("counter it"); `$event.spell` is the censused stack-object ref.
         ...(head.kind === "spell-cast"
             ? { spell: { ref: "$event.spell" } }
             : {}),
