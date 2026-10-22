@@ -3988,6 +3988,10 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // populate it either, so this is a pre-existing gap on both paths, not a
     // client-only drift. No shipped may-pay/board-highlight filter uses it.
     name: "intentionally-absent",
+    // CR 202.3 (issue #6317) — a mana-value floor is read off the entry
+    // trigger's `PERMANENT_ENTERED` event snapshot (`event.manaValue`); no
+    // client permanent shape carries a mana value, so neither path supports it.
+    manaValueAtLeast: "intentionally-absent",
     // Was "intentionally-absent" until `toMatchablePermanent` gained its
     // optional `turnState` parameter (the `currentTurn` parameter that note
     // asked for, added alongside `controlledSinceTurnStart` below since both
@@ -4085,6 +4089,9 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     // project-wide gap `MIRROR_CENSUS.name` records above), so this is not a
     // reducer-specific drift.
     name: "intentionally-absent",
+    // CR 202.3 (issue #6317) — only the entry-trigger event snapshot carries a
+    // mana value; no cost-gate caller filters on it.
+    manaValueAtLeast: "intentionally-absent",
 };
 
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's

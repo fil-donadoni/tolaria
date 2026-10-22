@@ -50,6 +50,12 @@ export interface EnteredTriggerArgs {
      *  the entering permanent's instance id is compared to `self.id` so the
      *  source's own ETB doesn't fire the trigger. */
     scope: PermanentScope;
+    /** Zone the source functions from (CR 113.6b / 603.6e). Defaults to the
+     *  battlefield; `"graveyard"` makes `collectTriggers`' graveyard scan fire
+     *  it when ANOTHER permanent enters ("When a creature with mana value 6 or
+     *  greater enters, return this card from your graveyard …"). Meaningless
+     *  with `scope: "self"` — a card in a graveyard is not the one entering. */
+    zone?: "graveyard";
     /** Optional structural filter over the entering permanent (CR 603.6a —
      *  "whenever a creature with X enters"). Matches the event's `types` and
      *  controller-relation fields; subtype / static-ability constraints are
@@ -211,6 +217,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                     // shipped.
                     power: event.power,
                     toughness: event.toughness,
+                    // CR 202.3 — mana value snapshot for `manaValueAtLeast`;
+                    // absent on an older event → that filter fails CLOSED.
+                    manaValue: event.manaValue,
                     // CR 111.1 (issue #3220) — "whenever a creature TOKEN you
                     // control enters". Snapshotted by `emitPermanentEntered`
                     // like the P/T above. An event without the field leaves
@@ -278,6 +287,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
               }
             : {}),
     };
+    if (args.zone !== undefined) {
+        ability.zone = args.zone;
+    }
     if (args.modes !== undefined) {
         ability.modes = args.modes;
     }
