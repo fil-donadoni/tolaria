@@ -348,19 +348,14 @@ async function main(): Promise<void> {
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const claimed = claimedIssues();
-        // The cap counts ACTIVE sessions, so it asks the liveness classifier —
-        // `loop:doctor`'s, imported, never a second opinion (issue #4384). A
-        // claim proved `recoverable` keeps its label and gives up its slot;
-        // nothing here writes a release, which stays `loop:doctor --release`'s
-        // call alone. No verdict at all counts as live: uncertainty never
-        // authorises more concurrency.
-        // `stranded` (issue #4763: owner gone, work pushed) gives up its slot
-        // the same way — and is NOT in `live`, so a resuming pass may take
-        // the dead pass's claim over (the journal row moves the owner).
-        // The census (`capCensus`) reads the set reconciled against this
-        // machine's `released` rows; the collision check reads every live
-        // label (issue #5302 review), classified too, so a claim released
-        // here and stranded since is resumable (issue #6354).
+        // The cap counts ACTIVE sessions, so it asks `loop:doctor`'s liveness
+        // classifier, imported, never a second opinion. A claim proved
+        // `recoverable` or `stranded` keeps its label and gives up its slot —
+        // nothing here writes a release, that stays `loop:doctor --release`'s
+        // call — and is out of the collision set, so a pass RESUMING it is
+        // admitted. No verdict at all counts as live. The census reads the set
+        // reconciled against this machine's `released` rows; the collision
+        // check every live label, classified too (`claimSets`, issue #6354).
         const { live, recoverable, stranded, collide } = claimSets({
             claimed,
             issuesWithOpenPr: issuesWithOpenPr(),
@@ -370,7 +365,7 @@ async function main(): Promise<void> {
             isStale: isStaleClaim,
             classify: (issues) => claimVerdicts(issues, ORIGIN_BASE, root),
         });
-        // The cap counts THIS machine's claims (issue #5302).
+        // The cap counts THIS machine's claims (`machineScope`).
         const scope = machineScope(live, heldOnThisMachine(root));
         const decision = claimDecision({
             issue,
