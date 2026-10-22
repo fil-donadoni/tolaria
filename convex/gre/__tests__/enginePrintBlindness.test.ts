@@ -65,6 +65,12 @@ interface AllowlistEntry {
 
 const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     {
+        file: "serialize.ts",
+        count: 3,
+        role: "serialisation",
+        reason: "the last-known copiable record's cosmetic print is packed and unpacked verbatim.",
+    },
+    {
         file: "setup.ts",
         count: 1,
         role: "deck setup",
@@ -72,9 +78,9 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "state.ts",
-        count: 16,
+        count: 22,
         role: "token creation",
-        reason: "`SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; a token's own ability inherits its creator's `sourcePrintId` and a token copy keeps the copied token's, so edition art follows the same printing; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
+        reason: "a departing permanent's last-known copiable record keeps its print (none when face down) and a token copy made from it shows that art; `SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; a token's own ability inherits its creator's `sourcePrintId` and a token copy keeps the copied token's, so edition art follows the same printing; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
     },
     {
         file: "transform.ts",
@@ -90,7 +96,7 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "copy.ts",
-        count: 12,
+        count: 14,
         role: "copy",
         reason: "a copy effect shows the copied object's art (or its CR 707.9 token-frame pin), remembers the copier's own print and restores it on revert; a face-down source lends none (CR 708.5).",
     },
