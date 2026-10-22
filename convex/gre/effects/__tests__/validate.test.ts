@@ -8172,6 +8172,15 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
         expect(
             run([chooseLand(), { ...set, family: "artifact" }]).length
         ).toBeGreaterThan(0);
+        // A literal list under a declared family must be of that family
+        // (CR 205.3e): filtered to nothing, it would erase the land's types.
+        expect(run([{ ...set, subtypes: ["Island"] }])).toEqual([]);
+        expect(run([{ ...set, subtypes: ["Goblin"] }]).length).toBeGreaterThan(
+            0
+        );
+        expect(
+            run([{ ...set, subtypes: ["Forest"], family: "creature" }]).length
+        ).toBeGreaterThan(0);
     });
 
     it("CR 509.3d — `becomes-blocked-by` requires `watch`, reads `$event`, and alone accepts `blockerColors`", () => {
