@@ -145,6 +145,14 @@ describe("derivedCarried — what a diff carries of the derived state", () => {
             lockfile: rowsOnly,
         });
         expect(handOff(carried)).toEqual({ commit: true, role: "draft" });
+        const header = derivedCarried({
+            changed: [LOCKFILE_PATH],
+            lockfile: () => ({
+                head: lockfile({ compilerHash: "sha256:c2" }, ['{"name":"A"}']),
+                base: lockfile({}, ['{"name":"A"}']),
+            }),
+        });
+        expect(handOff(header)).toEqual({ commit: true, role: "draft" });
     });
 
     it("a changed catalogue file and a moved header hash are each a problem line", () => {
