@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -9,6 +9,7 @@ import SegmentedControl from "~/components/ui/segmented-control";
 import { useGameContext } from "~/hooks/useGameContext";
 import { buildPreviewBody } from "~/lib/preview-body";
 import CardPreviewBody from "~/components/cards/card-preview-body";
+import { HOVER_GRACE_MS } from "~/components/cards/card-preview";
 import {
     moveAllToMaindeck,
     moveAllToSideboard,
@@ -80,6 +81,33 @@ export default function SideboardingDialog({
     // Hover → the phase-2 computed preview (art + live oracle text) in the
     // middle column. Must stay above the early returns (rules-of-hooks).
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+    // Close grace (same model as the board dock, `HOVER_GRACE_MS`): leaving a
+    // row or the preview column only clears the preview after a short delay, and
+    // entering either cancels it — so the pointer can travel from the row into
+    // the preview column and reach its Live text / Printed card toggle.
+    const graceRef = useRef<number | undefined>(undefined);
+    const cancelHoverClose = useCallback(() => {
+        window.clearTimeout(graceRef.current);
+    }, []);
+    const scheduleHoverClose = useCallback(() => {
+        window.clearTimeout(graceRef.current);
+        graceRef.current = window.setTimeout(
+            () => setHoveredCardId(null),
+            HOVER_GRACE_MS
+        );
+    }, []);
+    const handleHoverCard = useCallback(
+        (cardId: string | null) => {
+            if (cardId === null) {
+                scheduleHoverClose();
+                return;
+            }
+            cancelHoverClose();
+            setHoveredCardId(cardId);
+        },
+        [cancelHoverClose, scheduleHoverClose]
+    );
+    useEffect(() => cancelHoverClose, [cancelHoverClose]);
 
     const seat = seats[seatIdx];
     // Working split for the current seat, seeded from its Match deck copy. Keyed
@@ -168,14 +196,24 @@ export default function SideboardingDialog({
     const isChooser =
         choiceKind === "prompt" && match.playDrawChooserId === seat.id;
 
-    const handleToSide = (cardId: string, all = false) =>
+    // A move removes the row from under the pointer without a mouseleave, so
+    // drop the preview at once rather than leave a stale card.
+    const dropPreview = () => {
+        cancelHoverClose();
+        setHoveredCardId(null);
+    };
+    const handleToSide = (cardId: string, all = false) => {
+        dropPreview();
         setSplit((s) =>
             all ? moveAllToSideboard(s, cardId) : moveToSideboard(s, cardId)
         );
-    const handleToMain = (cardId: string, all = false) =>
+    };
+    const handleToMain = (cardId: string, all = false) => {
+        dropPreview();
         setSplit((s) =>
             all ? moveAllToMaindeck(s, cardId) : moveToMaindeck(s, cardId)
         );
+    };
     const hoveredBody = hoveredCardId ? buildPreviewBody(hoveredCardId) : null;
 
     const handleReady = async () => {
@@ -252,7 +290,7 @@ export default function SideboardingDialog({
                         cards={split.cards}
                         moveLabel="→ Side"
                         onMove={handleToSide}
-                        onHoverCard={setHoveredCardId}
+                        onHoverCard={handleHoverCard}
                         countSuffix={` / ${lockedSize}+`}
                         disabled={submitting}
                         emptyMessage="No cards in the Maindeck."
@@ -260,7 +298,12 @@ export default function SideboardingDialog({
                     {/* Middle preview column (phase 2, winner B): the computed
                         art + live oracle of the hovered card. Hidden on small
                         screens. */}
-                    <div className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block">
+                    <div
+                        className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block"
+                        data-testid="sideboard-preview-column"
+                        onPointerEnter={cancelHoverClose}
+                        onPointerLeave={scheduleHoverClose}
+                    >
                         {hoveredBody ? (
                             <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
                                 {/* Engine View slot compact (issue #2728):
@@ -286,7 +329,7 @@ export default function SideboardingDialog({
                         cards={split.sideboard}
                         moveLabel="→ Main"
                         onMove={handleToMain}
-                        onHoverCard={setHoveredCardId}
+                        onHoverCard={handleHoverCard}
                         disabled={submitting}
                         emptyMessage="No cards in the Sideboard."
                     />
