@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import picomatch from "picomatch";
 import {
     classifyPath,
@@ -29,6 +29,7 @@ import {
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
+import { derivedProblems, TREE_ROLE_ENV } from "../lib/derived-state";
 import { ORIGIN_BASE } from "../lib/branches";
 import {
     HEALTH_ONLY_GUARDS,
@@ -2596,5 +2597,30 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
             expect(asked, files[0]).toEqual([]);
             expect(p.botReach, files[0]).toBeUndefined();
         }
+    });
+});
+
+// CR n/a — issue #6347 (ADR 0157): the PR-event lane judges the PR as a draft.
+describe("pr-check's lane role", () => {
+    it("runs check:lane with the tree judged as a draft", () => {
+        const yml = readFileSync(
+            join(__dirname, "..", "..", ".github/workflows/pr-check.yml"),
+            "utf8"
+        );
+        const step = yml.slice(yml.indexOf("- name: check:lane (one flaky"));
+        const stepEnd = step.indexOf("- name:", 10);
+        expect(step.slice(0, stepEnd)).toMatch(
+            new RegExp(`${TREE_ROLE_ENV}: draft`)
+        );
+    });
+
+    it("a draft judges a restored header green, a base judges it red", () => {
+        const facts = {
+            headerDrift: "compiler hash drift",
+            rowDrift: null,
+            catalogueStale: false,
+        };
+        expect(derivedProblems("draft", facts)).toEqual([]);
+        expect(derivedProblems("base", facts)).toEqual(["compiler hash drift"]);
     });
 });
