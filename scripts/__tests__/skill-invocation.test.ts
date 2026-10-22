@@ -25,6 +25,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 /** Skills only the owner or a driver pass prompt reaches. */
 const USER_INVOKED_ONLY = [
     "audit-tracker",
+    "bot-audit",
     "explain",
     "health-fix",
     "new-set",
@@ -46,6 +47,7 @@ const INVOKES: Record<string, string[]> = {
     "grammar-rule": ["new-op"],
     "new-op": ["create-ticket"],
     "bot-change": ["new-op"],
+    "bot-audit": ["bot-change"],
     grill: ["to-prd", "to-tickets"],
     "to-prd": ["to-tickets"],
     "cluster-gaps": [],
