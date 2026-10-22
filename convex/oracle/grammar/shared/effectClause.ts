@@ -932,6 +932,12 @@ export type EffectSentenceIR =
           readonly kind: "tap-untap";
           readonly action: "tap" | "untap";
           readonly subject: SubjectIR;
+          /**
+           * CR 106.4 — "… and that player loses all unspent mana": the sweep's
+           * announced player (`targetPlayerControls`) also loses their pool.
+           * Present only on a tap sweep over a target player's permanents.
+           */
+          readonly thenDrainsManaPool?: true;
       }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
     | {
@@ -3867,6 +3873,9 @@ const RETURN_OWN_PERMANENT =
 /** "up to one target creature" is a TARGET (CR 115.1) and stays with the
  *  announced-subject path; only an unannounced noun phrase is a choice. */
 const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
+/** CR 106.4 — the tail of a tap sweep over an announced player's permanents. */
+const TAP_TARGET_PLAYER_SWEEP_DRAIN =
+    /^Tap (all .+) target player controls and that player loses all unspent mana$/;
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
@@ -6199,6 +6208,28 @@ function effectSentence(
                 filter: filter.value,
                 max,
                 phrase: uncapitalise(span),
+            } satisfies EffectSentenceIR);
+        }
+        // CR 106.4 + CR 701.26a — "Tap all lands target player controls and
+        // that player loses all unspent mana": the sweep names the announced
+        // player whose pool is then emptied. The tail is read only behind a
+        // tap sweep whose swept permanents are that player's.
+        const drained =
+            action === "tap" ? span.match(TAP_TARGET_PLAYER_SWEEP_DRAIN) : null;
+        if (drained !== null) {
+            const mass = massSubjectRule.run(drained[1]!, ctx);
+            if (!mass.ok) return mass;
+            if (mass.value.select.controller !== undefined)
+                return fail("two controller clauses", span);
+            return ok({
+                kind: "tap-untap" as const,
+                action,
+                subject: {
+                    kind: "mass" as const,
+                    ...mass.value,
+                    targetPlayerControls: true as const,
+                } as SubjectIR,
+                thenDrainsManaPool: true as const,
             } satisfies EffectSentenceIR);
         }
         const subject = sweepableSubject(span.slice(verb.length), ctx);

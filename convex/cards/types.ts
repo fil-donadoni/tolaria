@@ -15746,6 +15746,15 @@ export type EffectOp =
            *  map has nowhere to record a lifetime. */
           persistsUntil?: ManaPersistence;
       }
+    /** CR 106.4 (issue #5260) — a player loses all unspent mana: their mana
+     *  pool empties of every fungible and restricted unit at once ("that
+     *  player loses all unspent mana"). A thin declarative skin over the
+     *  SpellContext primitive `drainManaPool`, one execution path (ADR 0045).
+     *  `player` names whose pool empties; skipped when the player cannot be
+     *  resolved (CR 608.2b). It does NOT hand the drained mana to anyone —
+     *  the primitive's returned record is dropped here, so a "you add the mana
+     *  lost this way" clause stays a `resolve()` card's business. */
+    | { op: "drainManaPool"; player: EffectPlayerRef }
     /** CR 701.8 — destroy the announced target permanent, or the current
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy

@@ -601,6 +601,9 @@ interface Requirements {
     targetSlots: Map<number, "player" | "permanent">;
     /** Players who must be able to draw (need a stocked library). */
     drawingPlayers: Set<string>;
+    /** Players whose mana pool is seeded with floating mana, so an Op that
+     *  empties it has an outcome to observe (`drainManaPool`). */
+    floatingManaPlayers: Set<string>;
     /** Count sets to populate so a `count` value is non-zero. */
     countSets: EffectCountSpec[];
     /** Every reason the script cannot be scenario-ized; empty when it can. */
@@ -2249,6 +2252,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (analysePlayer records the skip).
             analysePlayer(op.player ?? "controller", req, false);
             return;
+        case "drainManaPool": {
+            // CR 106.4 (issue #5260) — the pool empties. The recipient is
+            // seeded with floating mana so the emptying is observable; a ref
+            // player is unmodelable (analysePlayer records the skip).
+            analysePlayer(op.player, req, false);
+            const resolved = resolveScenarioPlayer(op.player);
+            if (resolved !== "ref" && resolved !== "target")
+                req.floatingManaPlayers.add(resolved);
+            else if (resolved === "target")
+                req.floatingManaPlayers.add(OPPONENT_ID);
+            return;
+        }
         case "destroy":
         case "exile":
             if ("target" in op.target) {
@@ -2847,11 +2862,13 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                 library: p1Library,
                 battlefield: p1Bf,
                 graveyard: p1Gy,
+                ...floatingMana(req, CASTER_ID),
             }),
             makePlayer(OPPONENT_ID, {
                 library: p2Library,
                 battlefield: p2Bf,
                 graveyard: p2Gy,
+                ...floatingMana(req, OPPONENT_ID),
             }),
         ],
     });
@@ -3327,6 +3344,29 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: armed && !wasArmed,
                     detail: `armed=${armed} (was ${wasArmed})`,
+                };
+            },
+        };
+    },
+    // drainManaPool (issue #5260) empties a player's pool (CR 106.4). The
+    // scenario seeds the recipient with floating mana, so the assertion is
+    // that a non-empty pool before is entirely empty after — a no-op executor
+    // leaves the seed in place and reds it.
+    drainManaPool(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "drainManaPool" }>;
+        const pid = assertionPlayerId(op.player);
+        const total = (p: Pick<PlayerState, "manaPool">) =>
+            Object.values(p.manaPool).reduce((sum, n) => sum + (n ?? 0), 0);
+        const before = total(findPlayer(pre, pid));
+        return {
+            label: `drainManaPool player ${pid}`,
+            check: (post) => {
+                const postP = findPlayer(post, pid);
+                const after = total(postP);
+                const restricted = (postP.restrictedMana ?? []).length;
+                return {
+                    ok: before > 0 && after === 0 && restricted === 0,
+                    detail: `pool ${before} → ${after}, ${restricted} restricted unit(s)`,
                 };
             },
         };
@@ -4112,10 +4152,20 @@ export function planSmokeTest(
     return { kind: "run", scenario: built, assertions };
 }
 
+/** The seeded pool for a player an Op will empty (`drainManaPool`): two green
+ *  floating, so a drain has a non-zero amount to take. */
+function floatingMana(
+    req: Requirements,
+    id: string
+): { manaPool: Record<string, number> } | Record<string, never> {
+    return req.floatingManaPlayers.has(id) ? { manaPool: { G: 2 } } : {};
+}
+
 function emptyRequirements(host: SmokeHost): Requirements {
     return {
         targetSlots: new Map(),
         drawingPlayers: new Set(),
+        floatingManaPlayers: new Set(),
         countSets: [],
         skips: [],
         host,
