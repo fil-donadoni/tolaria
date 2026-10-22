@@ -4288,8 +4288,10 @@ export const OP_EXECUTORS: {
         // instance ids) must never write an id into the subtype line.
         const resolved = resolveFilterSubtypes(ctx, op.subtypes) ?? [];
         // A declared land family keeps only CR 205.3i's land types the same
-        // way; it needs no ledger family, because a set on a land already
-        // replaces only its land types (CR 305.7, `applyLandTypeReplacement`).
+        // way; it needs no ledger family, because a set on a permanent that
+        // is a Land when layer 4 applies already replaces only its land types
+        // (CR 305.7, `applyLandTypeReplacement`) — on a non-land the replace
+        // is wholesale, as for any family-less set.
         const subtypes =
             op.family === "creature"
                 ? resolved.filter((s) => CREATURE_SUBTYPES.has(s))

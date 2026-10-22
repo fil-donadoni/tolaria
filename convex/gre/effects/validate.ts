@@ -38,7 +38,10 @@ import {
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
 import { activationConditionErrors } from "../activationPrecondition";
-import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
+import {
+    CREATURE_SUBTYPES,
+    LAND_SUBTYPES,
+} from "../../oracle/grammar/shared/subtypes";
 import {
     isReservedTargetBinding,
     parseSnapshotNameRef,
@@ -5197,6 +5200,24 @@ const OP_SCHEMAS: OpSchemaTable = {
                 errors.push(
                     'a { ref } "subtypes" requires family: "creature" or "land" (CR 205.1a)'
                 );
+            }
+            // A literal list under a declared family must be of that family:
+            // the runtime keeps only its members, and a list filtered to
+            // nothing would replace the family with no type at all.
+            const table =
+                entry.family === "creature"
+                    ? CREATURE_SUBTYPES
+                    : entry.family === "land"
+                      ? LAND_SUBTYPES
+                      : undefined;
+            if (table !== undefined && Array.isArray(entry.subtypes)) {
+                for (const t of entry.subtypes as unknown[]) {
+                    if (typeof t !== "string" || !table.has(t)) {
+                        errors.push(
+                            `"subtypes" member ${JSON.stringify(t)} is not a ${String(entry.family)} type (CR 205.3e)`
+                        );
+                    }
+                }
             }
             return errors;
         },
