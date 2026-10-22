@@ -491,6 +491,19 @@ export type Resolution =
     | {
           readonly kind: "regenerate";
           readonly artifacts: readonly RegeneratedArtifact[];
+          /**
+           * Marked paths the PR never owns (ADR 0157, issue #6248): the four
+           * `data/catalogue/*` files, taken from the BASE instead of
+           * regenerated — the base writes them after the merge, and a PR
+           * rebased onto it must carry the base's bytes, not fresh ones.
+           */
+          readonly fromBase: readonly string[];
+          /**
+           * The lockfile was regenerated, so its header hashes are this
+           * tree's: they are rewritten to the base's after the run (the rows
+           * stay regenerated — they are the PR's).
+           */
+          readonly restoreHeader: boolean;
       };
 
 /**
@@ -524,11 +537,17 @@ export function planResolution(input: {
     readonly corpusPresent: boolean;
 }): Resolution {
     const artifacts: RegeneratedArtifact[] = [];
+    const fromBase: string[] = [];
     const unknown: string[] = [];
     for (const path of dedupe(input.markedPaths)) {
         const artifact = regeneratedArtifact(path);
-        if (artifact) artifacts.push(artifact);
-        else unknown.push(path);
+        if (artifact === undefined) unknown.push(path);
+        // ADR 0157 (issue #6248): a derived path the PR never carries is
+        // resolved by the base's bytes, never regenerated here — the one
+        // derived path the PR shares, the lockfile, is regenerated for its
+        // rows and its header put back (`restoreHeader`).
+        else if (BASE_OWNED_PATHS.includes(path)) fromBase.push(path);
+        else artifacts.push(artifact);
     }
     if (unknown.length > 0) {
         return {
@@ -538,7 +557,8 @@ export function planResolution(input: {
                 `  fix: resolve by hand, or add it to REGENERATED_ARTIFACTS in scripts/lib/generated-artifacts.ts`,
         };
     }
-    if (artifacts.length === 0) return { kind: "none" };
+    if (artifacts.length === 0 && fromBase.length === 0)
+        return { kind: "none" };
     if (artifacts.some((a) => a.requiresCorpus) && !input.corpusPresent) {
         return {
             kind: "refuse",
@@ -549,8 +569,28 @@ export function planResolution(input: {
                 `  fix: bun run oracle:corpus && ${artifacts.map((a) => `bun run ${a.script}`).join(" && ")}`,
         };
     }
-    return { kind: "regenerate", artifacts };
+    return {
+        kind: "regenerate",
+        artifacts,
+        fromBase,
+        restoreHeader: artifacts.some((a) => a.path === BASE_OWNED_LOCKFILE),
+    };
 }
+
+/**
+ * The derived paths the BASE writes after each merge (ADR 0157 § Option 1b,
+ * issue #6248) and a PR never carries: `derive:sync`'s five less the
+ * lockfile, whose rows ARE the PR's. Restated from `lib/derive-sync.ts`
+ * (a leaf this module must not drag the compiler through); pinned equal by
+ * `generated-artifact-merge.test.ts`.
+ */
+export const BASE_OWNED_LOCKFILE = "data/oracle-compiled.json";
+export const BASE_OWNED_PATHS: readonly string[] = [
+    "data/catalogue/source-hash.json",
+    "data/catalogue/packed-corpus.json",
+    "data/catalogue/definition-index.json",
+    "data/catalogue/search-index.json",
+];
 
 function dedupe(paths: readonly string[]): string[] {
     return [...new Set(paths.map((p) => p.trim()).filter((p) => p.length > 0))];

@@ -47,12 +47,14 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import { forgetNotice, notifyOnce } from "./lib/notify-owner";
 import {
+    deriveCommitAmong,
     mergedPrNumbers,
     cwdInside,
     mergedWorktree,
     pushRange,
     seedPlan,
     syncNotice,
+    type BaseCommit,
 } from "./lib/post-merge";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { gcLine, worktreeGc } from "./worktree-gc";
@@ -227,13 +229,14 @@ export function fastForward(
 }
 
 /*
- * DERIVED-FRESH TIPS (ADR 0157 § Option 1b, issue #6247). `sync` and `seed`
- * fast-forward the primary to the PUSHED tip, and only when that tip is
- * derived-fresh — `derive:sync --fresh` on the job worktree: the lockfile
+ * DERIVED-FRESH TIPS (ADR 0157 § Option 1b, issues #6247, #6248). `sync` and
+ * `seed` fast-forward the primary to the PUSHED tip, and only when that tip
+ * is derived-fresh — `derive:sync --fresh` on the job worktree: the lockfile
  * header hashes and `data/catalogue/*` agree with the tree — so the
  * deployment never serves a catalogue that disagrees with its source. A
  * stale tip leaves the primary on the previous fresh one until the derive
- * commit's own push; `sync` says so and is green, `seed` is red (below).
+ * commit's own push; `sync` says so and is green, `seed` waits for that
+ * commit and fast-forwards to it (below).
  */
 
 /** This script's own tree — the job worktree, at the pushed tip. */
@@ -373,11 +376,70 @@ function readPush(before: string, after: string, primary: string) {
     return { prs: mergedPrNumbers(subjects), files };
 }
 
+/**
+ * How long `seed` waits for the derive commit of a stale tip (ADR 0157,
+ * issue #6248): `derive:sync` runs in `housekeeping` (one run at a time,
+ * up to 50 min), so the commit is usually a minute or two away but can
+ * queue behind a long run; the hourly cron is its backstop. A job that
+ * waits an hour holds the seed runner — past this bound (inside the job's
+ * `timeout-minutes`) the seed is red and run by hand.
+ */
+export const SEED_DERIVE_WAIT_MS = 25 * 60_000;
+const SEED_DERIVE_POLL_MS = 20_000;
+
+/** The base's commits after `after`, oldest first, with their files. */
+function commitsAfter(after: string, primary: string): BaseCommit[] {
+    const shas = git(
+        ["rev-list", "--reverse", `${after}..${ORIGIN_BASE}`],
+        primary
+    ).out;
+    return shas === ""
+        ? []
+        : shas.split("\n").map((sha) => ({
+              sha,
+              subject: git(["log", "-1", "--format=%s", sha], primary).out,
+              files: git(
+                  ["diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                  primary
+              )
+                  .out.split("\n")
+                  .filter((f) => f !== ""),
+          }));
+}
+
+/**
+ * Wait for `derive:sync`'s commit on top of the pushed tip `after` (ADR 0157,
+ * issue #6248): fetch, look, sleep, up to `waitMs`. A re-run of this job
+ * cannot become fresh — its `GITHUB_SHA` is fixed — so the wait is here.
+ * Null when the bound passed with no derive commit on the base.
+ */
+export function awaitDeriveCommit(
+    after: string,
+    primary: string,
+    opts: { waitMs?: number; pollMs?: number } = {}
+): string | null {
+    const waitMs = opts.waitMs ?? SEED_DERIVE_WAIT_MS;
+    const pollMs = opts.pollMs ?? SEED_DERIVE_POLL_MS;
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+        git(["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH], primary);
+        const found = deriveCommitAmong(commitsAfter(after, primary));
+        if (found !== null) return found;
+        if (Date.now() >= deadline) return null;
+        console.log(
+            `post-merge: ${after.slice(0, 10)} is derived-stale — waiting for derive:sync's commit (${Math.round((deadline - Date.now()) / 1000)}s left)`
+        );
+        spawnSync("sleep", [String(Math.ceil(pollMs / 1000))]);
+    }
+}
+
 /** The I/O `syncSteps` and `seed` reach past git — a seam for the test. */
 export interface SyncIo {
     judge: (sha: string) => TipJudgement;
     ingest: (primary: string) => boolean;
     removeWorktree: (primary: string, pr: number) => boolean;
+    /** `seed` only: the derive commit on top of a stale tip, waited for. */
+    deriveCommit: (after: string, primary: string) => string | null;
 }
 
 const SYNC_IO: SyncIo = {
@@ -385,6 +447,7 @@ const SYNC_IO: SyncIo = {
     ingest: (primary) =>
         bun(["scripts/telemetry-ingest.ts", "--quick"], primary),
     removeWorktree: removeMergedWorktree,
+    deriveCommit: awaitDeriveCommit,
 };
 
 /**
@@ -438,27 +501,38 @@ export function sync(primary: string, before: string, after: string): boolean {
 
 /**
  * The seed resolves card names against the primary's disk, so it needs the
- * primary AT the pushed tip — and the primary moves only to a derived-fresh
- * one (ADR 0157). A stale tip is therefore a red here, named: until issue
- * #6248 lands, PRs carry fresh derived state and a stale tip is a PR that
- * merged stale, worth the red; once they stop, the seed must wait for the
- * derive commit instead (issue #6248's to decide — see its note in the PR).
+ * primary AT a tip holding the PR — and the primary moves only to a
+ * derived-fresh one (ADR 0157). PRs carry no derived state (issue #6248),
+ * so every card PR's merge is a stale tip for a minute or two: the seed
+ * WAITS for `derive:sync`'s commit on top of it (`awaitDeriveCommit`, a
+ * descendant of the pushed tip, fresh by construction) and fast-forwards to
+ * THAT — never to the latest base, whose own leg judges it. A re-run of the
+ * same job could not become fresh (its `GITHUB_SHA` is fixed). Past the
+ * wait, the seed is red and run by hand.
  */
 export function seed(
     primary: string,
     before: string,
     after: string,
-    io: Pick<SyncIo, "judge"> = SYNC_IO
+    io: Pick<SyncIo, "judge" | "deriveCommit"> = SYNC_IO
 ): boolean {
     const judged = io.judge(after);
     const held = tipHeldLine(after, primary, judged);
     if (held !== null) console.log(held);
-    const ff = judged.kind !== "stale" && fastForward(primary, after);
+    let target: string | null = after;
+    if (judged.kind === "stale") {
+        target = io.deriveCommit(after, primary);
+        if (target !== null)
+            console.log(
+                `post-merge: derive:sync's commit ${target.slice(0, 10)} is on top of ${after.slice(0, 10)} — fast-forwarding to it (ADR 0157)`
+            );
+    }
+    const ff = target !== null && fastForward(primary, target);
     const { prs, files } = readPush(before, after, primary);
     const plan = seedPlan(ff, prs, files);
-    if (judged.kind === "stale")
+    if (target === null)
         console.error(
-            `post-merge: nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"} — seed by hand (bun run seed:scenario <PR>) once derive:sync has landed`
+            `post-merge: no derive:sync commit on top of ${after.slice(0, 10)} within ${Math.round(SEED_DERIVE_WAIT_MS / 60_000)} min — nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"}; seed by hand (bun run seed:scenario <PR>) once it lands`
         );
     if (!ff) return false;
     let ok = true;

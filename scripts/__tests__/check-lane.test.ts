@@ -627,6 +627,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:test-hygiene",
             "blade-index",
             "check:baseline-shrink",
+            "check:derived-in-diff",
             "check:issue-log-comments",
             "check:duplicate-test-blocks",
         ]);
@@ -845,6 +846,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
             "check:baseline-shrink",
+            "check:derived-in-diff",
             "check:duplicate-test-blocks",
         ]);
     });
@@ -1020,6 +1022,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // The engine module is not a blade registry input (issue #5940).
             "blade-index",
             "check:baseline-shrink",
+            "check:derived-in-diff",
             "check:duplicate-test-blocks",
         ]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
@@ -1055,6 +1058,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "dom",
             "blade-index",
             "check:baseline-shrink",
+            "check:derived-in-diff",
             "check:duplicate-test-blocks",
         ]);
         const out = renderPlan(cards, "4f2a91c");
@@ -1074,6 +1078,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             "blade-index",
             "check:baseline-shrink",
+            "check:derived-in-diff",
             "check:issue-log-comments",
             "check:duplicate-test-blocks",
         ]);

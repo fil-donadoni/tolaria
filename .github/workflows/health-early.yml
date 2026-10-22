@@ -14,6 +14,11 @@
 # runner class, so it stands as environment-dependent (issue #5858) — the
 # verdict's `github-hosted/` machine name is what tells the ladder.
 #
+# A derived-stale tip within `derive:sync`'s grace (ADR 0157, issue #6248)
+# is `pending`: `last.json` says so, nothing was gated, no RED is dispatched
+# below — the derive commit's own push starts the run that gates its tip.
+# Stale past the grace is a RED at step `derive:sync`, handled like any RED.
+#
 # The batch: one run at a time, and the pushes that land while it runs
 # collapse into ONE pending run of the newest tip (a concurrency group keeps
 # one pending run and cancels the older pending one — the batching wanted

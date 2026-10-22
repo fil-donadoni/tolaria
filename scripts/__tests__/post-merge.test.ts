@@ -7,6 +7,7 @@ import { ALLOWLIST_PATH } from "../check-gaps";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import { BASE_BRANCH } from "../lib/branches";
 import {
+    deriveCommitAmong,
     cardSetsChanged,
     cwdInside,
     mergedPrNumbers,
@@ -15,7 +16,10 @@ import {
     seedPlan,
     syncNotice,
 } from "../lib/post-merge";
+import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "../lib/derive-sync";
 import {
+    seed,
+    awaitDeriveCommit,
     fastForward,
     fastForwardRefusal,
     gitErrorLine,
@@ -452,5 +456,169 @@ describe("fastForward", () => {
                 })
             ).toMatch(/derived-stale \(header drift\) — \/p stays .*ADR 0157/);
         });
+    });
+});
+
+describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, issue #6248)", () => {
+    it("the first derive:sync commit whose files are derived paths only", () => {
+        expect(
+            deriveCommitAmong([
+                { sha: "a", subject: "feat: x (#1)", files: ["src/a.ts"] },
+                {
+                    sha: "b",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [DERIVED_PATHS[0]!, DERIVED_PATHS[2]!],
+                },
+                {
+                    sha: "c",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [DERIVED_PATHS[1]!],
+                },
+            ])
+        ).toBe("b");
+    });
+
+    it("null with none yet; a foreign file or no file under the subject is not it", () => {
+        expect(deriveCommitAmong([])).toBeNull();
+        expect(
+            deriveCommitAmong([
+                {
+                    sha: "a",
+                    subject: "feat: y (#2)",
+                    files: [DERIVED_PATHS[0]!],
+                },
+                { sha: "b", subject: DERIVE_SYNC_COMMIT_SUBJECT, files: [] },
+                {
+                    sha: "c",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [DERIVED_PATHS[0]!, "src/a.ts"],
+                },
+            ])
+        ).toBeNull();
+    });
+});
+
+describe("seed — a stale tip waits for derive:sync's commit and fast-forwards to it (ADR 0157, issue #6248)", () => {
+    let dir: string;
+    const git = (args: string[], cwd: string) =>
+        spawnSync("git", args, { cwd, encoding: "utf8" });
+    const quiet = () => {
+        const spies = [
+            vi.spyOn(console, "log").mockImplementation(() => {}),
+            vi.spyOn(console, "error").mockImplementation(() => {}),
+        ];
+        return () => spies.forEach((s) => s.mockRestore());
+    };
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "post-merge-seed-"));
+        git(["init", "-q", "--bare", "-b", BASE_BRANCH, "origin.git"], dir);
+        git(["clone", "-q", "origin.git", "primary"], dir);
+        git(["clone", "-q", "origin.git", "pusher"], dir);
+        for (const who of ["primary", "pusher"]) {
+            const cwd = join(dir, who);
+            git(["config", "user.email", "t@t"], cwd);
+            git(["config", "user.name", "t"], cwd);
+            git(["checkout", "-q", "-B", BASE_BRANCH], cwd);
+        }
+        const primary = join(dir, "primary");
+        writeFileSync(join(primary, "a"), "a");
+        git(["add", "."], primary);
+        git(["commit", "-qm", "a"], primary);
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+    });
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
+
+    /** The pusher lands a commit on the base and returns its sha. */
+    const push = (file: string, subject: string): string => {
+        const pusher = join(dir, "pusher");
+        git(["fetch", "-q"], pusher);
+        git(["reset", "-q", "--hard", `origin/${BASE_BRANCH}`], pusher);
+        mkdirSync(dirname(join(pusher, file)), { recursive: true });
+        writeFileSync(join(pusher, file), subject);
+        git(["add", "."], pusher);
+        git(["commit", "-qm", subject], pusher);
+        git(["push", "-q", "origin", BASE_BRANCH], pusher);
+        return git(["rev-parse", "HEAD"], pusher).stdout.trim();
+    };
+
+    it("fast-forwards the primary to the derive commit, not to the stale tip", () => {
+        const primary = join(dir, "primary");
+        const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
+        // No PR number: the fixture has no seed scripts to run after the move.
+        const after = push("src/card.ts", "feat: a card");
+        const derive = push(DERIVED_PATHS[0]!, DERIVE_SYNC_COMMIT_SUBJECT);
+        const asked: string[] = [];
+        const restore = quiet();
+        try {
+            expect(
+                seed(primary, before, after, {
+                    judge: () => ({ kind: "stale", why: "header drift" }),
+                    deriveCommit: (sha) => {
+                        asked.push(sha);
+                        return awaitDeriveCommit(sha, primary, { waitMs: 0 });
+                    },
+                })
+            ).toBe(true);
+        } finally {
+            restore();
+        }
+        expect(asked).toEqual([after]);
+        expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(derive);
+    });
+
+    it("no derive commit within the wait: red, the primary unmoved, seeding left to a hand", () => {
+        const primary = join(dir, "primary");
+        const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
+        const after = push("src/card.ts", "feat: a card (#7)");
+        push("src/other.ts", "feat: another (#8)");
+        const lines: string[] = [];
+        const spy = vi
+            .spyOn(console, "error")
+            .mockImplementation((l) => void lines.push(String(l)));
+        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        try {
+            expect(
+                seed(primary, before, after, {
+                    judge: () => ({ kind: "stale", why: "header drift" }),
+                    deriveCommit: (sha) =>
+                        awaitDeriveCommit(sha, primary, { waitMs: 0 }),
+                })
+            ).toBe(false);
+        } finally {
+            spy.mockRestore();
+            log.mockRestore();
+        }
+        expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(before);
+        expect(lines.join("\n")).toContain("no derive:sync commit on top of");
+        expect(lines.join("\n")).toContain("#7");
+    });
+
+    it("a fresh tip is fast-forwarded to as before, without asking for a derive commit", () => {
+        const primary = join(dir, "primary");
+        const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
+        const after = push("src/card.ts", "feat: a card (#7)");
+        let asked = 0;
+        const restore = quiet();
+        try {
+            seed(primary, before, after, {
+                judge: () => ({ kind: "fresh" }),
+                deriveCommit: () => {
+                    asked += 1;
+                    return null;
+                },
+            });
+        } finally {
+            restore();
+        }
+        expect(asked).toBe(0);
+        expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(after);
     });
 });

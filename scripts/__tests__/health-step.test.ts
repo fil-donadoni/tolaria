@@ -12,7 +12,11 @@ import {
     MAINTENANCE_SCRIPTS,
     PR_RECEIPT_GUARDS,
     type HealthStep,
+    DERIVED_GRACE_MS,
+    derivePredicateAnswer,
+    derivedTipVerdict,
 } from "../lib/health-step";
+import { gateSkipReason } from "../lib/health-gate-skip";
 
 /**
  * The health gate's step runner (issue #3487). `bun run release` used to sit
@@ -344,5 +348,124 @@ describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", 
             );
             expect(HEALTH_ONLY_GUARDS).not.toHaveProperty(name);
         }
+    });
+});
+
+describe("derivedTipVerdict — a derived-stale tip is pending within derive:sync's grace, RED past it (ADR 0157, issue #6248)", () => {
+    const t0 = 1_700_000_000_000;
+
+    it("a fresh tip is gated as ever", () => {
+        expect(
+            derivedTipVerdict({
+                stale: null,
+                committedAtMs: t0,
+                nowMs: t0 + 5 * 3_600_000,
+            })
+        ).toEqual({ kind: "fresh" });
+    });
+
+    it("stale and younger than the grace is pending, naming the drift and the wait", () => {
+        const v = derivedTipVerdict({
+            stale: "lockfile header: compilerHash drift",
+            committedAtMs: t0,
+            nowMs: t0 + 3 * 60_000,
+        });
+        expect(v.kind).toBe("pending");
+        if (v.kind !== "pending") return;
+        expect(v.reason).toContain("compilerHash drift");
+        expect(v.reason).toContain("3 min");
+        expect(v.reason).toContain("derive:sync");
+    });
+
+    it("stale at or past the grace is red, naming the grace", () => {
+        const at = derivedTipVerdict({
+            stale: "data/catalogue/source-hash.json is not what the tree generates",
+            committedAtMs: t0,
+            nowMs: t0 + DERIVED_GRACE_MS,
+        });
+        expect(at.kind).toBe("red");
+        const past = derivedTipVerdict({
+            stale: "x",
+            committedAtMs: t0,
+            nowMs: t0 + DERIVED_GRACE_MS + 1,
+        });
+        expect(past.kind).toBe("red");
+        if (past.kind !== "red") return;
+        expect(past.reason).toContain("60-minute grace");
+        expect(past.reason).toContain("derive:sync --dry-run");
+    });
+
+    it("the grace is one housekeeping period — an hour", () => {
+        expect(DERIVED_GRACE_MS).toBe(3_600_000);
+        expect(
+            derivedTipVerdict({
+                stale: "x",
+                committedAtMs: t0,
+                nowMs: t0 + 10,
+                graceMs: 5,
+            }).kind
+        ).toBe("red");
+    });
+});
+
+describe("gateSkipReason — a pending record never skips the tip (issue #6248)", () => {
+    it("re-judges a tip whose last record is pending, under any retry policy", () => {
+        const last = {
+            sha: "abc123def456",
+            status: "pending" as const,
+            startedAt: "2026-10-21T10:00:00Z",
+            failedStep: "derive:sync",
+        };
+        for (const retryTerminal of [true, false])
+            expect(
+                gateSkipReason({
+                    last,
+                    tip: last.sha,
+                    now: Date.now(),
+                    retryTerminal,
+                })
+            ).toBeNull();
+    });
+});
+
+describe("derivePredicateAnswer — only a clean answer is fresh or stale; anything else is broken (issue #6248 review)", () => {
+    it("exit 0 is fresh; exit 1 with its own derived-stale line is stale, the reason kept", () => {
+        expect(
+            derivePredicateAnswer({
+                status: 0,
+                signal: null,
+                output: "derive:sync: this tree is derived-fresh\n",
+            })
+        ).toEqual({ kind: "fresh" });
+        expect(
+            derivePredicateAnswer({
+                status: 1,
+                signal: null,
+                output: '$ bun scripts/derive-sync.ts --fresh\nderive:sync: this tree is derived-stale — lockfile header: compilerHash drift\nerror: script "derive:sync" exited with code 1\n',
+            })
+        ).toEqual({
+            kind: "stale",
+            why: "lockfile header: compilerHash drift",
+        });
+    });
+
+    it("a crash, a signal or a missing script is broken — never a wait", () => {
+        expect(
+            derivePredicateAnswer({
+                status: 1,
+                signal: null,
+                output: "error: Cannot find module './catalogue-artifact'\n",
+            }).kind
+        ).toBe("broken");
+        expect(
+            derivePredicateAnswer({
+                status: null,
+                signal: "SIGKILL",
+                output: "",
+            })
+        ).toEqual({ kind: "broken", why: "killed by SIGKILL" });
+        expect(
+            derivePredicateAnswer({ status: 2, signal: null, output: "" }).kind
+        ).toBe("broken");
     });
 });

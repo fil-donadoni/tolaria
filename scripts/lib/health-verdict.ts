@@ -64,7 +64,20 @@ import {
     timeoutOnlyFailure,
 } from "./machine-admission";
 
-export type HealthStatus = "running" | "green" | "red" | "infra";
+/**
+ * `pending` (ADR 0157 § Option 1b, "Health", issue #6248): the tip is
+ * derived-stale — its lockfile header hashes or `data/catalogue/*` are not
+ * what the tree generates — within the grace `derive:sync` has to write them
+ * (`DERIVED_GRACE_MS`, `lib/health-step.ts`). Nothing was gated: not a
+ * verdict, never the store's, never a `RED` marker; the derive commit's own
+ * push brings the next tip, and the next run re-judges this one — stale past
+ * the grace is RED at step `derive:sync`.
+ */
+export type HealthStatus = "running" | "green" | "red" | "infra" | "pending";
+
+/** The step name `last.json` records when the tip's derived state decided
+ *  the run (ADR 0157): `pending` within the grace, RED past it. */
+export const DERIVE_STEP = "derive:sync";
 
 /** Why a run is `infra` — the machine, never the tree. */
 export type InfraCause =

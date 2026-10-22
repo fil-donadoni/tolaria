@@ -4,6 +4,7 @@
  * that owns the Convex deployment seeds. Pure — the git, `gh` and spawn I/O
  * is the script's.
  */
+import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "./derive-sync";
 import { issueOfBranch, issueWorktree } from "./issue-worktree";
 
 /** What `git` reports as the `before` of a push that created the branch. */
@@ -83,6 +84,34 @@ export function seedPlan(
 ): SeedPlan {
     if (!fastForwarded) return { scenarios: [], presets: false };
     return { scenarios: [...prs], presets: cardSetsChanged(changedFiles) };
+}
+
+/** One commit the base gained after the pushed tip, oldest first. */
+export interface BaseCommit {
+    readonly sha: string;
+    readonly subject: string;
+    readonly files: readonly string[];
+}
+
+/**
+ * The derive commit the seed waits for (ADR 0157, issue #6248): the first
+ * commit after the pushed tip that is `derive:sync`'s — its subject, and
+ * only derived paths among its files, at least one. Fresh by construction:
+ * the base's writer regenerated the whole tree it sits on, so the primary
+ * may be fast-forwarded to it and the seed resolve names against its disk.
+ * Null when the base holds none yet. A later commit under the subject with
+ * a foreign file is not it (`land`'s `VERIFY_MERGED_TIP` reads it the same).
+ */
+export function deriveCommitAmong(
+    commits: readonly BaseCommit[]
+): string | null {
+    const found = commits.find(
+        (c) =>
+            c.subject === DERIVE_SYNC_COMMIT_SUBJECT &&
+            c.files.length > 0 &&
+            c.files.every((f) => DERIVED_PATHS.includes(f))
+    );
+    return found?.sha ?? null;
 }
 
 /**
