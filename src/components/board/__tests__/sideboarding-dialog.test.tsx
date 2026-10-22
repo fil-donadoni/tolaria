@@ -2,8 +2,8 @@
 // to its locked size; enabled at a valid partition) and the Maindeck↔Sideboard
 // swap action (issue #395). See `../sideboarding-dialog`.
 import type { ComponentProps, ReactElement } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, fireEvent, within, act } from "@testing-library/react";
 import type { PublicMatch } from "@convex/matches";
 import { GameContext } from "~/hooks/useGameContext";
 import SideboardingDialog from "../sideboarding-dialog";
@@ -260,5 +260,89 @@ describe("SideboardingDialog opponent ready-state (issue #397)", () => {
             <SideboardingDialog match={m} viewerId="u" />
         );
         expect(queryByText(/sideboarding…/i)).toBeNull();
+    });
+});
+
+describe("SideboardingDialog hover preview keep-alive (issue #3195)", () => {
+    // Real Cards: the preview body is empty for an unknown id.
+    const MAIN = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const SIDE = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
+    const match = () => {
+        const m = baseMatch();
+        m.players[0].deck = {
+            id: "d",
+            name: "Deck",
+            format: "vintage",
+            maindeck: [card(MAIN)],
+            sideboard: [card(SIDE)],
+        };
+        return m;
+    };
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    const rowOf = (el: HTMLElement) => el.closest("li") as HTMLElement;
+    const settle = () => act(() => void vi.advanceTimersByTime(500));
+
+    it.each([
+        ["Maindeck", MAIN],
+        ["Sideboard", SIDE],
+    ])(
+        "%s row → preview column keeps the preview and its toggle clickable",
+        (_pile, id) => {
+            const { getByText, getByTestId, queryByText, getByRole } =
+                renderDialog(
+                    <SideboardingDialog match={match()} viewerId="me" />
+                );
+            const row = rowOf(getByText(id));
+            fireEvent.mouseEnter(row);
+            expect(queryByText("Hover a card to preview it")).toBeNull();
+            // Pointer leaves the row and crosses into the column.
+            fireEvent.mouseLeave(row);
+            fireEvent.pointerEnter(getByTestId("sideboard-preview-column"));
+            settle();
+            expect(queryByText("Hover a card to preview it")).toBeNull();
+            const printed = getByRole("button", { name: /printed card/i });
+            fireEvent.click(printed);
+            expect(queryByText("Hover a card to preview it")).toBeNull();
+            // The selected segment carries the active style; the mode survived
+            // the click instead of resetting on a remount.
+            expect(
+                getByRole("button", { name: /printed card/i }).className
+            ).toContain("bg-accent-soft/50");
+        }
+    );
+
+    it("hovering another row swaps the preview", () => {
+        const { getByText, queryByText } = renderDialog(
+            <SideboardingDialog match={match()} viewerId="me" />
+        );
+        fireEvent.mouseEnter(rowOf(getByText(MAIN)));
+        fireEvent.mouseLeave(rowOf(getByText(MAIN)));
+        fireEvent.mouseEnter(rowOf(getByText(SIDE)));
+        settle();
+        expect(queryByText("Hover a card to preview it")).toBeNull();
+    });
+
+    it("leaving the row and the column clears the preview", () => {
+        const { getByText, getByTestId, queryByText } = renderDialog(
+            <SideboardingDialog match={match()} viewerId="me" />
+        );
+        const row = rowOf(getByText(MAIN));
+        fireEvent.mouseEnter(row);
+        fireEvent.mouseLeave(row);
+        fireEvent.pointerEnter(getByTestId("sideboard-preview-column"));
+        fireEvent.pointerLeave(getByTestId("sideboard-preview-column"));
+        settle();
+        expect(queryByText("Hover a card to preview it")).not.toBeNull();
+    });
+
+    it("moving a card drops the preview at once", () => {
+        const { getByText, getByRole, queryByText } = renderDialog(
+            <SideboardingDialog match={match()} viewerId="me" />
+        );
+        fireEvent.mouseEnter(rowOf(getByText(MAIN)));
+        fireEvent.click(getByRole("button", { name: "→ Side" }));
+        expect(queryByText("Hover a card to preview it")).not.toBeNull();
     });
 });
