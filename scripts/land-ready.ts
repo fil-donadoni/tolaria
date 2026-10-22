@@ -68,6 +68,7 @@ import {
     type RunResult,
 } from "./check-lane";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { staleToolingRefusal } from "./lib/stale-tooling";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
@@ -318,6 +319,16 @@ function restoreAndPush(
 ): { head: string; role: TreeRole } {
     assertPrWorktree(pr, headOid);
     git(["fetch", "-q", "origin", BASE_BRANCH]);
+    // Issue #6341 — before any write: a worktree forked before the base moved
+    // the land tooling would hand off with the OLD script and guard set.
+    const forkPoint = git(["merge-base", "HEAD", ORIGIN_BASE]).trim();
+    const stale = staleToolingRefusal(
+        git(["diff", "--name-only", forkPoint, ORIGIN_BASE])
+            .split("\n")
+            .filter(Boolean),
+        ORIGIN_BASE
+    );
+    if (stale !== null) throw new Error(stale);
     let carried: DerivedCarried;
     try {
         carried = restoreDerivedState(
