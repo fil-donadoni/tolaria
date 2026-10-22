@@ -30,6 +30,8 @@ import {
     type GameState,
     type StackItem,
     beginApplyingStaticEffects,
+    processPendingActionTriggers,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -1035,20 +1037,17 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
     });
 });
 
-describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", () => {
-    it("marks the target so it is exiled instead of dying", () => {
+describe("Whippoorwill — one target, three locks (CR 701.19c / 615.12 / 614.9 / 603.7a)", () => {
+    function activateOn(): GameState {
         const whip = makeInstance(whippoorwill.id, {
             id: "whip",
             controllerId: "p1",
         });
-        const victim = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "victim",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [whip] }),
@@ -1058,44 +1057,55 @@ describe("Whippoorwill — exile-on-death + no regeneration (CR 605 / 614.1a)", 
         resolveActivated(state, whip, "whippoorwill-doom", [
             { type: "permanent", id: "victim" },
         ]);
-        const marked = state.players[1].battlefield.find(
+        return state;
+    }
+
+    it("locks regeneration and damage on the target for the turn", () => {
+        const state = activateOn();
+        const victim = state.players[1].battlefield.find(
             (c) => c.id === "victim"
         )!;
-        expect(marked.exileOnDeath).toBe(true);
+        expect(victim.cantBeRegeneratedThisTurn).toBe(true);
+        // Behaviour against real shields and redirects, combat included:
+        // `convex/gre/__tests__/damageLock.test.ts`.
+        expect(victim.damageLockThisTurn).toBe(true);
     });
 
-    it("also arms the CR 615.12 / 614.9 damage lock from the same activation", () => {
-        // The middle Oracle clause (issue #2231): "damage that would be dealt
-        // to that creature this turn can't be prevented or dealt instead to
-        // another permanent or player". Its behaviour against real shields and
-        // redirects — including combat damage — is in
-        // `convex/gre/__tests__/damageLock.test.ts`; this asserts the card's
-        // own activation reaches the primitive.
-        const whip = makeInstance(whippoorwill.id, {
-            id: "whip",
-            controllerId: "p1",
-        });
-        const victim = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "victim",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
+    it("lets the creature DIE, then exiles the card from the graveyard (CR 700.4)", () => {
+        const state = activateOn();
+        removePermanentTo(state, "victim", "graveyard");
+        // It died: the card is in its owner's graveyard until the delayed
+        // trigger resolves — not a CR 614.1a exile-instead replacement.
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            true
         );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [whip] }),
-                makePlayer("p2", { battlefield: [victim] }),
-            ],
-        });
-        resolveActivated(state, whip, "whippoorwill-doom", [
-            { type: "permanent", id: "victim" },
-        ]);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "victim")!
-                .damageLockThisTurn
-        ).toBe(true);
+        processPendingActionTriggers(state);
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            false
+        );
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            true
+        );
+    });
+
+    it("does nothing when the card left the graveyard before the trigger resolved (CR 603.7c)", () => {
+        const state = activateOn();
+        removePermanentTo(state, "victim", "graveyard");
+        processPendingActionTriggers(state);
+        const card = state.players[1].graveyard.find((c) => c.id === "victim")!;
+        state.players[1].graveyard = state.players[1].graveyard.filter(
+            (c) => c !== card
+        );
+        state.players[1].hand.push({ ...card, zone: "hand" });
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.some((c) => c.id === "victim")).toBe(true);
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            false
+        );
     });
 });
 

@@ -4533,9 +4533,15 @@ const OP_SCHEMAS: OpSchemaTable = {
                             'field "from" with "target" accepts only "graveyard", "exile" or "hand"'
                         );
                     }
-                    if (entry.to !== "battlefield") {
+                    // CR 603.7a + CR 700.4 — the one non-reanimating move: a
+                    // card that died exiled out of the graveyard by the
+                    // delayed trigger that watched it die.
+                    if (
+                        entry.to !== "battlefield" &&
+                        !(entry.from === "graveyard" && entry.to === "exile")
+                    ) {
                         errors.push(
-                            'field "from" is only valid with "target" and to: "battlefield"'
+                            'field "from" is only valid with "target" and to: "battlefield", or from: "graveyard" with to: "exile"'
                         );
                     }
                     const sel = entry.target as

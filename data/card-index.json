@@ -2522,6 +2522,16 @@
         "source": "compiled"
     },
     {
+        "name": "Arbor Armament",
+        "scryfallId": "bceb365c-5de6-47ae-b42d-7fbce7781f8e",
+        "oracleId": "504f21e8-82ac-4433-b5e9-640989480f58",
+        "firstSet": "dom",
+        "firstPrintId": "bceb365c-5de6-47ae-b42d-7fbce7781f8e",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Arbor Elf",
         "scryfallId": "6d32a4ed-6b43-4473-91ec-08cd5414f2f0",
         "oracleId": "4567a528-75f0-4ea6-b927-3a500caf76ac",
@@ -3513,6 +3523,16 @@
         "firstPrintId": "12bf6443-c941-418a-a766-05bba088a117",
         "firstPrintSet": "dis",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Assure // Assemble",
+        "scryfallId": "ad454e7a-06c9-4694-ae68-7b1431e00077",
+        "oracleId": "087018b6-6355-4534-9a35-9336b4b7fccc",
+        "firstSet": "grn",
+        "firstPrintId": "ad454e7a-06c9-4694-ae68-7b1431e00077",
+        "firstPrintSet": "grn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -5121,6 +5141,16 @@
         "firstPrintId": "a9c25e71-0140-48fe-8b9e-33b4b50c5c12",
         "firstPrintSet": "apc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Battlefield Promotion",
+        "scryfallId": "89f8e970-b90c-4829-8970-0a3364027bbb",
+        "oracleId": "303d74d0-84db-4694-bb1a-470cf470bc4f",
+        "firstSet": "war",
+        "firstPrintId": "89f8e970-b90c-4829-8970-0a3364027bbb",
+        "firstPrintSet": "war",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -8372,6 +8402,16 @@
         "firstSet": "rna",
         "firstPrintId": "b8574ffd-3e72-41de-90bf-69363189f047",
         "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Burning Cloak",
+        "scryfallId": "e2b8f443-dba5-45a5-bb2e-f57b4fdd1d01",
+        "oracleId": "4527c622-cebe-41eb-9178-4895cccffe99",
+        "firstSet": "por",
+        "firstPrintId": "e2b8f443-dba5-45a5-bb2e-f57b4fdd1d01",
+        "firstPrintSet": "por",
         "rarity": "common",
         "source": "compiled"
     },
@@ -48028,6 +48068,16 @@
         "source": "compiled"
     },
     {
+        "name": "Puncture Bolt",
+        "scryfallId": "cb5a0bc1-ab01-4381-8f54-7381a2213cdf",
+        "oracleId": "c8e53740-c633-42f8-9e02-3434d6dc0b30",
+        "firstSet": "shm",
+        "firstPrintId": "cb5a0bc1-ab01-4381-8f54-7381a2213cdf",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Puncturing Blow",
         "scryfallId": "d7d88da5-d9a3-49b3-a091-458b058c9114",
         "oracleId": "1128d2ab-0b6e-4912-8735-15521bc314e6",
@@ -51162,6 +51212,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Rile",
+        "scryfallId": "80925750-6c90-42d1-9525-27f1f0313398",
+        "oracleId": "0c4e0e46-77f1-4ff6-afbc-1a67feceedfb",
+        "firstSet": "xln",
+        "firstPrintId": "80925750-6c90-42d1-9525-27f1f0313398",
+        "firstPrintSet": "xln",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rime Dryad",
         "scryfallId": "7a93e6ce-1295-41f8-b454-2dfe321481a6",
         "oracleId": "0464176d-75d2-403a-aa9d-40e85f106d01",
@@ -53654,6 +53714,16 @@
         "source": "compiled"
     },
     {
+        "name": "Savage Surge",
+        "scryfallId": "0fa74aae-e857-410c-8836-953c8623d0b0",
+        "oracleId": "0acbc9a6-0de0-4096-b35c-1a586a1312ea",
+        "firstSet": "rtr",
+        "firstPrintId": "0fa74aae-e857-410c-8836-953c8623d0b0",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Savage Thallid",
         "scryfallId": "a87cbbdb-3bbc-48da-b5e3-fcdbddebec81",
         "oracleId": "309a57cb-cc08-4892-bc63-c424ca9c5b43",
@@ -54751,6 +54821,16 @@
         "firstPrintId": "7fbbc5d7-86d0-4e09-b37c-e40eb88f3f33",
         "firstPrintSet": "con",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Seedcradle Witch",
+        "scryfallId": "a0ae8525-ce10-40bd-8980-a05fb81a0fac",
+        "oracleId": "278ea996-3094-4a76-b6e1-db1d002e5502",
+        "firstSet": "shm",
+        "firstPrintId": "a0ae8525-ce10-40bd-8980-a05fb81a0fac",
+        "firstPrintSet": "shm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -60584,6 +60664,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stabbing Pain",
+        "scryfallId": "89c31d9d-fd77-4275-b89c-f9b64073c54b",
+        "oracleId": "604ad5b3-7f11-455e-9442-65b7484238e5",
+        "firstSet": "m11",
+        "firstPrintId": "89c31d9d-fd77-4275-b89c-f9b64073c54b",
+        "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Staff of Domination",
         "scryfallId": "7980fc3b-71d5-427d-bd42-087256fd2059",
         "oracleId": "d7888719-647d-4022-a211-822fa09f0791",
@@ -61540,6 +61630,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stony Strength",
+        "scryfallId": "8bbab274-69dd-44a9-9310-a15779c35cad",
+        "oracleId": "da5a7cb8-1fa7-4b91-abd4-9e766291be63",
+        "firstSet": "rna",
+        "firstPrintId": "8bbab274-69dd-44a9-9310-a15779c35cad",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Stonybrook Schoolmaster",
         "scryfallId": "69fa2293-f398-4ad8-895e-c739ddea56d0",
         "oracleId": "7ef67bae-4af3-47b9-95d2-08f3c5a0b39d",
@@ -62032,6 +62132,16 @@
         "firstSet": "tmp",
         "firstPrintId": "c09c0da6-37a7-42ba-b264-18898ee372f0",
         "firstPrintSet": "tmp"
+    },
+    {
+        "name": "Stun Sniper",
+        "scryfallId": "f413258e-2915-41e1-ba0d-98d9d0673ab2",
+        "oracleId": "f5bdf226-7a83-469b-bc49-87af388d9020",
+        "firstSet": "arb",
+        "firstPrintId": "f413258e-2915-41e1-ba0d-98d9d0673ab2",
+        "firstPrintSet": "arb",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Stunted Growth",
@@ -69146,6 +69256,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vampire's Bite",
+        "scryfallId": "6460a752-e5a7-4fd0-9ae5-e0773b86f19b",
+        "oracleId": "9e88796b-f37f-4f9f-9a6f-695db2801f0e",
+        "firstSet": "zen",
+        "firstPrintId": "6460a752-e5a7-4fd0-9ae5-e0773b86f19b",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Vampiric Feast",
         "scryfallId": "19500ffb-bfad-46d6-8a6e-d134405959c0",
         "oracleId": "1980ca2e-a415-4de1-ac30-7055507e82a2",
@@ -69727,6 +69847,16 @@
         "firstPrintId": "67301687-42a5-45b5-aeeb-d57da3ac0ce0",
         "firstPrintSet": "s99",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Veteran's Reflexes",
+        "scryfallId": "783f220b-f860-4ebb-a424-22598bdd6fae",
+        "oracleId": "efee0ca0-0897-4972-99c4-432561b6e9f8",
+        "firstSet": "wwk",
+        "firstPrintId": "783f220b-f860-4ebb-a424-22598bdd6fae",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
