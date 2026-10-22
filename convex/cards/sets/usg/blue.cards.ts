@@ -1,6 +1,6 @@
 // usg — blue cards (ADR 0043 colour split).
 
-import { defineCard, type SpellContext } from "../../types";
+import { defineCard } from "../../types";
 
 // Annul — {U} Instant. "Counter target artifact or enchantment spell."
 // (CR 701.6a counter; CR 114.1 spell targeting.) A conditional Counterspell
@@ -117,34 +117,16 @@ export const showAndTell = defineCard(() => ({
     ],
 }));
 
-// Time Spiral — {4}{U}{U} Sorcery (Cube FREE residue, issue #1308). "Exile
-// Time Spiral. Each player shuffles their hand and graveyard into their
-// library, then draws seven cards. You untap up to six lands."
+// Time Spiral — {4}{U}{U} Sorcery. "Exile Time Spiral. Each player shuffles
+// their hand and graveyard into their library, then draws seven cards. You
+// untap up to six lands."
 //
-// NOT DSL-migratable (ADR 0045): the middle clause WAS the EXACT Timetwister
-// shape (lea/blue.cards.ts's `timetwister`, now migrated to `effects[]` on
-// `moveZone`'s bulk whole-zone shape, issue #1279 — CLOSED), but Time Spiral
-// itself stays `resolveSteps`. CORRECTED 2026-08-25 (#1841 audit): of the two
-// clauses this comment listed as blockers, only ONE survives. "Exile Time
-// Spiral" is NOT a blocker — `exileSelf` is a registered Op (see its
-// EFFECT_OP_REGISTRY row) and `inv/green.cards.ts` uses it. The single remaining
-// blocker is "untap up to six lands": a ranged 0..6 pick over BOTH
-// battlefields, which is exactly the gap Teferi, Hero of Dominaria is already
-// deferred on. tracked-by: #1727
-//
-// Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
-// bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run
-// exactly once before the untap step's choice can suspend (the Bazaar of
-// Baghdad re-draw class of bug, Sylvan Library precedent, leg/green.cards.ts):
-//   • "Exile Time Spiral" (CR 608.2m self-redirect) uses the existing
-//     `SpellContext.exileSelf()` primitive (Recall's shape, lea/blue.cards.ts) —
-//     step 0, alongside the Timetwister shuffle, both irreversible and
-//     choice-free.
-//   • "You untap up to six lands" — no "you control" restriction printed, so
-//     the candidate pool is every land on either player's battlefield
-//     (`allControllers: true`, the Farrel's Mantle `choose-permanents`
-//     shape, fem/white.cards.ts); a ranged 0..6 pick, then `ctx.untap` each pick —
-//     step 1, suspends on the choice and resumes without re-running step 0.
+// An Effect Script (ADR 0045): `exileSelf` is the CR 608.2m self-redirect, the
+// per-player body is Timetwister's, and the untap is Frantic Search's tail —
+// no "you control" is printed, so "lands" is every land permanent on the
+// battlefield (CR 109.2) and `allControllers` widens the 0..6 pick to both
+// battlefields under one shared count. The draws run once: the interpreter's
+// op cursor resumes AFTER the suspended `choice`, never before it.
 export const timeSpiral = defineCard(() => ({
     id: "f3d62dbd-63db-4ac9-950f-9852627f23f2", // USG 103
     rarity: "rare",
@@ -153,38 +135,49 @@ export const timeSpiral = defineCard(() => ({
         "Exile Time Spiral. Each player shuffles their hand and graveyard into their library, then draws seven cards. You untap up to six lands.",
     manaCost: { X: 4, U: 2 },
     types: ["Sorcery"],
-    resolveSteps: [
-        // Step 0 — exile self + the Timetwister-shape shuffle for every
-        // player. Isolated so a step-1 suspension never re-runs it.
-        (ctx: SpellContext) => {
-            ctx.exileSelf();
-            ctx.forEachPlayer((pid) => {
-                ctx.moveZone(pid, "hand", "library");
-                ctx.moveZone(pid, "graveyard", "library");
-                ctx.shuffleLibrary(pid);
-                ctx.drawCards(pid, 7);
-            });
+    effects: [
+        { op: "exileSelf" },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "hand",
+                    to: "library",
+                },
+                {
+                    op: "moveZone",
+                    player: { ref: "$each" },
+                    from: "graveyard",
+                    to: "library",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$each" },
+                },
+                { op: "draw", player: { ref: "$each" }, count: 7 },
+            ],
         },
-        // Step 1 — "You untap up to six lands."
-        (ctx: SpellContext) => {
-            const candidates = ctx.allPlayerIds.flatMap((p) =>
-                ctx.getBattlefieldIds(p, { types: "Land" })
-            );
-            if (candidates.length === 0) return;
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: `time-spiral-untap-${ctx.sourceInstanceId}`,
-                kind: "choose-permanents",
-                zone: "battlefield",
-                allControllers: true,
-                candidateIds: candidates,
-                count: { min: 0, max: 6 },
-                prompt: "Time Spiral: untap up to six lands.",
-            });
-            if (picks === undefined) return; // suspended
-            for (const id of picks) {
-                ctx.untap({ type: "permanent", id });
-            }
+        {
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            allControllers: true,
+            filter: { type: "Land" },
+            count: { min: 0, max: 6 },
+            prompt: "Time Spiral: untap up to six lands.",
+            bind: "$lands",
+        },
+        {
+            op: "forEach",
+            select: { set: "bound", ref: "$lands" },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
         },
     ],
 }));
