@@ -2,8 +2,9 @@
 // #1865). The prompt reuses the `option-pick` shape (ADR 0100 D3), so the
 // question is not a new dispatch arm but whether the in-tree search can see
 // BOTH answers — attacking the defending player and attacking the planeswalker
-// — as submittable moves, so the evaluator (combat damage to loyalty, CR
-// 120.3c) decides between them rather than a fixed default.
+// — as submittable moves, so the search's evaluator (combat damage to
+// loyalty, CR 120.3c) CAN choose between them rather than a fixed default.
+// Reachability only: which answer it prefers is not asserted here.
 import { describe, expect, it } from "vitest";
 import {
     makeInstance,

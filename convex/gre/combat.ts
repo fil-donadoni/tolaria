@@ -88,6 +88,9 @@ export function joinCombatAttacking(
     const stamped = card.enterAttackingTarget;
     delete card.enterAttackingTarget;
     if (!state.combat) return;
+    // CR 506.3b — put onto the battlefield attacking under the control of a
+    // player who is not attacking, it enters but is never attacking.
+    if (card.controllerId !== state.activePlayerId) return;
     if (stamped === undefined) {
         markAttacking(state, card);
         return;

@@ -1576,8 +1576,9 @@ export type CardInstanceState = {
      *
      *  CR 508.4 (issue #1865) — the second writer is the as-enters
      *  `attack-target` answer for a token entering attacking: written on the
-     *  staged token and consumed by the token entry tail in the SAME call, so
-     *  it never outlives that entry.
+     *  staged token and consumed by that token's entry tail. Usually the same
+     *  call; a choice discovered behind it (a CR 707.6 copy answer) can carry
+     *  it across a save inside `stagedEntries`, still bound to that entry.
      *
      *  A ninjutsu stamp CAN outlive its activation: an ability that is
      *  countered, or whose card left hand in response, never reaches the

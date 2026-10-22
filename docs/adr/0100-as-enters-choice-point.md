@@ -253,6 +253,12 @@ wires a card to them:
   the mechanic is whole with no card exposing it
   (`.claude/rules/gre-development.md` — a mechanic is implemented whole).
 
+Added later, on the `aura-host` model (raised by the entry site, never declared
+by a card): **`attack-target`** (issue #1865) — CR 508.4, a token entering
+attacking chooses the defending player or a planeswalker they control as it
+enters; the token entry site owes it, and the answer stamps
+`enterAttackingTarget` for the shared `joinCombatAttacking`.
+
 This is **not** an Effect Script and no `EffectOp` is added. A CR 614.1c
 replacement is a declaration, not an effect that resolves — the same reason
 `entersWith.counters` is data today (`cards/mechanicsRegistry.ts:2126`: "no

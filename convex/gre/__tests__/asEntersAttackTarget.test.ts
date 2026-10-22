@@ -18,6 +18,7 @@
 // Script path, so the park, the replay marker and the resume are exercised.
 import { describe, expect, it } from "vitest";
 import {
+    createTokenPermanents,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -70,6 +71,27 @@ function registerAttackingTokenScript(id: string, count?: number): string {
 
 const MAKE_ONE = registerAttackingTokenScript("test-1865-attacking-one");
 const MAKE_TWO = registerAttackingTokenScript("test-1865-attacking-two", 2);
+
+/** The Satya shape: "create a tapped and attacking token that's a copy of
+ *  target creature" — the `createTokenCopy` Op, with its own replay marker. */
+const COPY_ATTACKING = "test-1865-copy-attacking";
+registerTokenDefinition({
+    id: COPY_ATTACKING,
+    name: COPY_ATTACKING,
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: ["Creature"], count: 1 },
+    effects: [
+        {
+            op: "createTokenCopy",
+            source: { target: 0 },
+            controller: "controller",
+            entersTapped: true,
+            entersAttacking: true,
+        },
+    ],
+});
 
 function planeswalker(id: string, controllerId: string): CardInstanceState {
     return makeInstance(wrennAndSix().id, {
@@ -234,6 +256,73 @@ describe("CR 508.4 — a token entering attacking chooses what it attacks (issue
         const [token] = tokensOf(state, "p1");
         expect(token.isAttacking).toBeFalsy();
     });
+
+    it("createTokenCopy (the Satya shape): the copy chooses too, and exactly one copy is created", () => {
+        const state = combatWithScript(MAKE_ONE, [planeswalker("pw-1", "p2")]);
+        state.stack = [];
+        pushSpell(state, COPY_ATTACKING, "p1", [
+            { type: "permanent", id: "atk1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(head(state).asEntersKind).toBe("attack-target");
+        expect(tokensOf(state, "p1")).toHaveLength(0);
+        answer(state, ["pw-1"]);
+
+        const tokens = tokensOf(state, "p1");
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].isAttacking).toBe(true);
+        expect(state.combat!.attackTargets?.[tokens[0].id]).toBe("pw-1");
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("CR 508.4a: a planeswalker picked on the second prompt after it died leaves that token not attacking — never attacking the player instead", () => {
+        const state = combatWithScript(MAKE_TWO, [planeswalker("pw-1", "p2")]);
+        resolveTopOfStack(state);
+        answer(state, ["p2"]);
+        // The planeswalker leaves between the two batched prompts.
+        state.players[1].battlefield = [];
+        answer(state, ["pw-1"]);
+
+        const tokens = tokensOf(state, "p1");
+        expect(tokens).toHaveLength(2);
+        const attacking = tokens.filter((t) => t.isAttacking);
+        expect(attacking).toHaveLength(1);
+        expect(state.combat!.attackerIds).toEqual(["atk1", attacking[0].id]);
+        expect(state.combat!.attackTargets).toBeUndefined();
+    });
+
+    it("CR 506.3b: a token the attacking player does not control owes no choice and never attacks", () => {
+        const state = combatWithScript(MAKE_ONE, [planeswalker("pw-1", "p2")]);
+        state.stack = [];
+        pushSpell(state, MAKE_ONE, "p2");
+        resolveTopOfStack(state);
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const [token] = tokensOf(state, "p2");
+        expect(token.isAttacking).toBeFalsy();
+        expect(state.combat!.attackerIds).toEqual(["atk1"]);
+    });
+
+    it("a debug board PLACING an attacking token owes no choice (placement)", () => {
+        const state = combatWithScript(MAKE_ONE, [planeswalker("pw-1", "p2")]);
+        createTokenPermanents(
+            state,
+            {
+                name: "Soldier",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+                entersAttacking: true,
+            },
+            "p1",
+            1,
+            undefined,
+            { placement: true }
+        );
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stagedEntries).toBeUndefined();
+        expect(tokensOf(state, "p1")).toHaveLength(1);
+    });
 });
 
 describe("CR 508.4a / 506.3c — joinCombatAttacking refuses a defender that is no longer legal", () => {
@@ -291,5 +380,15 @@ describe("CR 508.4a / 506.3c — joinCombatAttacking refuses a defender that is 
         expect(token.isAttacking).toBeFalsy();
         expect(state.combat!.attackerIds).not.toContain(token.id);
         expect(state.combat!.attackTargets).toBeUndefined();
+    });
+
+    it("CR 506.3b: controlled by a player who is not attacking: enters, never attacking", () => {
+        const token = enteringToken("pw-1");
+        token.controllerId = "p2";
+        token.ownerId = "p2";
+        const state = boardWith([planeswalker("pw-1", "p1")], [token]);
+        joinCombatAttacking(state, token);
+        expect(token.isAttacking).toBeFalsy();
+        expect(state.combat!.attackerIds).not.toContain(token.id);
     });
 });

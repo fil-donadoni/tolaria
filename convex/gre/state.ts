@@ -10265,16 +10265,20 @@ function applyAsEntersAnswer(
         case "attack-target": {
             // CR 508.4 — a planeswalker pick is stamped for the token tail's
             // `joinCombatAttacking`, which re-checks it is still live (CR
-            // 508.4a); the defending player is the absent stamp.
+            // 508.4a); the defending player is the absent stamp. Not
+            // re-narrowed to the LIVE options: the submit already checked the
+            // pick against the prompt, and a planeswalker that died between
+            // two batched prompts must leave the token not attacking (CR
+            // 508.4a), never quietly attacking the player instead.
             const pick = selected[0];
-            const planeswalkerPicked =
+            if (
                 pick !== undefined &&
-                pick !== getOpponentId(state, entry.controllerId) &&
-                asEntersAttackTargetOptions(state, entry).some(
-                    (o) => o.id === pick
-                );
-            if (planeswalkerPicked) card.enterAttackingTarget = pick;
-            else delete card.enterAttackingTarget;
+                pick !== getOpponentId(state, entry.controllerId)
+            ) {
+                card.enterAttackingTarget = pick;
+            } else {
+                delete card.enterAttackingTarget;
+            }
             return {};
         }
         case "payLife": {
@@ -18857,14 +18861,19 @@ export function createTokenPermanents(
         // CR 508.4 (issue #1865) — a token entering attacking owes its
         // controller's choice of what it attacks, made AS it enters: one more
         // as-enters choice, raised here by the entry site itself (the
-        // `aura-host` shape), answered after any the token declares. With no
+        // `aura-host` shape), queued behind any the token declares. With no
         // planeswalker to choose it is auto-answered and the token enters
-        // in-line, exactly as before.
+        // in-line, exactly as before. Not owed by a token the attacking player
+        // does not control (CR 506.3b — it never attacks at all), nor by a
+        // debug board PLACING tokens (`placement`), which owes no choice.
         const owed: AsEntersChoice[] = [
             ...(typeof enterDestination === "object"
                 ? enterDestination.asEnters
                 : []),
-            ...(spec.entersAttacking && state.combat
+            ...(spec.entersAttacking &&
+            state.combat &&
+            !opts?.placement &&
+            controllerId === state.activePlayerId
                 ? [{ kind: "attack-target" } as const]
                 : []),
         ];
