@@ -268,7 +268,7 @@ export type StaticClauseIR =
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
     | { readonly kind: "skip-draw-step" }
     /**
-     * CR 614.1a + CR 121.2 — "If you would draw a card during your draw step,
+     * CR 614.1a + CR 614.11 — "If you would draw a card during your draw step,
      * instead you may skip that draw. If you do, <body>": the draw-step
      * replacement flag plus the choice made AT the step. `effects` is the
      * shared effect grammar's reading of the "If you do" body.
