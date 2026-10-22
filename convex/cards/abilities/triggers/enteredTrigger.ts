@@ -50,6 +50,12 @@ export interface EnteredTriggerArgs {
      *  the entering permanent's instance id is compared to `self.id` so the
      *  source's own ETB doesn't fire the trigger. */
     scope: PermanentScope;
+    /** Zone the source functions from (CR 113.6b). Defaults to the
+     *  battlefield; `"graveyard"` makes `collectTriggers`' graveyard scan fire
+     *  it when ANOTHER permanent enters ("When a creature with mana value 6 or
+     *  greater enters, return this card from your graveyard …"). Meaningless
+     *  with `scope: "self"` — a card in a graveyard is not the one entering. */
+    zone?: "graveyard";
     /** Optional structural filter over the entering permanent (CR 603.6a —
      *  "whenever a creature with X enters"). Matches the event's `types` and
      *  controller-relation fields; subtype / static-ability constraints are
@@ -172,6 +178,18 @@ function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
  *  filter matching, and CR 603.4 wiring so card authors write only
  *  the effect body. */
 export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
+    // The graveyard scan (`collectTriggers`) reads neither the per-turn cap nor
+    // the batch collapse, and a graveyard card is never the one entering: refuse
+    // the combinations that would be silently inert or silently ignored.
+    if (
+        args.zone !== undefined &&
+        (args.scope === "self" ||
+            args.oncePerEventBatch ||
+            args.maxTriggersPerTurn !== undefined)
+    )
+        throw new Error(
+            `enteredTrigger ${args.id}: zone "${args.zone}" cannot combine with scope "self", oncePerEventBatch or maxTriggersPerTurn`
+        );
     const ability: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
@@ -211,6 +229,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                     // shipped.
                     power: event.power,
                     toughness: event.toughness,
+                    // CR 202.3 — mana value snapshot for `manaValueAtLeast`;
+                    // absent on an older event → that filter fails CLOSED.
+                    manaValue: event.manaValue,
                     // CR 111.1 (issue #3220) — "whenever a creature TOKEN you
                     // control enters". Snapshotted by `emitPermanentEntered`
                     // like the P/T above. An event without the field leaves
@@ -278,6 +299,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
               }
             : {}),
     };
+    if (args.zone !== undefined) {
+        ability.zone = args.zone;
+    }
     if (args.modes !== undefined) {
         ability.modes = args.modes;
     }

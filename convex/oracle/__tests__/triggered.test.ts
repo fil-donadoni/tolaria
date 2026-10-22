@@ -502,3 +502,56 @@ describe("the gates judge only what the COMPILER emitted", () => {
         expect(result.opsUsed).toEqual([]);
     });
 });
+
+describe("entered head with a mana-value floor (CR 603.6a + 202.3, issue #6317)", () => {
+    it("reads 'a creature with mana value N or greater' as scope any + a floor filter", () => {
+        for (const opener of ["When", "Whenever"]) {
+            const [t] = triggersOf(
+                `${opener} a creature with mana value 6 or greater enters, you gain 1 life.`
+            );
+            expect(t!.head).toEqual({
+                kind: "entered",
+                scope: "any",
+                filter: { types: ["Creature"], manaValueAtLeast: 6 },
+            });
+            expect(t!.zone).toBeUndefined();
+        }
+    });
+
+    it("reads the numeral, not a fixed list", () => {
+        const [t] = triggersOf(
+            "When a creature with mana value 4 or greater enters, you gain 1 life."
+        );
+        expect(t!.head).toMatchObject({
+            filter: { manaValueAtLeast: 4 },
+        });
+    });
+
+    it("carries the graveyard zone for 'if this card is in your graveyard' (CR 113.6b)", () => {
+        const [t] = triggersOf(
+            "When a creature with mana value 6 or greater enters, if this card is in your graveyard, you gain 1 life."
+        );
+        expect(t!.zone).toBe("graveyard");
+        expect(t!.head).toMatchObject({
+            kind: "entered",
+            scope: "any",
+            filter: { manaValueAtLeast: 6 },
+        });
+    });
+
+    it("refuses the ceiling twin ('or less') rather than reading it as a floor", () => {
+        expect(
+            refusalReason(
+                "When a creature with mana value 6 or less enters, you gain 1 life."
+            )
+        ).toContain("no slot consumed the line");
+    });
+
+    it("still refuses a graveyard zone behind a SELF enters head", () => {
+        expect(
+            refusalReason(
+                "When this creature enters, if this card is in your graveyard, you gain 1 life."
+            )
+        ).toContain("graveyard-zone ability needs");
+    });
+});
