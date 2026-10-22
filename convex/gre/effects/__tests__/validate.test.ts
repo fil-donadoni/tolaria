@@ -4323,6 +4323,74 @@ describe("validateEffectScript — { opponentOf } wraps a { ref } at the SAME ke
 // reanimation branch and by nothing else, and BOTH halves are required — the
 // engine has no subtype → card-type classifier (ADR 0087 § Amendment), so an
 // omitted `subtypes` would fail open and leave the creature subtypes behind.
+describe("validateEffectScript — moveZone attachTo (CR 303.4f)", () => {
+    it("accepts an object-selector host on a reanimating target shape", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        attachTo: { target: 1 },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("accepts a bound snapshot ref as the host (an earlier Op's bind)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 1 }, bind: "$h" },
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        attachTo: { ref: "$h" },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).not.toContain("numeric position");
+        expect(errors.join("\n")).not.toContain("number position");
+    });
+
+    it('rejects "attachTo" with a non-battlefield destination', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "hand",
+                        attachTo: { target: 1 },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain('field "attachTo" is only valid');
+    });
+
+    it("rejects a malformed host selector", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        attachTo: "creature",
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
 describe("validateEffectScript — moveZone entersAs (issue #2993)", () => {
     it("accepts a well-formed entry type line on a reanimating target shape", () => {
         const errors = validateEffectScript(

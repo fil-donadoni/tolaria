@@ -3967,6 +3967,15 @@ export const OP_EXECUTORS: {
             ) {
                 recoveredZone = "exile";
             }
+            // CR 303.4f / 303.4g — "attached to that creature": the effect
+            // specifies the Aura's host. A host that is no longer on the
+            // battlefield leaves the Aura where it is (nothing to enchant).
+            let attachToId: string | undefined;
+            if (op.to === "battlefield" && "attachTo" in op && op.attachTo) {
+                const host = resolveObjectRef(ctx, op.attachTo);
+                if (host?.type !== "permanent") return;
+                attachToId = host.id;
+            }
             // Snapshot BEFORE the move (issue #680) — a later `ref` reads the
             // reanimated card's mana value even after it changes zone/id
             // context (Reanimate: "lose life equal to that card's mana
@@ -3996,8 +4005,16 @@ export const OP_EXECUTORS: {
                     target.id,
                     recoveredZone,
                     controllerId,
-                    "entersAs" in op && op.entersAs
-                        ? { entersAs: op.entersAs }
+                    ("entersAs" in op && op.entersAs) ||
+                        attachToId !== undefined
+                        ? {
+                              ...("entersAs" in op && op.entersAs
+                                  ? { entersAs: op.entersAs }
+                                  : {}),
+                              ...(attachToId !== undefined
+                                  ? { attachTo: attachToId }
+                                  : {}),
+                          }
                         : undefined
                 );
                 // CR 110.5a (issue #1469) — enter tapped. Mirrors the

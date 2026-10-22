@@ -4605,13 +4605,17 @@ export interface SpellContext {
      *  here and consumed inside the entry funnel, after the CR 400.7 entry-side
      *  reset and before the ETB notification, so the PERMANENT_ENTERED event
      *  announces what actually entered. See the `moveZone` Op's own `entersAs`
-     *  doc for why a trailing `setCardTypes` cannot do this. */
+     *  doc for why a trailing `setCardTypes` cannot do this.
+     *
+     *  `opts.attachTo` (CR 303.4f) is the battlefield permanent id an Aura
+     *  enters attached to; the effect specifies the host, so no host prompt is
+     *  raised. An illegal or absent host leaves the Aura in its zone (CR 303.4g). */
     returnToBattlefield: (
         playerId: string,
         cardInstanceId: string,
         fromZone: "graveyard" | "exile",
         controllerId?: string,
-        opts?: { entersAs?: EntryTypeLine }
+        opts?: { entersAs?: EntryTypeLine; attachTo?: string }
     ) => boolean;
     /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
      *  `returnToBattlefield`: returns a whole set of graveyard cards to the
@@ -16014,6 +16018,20 @@ export type EffectOp =
            *  helpers, so CR 400.7 still restores the PRINTED type line when the
            *  permanent later leaves. */
           entersAs?: EntryTypeLine;
+          /** CR 303.4f — the host a returning AURA enters attached to, for
+           *  "return this card from your graveyard to the battlefield attached
+           *  to that creature". CR 303.4f's host choice applies only when the
+           *  effect "doesn't specify the object or player the Aura will
+           *  enchant"; this field is the specification, so the Aura enters
+           *  already attached and the controller is never prompted. A host no
+           *  longer on the battlefield or no longer legal for the Aura's
+           *  enchant ability (CR 303.4c) means there is no legal object to
+           *  enchant and the Aura stays where it is (CR 303.4g); a named host
+           *  that is already gone ends the Op before the card moves. Has no
+           *  effect on a non-Aura card that does move. Valid only with `target` and `to: "battlefield"`
+           *  (validator-enforced). Threaded to `returnToBattlefield`'s
+           *  `opts.attachTo`. */
+          attachTo?: EffectObjectSelector;
       }
     /** CR 400.7 — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.

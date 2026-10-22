@@ -4350,6 +4350,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             // ("return it to the battlefield. It's an enchantment."), valid
             // only on the `target` shape with `to: "battlefield"`.
             entersAs: isEntryTypeLine,
+            // CR 303.4f — the host a returning Aura enters attached to, valid
+            // only on the `target` shape with `to: "battlefield"`.
+            attachTo: isObjectSelector,
             // issue #4302 — the whole-zone shape's NUMBER binding: how many
             // cards the move took out of `from` ("shuffle the cards from your
             // hand into your library, then draw that many cards").
@@ -4554,6 +4557,16 @@ const OP_SCHEMAS: OpSchemaTable = {
             ) {
                 errors.push(
                     'field "entersAs" is only valid with "target" and to: "battlefield" (issue #2993)'
+                );
+            }
+            // CR 303.4f — `attachTo` rides the same reanimation branch as
+            // `entersAs` and nothing else consumes it.
+            if (
+                "attachTo" in entry &&
+                (!hasTarget || entry.to !== "battlefield")
+            ) {
+                errors.push(
+                    'field "attachTo" is only valid with "target" and to: "battlefield" (CR 303.4f)'
                 );
             }
             // issue #1279 — the whole-zone bulk shape: required `player`/
@@ -6834,7 +6847,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // `target` (`{ ref: "$source" }` on Rampant
                                 // Elephant). Without a row a bare ref here
                                 // mis-tags "number" and `$source` is rejected.
-                                keyHint === "attacker"
+                                keyHint === "attacker" ||
+                                // `moveZone`'s `attachTo` (CR 303.4f) — the
+                                // host a returning Aura enters attached to, an
+                                // `EffectObjectSelector` like `target`.
+                                keyHint === "attachTo"
                               ? "object"
                               : "number",
         });
