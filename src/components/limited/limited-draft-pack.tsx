@@ -1,3 +1,4 @@
+import { compareDraftPackCards } from "@convex/limited/draftPackOrder";
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cardBase } from "~/lib/cardSizing";
 import EmptyState from "~/components/ui/empty-state";
@@ -14,8 +15,8 @@ const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 /** The Booster currently in front of the viewer (PRD #1107 stories 10-11,
  *  issue #1112): one card per tile, with a zoom slider (ADR 0060, issue
  *  #1247, PRD #1107 story 21) driving each card's rendered size the same way
- *  the deckbuilder's `CardZoomSlider` does. Sorted by name only for display
- *  — `pickId` (not array position) is what `onPick`/`onSelect`/`onOpenMenu`
+ *  the deckbuilder's `CardZoomSlider` does. Sorted rarest-first, then by name, for
+ *  display — `pickId` (not array position) is what `onPick`/`onSelect`/`onOpenMenu`
  *  send, so re-sorting never changes which physical card is targeted.
  *
  *  Gesture wiring (ADR 0060, issue #1248) — see `LimitedDraftPackCard`'s doc
@@ -69,9 +70,7 @@ export default function LimitedDraftPack({
         return <EmptyState message="Waiting for the next pack…" />;
     }
 
-    const sorted = [...pack].sort((a, b) =>
-        a.cardName.localeCompare(b.cardName)
-    );
+    const sorted = [...pack].sort(compareDraftPackCards);
 
     return (
         <ul
