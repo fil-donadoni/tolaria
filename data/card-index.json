@@ -49766,6 +49766,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Reign of Chaos",
+        "scryfallId": "9285b14a-fc8e-457a-b803-202e05be41e5",
+        "oracleId": "436b5989-9b8c-4e03-a82e-046837c891ca",
+        "firstSet": "mir",
+        "firstPrintId": "9285b14a-fc8e-457a-b803-202e05be41e5",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rejuvenate",
         "scryfallId": "fe3709a3-7a1b-4644-b1d5-e1ffef549f94",
         "oracleId": "35069cdb-e5bd-4224-a1a8-b329054e003b",
