@@ -6,12 +6,14 @@
 //     and a comparison other than "or greater".
 
 import { describe, expect, it } from "vitest";
-import type {
-    CardDefinition,
-    PermanentView,
-    TriggerStateView,
-} from "../../cards/types";
-import { expandCompiledTriggers } from "../../cards/compiledTriggers";
+import type { CardDefinition } from "../../cards/types";
+import { withTemporaryDefinition } from "../../cards/registry";
+import { collectStateTriggers } from "../../gre/triggers";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { oracleCard } from "./oracle.fixture";
@@ -50,22 +52,45 @@ describe("power-reached trigger head — golden (issue #5206)", () => {
         );
     });
 
-    it("the rebuilt ability fires on STATE_CHECK only at power >= N (CR 603.8)", () => {
+    it("fires through the engine on EFFECTIVE power: counters count (CR 603.8, CR 613.4)", () => {
         const outcome = compileCard(devourer(`${HEAD} draw a card.`));
         if (outcome.state === "unparsed") throw new Error("unparsed");
-        const [ability] = expandCompiledTriggers(
-            outcome.definition as CardDefinition
-        ).triggeredAbilities!;
-        const at = (power: number) =>
-            ability!.matches(
-                { type: "STATE_CHECK" },
-                { power } as PermanentView,
-                {} as TriggerStateView
-            );
-        expect(ability!.event).toBe("STATE_CHECK");
-        expect(at(6)).toBe(false);
-        expect(at(7)).toBe(true);
-        expect(at(9)).toBe(true);
+        const definition = {
+            ...outcome.definition,
+            id: "power-reached-test",
+            rarity: "common",
+        } as unknown as CardDefinition;
+        withTemporaryDefinition(definition, () => {
+            const stackAt = (counters: number) => {
+                const state = makeState({
+                    players: [
+                        makePlayer("p1", {
+                            battlefield: [
+                                makeInstance(definition.id, {
+                                    id: "devourer",
+                                    controllerId: "p1",
+                                    ownerId: "p1",
+                                    counters: { "+1/+1": counters },
+                                }),
+                            ],
+                        }),
+                        makePlayer("p2"),
+                    ],
+                });
+                return collectStateTriggers(state).length;
+            };
+            // Base power 1: six counters make 7, five make 6.
+            expect(stackAt(5)).toBe(0);
+            expect(stackAt(6)).toBe(1);
+        });
+    });
+
+    it("refuses a condition behind the head instead of dropping it", () => {
+        expect(
+            compileCard(
+                devourer(`${HEAD} if you control a Forest, draw a card.`)
+            ).state
+        ).toBe("unparsed");
     });
 });
 

@@ -561,7 +561,11 @@ export function resolveCompiledTrigger(
             return stateTrigger({
                 id: common.id,
                 oracleText: common.oracleText,
-                condition: (self) => (self.power ?? 0) >= head.atLeast,
+                // CR 613.4 — the EFFECTIVE power (counters 7c, anthems 7d), read
+                // through the layer pipeline: the server's `state` is the live
+                // GameState, whose `self` carries only the base power.
+                condition: (self, state) =>
+                    readEffectivePower(self, state) >= head.atLeast,
                 effects: common.effects,
             });
         }
@@ -587,6 +591,31 @@ export function resolveCompiledTrigger(
             );
         }
     }
+}
+
+type EffectivePowerReader = (
+    self: PermanentView,
+    state: TriggerStateView
+) => number;
+
+let effectivePowerReader: EffectivePowerReader | null = null;
+
+/**
+ * `gre/layers.ts` registers its CR 613.4 power reader here. `cards/` cannot
+ * import the layer pipeline (it sits above this module in the import graph and
+ * the cycle breaks registry initialisation), so the dependency is inverted.
+ */
+export function bindEffectivePowerReader(reader: EffectivePowerReader): void {
+    effectivePowerReader = reader;
+}
+
+function readEffectivePower(
+    self: PermanentView,
+    state: TriggerStateView
+): number {
+    // Unbound only where the layer pipeline was never loaded (a pure card
+    // fixture): the printed power is then the only power there is.
+    return effectivePowerReader?.(self, state) ?? self.power ?? 0;
 }
 
 /**
