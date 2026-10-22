@@ -2166,6 +2166,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › You draw X cards and lose X life",
+            "issue": 6395
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › You draw X cards and you lose X life, where X is the number of Zombies you control",
             "issue": 4571
         },
