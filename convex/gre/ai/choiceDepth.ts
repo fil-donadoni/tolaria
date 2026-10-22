@@ -103,6 +103,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     scryReorder: true,
     // --- resolves without input -----------------------------------------
     addMana: false,
+    drainManaPool: false,
     addPlayerCounter: false,
     addSubtype: false,
     animate: false,

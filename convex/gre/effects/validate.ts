@@ -4252,6 +4252,11 @@ const OP_SCHEMAS: OpSchemaTable = {
         // it, so no combination is rejected. Absent is the CR 500.5 default.
         optional: { player: isPlayerRef, persistsUntil: isManaPersistence },
     },
+    // CR 106.4 (issue #5260) — empty a player's mana pool. `player` names
+    // whose pool; there is no optional field (the drained record is dropped).
+    drainManaPool: {
+        required: { player: isPlayerRef },
+    },
     destroy: {
         required: { target: isObjectSelector },
         optional: {

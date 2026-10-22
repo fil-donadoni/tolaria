@@ -2343,11 +2343,33 @@ function lowerSentenceBody(
         case "tap-untap": {
             if (sentence.subject.kind === "mass") {
                 const action = sentence.action;
-                return sweepOps(sentence.subject, site, slots, (target) => ({
-                    op: "tapUntap",
-                    action,
-                    target,
-                }));
+                const sweep = sweepOps(
+                    sentence.subject,
+                    site,
+                    slots,
+                    (target) => ({
+                        op: "tapUntap",
+                        action,
+                        target,
+                    })
+                );
+                if (sentence.thenDrainsManaPool !== true || !sweep.ok)
+                    return sweep;
+                // CR 106.4 — "that player" is the announced player `sweepOps`
+                // wrote onto the sweep's controller.
+                const swept = sweep.value[0];
+                const controller =
+                    swept?.op === "forEach" && swept.select.set === "permanents"
+                        ? swept.select.controller
+                        : undefined;
+                if (typeof controller !== "object" || !("target" in controller))
+                    return unlowerable(
+                        '"that player" names no announced player (CR 106.4)'
+                    );
+                return lowered([
+                    ...sweep.value,
+                    { op: "drainManaPool", player: controller },
+                ]);
             }
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;

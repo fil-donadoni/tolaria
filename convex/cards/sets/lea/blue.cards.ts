@@ -1612,22 +1612,18 @@ export const camouflage = defineCard(() => ({
     },
 }));
 
-// Mana Short — {2}{U} Instant. "Tap all lands target player controls. That
-// player loses all unspent mana." (CR 106.4)
+// Mana Short — {2}{U} Instant. "Tap all lands target player controls and that
+// player loses all unspent mana." (CR 701.26a, CR 106.4)
 export const manaShort = defineCard(() => ({
     id: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
     rarity: "rare",
     name: "Mana Short",
     oracleText:
-        "Tap all lands target player controls. That player loses all unspent mana.",
+        "Tap all lands target player controls and that player loses all unspent mana.",
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
-    // AI shadow (issue #4141, never executed): every land the target player
-    // controls is tapped — a tempo denial on their whole mana
-    // base. The unspent-mana drain has no Op and is worth nothing
-    // beyond the tap on the one stable point the bot casts it at.
-    aiEffects: [
+    effects: [
         {
             op: "forEach",
             select: {
@@ -1640,13 +1636,8 @@ export const manaShort = defineCard(() => ({
                 { op: "tapUntap", action: "tap", target: { ref: "$each" } },
             ],
         },
+        { op: "drainManaPool", player: { target: 0 } },
     ],
-    resolve: (ctx: SpellContext) => {
-        const targetPlayerId = ctx.targets[0]?.id;
-        if (targetPlayerId === undefined) return; // CR 608.2b (issue #2985)
-        ctx.tapAllLands(targetPlayerId);
-        ctx.drainManaPool(targetPlayerId);
-    },
 }));
 
 // Drain Power — {U}{U} Sorcery. "Target player activates a mana ability of
