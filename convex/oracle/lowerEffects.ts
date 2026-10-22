@@ -1616,7 +1616,11 @@ export function lowerSentence(
     const out = lowerSentenceBody(
         sentence,
         walk,
-        introducedCreatureSite(sentence, walk, site)
+        announcedCreatureSite(
+            sentence,
+            walk,
+            introducedCreatureSite(sentence, walk, site)
+        )
     );
     // CR 608.2h — "that creature" names the object the LAST sentence acted
     // on. A sentence that announced a new target without recording itself
@@ -1694,6 +1698,60 @@ function introducedCreatureSite(
             creatureAfterSlots: introduced.slots,
         },
     };
+}
+
+/**
+ * CR 608.2h — a sentence reading "that creature" after the script announced
+ * ONE creature target names THAT target ("Target creature can't be
+ * regenerated this turn. Damage that would be dealt to that creature …"),
+ * the nearer antecedent than anything the head named. Rebound for that
+ * sentence only, and only when the target is the sole candidate: a creature
+ * an earlier sentence put onto the battlefield, an object the site's own text
+ * named, or an earlier destroy or move of the target (it is no longer where
+ * the slot points) each leave the word ambiguous or stale, and the site is
+ * left as it was, so the subject is refused rather than bound to a guess.
+ */
+function announcedCreatureSite(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): SiteOptions {
+    if (
+        walk.introduced !== null ||
+        walk.actedOn !== null ||
+        !mentionsThatCreature(sentence) ||
+        headNamesAnObject(site) ||
+        soleAnnouncedCreature(walk) === null
+    )
+        return site;
+    return {
+        ...site,
+        antecedents: {
+            ...site.antecedents,
+            creature: { target: 0 },
+            creatureAfterSlots: 1,
+        },
+    };
+}
+
+/**
+ * CR 608.2h — the ONE creature target the script has announced, when it is
+ * the only announcement and no gate sits in front of a removal of it: the
+ * referent of a later "that creature". Null on every other walk.
+ */
+function soleAnnouncedCreature(walk: SentenceWalk): TargetRequirement | null {
+    const announced = walk.targets.requirements();
+    const only = announced.length === 1 ? announced[0]! : null;
+    if (
+        only === null ||
+        only.type !== "Creature" ||
+        only.count !== 1 ||
+        only.zone !== undefined ||
+        only.announcedOnlyIfKicked === true ||
+        walk.gatedRemoval
+    )
+        return null;
+    return only;
 }
 
 /** CR 608.2h — the site's own text named a creature or object a later
@@ -2386,6 +2444,43 @@ function lowerSentenceBody(
                     restriction: "must-block",
                     target: target.value,
                     attacker: { ref: "$source" },
+                },
+            ]);
+        }
+        case "lock-damage": {
+            // CR 615.12 + CR 614.9 — both locks on the one recipient.
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([{ op: "lockDamage", target: target.value }]);
+        }
+        case "exile-when-dies": {
+            // CR 603.7a + CR 700.4 — the delayed trigger is created now and
+            // watches the creature; when it dies, the body finds the card it
+            // became in the graveyard by the id captured now (`from`), and
+            // does nothing if that card has left the graveyard by then
+            // (CR 603.7c).
+            const watched = objectSelector(sentence.subject, slots, site);
+            if (!watched.ok) return watched;
+            if (!("target" in watched.value) && !("ref" in watched.value))
+                return unlowerable(
+                    "the watched creature is neither a target nor a binding"
+                );
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: "dies",
+                    oracleText:
+                        "When the creature dies this turn, exile the creature.",
+                    watch: watched.value,
+                    capture: { $captured: watched.value },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$captured" },
+                            from: "graveyard",
+                            to: "exile",
+                        },
+                    ],
                 },
             ]);
         }
@@ -3178,16 +3273,7 @@ function lowerSentenceBody(
         case "exile-if-dies": {
             // CR 614.1a + CR 608.2h — the replacement lands on "that
             // creature", the ONE creature target announced before it.
-            const announced = slots.requirements();
-            const only = announced.length === 1 ? announced[0]! : null;
-            if (
-                only === null ||
-                only.type !== "Creature" ||
-                only.count !== 1 ||
-                only.zone !== undefined ||
-                only.announcedOnlyIfKicked === true ||
-                walk.gatedRemoval
-            )
+            if (soleAnnouncedCreature(walk) === null)
                 return unlowerable(
                     '"that creature" names no single creature target announced before it (CR 608.2h)'
                 );
