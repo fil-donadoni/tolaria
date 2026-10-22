@@ -34,10 +34,13 @@ import {
     describeRobustnessFindings,
     formatRobustnessRow,
     ROBUSTNESS_FINDING_PREFIX,
+    ROBUSTNESS_SEEDS,
     robustnessFindingRecords,
     type RobustnessFindings,
     robustnessVectors,
 } from "../robustness";
+import { bladeScenarioSeeds } from "../runner";
+import type { BladeScenario } from "../types";
 import { ROBUSTNESS_BASELINE } from "../robustnessBaseline";
 import { BLADE_SHARDS, bladeShardSlice } from "../shard";
 
@@ -70,9 +73,31 @@ function labelFilter(): ReadonlySet<string> | null {
     return new Set(parsed);
 }
 
-/** One entry is ~31 searches at its own budget; the 2000-iteration entries
- *  measured past the config's 120 s on a loaded machine (issue #4875). */
-const ENTRY_TIMEOUT_MS = 900_000;
+/** Floor of an entry's timeout: the 2000-iteration entries measured past the
+ *  config's 120 s on a loaded machine (issue #4875). */
+const ENTRY_TIMEOUT_FLOOR_MS = 900_000;
+
+/** Wall-clock allowance per search iteration. A rich board costs ~23 ms an
+ *  iteration idle (issue #5424: 1000 iterations = 23 s a search); 60 ms leaves
+ *  room for a loaded shared machine. */
+const MS_PER_ITERATION = 60;
+
+/** An entry's timeout: it runs its own seeds plus every vector over the wide
+ *  seed list, each search at the entry's iterations budget — so the cost
+ *  scales with the budget and a fixed cap eventually times out a heavy board
+ *  with no finding. */
+export function entryTimeoutMs(
+    scenario: BladeScenario,
+    vectorCount: number
+): number {
+    const searches =
+        bladeScenarioSeeds(scenario).length +
+        vectorCount * ROBUSTNESS_SEEDS.length;
+    return Math.max(
+        ENTRY_TIMEOUT_FLOOR_MS,
+        searches * scenario.budget.iterations * MS_PER_ITERATION
+    );
+}
 
 /** Register shard `shard` (0-based) of the robustness audit. */
 export function registerRobustnessShard(shard: number): void {
@@ -115,15 +140,21 @@ export function registerRobustnessShard(shard: number): void {
             it.skip("no entry of the label filter in this shard", () => {});
 
         for (const scenario of audited) {
-            it(scenario.label, { timeout: ENTRY_TIMEOUT_MS }, () => {
-                const row = auditBladeScenario(scenario, vectors);
-                console.log(`[blade:robustness] ${formatRobustnessRow(row)}`);
-                const findings = compareRobustness(
-                    [row],
-                    ROBUSTNESS_BASELINE.filter((b) => b.label === row.label)
-                );
-                expectNoFindings(findings, scenario.label);
-            });
+            it(
+                scenario.label,
+                { timeout: entryTimeoutMs(scenario, vectors.length) },
+                () => {
+                    const row = auditBladeScenario(scenario, vectors);
+                    console.log(
+                        `[blade:robustness] ${formatRobustnessRow(row)}`
+                    );
+                    const findings = compareRobustness(
+                        [row],
+                        ROBUSTNESS_BASELINE.filter((b) => b.label === row.label)
+                    );
+                    expectNoFindings(findings, scenario.label);
+                }
+            );
         }
     });
 }
