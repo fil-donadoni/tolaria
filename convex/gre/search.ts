@@ -1535,11 +1535,27 @@ export function rollout(
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
         } else {
+            // The greedy 1-ply reading takes a lasting self-growing sacrifice
+            // as a gain, and its subtree drags the cast edge that led there
+            // below `pass`. Same prune as the tree below the root (empty stack
+            // only), and only this predicate: the transient and exchange
+            // conversions keep their windowed reading in the greedy pick.
+            const greedyPool =
+                state.stack.length === 0
+                    ? moves.filter(
+                          (m) =>
+                              !isSourceConfinedSacrificeConversion(
+                                  state,
+                                  pid,
+                                  m
+                              )
+                      )
+                    : moves;
             chosen = selectRolloutMove(
                 state,
                 pid,
                 botId,
-                moves,
+                greedyPool.length > 0 ? greedyPool : moves,
                 rng,
                 weights,
                 memo
