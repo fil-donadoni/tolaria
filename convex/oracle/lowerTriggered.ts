@@ -56,7 +56,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 ? {
                       kind: "entered",
                       scope: head.scope,
-                      filter: CREATURE_FILTER,
+                      // CR 202.3 — the mana-value floor rides the same filter.
+                      filter:
+                          head.manaValueAtLeast !== undefined
+                              ? {
+                                    ...CREATURE_FILTER,
+                                    manaValueAtLeast: head.manaValueAtLeast,
+                                }
+                              : CREATURE_FILTER,
                   }
                 : { kind: "entered", scope: head.scope };
         case "dies":
@@ -297,7 +304,8 @@ export function lowerTriggeredAbility(input: {
     readonly kickers?: readonly KickerCost[];
 }): LowerTriggerResult {
     // CR 113.6b — "if this card is in your graveyard" is the ability's zone.
-    // Only a phase head has a factory that functions from the graveyard.
+    // Only a phase head or another-permanent "enters" head has a factory that
+    // functions from the graveyard.
     // CR 113.6b — a body that returns the SOURCE from the graveyard names the
     // zone it functions from (Squee, Goblin Nabob).
     const fromGraveyard =
@@ -306,10 +314,16 @@ export function lowerTriggeredAbility(input: {
     // Only the "if this card is in your graveyard" condition IS the zone; any
     // other intervening-if still lowers to a predicate.
     const zoneCondition = input.condition?.kind === "self-in-graveyard";
-    if (fromGraveyard && input.head.kind !== "phase")
+    // CR 113.6b — an "enters" head on ANOTHER permanent (scope not `self`) also
+    // has a graveyard-zone factory: `enteredTrigger` takes the zone, and the
+    // graveyard scan fires it when a different permanent enters.
+    const graveyardCapableHead =
+        input.head.kind === "phase" ||
+        (input.head.kind === "enters" && input.head.scope !== "self");
+    if (fromGraveyard && !graveyardCapableHead)
         return {
             ok: false,
-            reason: 'a graveyard-zone ability needs an "at the beginning of" head (CR 113.6b)',
+            reason: 'a graveyard-zone ability needs an "at the beginning of" or another-permanent "enters" head (CR 113.6b)',
         };
     // CR 603.4 — the cycled factory takes no intervening-if, so a condition
     // behind this head would be dropped silently: refuse it instead.

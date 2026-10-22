@@ -325,7 +325,7 @@ describe("the verdict lowering declares a TRIGGER on the stack (issue #3516)", (
         // re-key would otherwise red this test for no reason of its own.
         const bearsId = getCardByName("Grizzly Bears").id;
         expect(stackFingerprint(state, seatsOf(state, botId))).toEqual([
-            `me Enduring Courage trigger:enduring-courage-pump source=bf:me Enduring Courage event=PERMANENT_ENTERED(cardId="${bearsId}" controllerId=me instanceId=bf:me Grizzly Bears {sick} power=2 toughness=2 types=["Creature"] wasCast=true) targets[] x=-`,
+            `me Enduring Courage trigger:enduring-courage-pump source=bf:me Enduring Courage event=PERMANENT_ENTERED(cardId="${bearsId}" controllerId=me instanceId=bf:me Grizzly Bears {sick} manaValue=2 power=2 toughness=2 types=["Creature"] wasCast=true) targets[] x=-`,
         ]);
         expectJudgeable(state, botId);
     });
