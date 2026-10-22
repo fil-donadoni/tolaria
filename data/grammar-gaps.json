@@ -2171,6 +2171,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › You draw a card and lose N life",
+            "issue": 6379
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › You gain X life, where X is the number of cards in your hand minus N",
             "issue": 4571
         },
