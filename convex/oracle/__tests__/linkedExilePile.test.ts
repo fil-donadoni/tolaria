@@ -111,6 +111,16 @@ describe("linked exile pile returned to the battlefield (CR 607.2a)", () => {
         expect(wave(`${until}\n${EXILE}\n${RETURN}`).state).toBe("unparsed");
     });
 
+    it("refuses a pile return beside another exile-family Op", () => {
+        // `exileOnDeath` is no exile instruction the pile could name, but
+        // which exile the return reads is no longer the card's ONE `exile`.
+        const replacement =
+            "{R}: This enchantment deals 1 damage to target creature. If that creature would die this turn, exile it instead.";
+        expect(
+            wave(`${FADING}\n${EXILE}\n${replacement}\n${RETURN}`).state
+        ).toBe("unparsed");
+    });
+
     it('refuses "exiled with it" behind a head other than the departure', () => {
         const upkeep = RETURN.replace(
             "When this enchantment leaves the battlefield",

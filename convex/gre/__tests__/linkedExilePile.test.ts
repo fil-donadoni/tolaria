@@ -13,7 +13,13 @@ import {
     resolveActivated,
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards/index";
-import { resolveTopOfStack, type GameState } from "../state";
+import {
+    buildSpellContext,
+    processPendingActionTriggers,
+    removePermanentTo,
+    resolveTopOfStack,
+    type GameState,
+} from "../state";
 import { projectPublicState } from "../../gameProjections";
 
 const parallaxWave = getDefinition("cef789e8-e4cc-4f61-bc15-debc2487777f");
@@ -115,6 +121,65 @@ describe("linked exile pile (CR 607.2a)", () => {
         ]);
         expect(state.players[1].battlefield[0]!.controllerId).toBe("p2");
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["unrelated"]);
+    });
+
+    it("a flickered source's leaves trigger still returns the pile its old object exiled (CR 607.2a, CR 113.7a)", () => {
+        const wave = makeInstance(parallaxWave.id, {
+            id: "wave",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { fade: 5 },
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wave] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        resolveActivated(state, wave, "parallax-wave-exile", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // A flicker: exile the Wave and return it in ONE resolution, before
+        // its leaves trigger reaches the stack. The re-entry is a new object
+        // (CR 400.7), so the live stamps are cleared for it.
+        removePermanentTo(state, "wave", "exile");
+        const flicker = makeInstance(grizzlyBears.id, { id: "flicker" });
+        state.stack.push({ ...flicker, zone: "stack", castById: "p1" });
+        buildSpellContext(
+            state,
+            state.stack[state.stack.length - 1]!
+        ).returnToBattlefield("p1", "wave", "exile");
+        state.stack.pop();
+        expect(state.players[1].exile[0]!.exiledBySourceId).toBeUndefined();
+
+        processPendingActionTriggers(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["bear"]);
+        expect(state.players[1].exile).toHaveLength(0);
+    });
+
+    it("a hostless Aura in the pile stays in exile (CR 303.4g)", () => {
+        const aura = makeInstance(holyStrength.id, {
+            id: "aura",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "exile",
+            exiledBySourceId: "wave",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { exile: [aura] })],
+        });
+        resolveReturn(state, "wave");
+
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["aura"]);
     });
 
     it("the pile enters as ONE event: an Aura ahead of its only host still finds it (CR 303.4f)", () => {

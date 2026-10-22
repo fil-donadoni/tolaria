@@ -6257,8 +6257,18 @@ const OP_SCHEMAS: OpSchemaTable = {
             //     discard]`, re-sequenced by the interpreter into
             //     every-choice-then-every-action; or a lone
             //     `chooseCategorized` with a `sweep`, split the same way.
+            const select = entry.select as { set?: unknown } | undefined;
+            // CR 607.2a — the linked pile returns as ONE instruction; the
+            // per-member walk has no exile-card carrier, so it is refused.
+            if (
+                select?.set === "exiledWithSource" &&
+                entry.simultaneous !== true
+            ) {
+                errors.push(
+                    'forEach over { set: "exiledWithSource" } requires "simultaneous": true (CR 607.2a — the linked pile returns as one instruction)'
+                );
+            }
             if (entry.simultaneous === true) {
-                const select = entry.select as { set?: unknown } | undefined;
                 const set = select?.set;
                 if (set === "graveyard") {
                     if (!isSimultaneousReanimationBody(entry.effects)) {

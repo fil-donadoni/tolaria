@@ -124,6 +124,7 @@ export const EVENT_FIELD_KINDS: {
         wasAura: "scalar",
         attachedToBeforeLeave: "object",
         attachmentsBeforeLeave: "objectList",
+        linkedExileBeforeLeave: "objectList",
         toZone: "scalar",
         cause: "scalar",
         causerControllerId: "player",

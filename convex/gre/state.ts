@@ -6924,6 +6924,14 @@ export function removePermanentTo(
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
     }
+    // CR 607.2a + CR 113.7a — the pile this object's linked exile ability
+    // exiled, read as it leaves: a return of the same id before its leaves
+    // trigger resolves (a flicker) clears the live stamps for the NEW object
+    // (`clearExileLinksToEnteringSource`), but the old object's trigger still
+    // names these cards.
+    const lkiLinkedExile = state.players.flatMap((p) =>
+        p.exile.filter((c) => c.exiledBySourceId === cardId).map((c) => c.id)
+    );
     // CR 603.10 — LTB notification for triggers that fire on the leaving
     // permanent itself ("when this Aura leaves the battlefield, ..."). The
     // matching trigger source is located by `collectTriggers` in `toZone`
@@ -6942,6 +6950,9 @@ export function removePermanentTo(
             attachedToBeforeLeave: lkiAttachedTo,
             ...(lkiAttachments.length > 0
                 ? { attachmentsBeforeLeave: lkiAttachments }
+                : {}),
+            ...(lkiLinkedExile.length > 0
+                ? { linkedExileBeforeLeave: lkiLinkedExile }
                 : {}),
             toZone,
             ...(cause ? { cause } : {}),
@@ -9654,15 +9665,15 @@ export function putReanimatedSetOnBattlefield(
         if (hosts.length === 0) {
             // CR 303.4g — no legal object to enchant (not even a non-Aura
             // sibling that entered as part of this same event): the Aura
-            // never enters, it remains in its owner's graveyard. The caller
-            // already spliced it OUT of that graveyard to make the set-wide
-            // move atomic, so put it back rather than leaving it in limbo.
-            // It never entered, so a pending entry type line expires with the
+            // never enters, it remains in its current zone — its owner's
+            // graveyard, or exile for a linked pile (CR 607.2a). The caller
+            // already spliced it OUT of that pile to make the set-wide move
+            // atomic, so put it back rather than leaving it in limbo. It
+            // never entered, so a pending entry type line expires with the
             // attempt (PR #3023 review, B1).
             discardEntryTypeLine(card);
-            card.zone = "graveyard";
             card.attachedTo = undefined;
-            getPlayer(state, card.ownerId).graveyard.push(card);
+            restoreToCurrentZone(state, card);
             continue;
         }
         if (hosts.length === 1) {

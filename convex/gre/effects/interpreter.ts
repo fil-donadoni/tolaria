@@ -7464,9 +7464,24 @@ function selectForEachMembers(
             .map((t) => t.id);
     }
     // CR 607.2a — "all cards exiled with it": the pile stamped with the
-    // resolving source by its linked exile instruction(s).
+    // resolving source by its linked exile instruction(s), plus — behind the
+    // source's own departure — the pile it held as it left (CR 113.7a), which
+    // a flicker's re-entry has since unstamped for the new object. Cards
+    // stamped after the departure resolve below this trigger, so the live
+    // read adds only the source's own self-exile.
     if (select.set === "exiledWithSource") {
-        return ctx.getCardsExiledWith(ctx.sourceInstanceId).map((c) => c.id);
+        const live = ctx
+            .getCardsExiledWith(ctx.sourceInstanceId)
+            .map((c) => c.id);
+        const event = ctx.triggerEvent;
+        const departed =
+            event?.type === "PERMANENT_LEFT" &&
+            event.instanceId === ctx.sourceInstanceId
+                ? (event.linkedExileBeforeLeave ?? []).filter(
+                      (id) => ctx.getExileCardOwner(id) !== undefined
+                  )
+                : [];
+        return [...new Set([...departed, ...live])];
     }
     let owners: string[];
     if (select.controller !== undefined) {
@@ -7657,21 +7672,13 @@ function execForEach(
         if (ctx.recallChoice(eachId) === undefined) {
             if (op.select.set === "players") {
                 ctx.noteChoice(eachId, [members[k]]);
-            } else if (
-                op.select.set === "graveyard" ||
-                op.select.set === "exiledWithSource"
-            ) {
+            } else if (op.select.set === "graveyard") {
                 // Graveyard-set member (issue #1056): bind `$each` as a
                 // graveyard-card snapshot BEFORE the body acts on it (CR 608.2h
                 // — so a later ref reads last-known information across the zone
                 // change). A member that already left the graveyard resolves to
                 // no owner → leave `$each` uncaptured (CR 608.2b, the body skips).
-                // A linked-exile member (CR 607.2a) rides the same carrier, its
-                // owner read from exile.
-                const owner =
-                    op.select.set === "graveyard"
-                        ? ctx.getGraveyardCardOwner(members[k])
-                        : ctx.getExileCardOwner(members[k]);
+                const owner = ctx.getGraveyardCardOwner(members[k]);
                 if (owner !== undefined) {
                     bindSnapshot(ctx, eachId, {
                         type: "graveyard-card",

@@ -2775,6 +2775,19 @@ describe("validateEffectScript — linked exile pile (CR 607.2a, issue #5200)", 
         ).toBe(true);
     });
 
+    it("rejects the per-member walk: the pile returns as one instruction", () => {
+        const sequential = {
+            ...(pileReturn(BODY) as unknown as Record<string, unknown>),
+        };
+        delete sequential.simultaneous;
+        const errors = validateEffectScript(
+            host({ effects: [sequential as unknown as EffectOp] })
+        );
+        expect(
+            errors.some((e) => /requires "simultaneous": true/.test(e))
+        ).toBe(true);
+    });
+
     it("rejects a selector field the link does not read", () => {
         const errors = validateEffectScript(
             host({
@@ -2792,11 +2805,7 @@ describe("validateEffectScript — linked exile pile (CR 607.2a, issue #5200)", 
     it("accepts exile linkToSource as a boolean only", () => {
         const ok = { op: "exile", target: { target: 0 }, linkToSource: true };
         const bad = { ...ok, linkToSource: "yes" };
-        const withTarget = (op: unknown) =>
-            host({
-                targetRequirement: { type: "Creature", count: 1 },
-                effects: [op as EffectOp],
-            });
+        const withTarget = (op: unknown) => host({ effects: [op as EffectOp] });
         expect(validateEffectScript(withTarget(ok))).toEqual([]);
         expect(validateEffectScript(withTarget(bad)).length).toBeGreaterThan(0);
     });

@@ -10934,6 +10934,13 @@ export interface PermanentLeftEvent {
      *  attachment SBA (CR 704.5m, `sba.ts`) detaches it. Omitted when nothing
      *  was attached. */
     attachmentsBeforeLeave?: ReadonlyArray<string>;
+    /** CR 607.2a + CR 113.7a — instance ids of the exile cards stamped
+     *  `exiledBySourceId` with the leaving permanent at the moment it left:
+     *  the pile its leaves trigger names ("all cards exiled with it"). Kept on
+     *  the event because a return of the same instance id before the trigger
+     *  resolves clears the live stamps for the new object (CR 400.7). Omitted
+     *  when nothing was linked. */
+    linkedExileBeforeLeave?: ReadonlyArray<string>;
     /** Destination zone of the move. */
     toZone: "graveyard" | "exile" | "hand" | "library";
     /** Why the permanent left the battlefield (CR 603.10). `"sacrifice"` is set

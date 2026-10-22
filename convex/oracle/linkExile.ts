@@ -121,15 +121,18 @@ export function linkExileAndReturn(
     }
     // CR 607.2a — the pile return names what the card's ONE battlefield
     // `exile` instruction exiled. A second exile instruction, a hand/graveyard
-    // `moveZone` exile, the singular return beside it, or an "until" bundle
-    // leaves which pile it names unread — refused.
+    // `moveZone` exile, any other exile-family Op (an "until" bundle, a
+    // library or self exile), or the singular return beside it leaves which
+    // pile it names unread — refused.
     if (ops.some(isLinkedPileReturn)) {
         const exiles = ops.filter((op) => op.op === "exile");
         if (
             exiles.length !== 1 ||
             ops.some(isExileMove) ||
             ops.some(isLinkedReturn) ||
-            ops.some((op) => BUNDLE_OPS.has(op.op as string))
+            ops.some(
+                (op) => op.op !== "exile" && /exile/i.test(op.op as string)
+            )
         )
             return {
                 ok: false,
