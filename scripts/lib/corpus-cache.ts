@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { netEnv } from "./gh";
 
 /**
  * The gitignored Card Corpus cache, repo-relative.
@@ -40,12 +41,39 @@ export function corpusCacheSha(path: string): string {
         .digest("hex");
 }
 
-/** The `sha256` the tree at `root` is pinned to, or null for a pin-less tree. */
+/** `corpusCacheSha`, or null for a file that is not a readable gzip (a
+ *  truncated copy, a write in progress) — unusable, never a throw. */
+function safeCacheSha(sha: (path: string) => string, path: string) {
+    try {
+        return sha(path);
+    } catch {
+        return null;
+    }
+}
+
+/** The `sha256` the tree at `root` is pinned to, or null for a pin-less tree.
+ *  A pin file that names no `sha256` throws: read as pin-less it would accept
+ *  any cache, the very thing the pin is for. */
 export function pinnedSha(root: string): string | null {
     const path = join(root, CORPUS_PIN_REL);
     if (!existsSync(path)) return null;
-    const pin = JSON.parse(readFileSync(path, "utf8")) as { sha256?: unknown };
-    return typeof pin.sha256 === "string" ? pin.sha256 : null;
+    let sha256: unknown;
+    try {
+        sha256 = (
+            JSON.parse(readFileSync(path, "utf8")) as { sha256?: unknown }
+        ).sha256;
+    } catch (e) {
+        throw new Error(`${path} is not valid JSON: ${(e as Error).message}`);
+    }
+    if (typeof sha256 !== "string")
+        throw new Error(`${path} names no \`sha256\` — the pin is corrupt`);
+    return sha256;
+}
+
+/** Is the cache at `path` usable by a tree pinned to `pinSha`? */
+export function corpusUsable(path: string, pinSha: string | null): boolean {
+    if (!existsSync(path)) return false;
+    return pinSha === null || safeCacheSha(corpusCacheSha, path) === pinSha;
 }
 
 /** The refusal a mismatched cache earns, naming both hashes and the fix. */
@@ -98,9 +126,12 @@ export function seedPinnedCorpus(
     const dest = join(root, CORPUS_CACHE_REL);
     const source = join(primary, CORPUS_CACHE_REL);
     const usable = (path: string): boolean =>
-        deps.exists(path) && (pinSha === null || deps.sha(path) === pinSha);
+        deps.exists(path) &&
+        (pinSha === null || safeCacheSha(deps.sha, path) === pinSha);
     if (usable(dest)) return { ok: true, how: "kept" };
-    if (source !== dest && usable(source)) {
+    // source === dest (run in the primary itself) needs no guard: usable(dest)
+    // was just false, so usable(source) is too.
+    if (usable(source)) {
         deps.copy(source, dest);
         return { ok: true, how: "copied" };
     }
@@ -127,5 +158,6 @@ export const realCorpusSeedDeps: CorpusSeedDeps = {
         spawnSync("bun", ["scripts/oracle-corpus.ts"], {
             cwd: root,
             stdio: "inherit",
+            env: netEnv(),
         }).status === 0,
 };

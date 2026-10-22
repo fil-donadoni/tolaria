@@ -24,6 +24,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ORIGIN_BASE } from "./lib/branches";
+import { corpusUsable, pinnedSha } from "./lib/corpus-cache";
 import { restoreHeaderHashes } from "./lib/derived-in-pr";
 import {
     BASE_OWNED_LOCKFILE,
@@ -66,7 +67,9 @@ const markedPaths = readFileSync(markerPath, "utf8").split("\n");
 
 const plan = planResolution({
     markedPaths,
-    corpusPresent: existsSync(join(root, CORPUS_CACHE_REL)),
+    // Present means usable: a cache on another pin would only reach
+    // `readCorpus` and throw there (issue #6381).
+    corpusPresent: corpusUsable(join(root, CORPUS_CACHE_REL), pinnedSha(root)),
 });
 
 if (plan.kind === "none") {

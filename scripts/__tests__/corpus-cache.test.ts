@@ -13,6 +13,7 @@ import { gzipSync } from "node:zlib";
 import {
     CORPUS_PIN_REL,
     corpusCacheSha,
+    corpusUsable,
     pinnedSha,
     realCorpusSeedDeps,
     seedPinnedCorpus,
@@ -138,6 +139,33 @@ describe("corpus cache against its pin", () => {
         // A fetch that "succeeds" with the wrong bulk is a failure too.
         const wrong = seedPinnedCorpus(wt, primary, pinnedSha(wt), deps(OLD));
         expect(wrong.ok).toBe(false);
+    });
+
+    it("treats a corrupt (truncated) cache as unusable, never a throw", () => {
+        writePin(wt, NEW);
+        mkdirSync(join(wt, "data"), { recursive: true });
+        writeFileSync(join(wt, CORPUS_CACHE_REL), "not a gzip");
+        expect(corpusUsable(join(wt, CORPUS_CACHE_REL), pinnedSha(wt))).toBe(
+            false
+        );
+        const seed = seedPinnedCorpus(wt, primary, pinnedSha(wt), deps(NEW));
+        expect(seed).toEqual({ ok: true, how: "fetched" });
+    });
+
+    it("the primary IS this tree: a mismatched cache is fetched over, not copied onto itself", () => {
+        writePin(wt, NEW);
+        writeCache(wt, OLD);
+        const seed = seedPinnedCorpus(wt, wt, pinnedSha(wt), deps(NEW));
+        expect(seed).toEqual({ ok: true, how: "fetched" });
+        expect(cacheText(wt)).toBe("New");
+    });
+
+    it("a pin naming no sha256 is an error, not a pin-less tree", () => {
+        mkdirSync(join(wt, "data"), { recursive: true });
+        writeFileSync(join(wt, CORPUS_PIN_REL), JSON.stringify({}));
+        expect(() => pinnedSha(wt)).toThrow(/names no `sha256`/);
+        writeFileSync(join(wt, CORPUS_PIN_REL), "{");
+        expect(() => pinnedSha(wt)).toThrow(/not valid JSON/);
     });
 
     it("a pin-less tree takes any cache, as before", () => {
