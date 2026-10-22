@@ -3,7 +3,7 @@
 //
 // CR 202.3 — "a creature with mana value 6 or greater" reads the entering
 // permanent's mana value; CR 202.3e — an {X} in the cost counts as 0 on the
-// battlefield. CR 113.6b / 603.6e — an ability that functions from the
+// battlefield. CR 113.6b — an ability that functions from the
 // graveyard fires when ANOTHER permanent enters (the scan in `collectTriggers`).
 // Every entry goes through `emitPermanentEntered` — never a hand-built event —
 // so a missing snapshot field shows up as a silent never-fires.
@@ -235,7 +235,7 @@ describe("enteredTrigger with a mana-value floor, from the battlefield", () => {
     });
 });
 
-describe("enteredTrigger with zone: graveyard (CR 113.6b / 603.6e)", () => {
+describe("enteredTrigger with zone: graveyard (CR 113.6b)", () => {
     it("fires from the graveyard when ANOTHER creature of mana value 6 enters", () => {
         const state = board({ graveyard: [GY_WATCHER_ID] });
         expect(enter(state, SIX_DROP_ID)).toEqual([
