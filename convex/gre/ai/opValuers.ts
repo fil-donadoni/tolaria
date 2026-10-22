@@ -2658,6 +2658,9 @@ const nameCard: Valuer<"nameCard"> = () => ZERO_OP_VALUE;
 // script walk prices on their own. Same ZERO as `nameCard` directly above, and
 // for the identical reason.
 const chooseCreatureType: Valuer<"chooseCreatureType"> = () => ZERO_OP_VALUE;
+// CR 205.3i — the land-type sibling, BIND-ONLY for the identical reason: the
+// value is in the `setSubtype` that reads the chosen types back.
+const chooseLandType: Valuer<"chooseLandType"> = () => ZERO_OP_VALUE;
 
 const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     if (op.mode === "next-n") {
@@ -3223,6 +3226,7 @@ export const OP_VALUERS: {
     explore,
     nameCard,
     chooseCreatureType,
+    chooseLandType,
     preventDamage,
     redirectDamage,
     markAssignsNoCombatDamage,
@@ -3675,6 +3679,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // its own row and names its own recipient. `bind` is required for exactly
     // that reason.
     chooseCreatureType: "neutral",
+    // neutral for the same reason: a pick out of CR 205.3i's land-type table
+    // moves no material; the `setSubtype` that reads it back carries the sign.
+    chooseLandType: "neutral",
     // CR 601.2b — divides `objects` into two piles under `chosenBind` /
     // `otherBind`. The pile members are DERIVED from the divider's split and
     // are never announced, so there is nothing here for a redirect to act on —
@@ -3862,6 +3869,7 @@ export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     "coinFlipSeries",
     "nameCard",
     "chooseCreatureType",
+    "chooseLandType",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
