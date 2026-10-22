@@ -27,6 +27,7 @@ import { isManaAbilityDefinition, manaValue } from "./constants";
 import {
     dslAbilityScriptValue,
     dslEtbAbilityInFlightValue,
+    dslEtbAbilityScriptValue,
     dslLatentDelayedTemplateValue,
     dslStandingAbilityScriptValue,
     carriesEachStepEngine,
@@ -650,6 +651,25 @@ export function standingAbilityValueById(
     );
     if (standing === undefined) return 0;
     return Math.max(0, Math.min(standing, MAX_LATENT_SCRIPT_VALUE));
+}
+
+/** Issue #6334 — the ETB Abilities of a card that will ENTER the battlefield
+ *  without being cast (a delayed return from exile, CR 603.7a), from its
+ *  REGISTRY id (projection-safe), valued against `board`: their targets are
+ *  chosen on that board's next step, not on a future one. Capped like every
+ *  latent script reading. 0 for an unknown id or a card with no ETB Ability. */
+export function dslEtbAbilityValueById(
+    cardId: string,
+    board: LatentLens | undefined,
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): number {
+    const def = tryGetDefinition(cardId);
+    if (!def) return 0;
+    const ctx = contextFreeGrounding(latent);
+    return Math.min(
+        dslEtbAbilityScriptValue(def, board ? withLatentLens(ctx, board) : ctx),
+        MAX_LATENT_SCRIPT_VALUE
+    );
 }
 
 /** Issue #4758 — the in-flight value of one ETB Ability, from its source's
