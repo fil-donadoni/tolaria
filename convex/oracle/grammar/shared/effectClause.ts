@@ -781,6 +781,19 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 615.12 + CR 614.9 — "Damage that would be dealt to that
+           * creature this turn can't be prevented or dealt instead to another
+           * permanent or player.": the RECIPIENT-bound twin of the line above,
+           * both clauses on one creature for the rest of the turn. The subject
+           * is anaphora (CR 608.2h), resolved by the lowering like every other
+           * "that creature"; an announced subject ("… dealt to target
+           * creature …") and either clause alone are neighbours, refused.
+           */
+          readonly kind: "lock-damage";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
            * CR 615.7 — "Prevent the next N damage that would be dealt to
            * <recipient> this turn."
            *
@@ -1357,6 +1370,21 @@ export type EffectSentenceIR =
            * here: the Op arms creatures only, and it names one object.
            */
           readonly kind: "exile-if-dies";
+      }
+    | {
+          /**
+           * CR 603.7a + CR 700.4 — "When the creature dies this turn, exile
+           * the creature.": a delayed triggered ability created now, watching
+           * the creature an earlier sentence named, whose body exiles the card
+           * that creature became in the graveyard. Not the replacement above:
+           * the creature DIES (CR 700.4 — its dies triggers fire) and only then
+           * is exiled. The subject is anaphora (CR 608.2h), resolved by the
+           * lowering like every other "that creature". Other bodies behind the
+           * same head ("When that creature dies this turn, you gain 3 life")
+           * are neighbours, refused here.
+           */
+          readonly kind: "exile-when-dies";
+          readonly subject: SubjectIR;
       }
     | {
           /**
@@ -4108,6 +4136,8 @@ const GRAVEYARD_REDIRECT =
     "If a card would be put into your graveyard from anywhere this turn, exile that card instead";
 /** CR 614.1a — "If that creature would die this turn, exile it instead". */
 const EXILE_IF_DIES = "If that creature would die this turn, exile it instead";
+/** CR 603.7a + CR 700.4 — "When the creature dies this turn, exile the creature". */
+const EXILE_WHEN_DIES = "When the creature dies this turn, exile the creature";
 /** CR 608.2n — "Exile {self}" (the resolving spell exiles itself). */
 const EXILE_SELF = `Exile ${SELF_MARKER}`;
 const GAIN_CONTROL_VERB = "Gain control of ";
@@ -4358,6 +4388,9 @@ const COUNTER_FLAT_TAX = /^ unless its controller pays \{([1-9]\d*)\}$/;
 
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
+/** CR 615.12 + CR 614.9 — both locks on one recipient, this turn. */
+const LOCK_DAMAGE_THIS_TURN =
+    /^Damage that would be dealt to (.+) this turn can't be prevented or dealt instead to another permanent or player$/;
 
 /**
  * CR 615.7 — the prevention shield's printed form. The size is the printed
@@ -5837,6 +5870,19 @@ function effectSentence(
             kind: "suppress-damage-prevention" as const,
         } satisfies EffectSentenceIR);
 
+    // ── recipient-bound damage lock (CR 615.12 + CR 614.9) ────────────────
+    const lockDamage = span.match(LOCK_DAMAGE_THIS_TURN);
+    if (lockDamage !== null) {
+        const subject = subjectRule.run(lockDamage[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (subject.value.kind !== "that-creature")
+            return fail('a damage lock names "that creature"', span);
+        return ok({
+            kind: "lock-damage" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── prevent the next N damage (CR 615.7) ───────────────────────────────
     const preventNext = span.match(PREVENT_NEXT_DAMAGE);
     if (preventNext !== null) {
@@ -7020,6 +7066,13 @@ function effectSentence(
     if (span === EXILE_IF_DIES)
         return ok({
             kind: "exile-if-dies" as const,
+        } satisfies EffectSentenceIR);
+
+    // ── that creature is exiled after it dies this turn (CR 603.7a) ───────
+    if (span === EXILE_WHEN_DIES)
+        return ok({
+            kind: "exile-when-dies" as const,
+            subject: { kind: "that-creature" as const },
         } satisfies EffectSentenceIR);
 
     // ── the resolving spell exiles itself (CR 608.2n) ─────────────────────
