@@ -99,6 +99,7 @@
         "code": "card-paired-mechanism",
         "reason": "Op \"divideIntoPiles\" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests"
     },
+    "drainManaPool": "runs",
     "draw": "runs",
     "emblem": "runs",
     "exile": "runs",

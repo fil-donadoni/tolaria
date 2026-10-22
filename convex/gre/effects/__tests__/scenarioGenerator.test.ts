@@ -126,6 +126,22 @@ describe("assertion derivation per Op kind (issue #804)", () => {
         expect(plan.assertions[0].check(plan.scenario.state).ok).toBe(false);
     });
 
+    it("seeds floating mana and derives an empty-pool assertion for drainManaPool (CR 106.4)", () => {
+        const plan = planSmokeTest([
+            { op: "drainManaPool", player: "opponent" },
+        ]);
+        if (plan.kind !== "run") throw new Error("expected run");
+        const seeded = plan.scenario.state.players.find(
+            (p) => p.id === OPPONENT_ID
+        )!;
+        expect(Object.values(seeded.manaPool).some((n) => n > 0)).toBe(true);
+        // Unchanged (still floating) → fails; emptied → passes.
+        expect(plan.assertions[0].check(plan.scenario.state).ok).toBe(false);
+        const post = structuredClone(plan.scenario.state);
+        post.players.find((p) => p.id === OPPONENT_ID)!.manaPool = {};
+        expect(plan.assertions[0].check(post).ok).toBe(true);
+    });
+
     it("derives a hand-size assertion for draw", () => {
         const plan = planSmokeTest([
             { op: "draw", player: "controller", count: 2 },

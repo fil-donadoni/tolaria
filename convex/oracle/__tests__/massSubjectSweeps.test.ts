@@ -637,10 +637,6 @@ describe("mass subjects — refusals stay fail-closed", () => {
             "a stacked-colour edict (an AND the OR-list cannot say)",
             "Target opponent sacrifices a green white permanent of their choice.",
         ],
-        [
-            "tap + 'loses all unspent mana' (no mana-pool Op — Mana Short)",
-            "Tap all lands target player controls and that player loses all unspent mana.",
-        ],
     ])("refuses %s", (_what, text) => {
         expect(sorcery(text).state).toBe("unparsed");
     });

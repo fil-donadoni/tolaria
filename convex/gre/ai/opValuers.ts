@@ -2129,6 +2129,12 @@ const addMana: Valuer<"addMana"> = (op, ctx) => {
     return { points: priced(ctx, "ramp", total), tags: ["ramp"] };
 };
 
+// CR 106.4 (issue #5260) — a player's unspent mana is lost. The feature basis
+// has no dimension for floating mana, so the drain prices at zero, like a pure
+// enabler such as `setColor`. The sign (harmful to the recipient) is
+// `OP_BENEFICENCE`'s, so a drain aimed at oneself still reads as a self-harm.
+const drainManaPool: Valuer<"drainManaPool"> = () => ZERO_OP_VALUE;
+
 const addSubtype: Valuer<"addSubtype"> = () => ZERO_OP_VALUE;
 
 const animate: Valuer<"animate"> = (op) => {
@@ -3185,6 +3191,7 @@ export const OP_VALUERS: {
     setLevel,
     // Backfilled Ops (issue #1430).
     addMana,
+    drainManaPool,
     addSubtype,
     animate,
     setBasePT,
@@ -3544,6 +3551,8 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // how the bot ends up handing an effect to the opponent.
     moveSpellFromStack: "harmful",
     discard: "harmful",
+    // CR 106.4 — the recipient loses every unspent mana: strictly a loss.
+    drainManaPool: "harmful",
     // CR 401.4 (issue #3006) — taking N cards out of `player`'s hand and
     // burying them under their next draws is an attack on `player`, and the
     // review of this census found the shipped card that proves it: Stunted
