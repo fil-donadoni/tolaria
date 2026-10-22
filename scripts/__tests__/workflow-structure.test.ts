@@ -71,6 +71,16 @@ jobs:
       - uses: actions/checkout@${SHA}
       - uses: ./.github/actions/job-setup
       - run: bun run check:lane --regenerate-derived
+  refusals:
+    if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@${SHA}
+      - uses: ./.github/actions/job-setup
+      - env:
+          PR_BODY: \${{ github.event.pull_request.body }}
+        run: bun run pr:checks scenario
 `;
 
 const SELF_HOSTED = `
@@ -714,6 +724,25 @@ describe("workflow structure guard", () => {
             "startsWith(github.head_ref"
         );
         expect(rules(fixture({ hosted: onlyDrafts }))).toEqual(["queue-entry"]);
+    });
+
+    it("refuses a job reading the PR body that runs on the queue's drafts (issue #6404)", () => {
+        const guard =
+            "  refusals:\n    if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}\n";
+        const hosted = edit(HOSTED, guard, "  refusals:\n");
+        expect(
+            checkStructure(fixture({ hosted })).map(formatViolation)
+        ).toEqual([
+            ".github/workflows/hosted.yml (job refusals): draft-body-read: a job reading `github.event.pull_request.body` must skip the queue's drafts (an `if:` on `mergify/merge-queue/`): there the body is Mergify's, not the queued PR's",
+        ]);
+        const onlyDrafts = edit(
+            HOSTED,
+            guard,
+            "  refusals:\n    if: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') }}\n"
+        );
+        expect(rules(fixture({ hosted: onlyDrafts }))).toEqual([
+            "draft-body-read",
+        ]);
     });
 
     it("requires a lane run on a PR merged with the base to regenerate derived state (issue #6338)", () => {

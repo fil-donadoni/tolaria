@@ -91,6 +91,11 @@ jobs:
 
     refusals:
         name: ${{ matrix.check }}
+        # Not on the merge queue's drafts either: there `PR_BODY` is
+        # Mergify's batch description, not the queued PR's, so `ui-receipt`
+        # and `scenario` refuse a PR whose own body passes (issue #6404).
+        # `land:ready` already ran the refusals on the PR (issue #5956).
+        if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         strategy:
