@@ -33,6 +33,8 @@ Disclosed material — open a file only when its step arrives:
   the hand-off of a preference pair to the reviewer's account. Read it at
   step 7.
 
+Only the owner launches it (`disable-model-invocation`): a `/next-ticket` pass
+on an audit issue claims, opens the worktree, and hands them the command.
 Context hygiene is `/next-ticket`'s: `gh` for fields, noisy stdout to a file
 under the session scratchpad, never poll.
 
@@ -48,9 +50,8 @@ one. At the eighth red pair stop writing and go to step 4 with what you have;
 suspicions left over are listed at the end of the report as "not written", one
 line each, never as pairs.
 
-Distinct from the Bot-play sweep (per card, `oracle:report`) and from the
-robustness measurement (seed noise on `must`, `blade:robustness`): three
-measurements, never one number (PRD issue #4920, user story 22).
+Not the Bot-play sweep (`oracle:report`) nor seed noise (`blade:robustness`):
+three measurements, never one number (PRD issue #4920, user story 22).
 
 ## 0. Census
 
@@ -142,7 +143,7 @@ bunx vitest run --config vitest.blade.config.ts convex/gre/ai/blade/__tests__/au
 grep -E '^(RED|TIE|GREEN) ' "$AUDIT_OUT"
 ```
 
-The scratch spec writes one line per entry to `$AUDIT_OUT` from `BladeResult.seeds[]` (`ok`, `moveDescription`, `mechanism` per seed) and asserts only that the line was written — the blade config requires an assertion, and a passing test's console output is hidden under an agent (`doors.md` § The scratch spec). Read it as
+One line per entry in `$AUDIT_OUT` (`doors.md` § The scratch spec), read as
 `/bot-change` Phase 0 step 2 reads a reproduction:
 
 | Seeds failing | Reading                                                            |
@@ -159,15 +160,16 @@ back to step 3. Nothing is filed on an argument from the code alone (ADR 0141
 **Done when:** every pair has a verdict (red / tie / green) with its seed
 count, and only the red ones go on.
 
-## 5. Diagnose — three suspects, with measurements
+## 5. Diagnose — four suspects, with measurements
 
-For each red pair, in `/bot-change` Phase 0's order, each suspect tested by its
-measurement, not by argument:
+For each red pair, rules first, then `/bot-change` Phase 0's order, each
+suspect tested by its measurement, not by argument:
 
 | Suspect                                           | Measurement                                                                                                                                                                              | Cause it names                                      |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Rules** — the right move does not work          | play the expected move, drain the Stack (`doors.md` § Settled reading): does the board end where the CR says (`bun run cr <id>`)? If not, the Bot's pick is right in this engine         | an engine defect — the Engine door, never a stretch |
 | **Enumeration** — the right move is never offered | `enumerateMoves(state, botId)` (`convex/gre/moves.ts`) on the built anchor position: is the expected move in the list? Is it legal at all?                                               | a Move never enumerated (a rules or enumerator gap) |
-| **Evaluation** — the evaluator cannot see the gap | `evaluateBreakdown` (`convex/gre/evaluate.ts`) of the state after the expected move vs after the observed move (`applyMoveForSearch`): near-equal totals = blind; name the silent term   | a missing Evaluation term, or a blind probe         |
+| **Evaluation** — the evaluator cannot see the gap | `evaluateBreakdown` (`convex/gre/evaluate.ts`) of the SETTLED position after the expected move vs the observed one (`doors.md` § Settled reading): near-equal or inverted = blind        | a missing Evaluation term, or a blind probe         |
 | **Valuer sign** — no opinion on the announcement  | `OP_VALUERS` / `OP_BENEFICENCE` (`convex/gre/ai/opValuers.ts`) for the Ops in the card's script: an absent beneficence row reads `"neutral"`; a valuer at the `base + MV` floor is blind | a blind valuer, a missing `aiEffects` shadow        |
 
 The position is the one the runner builds (`buildBladeLoadState`,
@@ -175,7 +177,7 @@ The position is the one the runner builds (`buildBladeLoadState`,
 evidence fits none of the three is a search bound, not a knowledge gap: re-run
 at a higher budget and record what ADR 0070 §2 asks (`passesAt`, or `sweptTo`
 with the budget at which it still failed) — cause `branching`, `horizon` or
-`hidden-information`; a blind term is `valuation` and carries no `passesAt`.
+`hidden-information` (`doors.md` § Budget sweep); a blind term is `valuation`, no `passesAt`.
 **A pair with no measurement behind its cause is "undiagnosed"** — say so;
 it is not a worse row, it is an honest one.
 
@@ -198,8 +200,8 @@ reviewer's word per row:
   over the seeds run.
 - **kind** — `forced` (in the anchor the wrong move loses something the rules force — a creature, the game — AND in the half the expected move is the only one that does not, ADR 0070 §1: both entries will sit in the registry) or `preference` (better, not forced, on either side). Written as the agent's proposal; the reviewer's word decides.
 - **cause** — the suspect and its measurement in six words, or `undiagnosed`.
-- **proposed issue** — `new: <cause>`, `existing: issue #N`, or `—`. One issue
-  per CAUSE: rows sharing a cause share the cell.
+- **proposed issue** — `new: <cause>`, `new engine: <defect>` (a Rules row),
+  `existing: issue #N`, or `—`. One issue per CAUSE: rows sharing it share the cell.
 
 Ties and dropped suspicions follow the table, one line each, outside it.
 
@@ -225,7 +227,7 @@ links — `docs/agents/issue-tracker.md` § Card names are Scryfall links,
 **Forced door** (`forced` + `ok`, or reclassified `forced`): the pair enters
 `convex/gre/ai/blade/scenarios.ts` — anchor as a `stretch` entry carrying
 `audit: { theme }`, `beyondBudget.cause` from step 5 and `issue #N` in
-`beyondBudget.note`; half as its `pairOf` entry, `must` (green on every seed at budget). **Both are shown to bite** (ADR 0070 §1): the anchor is red by construction; the half is run once with its expectation inverted and seen red before the real one is committed — say so in the PR. `auditEntryProblems` (`auditThemes.ts`, run by `registry.bot.test.ts`) reds a bare one. The issue is
+`beyondBudget.note`; half as its `pairOf` entry, `must` (green on every seed at budget). **Both are shown to bite** (ADR 0070 §1, `doors.md` § Forced door; say so in the PR); `auditEntryProblems` reds a bare one. The issue is
 filed FIRST so the note can name it. It is red in-tree, report-only
 (`test:blade:stretch`); the fix PR promotes it to `must` and removes
 `beyondBudget` in one diff. All forced pairs of the session land in **one PR**
@@ -237,7 +239,15 @@ under their own account** — never by the agent, never by CLI as admin
 (Attestation is a person, ADR 0128; `verdicts.submit` is tester-gated).
 `doors.md` § Preference hand-off says what to hand them. Then, in the same
 session: `bun run verdicts:promote`, `bun run fit:weights`, read the
-promotion's unsatisfied-pair report. `verdicts:promote` rewrites the Verdict Lock and `convex/gre/ai/evalWeights.ts` together: commit that diff on the audit's branch as its own commit, in the session's PR (`docs/guides/verdict-store.md` § Promote the corpus — both in one PR; the PR exists even with no forced pair). **An issue for a preference exists only when that report names the pair's Discriminant as one no term reads** — never from the code walk (ADR 0149 §3, ADR 0148). Satisfied = not a gap = no ticket.
+promotion's unsatisfied-pair report; commit the promotion's diff in the
+session's PR (`doors.md` § Preference door). **An issue for a preference
+exists only when that report names the pair's Discriminant as one no term
+reads**, or when the reviewer's word asks for one — never from the code walk
+(ADR 0149 §3, ADR 0148). Satisfied = not a gap = no ticket.
+
+**Engine door** (a Rules row the reviewer keeps): one engine issue per defect,
+outside the umbrella, band by the reviewer's word; the pair rides in it as
+its reproducer and enters no registry (`doors.md` § Engine door).
 
 **Issues** — one per diagnosed CAUSE, never per pair (ADR 0102, ADR 0146):
 `gh issue create` with `--label bug --label area:game-bot`, `--parent 4920`
@@ -250,9 +260,9 @@ acceptance: those entries pass as `must` at their declared budget and
 `blade:robustness` classifies them `robust`. **No `ready-for-agent`**: the
 owner labels what the queue takes.
 
-**Undiagnosed** (`ok` on an `undiagnosed` row): the entry still lands `stretch` (forced) with the `cause` the budget sweep measured — a cause the suspects could not name a TERM for is still a measured cause (`doors.md` § Entry template) — `beyondBudget.note` saying `cause undiagnosed` and naming the umbrella as its issue (`issue #4920`), and the pair is appended to the umbrella's `## Undiagnosed pairs` block — never a ticket.
+**Undiagnosed** (`ok` on an `undiagnosed` row): the entry lands `stretch` with the cause the budget sweep measured, `cause undiagnosed` and `issue #4920` in its note, and the pair is appended to the umbrella's `## Undiagnosed pairs` block — never a ticket (`doors.md` § Undiagnosed pairs).
 
-**Done when:** every row's word has had its action; the session's PR — forced pairs, the promotion's diff, or both — is handed off; preference Verdicts are attested, promoted and fitted; every cause issue is parented and read back; the undiagnosed block is appended.
+**Done when:** every row's word has had its action; the session's PR — forced pairs, the promotion's diff, or both — is handed off; preference Verdicts are attested, promoted and fitted; every cause issue is parented and read back, every engine issue banded; the undiagnosed block is appended.
 
 ## 8. Report
 
