@@ -8257,7 +8257,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 101.4 + CR 701.21a — "Each player chooses a land they control of each basic land type. Return those lands to their owners' hands.": the two-sentence bounce, `chooseCategorized` on `$each` (issue #5501).
+    // CR 101.4 — "Each player chooses a land they control of each basic land type. Return those lands to their owners' hands.": the two-sentence bounce, `chooseCategorized` on `$each` (issue #5501).
     {
         rule: "effect clause",
         card: {

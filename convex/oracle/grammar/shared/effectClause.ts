@@ -4099,7 +4099,7 @@ const LIBRARY_REORDER =
 /** CR 101.4 — the first sentence of the per-land-type bounce. */
 const CHOOSE_LAND_PER_BASIC_TYPE =
     /^Each player chooses a land they control of each basic land type$/;
-/** CR 701.21a — its second sentence: the picked lands go back to hand. */
+/** CR 101.4 — its second sentence: the picked lands go back to hand. */
 const RETURN_CHOSEN_LANDS = /^Return those lands to their owners' hands$/;
 /** CR 101.4 + CR 701.21a — one land per basic land type, sacrifice the rest. */
 const KEEP_LAND_PER_BASIC_TYPE =
