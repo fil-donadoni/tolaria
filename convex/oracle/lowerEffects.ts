@@ -3128,6 +3128,16 @@ function lowerSentenceBody(
                 return unlowerable(
                     '"the exiled card" names no exile linked to this ability (CR 607.2a)'
                 );
+            // CR 400.7 — a card goes to its OWNER's hand; the selector spans
+            // every player's exile, and the card pass links the exile half.
+            if (sentence.to === "hand")
+                return lowered([
+                    {
+                        op: "moveZone",
+                        target: { exiledWithSource: true },
+                        to: "hand",
+                    },
+                ]);
             return lowered([{ op: "returnExiledForSource" }]);
         }
         case "graveyard-play":

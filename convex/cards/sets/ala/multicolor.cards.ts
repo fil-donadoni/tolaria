@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 // Tidehollow Sculler — {W}{B} Artifact Creature — Zombie, 2/2 (Vintage Cube
-// edict/discard/hand disruption, issue #682; shipped by issue #2522).
+// edict/discard/hand disruption).
 //
 // TWO printed triggered abilities (CR 603.2), so both halves are ordinary
 // triggers — this card has no CR divergence. Composed entirely from Ops that
@@ -20,11 +20,11 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 //     controller and whose ZONE OWNER (`zoneOwnerId`) is that opponent.
 //     "Nonland card" is the filter's `excludeType: "Land"`.
 //   - The exile is the `cards`-shape `moveZone` (`from: "hand"` →
-//     `to: "exile"`) carrying `linkToSource: true` (issue #1947), which
+//     `to: "exile"`) carrying `linkToSource: true`, which
 //     stamps `exiledBySourceId` = this creature's own instance, so the
 //     return half can name exactly this card (CR 607 linked abilities).
 //   - The return is the sixth `moveZone` shape, `target: { exiledWithSource:
-//     true }` → `to: "hand"` (issue #1323). It resolves through
+//     true }` → `to: "hand"`. It resolves through
 //     `getCardsExiledWith`, which spans EVERY player's exile, and moves the
 //     card out of the OWNER's exile pile into the OWNER's hand — CR 400.7,
 //     which is what this card needs, since the exiled card belongs to the
@@ -32,7 +32,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 //     `linkToSource` with this selector: Emperor of Bones (`mh3/black.cards.ts`).
 //
 // "Target opponent" is a REAL target announced when the ETB trigger goes on
-// the stack (CR 603.3d, the issue #1193 machinery), not a resolution-time
+// the stack (CR 603.3d, the player-target machinery), not a resolution-time
 // choice — so it reaches the player-target legality gate. Both of the
 // abilities that make a PLAYER an illegal target are stated in those terms:
 // protection (CR 702.16b — "a permanent or player with protection can't be
@@ -53,14 +53,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // indefinitely. Exiled cards are face up (CR 406.3): entering exile clears
 // `knownTo` (ADR 0026 public-zone rule), and the board affordance pinning the
 // exiled card to the Sculler comes free from the `exiledBySourceId` →
-// `exiledByPermanentId` projection link (issue #791).
-//
-// The Oracle compiler has no grammar for either printed line yet — the
-// reveal-and-exile-a-chosen-hand-card clause and the linked return-on-leave
-// clause are both unconsumed slots, so Guard C is satisfied by declaring the
-// fragments rather than by a round trip (PRD #2693).
-// compiler-gap: When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card. (#2693)
-// compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
+// `exiledByPermanentId` projection link.
 export const tidehollowSculler = defineCard(() => ({
     id: "1abecc77-07f2-43e4-8585-0a8199cdcf01",
     name: "Tidehollow Sculler",
