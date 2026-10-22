@@ -2623,6 +2623,89 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 205.3i / 305.6 + CR 305.7 (issue #5173) — "Choose a land type and a
+    // basic land type. Each land of the first chosen type becomes the second
+    // chosen type until end of turn." Two `chooseLandType` picks read back by
+    // a `forEach` over the lands of the first and a `setSubtype` with
+    // `family: "land"` writing the second: runtime bindings the canned smoke
+    // scenario cannot supply. The mill and phase-out modes ride along
+    // unchanged.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c56d2c5b-c3e3-4236-bc38-286e250aa4f7",
+            name: "Vision Charm",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Choose one —\n• Target player mills four cards.\n• Choose a land type and a basic land type. Each land of the first chosen type becomes the second chosen type until end of turn.\n• Target artifact phases out.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Vision Charm",
+            types: ["Instant"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Choose one —\n• Target player mills four cards.\n• Choose a land type and a basic land type. Each land of the first chosen type becomes the second chosen type until end of turn.\n• Target artifact phases out.",
+            modes: [
+                {
+                    id: "vision-charm-mode-1",
+                    label: "Target player mills four cards",
+                    oracleText: "Target player mills four cards.",
+                    effects: [{ op: "mill", player: { target: 0 }, count: 4 }],
+                    targetRequirement: { type: "player", count: 1 },
+                },
+                {
+                    id: "vision-charm-mode-2",
+                    label: "Choose a land type and a basic land type. Each land of the first chosen type becomes the second chosen type until end of turn",
+                    oracleText:
+                        "Choose a land type and a basic land type. Each land of the first chosen type becomes the second chosen type until end of turn.",
+                    effects: [
+                        {
+                            op: "chooseLandType",
+                            player: "controller",
+                            prompt: "Choose a land type",
+                            bind: "$firstChosenType",
+                        },
+                        {
+                            op: "chooseLandType",
+                            player: "controller",
+                            prompt: "Choose a basic land type",
+                            bind: "$secondChosenType",
+                            basic: true,
+                        },
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Land",
+                                    subtype: { ref: "$firstChosenType" },
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "setSubtype",
+                                    target: { ref: "$each" },
+                                    subtypes: { ref: "$secondChosenType" },
+                                    family: "land",
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "vision-charm-mode-3",
+                    label: "Target artifact phases out",
+                    oracleText: "Target artifact phases out.",
+                    effects: [{ op: "phaseOut", target: { target: 0 } }],
+                    targetRequirement: { type: "Artifact", count: 1 },
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 603.2 — "Whenever this creature deals damage to an
     // opponent, that player discards a card at random": "that player" is the
     // damaged player, `DAMAGE_DEALT.damagedPlayer`. Exhibits a discard by an

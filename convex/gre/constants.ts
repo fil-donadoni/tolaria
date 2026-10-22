@@ -20,7 +20,10 @@ import type { MatchablePermanent, PermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
-import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
+import {
+    CREATURE_SUBTYPES,
+    LAND_SUBTYPES,
+} from "../oracle/grammar/shared/subtypes";
 import {
     NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
     type NeverAutoPayableCostLeg,
@@ -398,8 +401,11 @@ export function isLandDefinition(def: CardDefinition): boolean {
 }
 
 /** CR 205.3i — the complete land type list: the five basic land types plus
- *  the eleven nonbasic ones (Cave, Desert, Gate, Lair, Locus, Mine,
- *  Power-Plant, Sphere, Tower, Town, Urza's). An effect that sets a land's
+ *  the twelve nonbasic ones (Cave, Desert, Gate, Lair, Locus, Mine, Planet,
+ *  Power-Plant, Sphere, Tower, Town, Urza's). It IS the grammar's
+ *  `LAND_SUBTYPES`, gate-verified against the vendored CR by
+ *  `scripts/__tests__/oracle-subtypes.test.ts`, so the table a land-type
+ *  choice offers and the one a land-type change replaces are one. An effect that sets a land's
  *  subtype to one or more of these ("Nonbasic lands are Mountains" — Blood
  *  Moon; "target land becomes a Swamp" — Orcish Farmer) is a CR 305.7
  *  land-type change: it replaces only the land's OLD LAND TYPES, never a
@@ -418,24 +424,7 @@ export function isLandDefinition(def: CardDefinition): boolean {
  *  narrowing (issue #1883 regression: the ATQ Urza-land trio and, before it
  *  was even a CardDefinition, Urza's Saga). Enforced catalogue-wide by
  *  `convex/cards/__tests__/landTypeCoverage.test.ts`. */
-export const LAND_TYPES: ReadonlySet<string> = new Set([
-    "Cave",
-    "Desert",
-    "Forest",
-    "Gate",
-    "Island",
-    "Lair",
-    "Locus",
-    "Mine",
-    "Mountain",
-    "Plains",
-    "Power-Plant",
-    "Sphere",
-    "Swamp",
-    "Tower",
-    "Town",
-    "Urza's",
-]);
+export const LAND_TYPES: ReadonlySet<string> = LAND_SUBTYPES;
 
 /** CR 305.7 — composes the subtypes a LAND keeps after an effect sets its
  *  land type(s) to `newLandTypes`: every subtype outside {@link LAND_TYPES}

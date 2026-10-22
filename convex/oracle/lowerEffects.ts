@@ -302,6 +302,11 @@ function lowerAmount(
  *  name, which `validateEffectScript` rejects as a duplicate bind — the
  *  correct answer, since no printed card does it). */
 const CHOSEN_TYPE_BINDING = "$chosenType";
+/** CR 205.3i / 305.6 — the two land-type picks of "Choose a land type and a
+ *  basic land type", read back by "the first / second chosen type". Reserved
+ *  constants for the reason `CHOSEN_TYPE_BINDING` gives. */
+const FIRST_CHOSEN_LAND_TYPE_BINDING = "$firstChosenType";
+const SECOND_CHOSEN_LAND_TYPE_BINDING = "$secondChosenType";
 const NAMED_CARD_BINDING = "$named";
 /** The picks binding of a card revealed at random from hand (CR 701.20a). */
 const REVEALED_CARD_BINDING = "$revealed";
@@ -3862,6 +3867,52 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 205.3i / 305.6 — two picks, the second of a BASIC land type.
+        case "choose-land-types":
+            return lowered([
+                {
+                    op: "chooseLandType",
+                    player: "controller",
+                    prompt: "Choose a land type",
+                    bind: FIRST_CHOSEN_LAND_TYPE_BINDING,
+                },
+                {
+                    op: "chooseLandType",
+                    player: "controller",
+                    prompt: "Choose a basic land type",
+                    bind: SECOND_CHOSEN_LAND_TYPE_BINDING,
+                    basic: true,
+                },
+            ]);
+        // CR 305.7 / 611.2 — every land of the first pick, snapshotted as the
+        // `forEach` starts (CR 611.2c — the affected set is fixed when the
+        // effect begins), has its land types replaced by the second pick
+        // until `duration`. Reads the bindings the choose sentence writes; a
+        // line without it leaves the refs unbound, which
+        // `validateEffectScript` refuses.
+        case "set-chosen-land-type":
+            return lowered([
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: {
+                            type: "Land",
+                            subtype: { ref: FIRST_CHOSEN_LAND_TYPE_BINDING },
+                        },
+                    },
+                    effects: [
+                        {
+                            op: "setSubtype",
+                            target: { ref: "$each" },
+                            subtypes: { ref: SECOND_CHOSEN_LAND_TYPE_BINDING },
+                            family: "land",
+                            duration: durationSpec(sentence.duration),
+                        },
+                    ],
+                },
+            ]);
         case "replace-mana-production-color":
             return lowered([
                 {

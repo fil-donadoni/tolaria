@@ -2100,6 +2100,12 @@ const SCENARIO_SKIPS = {
         code: "suspends-for-input",
         reason: `Op "chooseCreatureType" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests`,
     },
+    // CR 205.3i — the land-type sibling of the row above, skipped for the
+    // identical reason.
+    chooseLandType: {
+        code: "suspends-for-input",
+        reason: `Op "chooseLandType" suspends for a live land-type choice (CR 205.3i) — covered by the Op's interpreter tests`,
+    },
 } as const satisfies Partial<Record<EffectOp["op"], ScenarioSkipRow>>;
 
 type ScenarioSkippedOp = keyof typeof SCENARIO_SKIPS;
