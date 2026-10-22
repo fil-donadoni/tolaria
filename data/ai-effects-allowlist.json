@@ -475,12 +475,6 @@
     },
     {
         "class": "card",
-        "cardId": "f3d62dbd-63db-4ac9-950f-9852627f23f2",
-        "name": "Time Spiral",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "6eab6765-eba3-4844-81ca-ae37a6e903df",
         "name": "Transmute Artifact",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
