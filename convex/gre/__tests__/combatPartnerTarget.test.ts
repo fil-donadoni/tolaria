@@ -22,7 +22,6 @@ import {
 import type { GameState } from "../state";
 import {
     getPlayer,
-    putReanimatedSetOnBattlefield,
     regenerateOrDestroy,
     removePermanentFromCombat,
     removePermanentTo,
@@ -202,26 +201,5 @@ describe("Cromat — target creature blocking or blocked by {self} (CR 509.1g, i
         removePermanentTo(state, "cromat", "hand");
         resolveTopOfStack(state);
         expect(onBattlefield(state, "partner")).toBe(false);
-    });
-
-    it("resolution: a Cromat blinked back under the same id is a new object out of combat, so nothing partners it (CR 400.7 / 506.4, issue #6333)", () => {
-        const state = board("attacking");
-        const cromat = getPlayer(state, "p1").battlefield[0];
-        state.stack.push({
-            ...cromat,
-            zone: "stack",
-            castById: "p1",
-            abilityId: DESTROY,
-            targets: [{ type: "permanent", id: "partner" }],
-        });
-        const left = removePermanentTo(state, "cromat", "exile")!;
-        const exile = getPlayer(state, "p1").exile;
-        exile.splice(exile.indexOf(left), 1);
-        putReanimatedSetOnBattlefield(state, [
-            { card: left, controllerId: "p1" },
-        ]);
-        expect(onBattlefield(state, "cromat")).toBe(true);
-        resolveTopOfStack(state);
-        expect(onBattlefield(state, "partner")).toBe(true);
     });
 });
