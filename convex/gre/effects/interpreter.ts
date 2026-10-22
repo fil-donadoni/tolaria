@@ -130,7 +130,11 @@ import {
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
 import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
-import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
+import {
+    BASIC_LAND_SUBTYPE_ORDER,
+    CREATURE_SUBTYPES,
+    LAND_SUBTYPES,
+} from "../../oracle/grammar/shared/subtypes";
 
 /** CR 205.3m (issue #3721) — the creature-type table as an `option-pick`
  *  option list, built ONCE at module load (it is a ~280-entry constant, and
@@ -143,10 +147,52 @@ import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
  *  replays against — is stable across runs; `CREATURE_SUBTYPES` is a Set,
  *  whose iteration order is its insertion order and therefore the CR
  *  transcription's, not alphabetical. */
-const CREATURE_TYPE_OPTIONS: { id: string; label: string; subtype: string }[] =
-    [...CREATURE_SUBTYPES]
-        .sort()
-        .map((subtype) => ({ id: subtype, label: subtype, subtype }));
+const CREATURE_TYPE_OPTIONS: SubtypeOption[] = subtypeOptions(
+    [...CREATURE_SUBTYPES].sort()
+);
+
+/** CR 205.3i — the land-type table as an `option-pick` option list, built
+ *  once and sorted for the reason `CREATURE_TYPE_OPTIONS` gives. */
+const LAND_TYPE_OPTIONS: SubtypeOption[] = subtypeOptions(
+    [...LAND_SUBTYPES].sort()
+);
+
+/** CR 305.6 — the five basic land types, in the order the rule prints them
+ *  (the order "the basic land type of your choice" already offers them in). */
+const BASIC_LAND_TYPE_OPTIONS: SubtypeOption[] = subtypeOptions(
+    BASIC_LAND_SUBTYPE_ORDER
+);
+
+type SubtypeOption = { id: string; label: string; subtype: string };
+
+function subtypeOptions(subtypes: readonly string[]): SubtypeOption[] {
+    return subtypes.map((subtype) => ({
+        id: subtype,
+        label: subtype,
+        subtype,
+    }));
+}
+
+/** The shared executor core of the subtype-choice Ops (`chooseCreatureType`,
+ *  `chooseLandType`): ask `op.player` to pick ONE of `options` (CR 205.3e —
+ *  one, and only one, existing subtype of the right family), the binding name
+ *  doubling as the `choiceId`. Suspends until the answer is in; skipped when
+ *  the chooser is gone (CR 101.3). */
+function requestSubtypeChoice(
+    ctx: SpellContext,
+    op: { player: EffectPlayerRef; prompt: string; bind: string },
+    options: SubtypeOption[]
+): OpOutcome {
+    const playerId = resolvePlayerRef(ctx, op.player);
+    if (playerId === undefined) return; // CR 101.3 — chooser gone, skip
+    const chosen = ctx.requestOptionChoice({
+        playerId,
+        choiceId: op.bind,
+        prompt: op.prompt,
+        options,
+    });
+    if (chosen === undefined) return "suspend"; // enqueued — wait
+}
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -4241,10 +4287,15 @@ export const OP_EXECUTORS: {
         // 205.3m): a ref naming the wrong binding family (a `choice` of
         // instance ids) must never write an id into the subtype line.
         const resolved = resolveFilterSubtypes(ctx, op.subtypes) ?? [];
+        // A declared land family keeps only CR 205.3i's land types the same
+        // way; it needs no ledger family, because a set on a land already
+        // replaces only its land types (CR 305.7, `applyLandTypeReplacement`).
         const subtypes =
             op.family === "creature"
                 ? resolved.filter((s) => CREATURE_SUBTYPES.has(s))
-                : resolved;
+                : op.family === "land"
+                  ? resolved.filter((s) => LAND_SUBTYPES.has(s))
+                  : resolved;
         if (!Array.isArray(op.subtypes) && subtypes.length === 0) return;
         // CR 611.2b (issue #1746) — an omitted `duration` REPLACES the subtypes
         // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
@@ -4253,7 +4304,12 @@ export const OP_EXECUTORS: {
         if (op.duration === undefined) {
             ctx.setSubtypes(target, subtypes);
         } else {
-            ctx.setSubtypesUntil(target, subtypes, op.duration, op.family);
+            ctx.setSubtypesUntil(
+                target,
+                subtypes,
+                op.duration,
+                op.family === "creature" ? "creature" : undefined
+            );
         }
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
@@ -6012,24 +6068,29 @@ export const OP_EXECUTORS: {
     // string — is the binding an `EffectCardFilter.subtype` bare ref reads
     // back.
     chooseCreatureType(ctx, op) {
-        const playerId = resolvePlayerRef(ctx, op.player);
-        if (playerId === undefined) return; // CR 101.3 — chooser gone, skip
         // CR 205.3m (issue #3809) — "a creature type other than Wall": the
         // excluded types are simply not offered, so the submit check against
         // the entry's own options refuses them as well.
         const exclude = op.exclude;
-        const chosen = ctx.requestOptionChoice({
-            playerId,
-            choiceId: op.bind,
-            prompt: op.prompt,
-            options:
-                exclude === undefined || exclude.length === 0
-                    ? CREATURE_TYPE_OPTIONS
-                    : CREATURE_TYPE_OPTIONS.filter(
-                          (o) => !exclude.includes(o.subtype)
-                      ),
-        });
-        if (chosen === undefined) return "suspend"; // enqueued — wait
+        return requestSubtypeChoice(
+            ctx,
+            op,
+            exclude === undefined || exclude.length === 0
+                ? CREATURE_TYPE_OPTIONS
+                : CREATURE_TYPE_OPTIONS.filter(
+                      (o) => !exclude.includes(o.subtype)
+                  )
+        );
+    },
+    // CR 205.3i — "Choose a land type" during resolution, the land-type
+    // sibling of `chooseCreatureType` over the same core; with `basic`, CR
+    // 305.6's five basic land types only ("a basic land type", Vision Charm).
+    chooseLandType(ctx, op) {
+        return requestSubtypeChoice(
+            ctx,
+            op,
+            op.basic === true ? BASIC_LAND_TYPE_OPTIONS : LAND_TYPE_OPTIONS
+        );
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
     // sibling of `lookDistribute`: reveal the top `look` cards to EVERY player,
