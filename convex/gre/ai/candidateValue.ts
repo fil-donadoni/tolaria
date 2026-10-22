@@ -751,6 +751,14 @@ function resolveForEachCountAgainstBoard(
         case "bound":
         case "targets":
             return CF_ASSUMED_COUNT_FALLBACK;
+        // CR 607.2a — the pile stamped with the source; a card still in a
+        // hidden zone has exiled nothing, so it prices as empty.
+        case "exiledWithSource":
+            return sourceId
+                ? state.players
+                      .flatMap((p) => p.exile)
+                      .filter((c) => c.exiledBySourceId === sourceId).length
+                : 0;
     }
 }
 

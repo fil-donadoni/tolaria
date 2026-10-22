@@ -39,7 +39,7 @@ export const UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
     }) as StackItem["triggerEvent"];
 
 /** A PERMANENT_LEFT event for `sourceId` leaving the battlefield to the
- *  graveyard (CR 603.7a). The exile-return condition reads `state.exileHeld`,
+ *  graveyard (CR 603.6c). The linked-pile return reads the exile stamps,
  *  not these fields, so controller/types carry harmless defaults. */
 export const LEFT = (
     sourceId: string,

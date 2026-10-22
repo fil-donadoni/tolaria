@@ -3519,7 +3519,9 @@ function isForEachSelector(value: unknown): boolean {
     // `targets` (issue #1083) — iterate the whole announced target set. No
     // extra fields: exactly `{ set: "targets" }` (no controller/filter — the
     // member set is already exactly what the TargetRequirement picked).
-    if (s.set === "targets") {
+    // `exiledWithSource` (CR 607.2a) — the linked exile pile; exactly
+    // `{ set }`, the link alone names the members.
+    if (s.set === "targets" || s.set === "exiledWithSource") {
         return Object.keys(s).length === 1;
     }
     if (s.set !== "permanents") return false;
@@ -3565,8 +3567,7 @@ function isForEachSelector(value: unknown): boolean {
  *  { target: { ref: "$each" }, to: "battlefield" }` (an optional `controller`
  *  override — Hymn-of-Rebirth-style redirect). The interpreter bypasses the
  *  normal per-member `runOpList` walk for this construct entirely — it hands
- *  the WHOLE frozen member set to `SpellContext.returnGraveyardSetToBattle-
- *  field` in one call — so no other body shape has defined simultaneous
+ *  the WHOLE frozen member set to `SpellContext.returnCardSetToBattlefield` in one call — so no other body shape has defined simultaneous
  *  semantics (a multi-Op body would still need per-member sequencing for its
  *  OTHER Ops, which the batch primitive does not model). */
 function isSimultaneousReanimationBody(effects: unknown): boolean {
@@ -3576,6 +3577,22 @@ function isSimultaneousReanimationBody(effects: unknown): boolean {
     const target = op.target as Record<string, unknown> | undefined;
     if (!target || target.ref !== "$each") return false;
     const allowed = new Set(["op", "target", "to", "controller"]);
+    return Object.keys(op).every((k) => allowed.has(k));
+}
+
+/** The `simultaneous: true` body over the linked exile pile (CR 607.2a):
+ *  exactly `[{ op: "moveZone", target: { ref: "$each" }, from: "exile", to:
+ *  "battlefield" }]`, handed whole to `returnCardSetToBattlefield` with
+ *  `fromZone: "exile"`. No `controller`: "each player returns … all cards
+ *  they own" puts each card under its owner's control (CR 110.2a). */
+function isSimultaneousExileReturnBody(effects: unknown): boolean {
+    if (!Array.isArray(effects) || effects.length !== 1) return false;
+    const op = effects[0] as Record<string, unknown>;
+    if (op.op !== "moveZone" || op.to !== "battlefield") return false;
+    if (op.from !== "exile") return false;
+    const target = op.target as Record<string, unknown> | undefined;
+    if (!target || target.ref !== "$each") return false;
+    const allowed = new Set(["op", "target", "from", "to"]);
     return Object.keys(op).every((k) => allowed.has(k));
 }
 
@@ -3596,7 +3613,7 @@ function isSimultaneousReanimationBody(effects: unknown): boolean {
  *  What this deliberately does NOT admit: a `moveZone`-to-battlefield body
  *  (Exhume, Show and Tell). Those need every chosen card to ENTER as one
  *  event — a batch-entry primitive, which exists for a graveyard SET
- *  (`returnGraveyardSetToBattlefield`, the sibling shape above) but not for a
+ *  (`returnCardSetToBattlefield`, the sibling shape above) but not for a
  *  per-player CHOICE out of hand or graveyard. Deferring the moves alone
  *  would fix the choice half and still fire N separate entry events. */
 function isSimultaneousPlayerChoiceBody(effects: unknown): boolean {
@@ -4242,9 +4259,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             cantBeRegenerated: isBoolean,
         },
     },
+    // `linkToSource` (CR 607.2a) — stamp the exiled card for a linked "cards
+    // exiled with it" ability of the same object.
     exile: {
         required: { target: isObjectSelector },
-        optional: { bind: bindingDeclaration("snapshot") },
+        optional: {
+            bind: bindingDeclaration("snapshot"),
+            linkToSource: isBoolean,
+        },
     },
     // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
     // going to the graveyard (Recall / Restock). No fields — it always
@@ -6221,7 +6243,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             if (Array.isArray(entry.effects) && entry.effects.length === 0) {
                 errors.push('field "effects" must be a non-empty Op list');
             }
-            // `simultaneous` admits exactly TWO selector/body pairings, each
+            // `simultaneous` admits exactly THREE selector/body pairings, each
             // with its own interpreter path, and nothing else — a set it does
             // not recognise, or a body one Op wider than the pairing allows,
             // is REJECTED rather than quietly falling back to the sequential
@@ -6230,17 +6252,34 @@ const OP_SCHEMAS: OpSchemaTable = {
             //
             //   graveyard (CR 400.7 / 614-batch) — a single
             //     reanimating `moveZone`, handed WHOLE to the batch primitive.
+            //   exiledWithSource (CR 607.2a) — the same batch from exile.
             //   players   (CR 101.4) — `[choice, sacrifice |
             //     discard]`, re-sequenced by the interpreter into
             //     every-choice-then-every-action; or a lone
             //     `chooseCategorized` with a `sweep`, split the same way.
+            const select = entry.select as { set?: unknown } | undefined;
+            // CR 607.2a — the linked pile returns as ONE instruction; the
+            // per-member walk has no exile-card carrier, so it is refused.
+            if (
+                select?.set === "exiledWithSource" &&
+                entry.simultaneous !== true
+            ) {
+                errors.push(
+                    'forEach over { set: "exiledWithSource" } requires "simultaneous": true (CR 607.2a — the linked pile returns as one instruction)'
+                );
+            }
             if (entry.simultaneous === true) {
-                const select = entry.select as { set?: unknown } | undefined;
                 const set = select?.set;
                 if (set === "graveyard") {
                     if (!isSimultaneousReanimationBody(entry.effects)) {
                         errors.push(
                             'field "simultaneous" over { set: "graveyard" } requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, to: "battlefield" }] (optionally "controller") — the one CR 400.7 single-event shape the batch primitive executes'
+                        );
+                    }
+                } else if (set === "exiledWithSource") {
+                    if (!isSimultaneousExileReturnBody(entry.effects)) {
+                        errors.push(
+                            'field "simultaneous" over { set: "exiledWithSource" } requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, from: "exile", to: "battlefield" }] — the CR 607.2a linked-pile return the batch primitive executes'
                         );
                     }
                 } else if (set === "players") {
@@ -6251,7 +6290,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     }
                 } else {
                     errors.push(
-                        'field "simultaneous" is only valid with { select: { set: "graveyard" } } (CR 400.7 batch reanimation) or { select: { set: "players" } } (CR 101.4 choices-then-actions)'
+                        'field "simultaneous" is only valid with { select: { set: "graveyard" } } (CR 400.7 batch reanimation), { select: { set: "exiledWithSource" } } (CR 607.2a linked-pile return) or { select: { set: "players" } } (CR 101.4 choices-then-actions)'
                     );
                 }
             }

@@ -3330,6 +3330,11 @@ export function valueOp(
             return { points: branch.points * probability, tags: branch.tags };
         }
         case "forEach": {
+            // CR 607.2a — the linked pile's return rides the source's own
+            // leave trigger: never proactively chosen, and handing back what
+            // the source exiled (usually the opponent's) is a wash. Neutral,
+            // as the bundle return `returnExiledForSource` is.
+            if (op.select.set === "exiledWithSource") return ZERO_OP_VALUE;
             const differential = eachPlayerDifferentialValue(op, ctx, scope);
             if (differential) return differential;
             const swept = sweptForEachValue(op, ctx, scope);

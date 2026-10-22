@@ -13,7 +13,7 @@ import {
 // cards from your graveyard to the battlefield" is a `forEach` over the
 // controller's graveyard filtered to enchantments, `simultaneous: true`: the
 // interpreter hands the WHOLE frozen member set to
-// `SpellContext.returnGraveyardSetToBattlefield` in one call instead of
+// `SpellContext.returnCardSetToBattlefield` in one call instead of
 // reanimating members one `moveZone` at a time, so no returned enchantment's
 // static-effect grants or "enters the battlefield" trigger observe only some
 // of the others already on the battlefield (Opalescence/Parallax-style

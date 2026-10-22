@@ -205,7 +205,7 @@ export const ironShieldElf = defineCard(() => ({
 //   - "entered or were cast from a graveyard" is an intervening-if (CR 603.4)
 //     reading the `PERMANENT_ENTERED.enteredFromGraveyard` provenance flag
 //     (issue #1533), stamped at the graveyard reanimation chokepoints
-//     (`returnToBattlefield` / `returnGraveyardSetToBattlefield` / Animate
+//     (`returnToBattlefield` / `returnCardSetToBattlefield` / Animate
 //     Dead) and the cast-from-graveyard chokepoint (`finalizeSpellResolution`
 //     → `castFromGraveyard`).
 //   - "one or more" is `oncePerEventBatch: true` (CR 603.3b); "only once each
