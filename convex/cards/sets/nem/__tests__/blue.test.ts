@@ -315,11 +315,9 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
     });
 });
 
-// Parallax Tide — protocol card (ADR 0028 exile-and-return bundle, resolve()).
-// Fading 5 rides the getDefinition seam; the repeatable "remove a fade counter:
-// exile target land" activation and the leaves-the-battlefield return both use
-// the resolve()-only `exileWithAttachments` / `returnExiledForSource` pair, so
-// it earns hand-written GRE + wire coverage per § Card testing convention.
+// Parallax Tide — Fading 5 rides the getDefinition seam; the repeatable "remove
+// a fade counter: exile target land" activation and the leaves-the-battlefield
+// return are the CR 607.2a linked pair Parallax Wave carries (white.test.ts).
 describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 603.7a)", () => {
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
@@ -363,8 +361,11 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
         expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
             true
         );
-        // ADR 0028 — the exile is keyed to this enchantment's instance id.
-        expect(state.exileHeld?.some((b) => b.sourceId === "tide")).toBe(true);
+        // CR 607.2a — the exiled card is linked to this enchantment.
+        expect(
+            state.players[1].exile.find((c) => c.id === "victim")
+                ?.exiledBySourceId
+        ).toBe("tide");
 
         // Tide leaves the battlefield → the return trigger fires and each owner
         // gets their exiled card back (CR 603.7a).

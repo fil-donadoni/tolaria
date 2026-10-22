@@ -163,7 +163,7 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
     it("the batch reanimation funnel tallies once per entry that actually left", () => {
         const state = state2p(["a1", "a2"]);
         const ctx = spellCtx(state);
-        ctx.returnGraveyardSetToBattlefield([
+        ctx.returnCardSetToBattlefield([
             { playerId: "p1", cardInstanceId: "a1" },
             { playerId: "p1", cardInstanceId: "a2" },
             // CR 608.2b — never in the graveyard, so it never left it.

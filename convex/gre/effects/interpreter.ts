@@ -3534,6 +3534,14 @@ export const OP_EXECUTORS: {
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
+        // CR 607.2a — stamp the card for a linked "exiled with it" ability.
+        // No CR 610.3 guard: a source that already left still exiles (the
+        // stamp names a departed source, so nothing ever returns it). A
+        // replacement that kept the card out of exile leaves nothing to
+        // stamp — `linkExileToSource` finds no exile card and no-ops.
+        if (op.linkToSource) {
+            ctx.linkExileToSource(target.id, ctx.sourceInstanceId);
+        }
     },
     // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
     // going to the graveyard ("Exile ~", Recall / Restock). A thin
@@ -7455,6 +7463,11 @@ function selectForEachMembers(
             .filter((t) => t.type === "permanent")
             .map((t) => t.id);
     }
+    // CR 607.2a — "all cards exiled with it": the pile stamped with the
+    // resolving source by its linked exile instruction(s).
+    if (select.set === "exiledWithSource") {
+        return ctx.getCardsExiledWith(ctx.sourceInstanceId).map((c) => c.id);
+    }
     let owners: string[];
     if (select.controller !== undefined) {
         const pid = resolvePlayerRef(ctx, select.controller);
@@ -7518,7 +7531,7 @@ function execForEach(
     // bypass the per-member `runOpList` walk entirely. The validator
     // guarantees `select.set === "graveyard"` and a single reanimating
     // `moveZone` body when `simultaneous` is set, so the WHOLE frozen member
-    // set moves through `returnGraveyardSetToBattlefield` in one call — every
+    // set moves through `returnCardSetToBattlefield` in one call — every
     // reanimated permanent stages onto the battlefield before ANY of them
     // runs its grant/ETB pass (no partial-sibling visibility). Never
     // suspends, but is NOT naturally idempotent (unlike the per-member path,
@@ -7527,7 +7540,13 @@ function execForEach(
     // construct" that always re-descends on a re-walk (a LATER Op suspending
     // elsewhere in the script), and without this guard a resume would
     // re-run the batch move a second time.
-    if (op.select.set === "graveyard" && op.simultaneous) {
+    if (
+        (op.select.set === "graveyard" ||
+            op.select.set === "exiledWithSource") &&
+        op.simultaneous
+    ) {
+        // CR 607.2a — the linked exile pile batches the same way, from exile.
+        const fromZone = op.select.set === "graveyard" ? "graveyard" : "exile";
         const resultKey = `#forEach:${pos}:simultaneousResult`;
         if (ctx.recallChoice(resultKey) === undefined) {
             const body = op.effects[0] as { controller?: EffectPlayerRef };
@@ -7543,7 +7562,10 @@ function execForEach(
             const entries: { playerId: string; cardInstanceId: string }[] = [];
             if (!controllerUnresolvable) {
                 for (const id of members) {
-                    const owner = ctx.getGraveyardCardOwner(id);
+                    const owner =
+                        fromZone === "graveyard"
+                            ? ctx.getGraveyardCardOwner(id)
+                            : ctx.getExileCardOwner(id);
                     // A member that already left the graveyard mid-resolution
                     // is skipped (CR 608.2b) — never reaches the primitive.
                     if (owner !== undefined) {
@@ -7553,7 +7575,11 @@ function execForEach(
             }
             const entered = controllerUnresolvable
                 ? []
-                : ctx.returnGraveyardSetToBattlefield(entries, controllerId);
+                : ctx.returnCardSetToBattlefield(
+                      entries,
+                      controllerId,
+                      fromZone
+                  );
             ctx.noteChoice(resultKey, entered);
         }
         return undefined;
@@ -7631,13 +7657,21 @@ function execForEach(
         if (ctx.recallChoice(eachId) === undefined) {
             if (op.select.set === "players") {
                 ctx.noteChoice(eachId, [members[k]]);
-            } else if (op.select.set === "graveyard") {
+            } else if (
+                op.select.set === "graveyard" ||
+                op.select.set === "exiledWithSource"
+            ) {
                 // Graveyard-set member (issue #1056): bind `$each` as a
                 // graveyard-card snapshot BEFORE the body acts on it (CR 608.2h
                 // — so a later ref reads last-known information across the zone
                 // change). A member that already left the graveyard resolves to
                 // no owner → leave `$each` uncaptured (CR 608.2b, the body skips).
-                const owner = ctx.getGraveyardCardOwner(members[k]);
+                // A linked-exile member (CR 607.2a) rides the same carrier, its
+                // owner read from exile.
+                const owner =
+                    op.select.set === "graveyard"
+                        ? ctx.getGraveyardCardOwner(members[k])
+                        : ctx.getExileCardOwner(members[k]);
                 if (owner !== undefined) {
                     bindSnapshot(ctx, eachId, {
                         type: "graveyard-card",

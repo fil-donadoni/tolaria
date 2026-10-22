@@ -5452,6 +5452,73 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 607.2a + CR 110.2a — the PRINTED linked pair, the whole pile back to
+    // the battlefield: the activated `exile` is stamped `linkToSource` by the
+    // card pass (`linkExile.ts`) and the leaves trigger returns every card
+    // stamped with this source, each under its owner's control, as one event.
+    // The canned smoke scenario cannot stage a linked exile pile and a later
+    // departure, so this fixture is the evidence for the form (Parallax Tide
+    // prints the same pair over lands).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0accfb04-bc8b-4cab-997a-2337ac42db8f",
+            name: "Parallax Wave",
+            manaCost: "{2}{W}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Fading 5 (This enchantment enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this enchantment: Exile target creature.\nWhen this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Parallax Wave",
+            types: ["Enchantment"],
+            manaCost: { X: 2, W: 2 },
+            oracleText:
+                "Fading 5 (This enchantment enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this enchantment: Exile target creature.\nWhen this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
+            staticAbilities: ["fading 5"],
+            activatedAbilities: [
+                {
+                    id: "parallax-wave-ability",
+                    oracleText:
+                        "Remove a fade counter from this enchantment: Exile target creature.",
+                    cost: { removeCounter: { type: "fade", count: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "exile",
+                            target: { target: 0 },
+                            linkToSource: true,
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "parallax-wave-trigger",
+                    oracleText:
+                        "When this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
+                    head: { kind: "left", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "exiledWithSource" },
+                            simultaneous: true,
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    from: "exile",
+                                    to: "battlefield",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 603.6c + CR 400.7e — "When this Aura is put into a graveyard from the
     // battlefield, return it to its owner's hand": the source's own exit to a
     // graveyard (`left-to-graveyard`, scope `self`), and `$source` naming the card

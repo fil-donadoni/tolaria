@@ -22,7 +22,11 @@
  * The hand return ("return the exiled card to its owner's hand") lowers to
  * `moveZone` over `exiledWithSource`, the selector that reads the stamp
  * `linkToSource` writes; `linkExileAndReturn` sets it on the card's exile
- * instruction(s) in place.
+ * instruction(s) in place. The pile return ("each player returns to the
+ * battlefield all cards they own exiled with it", Parallax Wave) is a
+ * `forEach` over the same stamp; its exile instruction is the battlefield
+ * `exile` Op — with no CR 610.3 guard, so a source that already left still
+ * exiles, and nothing ever returns that card (CR 607.2a).
  *
  * Fail-closed throughout: a printed return, a card mixing it with an "until"
  * exile, and either half inside a GRANTED ability (whose `$source` is the
@@ -54,6 +58,12 @@ function isLinkedReturn(op: Record<string, unknown>): boolean {
     return op.op === "moveZone" && target?.exiledWithSource === true;
 }
 
+/** A printed CR 607.2a pile return: a `forEach` over the linked exile. */
+function isLinkedPileReturn(op: Record<string, unknown>): boolean {
+    const select = op.select as Record<string, unknown> | undefined;
+    return op.op === "forEach" && select?.set === "exiledWithSource";
+}
+
 /** The exile instruction a linked return reads back: a `moveZone` to exile. */
 function isExileMove(op: Record<string, unknown>): boolean {
     return op.op === "moveZone" && op.to === "exile";
@@ -77,7 +87,10 @@ export function linkExileAndReturn(
     for (const script of granted) collectOps(script, grantedOps);
     if (
         grantedOps.some(
-            (op) => BUNDLE_OPS.has(op.op as string) || isLinkedReturn(op)
+            (op) =>
+                BUNDLE_OPS.has(op.op as string) ||
+                isLinkedReturn(op) ||
+                isLinkedPileReturn(op)
         )
     )
         return {
@@ -103,6 +116,24 @@ export function linkExileAndReturn(
             return {
                 ok: false,
                 reason: '"the exiled card" names no single exile instruction this card prints (CR 607.2a)',
+            };
+        exiles[0].linkToSource = true;
+    }
+    // CR 607.2a — the pile return names what the card's ONE battlefield
+    // `exile` instruction exiled. A second exile instruction, a hand/graveyard
+    // `moveZone` exile, the singular return beside it, or an "until" bundle
+    // leaves which pile it names unread — refused.
+    if (ops.some(isLinkedPileReturn)) {
+        const exiles = ops.filter((op) => op.op === "exile");
+        if (
+            exiles.length !== 1 ||
+            ops.some(isExileMove) ||
+            ops.some(isLinkedReturn) ||
+            ops.some((op) => BUNDLE_OPS.has(op.op as string))
+        )
+            return {
+                ok: false,
+                reason: '"cards exiled with it" names no single exile instruction this card prints (CR 607.2a)',
             };
         exiles[0].linkToSource = true;
     }

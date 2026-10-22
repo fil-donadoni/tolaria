@@ -3140,6 +3140,32 @@ function lowerSentenceBody(
                 ]);
             return lowered([{ op: "returnExiledForSource" }]);
         }
+        case "return-all-exiled-with": {
+            // CR 607.2a — "exiled with it" names this object's linked exile;
+            // "it" is the source only behind its own leaves head.
+            if (site.antecedents?.exiledCard !== true)
+                return unlowerable(
+                    '"cards exiled with it" names no exile linked to this ability (CR 607.2a)'
+                );
+            // CR 110.2a — each owner puts their own cards onto the
+            // battlefield, so each enters under its owner's control; one
+            // instruction, so the pile enters as one event.
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "exiledWithSource" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "exile",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ]);
+        }
         case "graveyard-play":
             return lowered([
                 { op: "grantGraveyardPlay", player: "controller" },

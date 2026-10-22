@@ -1019,7 +1019,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' } (bulk graveyard-
 describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (CR 400.7 / 614-batch, issue #1094)", () => {
     // The BATCHED twin of the sequential sweep above: `simultaneous: true`
     // bypasses the per-member `runOpList` walk entirely and hands the WHOLE
-    // frozen member set to `SpellContext.returnGraveyardSetToBattlefield` in
+    // frozen member set to `SpellContext.returnCardSetToBattlefield` in
     // ONE call — every reanimated permanent stages onto the battlefield (and
     // a reanimated Aura resolves its CR 303.4c host) BEFORE any of them runs
     // its grant-application / ETB pass. This is Replenish's REAL shape

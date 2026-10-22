@@ -2731,6 +2731,77 @@ describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #18
     });
 });
 
+describe("validateEffectScript — linked exile pile (CR 607.2a, issue #5200)", () => {
+    const pileReturn = (
+        body: Record<string, unknown>,
+        select: Record<string, unknown> = { set: "exiledWithSource" }
+    ) =>
+        ({
+            op: "forEach",
+            select,
+            simultaneous: true,
+            effects: [body],
+        }) as unknown as EffectOp;
+    const BODY = {
+        op: "moveZone",
+        target: { ref: "$each" },
+        from: "exile",
+        to: "battlefield",
+    };
+
+    it("accepts the pile return: moveZone $each from exile to the battlefield", () => {
+        expect(
+            validateEffectScript(host({ effects: [pileReturn(BODY)] }))
+        ).toEqual([]);
+    });
+
+    it("rejects a controller override — each card returns under its owner (CR 110.2a)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [pileReturn({ ...BODY, controller: "controller" })],
+            })
+        );
+        expect(
+            errors.some((e) => /over \{ set: "exiledWithSource" \}/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a body that does not name exile as its zone", () => {
+        const errors = validateEffectScript(
+            host({ effects: [pileReturn({ ...BODY, from: "graveyard" })] })
+        );
+        expect(
+            errors.some((e) => /over \{ set: "exiledWithSource" \}/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a selector field the link does not read", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    pileReturn(BODY, {
+                        set: "exiledWithSource",
+                        filter: { type: "Creature" },
+                    }),
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts exile linkToSource as a boolean only", () => {
+        const ok = { op: "exile", target: { target: 0 }, linkToSource: true };
+        const bad = { ...ok, linkToSource: "yes" };
+        const withTarget = (op: unknown) =>
+            host({
+                targetRequirement: { type: "Creature", count: 1 },
+                effects: [op as EffectOp],
+            });
+        expect(validateEffectScript(withTarget(ok))).toEqual([]);
+        expect(validateEffectScript(withTarget(bad)).length).toBeGreaterThan(0);
+    });
+});
+
 describe("validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872)", () => {
     const innocentBloodShape: EffectOp = {
         op: "forEach",

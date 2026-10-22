@@ -12828,33 +12828,42 @@ export function buildSpellContext(
         // entry's controller the same way `returnToBattlefield`'s 4th
         // argument does (Hymn-of-Rebirth-style "under your control"); omitted
         // defaults each entry to its own owner (Replenish, Living Death).
-        // Entries whose id is no longer in the named graveyard at resolution
-        // are silently skipped (CR 608.2b). Returns the cardInstanceIds that
-        // actually entered the battlefield — excludes vanished entries, a
-        // Worms-of-the-Earth-blocked land, and a hostless Aura (CR 303.4c).
-        returnGraveyardSetToBattlefield(
+        // Entries whose id is no longer in the named pile at resolution are
+        // silently skipped (CR 608.2b). `fromZone` names the pile, as
+        // `returnToBattlefield`'s own third argument does (default the
+        // graveyard; the exile leg is CR 607.2a's "all cards exiled with
+        // it"). Returns the cardInstanceIds that actually entered the
+        // battlefield — excludes vanished entries, a Worms-of-the-Earth-
+        // blocked land, and a hostless Aura (CR 303.4c).
+        returnCardSetToBattlefield(
             entries: { playerId: string; cardInstanceId: string }[],
-            controllerId?: string
+            controllerId?: string,
+            fromZone: "graveyard" | "exile" = "graveyard"
         ): string[] {
             const staged: { card: CardInstanceState; controllerId: string }[] =
                 [];
             for (const { playerId, cardInstanceId } of entries) {
                 const player = getPlayer(state, playerId);
-                const idx = player.graveyard.findIndex(
-                    (c) => c.id === cardInstanceId
-                );
+                const pile =
+                    fromZone === "graveyard" ? player.graveyard : player.exile;
+                const idx = pile.findIndex((c) => c.id === cardInstanceId);
                 if (idx === -1) continue; // CR 608.2b — no longer there, skip
                 // CR 111.7 / 704.5d (issue #1469) — same token guard as the
                 // single-entry `returnToBattlefield`: a token that left the
                 // battlefield ceases to exist and never returns.
-                if (player.graveyard[idx].isToken) continue;
-                const [card] = player.graveyard.splice(idx, 1);
+                if (pile[idx].isToken) continue;
+                const [card] = pile.splice(idx, 1);
                 // CR 400.7 — the batch twin of `returnToBattlefield`; each
-                // entry is its own departure from its own owner's graveyard.
-                noteGraveyardDeparture(player);
+                // entry is its own departure from its own owner's graveyard
+                // (the exile leg is not a graveyard departure).
+                if (fromZone === "graveyard") noteGraveyardDeparture(player);
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
-            return putReanimatedSetOnBattlefield(state, staged, true);
+            return putReanimatedSetOnBattlefield(
+                state,
+                staged,
+                fromZone === "graveyard"
+            );
         },
         // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
         // `cardInstanceId` in `playerId`'s library, splice it out, and put it

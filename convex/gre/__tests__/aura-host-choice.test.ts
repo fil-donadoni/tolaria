@@ -115,7 +115,7 @@ function boardWithGraveyardAura(opts: {
 }
 
 /** Splice the graveyard aura out and reanimate it, mirroring
- *  `returnGraveyardSetToBattlefield`. */
+ *  `returnCardSetToBattlefield`. */
 function reanimateAura(state: GameState, auraId: string): string[] {
     const gy = state.players[0].graveyard;
     const idx = gy.findIndex((c) => c.id === auraId);

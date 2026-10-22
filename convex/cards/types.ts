@@ -4642,8 +4642,9 @@ export interface SpellContext {
         opts?: { entersAs?: EntryTypeLine; attachTo?: string }
     ) => boolean;
     /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
-     *  `returnToBattlefield`: returns a whole set of graveyard cards to the
-     *  battlefield as ONE event, not N sequential calls. Every entry is
+     *  `returnToBattlefield`: returns a whole set of graveyard (or, with
+     *  `fromZone: "exile"`, exile) cards to the battlefield as ONE event, not
+     *  N sequential calls. Every entry is
      *  staged onto the battlefield (or Aura-attached, CR 303.4c) BEFORE any
      *  of them runs its grant-application / ETB pass, so no returned
      *  permanent's static-effect grants or "enters the battlefield" trigger
@@ -4653,13 +4654,16 @@ export interface SpellContext {
      *  each entry's own `playerId`. `controllerId` — when given — redirects
      *  EVERY entry the same way `returnToBattlefield`'s 4th argument does;
      *  omitted defaults each entry to its own owner. An entry no longer in
-     *  its named graveyard at resolution is silently skipped (CR 608.2b).
+     *  its named pile at resolution is silently skipped (CR 608.2b).
      *  Returns the cardInstanceIds that actually entered the battlefield —
      *  excludes vanished entries and a hostless Aura (CR 303.4c: no legal
-     *  object to enchant, even among its own reanimating siblings). */
-    returnGraveyardSetToBattlefield: (
+     *  object to enchant, even among its own reanimating siblings). The
+     *  `forEach { set: "exiledWithSource" }, simultaneous: true` shape
+     *  (CR 607.2a, Parallax Wave) passes `fromZone: "exile"`. */
+    returnCardSetToBattlefield: (
         entries: { playerId: string; cardInstanceId: string }[],
-        controllerId?: string
+        controllerId?: string,
+        fromZone?: "graveyard" | "exile"
     ) => string[];
     /** Library tutor → battlefield primitive (CR 400.7 zone change, ADR
      *  0027). Moves a card a player owns from their library onto their
@@ -14877,7 +14881,14 @@ export type EffectForEachSelector =
      *  this selector reads the targets already chosen. No fixed size — it
      *  spans however many targets were actually announced (0 for a declined
      *  "any number", up to X for a variable-count spell). */
-    | { set: "targets" };
+    | { set: "targets" }
+    /** CR 607.2a — every card in any exile zone linked to the resolving
+     *  ability's OWN source (`getCardsExiledWith`, stamped by an exile
+     *  instruction's `linkToSource`): "all cards exiled with it". Each member
+     *  binds `$each` as an exile-card snapshot; the body names its zone
+     *  (`moveZone { target: { ref: "$each" }, from: "exile", … }`). Owners in
+     *  APNAP order. No filter: no printed line narrows the linked pile yet. */
+    | { set: "exiledWithSource" };
 
 /** The declarative object-set selector for `divideIntoPiles` (ADR 0053, pile
  *  division). Deliberately its OWN small type rather than reusing
@@ -15751,7 +15762,19 @@ export type EffectOp =
      *  `bind` snapshots the permanent's power/toughness/controller/owner
      *  (issue #1106) BEFORE it leaves the battlefield, so a later `ref` reads
      *  its last-known values (Swords to Plowshares, CR 608.2h). */
-    | { op: "exile"; target: EffectObjectSelector; bind?: string }
+    | {
+          op: "exile";
+          target: EffectObjectSelector;
+          bind?: string;
+          /** CR 607.2a — stamp the exiled card with the resolving source
+           *  (`linkExileToSource`), so a LINKED ability of the same object can
+           *  name it as a card "exiled with" it (`forEach { set:
+           *  "exiledWithSource" }`). The battlefield twin of `moveZone`'s own
+           *  `linkToSource` (Parallax Wave's "Exile target creature."). No
+           *  duration: unlike `exileWithAttachments` (CR 610.3), the exile
+           *  happens even when the source has already left. */
+          linkToSource?: boolean;
+      }
     /** CR 608.2 (issue #1097) — the resolving spell instructs itself to be
      *  EXILED instead of going to its owner's graveyard (CR 608.2m default),
      *  as the last thing it does ("Exile ~", Recall / Restock). A thin
@@ -19143,7 +19166,7 @@ export type EffectOp =
      *  actions happen simultaneously". `forEach` does not nest (the validator
      *  rejects it).
      *
-     *  `simultaneous` names ONE of exactly two selector/body pairings; the
+     *  `simultaneous` names ONE of exactly three selector/body pairings; the
      *  validator rejects anything else rather than falling back silently.
      *
      *  `{ set: "graveyard" }` (CR 400.7 / 614-batch, issue #1094) — ONLY with
@@ -19151,10 +19174,16 @@ export type EffectOp =
      *  ref: "$each" }, to: "battlefield" }]` (optionally `controller`). The
      *  interpreter bypasses the per-member `runOpList` walk entirely and hands
      *  the WHOLE frozen member set to
-     *  `SpellContext.returnGraveyardSetToBattlefield` in one call, so every
+     *  `SpellContext.returnCardSetToBattlefield` in one call, so every
      *  reanimated permanent enters as a single event — none of their static-
      *  effect grants or ETB triggers observe only some of the others already
      *  on the battlefield (Replenish; Living Death would set it too).
+     *
+     *  `{ set: "exiledWithSource" }` (CR 607.2a) — the same batch over the
+     *  linked exile pile, ONLY with `[{ op: "moveZone", target: { ref:
+     *  "$each" }, from: "exile", to: "battlefield" }]` (no `controller`:
+     *  each card returns under its owner's control, CR 110.2a — "each player
+     *  returns … all cards they own", Parallax Wave).
      *
      *  `{ set: "players" }` (CR 101.4, issue #1872) — ONLY with the body
      *  `[{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …:
