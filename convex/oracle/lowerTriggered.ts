@@ -210,6 +210,13 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(head.kind === "phase" && head.scope === "host-controller"
             ? { creature: { ref: "$host" } }
             : {}),
+        // CR 303.4f — an "enters" head on another creature names the creature
+        // an Aura returned by the effect attaches to.
+        ...(head.kind === "enters" &&
+        head.scope !== "self" &&
+        head.creaturesOnly
+            ? { enteringCreature: { ref: "$event.instanceId" } }
+            : {}),
         // CR 607.2a — "the exiled card" behind the source's own departure
         // names what this object's linked exile instruction exiled. Read
         // here so the sentence parses; the card pass (`linkExile.ts`) then
