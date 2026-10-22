@@ -2228,7 +2228,7 @@ describe("Ritual of Subdual (lands → colourless, CR 614/702.24)", () => {
                 makePlayer("p2"),
             ],
         });
-        fireCU(state, ritual, "ritual-of-subdual-cumulative-upkeep");
+        fireCU(state, ritual, "cumulative-upkeep");
         const live = state.players[0].battlefield.find(
             (c) => c.id === "ritual"
         );

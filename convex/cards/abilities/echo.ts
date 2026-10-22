@@ -10,7 +10,8 @@
 //
 // "Came under your control since your last upkeep" is tracked by the
 // `echoPending` instance flag (state.ts): set true when a permanent whose
-// definition declares the `echo` keyword enters the battlefield, and cleared by
+// definition declares the `echo` field enters the battlefield or changes
+// controller (CR 702.30a), and cleared by
 // `ctx.markEchoPaid()` when this trigger resolves on the PAY branch. The
 // trigger's CR 603.4 intervening-if gates on the flag so it fires EXACTLY ONCE
 // — on the controller's first upkeep after the permanent came under control —
@@ -37,15 +38,20 @@ export interface EchoArgs {
     cost: MayPayCost;
     /** Label for the cost shown in the may-pay prompt (e.g. "{R}", "{1}{U}"). */
     costLabel: string;
+    /** The printed keyword line the default reminder opens with. Defaults to
+     *  `Echo <costLabel>`; the `getDefinition` expander derives it from the
+     *  cost (ADR 0155). */
+    keywordLine?: string;
 }
 
-/** Builds the Echo triggered ability (CR 702.30). Add it to a card's
- *  `triggeredAbilities`, and declare `"echo"` in the card's `staticAbilities`
- *  so the engine sets the `echoPending` flag when the permanent enters. */
+/** Builds the Echo triggered ability (CR 702.30). A card does NOT call this: it
+ *  declares `echo: <cost>` and `expandEchoCumulativeUpkeep` (ADR 0155) builds
+ *  the trigger here at the `getDefinition` seam, while the engine arms the
+ *  `echoPending` flag from that same field. */
 export function echoTrigger(args: EchoArgs): TriggeredAbility {
     const oracle =
         args.oracleText ??
-        `Echo ${args.costLabel} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)`;
+        `${args.keywordLine ?? `Echo ${args.costLabel}`} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)`;
     const trigger = phaseTrigger({
         id: args.id ?? "echo",
         oracleText: oracle,
