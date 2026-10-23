@@ -74,6 +74,7 @@ import {
     getManaTapOptions,
     getManaTapOptionsDetailed,
     hasBasicLandMana,
+    canPayPermanentGiveUpCostLegs,
     hasFilteredGiveUpCost,
     hybridCostKey,
     isSpellStackItem,
@@ -792,7 +793,7 @@ export function getManaCostMenuAbility(
 /** CR 118.3 / 118.5 (issue #3455) — can the controller pay this ability's
  *  FILTERED give-up leg ("Sacrifice a creature", "Discard a card")? The menu
  *  affordability gate for the shape {@link getManaCostMenuAbility} offers, and
- *  the belt to the server's own `assertSacrificeFilterCostAffordable` /
+ *  the belt to the server's own `assertPermanentGiveUpCostAffordable` /
  *  `assertDiscardFilterCostAffordable` braces: an unpayable cost must withhold
  *  the entry, never dispatch a doomed activation that parks and throws.
  *
@@ -816,25 +817,25 @@ export function canPayFilteredGiveUpCost(
 ): boolean {
     if (!stateView) return true;
     const mine = stateView.players.find((p) => p.id === card.controllerId);
-    const sac = ability.cost.sacrificeFilter;
-    if (sac) {
-        const candidates = (mine?.battlefield ?? []).filter((c) =>
-            matchesEnginePermanentFilter(c, sac, {
-                selfControllerId: card.controllerId,
-                // CR 109.2 (issue #2367) — honoured ONLY by an `excludeSource`
-                // filter, exactly as the server's own gate passes it: Skirk
-                // Prospector IS a Goblin and may eat itself, so a blanket
-                // self-exclusion here would hide a legal payment.
-                selfInstanceId: card.id,
-                // "Sacrifice enchanted creature": the host, or
-                // `hostOfSource` fails closed and hides the ability.
-                selfAttachedToId: card.attachedTo,
-            })
-        );
-        if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-            return false;
-        }
-    }
+    const payable = canPayPermanentGiveUpCostLegs(
+        ability.cost,
+        (filter) =>
+            (mine?.battlefield ?? []).filter((c) =>
+                matchesEnginePermanentFilter(c, filter, {
+                    selfControllerId: card.controllerId,
+                    // CR 109.2 (issue #2367) — honoured ONLY by an
+                    // `excludeSource` filter, exactly as the server's own gate
+                    // passes it: Skirk Prospector IS a Goblin and may eat
+                    // itself, so a blanket self-exclusion here would hide a
+                    // legal payment.
+                    selfInstanceId: card.id,
+                    // "Sacrifice enchanted creature": the host, or
+                    // `hostOfSource` fails closed and hides the ability.
+                    selfAttachedToId: card.attachedTo,
+                })
+            ).length
+    );
+    if (!payable) return false;
     const discard = ability.cost.discardFilter;
     if (discard && (mine?.hand.length ?? 0) < discard.count) return false;
     return true;
@@ -2260,6 +2261,11 @@ export function getStackAbilities(
              *  the cost gives up ("Sacrifice ten nonland permanents", Bolas's
              *  Citadel). Omitted = 1. */
             sacrificeFilterCount?: number;
+            /** CR 602.1a — "return a permanent matching <filter> you control
+             *  to its owner's hand" (Wirewood Symbiote's "Return an Elf you
+             *  control"). Like `sacrificeFilter`, the source itself is a legal
+             *  candidate when it matches. */
+            returnToHandFilter?: PermanentFilter;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -2417,39 +2423,45 @@ export function getStackAbilities(
         // server uses, off the viewer-visible `stateView` board; without it
         // the ability stays offered and the server rejects it (fail-open,
         // same discipline as every other board-dependent gate here).
-        if (a.cost.sacrificeFilter && stateView) {
-            // CR 602.1 / 118.5 — the sacrifice is paid by the ACTIVATOR, not
+        // CR 602.1a — the `returnToHandFilter` leg ("Return an Elf you control
+        // to its owner's hand") is gated by the same count, through the one
+        // leg list `permanentGiveUpCostLegs`.
+        if (stateView) {
+            // CR 602.1 / 118.5 — the cost is paid by the ACTIVATOR, not
             // necessarily the source's controller ("any player may
             // activate"/enchanted-controller abilities, `activatorId` above):
             // `activateAbilityOnState` (`convex/gre/activation.ts`) scans
             // `getPlayer(state, args.playerId).battlefield` — the activator's
-            // own board — for the sacrifice candidate. Latent today (no
-            // shipped card combines `sacrificeFilter` with either shape), but
-            // mirroring the server exactly here is what keeps it that way.
+            // own board — for the candidate. Latent today (no shipped card
+            // combines a give-up leg with either shape), but mirroring the
+            // server exactly here is what keeps it that way.
             const payerId = activatorId ?? card.controllerId;
             const mine = stateView.players.find((p) => p.id === payerId);
-            const candidateCount = (mine?.battlefield ?? []).filter((c) =>
-                matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
-                    selfControllerId: payerId,
-                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
-                    // (Legion Extruder) / "another Orc or Goblin" (Orc
-                    // General): the source is never a legal payment for its own
-                    // cost, so it must not count toward this gate. Without the
-                    // id an `excludeSource` filter matches nothing here
-                    // (fail-closed) and the ability is simply never offered —
-                    // wrong, but never an illegal click.
-                    selfInstanceId: card.id,
-                    // "Sacrifice enchanted creature".
-                    selfAttachedToId: card.attachedTo,
-                })
-            ).length;
             // CR 602.1 / 118.5 (issue #2398) — a multi-permanent sacrifice cost
             // ("Sacrifice ten nonland permanents", Bolas's Citadel) needs the
             // COUNT, not mere existence; otherwise the ability is offered with
             // three permanents out and the server throws on click.
-            if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
-                return false;
-            }
+            const payable = canPayPermanentGiveUpCostLegs(
+                a.cost,
+                (filter) =>
+                    (mine?.battlefield ?? []).filter((c) =>
+                        matchesEnginePermanentFilter(c, filter, {
+                            selfControllerId: payerId,
+                            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER
+                            // artifact" (Legion Extruder) / "another Orc or
+                            // Goblin" (Orc General): the source is never a
+                            // legal payment for its own cost, so it must not
+                            // count toward this gate. Without the id an
+                            // `excludeSource` filter matches nothing here
+                            // (fail-closed) and the ability is simply never
+                            // offered — wrong, but never an illegal click.
+                            selfInstanceId: card.id,
+                            // "Sacrifice enchanted creature".
+                            selfAttachedToId: card.attachedTo,
+                        })
+                    ).length
+            );
+            if (!payable) return false;
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`
@@ -2656,30 +2668,29 @@ export function getGraveyardStackAbilities(
             // have been offered unconditionally regardless of board state,
             // hitting the server's "No legal permanent to pay the sacrifice
             // cost" throw on click.
-            if (a.cost.sacrificeFilter) {
-                const mine = stateView.players.find(
-                    (p) => p.id === card.ownerId
-                );
-                const candidateCount = (mine?.battlefield ?? []).filter((c) =>
-                    matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
-                        selfControllerId: card.ownerId,
-                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER <filter>".
-                        // A graveyard-source ability's own card isn't on the
-                        // battlefield at all, so this can never exclude a real
-                        // candidate; threaded anyway because an `excludeSource`
-                        // filter fails CLOSED without it (the ability would be
-                        // permanently hidden rather than wrongly offered).
-                        selfInstanceId: card.id,
-                        // "Sacrifice enchanted creature".
-                        selfAttachedToId: card.attachedTo,
-                    })
-                ).length;
-                // CR 602.1 / 118.5 (issue #2398) — counted, not merely
-                // existence-checked (see the battlefield gate above).
-                if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
-                    return false;
-                }
-            }
+            const mine = stateView.players.find((p) => p.id === card.ownerId);
+            // CR 602.1 / 118.5 (issue #2398) — counted, not merely
+            // existence-checked (see the battlefield gate above).
+            const payable = canPayPermanentGiveUpCostLegs(
+                a.cost,
+                (filter) =>
+                    (mine?.battlefield ?? []).filter((c) =>
+                        matchesEnginePermanentFilter(c, filter, {
+                            selfControllerId: card.ownerId,
+                            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER
+                            // <filter>". A graveyard-source ability's own card
+                            // isn't on the battlefield at all, so this can
+                            // never exclude a real candidate; threaded anyway
+                            // because an `excludeSource` filter fails CLOSED
+                            // without it (the ability would be permanently
+                            // hidden rather than wrongly offered).
+                            selfInstanceId: card.id,
+                            // "Sacrifice enchanted creature".
+                            selfAttachedToId: card.attachedTo,
+                        })
+                    ).length
+            );
+            if (!payable) return false;
             // CR 602.1b — the shared precondition authority (data condition
             // and closure alike), see `getStackAbilities`.
             if (

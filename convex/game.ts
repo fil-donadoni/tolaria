@@ -368,7 +368,6 @@ import {
 // throwing wrapper does. `payLoyaltyCost` is re-exported below, unchanged, for
 // the callers (and tests) that have always imported it from here.
 import { payLoyaltyCost } from "./gre/loyalty";
-import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase } from "./gre/types";
@@ -520,7 +519,7 @@ export {
     assertActivationTimingLegal,
     assertDiscardFilterCostAffordable,
     assertLoyaltyActivationLegal,
-    assertSacrificeFilterCostAffordable,
+    assertPermanentGiveUpCostAffordable,
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     castZoneOwner,
@@ -542,7 +541,7 @@ import {
     assertGameNotOver,
     assertLoyaltyActivationLegal,
     assertNoPendingChoices,
-    assertSacrificeFilterCostAffordable,
+    assertPermanentGiveUpCostAffordable,
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     canPayExileFromGraveyard,
@@ -2695,7 +2694,7 @@ export function beginNonStackFilterCostActivation(
     // predicates the stack path uses so neither mutation admits what the other
     // refuses.
     assertDiscardFilterCostAffordable(player, ability);
-    assertSacrificeFilterCostAffordable(state, player, card, ability);
+    assertPermanentGiveUpCostAffordable(state, player, card, ability);
     const manaCost = normalizeManaCost(ability.cost.mana ?? {});
     // CR 601.2g / 605.3a — float the mana this ability's own cost needs from the
     // player's other sources (Bog Witch's {B}), the same convenience
@@ -4921,37 +4920,12 @@ export function finalizeTargetSelection(
             ability
         );
         if (precondition !== null) throw new Error(precondition);
-        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": illegal
-        // if no matching permanent is on the activating player's battlefield.
-        if (ability.cost.sacrificeFilter) {
-            const candidates = player.battlefield.filter((c) =>
-                // Same layered view as `sacrificeCandidates`, the scan that
-                // later builds the picker. Matching the RAW instance here made
-                // this gate disagree with it on every colour-filtered cost
-                // (issue #1209).
-                matchesPermanentFilter(
-                    effectivePermanentView(state, c),
-                    ability.cost.sacrificeFilter!,
-                    {
-                        selfControllerId: player.id,
-                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
-                        // the source is not a legal payment for its own cost.
-                        selfInstanceId: card.id,
-                        // "Sacrifice enchanted creature"
-                        // (`hostOfSource` fails closed without the host).
-                        selfAttachedToId: card.attachedTo,
-                        supertypesOf: liveSupertypesOf,
-                    }
-                )
-            );
-            // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
-            // permanents" (Bolas's Citadel): the cost gives up
-            // `sacrificeFilterCount` matching permanents (default 1), so the
-            // gate is a COUNT, not mere existence.
-            if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-                throw new Error("No legal permanent to pay the sacrifice cost");
-            }
-        }
+        // CR 602.1 / 118.5 — the filtered give-up legs ("sacrifice a permanent
+        // matching <filter>", "return a permanent matching <filter> you
+        // control to its owner's hand"): illegal unless the activating player
+        // controls enough matching permanents. The SAME predicate the
+        // untargeted stack path and the non-stack mana path gate on.
+        assertPermanentGiveUpCostAffordable(state, player, card, ability);
         // CR 602.1 / 118.5 — "exile N cards from a single graveyard": illegal
         // unless one graveyard holds enough matching cards.
         if (ability.cost.exileFromGraveyard) {
