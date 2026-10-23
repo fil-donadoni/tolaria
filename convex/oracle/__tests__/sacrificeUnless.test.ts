@@ -5,9 +5,10 @@
 //  1. GOLDEN forms — one real corpus card per accepted payment, compiled whole;
 //     the trigger it produces is the `mayPay` + `if not` pair the hand-written
 //     catalogue writes (Phyrexian Dreadnought, Treva's Ruins), each payment one
-//     `CostLegs` leg: mana, discard, sacrifice, sacrifice-by-total-power, return.
+//     `CostLegs` leg: mana, discard, sacrifice, sacrifice-by-total-power,
+//     return, return-from-graveyard.
 //  2. REFUSALS — printed neighbours the rule must NOT read: a payment with no
-//     cost leg (a card returned from the graveyard, life), each pinned to WHERE
+//     cost leg (life), each pinned to WHERE
 //     the compiler gave up so it cannot pass for an unrelated unread line.
 //  3. SUBJECT — only the source (or the site's pronoun for it) is sacrificed
 //     unless paid for.
@@ -177,22 +178,45 @@ describe("sacrifice it unless you … (CR 118.12a)", () => {
             ),
         });
     });
-});
 
-describe("sacrifice it unless you … — refused neighbours", () => {
-    it("refuses a card returned from the graveyard — Harvest Wurm", () => {
+    it("return a basic land card from your graveyard — Harvest Wurm", () => {
         expect(
-            refusedAt(
+            triggers(
                 creature(
                     "Harvest Wurm",
                     `${ENTERS}sacrifice it unless you return a basic land card from your graveyard to your hand.`
                 )
-            )
-        ).toBe(
-            "effect clause: Sacrifice it unless you return a basic land card from your graveyard to your hand"
-        );
+            )![0]
+        ).toMatchObject({
+            head: { kind: "entered", scope: "self" },
+            effects: punisher(
+                {
+                    graveyard: {
+                        action: "return",
+                        filter: { type: "Land", supertype: "Basic" },
+                        count: 1,
+                    },
+                },
+                "Return a card from your graveyard to your hand, or sacrifice Harvest Wurm?"
+            ),
+        });
     });
 
+    it("return an unqualified card from your graveyard — empty filter", () => {
+        expect(
+            triggers(
+                creature(
+                    "Test Bear",
+                    `${ENTERS}sacrifice it unless you return a card from your graveyard to your hand.`
+                )
+            )![0]!.effects[0]
+        ).toMatchObject({
+            cost: { graveyard: { action: "return", filter: {}, count: 1 } },
+        });
+    });
+});
+
+describe("sacrifice it unless you … — refused neighbours", () => {
     it("refuses a life payment — Season of the Witch", () => {
         const card = oracleCard({
             name: "Season of the Witch",
@@ -218,6 +242,19 @@ describe("sacrifice it unless you … — refused neighbours", () => {
             )
         ).toBe(
             "effect clause: Sacrifice it unless you return a land to its owner's hand"
+        );
+    });
+
+    it("refuses a graveyard card qualified by anything but a card type", () => {
+        expect(
+            refusedAt(
+                creature(
+                    "Test Bear",
+                    `${ENTERS}sacrifice it unless you return a Goblin card from your graveyard to your hand.`
+                )
+            )
+        ).toBe(
+            "effect clause: Sacrifice it unless you return a Goblin card from your graveyard to your hand"
         );
     });
 
