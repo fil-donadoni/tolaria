@@ -118,7 +118,6 @@ export const survivalOfTheFittest = defineCard(() => ({
 // auto-selects a sole legal target without prompting anyone. There is no game
 // state in which the two choosers could pick differently.
 //
-// hand-tail: At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard. (#4195)
 export const oathOfDruids = defineCard(() => ({
     id: "cf14de50-d123-400c-862e-2c95fd2aa23f",
     name: "Oath of Druids",
