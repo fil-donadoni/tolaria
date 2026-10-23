@@ -92,6 +92,7 @@ import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
 import { readPumpThenColor } from "./pumpColorChain";
 import { readThenChain } from "./thenChain";
+import { readCounterAndChain } from "./counterAndChain";
 import {
     foldCoinFlipSeries,
     readCoinFlipSentence,
@@ -314,6 +315,14 @@ export type SubjectIR =
      * issue #4127); a site that names no card refuses the line.
      */
     | { readonly kind: "that-card" }
+    /**
+     * CR 603.2 + CR 608.2h — "that spell": anaphora for the spell a
+     * cast-trigger head named. Read only by the counter verb, which has no
+     * announced target to point at; bound by the lowering SITE
+     * (`SiteAntecedents.spell`), a site whose head names no spell refuses the
+     * line.
+     */
+    | { readonly kind: "that-spell" }
     /**
      * CR 303.4b — "enchanted creature": the permanent the Aura's ability is
      * attached to (the activated slot's `auraHost`). Never announced (CR 115.10
@@ -926,6 +935,16 @@ export type EffectSentenceIR =
            * `destroy-countered-source` modifier; never by the counter rule.
            */
           readonly destroysCounteredSource?: true;
+      }
+    | {
+          /**
+           * CR 122.1 + CR 701.21a — "If there are three or more depletion
+           * counters on this enchantment, sacrifice it": the source's own
+           * tally, read when the sentence resolves, gates its sacrifice.
+           */
+          readonly kind: "sacrifice-source-at-counters";
+          readonly counter: string;
+          readonly atLeast: number;
       }
     | {
           /**
@@ -4216,6 +4235,10 @@ const ROUTE_REST: ReadonlyMap<
  * branch can rely on.
  */
 const COUNTER_VERB = "counter ";
+
+/** CR 122.1 — "If there are N or more <kind> counters on <self>, sacrifice it". */
+const SACRIFICE_AT_COUNTERS =
+    /^If there are (\S+) or more (\S+) counters on (.+), sacrifice it$/;
 /**
  * CR 701.6a + CR 113.7a — the counter rider, whole, without its full stop. The
  * "permanent" is the SOURCE of the countered ability (CR 113.7a), which only a
@@ -4747,6 +4770,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             sentenceRule.run(capitalise(tail), ctx)
         );
         if (chained !== null) return chained;
+
+        const counterChain = readCounterAndChain(span, (sentence) =>
+            sentenceRule.run(sentence, ctx)
+        );
+        if (counterChain !== null) return counterChain;
 
         const effect = effectSentence(span, ctx);
         if (!effect.ok) return effect;
@@ -6265,6 +6293,22 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── source tally gates its own sacrifice (CR 122.1, CR 701.21a) ────────
+    const tally = span.match(SACRIFICE_AT_COUNTERS);
+    if (tally !== null) {
+        const atLeast = readNumberWord(tally[1]!);
+        if (atLeast === null || atLeast < 1 || !isSelfPhrase(tally[3]!))
+            return fail(
+                `"${span}" is not a source counter-threshold sacrifice`,
+                span
+            );
+        return ok({
+            kind: "sacrifice-source-at-counters" as const,
+            counter: tally[2]!,
+            atLeast,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── counter a spell (CR 701.6a) ────────────────────────────────────────
     //
     // Read at either casing, for the reason `subjectRule` gives: "Counter
@@ -6286,6 +6330,20 @@ function effectSentence(
         // not a target phrase with a cost glued to it.
         const taxAt = rest.indexOf(UNLESS_PAYS);
         const phrase = taxAt === -1 ? rest : rest.slice(0, taxAt);
+        // CR 603.2 + CR 701.6a — "counter that spell": the spell the head's
+        // cast event named, countered without an announcement. A tax on it is
+        // a neighbour no fixture pins and stays refused.
+        if (phrase === "that spell") {
+            if (taxAt !== -1)
+                return fail(
+                    '"counter that spell" takes no counter tax in this grammar',
+                    span
+                );
+            return ok({
+                kind: "counter" as const,
+                subject: { kind: "that-spell" as const },
+            } satisfies EffectSentenceIR);
+        }
         // CR 115.2 — the narrowed stack phrases are the COUNTER verb's own
         // (see `narrowedStackRequirement`); every other target phrase goes
         // through the shared subject rule.
