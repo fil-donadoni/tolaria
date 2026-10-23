@@ -3851,6 +3851,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"pump\" targets $source/$each — covered by the card's own per-card test",
+            "issue": 6453
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"pump\" uses a ref/count P/T amount the canned generator does not model — covered by the card's own per-card test",
             "issue": 5715
         },
