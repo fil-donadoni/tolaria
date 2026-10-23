@@ -40,6 +40,7 @@ import {
     sacrificeSnapshotFromSelection,
 } from "./activation";
 import { castAsAdventure } from "./adventure";
+import { castExileCostPickIds } from "./alternativeCost";
 import { applyBestowCharacteristics } from "./bestow";
 import { graveyardCastStackFlags, reboundCastStackFlags } from "./castCost";
 import type { CastFromZone } from "./castCost";
@@ -269,16 +270,22 @@ export function commitCast(
     // of Insight): each picked card leaves the caster's own graveyard
     // (default) or hand (`zone: "hand"`, the exile-from-hand flashback cost)
     // for exile. The picks never include the cast card itself (CR 601.2a).
+    // CR 118.9 / 601.2h — a POSITIONAL alternative-cost exile ("the top three
+    // black cards of your graveyard") is re-derived here, at payment.
     const exilePicks = legs.exileFromGraveyardChoice;
-    if (exilePicks?.pickedCardIds) {
+    const exilePickIds = exilePicks
+        ? castExileCostPickIds(caster, exilePicks)
+        : undefined;
+    if (exilePicks?.pickedCardIds && !exilePickIds) return null;
+    if (exilePicks && exilePickIds) {
         const exileSourceZone = exilePicks.zone ?? "graveyard";
         const exileSource =
             exileSourceZone === "hand" ? caster.hand : caster.graveyard;
-        const stillThere = exilePicks.pickedCardIds.every((id) =>
+        const stillThere = exilePickIds.every((id) =>
             exileSource.some((c) => c.id === id)
         );
         if (!stillThere) return null;
-        for (const id of exilePicks.pickedCardIds) {
+        for (const id of exilePickIds) {
             moveCard(caster, id, exileSourceZone, "exile");
         }
     }

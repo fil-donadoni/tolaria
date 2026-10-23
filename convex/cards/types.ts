@@ -2716,21 +2716,37 @@ export interface CostLegs {
      *  `PlayerState.energyCounters`). No printed alternative cost uses it. */
     energy?: number;
     /** GRAVEYARD leg (CR 118.3 / 118.12a): cards matching `filter` in the
-     *  payer's OWN graveyard move to the payer's hand to pay the cost — the
-     *  "sacrifice it unless you return a basic land card from your graveyard
-     *  to your hand" punisher (Harvest Wurm). Payable only while the payer's
-     *  graveyard holds at least `count` matching cards (CR 118.3).
+     *  payer's OWN graveyard leave it to pay the cost. Payable only while the
+     *  payer's graveyard holds at least `count` matching cards (CR 118.3).
      *
-     *  WHICH cards pay is ALWAYS the payer's choice, never an auto-pick — not
-     *  even with exactly one legal card, the same doctrine as the `permanent`
-     *  leg's `"return"` action: the returned card stays a resource the payer
-     *  keeps playing with. A may-pay-only shape: no printed alternative or
-     *  kicker cost uses it, and both of those paths refuse it. */
-    graveyard?: {
-        action: "return";
-        filter: EffectCardFilter;
-        count: number;
-    };
+     *   - `action: "return"` — the cards move to the payer's hand: the
+     *     "sacrifice it unless you return a basic land card from your
+     *     graveyard to your hand" punisher (Harvest Wurm). WHICH cards pay is
+     *     ALWAYS the payer's choice, never an auto-pick — not even with exactly
+     *     one legal card, the same doctrine as the `permanent` leg's
+     *     `"return"` action: the returned card stays a resource the payer
+     *     keeps playing with. A may-pay-only shape: the alternative-cost and
+     *     kicker paths refuse it.
+     *   - `action: "exile"` — the cards are exiled (CR 701.13), selected by
+     *     POSITION with no payer pick: `position: "top"` takes the `count`
+     *     TOPMOST cards matching `filter` (CR 404.2 — the graveyard is an
+     *     ordered pile; the last array element is its top). "You may exile
+     *     the top three black cards of your graveyard rather than pay this
+     *     spell's mana cost" (Spinning Darkness) is the topmost three black
+     *     cards, NOT "the top three cards, if they are black". An
+     *     alternative-cost-only shape: the may-pay and kicker paths refuse it. */
+    graveyard?:
+        | {
+              action: "return";
+              filter: EffectCardFilter;
+              count: number;
+          }
+        | {
+              action: "exile";
+              filter: EffectCardFilter;
+              count: number;
+              position: "top";
+          };
 }
 
 // --- Additional-cost legs (CR 601.2b / 601.2f / 118.8) ---
