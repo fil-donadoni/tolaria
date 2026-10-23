@@ -47,6 +47,7 @@ import {
     type SpellContext,
     type SpellStackDestination,
     type StaticEffect,
+    type TargetCountQuantity,
     type TargetRequirement,
     type TargetSelection,
     type TextChange,
@@ -195,6 +196,7 @@ import {
 import {
     INLINE_DELAYED_TRIGGER_ID,
     compileEffectScript,
+    evaluateTargetCountQuantity,
     runDelayedTriggerBody,
     runModeInstanceScripts,
 } from "./effects/interpreter";
@@ -999,6 +1001,10 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *     to X" — Pest Infestation's future "destroy up to X target artifacts
  *     and/or enchantments"), which resolves to a live `{ min, max: chosenX }`
  *     range.
+ *   - `{ min, max: TargetCountQuantity }` — a bound DEFINED BY THE SPELL'S
+ *     TEXT (CR 601.2c, Reap), read off the board over `options.announcement`
+ *     (the earlier groups' picks); without one it stays open (`{ min }`),
+ *     see the branch below.
  *
  *  `requireX: true` throws when an X-bearing count reaches this with no
  *  `chosenX` (the cast/activated-ability paths in `game.ts`, where a missing
@@ -1034,9 +1040,16 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *  it collapses `"X"` to 0 locally rather than calling this resolver with a
  *  synthetic `chosenX`. */
 export function resolveTargetRequirementCount(
-    count: number | "X" | { min: number; max?: number | "X" },
+    count: TargetRequirement["count"],
     chosenX: number | undefined,
-    options: { requireX?: boolean } = {}
+    options: {
+        requireX?: boolean;
+        announcement?: TargetCountAnnouncement;
+        /** A text-defined bound ALREADY determined for this object — a copy
+         *  or a retargeted spell keeps the number of targets its cast fixed
+         *  (CR 707.10, CR 601.2c), so the board is never read again. */
+        determinedMax?: number;
+    } = {}
 ): number | { min: number; max?: number } {
     const resolveX = (): number => {
         if (chosenX !== undefined) return Math.max(0, chosenX);
@@ -1053,10 +1066,71 @@ export function resolveTargetRequirementCount(
     // narrows a discriminant on a union, so a bare `return count` still
     // carries the `"X"` possibility in `max`'s type. `Math.max(count.min, …)`
     // clamps a below-min resolved X up to `min` — see the doc comment above.
-    return {
-        min: count.min,
-        max: count.max === "X" ? Math.max(count.min, resolveX()) : count.max,
-    };
+    const max = count.max;
+    if (max === undefined || typeof max === "number") {
+        return { min: count.min, max };
+    }
+    if (max === "X")
+        return { min: count.min, max: Math.max(count.min, resolveX()) };
+    // CR 601.2c — a text-defined bound, read off the board at announcement.
+    // With no announcement in hand the bound is not known YET (it may name a
+    // target an earlier group has not picked), so it stays open: the callers
+    // that pass none read only `min` (castability, deferral) or ask whether
+    // the group takes targets at all, and folding it to `min` would answer
+    // "no" for an "up to X" group. Every site that OPENS a selection passes
+    // the announcement.
+    if (options.determinedMax !== undefined) {
+        return {
+            min: count.min,
+            max: Math.max(count.min, options.determinedMax),
+        };
+    }
+    if (!options.announcement) return { min: count.min };
+    const quantity = evaluateAnnouncedQuantity(
+        options.announcement,
+        max,
+        chosenX
+    );
+    return { min: count.min, max: Math.max(count.min, quantity) };
+}
+
+/** The announcement a {@link TargetCountQuantity} is read against (CR 601.2c):
+ *  who announces, what is announced, and the targets the EARLIER groups of the
+ *  same announcement already chose, flat and in declaration order — the slots
+ *  a `{ target: N }` inside the quantity names. */
+export interface TargetCountAnnouncement {
+    state: GameState;
+    /** The announcing player — "you" / `"controller"` in the quantity. */
+    controllerId: string;
+    /** The spell card or ability source being announced. */
+    sourceInstanceId: string;
+    priorTargets: readonly TargetSelection[];
+}
+
+/** CR 601.2c / 107.3 — evaluates a text-defined target bound over the
+ *  announcement through the interpreter's own `count` reader. The context is a
+ *  `SpellContext` over a synthetic stack item carrying the earlier picks as
+ *  `targets`; the read is pure (a count touches no state). A source that is
+ *  nowhere in the game reads 0. */
+function evaluateAnnouncedQuantity(
+    announcement: TargetCountAnnouncement,
+    quantity: TargetCountQuantity,
+    chosenX: number | undefined
+): number {
+    const { state, controllerId, sourceInstanceId, priorTargets } =
+        announcement;
+    const source =
+        state.stack.find((s) => s.id === sourceInstanceId) ??
+        findCardInAnyZone(state, sourceInstanceId);
+    if (!source) return 0;
+    const ctx = buildSpellContext(state, {
+        ...source,
+        zone: "stack",
+        castById: controllerId,
+        targets: [...priorTargets],
+        chosenX,
+    } as StackItem);
+    return Math.max(0, evaluateTargetCountQuantity(ctx, quantity));
 }
 
 /** Every target-filter-registry key that is ALSO a `PendingTarget` field — the
@@ -10998,7 +11072,11 @@ export function requestCopyRetargetOn(
     // the single shared resolver. `requireX` stays false (the default): a
     // copy's `chosenX` is read defensively off already-resolved state, so a
     // missing X here folds to 0 instead of throwing mid-resolve.
-    const count = resolveTargetRequirementCount(req.count, copy.chosenX);
+    // CR 707.10 — the copy copies "all decisions made for it, including …
+    // targets": a text-defined bound keeps the number its cast fixed.
+    const count = resolveTargetRequirementCount(req.count, copy.chosenX, {
+        determinedMax: copy.targets?.length ?? 0,
+    });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = req.subtypeFilter
@@ -16368,7 +16446,10 @@ export function buildSpellContext(
             // distinct from the copy-retarget `kind`).
             const count = resolveTargetRequirementCount(
                 requirement.count,
-                item.chosenX
+                item.chosenX,
+                // CR 601.2c — the spell keeps the number of targets its
+                // cast fixed; only the targets change.
+                { determinedMax: spell.targets?.length ?? 0 }
             );
             const minNeeded = typeof count === "number" ? count : count.min;
             if (minNeeded <= 0) return; // no targets to choose
