@@ -57,9 +57,7 @@ import type {
     StackItem,
 } from "./state";
 import {
-    moveCard,
     resolveTopOfStack,
-    emitPermanentEntered,
     processPendingActionTriggers,
     getOpponentId,
     tapPermanent,
@@ -110,9 +108,10 @@ import {
     payGrantedAbilityInSearch,
     summonCompanionInSearch,
     turnFaceUpInSearch,
+    autoFinalizeLandEntryChoices,
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
-import { castNeedsSorceryWindow, spendGraveyardPlayPermission } from "./rules";
+import { castNeedsSorceryWindow } from "./rules";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
 // object the mutation path commits.
@@ -120,8 +119,7 @@ import {
     buildActivatedAbilityStackItem,
     recordActivation,
 } from "./activationCommit";
-import { resolvePlayLandSourceZone } from "./playLand";
-import { stampModalBackFaceForPlay } from "./transform";
+import { applyPlayLandFromAnyZone } from "./playLand";
 import {
     evaluate,
     evaluateBreakdown,
@@ -958,70 +956,22 @@ export function applyMoveInSearch(
         }
 
         case "play-land": {
-            // CR 305.9 — hand is the normal source, but a play-from-graveyard
-            // (Icetill Explorer) or play-from-top-of-library (Courser of
-            // Kruphix) permission makes those legal sources too, and the
-            // enumerator now offers them. Resolve the actual zone through the
-            // shared resolver rather than assuming hand: a hard-coded "hand"
-            // made `moveCard` THROW (`Card <id> not found in hand`) the moment
-            // such a move reached this leaf. `null` means no permitted source
-            // still holds the card (a stale move) — skip it rather than throw.
-            const sourceZone = resolvePlayLandSourceZone(
+            // CR 305 / 302.6 / 614.1c — the shared play-land chokepoint, the
+            // one the authoritative `playCard` mutation and the 1-ply mover
+            // reach, so a rollout land enters under the real rules (tapped on
+            // entry, CR 400.7 transient reset, entry counters, statics). It
+            // resolves the source zone (hand, graveyard, library top, exile),
+            // stamps the modal face (CR 712.12) and spends a graveyard play
+            // permission itself; a stale move returns null and changes nothing.
+            applyPlayLandFromAnyZone(
                 state,
                 player,
-                move.cardInstanceId
-            );
-            if (sourceZone === null) return;
-            // CR 601.3 (#1156) — a cross-player exile grant (Dauthi
-            // Voidwalker) leaves the card in the OPPONENT's exile, which
-            // `moveCard` (single-player zones only) cannot move. That case has
-            // never been reachable in this coarse leaf; skip it rather than
-            // throw, leaving the position unchanged for evaluation.
-            if (
-                sourceZone === "exile" &&
-                !player.exile.some((c) => c.id === move.cardInstanceId)
-            ) {
-                return;
-            }
-            // CR 712.12 — the face is chosen BEFORE the card is put onto the
-            // battlefield, so the stamp precedes the zone move here exactly as
-            // it does on the real path (`stampChosenFace`, `gre/playLand.ts`)
-            // — the stamper's own contract says the card must not be on the
-            // battlefield yet. Without it the coarse leaf would put an Instant
-            // onto the battlefield, count no land drop, and evaluate a
-            // position the real engine never produces.
-            const sourceCard = (
-                sourceZone === "library-top"
-                    ? player.library
-                    : player[sourceZone]
-            ).find((c) => c.id === move.cardInstanceId);
-            if (move.face === "back" && sourceCard) {
-                stampModalBackFaceForPlay(state, sourceCard);
-            }
-            // CR 305.1-analog (ADR 0093) — a graveyard source is reachable only
-            // under a graveyard play permission; spend it exactly as the real
-            // play path does, or the leaf replays a once-per-turn permission.
-            if (sourceZone === "graveyard" && sourceCard) {
-                spendGraveyardPlayPermission(
-                    state,
-                    player,
-                    "play-land",
-                    sourceCard
-                );
-            }
-            const card = moveCard(
-                player,
                 move.cardInstanceId,
-                sourceZone === "library-top" ? "library" : sourceZone,
-                "battlefield"
+                move.face
             );
-            if (card.types.includes("Land")) {
-                player.landsPlayedThisTurn =
-                    (player.landsPlayedThisTurn ?? 0) + 1;
-            }
-            // CR 305.2 — mirror the real play-land chokepoint: `wasPlayed`
-            // marks a PLAYED land so "whenever you play a land" triggers fire.
-            emitPermanentEntered(state, card, { wasPlayed: true });
+            // CR 614.12 / ADR 0051 — a pay-or-tapped land suspends entry on a
+            // `land-entry-tapped` choice; a rollout cannot answer it.
+            autoFinalizeLandEntryChoices(state);
             processPendingActionTriggers(state);
             // A special action resets the pass cycle (CR 117.3c) and keeps
             // priority with the actor, who may keep acting.
