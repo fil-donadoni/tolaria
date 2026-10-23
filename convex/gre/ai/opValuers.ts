@@ -1717,6 +1717,14 @@ const moveSpellFromStack: Valuer<"moveSpellFromStack"> = (op, ctx) => ({
     tags: ["disruption", "targeted"],
 });
 
+// CR 115.7a — redirecting a spell is a tempo/denial play: the spell still
+// resolves, only against a target of the retargeting player's choosing, so it
+// prices BELOW an answer (`counter`) — as a quarter of one.
+const retarget: Valuer<"retarget"> = (_op, ctx) => ({
+    points: pricedFraction(ctx, "disruption", 0.25),
+    tags: ["disruption", "targeted"],
+});
+
 const mayPay: Valuer<"mayPay"> = () => {
     // A "you may pay …" / "unless its controller pays …" decision carries no
     // intrinsic material of its own — its consequence is the `if` branch that
@@ -3179,6 +3187,7 @@ export const OP_VALUERS: {
     recallCapturedBinding,
     counter,
     moveSpellFromStack,
+    retarget,
     mayPay,
     payVariableMana,
     chooseNumber,
@@ -3550,6 +3559,10 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // its owner's HAND" reads superficially like a gift, and a neutral sign is
     // how the bot ends up handing an effect to the opponent.
     moveSpellFromStack: "harmful",
+    // CR 115.7a — the retargeting player redirects someone else's spell at a
+    // target of their own choosing: an attack on the spell's controller, not a
+    // gift, so it must not be left to the `?? "neutral"` fallback.
+    retarget: "harmful",
     discard: "harmful",
     // CR 106.4 — the recipient loses every unspent mana: strictly a loss.
     drainManaPool: "harmful",

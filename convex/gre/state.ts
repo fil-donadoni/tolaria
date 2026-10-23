@@ -1120,6 +1120,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     spellExcludeTypeFilter: true,
     spellCreaturePtFilter: true,
     spellSingleTargetingController: true,
+    spellSingleTarget: true,
     spellWouldDestroyLandYouControl: true,
     spellTargetsPermanentFilter: true,
     spellWasKicked: true,

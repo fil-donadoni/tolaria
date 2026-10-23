@@ -162,6 +162,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     exileTopOfLibrary: false,
     mill: false,
     moveSpellFromStack: false,
+    retarget: false,
     moveZone: false,
     preventDamage: false,
     redirectDamage: false,
