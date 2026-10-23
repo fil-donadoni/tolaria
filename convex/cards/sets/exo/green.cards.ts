@@ -96,11 +96,11 @@ export const survivalOfTheFittest = defineCard(() => ({
 //    player-kind re-check (`playerTargetStillMeetsRestrictions`, gre/state.ts).
 //
 //  * RESOLUTION — the "may" is the DSL's cost-free `mayPay` + `if` pair
-//    (issue #680: `mayPay` with no `cost` IS "you may …", binding a boolean
+//    (`mayPay` with no `cost` IS "you may …", binding a boolean
 //    the `if` reads), and the taken branch is one `revealUntilMatch` Op:
 //    match → battlefield, rest → graveyard. Both the player offered the
 //    decision and the library dug are `{ ref: "$event.activePlayerId" }`
-//    (issue #1066 / ADR 0049 — the scoped player read straight off the firing
+//    (ADR 0049 — the scoped player read straight off the firing
 //    PHASE_BEGIN event), because "the first player" is the upkeep player, not
 //    the ability's controller.
 //
@@ -118,7 +118,6 @@ export const survivalOfTheFittest = defineCard(() => ({
 // auto-selects a sole legal target without prompting anyone. There is no game
 // state in which the two choosers could pick differently.
 //
-// hand-tail: At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard. (#4195)
 export const oathOfDruids = defineCard(() => ({
     id: "cf14de50-d123-400c-862e-2c95fd2aa23f",
     name: "Oath of Druids",
