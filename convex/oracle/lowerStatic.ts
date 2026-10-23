@@ -375,6 +375,21 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 602.5 / 605.1a — the id is a card-scoped private handle.
+        case "creature-activation-lock":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "activation-restriction",
+                            id: nextId("creature-activation-lock"),
+                            filter: { types: "Creature" },
+                            oracleText,
+                        },
+                    ],
+                },
+            };
         case "cast-permission": {
             // CR 601.3 — the permission's id is DERIVED from the clause, never
             // from the card: `collectCastPermissions` deduplicates on the bare

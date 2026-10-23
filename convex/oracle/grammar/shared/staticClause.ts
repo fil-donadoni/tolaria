@@ -181,6 +181,10 @@ export type StaticClauseIR =
           readonly kind: "attack-prohibition";
           readonly attackers: PermanentFilter;
       }
+    /** CR 602.5 / 605.1a — "Activated abilities of creatures can't be
+     *  activated": every creature's activated abilities, mana abilities
+     *  included, are locked while the source is on the battlefield. */
+    | { readonly kind: "creature-activation-lock" }
     /** CR 601.3 / 118.9 — a board permission to cast a CLASS of spells. */
     | {
           readonly kind: "cast-permission";
@@ -856,6 +860,22 @@ export const attackProhibitionRule: Rule<StaticClauseIR> = pattern(
                 colors: COLOR_WORDS.get(match[1]!.toLowerCase())!,
             },
         })
+);
+
+// ── Frame: activation lock (CR 602.5 / 605.1a) ─────────────────────────────
+
+/**
+ * CR 602.5 — "Activated abilities of creatures can't be activated" (Cursed
+ * Totem): a player can't begin to activate a prohibited ability. Anchored on
+ * the whole sentence: no "unless they're mana abilities" exemption (CR 605.1a —
+ * a mana ability is an activated ability), no other permanent noun and no
+ * qualifier is read, so those neighbours refuse.
+ */
+export const creatureActivationLockRule: Rule<StaticClauseIR> = pattern(
+    "creature activation lock",
+    /^Activated abilities of creatures can't be activated$/,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "creature-activation-lock" as const })
 );
 
 // ── Frame: board cast permission (CR 601.3 / 118.9) ────────────────────────
@@ -2162,6 +2182,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         abilityCostModifierRule,
         attackManaTaxRule,
         attackProhibitionRule,
+        creatureActivationLockRule,
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
