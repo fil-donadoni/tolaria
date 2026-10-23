@@ -25594,6 +25594,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Glimmervoid",
+        "scryfallId": "e2ab98a1-664c-4775-a3dd-22a15e2f836b",
+        "oracleId": "b92e9854-4527-4133-8615-e282a213e7e3",
+        "firstSet": "mrd",
+        "firstPrintId": "e2ab98a1-664c-4775-a3dd-22a15e2f836b",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Glimpse the Future",
         "scryfallId": "f4d875e9-713d-4ddb-ae0a-db8483366319",
         "oracleId": "ff5a2bcf-efd0-4bdb-af52-21a93447c54c",
@@ -31811,6 +31821,16 @@
         "firstPrintId": "d1ead8cc-5b7d-4a6d-a56f-95da91a958d2",
         "firstPrintSet": "ori",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Infernal Tribute",
+        "scryfallId": "569739b2-f212-4cc9-84db-1be17b3f90fb",
+        "oracleId": "a8bf79d2-29fd-4d2f-ac07-2e61d3886bc0",
+        "firstSet": "wth",
+        "firstPrintId": "569739b2-f212-4cc9-84db-1be17b3f90fb",
+        "firstPrintSet": "wth",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -38606,6 +38626,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mark of the Oni",
+        "scryfallId": "632679e5-7368-4660-a765-07be196c3c35",
+        "oracleId": "4ce00fdf-c4da-492a-81c9-8c93dd0bf620",
+        "firstSet": "bok",
+        "firstPrintId": "632679e5-7368-4660-a765-07be196c3c35",
+        "firstPrintSet": "bok",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mark of the Vampire",
         "scryfallId": "90484815-2529-4a81-9f1b-f0f7382e4b66",
         "oracleId": "af942d30-a191-4306-846d-6c26755ca3e6",
@@ -44438,6 +44468,16 @@
         "firstSet": "trc",
         "firstPrintId": "40a37274-af28-4019-86fc-197e764e9e3e",
         "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Ophiomancer",
+        "scryfallId": "66d80dd1-b944-4cb2-8578-b4dbcabbbc1e",
+        "oracleId": "55eca80c-dcd8-4c2f-aa0f-fb0aec7b80f7",
+        "firstSet": "c13",
+        "firstPrintId": "66d80dd1-b944-4cb2-8578-b4dbcabbbc1e",
+        "firstPrintSet": "c13",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -61712,6 +61752,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Stenchskipper",
+        "scryfallId": "c376fd5f-596a-4208-b173-0b2e5165f2e9",
+        "oracleId": "0817d902-08c8-4ec3-9a84-2de65bc70e6a",
+        "firstSet": "mor",
+        "firstPrintId": "c376fd5f-596a-4208-b173-0b2e5165f2e9",
+        "firstPrintSet": "mor",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Sterling Grove",
         "scryfallId": "40b26aa3-8169-4978-9554-bd2fc8e18e3b",
         "oracleId": "2c275a85-5a15-46cd-a6e7-add63f9b853d",
@@ -65931,6 +65981,16 @@
         "firstPrintId": "3f0c9dee-fab5-4522-9821-343f84b0c8ab",
         "firstPrintSet": "uds",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thran Quarry",
+        "scryfallId": "4b2d6c41-7d82-4062-a783-37d88536279c",
+        "oracleId": "57b4da3f-361a-4cbe-b77f-190ec33eefd8",
+        "firstSet": "usg",
+        "firstPrintId": "4b2d6c41-7d82-4062-a783-37d88536279c",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
