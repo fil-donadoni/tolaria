@@ -15992,6 +15992,16 @@
         "source": "compiled"
     },
     {
+        "name": "Discerning Peddler",
+        "scryfallId": "73b359bf-afd8-439d-a4d2-985db1ad368c",
+        "oracleId": "a6584af7-583d-4d89-9b46-d61be8236413",
+        "firstSet": "otj",
+        "firstPrintId": "73b359bf-afd8-439d-a4d2-985db1ad368c",
+        "firstPrintSet": "otj",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Disciple of Grace",
         "scryfallId": "83fa36d2-0a60-40a5-a182-a63e1e65b2bd",
         "oracleId": "7f4ceca9-0f55-4fa6-8e64-befbc4303d4e",
@@ -18328,6 +18338,16 @@
         "firstSet": "arn",
         "firstPrintId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Elaborate Firecannon",
+        "scryfallId": "4b9170f0-d332-42ba-98c7-7e99922fa3fb",
+        "oracleId": "6e61ae7b-f2e8-421c-870b-a48c08d07503",
+        "firstSet": "xln",
+        "firstPrintId": "4b9170f0-d332-42ba-98c7-7e99922fa3fb",
+        "firstPrintSet": "xln",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Eladamri's Call",
@@ -22208,6 +22228,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Fissure Wizard",
+        "scryfallId": "9fa10a18-5059-46ab-9983-0ea78b507331",
+        "oracleId": "e3474632-6d81-43a8-9329-4c7e0c631755",
+        "firstSet": "znr",
+        "firstPrintId": "9fa10a18-5059-46ab-9983-0ea78b507331",
+        "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Fists of Ironwood",
         "scryfallId": "7193c00f-0398-485c-974d-346ee59cd4c7",
         "oracleId": "2f6a5278-23bf-47b2-a2b9-dfff7d96f3dd",
@@ -25210,6 +25240,16 @@
         "firstSet": "m19",
         "firstPrintId": "c1db84d8-d426-4c0d-b44e-5be7b0f5f5bf",
         "firstPrintSet": "m19",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Gigapede",
+        "scryfallId": "0a96a608-9237-41c1-824c-89d5fad939ad",
+        "oracleId": "9be31785-2975-424f-aada-25ee2a0bf6d8",
+        "firstSet": "ons",
+        "firstPrintId": "0a96a608-9237-41c1-824c-89d5fad939ad",
+        "firstPrintSet": "ons",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -28814,6 +28854,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hazoret's Monument",
+        "scryfallId": "7a0a70f2-f2cb-4a08-a1a7-95c8fc3de6e3",
+        "oracleId": "f02a4cbf-f0bb-4bc7-99c2-6afa1b41ebb8",
+        "firstSet": "akh",
+        "firstPrintId": "7a0a70f2-f2cb-4a08-a1a7-95c8fc3de6e3",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Head of Security",
         "scryfallId": "94f68b16-121a-49e1-abf4-0bd2cd3e74ce",
         "oracleId": "fb42bade-4bbc-4119-b6cc-71695fe43dd9",
@@ -30958,6 +31008,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Iceman and Firestar",
+        "scryfallId": "3dbc2d29-c56f-4c80-b671-24f39c8d80e5",
+        "oracleId": "f01c779a-97be-4727-ab62-33579f52447a",
+        "firstSet": "msc",
+        "firstPrintId": "3dbc2d29-c56f-4c80-b671-24f39c8d80e5",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Icequake",
         "scryfallId": "14b4dd4d-c617-4603-8a87-761ec6fc6883",
         "oracleId": "8c0a6ac1-b1cc-405a-95fb-f06b7fecbb54",
@@ -31211,6 +31271,16 @@
         "firstPrintId": "3c1a11b2-bcb8-43e2-9aa3-8e964dec1319",
         "firstPrintSet": "cmb1",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Immersturm Raider",
+        "scryfallId": "77da4de2-4d34-40e5-8fc0-850aef05356b",
+        "oracleId": "e3179dd6-5558-4385-8883-f78f9d1b1c4f",
+        "firstSet": "khm",
+        "firstPrintId": "77da4de2-4d34-40e5-8fc0-850aef05356b",
+        "firstPrintSet": "khm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -33965,6 +34035,16 @@
         "firstPrintId": "4f0cccf6-b79b-4fff-89aa-801341598532",
         "firstPrintSet": "inv",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Keldon Raider",
+        "scryfallId": "f1245212-d081-4e95-a508-e1d3a7496473",
+        "oracleId": "004f82f0-74cc-4bc7-ab22-ab1a5247bc29",
+        "firstSet": "dom",
+        "firstPrintId": "f1245212-d081-4e95-a508-e1d3a7496473",
+        "firstPrintSet": "dom",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -47044,6 +47124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Plundering Predator",
+        "scryfallId": "f48b3f46-0e62-4f44-8064-857cd3040659",
+        "oracleId": "dfd260f2-90e6-464b-91e2-a66bb3877918",
+        "firstSet": "j22",
+        "firstPrintId": "f48b3f46-0e62-4f44-8064-857cd3040659",
+        "firstPrintSet": "j22",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Poison Arrow",
         "scryfallId": "6b7b5f34-c250-484e-9bae-94789b2a87fb",
         "oracleId": "6d920c99-8a85-4b20-97c2-7aa0c79ae70a",
@@ -50040,6 +50130,16 @@
         "source": "compiled"
     },
     {
+        "name": "Reckless Racer",
+        "scryfallId": "21c0afd6-1242-42bf-a13f-9f218c9d9dfc",
+        "oracleId": "d9a09e7f-6bef-4e75-b5c7-cea20a69cf02",
+        "firstSet": "aer",
+        "firstPrintId": "21c0afd6-1242-42bf-a13f-9f218c9d9dfc",
+        "firstPrintSet": "aer",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Reckless Reveler",
         "scryfallId": "188adefd-a808-4991-80be-53249c24df8f",
         "oracleId": "17d3ceeb-c972-49bc-a530-cf67c49a7e19",
@@ -50774,6 +50874,16 @@
         "firstSet": "uds",
         "firstPrintId": "63fc979e-7758-4310-9259-659e9ced2c7f",
         "firstPrintSet": "uds",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rescue Leopard",
+        "scryfallId": "056136a8-84be-477c-b654-63238fb8236e",
+        "oracleId": "d70ad04a-b940-4bb1-bcdc-408166e91723",
+        "firstSet": "tdm",
+        "firstPrintId": "056136a8-84be-477c-b654-63238fb8236e",
+        "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -59901,6 +60011,16 @@
         "firstPrintId": "210ae606-12a4-453b-bfb4-73ca9c22b8b5",
         "firstPrintSet": "spm",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider-Gwen, Free Spirit",
+        "scryfallId": "3bc04fa7-6265-4549-91f6-eebdcd67398a",
+        "oracleId": "2648559d-1d96-47d2-a769-cfa2cbca2be5",
+        "firstSet": "spm",
+        "firstPrintId": "3bc04fa7-6265-4549-91f6-eebdcd67398a",
+        "firstPrintSet": "spm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -70098,6 +70218,16 @@
         "source": "compiled"
     },
     {
+        "name": "Viashino Racketeer",
+        "scryfallId": "bf4c2d22-9c36-42cc-854d-f96410bb5cf1",
+        "oracleId": "18b09c2d-20cb-40e9-8209-8a1ec2edde97",
+        "firstSet": "rtr",
+        "firstPrintId": "bf4c2d22-9c36-42cc-854d-f96410bb5cf1",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Viashino Runner",
         "scryfallId": "15bf72e0-0b0c-4b29-8709-9dcd460508cb",
         "oracleId": "ac7e317b-387c-403f-bcf1-403f96302f21",
@@ -70956,6 +71086,16 @@
         "firstSet": "khm",
         "firstPrintId": "f2392fbb-d9c4-4688-b99c-4e7614c60c12",
         "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Volatile Wanderglyph",
+        "scryfallId": "2101921a-d26f-4a00-a0db-1b418f2e6b01",
+        "oracleId": "ebc3ca0f-35eb-4606-90ab-eb64556f81fe",
+        "firstSet": "lci",
+        "firstPrintId": "2101921a-d26f-4a00-a0db-1b418f2e6b01",
+        "firstPrintSet": "lci",
         "rarity": "common",
         "source": "compiled"
     },
@@ -71845,6 +71985,16 @@
         "firstPrintId": "52ac6290-1401-41c5-90a1-99acb344719e",
         "firstPrintSet": "mrd",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wandering Champion",
+        "scryfallId": "59086792-c048-455f-ac0d-1a4a994bd621",
+        "oracleId": "54af9e23-459e-470d-9b0e-e91a0fa45c98",
+        "firstSet": "frf",
+        "firstPrintId": "59086792-c048-455f-ac0d-1a4a994bd621",
+        "firstPrintSet": "frf",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -74677,6 +74827,16 @@
         "firstPrintId": "43ae8147-bf25-44f9-b75f-837b81ebe0de",
         "firstPrintSet": "dtk",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Yuyan Archers",
+        "scryfallId": "99244462-a996-4a5b-91fb-947045647d6d",
+        "oracleId": "63e5180f-16d0-4524-94bf-ecbf3c417814",
+        "firstSet": "tla",
+        "firstPrintId": "99244462-a996-4a5b-91fb-947045647d6d",
+        "firstPrintSet": "tla",
+        "rarity": "common",
         "source": "compiled"
     },
     {
