@@ -110,7 +110,7 @@ export interface DescriptorIR {
      *  sites that read live colours admit it. */
     readonly multicolored?: true;
     /** CR 111.1 — "nontoken": a permanent represented by a card, not a token.
-     *  A STATUS of the object rather than a characteristic, so it sits beside
+     *  Not a characteristic (CR 109.3 lists none of it), so it sits beside
      *  the type and colour clauses rather than inside them; the permanent
      *  filter turns it into `isToken: false`. */
     readonly nontoken?: true;
