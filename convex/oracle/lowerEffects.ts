@@ -3871,6 +3871,52 @@ function lowerSentenceBody(
                     rest: sentence.rest,
                 },
             ]);
+        case "first-player-may-reveal-until": {
+            // CR 603.3d — the trigger announces an opposing player who
+            // controls more creatures than the head's player; the strict
+            // comparison already excludes the baseline seat. The player is
+            // only announced: the dig below belongs to the head's player.
+            // The baseline `than: "active"` is the upkeep player's seat, so
+            // only a head naming the active player may be read.
+            const first = site.antecedents?.player;
+            if (
+                typeof first !== "object" ||
+                !("ref" in first) ||
+                first.ref !== "$event.activePlayerId"
+            )
+                return unlowerable(
+                    '"the first player" is not the player whose phase it is'
+                );
+            const announced = slots.allocate({
+                type: "player",
+                count: 1,
+                playerControlsMoreThan: { type: "Creature", than: "active" },
+            });
+            if (!announced.ok) return announced;
+            // CR 701.20a — "may reveal": the cost-free `mayPay` pair binds
+            // whether the head's player took the option.
+            return lowered([
+                {
+                    op: "mayPay",
+                    player: first,
+                    prompt: "Reveal cards from the top of your library until you reveal a creature card?",
+                    bind: "$revealed",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$revealed" },
+                    then: [
+                        {
+                            op: "revealUntilMatch",
+                            player: first,
+                            filter: sentence.filter,
+                            match: sentence.match,
+                            rest: sentence.rest,
+                        },
+                    ],
+                },
+            ]);
+        }
         case "divide-library-piles": {
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
