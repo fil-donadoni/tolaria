@@ -22793,6 +22793,7 @@
         {"id":"602.1a","line":"// CR 602.1a — \"return a permanent matching <filter> you control to its","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
         {"id":"602.1a","line":"// CR 602.1a — Wirewood Symbiote's \"Return an Elf you","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
         {"id":"602.1a","line":"// CR 602.1a — `returnToHandFilter` (\"Return an Elf you control to its","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
+        {"id":"602.1a","line":"// CR 602.1a — a filtered give-up leg (`sacrificeFilter`, or the","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
         {"id":"602.1a","line":"// CR 602.1a — the `returnToHandFilter` leg (\"Return an Elf you control","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
         {"id":"602.1a","line":"// CR 602.1a — the cost is paid by the ACTIVATOR, not","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
         {"id":"602.1a","line":"// CR 602.1a): paying it chooses to have the land not untap during its","sites":1,"status":"baseline"},
