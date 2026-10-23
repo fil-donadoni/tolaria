@@ -61,6 +61,7 @@ import {
     mayHaveNonTapManaAbility,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { activationRestrictionViolation } from "./activationRestrictions";
 import { tapOtherCandidates } from "./activationCostPicks";
 
 /** One way to realise mana by tapping a particular FODDER permanent: which
@@ -136,6 +137,14 @@ export function collectManaConverterLegs(
         // rather than a post-layer ability walk.
         if (!mayHaveNonTapManaAbility(converter)) continue;
         if (abilitiesSuppressed(converter)) continue;
+        // CR 602.5 / 605.1a — a converter whose mana abilities an
+        // `activation-restriction` static prohibits (Urza under Cursed Totem)
+        // funds nothing: `activateManaAbility` would refuse the leg.
+        if (
+            activationRestrictionViolation(state, converter.id, true) !== null
+        ) {
+            continue;
+        }
         for (const { ability } of getEffectiveActivatedAbilities(converter)) {
             if (!isSingleTapOtherManaAbility(ability)) continue;
             const colors = MANA_COLORS.filter(
