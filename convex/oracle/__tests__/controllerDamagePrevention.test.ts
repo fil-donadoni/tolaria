@@ -51,7 +51,13 @@ describe("controller damage prevention — golden (CR 615)", () => {
                 manaCost: { X: 2, W: 1 },
                 oracleText: SOLITARY_CONFINEMENT.oracleText,
                 drawStepReplacement: true,
-                staticEffects: def.staticEffects,
+                compiledStaticEffects: [
+                    {
+                        cantBeTargeted: true,
+                        id: "solitary-confinement-player-shroud",
+                        kind: "player-guard",
+                    },
+                ],
                 preventsDamageToController: true,
             })
         );
