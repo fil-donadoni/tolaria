@@ -1063,8 +1063,9 @@ export type CardInstanceState = {
     /** An ordered pair of basic land types chosen as this permanent enters and
      *  stored for the rest of the game (CR 603.6b / 614.12 — Illusionary
      *  Terrain "as this enchantment enters, choose two basic land types").
-     *  `[first, second]`. Set via `SpellContext.setChosenSubtypes` from an ETB
-     *  trigger; read by a `subtype-set` static's `subtypesFor` callback to
+     *  `[first, second]`. Written BEFORE the permanent enters by the as-enters
+     *  replacement (`entersWith.asEnters: { kind: "subtypes" }`, CR 614.12a,
+     *  ADR 0100); read by a `subtype-set` static's `subtypesFor` callback to
      *  drive a computed layer-4 subtype swap (ADR 0050). Cleared when the
      *  permanent leaves the battlefield (a new object, CR 400.7). */
     chosenSubtypes?: string[];
@@ -3277,6 +3278,16 @@ export type PendingChoice = {
      *  stays satisfied — the card in hand keeps its front-face identity for
      *  the whole window, and the swap happens at the zone move. */
     landEntryFace?: PlayLandFace;
+    /** For `kind: "land-entry-tapped"` only (CR 614.1c / 614.12a, issue #2672)
+     *  — what the land's own "as it enters" choices answered, already made
+     *  BEFORE this pay-choice (Multiversal Passage's basic land type).
+     *  Carried here rather than left on the waiting card because the card sits
+     *  back in the zone it is played from for this window, and a hidden zone's
+     *  codec does not keep instance state across the save point (a
+     *  play-from-top land, CR 400.2). `finalizeLandEntry` re-applies it on the
+     *  far side of the entry's CR 400.7 reset. Absent when the land owed no
+     *  as-enters choice. */
+    landEntryAnswers?: StagedEntryAnswers;
     /** For `kind: "madness-cast"` only (CR 702.35a) — the instance id of the
      *  discarded-and-exiled card this choice decides. The client's "Cast" button
      *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
@@ -5489,6 +5500,24 @@ export interface MonarchReturnWatch {
     controllerId: string;
 }
 
+/** What a parked entry's as-enters answers wrote that the entry-side CR 400.7
+ *  reset clears: `attachedTo` (`aura-host`), `chosenName` (`name`, deleted by
+ *  `resetBattlefieldTransientState` per CR 614.12 / issue #1953),
+ *  `chosenSubtypes` (`subtypes`, CR 614.12a) and the `copy` leg's own carry
+ *  (`colorOverride` / `grantedTriggeredAbilities`, issue #2451). `mode` →
+ *  `chosenModeId`, `body`/`anchor` → the printed characteristics and `payLife`
+ *  → the player's life are untouched by the reset. JSON-pure: it rides a
+ *  persisted `PendingChoice` (`landEntryAnswers`). */
+export type StagedEntryAnswers = {
+    attachedTo?: string;
+    chosenName?: string;
+    chosenSubtypes?: string[];
+    copy: {
+        colorOverride?: readonly Color[];
+        grantedTriggeredAbilities?: CardInstanceState["grantedTriggeredAbilities"];
+    };
+};
+
 /** CR 614.1c / 614.12a (ADR 0100 D2) — a permanent removed from its origin zone
  *  and awaiting its controller's "as it enters" choices before it enters the
  *  battlefield. Carries the fat card object itself (it lives in no zone while
@@ -5503,8 +5532,13 @@ export interface StagedEntry {
     controllerId: string;
     /** Which census row is resuming it — selects WHICH entry tail the finalize
      *  runs (ADR 0100 D2). It deliberately does NOT decide whether a suspended
-     *  resolution resumes; that is `parkedStackItemId`'s job (D5). */
-    origin: "spell" | "effect" | "token";
+     *  resolution resumes; that is `parkedStackItemId`'s job (D5).
+     *
+     *  `play` is a LAND being played (CR 305.1, a special action — never cast):
+     *  lifted out of the zone it is played from and parked until its "as it
+     *  enters" choices are answered, then put back and replayed through the
+     *  same `applyPlayLandFrom*` transition (issue #2672). */
+    origin: "spell" | "effect" | "token" | "play";
     /** The stack item whose resolution parked this entry, if there was one.
      *  This — never `origin` — is what the as-enters finalize branches on: still
      *  on the stack ⇒ `resolveTopOfStack` resumes it in the same mutation;
@@ -5528,6 +5562,18 @@ export interface StagedEntry {
         entryCounters?: Record<string, number>;
         entersTapped?: boolean;
         entersAttacking?: boolean;
+    };
+    /** `origin: "play"` only (issue #2672) — where the played land was lifted
+     *  from, so the entry tail can put it back and replay the play from that
+     *  zone. `sourcePlayerId` names the player whose zone held it: the player
+     *  playing it, except for a cross-player exile grant (CR 400.7 /
+     *  305.1-analog, issue #1156 — Dauthi Voidwalker). `face` is the CR
+     *  712.12 face the play chose; absent means `"front"`. JSON-pure so the
+     *  staged entry survives the DB round-trip. */
+    playEntry?: {
+        sourceZone: PlayLandSourceZone;
+        sourcePlayerId: string;
+        face?: PlayLandFace;
     };
     /** CR 603.6a — carried across an as-enters park so the deferred entry tail
      *  (`runStagedEntryTail`) can still mark the eventual PERMANENT_ENTERED as
