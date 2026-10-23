@@ -9367,7 +9367,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 701.12a + CR 701.21a + CR 608.2b — "exchange control of this creature
+    // CR 701.12a + CR 608.2b — "exchange control of this creature
     // and up to one target creature an opponent controls. If you don't or can't
     // make an exchange, sacrifice this creature. This ability still resolves if
     // its target becomes illegal.": the three sentences are one ability. Exhibits

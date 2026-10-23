@@ -2056,8 +2056,9 @@ export type ModifierIR =
      * ability, folded onto the `counter` in front of it by `assembleSentences`.
      */
     | { readonly kind: "destroy-countered-source" }
-    /** CR 701.12a + CR 701.21a — "If you don't or can't make an exchange,
-     *  sacrifice <this object>.", folded onto the exchange in front of it. */
+    /** CR 701.12a — "If you don't or can't make an exchange, sacrifice
+     *  <this object>." (the sacrifice is CR 701.21a), folded onto the
+     *  exchange in front of it. */
     | { readonly kind: "exchange-fallback-sacrifice" }
     /** CR 608.2b — "This ability still resolves if its target becomes
      *  illegal.", folded onto the exchange in front of it. */
@@ -4354,7 +4355,7 @@ const GAIN_CONTROL_VERB = "Gain control of ";
 /** CR 701.12a — "Exchange control of <this object> and <target>". */
 const EXCHANGE_CONTROL =
     /^Exchange control of (.+?) and (up to one target .+)$/;
-/** CR 701.12a + CR 701.21a — the exchange's fallback sentence. */
+/** CR 701.12a — the fallback sentence. */
 const EXCHANGE_FALLBACK_SACRIFICE =
     /^If you don't or can't make an exchange, sacrifice (.+)$/;
 /** CR 608.2b — the ability-level opt-out of the all-targets-illegal fizzle. */
@@ -4966,8 +4967,8 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
             });
-        // CR 701.12a + CR 701.21a — the exchange's fallback; the sacrificed
-        // object must be the source the exchange moves.
+        // CR 701.12a — the fallback; the sacrificed object (CR 701.21a)
+        // must be the source the exchange moves.
         const exchangeFallback = span.match(EXCHANGE_FALLBACK_SACRIFICE);
         if (exchangeFallback !== null) {
             if (!isSelfPhrase(exchangeFallback[1]!))
