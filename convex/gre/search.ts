@@ -1345,11 +1345,12 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
  *  see. The cost is two `materialFull` per turn's worth of steps — a win one
  *  turn later falls the whole width of the win band, the full material signal
- *  from +1 to −1 — and comes off BOTH channels, the reward and
- *  the tie-break margin, so neither the outcome-equality band nor the
- *  material tie-break re-orders what the other separated. A win stays in the
- *  win band. Losses and open leaves are untouched; with no `since` the leaf
- *  is the plain evaluation. */
+ *  from +1 to −1 — so a win now and a win a combat later land more than
+ *  `outcomeEps` apart. It comes off the REWARD only: the tie-break margin
+ *  stays pure material (issue #138), like `evaluate`'s race and combat terms
+ *  — charged there too, a win a turn away read below a line that never won.
+ *  A win stays in the win band. Losses and open leaves are untouched; with no
+ *  `since` the leaf is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
@@ -1361,10 +1362,7 @@ function scoreLeaf(
         const delay =
             (stepsSince(since, state) * 2 * weights.materialFull) /
             PHASE_ORDER.length;
-        return {
-            reward: rewardFromValue(value - delay, weights),
-            margin: margin - delay,
-        };
+        return { reward: rewardFromValue(value - delay, weights), margin };
     }
     return { reward: rewardFromValue(value, weights), margin };
 }
