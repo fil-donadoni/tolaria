@@ -191,6 +191,24 @@ describe("give-up-leg payability threads selfInstanceId (CR 109.2, issue #2367)"
         });
     }
 
+    // The scan above recognises a gate by the shared helper around it, so an
+    // inline copy that reads a leg key straight off the cost — the drift the
+    // helper exists to stop — would slip past it. This catches that shape
+    // directly, in every guarded file and in `game.ts`.
+    it("no payability site matches a give-up leg key off the cost directly", () => {
+        for (const rel of [...GUARDED_FILES, "convex/game.ts"]) {
+            const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+            const inline = calls(src).filter((c) =>
+                /\bcost\.(sacrificeFilter|returnToHandFilter)\b/.test(
+                    c.filterArg
+                )
+            );
+            expect(
+                inline.map((o) => `${rel}:${o.line} → filter=${o.filterArg}`)
+            ).toEqual([]);
+        }
+    });
+
     it("guards files that actually contain such a call (never vacuously green)", () => {
         for (const rel of GUARDED_FILES) {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");

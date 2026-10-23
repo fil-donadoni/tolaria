@@ -43,6 +43,7 @@ const DEFERRED_ID = "00000000-0000-4000-8000-000065000002";
 const TARGETED_ID = "00000000-0000-4000-8000-000065000003";
 const ELF_SELF_ID = "00000000-0000-4000-8000-000065000004";
 const MANA_ID = "00000000-0000-4000-8000-000065000005";
+const ANOTHER_ID = "00000000-0000-4000-8000-000065000006";
 
 const ELF_FILTER = { subtypes: ["Elf"] };
 
@@ -131,6 +132,33 @@ preloadDefinitions([
                 oracleText:
                     "Return an Elf you control to its owner's hand: You gain 3 life.",
                 cost: { returnToHandFilter: ELF_FILTER },
+                useStack: true,
+                effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+        ],
+    } as CardDefinition,
+    {
+        // "Return ANOTHER Elf you control": `excludeSource` keeps the source
+        // out of its own payment.
+        id: ANOTHER_ID,
+        name: "Synthetic Other-Returning Elf",
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Elf"],
+        power: 1,
+        toughness: 1,
+        activatedAbilities: [
+            {
+                id: "elf-other-gain",
+                oracleText:
+                    "Return another Elf you control to its owner's hand: You gain 3 life.",
+                cost: {
+                    returnToHandFilter: {
+                        subtypes: ["Elf"],
+                        excludeSource: true,
+                    },
+                },
                 useStack: true,
                 effects: [{ op: "gainLife", player: "controller", amount: 3 }],
             },
@@ -277,6 +305,30 @@ describe("cost.returnToHandFilter — the INLINE commit (CR 602.1a / 601.2h)", (
         // CR 113.7a — the ability exists independently of its source.
         resolveTopOfStack(state);
         expect(getPlayer(state, "p1").life).toBe(lifeBefore + 3);
+    });
+});
+
+describe('cost.returnToHandFilter — "another" (`excludeSource`)', () => {
+    it("refuses when the source is the only matching permanent", () => {
+        const state = board([inst(ANOTHER_ID, "src")]);
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "src",
+                abilityId: "elf-other-gain",
+            })
+        ).toThrow(/return-to-hand cost/);
+    });
+
+    it("returns the OTHER Elf, never the source, when one is there", () => {
+        const state = board([inst(ANOTHER_ID, "src"), inst(ELF, "elf")]);
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "src",
+            abilityId: "elf-other-gain",
+        });
+        expect(inHand(state, "p1", "elf")).toBe(true);
+        expect(onBattlefield(state, "src")).toBe(true);
     });
 });
 
