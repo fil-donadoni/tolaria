@@ -121,6 +121,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 118.3 / 122.1 — checks the permanent carries enough counters of that type to pay in full. `autoPayable: false` is about the leg ALONE: `isAutoPayableManaAbilityCost` short-circuits on `if (cost.tap) return true`, so a {T}+removeCounter mana ability (the MMQ depletion lands, issue #2712) IS auto-committed by the planner — spending a counter, and sacrificing the land when it was the last one — exactly as a {T}+sacrifice ability already was. That is the right behaviour, because {T} is the only way to tap the source at all; what this flag withholds is a leg the planner would have to pay on its OWN, with no tap to hang it on.",
         autoPayable: false,
     },
+    addCounter: {
+        paidBy: {
+            file: "convex/gre/applyMove.ts",
+            symbol: "applyActivationCostsForSearch",
+        },
+        why: "CR 122.1 / 118.1 — always payable (CR 118.3 imposes no precondition on placing a counter), so `enumerateAbilityMoves` gates nothing and the search-side application places it through the shared `addCounterToCard`, exactly as the mutation does (CR 614 replacements, CR 704.5q annihilation). A `{T}` carrier is paid on the tap paths by `applyManaAbilityRemoveCounterCost` (`game.ts`), and — `cost.tap` short-circuiting `isAutoPayableManaAbilityCost` — is auto-committed. `autoPayable: false`: the counter is a resource the Bot should choose to spend, so the mana planner never commits a tap-less carrier (Wall of Roots' mana ability) on its own.",
+        autoPayable: false,
+    },
     discardLastDrawn: {
         paidBy: {
             file: "convex/gre/state.ts",

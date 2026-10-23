@@ -1605,6 +1605,14 @@ export interface ActivatedAbility {
          *  the counters are removed at activation commit. Used by Scavenging
          *  Ghoul ("Remove a corpse counter from this creature: Regenerate ~"). */
         removeCounter?: { type: string; count: number };
+        /** Counter-placement payment (CR 122.1 / 118.1): "Put a -1/-1 counter
+         *  on this creature" as a cost (Devoted Druid, Wall of Roots). Always
+         *  affordable by itself (CR 118.3 constrains only what the payer must
+         *  have to pay; placing a counter needs nothing), and legal even when
+         *  the counter kills the source. Paid at activation commit through the
+         *  shared `addCounterToCard` mutator, so CR 614 counter-placement
+         *  replacements and the CR 704.5q annihilation SBA apply. */
+        addCounter?: { type: string; count: number };
         /** "Discard the last card you drew this turn" cost (CR 118.3 — an
          *  additional cost paid from a fixed card, not a chosen one). The
          *  ability is only legal to activate while the activating player has a
