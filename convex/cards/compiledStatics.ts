@@ -60,6 +60,11 @@ import type {
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
 
+/** Creatures among a set of permanents. */
+function countCreatures(permanents: readonly PermanentView[]): number {
+    return permanents.filter((c) => c.types.includes("Creature")).length;
+}
+
 /**
  * `PermanentFilter` fields a descriptor may carry.
  *
@@ -69,11 +74,6 @@ import type { CompiledControlsCondition } from "./compiledTriggers";
  * `StaticEffectContext`; `requireAbility` / `excludeAbility` are the notable
  * absentees, since the view carries no `staticAbilities` at all.
  */
-/** Creatures among a set of permanents (CR 302.1). */
-function countCreatures(permanents: readonly PermanentView[]): number {
-    return permanents.filter((c) => c.types.includes("Creature")).length;
-}
-
 export const STATIC_FILTER_FIELDS: ReadonlySet<string> = new Set([
     "types",
     "excludeTypes",
