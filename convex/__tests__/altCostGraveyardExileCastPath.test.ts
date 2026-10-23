@@ -10,7 +10,7 @@
 // `src/lib/__tests__/alt-cost-graveyard-exile.fullpath.test.ts`.
 
 import { describe, expect, it } from "vitest";
-import { announceCast, selectTarget } from "../game";
+import { announceCast, selectTarget, tapForPayment } from "../game";
 import { getCardByName } from "../cards";
 import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
 import type { GameState } from "../gre/state";
@@ -34,12 +34,19 @@ const TERROR = getCardByName("Terror").id;
 const VAMPIRE = getCardByName("Sengir Vampire").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 const LIONS = getCardByName("Savannah Lions").id;
+const THALIA = getCardByName("Thalia, Guardian of Thraben").id;
+const SWAMP = getCardByName("Swamp").id;
 
 type AnnounceArgs = {
     gameId: Id<"games">;
     playerId: string;
     cardInstanceId: string;
     alternativeCostId?: string;
+};
+type TapForPaymentArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    payments: { cardInstanceId: string }[];
 };
 type SelectTargetArgs = {
     gameId: Id<"games">;
@@ -161,5 +168,72 @@ describe("alternative cost graveyard exile leg — game.ts (CR 118.9 / 601.2h)",
         const after = harness.state();
         expect(after.players[0]!.exile).toEqual([]);
         expect(after.stack).toEqual([]);
+    });
+
+    describe("a cast PARKED on a tax pays the leg at payment (CR 601.2h)", () => {
+        /** p2's Thalia taxes the noncreature probe {1}, so the alternative
+         *  cast parks on mana; p1's Swamp pays it. */
+        function taxed(): GameState {
+            const state = board(ALT_GRAVEYARD_EXILE_UNTARGETED_ID);
+            state.players[0]!.battlefield.push(
+                ownedCard(SWAMP, "swamp", "p1", "battlefield")
+            );
+            state.players[1]!.battlefield.push(
+                ownedCard(THALIA, "thalia", "p2", "battlefield")
+            );
+            return state;
+        }
+
+        async function parkThen(edit: (parked: GameState) => void) {
+            const announced = makeMutationCtx("p1", [gameStateSeed(taxed())]);
+            await announce(announced, EXILE_TOP_THREE_BLACK.id);
+            const parked = announced.state();
+            expect(parked.pendingCast?.exileFromGraveyardChoice).toBeDefined();
+            expect(parked.players[0]!.exile).toEqual([]);
+            edit(parked);
+            const harness = makeMutationCtx("p1", [gameStateSeed(parked, 2)]);
+            await runMutation<TapForPaymentArgs, void>(
+                tapForPayment as unknown as Handler<TapForPaymentArgs, void>,
+                harness.ctx,
+                {
+                    gameId: GAME_ID,
+                    playerId: "p1",
+                    payments: [{ cardInstanceId: "swamp" }],
+                }
+            );
+            return harness.state();
+        }
+
+        it("commits once the tax is paid, exiling the top three black cards", async () => {
+            expectPaid(await parkThen(() => {}));
+        });
+
+        it("re-derives the top three from the pile as it is at payment", async () => {
+            // A black card put on top while the cast was parked (as a mana
+            // ability's sacrifice would) is one of the top three at payment.
+            const after = await parkThen((parked) => {
+                parked.players[0]!.graveyard.push(
+                    ownedCard(TERROR, "late-black", "p1", "graveyard")
+                );
+            });
+            expect(after.players[0]!.exile.map((c) => c.id)).toEqual([
+                "late-black",
+                "vampire",
+                "terror",
+            ]);
+            expect(after.stack.map((s) => s.id)).toEqual(["probe"]);
+        });
+
+        it("goes stale, exiling nothing, when the leg can no longer be paid", async () => {
+            const after = await parkThen((parked) => {
+                const p1 = parked.players[0]!;
+                p1.graveyard = p1.graveyard.filter(
+                    (c) => c.id !== "vampire" && c.id !== "terror"
+                );
+            });
+            expect(after.players[0]!.exile).toEqual([]);
+            expect(after.stack).toEqual([]);
+            expect(after.players[0]!.hand.map((c) => c.id)).toEqual(["probe"]);
+        });
     });
 });

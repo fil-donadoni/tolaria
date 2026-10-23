@@ -483,24 +483,66 @@ export function altCostGraveyardExileCards<
     const leg = altCost.graveyard;
     if (!leg) return [];
     if (leg.action !== "exile") return undefined;
+    return topMatchingGraveyardCards(
+        player.graveyard,
+        leg.filter,
+        leg.count,
+        castInstanceId
+    );
+}
+
+/** The `count` TOPMOST cards of `graveyard` matching `filter`, top first,
+ *  skipping `excludeInstanceId`; `undefined` when fewer match. CR 404.2 — the
+ *  last array element is the top of the pile. The one positional scan both
+ *  the affordability gate and the payment (`castExileCostPickIds`) read. */
+function topMatchingGraveyardCards<
+    T extends { id: string; card: { id?: string } },
+>(
+    graveyard: readonly T[],
+    filter: EffectCardFilter,
+    count: number,
+    excludeInstanceId: string
+): T[] | undefined {
     const picked: T[] = [];
-    for (let i = player.graveyard.length - 1; i >= 0; i--) {
-        if (picked.length === leg.count) break;
-        const card = player.graveyard[i];
-        if (card.id === castInstanceId) continue;
-        if (handCardMatchesFilter(card, leg.filter, "graveyard")) {
+    for (let i = graveyard.length - 1; i >= 0; i--) {
+        if (picked.length === count) break;
+        const card = graveyard[i];
+        if (card.id === excludeInstanceId) continue;
+        if (handCardMatchesFilter(card, filter, "graveyard")) {
             picked.push(card);
         }
     }
-    return picked.length === leg.count ? picked : undefined;
+    return picked.length === count ? picked : undefined;
+}
+
+/** CR 601.2h — the card ids a cast's answered graveyard-exile picker pays
+ *  with, read at PAYMENT: the player's picks, or for a POSITIONAL cost
+ *  (`topMatching`, an alternative cost's graveyard exile leg) the topmost
+ *  matching cards of the pile AS IT IS NOW — re-derived, because a mana
+ *  ability activated while the cast was parked can have changed it.
+ *  `undefined` when the positional cost can no longer be paid (the commit is
+ *  stale) or the picker is unanswered. */
+export function castExileCostPickIds(
+    player: PlayerState,
+    choice: NonNullable<PendingCast["exileFromGraveyardChoice"]>
+): string[] | undefined {
+    if (!choice.pickedCardIds) return undefined;
+    if (!choice.topMatching) return choice.pickedCardIds;
+    return topMatchingGraveyardCards(
+        player.graveyard,
+        choice.topMatching,
+        choice.count,
+        choice.excludeInstanceId
+    )?.map((c) => c.id);
 }
 
 /** Fold an alternative cost's GRAVEYARD exile leg (CR 118.9 / 601.2h) into the
  *  cast's graveyard-exile picker, PRE-FILLED with the deterministic top-N
- *  selection (`altCostGraveyardExileCards`). It rides the
- *  `exileFromGraveyardChoice` slot the flashback / escape / delve exile costs
- *  use, so every commit path pays it through `commitCast`, and a pick that
- *  left the graveyard before commit makes the commit stale. Returns
+ *  selection (`altCostGraveyardExileCards`) and marked POSITIONAL
+ *  (`topMatching`). It rides the `exileFromGraveyardChoice` slot the
+ *  flashback / escape / delve exile costs use, so every commit path pays it
+ *  through `commitCast`, which re-derives the top-N at payment
+ *  (`castExileCostPickIds`) and goes stale when it can no longer be paid. Returns
  *  `existing` untouched when the cost has no graveyard leg. Throws when the
  *  leg cannot be paid (affordability is gated upstream by
  *  `canPayAlternativeCost`; this is defence in depth) or when the slot is
@@ -512,8 +554,13 @@ export function withAlternativeCostGraveyardExile(
     castInstanceId: string,
     existing: PendingCast["exileFromGraveyardChoice"]
 ): PendingCast["exileFromGraveyardChoice"] {
-    if (!altCost?.graveyard) return existing;
-    const cards = altCostGraveyardExileCards(player, altCost, castInstanceId);
+    const leg = altCost?.graveyard;
+    if (!leg) return existing;
+    const cards = altCostGraveyardExileCards(
+        player,
+        { graveyard: leg },
+        castInstanceId
+    );
     if (!cards) {
         throw new Error(
             "Not enough matching cards in your graveyard to pay the alternative cost"
@@ -524,6 +571,7 @@ export function withAlternativeCostGraveyardExile(
         count: cards.length,
         excludeInstanceId: castInstanceId,
         pickedCardIds: cards.map((c) => c.id),
+        topMatching: leg.filter,
     };
 }
 
