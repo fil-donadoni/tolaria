@@ -45,6 +45,16 @@ const LAND_GRANT = oracleCard({
     toughness: undefined,
 });
 
+const SPINNING_DARKNESS = oracleCard({
+    name: "Spinning Darkness",
+    manaCost: "{4}{B}{B}",
+    typeLine: "Instant",
+    oracleText:
+        "You may exile the top three black cards of your graveyard rather than pay this spell's mana cost.\nSpinning Darkness deals 3 damage to target nonblack creature. You gain 3 life.",
+    power: undefined,
+    toughness: undefined,
+});
+
 function definitionOf(card: ReturnType<typeof oracleCard>) {
     const outcome = compileCard(card);
     if (outcome.state === "unparsed")
@@ -106,6 +116,39 @@ describe("alternative cost — golden (CR 118.9)", () => {
         );
     });
 
+    it("Spinning Darkness: exile the top three black cards of your graveyard (CR 701.13, 404.2)", () => {
+        expect(definitionOf(SPINNING_DARKNESS)).toEqual(
+            sortKeys({
+                name: "Spinning Darkness",
+                types: ["Instant"],
+                manaCost: { X: 4, B: 2 },
+                oracleText: SPINNING_DARKNESS.oracleText,
+                effects: [
+                    { op: "dealDamage", amount: 3, to: { target: 0 } },
+                    { op: "gainLife", player: "controller", amount: 3 },
+                ],
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    excludeColors: ["B"],
+                },
+                alternativeCosts: [
+                    {
+                        id: "exile-top-three-black",
+                        description:
+                            "Exile the top three black cards of your graveyard",
+                        graveyard: {
+                            action: "exile",
+                            filter: { color: "B" },
+                            count: 3,
+                            position: "top",
+                        },
+                    },
+                ],
+            })
+        );
+    });
+
     it("Land Grant: reveal your hand, gated on no land cards in hand (CR 701.20a)", () => {
         const def = definitionOf(LAND_GRANT);
         expect(def).toMatchObject({
@@ -148,8 +191,20 @@ describe("alternative cost — golden (CR 118.9)", () => {
 describe("alternative cost — refusals (fail-closed)", () => {
     const REFUSED: readonly [string, string][] = [
         [
-            "graveyard exile leg (no CostLegs surface) — Spinning Darkness",
-            "You may exile the top three black cards of your graveyard rather than pay this spell's mana cost.",
+            "graveyard exile leg over a card type, not the topmost of a colour",
+            "You may exile three creature cards from your graveyard rather than pay this spell's mana cost.",
+        ],
+        [
+            "graveyard exile leg with a singular count against the plural noun",
+            "You may exile the top one black cards of your graveyard rather than pay this spell's mana cost.",
+        ],
+        [
+            "graveyard exile leg with a digit count, not printed",
+            "You may exile the top 3 black cards of your graveyard rather than pay this spell's mana cost.",
+        ],
+        [
+            "graveyard exile leg from the opponent's graveyard",
+            "You may exile the top three black cards of target opponent's graveyard rather than pay this spell's mana cost.",
         ],
         [
             "reveal over a colour, not a card type",

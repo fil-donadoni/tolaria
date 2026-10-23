@@ -97,6 +97,8 @@ export interface AlternativeCostIR {
     /** CR 701.21a sacrifice / CR 400.3 return to hand, of permanents the
      *  payer controls. */
     readonly permanent?: NonNullable<AlternativeCost["permanent"]>;
+    /** CR 701.13 exile, from the TOP of the payer's own graveyard (CR 404.2). */
+    readonly graveyard?: NonNullable<AlternativeCost["graveyard"]>;
     /** When the cost may be chosen at all; absent = always. */
     readonly condition?: AlternativeCost["condition"];
     /** CR 701.20a — paying the cost reveals the payer's hand. */
