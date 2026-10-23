@@ -164,6 +164,83 @@ describe("PlayerGraveyard", () => {
     });
 });
 
+// CR 118.3 / 118.12a — a `may-pay` whose GRAVEYARD leg is being paid (Harvest
+// Wurm, "sacrifice it unless you return a basic land card from your graveyard
+// to your hand") opens the same picker, sized by the LEG's count, with a
+// footer that answers the may-pay (Return / Decline) instead of the zone-pick
+// Done, which would submit through the wrong mutation.
+describe("PlayerGraveyard — may-pay graveyard leg", () => {
+    const mayPayChoice = {
+        stackItemId: "stk",
+        step: 0,
+        choiceId: "$may1",
+        playerId: "me",
+        kind: "may-pay",
+        count: 1,
+        zone: "graveyard",
+        candidateIds: ["forest-1"],
+        cost: {
+            graveyard: {
+                action: "return",
+                filter: { type: "Land", supertype: "Basic" },
+                count: 1,
+            },
+        },
+        prompt: "Return a card from your graveyard to your hand, or sacrifice Harvest Wurm?",
+    } as unknown as NonNullable<GameContextValue["pendingChoices"]>[number];
+
+    it("opens the picker over the candidates with the may-pay footer", () => {
+        cardsPileSpy.mockClear();
+        const toggle = vi.fn();
+        const player = makePlayer([makeCard("forest-1"), makeCard("other-2")]);
+        renderWithContext(<PlayerGraveyard player={player} />, "me", {
+            pendingChoices: [mayPayChoice],
+            buffer: { ...noopPendingChoiceBuffer, toggle },
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBe(true);
+        expect(pileProps.title).toBe(mayPayChoice.prompt);
+        expect(pileProps.footer.type.name).toBe("MayPayGraveyardConfirm");
+        expect(pileProps.footer.props.required).toBe(1);
+        pileProps.onCardClick({ id: "other-2" }); // not a candidate — no-op
+        expect(toggle).not.toHaveBeenCalled();
+        pileProps.onCardClick({ id: "forest-1" });
+        expect(toggle).toHaveBeenCalledWith("forest-1");
+    });
+
+    it("leaves the zone-pick footer on a mid-resolution graveyard pick", () => {
+        cardsPileSpy.mockClear();
+        const player = makePlayer([makeCard("g1")]);
+        renderWithContext(<PlayerGraveyard player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "recall",
+                    playerId: "me",
+                    kind: "choose-graveyard-card",
+                    zone: "graveyard",
+                    count: 1,
+                    prompt: "Return a card from your graveyard.",
+                },
+            ],
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.footer.type.name).toBe("LibrarySearchConfirm");
+    });
+
+    it("stays a plain pile for a viewer who is not the payer", () => {
+        cardsPileSpy.mockClear();
+        const player = makePlayer([makeCard("forest-1")]);
+        renderWithContext(<PlayerGraveyard player={player} />, "opp", {
+            pendingChoices: [mayPayChoice],
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBeFalsy();
+        expect(pileProps.footer).toBeUndefined();
+    });
+});
+
 // Issue #1650 — Emry, Lurker of the Loch's "{T}: Choose target artifact card
 // in your graveyard." is the first ACTIVATED ability whose target lives in a
 // graveyard, so the pile's `selectTarget` routing (CR 601.2c) is now on a
