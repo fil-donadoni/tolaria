@@ -163,7 +163,11 @@ import { cloneGameState } from "./clone";
 import { hasRetrace, RETRACE_COST_LEGS } from "./retrace";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
-import { tryGetDefinition, getInstanceManaCost } from "../cards";
+import {
+    tryGetDefinition,
+    getInstanceManaCost,
+    getPermanentManaValueCost,
+} from "../cards";
 import {
     consumeSpellManaSubstitutionGrant,
     getManaSubstitutions,
@@ -625,11 +629,9 @@ export function applyCastCostPicksForSearch(
             (c) => c.id === picks.additionalCostCardId
         );
         if (costOut && exiled) {
-            const exDefId = (exiled.card as { id?: string }).id;
-            const exDef = exDefId ? tryGetDefinition(exDefId) : undefined;
             costOut.additionalSacrificeSnapshot = {
                 cardInstanceId: exiled.id,
-                mv: manaValue(exDef?.manaCost),
+                mv: manaValue(getPermanentManaValueCost(exiled)),
                 ...(exiled.subtypes && exiled.subtypes.length > 0
                     ? { subtypes: [...exiled.subtypes] }
                     : {}),
