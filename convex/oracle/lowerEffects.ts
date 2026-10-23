@@ -3834,6 +3834,46 @@ function lowerSentenceBody(
                     rest: sentence.rest,
                 },
             ]);
+        case "first-player-may-reveal-until": {
+            // CR 603.3d — the trigger announces an opposing player who
+            // controls more creatures than the head's player; the strict
+            // comparison already excludes the baseline seat. The player is
+            // only announced: the dig below belongs to the head's player.
+            const announced = slots.allocate({
+                type: "player",
+                count: 1,
+                playerControlsMoreThan: { type: "Creature", than: "active" },
+            });
+            if (!announced.ok) return announced;
+            const first = site.antecedents?.player;
+            if (first === undefined)
+                return unlowerable(
+                    '"the first player" names no player at this site'
+                );
+            // CR 701.20a — "may reveal": the cost-free `mayPay` pair binds
+            // whether the head's player took the option.
+            return lowered([
+                {
+                    op: "mayPay",
+                    player: first,
+                    prompt: "Reveal cards from the top of your library until you reveal a creature card?",
+                    bind: "$revealed",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$revealed" },
+                    then: [
+                        {
+                            op: "revealUntilMatch",
+                            player: first,
+                            filter: sentence.filter,
+                            match: sentence.match,
+                            rest: sentence.rest,
+                        },
+                    ],
+                },
+            ]);
+        }
         case "divide-library-piles": {
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
