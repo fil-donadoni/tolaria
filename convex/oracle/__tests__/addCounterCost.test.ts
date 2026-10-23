@@ -118,6 +118,13 @@ describe("Put-a-counter cost — refusals", () => {
         ).toBe(false);
     });
 
+    it("a tapping mana ability keeps the once-per-turn rider unparsed (the tap route never enforces it)", () => {
+        const outcome = compileCard(
+            creature("Source", "{T}: Add {G}. Activate only once each turn.")
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
     it("a mana ability with an unknown rider sentence stays unparsed", () => {
         const outcome = compileCard(
             creature(
