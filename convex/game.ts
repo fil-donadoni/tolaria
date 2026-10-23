@@ -8008,6 +8008,14 @@ export const tapForPayment = mutation({
                 (c) => c.id === payment.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
+            // CR 602.5 — name the `activation-restriction` (Cursed Totem)
+            // rather than the generic refusal below, which it also trips.
+            const restricted = activationRestrictionViolation(
+                state,
+                card.id,
+                true
+            );
+            if (restricted !== null) throw new Error(restricted);
             // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any
             // source whose mana ability's `canActivate` currently fails) has
             // no usable mana ability at all; reject cleanly rather than
