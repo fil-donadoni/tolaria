@@ -1732,6 +1732,16 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.24a + CR 404.1 — "Shuffle your graveyard into your
+           * library.": the controller puts their whole graveyard into their
+           * library, then the library is shuffled. Only the controller's own
+           * graveyard; a targeted or "each player" reading is a different
+           * sentence.
+           */
+          readonly kind: "shuffle-own-graveyard-into-library";
+      }
+    | {
+          /**
            * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a
            * basic land card, reveal it, put it into your hand, then shuffle.":
            * the controller looks through their OWN library, may find one card
@@ -4020,6 +4030,8 @@ const EXPLORE = /^(.+) explores$/;
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 const SHUFFLE_HAND_REDRAW =
     /^Shuffle the cards from your hand into your library, then draw that many cards$/;
+/** CR 701.24a + CR 404.1 — "Shuffle your graveyard into your library". */
+const SHUFFLE_OWN_GRAVEYARD = "Shuffle your graveyard into your library";
 /** CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for <what>,
  *  reveal it, put it into your hand, then shuffle". */
 const SEARCH_LIBRARY_TO_HAND =
@@ -6038,6 +6050,14 @@ function effectSentence(
     if (SHUFFLE_HAND_REDRAW.test(span)) {
         return ok({
             kind: "shuffle-hand-redraw" as const,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── shuffle the graveyard into the library ─────────────────────────────
+    // CR 701.24a + CR 404.1
+    if (span === SHUFFLE_OWN_GRAVEYARD) {
+        return ok({
+            kind: "shuffle-own-graveyard-into-library" as const,
         } satisfies EffectSentenceIR);
     }
 
