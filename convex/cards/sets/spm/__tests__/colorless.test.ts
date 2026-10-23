@@ -29,6 +29,7 @@ import {
 } from "../../../../gre/playLand";
 import { applyLandEntrySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { compactState, expandState } from "../../../../gre/serialize";
+import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, withTemporaryDefinition } from "../../../index";
 import type { CardDefinition } from "../../../types";
 
@@ -340,5 +341,34 @@ describe("Multiversal Passage put onto the battlefield by an effect (issue #2672
                 "courser-of-kruphix-landfall",
             ]);
         });
+    });
+});
+
+describe("Multiversal Passage — wire format (issue #2672)", () => {
+    // The client sees only the projection: both prompts, in order, and the
+    // typed land, must survive `projectPublicState` for the chooser.
+    it("projects the type pick, then the pay-choice, then the typed land", () => {
+        const { state, player } = passageIn("hand");
+        applyPlayLand(state, player, "passage");
+
+        const first = projectPublicState(state, 1, "p1");
+        expect(first.pendingChoices?.[0]?.asEntersKind).toBe("subtypes");
+        expect(first.pendingChoices?.[0]?.options?.map((o) => o.id)).toContain(
+            "Swamp"
+        );
+        expect(first.stagedEntries?.[0]?.card.id).toBe("passage");
+
+        submitChoice(state, ["Swamp"]);
+        const second = projectPublicState(state, 1, "p1");
+        expect(second.pendingChoices?.[0]?.kind).toBe("land-entry-tapped");
+        expect(second.pendingChoices).toHaveLength(1);
+
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players
+            .find((p) => p.id === "p1")!
+            .battlefield.find((c) => c.id === "passage")!;
+        expect(slim.isTapped).toBe(true);
+        expect(slim.subtypes).toEqual(["Swamp"]);
     });
 });
