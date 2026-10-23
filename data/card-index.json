@@ -59904,6 +59904,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spawning Pool",
+        "scryfallId": "43ffec42-57f7-4592-99ab-6284d59829a1",
+        "oracleId": "f3bf22cf-0a6f-4fb6-ba82-63ce290308d6",
+        "firstSet": "ulg",
+        "firstPrintId": "43ffec42-57f7-4592-99ab-6284d59829a1",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spearbreaker Behemoth",
         "scryfallId": "132367ee-22e9-48e2-82e0-62ad9aaa62f3",
         "oracleId": "025f8db8-11d1-4c59-8e1f-004c9c843fd8",
