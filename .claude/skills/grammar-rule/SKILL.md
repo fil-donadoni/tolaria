@@ -172,11 +172,16 @@ differently reds it. Adjudicate — do not relax:
 ## 6. Recompile, regenerate the artefacts, read the census back
 
 ```bash
-bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"      # the lockfile
+bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"      # the lockfile (seconds)
 bun run oracle:index   >"$SCRATCHPAD/index.log"   2>&1; echo "exit=$?"      # card-index rows for newly ready cards (Scryfall; retry on 503)
 bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # data/catalogue/*
 bun run check:oracle && bun run catalogue:check && bun run check:index && bun run check:gaps && bun run cr:lint
 ```
+
+The bare compile is session-scoped (issue #6463): committed Bot verdicts
+carried on unchanged definitions, only the graduates played, header on the
+committed Bot hash — a Bot PR before yours is never your replay. Minutes
+here is a bug: stop, say so in the PR.
 
 Never hand-edit a generated file (`oracle-compiled.json`, `card-index.json`,
 `data/catalogue/*`) — regenerate. If the rule
@@ -194,7 +199,7 @@ Per set and corpus, `before / after / delta / lost` against `origin/<base>`.
 **`lost` must be 0**: a card leaving `ready` is a regression the rule caused,
 and `check:oracle` refuses it unless `data/oracle-state-regressions.json`
 acknowledges it with a human-written reason. Fix the rule rather than writing
-that entry. A `delta` far below the gap's `compile` count means the graduates
+that entry. A `lost` row is YOURS (issue #6463). A `delta` far below the gap's `compile` count means the graduates
 stopped in `quarantine` — read their `reason.kind` in the lockfile
 (`planned-op`, `planned-mechanic`, `ungrantable-keyword`,
 `validate-effect-script`, `smoke-scenario`, `wire-projection`, `not-json`)
@@ -237,14 +242,12 @@ L="$SCRATCHPAD/oracle-tests.log"
 bunx vitest run convex/oracle convex/cards/__tests__ scripts/__tests__/grammar-gaps.test.ts >"$L" 2>&1; echo "exit=$?"; grep -E 'Test Files|Tests |FAIL' "$L"
 ```
 
-**Bot reachability is still a WALK, not a computation.** ADR 0137 says it is
-computed, but the Bot-play sweep that would record `botReach` is issue #3830,
-open — nothing in `convex/` writes that field today, and `bot-unreachable` is
-not a `QuarantineReason` yet. So a graduated card owes the manual three-seam
-walk of `.claude/rules/gre-development.md` § Bot reachability over the Ops the
-rule emits: `enumerateMoves` (reachable?), the choice surface (can it answer?),
-`OP_VALUERS` + `OP_BENEFICENCE` (does it want to?). Replace this step with the
-sweep's read-back the day #3830 lands.
+**Bot reachability is COMPUTED for a graduated card** (issue #3830, ADR 0105
+§ 7.2): step 6's compile plays the graduates and records `botReach` on their
+rows — `frozen` is quarantined `bot-unreachable` (a `lost`, step 7),
+`ignored` ships and counts toward a Bot Gap `gaps:sync` files after the
+merge. Only `harness-error` owes the manual three-seam walk of
+`.claude/rules/gre-development.md` § Bot reachability.
 
 **The gaps this ticket's landing files take their Target's band, never this
 ticket's.** The hourly `housekeeping` cron runs `gaps:sync` after the merge

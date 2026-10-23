@@ -15,6 +15,7 @@ import type { BotReachVerdict } from "../../convex/gre/ai/botReach";
 import type { CompiledDefinition } from "../../convex/oracle/types";
 import {
     buildLockfile as buildLockfileRaw,
+    LOCK_FREE_MISSES,
     sweepWhenMissing,
     type BuildLockfileOptions,
 } from "../oracle-compile";
@@ -38,7 +39,7 @@ import {
 } from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
 import { deriveCounts, deriveFormats } from "../lib/oracle-tally";
-import { botSweepInputs } from "../bot-sweep-inputs";
+import { readyDelta } from "../lib/oracle-ready-delta";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 
 const ROOT = join(import.meta.dirname, "..", "..");
@@ -124,29 +125,78 @@ describe("playingBotReach — the incremental cache (ADR 0105 § 7.2)", () => {
         expect(spy.calls).toEqual([BEAR_ID]);
     });
 
-    it("a changed Bot hash re-plays every card", () => {
-        const spy = spyPlayer();
+    // Issue #6463: a bare run is session-scoped — a Bot hash that moved is
+    // never a reason to replay the catalogue. The verdicts are carried on
+    // their definitions, the header keeps the hash they were played under.
+    it("a changed Bot hash carries every verdict and keeps the committed header hash", () => {
+        const spy = spyPlayer({ outcome: "frozen", cause: "no-legal-move" });
         const source = playingBotReach(
             lockWith([row({})], "sha256:old-bot"),
             "sha256:new-bot",
             spy.play
+        );
+        expect(source.verdictFor(BEAR_ID, BEAR_DEF)).toEqual({
+            outcome: "played",
+        });
+        expect(spy.calls).toEqual([]);
+        expect(source.hash).toBe("sha256:old-bot");
+    });
+
+    it("on a changed Bot hash plays exactly the definition misses: a changed definition, a card with no verdict", () => {
+        const spy = spyPlayer();
+        const source = playingBotReach(
+            lockWith(
+                [row({}), row({ oracleId: BOLT_ID, botReach: undefined })],
+                "sha256:old-bot"
+            ),
+            "sha256:new-bot",
+            spy.play
+        );
+        source.verdictFor(BEAR_ID, BEAR_DEF);
+        source.verdictFor(BOLT_ID, BEAR_DEF);
+        source.verdictFor("newly-ready", BEAR_DEF);
+        source.verdictFor(BEAR_ID, {
+            ...BEAR_DEF,
+            power: 3,
+        } as CompiledDefinition);
+        expect(spy.calls).toEqual([BOLT_ID, "newly-ready", BEAR_ID]);
+        expect(source.played()).toBe(3);
+        expect(source.hash).toBe("sha256:old-bot");
+    });
+
+    it("with no lockfile to carry, every card is played and the tree's hash is recorded", () => {
+        const spy = spyPlayer();
+        const source = playingBotReach(null, "sha256:new-bot", spy.play);
+        source.verdictFor(BEAR_ID, BEAR_DEF);
+        expect(spy.calls).toEqual([BEAR_ID]);
+        expect(source.hash).toBe("sha256:new-bot");
+    });
+
+    it("`--replay-bot` ignores a valid cache and writes the tree's Bot hash", () => {
+        const spy = spyPlayer();
+        const source = playingBotReach(
+            lockWith([row({})], "sha256:old-bot"),
+            "sha256:new-bot",
+            spy.play,
+            {
+                replay: true,
+            }
         );
         source.verdictFor(BEAR_ID, BEAR_DEF);
         expect(spy.calls).toEqual([BEAR_ID]);
         expect(source.hash).toBe("sha256:new-bot");
     });
 
-    it("`--replay-bot` ignores a valid cache", () => {
-        const spy = spyPlayer();
-        playingBotReach(
-            lockWith([row({})], "sha256:bot"),
-            "sha256:bot",
-            spy.play,
-            {
-                replay: true,
-            }
-        ).verdictFor(BEAR_ID, BEAR_DEF);
-        expect(spy.calls).toEqual([BEAR_ID]);
+    it("the probe carries on a changed Bot hash too, so zero misses is --carry-bot's lockfile", () => {
+        const probe = probingBotReach(
+            lockWith([row({})], "sha256:old-bot"),
+            "sha256:new-bot"
+        );
+        expect(probe.verdictFor(BEAR_ID, BEAR_DEF)).toEqual({
+            outcome: "played",
+        });
+        expect([...probe.misses()]).toEqual([]);
+        expect(probe.hash).toBe("sha256:old-bot");
     });
 
     it("a cached non-played verdict comes back with its cause and form", () => {
@@ -222,25 +272,6 @@ describe("the Bot hash covers what decides a verdict", () => {
         ])
             expect(isBotSourceFile(file), file).toBe(false);
         expect(isBotSourceFile("convex/gre/ai/blade/baseState.ts")).toBe(true);
-    });
-
-    it("botSweepInputs adds the Bot globs to the hash inputs, and nothing else", () => {
-        expect(
-            botSweepInputs([
-                "convex/gre/search.ts",
-                "convex/gre/rules.ts",
-                "src/lib/ai/selfplay/ladder.ts",
-                "convex/gre/difficulty.ts",
-                "convex/gre/combat.ts",
-                "src/components/Board.tsx",
-                "scripts/gate.ts",
-            ])
-        ).toEqual([
-            "convex/gre/search.ts",
-            "convex/gre/rules.ts",
-            "src/lib/ai/selfplay/ladder.ts",
-            "convex/gre/difficulty.ts",
-        ]);
     });
 });
 
@@ -506,7 +537,8 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
     function run(
         prev: Lockfile,
         replay = false,
-        admitCode: number | null = null
+        admitCode: number | null = null,
+        lockFreeMisses?: number
     ) {
         const events: string[] = [];
         const spy = spyPlayer({ outcome: "played" });
@@ -515,6 +547,7 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
             currentBotHash: "sha256:fixed",
             replay,
             build,
+            lockFreeMisses,
             admit: async () => {
                 events.push("admit");
                 return admitCode;
@@ -538,17 +571,69 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
         });
     });
 
-    it("a miss takes the mutex BEFORE playing, and plays exactly the misses", async () => {
+    it("a Bot hash that moved is zero misses: the --carry-bot lockfile, no admission, nothing played (issue #6463)", async () => {
+        const moved = {
+            ...previous,
+            header: { ...previous.header, botHash: "sha256:older-bot" },
+        };
+        const { events, result } = run(moved);
+        const done = await result;
+        expect(events).toEqual([]);
+        expect(done).toEqual({
+            text: build(carriedBotReach(moved)),
+            played: 0,
+        });
+        expect(JSON.parse((done as { text: string }).text).header.botHash).toBe(
+            "sha256:older-bot"
+        );
+    });
+
+    it("a handful of misses is played in place, never queued (issue #6463)", async () => {
         const probe = probingBotReach(bolted, "sha256:fixed");
         build(probe);
         expect([...probe.misses()]).toEqual([BOLT_ID]);
         const { events, result } = run(bolted);
         expect(await result).toMatchObject({ played: 1 });
+        expect(events).toEqual([`play:${BOLT_ID}`]);
+    });
+
+    it("more misses than LOCK_FREE_MISSES take the mutex BEFORE playing, and play exactly the misses", async () => {
+        const { events, result } = run(bolted, false, null, 0);
+        expect(await result).toMatchObject({ played: 1 });
         expect(events).toEqual(["admit", `play:${BOLT_ID}`]);
+        expect(LOCK_FREE_MISSES).toBe(25);
+    });
+
+    it("the boundary is inclusive: exactly the threshold plays in place, one more admits", async () => {
+        /** Both definitions moved — two misses. */
+        const bothMoved: Lockfile = {
+            ...bolted,
+            cards: bolted.cards.map((c) =>
+                c.oracleId === BEAR_ID
+                    ? {
+                          ...c,
+                          definition: {
+                              ...c.definition!,
+                              name: "Stale Bear",
+                          } as CompiledDefinition,
+                      }
+                    : c
+            ),
+        };
+        const one = run(bolted, false, null, 1);
+        await one.result;
+        expect(one.events).toEqual([`play:${BOLT_ID}`]);
+        const two = run(bothMoved, false, null, 1);
+        await two.result;
+        expect(two.events).toEqual([
+            "admit",
+            `play:${BEAR_ID}`,
+            `play:${BOLT_ID}`,
+        ]);
     });
 
     it("a run re-executed under the mutex returns the child's code and plays nothing here", async () => {
-        const { events, result } = run(bolted, false, 3);
+        const { events, result } = run(bolted, false, 3, 0);
         expect(await result).toEqual({ exit: 3 });
         expect(events).toEqual(["admit"]);
     });
@@ -557,6 +642,51 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
         const { events, result } = run(previous, true);
         await result;
         expect(events).toEqual(["admit", `play:${BEAR_ID}`, `play:${BOLT_ID}`]);
+    });
+});
+
+describe("a session's `ready` delta never carries a Bot-hash move it did not make (issue #6463)", () => {
+    // The committed lockfile froze Bolt under one Bot; this tree's Bot would
+    // play it — and the other way round. A bare build on either tree carries
+    // the committed verdict, so `oracle:report --delta` reads no `lost` (and
+    // no gained) that the session did not cause.
+    const frozenBolt: BotReachVerdict = {
+        outcome: "frozen",
+        cause: "no-legal-move",
+        form: "Instant target:any",
+    };
+    const committed = (bolt: BotReachVerdict) =>
+        buildLockfile(CORPUS, {
+            botReach: {
+                hash: "sha256:committed-bot",
+                verdictFor: (id) =>
+                    id === BOLT_ID ? bolt : { outcome: "played" },
+            },
+        });
+    const bareBuild = (previous: Lockfile, treeVerdict: BotReachVerdict) =>
+        buildLockfile(CORPUS, {
+            botReach: playingBotReach(
+                previous,
+                "sha256:tree-bot",
+                spyPlayer(treeVerdict).play
+            ),
+        });
+
+    it("a card the committed sweep froze stays quarantined, not `gained`", () => {
+        const previous = committed(frozenBolt);
+        const lock = bareBuild(previous, { outcome: "played" });
+        const corpus = readyDelta(previous.cards, lock.cards, [])[0]!;
+        expect(corpus.lost).toEqual([]);
+        expect(corpus.gained).toEqual([]);
+        expect(lock.header.botHash).toBe("sha256:committed-bot");
+    });
+
+    it("a card the committed sweep played stays `ready`, not `lost`", () => {
+        const previous = committed({ outcome: "played" });
+        const lock = bareBuild(previous, frozenBolt);
+        const corpus = readyDelta(previous.cards, lock.cards, [])[0]!;
+        expect(corpus.lost).toEqual([]);
+        expect(serializeLockfile(lock)).toBe(serializeLockfile(previous));
     });
 });
 

@@ -43,7 +43,12 @@ import {
 } from "../land";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import { PRUNE_COMMIT_SUBJECT } from "../oracle-prune-regressions";
-import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "../lib/derive-sync";
+import {
+    BOT_REPLAY_COMMIT_SUBJECT,
+    CARD_INDEX_PATH,
+    DERIVED_PATHS,
+    DERIVE_SYNC_COMMIT_SUBJECT,
+} from "../lib/derive-sync";
 import {
     admissionOrder,
     waiterSince,
@@ -1479,6 +1484,32 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         const old3 = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#3)");
         git("commit", "-q", "--allow-empty", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(verify(old3)).not.toBe(0);
+    });
+
+    it("tolerates the Bot replay's commit on the derived paths plus the card index (issue #6463), and nothing else under its subject", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#4)");
+        mkdirSync(join(repo, "data", "catalogue"), { recursive: true });
+        writeFileSync(join(repo, DERIVED_PATHS[0]!), "swept\n");
+        writeFileSync(join(repo, CARD_INDEX_PATH), "indexed\n");
+        git("add", DERIVED_PATHS[0]!, CARD_INDEX_PATH);
+        git("commit", "-q", "-m", BOT_REPLAY_COMMIT_SUBJECT);
+        expect(verify(old)).toBe(0);
+
+        // The card index is the replay's, never derive:sync's.
+        const old2 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#5)");
+        writeFileSync(join(repo, CARD_INDEX_PATH), "indexed again\n");
+        git("add", CARD_INDEX_PATH);
+        git("commit", "-q", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(verify(old2)).not.toBe(0);
+
+        const old3 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#6)");
+        writeFileSync(join(repo, "c.txt"), "smuggled\n");
+        git("add", "c.txt");
+        git("commit", "-q", "-m", BOT_REPLAY_COMMIT_SUBJECT);
         expect(verify(old3)).not.toBe(0);
     });
 });

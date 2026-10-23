@@ -7,7 +7,7 @@
  * the cache is written, the fragment table is sorted by
  * (text asc, reason asc, attribution asc) — the full intern key, so the order
  * is total and never rests on sort stability — a row cites its fragments by
- * content-derived Fragment Key (issue #6169), and the serializer emits one
+ * content-derived Fragment Key, and the serializer emits one
  * row per line with a fixed key order. Two runs on
  * the same tree and the same corpus are byte-identical — asserted in
  * `scripts/__tests__/oracle-compile.test.ts`.
@@ -23,13 +23,19 @@
  * The write path also runs the Bot-play sweep (ADR 0105 § 7.2, issue #3830):
  * every card that compiles `ready` is played by the Bot at both seats
  * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
- * definition and the Bot hash are unchanged (`lib/oracle-bot-reach.ts`).
- * `--check` never plays; it carries the committed verdicts forward.
- * A bare run first counts its cache misses with no lock (issue #6069): zero
- * misses → it writes the carried lockfile and never queues; one or more → it
- * takes the heavy gate's mutex (`gate.ts job`, issue #4941) and plays only
- * the misses. `--replay-bot` always takes the mutex; `--check` and
- * `--carry-bot` take nothing.
+ * definition is unchanged (`lib/oracle-bot-reach.ts`). A bare run is
+ * SESSION-SCOPED: it plays only the definition misses (a
+ * changed definition, a card newly `ready`, a `ready` card with no verdict)
+ * and keeps the committed Bot hash in the header; a Bot hash that moved is
+ * never a reason to replay the catalogue here — that whole replay is
+ * `--replay-bot`, run on the base by `derive:sync --replay-bot` once per Bot
+ * change. `--check` never plays; it carries the committed verdicts forward.
+ * A bare run first counts its cache misses with no lock: zero
+ * misses → it writes the carried lockfile and never queues; up to
+ * `LOCK_FREE_MISSES` → it plays them in place, like `--replay-card` does
+ * (seconds, not a sweep); more → it takes the heavy gate's mutex (`gate.ts
+ * job`) and plays only the misses. `--replay-bot` always takes
+ * the mutex; `--check` and `--carry-bot` take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
  * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
@@ -464,14 +470,26 @@ async function sweepingBotReach(
 }
 
 /**
+ * How many definition misses a bare run plays WITHOUT the heavy mutex (issue
+ * #6463). A play is hundreds of ms (6,500 cards in 20–40 min ≈ 0.2–0.4 s
+ * each), so 25 misses are 5–10 s — the cost of a light gate step, and the
+ * shape `--carry-bot --replay-card` already runs lock-free. A grammar
+ * session's bare compile today is 0–20 misses (the cards its rule
+ * graduated); a re-pin or a rule graduating a whole form goes over, and
+ * queues like a sweep.
+ */
+export const LOCK_FREE_MISSES = 25;
+
+/**
  * The bare / `--replay-bot` write path (issue #6069): the heavy mutex only
- * when there is something to play. A bare run probes the cache first — a
+ * when there is enough to play. A bare run probes the cache first — a
  * compile, seconds, no lock — and with zero misses returns the probe's
- * lockfile, which is the one the sweep would write. A miss (or a replay,
- * which ignores the cache) waits on `admit`; a non-null code means the run
- * was re-executed under the mutex and that child's exit code is the run's.
- * The child probes again after acquiring, so a lockfile that moved during
- * the wait is read fresh, and the sweep plays exactly the misses.
+ * lockfile, which is the one the sweep would write. Up to `lockFreeMisses`
+ * misses are played in place (issue #6463); more (or a replay, which ignores
+ * the cache) wait on `admit`; a non-null code means the run was re-executed
+ * under the mutex and that child's exit code is the run's. The child probes
+ * again after acquiring, so a lockfile that moved during the wait is read
+ * fresh, and the sweep plays exactly the misses.
  */
 export async function sweepWhenMissing(options: {
     readonly previous: Lockfile | null;
@@ -480,14 +498,19 @@ export async function sweepWhenMissing(options: {
     readonly build: (source: BotReachSource) => string;
     readonly admit: () => Promise<number | null>;
     readonly sweep: () => Promise<BotReachSource & { played: () => number }>;
+    readonly lockFreeMisses?: number;
 }): Promise<{ exit: number } | { text: string; played: number }> {
+    let misses = Number.POSITIVE_INFINITY;
     if (!options.replay) {
         const probe = probingBotReach(options.previous, options.currentBotHash);
         const text = options.build(probe);
-        if (probe.misses().size === 0) return { text, played: 0 };
+        misses = probe.misses().size;
+        if (misses === 0) return { text, played: 0 };
     }
-    const code = await options.admit();
-    if (code !== null) return { exit: code };
+    if (misses > (options.lockFreeMisses ?? LOCK_FREE_MISSES)) {
+        const code = await options.admit();
+        if (code !== null) return { exit: code };
+    }
     const sweep = await options.sweep();
     return { text: options.build(sweep), played: sweep.played() };
 }
@@ -588,10 +611,10 @@ async function main(): Promise<void> {
         serializeLockfile(buildLockfile(corpus(), { botReach: source }));
     // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
     // waits for the heavy gate's mutex instead of racing a `land` — but only
-    // once it knows it has a miss to play (issue #6069). `--check` never
-    // plays: it is the drift guard's question, asked from a script (ADR 0105
-    // § 7.2 — the sweep never runs inside a gate); `--carry-bot` never
-    // queues.
+    // once it knows it has more than a handful of misses to play (issues
+    // #6069, #6463). `--check` never plays: it is the drift guard's question,
+    // asked from a script (ADR 0105 § 7.2 — the sweep never runs inside a
+    // gate); `--carry-bot` never queues.
     const swept =
         check || carry
             ? null

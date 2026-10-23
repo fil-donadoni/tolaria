@@ -13,7 +13,15 @@
  * ── Two sources, and why the gate only ever uses one ───────────────────
  *
  *  - {@link playingBotReach} (`oracle:compile`, the write path): a cache hit
- *    needs the definition AND the Bot hash to match; a miss PLAYS the card.
+ *    needs the definition to match; a miss PLAYS the card. Bare, it is
+ *    SESSION-SCOPED (issue #6463): it carries every committed verdict whose
+ *    definition is unchanged whatever the Bot hash says, plays only the
+ *    definition misses — a changed Compiled Definition, a card newly
+ *    `ready`, a `ready` card with no verdict — and keeps the committed Bot
+ *    hash in the header, the honesty rule of `--carry-bot --replay-card`: a
+ *    partial play never claims the whole lockfile was played under this
+ *    tree's Bot. `--replay-bot` is the one whole replay: it ignores the
+ *    cache and writes the tree's Bot hash.
  *  - {@link carriedBotReach} (`oracle:compile --check`, `check:oracle`'s
  *    tier 3): never plays. It carries the committed verdict forward on a
  *    matching definition whatever the Bot hash says, and the header's Bot
@@ -24,8 +32,16 @@
  * NEXT sweep would conclude. Folding the Bot hash into the drift guard would
  * red every engine PR on a lockfile only a 20-minute sweep can regenerate,
  * which is the sweep running inside `check:pr` / `land` by another name —
- * exactly what ADR 0105 § 7.2 forbids. So a stale Bot verdict is not drift;
- * it is refreshed by the next `oracle:compile`.
+ * exactly what ADR 0105 § 7.2 forbids. So a stale Bot verdict is not drift.
+ *
+ * Nor is it a SESSION's to refresh (issue #6463). Until that issue a bare
+ * run discarded the whole cache on a Bot-hash mismatch, and the header is
+ * refreshed only by a whole replay — so every grammar session after a Bot
+ * PR landed replayed ~6,500 cards (20–40 min on the heavy mutex) for a Bot
+ * change it did not make, and read `lost` rows it did not cause. The whole
+ * replay now happens ONCE per Bot change, on the base, by `derive:sync
+ * --replay-bot` (the `bot-replay` job of `post-merge.yml`), which compares
+ * the header's Bot hash with the tree's and pushes the swept lockfile.
  */
 
 import { createHash } from "node:crypto";
@@ -121,21 +137,30 @@ function rowsById(lock: Lockfile | null): Map<string, CardRow> {
     return new Map((lock?.cards ?? []).map((row) => [row.oracleId, row]));
 }
 
-/** The rows a sweep may reuse: none on a replay or a moved Bot hash. */
+/**
+ * The rows a sweep may reuse, and the Bot hash its header records (issue
+ * #6463). Bare: every committed row, whatever the Bot hash — a verdict is
+ * keyed by its definition alone here — and the COMMITTED hash, since the
+ * carried verdicts were played under it; with no lockfile to carry, every
+ * card is played here and the tree's hash is the truth. A replay reuses
+ * nothing and records the tree's hash.
+ */
 function sweepCache(
     previous: Lockfile | null,
     currentBotHash: string,
     replay = false
-): Map<string, CardRow> {
-    return !replay && previous?.header.botHash === currentBotHash
-        ? rowsById(previous)
-        : new Map<string, CardRow>();
+): { readonly rows: Map<string, CardRow>; readonly hash: string } {
+    if (replay || previous === null)
+        return { rows: new Map<string, CardRow>(), hash: currentBotHash };
+    return { rows: rowsById(previous), hash: previous.header.botHash };
 }
 
 /**
- * The write path's source: reuse a verdict when the definition AND the Bot
- * are unchanged, play the card otherwise. `replay` ignores the cache.
- * `onPlay` is told about every card actually played, for progress output.
+ * The write path's source: reuse a verdict when the definition is unchanged,
+ * play the card otherwise — the definition misses only, never the whole
+ * catalogue for a Bot hash that moved (issue #6463). `replay` ignores the
+ * cache and is the one path that writes the tree's Bot hash. `onPlay` is
+ * told about every card actually played, for progress output.
  */
 export function playingBotReach(
     previous: Lockfile | null,
@@ -146,10 +171,10 @@ export function playingBotReach(
     const cache = sweepCache(previous, currentBotHash, options.replay);
     let played = 0;
     return {
-        hash: currentBotHash,
+        hash: cache.hash,
         played: () => played,
         verdictFor(oracleId, definition) {
-            const hit = cachedVerdict(cache, oracleId, definition);
+            const hit = cachedVerdict(cache.rows, oracleId, definition);
             if (hit !== undefined) return hit;
             played += 1;
             options.onPlay?.(oracleId);
@@ -163,7 +188,8 @@ export function playingBotReach(
  * {@link playingBotReach}, but a miss is RECORDED, never played — so the
  * write path learns whether the sweep has anything to play before it queues
  * for the heavy mutex. With no miss, the lockfile it builds is the one the
- * sweep would write: every verdict a hit, the header on the current Bot hash.
+ * sweep would write: every verdict a hit, the header on the committed Bot
+ * hash — byte-identical to `--carry-bot`'s (issue #6463).
  */
 export function probingBotReach(
     previous: Lockfile | null,
@@ -172,10 +198,10 @@ export function probingBotReach(
     const cache = sweepCache(previous, currentBotHash);
     const misses = new Set<string>();
     return {
-        hash: currentBotHash,
+        hash: cache.hash,
         misses: () => misses,
         verdictFor(oracleId, definition) {
-            const hit = cachedVerdict(cache, oracleId, definition);
+            const hit = cachedVerdict(cache.rows, oracleId, definition);
             if (hit === undefined) misses.add(oracleId);
             return hit;
         },

@@ -233,20 +233,15 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
-## Oracle lockfile — `--carry-bot`, never the sweep
+## Oracle lockfile — a bare compile never replays for your Bot
 
-Every Bot PR edits a Bot hash input (`isBotSourceFile`,
-`scripts/lib/oracle-bot-reach.ts`), and after that a bare
-`bun run oracle:compile` replays the Bot-play sweep over every `ready` card —
-20–47 min of CPU no gate needs (ADR 0105 § 7.2). A Bot PR refreshes the
-lockfile with **`bun run oracle:compile --carry-bot`** only — what `land`
-itself runs. The sweep belongs to the batch health run, or to `--replay-bot`
-on explicit owner request.
-
-`deny-guard.sh` § 7 enforces it (issue #4942): a bare `oracle:compile` — also
-through `gate:run` — is denied in a checkout whose diff touches a Bot hash
-input or the Bot globs. Hatch, on the command itself:
-`TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile`.
+A bare `bun run oracle:compile` carries every committed verdict whose
+definition is unchanged and plays only the definition misses (issue #6463),
+header on the committed Bot hash. The whole replay under your Bot
+(`--replay-bot`, 20–47 min) runs ONCE on the base after your PR merges
+(`derive:sync --replay-bot`, the `bot-replay` job): no card left `ready` →
+swept lockfile pushed; a card your change froze → a `bug` (`area:game-bot`)
+naming it and your commit range, never a silent lockfile write.
 
 Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
 about, or whose `frozen` status the change should flip)?

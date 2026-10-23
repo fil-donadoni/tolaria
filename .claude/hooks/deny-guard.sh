@@ -989,59 +989,21 @@ fi
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. A Bot PR refreshes the Oracle lockfile with `--carry-bot`, never the
-#    sweep (issue #4942).
+# 7. RETIRED (issue #6463) — a bare `oracle:compile` on a Bot diff is no
+#    longer the sweep.
 #
-# Every Bot PR edits a Bot hash input (`isBotSourceFile`,
-# `scripts/lib/oracle-bot-reach.ts`), and after that a bare `oracle:compile`
-# REPLAYS every `ready` card — the Bot-play sweep, 20–47 min of CPU. ADR 0105
-# § 7.2 keeps the sweep out of every gate and `land` only ever runs
-# `--carry-bot`, yet 63 bare sweeps ran across 18 Bot issues in the week to
-# 2026-10-01 (5.2 h in the foreground alone), because nothing said not to.
-# The sweep belongs to the batch health run, or to `--replay-bot` asked for
-# by name.
-#
-# Denied: a bare `oracle:compile` — `bun run`, `bun scripts/oracle-compile.ts`
-# or through `gate:run` — with none of `--check`, `--carry-bot`,
-# `--replay-bot`, issued from a checkout whose diff against the base branch
-# (committed, uncommitted and untracked) touches a Bot hash input or the Bot
-# globs. Which paths count is asked of `scripts/bot-sweep-inputs.ts`, never
-# listed here, so the hook cannot drift off the hash. Cheap test first: the
-# `git` and `bun` processes are paid only by an `oracle:compile` command.
-# Matched as an INVOCATION — start of a segment or after a `|`, an env-var
-# prefix allowed — like § 6, so a commit message quoting it is not a run.
-# Fails OPEN on any error computing the diff — a guard that cannot read the
-# tree has no evidence the sweep is wasted.
-# Both path lists are ROOT-relative and whole-tree from any subdirectory
-# (`diff` is by default; `ls-files` needs `--full-name -- ":/"`), since
-# `isBotSourceFile` reads repo-relative paths.
+# Issue #4942 denied a bare `oracle:compile` from a checkout whose diff moved
+# the Bot hash, because the bare write path then discarded the whole verdict
+# cache and replayed every `ready` card (20–47 min). Since issue #6463 the
+# bare run is session-scoped: it carries every committed verdict whose
+# definition is unchanged whatever the Bot hash says, plays only the
+# definition misses (seconds), and keeps the committed Bot hash in the
+# header. The whole replay is `--replay-bot`, asked for by name, and runs on
+# the base once per Bot change (`derive:sync --replay-bot`, the `bot-replay`
+# job of `post-merge.yml`). With the sweep gone from the bare run, the
+# reason to deny it is gone; `scripts/bot-sweep-inputs.ts`, the hook's one
+# helper, went with it. `hook-policy.test.ts` pins the ALLOW.
 # ─────────────────────────────────────────────────────────────────────────────
-ORACLE_COMPILE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run[[:space:]]+(gate:run[[:space:]]+)?oracle:compile|bun[[:space:]]+[^[:space:]]*oracle-compile\.ts|sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+oracle:compile)([[:space:]]|$)'
-if seg_has "$ORACLE_COMPILE_INVOKE" &&
-    ! seg_has "$ORACLE_COMPILE_INVOKE" '[[:space:]]--(check|carry-bot|replay-bot)([[:space:]]|$)' &&
-    ! seg_has 'TOLARIA_ALLOW_BOT_SWEEP=1' "$ORACLE_COMPILE_INVOKE" &&
-    [ -n "$cwd" ] && [ -d "$cwd" ]; then
-    _base_ref="origin/$base_branch"
-    git -C "$cwd" rev-parse --verify -q "$_base_ref" >/dev/null 2>&1 || _base_ref="$base_branch"
-    _mb=$(git -C "$cwd" merge-base HEAD "$_base_ref" 2>/dev/null || true)
-    if [ -n "$_mb" ]; then
-        _touched=$({
-            git -C "$cwd" diff --name-only "$_mb" 2>/dev/null
-            git -C "$cwd" ls-files --others --exclude-standard --full-name -- ":/" 2>/dev/null
-        } | bun "$_hookdir/../../scripts/bot-sweep-inputs.ts" 2>/dev/null | head -5)
-        if [ -n "$_touched" ]; then
-            deny "BLOCKED: bare \`oracle:compile\` on a Bot diff replays every \`ready\` card (issue #4942).
-This checkout's diff moves the Bot hash, e.g.:
-$_touched
-so a bare run is the Bot-play sweep — 20–47 min of CPU that no gate needs
-(ADR 0105 § 7.2: the sweep belongs to the batch health run). Refresh the
-lockfile without playing, which is what \`land\` itself runs:
-  bun run oracle:compile --carry-bot
-The sweep on purpose, by explicit owner request:
-  TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile    # or --replay-bot"
-        fi
-    fi
-fi
 # 7b. The hand-off is `bun run land:ready <PR#>`, never a raw label (issue #6141).
 #
 # `land:ready` does three things beyond the label: the pre-queue check (the
@@ -1086,8 +1048,8 @@ fi
 # second writer beside the runner.
 #
 # Denied as an INVOCATION — start of a segment or after a `|` (or a `(`),
-# env-var / `env` / `nohup` / `time` prefixes allowed, like § 7's
-# `oracle:compile` — `bun run [--flags] land`, through `gate:run` or any
+# env-var / `env` / `nohup` / `time` prefixes allowed —
+# `bun run [--flags] land`, through `gate:run` or any
 # `sh`/`bash` of `gate-run.sh`, or `bun [run] scripts/land.ts`; `land:ready`
 # and `land:runner` are other scripts and pass. The hatch is the runner's own env
 # var, in the SAME segment, so it names the one command it authorises:

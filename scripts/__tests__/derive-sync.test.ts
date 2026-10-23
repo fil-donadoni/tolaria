@@ -15,17 +15,175 @@ import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "../lib/catalogue-merge";
 import { commitOnScratchIndex } from "../lib/commit-tree";
 import { DEFINITION_INDEX_PATH } from "../lib/definition-index";
 import {
+    BOT_REGRESSION_LABELS,
+    BOT_REPLAY_COMMIT_SUBJECT,
+    BOT_REPLAY_PATHS,
+    CARD_INDEX_PATH,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     LOCKFILE_PATH,
+    botRegressionTitle,
+    botReplayOutcome,
+    botReplayPlan,
     derivePlan,
     derivedFreshness,
     pushDerivedCommit,
     pushOutcome,
+    renderBotRegressionIssue,
     type GitRun,
+    type ReplayRow,
 } from "../lib/derive-sync";
+import { POOL_PROJECTION_SOURCE } from "../lib/oracle-lockfile";
 import { PACKED_CORPUS_PATH } from "../lib/packed-corpus";
 import { SEARCH_INDEX_PATH } from "../lib/search-index";
+
+describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (issue #6463)", () => {
+    it("header == tree: current — nothing to sweep, nothing to push", () => {
+        expect(
+            botReplayPlan({
+                headerBotHash: "sha256:a",
+                treeBotHash: "sha256:a",
+                openRegression: 7,
+            })
+        ).toEqual({ kind: "current" });
+    });
+
+    it("header != tree: a sweep — unless this Bot's regression issue is already open", () => {
+        expect(
+            botReplayPlan({
+                headerBotHash: "sha256:a",
+                treeBotHash: "sha256:b",
+                openRegression: null,
+            })
+        ).toEqual({ kind: "sweep" });
+        expect(
+            botReplayPlan({
+                headerBotHash: "sha256:a",
+                treeBotHash: "sha256:b",
+                openRegression: 6464,
+            })
+        ).toEqual({ kind: "filed", issue: 6464 });
+    });
+
+    // The fixture the issue asks for: a Bot change that FREEZES a card.
+    const ready = (
+        id: string,
+        name: string,
+        botReach = "played"
+    ): ReplayRow => ({
+        oracleId: id,
+        name,
+        state: "ready",
+        botReach,
+    });
+    const frozen = (id: string, name: string): ReplayRow => ({
+        oracleId: id,
+        name,
+        state: "quarantine",
+        botReach: "frozen",
+        botGap: "no-legal-move › Instant target:any",
+    });
+
+    it("a card the replay froze is `lost`, with the verdict that did it — and nothing is committed for it", () => {
+        const before = [ready("b", "Bolt"), ready("s", "Stasis", "ignored")];
+        const after = [frozen("b", "Bolt"), ready("s", "Stasis")];
+        expect(botReplayOutcome(before, after)).toEqual({
+            lost: [
+                {
+                    oracleId: "b",
+                    name: "Bolt",
+                    to: "quarantine",
+                    verdict: "frozen — no-legal-move › Instant target:any",
+                },
+            ],
+            gained: [],
+        });
+    });
+
+    it("a card the replay unfroze is `gained` (it owes a card-index row); a verdict change inside `ready` is neither", () => {
+        const before = [frozen("b", "Bolt"), ready("s", "Stasis", "ignored")];
+        const after = [ready("b", "Bolt"), ready("s", "Stasis")];
+        expect(botReplayOutcome(before, after)).toEqual({
+            lost: [],
+            gained: ["Bolt"],
+        });
+    });
+
+    it("a freeze acknowledged in data/oracle-state-regressions.json is not lost — check:oracle accepts the commit, so does the replay", () => {
+        const before = [ready("b", "Bolt"), ready("s", "Stasis")];
+        const after = [frozen("b", "Bolt"), frozen("s", "Stasis")];
+        expect(
+            botReplayOutcome(before, after, new Set(["b"])).lost.map(
+                (c) => c.name
+            )
+        ).toEqual(["Stasis"]);
+    });
+
+    it("a `ready` row that vanished is lost too — a re-pin dropping rows is not 'no change'", () => {
+        expect(botReplayOutcome([ready("b", "Bolt")], []).lost).toEqual([
+            {
+                oracleId: "b",
+                name: "Bolt",
+                to: "absent",
+                verdict: "(row gone)",
+            },
+        ]);
+    });
+
+    it("the regression issue: one title per Bot hash, the cards with their verdicts, the range, the filing stamp", () => {
+        const title = botRegressionTitle("sha256:0123456789abcdef0123");
+        expect(title).toContain("0123456789ab");
+        expect(title).not.toContain("sha256:");
+        const body = renderBotRegressionIssue({
+            sha: "e50c18c83abcdef",
+            headerBotHash: "sha256:22a30b",
+            treeBotHash: "sha256:271c7a",
+            range: "a315a384d..HEAD",
+            commits: ["bea399bb4 Bot: value sacrifice (#6447)"],
+            lost: botReplayOutcome([ready("b", "Bolt")], [frozen("b", "Bolt")])
+                .lost,
+        });
+        expect(body).toContain(
+            "**Bolt** (`b`) → `quarantine`: frozen — no-legal-move"
+        );
+        expect(body).toContain("`a315a384d..HEAD`");
+        expect(body).toContain("bea399bb4 Bot: value sacrifice (#6447)");
+        expect(body).toContain("`sha256:22a30b`");
+        expect(body).toContain("`sha256:271c7a`");
+        expect(body).toMatch(/\n## Band\n\nP1 — /);
+        expect(body).toContain("Nothing was committed");
+    });
+
+    it("the replay commit owns the derived paths plus the card index (the compiler's pool projection), under its own subject; derive:sync still refuses the index", () => {
+        // The card index the replay may carry is the one `oracle:index`
+        // writes and the compiler's `poolHash` reads.
+        const entry = {
+            path: POOL_PROJECTION_SOURCE,
+            committed: "a",
+            regenerated: "b",
+        };
+        expect(derivePlan([entry], BOT_REPLAY_PATHS)).toEqual({
+            kind: "commit",
+            paths: [CARD_INDEX_PATH],
+        });
+        expect(
+            derivePlan(
+                DERIVED_PATHS.map((path) => ({
+                    path,
+                    committed: "a",
+                    regenerated: "b",
+                })),
+                BOT_REPLAY_PATHS
+            )
+        ).toEqual({ kind: "commit", paths: DERIVED_PATHS });
+        expect(() => derivePlan([entry])).toThrow(
+            /owns .* — not data\/card-index\.json/
+        );
+        // `land` tells the two pushes apart by subject AND files.
+        expect(BOT_REPLAY_COMMIT_SUBJECT).not.toBe(DERIVE_SYNC_COMMIT_SUBJECT);
+        expect(BOT_REGRESSION_LABELS).toEqual(["bug", "area:game-bot"]);
+    });
+});
 
 describe("derive-sync.ts — the five derived paths are their owners' (ADR 0157)", () => {
     it("pins the leaf's literals to the constants the generators write", () => {

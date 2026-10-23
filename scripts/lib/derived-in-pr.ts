@@ -18,6 +18,7 @@
  * Pure: the git reads are the callers'.
  */
 import {
+    BOT_REPLAY_COMMIT_SUBJECT,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     LOCKFILE_PATH,
@@ -144,7 +145,11 @@ export function derivedCarried(input: {
     const prOwned = (path: string): boolean => {
         const subjects = input.subjectsTouching?.(path);
         if (subjects === undefined) return true;
-        return subjects.some((s) => s !== DERIVE_SYNC_COMMIT_SUBJECT);
+        return subjects.some(
+            (s) =>
+                s !== DERIVE_SYNC_COMMIT_SUBJECT &&
+                s !== BOT_REPLAY_COMMIT_SUBJECT
+        );
     };
     const catalogue = CATALOGUE_DERIVED_PATHS.filter(
         (p) => input.changed.includes(p) && prOwned(p)
