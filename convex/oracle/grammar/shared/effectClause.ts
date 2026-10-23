@@ -1123,6 +1123,26 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.12a — "Exchange control of <this object> and up to one
+           * target <permanent>": the source and the announced permanent swap
+           * controllers, or neither does. `subject` is the announced
+           * permanent; only the OPTIONAL announcement ("up to one") is read,
+           * because the rider below makes the empty announcement meaningful.
+           * Both flags are set by `assembleSentences` from the two sentences
+           * that follow it, never by the exchange rule:
+           * `sacrificeUnlessExchanged` is "If you don't or can't make an
+           * exchange, sacrifice <this object>" (CR 701.21a) and
+           * `resolvesIfTargetIllegal` is "This ability still resolves if its
+           * target becomes illegal" (CR 608.2b), an ability-level fact the
+           * triggered slot lifts onto the ability.
+           */
+          readonly kind: "exchange-control";
+          readonly subject: SubjectIR;
+          readonly sacrificeUnlessExchanged?: true;
+          readonly resolvesIfTargetIllegal?: true;
+      }
+    | {
+          /**
            * CR 701.3a — "Attach <this object> to target <permanent>": the
            * source moves onto the announced permanent without leaving the
            * battlefield. Only the SOURCE is ever the attached object — the
@@ -2052,6 +2072,13 @@ export type ModifierIR =
      * ability, folded onto the `counter` in front of it by `assembleSentences`.
      */
     | { readonly kind: "destroy-countered-source" }
+    /** CR 701.12a — "If you don't or can't make an exchange, sacrifice
+     *  <this object>." (the sacrifice is CR 701.21a), folded onto the
+     *  exchange in front of it. */
+    | { readonly kind: "exchange-fallback-sacrifice" }
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal.", folded onto the exchange in front of it. */
+    | { readonly kind: "resolves-if-target-illegal" }
     /** CR 205.1b — "They're still lands.": the animated set keeps its types. */
     | {
           readonly kind: "still-types";
@@ -3215,6 +3242,32 @@ export function assembleSentences(
                     reason: '"They\'re still <types>." follows no animation of those types',
                 };
             effects[effects.length - 1] = { ...previous, retainsTypes: true };
+            continue;
+        }
+        if (
+            sentence.role === "modifier" &&
+            (sentence.modifier.kind === "exchange-fallback-sacrifice" ||
+                sentence.modifier.kind === "resolves-if-target-illegal")
+        ) {
+            const previous = effects[effects.length - 1];
+            const isFallback =
+                sentence.modifier.kind === "exchange-fallback-sacrifice";
+            if (
+                previous === undefined ||
+                previous.kind !== "exchange-control" ||
+                (isFallback
+                    ? previous.sacrificeUnlessExchanged === true
+                    : previous.resolvesIfTargetIllegal === true)
+            )
+                return {
+                    ok: false,
+                    reason: isFallback
+                        ? "\"If you don't or can't make an exchange\" follows no exchange of control"
+                        : '"This ability still resolves" follows no exchange of control',
+                };
+            effects[effects.length - 1] = isFallback
+                ? { ...previous, sacrificeUnlessExchanged: true }
+                : { ...previous, resolvesIfTargetIllegal: true };
             continue;
         }
         if (
@@ -4397,6 +4450,15 @@ const EXILE_WHEN_DIES = "When the creature dies this turn, exile the creature";
 /** CR 608.2n — "Exile {self}" (the resolving spell exiles itself). */
 const EXILE_SELF = `Exile ${SELF_MARKER}`;
 const GAIN_CONTROL_VERB = "Gain control of ";
+/** CR 701.12a — "Exchange control of <this object> and <target>". */
+const EXCHANGE_CONTROL =
+    /^Exchange control of (.+?) and (up to one target .+)$/;
+/** CR 701.12a — the fallback sentence. */
+const EXCHANGE_FALLBACK_SACRIFICE =
+    /^If you don't or can't make an exchange, sacrifice (.+)$/;
+/** CR 608.2b — the ability-level opt-out of the all-targets-illegal fizzle. */
+const RESOLVES_IF_TARGET_ILLEGAL =
+    "This ability still resolves if its target becomes illegal";
 const WHILE_YOU_CONTROL = " for as long as you control ";
 const ATTACH_SELF = /^Attach (.+?) to (.+)$/;
 const ENCHANT_HEAD = "Enchant ";
@@ -5012,6 +5074,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
+            });
+        // CR 701.12a — the fallback; the sacrificed object (CR 701.21a)
+        // must be the source the exchange moves.
+        const exchangeFallback = span.match(EXCHANGE_FALLBACK_SACRIFICE);
+        if (exchangeFallback !== null) {
+            if (!isSelfPhrase(exchangeFallback[1]!))
+                return fail(
+                    `"${exchangeFallback[1]}" is not the object the exchange moves`,
+                    span
+                );
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "exchange-fallback-sacrifice" as const },
+            });
+        }
+        if (span === RESOLVES_IF_TARGET_ILLEGAL)
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "resolves-if-target-illegal" as const },
             });
         if (span === DESTROY_COUNTERED_SOURCE)
             return ok({
@@ -7022,6 +7103,34 @@ function effectSentence(
         if (!subject.ok) return subject;
         return ok({
             kind: "regenerate" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── exchange control (CR 701.12a) ──────────────────────────────────────
+    const exchange = span.match(EXCHANGE_CONTROL);
+    if (exchange !== null) {
+        // The source is the object that moves; the exchange of two announced
+        // permanents is a different instruction (no fixture).
+        if (!isSelfPhrase(exchange[1]!))
+            return fail(`"${exchange[1]}" is not the source object`, span);
+        const subject = subjectRule.run(exchange[2]!, ctx);
+        if (!subject.ok) return subject;
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.zone !== undefined ||
+            typeof subject.value.requirement.count !== "object" ||
+            subject.value.requirement.controller !== "opponent" ||
+            !requirementTypes(subject.value.requirement).every((t) =>
+                (PERMANENT_TYPES as readonly string[]).includes(t)
+            )
+        )
+            return fail(
+                `"${exchange[2]}" is not an optional target permanent`,
+                span
+            );
+        return ok({
+            kind: "exchange-control" as const,
             subject: subject.value,
         } satisfies EffectSentenceIR);
     }
