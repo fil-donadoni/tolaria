@@ -70,11 +70,6 @@ export const upheaval = defineCard(() => ({
 // "you" — when Standstill's own controller casts a spell, the cards go to the
 // OPPONENT. In this engine's two-seat scope (ADR 0010) the plural degenerates
 // to one player, the same collapse `"opponent"` itself relies on.
-//
-// The Oracle compiler (PRD #2693) cannot read this line back: grammar v0 has
-// no sacrifice sentence at all, no cross-sentence "If you do" conditional, and
-// `playerRef.ts` refuses "that player" anaphora outright by design.
-// hand-tail: "When a player casts a spell, sacrifice this enchantment. If you do, each of that player's opponents draws three cards." (#4195)
 export const standstill = defineCard(() => ({
     id: "3ede3f6f-e642-4fe4-aa37-0f01cdf4d149",
     name: "Standstill",

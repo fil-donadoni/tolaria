@@ -518,6 +518,17 @@ export type EffectSentenceIR =
           readonly mana: ManaCost;
           readonly effect: EffectSentenceIR;
       }
+    /**
+     * CR 701.21a — the imperative "Sacrifice this enchantment.": the source
+     * (or the site's pronoun for it) is sacrificed by its controller. `then`
+     * is the "If you do, <effect>." sentence behind it (CR 608.2c), folded in
+     * by `assembleSentences`: it runs only when the sacrifice happened.
+     */
+    | {
+          readonly kind: "sacrifice-source";
+          readonly subject: SubjectIR;
+          readonly then?: EffectSentenceIR;
+      }
     | {
           readonly kind: "pump";
           readonly subject: SubjectIR;
@@ -2367,11 +2378,21 @@ export function assembleSentences(
             payVariable = null;
             continue;
         }
-        if (sentence.role === "if-you-do")
+        if (sentence.role === "if-you-do") {
+            // CR 608.2c — "Sacrifice this enchantment. If you do, <effect>."
+            const last = effects[effects.length - 1];
+            if (last?.kind === "sacrifice-source" && last.then === undefined) {
+                effects[effects.length - 1] = {
+                    ...last,
+                    then: sentence.effect,
+                };
+                continue;
+            }
             return {
                 ok: false,
                 reason: '"If you do, …" follows no "You may pay {X}"',
             };
+        }
         if (landTypePick) {
             if (sentence.role !== "return-chosen-lands")
                 return {
@@ -7236,6 +7257,20 @@ function effectSentence(
             ...(superlative === undefined ? {} : { superlative }),
             phrase: `${edict[2]} ${edict[3]}`,
         } satisfies EffectSentenceIR);
+    }
+
+    // ── sacrifice the source itself (CR 701.21a) ───────────────────────────
+    // "Sacrifice this enchantment": no choice, the source is the permanent.
+    if (uncapitalise(span).startsWith("sacrifice ")) {
+        const subject = subjectRule.run(span.slice("Sacrifice ".length), ctx);
+        if (
+            subject.ok &&
+            (subject.value.kind === "self" || subject.value.kind === "pronoun")
+        )
+            return ok({
+                kind: "sacrifice-source" as const,
+                subject: subject.value,
+            } satisfies EffectSentenceIR);
     }
 
     return fail("not an effect sentence this grammar knows", span);

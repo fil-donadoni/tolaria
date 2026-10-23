@@ -300,7 +300,13 @@ describe("gold round-trip — precision", () => {
         // closure the projection cannot compare, while its line is now
         // compiled — the same move as the entries above. The compiled
         // definition is proven by `optionalDrawSkip.test.ts` instead.
-        expect(REPORT.incomparable.length).toBeLessThan(74);
+        //
+        // Raised 74 -> 75 with the source sacrifice rule: Ball
+        // Lightning's hand-written end-step sacrifice is a closure the
+        // projection cannot compare, while "sacrifice it" is now compiled —
+        // the same move as the entries above. The compiled definition is
+        // proven by `sacrificeSource.test.ts` instead.
+        expect(REPORT.incomparable.length).toBeLessThan(75);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

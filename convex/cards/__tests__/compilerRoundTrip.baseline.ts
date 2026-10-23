@@ -180,7 +180,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Balduvian Conjurer",
     "Balduvian Hydra",
     "Balduvian Shaman",
-    "Ball Lightning",
     "Balm of Restoration",
     "Banshee",
     "Barbarian Guides",
