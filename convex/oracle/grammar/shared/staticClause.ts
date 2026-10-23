@@ -98,6 +98,7 @@ import {
     type EffectSentenceIR,
 } from "./effectClause";
 import {
+    COLOR_WORDS,
     descriptorRule,
     staticFilterFromDescriptor,
     type DescriptorIR,
@@ -174,6 +175,11 @@ export type StaticClauseIR =
           readonly kind: "attack-mana-tax";
           readonly attackers: PermanentFilter;
           readonly perAttacker: number;
+      }
+    /** CR 508.1c — a flat prohibition: matching creatures can't attack you. */
+    | {
+          readonly kind: "attack-prohibition";
+          readonly attackers: PermanentFilter;
       }
     /** CR 601.3 / 118.9 — a board permission to cast a CLASS of spells. */
     | {
@@ -827,6 +833,28 @@ export const attackManaTaxRule: Rule<StaticClauseIR> = pattern(
             kind: "attack-mana-tax" as const,
             attackers: { types: ["Creature"] },
             perAttacker: Number(match[1]),
+        })
+);
+
+// ── Frame: attack prohibition (CR 508.1c) ──────────────────────────────────
+
+/**
+ * CR 508.1c — "<Colour> creatures can't attack you" (Elephant Grass): a
+ * restriction on the creatures the source's controller is attacked by. Only a
+ * single positive colour word qualifies the bare "creatures" noun; a negated
+ * colour ("Nonblack creatures") and a payment rider are other forms and stay
+ * refused.
+ */
+export const attackProhibitionRule: Rule<StaticClauseIR> = pattern(
+    "attack prohibition",
+    /^(White|Blue|Black|Red|Green) creatures can't attack you$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "attack-prohibition" as const,
+            attackers: {
+                types: ["Creature"],
+                colors: COLOR_WORDS.get(match[1]!.toLowerCase())!,
+            },
         })
 );
 
@@ -2133,6 +2161,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         offTurnCostModifierRule,
         abilityCostModifierRule,
         attackManaTaxRule,
+        attackProhibitionRule,
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,

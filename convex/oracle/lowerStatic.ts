@@ -360,6 +360,21 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 508.1c — the id is a card-scoped private handle, like the tax's.
+        case "attack-prohibition":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "attack-prohibition",
+                            id: nextId("attack-ban"),
+                            oracleText,
+                            attackers: clause.attackers,
+                        },
+                    ],
+                },
+            };
         case "cast-permission": {
             // CR 601.3 — the permission's id is DERIVED from the clause, never
             // from the card: `collectCastPermissions` deduplicates on the bare
