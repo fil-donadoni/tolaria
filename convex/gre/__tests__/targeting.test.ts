@@ -2299,6 +2299,22 @@ describe("checkSpellTargetFilters — shared offered/accepted gate (ADR 0068, is
         ).not.toBeNull();
     });
 
+    it("spellSingleTarget: accepts a spell with exactly one target of any kind, rejects none or two (CR 115.7)", () => {
+        const one = spellItem({ targets: [{ type: "permanent", id: "c1" }] });
+        const none = spellItem({ targets: [] });
+        const two = spellItem({
+            targets: [
+                { type: "permanent", id: "c1" },
+                { type: "player", id: "p2" },
+            ],
+        });
+        const check = (item: ReturnType<typeof spellItem>) =>
+            checkSpellTargetFilters(baseCtx, item, { spellSingleTarget: true });
+        expect(check(one)).toBeNull();
+        expect(check(none)).not.toBeNull();
+        expect(check(two)).not.toBeNull();
+    });
+
     it("spellWouldDestroyLandYouControl: rejects a spell that would not destroy the chooser's land, accepts one that would (CR 114.1 + 701.8, Equinox)", () => {
         const land = makeCard({
             id: "land1",
@@ -2362,6 +2378,7 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
             spellExcludeTypeFilter: "Creature",
             spellCreaturePtFilter: { maxPowerOrToughness: 2 },
             spellSingleTargetingController: true,
+            spellSingleTarget: true,
             spellWouldDestroyLandYouControl: true,
         };
         const pt = pendingTargetFiltersFromRequirement(req, undefined);
@@ -2376,6 +2393,7 @@ describe("pendingTargetFiltersFromRequirement — spell filter carry-completenes
         expect(pt.spellExcludeTypeFilter).toEqual(["Creature"]);
         expect(pt.spellCreaturePtFilter).toEqual({ maxPowerOrToughness: 2 });
         expect(pt.spellSingleTargetingController).toBe(true);
+        expect(pt.spellSingleTarget).toBe(true);
         expect(pt.spellWouldDestroyLandYouControl).toBe(true);
     });
 

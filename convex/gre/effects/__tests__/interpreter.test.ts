@@ -37032,3 +37032,49 @@ describe("returnToHandAtNextUntap (CR 502.3, issue #5509)", () => {
         expect(slim.returnToHandAtUntapOf).toBe("p1");
     });
 });
+
+describe("Effect Script Op: retarget (CR 115.7a, issue #5259)", () => {
+    /** A victim spell on the stack under p2, then a `retarget` script of p1's
+     *  aimed at it on top. */
+    function withVictim(scriptId: string) {
+        const id = registerScript(scriptId, [
+            { op: "retarget", target: { target: 0 } },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const victim = pushSpell(state, BLACK_CARD_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: victim.id }]);
+        return { state, victim };
+    }
+
+    it("raises a `retarget` selection for the retargeting player over the ORIGINAL spell, and the wire keeps it", () => {
+        const { state, victim } = withVictim("test-op-retarget");
+        resolveTopOfStack(state);
+
+        // The victim stays on the stack: retargeting neither counters nor
+        // copies it (CR 115.7a — the same object gets a new target).
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(true);
+        expect(state.pendingTarget).toMatchObject({
+            kind: "retarget",
+            playerId: "p1",
+            cardInstanceId: victim.id,
+            targetType: "any",
+        });
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingTarget).toMatchObject({
+            kind: "retarget",
+            cardInstanceId: victim.id,
+        });
+    });
+
+    it("is validator-clean as a Deflection-class script", () => {
+        expect(
+            validateEffectScript([{ op: "retarget", target: { target: 0 } }])
+        ).toEqual([]);
+        expect(
+            validateEffectScript([{ op: "retarget" } as never]).length
+        ).toBeGreaterThan(0);
+    });
+});
