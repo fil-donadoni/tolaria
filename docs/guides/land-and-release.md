@@ -171,10 +171,12 @@ per-command hatch for a real recovery.
 
 `land` on a **MERGED** PR runs step 8 and nothing else — no rebase, no lane
 gate, no merge. It says so on its first line, `land: mode=housekeeping — …`.
-That is the mode a `pr-merge.ts` retry leaves owing, and a hand-typed merge
-too: the seed, the fast-forward, telemetry all still
-have to happen. (The GitHub-bound steps need nothing: the cron below finds
-every merged PR, however it merged.)
+A `pr-merge.ts` retry or a hand merge (`merge:manual`) leaves nothing owing
+since the queue cut-over (issue #5643, issue #6473): `post-merge.yml` fires on
+every push to the base and runs the seed, the fast-forward, the worktree
+teardown and telemetry, whoever merged. This mode is for a PR whose
+post-merge run itself failed or was lost, and `land` is the runner's, never a
+session's (`deny-guard.sh`, issue #5469).
 
 **Run it from anywhere, the primary checkout included** (issue #4378):
 
