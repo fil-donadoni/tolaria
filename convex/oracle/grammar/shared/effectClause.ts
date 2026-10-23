@@ -8186,7 +8186,7 @@ function effectSentence(
         const source = subjectRule.run(`this ${tapPer[4]}`, ctx);
         if (!source.ok || source.value.kind !== "self")
             return fail(`"this ${tapPer[4]}" is not the source`, span);
-        const descriptor = descriptorRule.run(`an ${tapPer[2]}`, ctx);
+        const descriptor = descriptorRule.run(tapPer[2]!, ctx);
         if (!descriptor.ok) return descriptor;
         const filter = sacrificeFilterFromDescriptor(
             descriptor.value,
