@@ -60,6 +60,11 @@ import type {
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
 
+/** Creatures among a set of permanents. */
+function countCreatures(permanents: readonly PermanentView[]): number {
+    return permanents.filter((c) => c.types.includes("Creature")).length;
+}
+
 /**
  * `PermanentFilter` fields a descriptor may carry.
  *
@@ -319,6 +324,13 @@ export type CompiledStaticEffect =
            *  predicate compares the creature counts of the blocker's and the
            *  attacker's controllers; absent: unconditional. */
           readonly unlessControlMoreCreatures?: true;
+          /**
+           * CR 508.1c — "can't attack unless <condition>": the attack is legal
+           * only while the condition holds. Absent = unconditional.
+           * `more-creatures-than-defender`: its controller controls more
+           * creatures than the defending player. Attack side only.
+           */
+          readonly unless?: "more-creatures-than-defender";
       }
     /**
      * CR 601.3a / 201.2a — "Spells with the chosen name can't be cast": the
@@ -709,7 +721,12 @@ export function resolveCompiledStatic(
             return {
                 kind: "attack-restriction",
                 id: descriptor.id,
-                predicate: () => false,
+                predicate:
+                    descriptor.unless === "more-creatures-than-defender"
+                        ? (_self, defenderBattlefield, controllerBattlefield) =>
+                              countCreatures(controllerBattlefield ?? []) >
+                              countCreatures(defenderBattlefield)
+                        : () => false,
                 oracleText: descriptor.oracleText,
             };
         case "block-restriction":

@@ -353,7 +353,13 @@ function buildRestrictionPlan(
                     attachments,
                     collectAttack
                 )) {
-                    if (restriction.predicate(card, opponentBattlefield)) {
+                    if (
+                        restriction.predicate(
+                            card,
+                            opponentBattlefield,
+                            player.battlefield
+                        )
+                    ) {
                         continue;
                     }
                     attackBy.add(sourceId);
