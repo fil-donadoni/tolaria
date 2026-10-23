@@ -43,6 +43,7 @@ const GAME_ID = "game-1" as Id<"games">;
 const HEART: CardDefinition = {
     id: "as-enters-sacrifice-test-land",
     name: "Heart of Yavimaya",
+    rarity: "common",
     types: ["Land"],
     oracleText:
         "If this land would enter, sacrifice a Forest instead. If you do, put this land onto the battlefield. If you don't, put it into its owner's graveyard.",
