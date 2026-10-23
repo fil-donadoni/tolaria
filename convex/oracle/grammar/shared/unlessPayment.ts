@@ -16,19 +16,21 @@
  *                                      → `permanent` (sacrifice, threshold)
  *   - "return a non-Lair land you control to its owner's hand"
  *                                      → `permanent` (return)
+ *   - "return a basic land card from your graveyard to your hand"
+ *                                      → `graveyard` (return, one)
  *
- * Fail-closed: "pay N life" and "return a basic land card from your graveyard
- * to your hand" are real printed payments with no fixture and no cost leg
- * (the engine's `permanent` leg returns BATTLEFIELD permanents only), so they
- * stay refused under their own gap keys.
+ * Fail-closed: "pay N life" is a real printed payment with no fixture, so it
+ * stays refused under its own gap key.
  */
 
 import type {
+    EffectCardFilter,
     ManaCost,
     MayPayCost,
     PermanentFilter,
 } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
+import { CARD_TYPE_ADJECTIVES } from "./cost";
 import { fail, ok, type RuleContext, type RuleResult } from "../../rule";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 
@@ -47,13 +49,21 @@ export type UnlessPaymentIR =
           readonly minTotalPower: number;
       }
     /** CR 400.7 — "return a land you control to its owner's hand". */
-    | { readonly kind: "return"; readonly filter: PermanentFilter };
+    | { readonly kind: "return"; readonly filter: PermanentFilter }
+    /** CR 118.12a — "return a basic land card from your graveyard to your
+     *  hand": one card of the payer's choice from their own graveyard. */
+    | {
+          readonly kind: "return-from-graveyard";
+          readonly filter: EffectCardFilter;
+      };
 
 const PAY = /^pay (\{.+\})$/;
 const SACRIFICE_TOTAL_POWER =
     /^sacrifice any number of (.+) with total power (\d+) or greater$/;
 const SACRIFICE_ONE = /^sacrifice an? (.+)$/;
 const RETURN_ONE = /^return an? (.+) to its owner's hand$/;
+const RETURN_FROM_GRAVEYARD =
+    /^return an? (basic )?(?:(\S+) )?card from your graveyard to your hand$/;
 
 /** Descriptor text → the cost filter, refusing a plural/singular mismatch. */
 function filterOf(
@@ -113,6 +123,22 @@ export function readUnlessPayment(
         return ok({ kind: "sacrifice" as const, filter: filter.value });
     }
 
+    const fromGraveyard = span.match(RETURN_FROM_GRAVEYARD);
+    if (fromGraveyard !== null) {
+        // "a [basic] [<type>] card": a card-type adjective and the Basic
+        // supertype (CR 205.4a) are the only qualifiers read; anything else
+        // fails the type lookup and is refused.
+        const filter: EffectCardFilter = {};
+        if (fromGraveyard[2] !== undefined) {
+            const type = CARD_TYPE_ADJECTIVES.get(fromGraveyard[2]);
+            if (type === undefined)
+                return fail(`"${fromGraveyard[2]}" is not a card type`, span);
+            filter.type = type;
+        }
+        if (fromGraveyard[1] !== undefined) filter.supertype = "Basic";
+        return ok({ kind: "return-from-graveyard" as const, filter });
+    }
+
     const back = span.match(RETURN_ONE);
     if (back !== null) {
         // The payer returns a permanent THEY control; the cost leg's pool is
@@ -169,6 +195,14 @@ export function lowerUnlessPayment(payment: UnlessPaymentIR): MayPayCost {
                     count: 1,
                 },
             };
+        case "return-from-graveyard":
+            return {
+                graveyard: {
+                    action: "return",
+                    filter: payment.filter,
+                    count: 1,
+                },
+            };
     }
 }
 
@@ -189,6 +223,8 @@ export function unlessPaymentPrompt(
                 return `Sacrifice creatures with total power ${payment.minTotalPower} or greater`;
             case "return":
                 return "Return a permanent you control to its owner's hand";
+            case "return-from-graveyard":
+                return "Return a card from your graveyard to your hand";
         }
     })();
     return `${ask}, or sacrifice ${selfName}?`;

@@ -226,6 +226,9 @@ export type MoveMutations = {
             /** CR 701.9 / 118.3 (issue #899 / #1507) — chosen hand card id(s)
              *  for a may-pay discard-leg pick. Mirrors `sacrificeIds`. */
             discardIds?: string[];
+            /** CR 118.3 / 118.12a — chosen graveyard card id(s) for a may-pay
+             *  graveyard-leg pick. */
+            graveyardIds?: string[];
         }
     ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
@@ -361,6 +364,9 @@ export async function executeMove(
                     ? { sacrificeIds: move.sacrificeIds }
                     : {}),
                 ...(move.discardIds ? { discardIds: move.discardIds } : {}),
+                ...(move.graveyardIds
+                    ? { graveyardIds: move.graveyardIds }
+                    : {}),
             });
             return;
 

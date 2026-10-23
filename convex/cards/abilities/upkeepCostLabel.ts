@@ -29,7 +29,8 @@ function isLegs(cost: MayPayCost): cost is CostLegs {
         "life" in cost ||
         "permanent" in cost ||
         "hand" in cost ||
-        "energy" in cost
+        "energy" in cost ||
+        "graveyard" in cost
     );
 }
 
@@ -53,7 +54,8 @@ export function isManaOnlyUpkeepCost(cost: MayPayCost): boolean {
         cost.life === undefined &&
         cost.permanent === undefined &&
         cost.hand === undefined &&
-        cost.energy === undefined
+        cost.energy === undefined &&
+        cost.graveyard === undefined
     );
 }
 
@@ -73,11 +75,18 @@ export function upkeepCostLabel(cost: MayPayCost): string {
         parts.push(`${cost.hand.action} ${n === 1 ? "a card" : `${n} cards`}`);
     }
     if (cost.energy !== undefined) parts.push("{E}".repeat(cost.energy));
+    if (cost.graveyard) {
+        const n = cost.graveyard.count;
+        parts.push(
+            `return ${n === 1 ? "a card" : `${n} cards`} from your graveyard to your hand`
+        );
+    }
     const joined = parts.join(" and ");
     // A mana-only cost reads as its pips; a cost with an action reads as a
     // sentence — "Pay 2 life", "Sacrifice a land", "Pay {B} and 1 life".
     if (isManaOnlyUpkeepCost(cost)) return joined;
-    if (!cost.permanent && !cost.hand) return `Pay ${joined}`;
+    if (!cost.permanent && !cost.hand && !cost.graveyard)
+        return `Pay ${joined}`;
     return joined.charAt(0).toUpperCase() + joined.slice(1);
 }
 

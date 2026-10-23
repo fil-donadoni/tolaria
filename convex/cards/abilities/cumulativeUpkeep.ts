@@ -40,7 +40,8 @@ function isUnion(cost: MayPayCost): cost is CostLegs {
         "life" in cost ||
         "permanent" in cost ||
         "hand" in cost ||
-        "energy" in cost
+        "energy" in cost ||
+        "graveyard" in cost
     );
 }
 
@@ -52,6 +53,7 @@ function normalize(cost: MayPayCost): CostLegs {
             ...(cost.permanent ? { permanent: cost.permanent } : {}),
             ...(cost.hand ? { hand: cost.hand } : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
+            ...(cost.graveyard ? { graveyard: cost.graveyard } : {}),
         };
     }
     return { mana: cost as ManaCost };
@@ -114,6 +116,14 @@ function scaleCost(cost: MayPayCost, n: number): MayPayCost {
               }
             : {}),
         ...(norm.energy !== undefined ? { energy: norm.energy * n } : {}),
+        ...(norm.graveyard
+            ? {
+                  graveyard: {
+                      ...norm.graveyard,
+                      count: norm.graveyard.count * n,
+                  },
+              }
+            : {}),
     };
 }
 

@@ -86,6 +86,7 @@ import type {
 import {
     assignMayPayHandCards,
     manaBalanceForRestrictionAnyRider,
+    mayPayGraveyardCandidates,
 } from "@convex/gre/state";
 import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 // CR 118.9 — THE cast-option authority: the card's own affordable alternative
@@ -3680,6 +3681,15 @@ export interface NormalizedMayPayCost {
      *  {E}{E}{E}" (Guide of Souls). Mirrors the backend `CostLegs.energy`
      *  leg 1:1. */
     energy?: number;
+    /** Graveyard leg (CR 118.3 / 118.12a): `count` cards matching `filter`
+     *  return from the payer's graveyard to hand. Mirrors the backend
+     *  `CostLegs.graveyard` leg 1:1 — the filter is carried so the Pay gate
+     *  prices the leg through the engine's own candidate function. */
+    graveyard?: {
+        action: "return";
+        filter: EffectCardFilter;
+        count: number;
+    };
 }
 
 function isMayPayUnion(
@@ -3690,7 +3700,8 @@ function isMayPayUnion(
         "life" in cost ||
         "permanent" in cost ||
         "hand" in cost ||
-        "energy" in cost
+        "energy" in cost ||
+        "graveyard" in cost
     );
 }
 
@@ -3721,6 +3732,15 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
                   }
                 : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
+            ...(cost.graveyard
+                ? {
+                      graveyard: {
+                          action: cost.graveyard.action,
+                          filter: cost.graveyard.filter,
+                          count: cost.graveyard.count,
+                      },
+                  }
+                : {}),
         };
     }
     return { mana: cost as ManaCost };
@@ -3758,7 +3778,12 @@ export function mayPayCanAfford(
      *  for an energy leg — affordable iff the chooser holds at least `energy`
      *  counters. Ignored for a cost with no energy leg. Survives the wire
      *  projection as `PlayerState.energyCounters`. */
-    chooserEnergy?: number
+    chooserEnergy?: number,
+    /** The chooser's graveyard (CR 118.3 / 118.12a). Required for a
+     *  graveyard leg — affordable iff at least `count` cards match its filter,
+     *  priced through the engine's `mayPayGraveyardCandidates`. The graveyard
+     *  is public, so the projected pile is the whole pile. */
+    graveyard?: readonly MayPayHandCard[]
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
@@ -3788,6 +3813,13 @@ export function mayPayCanAfford(
         return false;
     }
     if (norm.energy !== undefined && (chooserEnergy ?? 0) < norm.energy) {
+        return false;
+    }
+    if (
+        norm.graveyard &&
+        mayPayGraveyardCandidates(graveyard ?? [], norm.graveyard).length <
+            norm.graveyard.count
+    ) {
         return false;
     }
     return true;
@@ -4240,6 +4272,35 @@ export function mayPayDiscardPickSatisfied(
     return assigned.every((c) => chosen.has(c.id));
 }
 
+/** Number of graveyard cards a `may-pay` graveyard leg returns (CR 118.3 /
+ *  118.12a). 0 when the cost has no graveyard leg. */
+export function mayPayRequiredGraveyardReturns(
+    cost: MayPayCost | undefined
+): number {
+    if (!cost) return 0;
+    return normalizeMayPayCost(cost).graveyard?.count ?? 0;
+}
+
+/** Whether the chooser's buffered pick satisfies a `may-pay` graveyard leg
+ *  (CR 118.3): exactly `count` distinct cards, each matching the leg's filter
+ *  in the chooser's graveyard — the client twin of the server's
+ *  `mayPayGraveyardSelectionLegal`, over the same candidate function. A cost
+ *  with no graveyard leg is satisfied only by an empty pick. */
+export function mayPayGraveyardPickSatisfied(
+    cost: MayPayCost | undefined,
+    selectedIds: string[],
+    graveyard: readonly MayPayHandCard[] = []
+): boolean {
+    const leg = cost ? normalizeMayPayCost(cost).graveyard : undefined;
+    if (!leg) return selectedIds.length === 0;
+    if (new Set(selectedIds).size !== selectedIds.length) return false;
+    if (selectedIds.length !== leg.count) return false;
+    const legal = new Set(
+        mayPayGraveyardCandidates(graveyard, leg).map((c) => c.id)
+    );
+    return selectedIds.every((id) => legal.has(id));
+}
+
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
  *  prompt button. Mana renders as symbol tokens (formatOracleText-ready); life
  *  and sacrifice render as words, joined with " and " (Infernal Darkness:
@@ -4281,6 +4342,14 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
         // already renders any `{X}` token generically, so no new glyph
         // plumbing is needed here.
         parts.push("{E}".repeat(norm.energy));
+    }
+    if (norm.graveyard) {
+        const n = norm.graveyard.count;
+        parts.push(
+            n === 1
+                ? "return a card from your graveyard"
+                : `return ${n} cards from your graveyard`
+        );
     }
     return parts.join(" and ");
 }

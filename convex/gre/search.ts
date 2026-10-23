@@ -821,6 +821,9 @@ export function applyMoveInSearch(
                     ? { sacrificeIds: move.sacrificeIds }
                     : {}),
                 ...(move.discardIds ? { discardIds: move.discardIds } : {}),
+                ...(move.graveyardIds
+                    ? { graveyardIds: move.graveyardIds }
+                    : {}),
             });
             drainAutoPasses(state);
             checkStateBasedActions(state);
