@@ -17,6 +17,11 @@
  *   - "exile a <colour> card from your hand"      (Force of Will family)
  *   - "discard an Island card and another card"   (Foil)
  *
+ * the GRAVEYARD leg `CostLegs.graveyard` pays (issue #6440):
+ *
+ *   - "exile the top three black cards of your graveyard"
+ *                                                  (Spinning Darkness, CR 701.13)
+ *
  * the PERMANENT leg `CostLegs.permanent` pays (issue #4558):
  *
  *   - "sacrifice two Mountains"                   (Fireblast, CR 701.21a)
@@ -38,8 +43,9 @@
  * ── What is refused, and why ───────────────────────────────────────────────
  *
  * Everything else, fail-closed. In particular the neighbours the engine has no
- * surface for: an exile leg over the GRAVEYARD ("exile the top three black
- * cards of your graveyard" — `CostLegs` has no graveyard leg), a REVEAL cost
+ * surface for: a graveyard exile leg that is not the topmost N of a colour
+ * ("exile a creature card from your graveyard" — the leg selects by position
+ * and colour only), a REVEAL cost
  * over a non-type hand condition ("If you have no red cards in hand"), a
  * life-plus-pitch cost and a turn-gated one (separate printed forms, separate
  * gaps), every other free-cast condition ("If you control a commander"), and
@@ -73,6 +79,10 @@ const ALTERNATIVE_COST =
 /** CR 701.13 — "exile a <colour> card from your hand". */
 const EXILE_COLOURED = /^exile an? (\w+) card from your hand$/;
 
+/** CR 701.13 / 404.2 — "exile the top three black cards of your graveyard". */
+const EXILE_GRAVEYARD_TOP =
+    /^exile the top (\S+) (\w+) cards of your graveyard$/;
+
 /** CR 701.9 — Foil's two-requirement discard, Island first (see the greedy-
  *  ordering constraint on `CostLegs.hand`). */
 const DISCARD_ISLAND_AND_CARD = "discard an Island card and another card";
@@ -100,6 +110,23 @@ function readBody(body: string): AlternativeCostIR | null {
             hand: {
                 action: "exile",
                 requirements: [{ filter: { color: colour }, count: 1 }],
+            },
+        };
+    }
+    const graveyard = EXILE_GRAVEYARD_TOP.exec(body);
+    if (graveyard !== null) {
+        const count = readNumberWord(graveyard[1]!);
+        const colour = COLOR_WORDS.get(graveyard[2]!);
+        // "cards" is plural: a count of one is a line we have misread.
+        if (count === null || count < 2 || colour === undefined) return null;
+        return {
+            id: `exile-top-${graveyard[1]}-${graveyard[2]}`,
+            description: body.charAt(0).toUpperCase() + body.slice(1),
+            graveyard: {
+                action: "exile",
+                filter: { color: colour },
+                count,
+                position: "top",
             },
         };
     }
