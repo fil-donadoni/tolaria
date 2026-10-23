@@ -4004,6 +4004,71 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 601.2c + CR 120.3 — "deals N damage to each of X targets": a sweep
+    // over the announced set (`forEach { set: "targets" }`), which the canned
+    // smoke scenario refuses (a runtime-selected set). The fixed amount and the
+    // X amount are two forms: the gate keys a skip on the Op's skeleton.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0ba1837b-67a1-40d1-b617-8c94834d02ba",
+            name: "Meteor Blast",
+            manaCost: "{X}{R}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText: "Meteor Blast deals 4 damage to each of X targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Meteor Blast",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 3 },
+            oracleText: "Meteor Blast deals 4 damage to each of X targets.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        { op: "dealDamage", amount: 4, to: { ref: "$each" } },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "any", count: "X" },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "157813c8-af83-41b5-9ffb-4abd167c1bfc",
+            name: "Firestorm",
+            manaCost: "{R}",
+            typeLine: "Instant",
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nFirestorm deals X damage to each of X targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Firestorm",
+            types: ["Instant"],
+            additionalCosts: { discard: { count: "X" } },
+            manaCost: { R: 1 },
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nFirestorm deals X damage to each of X targets.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "any", count: "X" },
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).
