@@ -16984,6 +16984,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dragon Mask",
+        "scryfallId": "f098e329-adc8-42dd-b779-d00d9ccc3dbd",
+        "oracleId": "fce29dd8-23b1-465c-a977-526f716dc8f6",
+        "firstSet": "vis",
+        "firstPrintId": "f098e329-adc8-42dd-b779-d00d9ccc3dbd",
+        "firstPrintSet": "vis",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dragon Moose",
         "scryfallId": "71fb2595-b4b5-40b4-a3b6-236c0e2cdc83",
         "oracleId": "4a678c6f-5a93-4a3b-80fd-4c0d0f9040c9",
@@ -20509,6 +20519,16 @@
         "firstPrintId": "e7329a19-2f68-4d2c-a725-e0d862cd234e",
         "firstPrintSet": "soi",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Explosive Getaway",
+        "scryfallId": "a876edac-b8c8-4994-94f5-548e0fe70fe4",
+        "oracleId": "c844cc98-b8b9-447d-92ee-64f4a4906e7c",
+        "firstSet": "dft",
+        "firstPrintId": "a876edac-b8c8-4994-94f5-548e0fe70fe4",
+        "firstPrintSet": "dft",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -40790,6 +40810,16 @@
         "firstSet": "ons",
         "firstPrintId": "a25b2697-5d7f-490a-8474-c775096e681e",
         "firstPrintSet": "ons",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Mistmeadow Witch",
+        "scryfallId": "7e776fe0-6574-4fca-91bd-eb6e7383e5be",
+        "oracleId": "38e274e2-bd04-48de-a1df-44f0ee987ba8",
+        "firstSet": "shm",
+        "firstPrintId": "7e776fe0-6574-4fca-91bd-eb6e7383e5be",
+        "firstPrintSet": "shm",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -68502,6 +68532,16 @@
         "firstSet": "inv",
         "firstPrintId": "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Turn to Mist",
+        "scryfallId": "75a62b31-986c-4722-97da-d984272f0f05",
+        "oracleId": "631f04d6-5693-4414-a378-fd839c3b6f6d",
+        "firstSet": "shm",
+        "firstPrintId": "75a62b31-986c-4722-97da-d984272f0f05",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Turntimber Ascetic",
