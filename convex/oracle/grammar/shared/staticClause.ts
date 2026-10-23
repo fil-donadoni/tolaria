@@ -241,6 +241,15 @@ export type StaticClauseIR =
      */
     | { readonly kind: "self-block-restriction"; readonly sentence: string }
     /**
+     * CR 508.1c — "This creature can't attack unless <condition>": the
+     * source's own printed attack restriction, lifted when `unless` holds.
+     */
+    | {
+          readonly kind: "self-attack-restriction";
+          readonly unless: "more-creatures-than-defender";
+          readonly sentence: string;
+      }
+    /**
      * CR 502.3 — an untap-step lock over a SET: "Islands don't untap during
      * their controllers' untap steps" (`maxUntap: 0`), "players can't untap
      * more than one land during their untap steps" (`maxUntap: 1`). The
@@ -1344,6 +1353,27 @@ const selfCantBlockRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+const SELF_CANT_ATTACK_UNLESS_MORE_CREATURES =
+    /^(.+) can't attack unless you control more creatures than defending player$/;
+
+/**
+ * "<self> can't attack unless you control more creatures than defending
+ * player" (Goblin Goon, Mogg Toady) — CR 508.1c. Only this one condition: the
+ * unconditional "can't attack" and every other "unless" tail do not match.
+ */
+const selfCantAttackUnlessMoreCreaturesRule: Rule<StaticClauseIR> = pattern(
+    "self can't attack unless more creatures",
+    SELF_CANT_ATTACK_UNLESS_MORE_CREATURES,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-attack-restriction" as const,
+                  unless: "more-creatures-than-defender" as const,
+                  sentence: `${match[1]!} can't attack unless you control more creatures than defending player.`,
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frames: untap-step locks over a set (CR 502.3) ─────────────────────────
 
 /**
@@ -2086,6 +2116,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersWithEachKickRule,
         doesNotUntapRule,
         selfCantBlockRule,
+        selfCantAttackUnlessMoreCreaturesRule,
         setDoesNotUntapRule,
         landUntapCapRule,
         nonManaAbilityLandLockRule,
