@@ -201,7 +201,7 @@ import { searchCombatDamageAssignments } from "./ai/damageSplit";
  *  stalled — a rollout can't interactively answer a choice. Uses each choice's
  *  own `playerId` (the entering land's controller), which for a reanimation may
  *  differ from the acting player. */
-function autoFinalizeLandEntryChoices(state: GameState): void {
+export function autoFinalizeLandEntryChoices(state: GameState): void {
     while (true) {
         const head = state.pendingChoices?.[0];
         if (
