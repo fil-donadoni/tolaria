@@ -28610,6 +28610,16 @@
         "source": "compiled"
     },
     {
+        "name": "Harvest Wurm",
+        "scryfallId": "9d21139d-edfc-4140-aa43-d4165331d7f3",
+        "oracleId": "cd539212-ef7b-4f78-8d62-c42289aedc51",
+        "firstSet": "wth",
+        "firstPrintId": "9d21139d-edfc-4140-aa43-d4165331d7f3",
+        "firstPrintSet": "wth",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Harvester of Misery",
         "scryfallId": "a3012af9-621d-4fae-b00d-079a89ae35fe",
         "oracleId": "a0d3bb63-2977-41b2-bcc3-2488e6696cb8",

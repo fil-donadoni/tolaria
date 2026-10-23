@@ -6889,6 +6889,67 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 118.12a — the GRAVEYARD-leg payment: "return a basic land card from
+    // your graveyard to your hand" lowers to `CostLegs.graveyard` (one card,
+    // `{ type: "Land", supertype: "Basic" }`), the leg the engine pays by
+    // moving the payer's chosen card graveyard → hand.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Harvest Wurm",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Wurm",
+            oracleText:
+                "When this creature enters, sacrifice it unless you return a basic land card from your graveyard to your hand.",
+            power: "3",
+            toughness: "2",
+            oracleId: "cd539212-ef7b-4f78-8d62-c42289aedc51",
+            layout: "normal",
+        },
+        expected: {
+            name: "Harvest Wurm",
+            types: ["Creature"],
+            subtypes: ["Wurm"],
+            manaCost: { X: 1, G: 1 },
+            power: 3,
+            toughness: 2,
+            oracleText:
+                "When this creature enters, sacrifice it unless you return a basic land card from your graveyard to your hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "harvest-wurm-trigger",
+                    oracleText:
+                        "When this creature enters, sacrifice it unless you return a basic land card from your graveyard to your hand.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                graveyard: {
+                                    action: "return",
+                                    filter: {
+                                        type: "Land",
+                                        supertype: "Basic",
+                                    },
+                                    count: 1,
+                                },
+                            },
+                            prompt: "Return a basic land card from your graveyard to your hand, or sacrifice Harvest Wurm?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$may1" } },
+                            then: [
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     {
         rule: "effect clause",
         card: {

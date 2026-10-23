@@ -358,7 +358,7 @@ export function resolveKickerPayments(
         ) {
             throw new Error("This spell's kicker can only be paid once");
         }
-        if (kicker.energy !== undefined) {
+        if (kicker.energy !== undefined || kicker.graveyard !== undefined) {
             throw new Error("This kicker's cost cannot be paid");
         }
         canonical[id] = n;

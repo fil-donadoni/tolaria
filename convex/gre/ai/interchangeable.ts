@@ -184,6 +184,9 @@ export function mapMoveCardRefs(
                 ...(move.discardIds
                     ? { discardIds: many(move.discardIds) }
                     : {}),
+                ...(move.graveyardIds
+                    ? { graveyardIds: many(move.graveyardIds) }
+                    : {}),
             };
         case "play-land":
         case "turn-face-up":

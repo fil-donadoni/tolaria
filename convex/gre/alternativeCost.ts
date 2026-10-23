@@ -145,7 +145,11 @@ export function altCostPermanentCardinal(
  *  does (ADR 0074, PR #1963 review round 2). */
 export function handCardMatchesFilter(
     card: { card: { id?: string } },
-    filter: EffectCardFilter
+    filter: EffectCardFilter,
+    /** The zone the card sits in — `"hand"` for every hand leg; a may-pay
+     *  GRAVEYARD leg (`CostLegs.graveyard`) reads its cards in `"graveyard"`,
+     *  so a CR 113.6c characteristic-defining static applies for THAT zone. */
+    zone: "hand" | "graveyard" = "hand"
 ): boolean {
     const cardId = card.card.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -154,7 +158,7 @@ export function handCardMatchesFilter(
     // overrides the printed type line for a card sitting in hand (Grist, the
     // Hunger Tide is a creature card there, so it pays a "discard a creature
     // card" cost). `null` for every card declaring none, i.e. almost all.
-    const zc = resolveZoneCharacteristics(def, "hand");
+    const zc = resolveZoneCharacteristics(def, zone);
     const defTypes = zc?.types ?? def.types;
     const defSubtypes = zc?.subtypes ?? def.subtypes ?? [];
     const asArray = <T>(v: T | T[] | undefined): T[] | undefined =>
@@ -279,7 +283,7 @@ export function handCardMatchesFilter(
     // function fell straight through to `return true`.
     if (
         filter.any !== undefined &&
-        !filter.any.some((clause) => handCardMatchesFilter(card, clause))
+        !filter.any.some((clause) => handCardMatchesFilter(card, clause, zone))
     )
         return false;
     return true;
@@ -402,6 +406,10 @@ export function canPayAlternativeCost(
     if (!alternativeCostConditionMet(state, playerId, altCost.condition)) {
         return false;
     }
+    // CR 118.9 — the GRAVEYARD leg (`CostLegs.graveyard`) is a may-pay-only
+    // shape: the cast pipeline has no picker for it, so an alternative cost
+    // carrying one fails CLOSED (never offered) rather than casting for free.
+    if (altCost.graveyard) return false;
     const player = getPlayer(state, playerId);
     if (altCostHasPermanentLeg(altCost)) {
         const need = altCostPermanentCardinal(altCost);

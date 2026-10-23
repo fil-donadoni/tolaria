@@ -295,6 +295,10 @@ export type Move =
            *  otherwise. Mirrors `sacrificeIds`; both travel to the same
            *  `submitMayPay` entry point. */
           discardIds?: string[];
+          /** CR 118.3 / 118.12a — chosen graveyard card id(s) when the
+           *  accepted cost carries a graveyard leg (always a real choice).
+           *  Omitted otherwise. */
+          graveyardIds?: string[];
       }
     | {
           /** Yes/no answer to a `land-entry-tapped` pending choice (shock lands,

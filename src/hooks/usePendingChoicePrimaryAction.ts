@@ -7,6 +7,7 @@ import {
     mayPaySacrificePower,
     mayPaySacrificePickSatisfied,
     mayPayDiscardPickSatisfied,
+    mayPayGraveyardPickSatisfied,
 } from "~/lib/card-utils";
 import { mayPayUnitIsEligible } from "@convex/gre/state";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
@@ -70,12 +71,17 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                 // picks the player accumulated in the same shared buffer.
                 const discardIds =
                     choice.zone === "hand" ? bufferCtx.buffer : undefined;
+                // CR 118.3 / 118.12a — a graveyard leg always sets
+                // `zone: "graveyard"`; the cards to return are the buffer.
+                const graveyardIds =
+                    choice.zone === "graveyard" ? bufferCtx.buffer : undefined;
                 await submitMayPay({
                     gameId,
                     playerId,
                     accept: true,
                     ...(sacrificeIds ? { sacrificeIds } : {}),
                     ...(discardIds ? { discardIds } : {}),
+                    ...(graveyardIds ? { graveyardIds } : {}),
                 });
             } finally {
                 setIsBusy(false);
@@ -163,10 +169,20 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                 bufferCtx.buffer,
                 chooserHand
             );
+        // CR 118.3 / 118.12a — a graveyard leg (`zone: "graveyard"`) keeps
+        // Pay disabled until the buffer names exactly the cards to return.
+        const graveyardPickSatisfied =
+            choice.zone !== "graveyard" ||
+            mayPayGraveyardPickSatisfied(
+                choice.cost,
+                bufferCtx.buffer,
+                chooser?.graveyard ?? []
+            );
         canConfirm =
             !isBusy &&
             sacrificePickSatisfied &&
             discardPickSatisfied &&
+            graveyardPickSatisfied &&
             (!choice.cost ||
                 (chooser
                     ? mayPayCanAfford(
@@ -195,7 +211,8 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           // CR 122.1 (issue #1194) — energy leg affordability;
                           // energy survives the wire projection unchanged
                           // (`PlayerState.energyCounters`).
-                          chooser.energyCounters
+                          chooser.energyCounters,
+                          chooser.graveyard
                       )
                     : false));
     } else {
