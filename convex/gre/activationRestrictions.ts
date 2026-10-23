@@ -6,7 +6,7 @@
 // activated." Evaluated live on every read, exactly like `cast-restriction`
 // (`cards/castRestrictions.ts`) and `permanent-guard` (`gre/permanentGuard.ts`):
 // nothing is materialized, so the lock ends the moment its source leaves the
-// battlefield or loses its abilities (CR 611.2, CR 613.1f).
+// battlefield or loses its abilities (CR 611.3b, CR 613.1f).
 //
 // Pure function of a `TriggerStateView`, so the server mutations, the Bot's
 // enumerator and the client affordance (`buildTriggerStateView` rows, whose

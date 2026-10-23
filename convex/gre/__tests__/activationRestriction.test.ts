@@ -170,7 +170,7 @@ describe("activation-restriction: mana abilities are activated abilities (CR 605
         expect(card(me, "elves").isTapped).toBe(false);
     });
 
-    it("…and taps normally once the Totem is gone (a live query, CR 611.2)", () => {
+    it("…and taps normally once the Totem is gone (a live query, CR 611.3b)", () => {
         const { state, me } = board({ mine: [["Llanowar Elves", "elves"]] });
         me.battlefield = me.battlefield.filter((c) => c.id !== "totem-p1");
         tapSourceIntoPayment(state, me, card(me, "elves"), undefined, []);

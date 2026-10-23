@@ -10104,7 +10104,7 @@ export interface StaticCastTimingLock {
  *  activated, by any player. The activation sibling of
  *  `StaticCastRestriction`, and read the same way — a read-time gate, never
  *  materialized onto a permanent, so it ends the instant its source leaves
- *  the battlefield (CR 611.2).
+ *  the battlefield (CR 611.3b).
  *
  *  `filter` names permanents only: a description with a card type and no zone
  *  means a permanent of that type on the battlefield (CR 109.2), so a creature
