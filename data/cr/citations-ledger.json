@@ -1939,7 +1939,7 @@
         {"id":"107.3","line":"\"a mana-value X is not expressible as a cast-permission filter (CR 107.3)\",","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"107.3","line":"\"a sweep reads X but its source announces no {X} (CR 107.3)\"","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"107.3","line":"\"a target filter reads X but its source announces no {X} (CR 107.3)\"","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
-        {"id":"107.3","line":"\"an effect reads X but its source announces no {X} (CR 107.3)\"","sites":1,"status":"baseline"},
+        {"id":"107.3","line":"\"an effect reads X but its source announces no {X} (CR 107.3)\"","sites":2,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"107.3","line":"* (CR 107.3 / 118.12, issue #3244): \"you may tap X untapped Myr you control.","sites":1,"status":"confirmed","ruleHash":"7f7a58c8b2f02ca8"},
         {"id":"107.3","line":"* (CR 107.3 / 202.3, e.g. Spell Blast). */","sites":1,"status":"baseline"},
         {"id":"107.3","line":"* (CR 107.3) — used by Spell Blast (\"counter target spell with mana","sites":1,"status":"baseline"},
