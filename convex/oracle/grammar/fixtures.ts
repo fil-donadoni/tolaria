@@ -4094,6 +4094,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23d (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+    // "Search your library for three cards and reveal them. Target opponent
+    // chooses one. Put that card into your hand and the rest into your
+    // graveyard. Then shuffle.": a quantity search, the opponent's pick from
+    // the revealed pile, the split, the shuffle (issue #5254). Exhibits the
+    // tutor's card-dependent forms: the opponent's `choice` reads a binding
+    // only the search writes, and both `moveZone`s change zones on objects
+    // the generator does not model. Intuition is the one printing.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3c9faba7-f2d3-4978-be94-020dc8003dc0",
+            name: "Intuition",
+            manaCost: "{2}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Intuition",
+            types: ["Instant"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: 3,
+                    prompt: "Search your library for three cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: { target: 0 },
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: "$found1" }],
+                    count: 1,
+                    prompt: "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard.",
+                    bind: "$picked2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked2" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
     // "Search your library for a creature card, reveal it, then shuffle and put
     // the card on top": the tutor-to-top. Exhibits the same three
