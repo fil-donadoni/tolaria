@@ -3949,6 +3949,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  attacking", untargeted, over `SpellContext.getAttackTarget`) and the
  *  battlefield-only `EffectCardFilter.tapped` status field (CR 110.5), gated in
  *  the validator exactly like `isAttacking`.
+ *  `nontokenCreaturesToGraveyardThisTurn` (`{ nontokenCreaturesToGraveyardThisTurn:
+ *  { of } }`) IS a new value-grammar member, with the same non-Op,
+ *  non-ADR-0045-reopening status: CR 700.4, how many NONTOKEN creatures were
+ *  put into a PLAYER's graveyard from the battlefield this turn, a thin skin
+ *  over SpellContext.getNontokenCreaturesToGraveyardThisTurn reading
+ *  `PlayerState.nontokenCreaturesToGraveyardThisTurn` — a per-owner tally
+ *  beside the global `deathsThisTurn`, which cannot answer it (it counts
+ *  tokens and both owners). Reason to exist: "for each nontoken creature put
+ *  into your graveyard from the battlefield this turn" (Caller of the Claw).
  *  `choice.count` as a computed `EffectValue` (issue #5559) is NOT an Op and
  *  NOT a new value member: the existing `choice` Op's exact count widened
  *  from a literal to any non-literal `EffectValue`, resolved once as the

@@ -1038,6 +1038,18 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getCardsDrawnThisTurn(playerId);
     }
+    // nontokenCreaturesToGraveyardThisTurn (CR 700.4) — nontoken creatures put into a PLAYER's graveyard from
+    // the battlefield this turn, a thin skin over the per-owner tally. `of`
+    // names the graveyard's owner (CR 404.1), resolved through the SAME
+    // resolvePlayerRef path; undefined when it cannot be resolved (CR 608.2b).
+    if ("nontokenCreaturesToGraveyardThisTurn" in value) {
+        const playerId = resolvePlayerRef(
+            ctx,
+            value.nontokenCreaturesToGraveyardThisTurn.of
+        );
+        if (playerId === undefined) return undefined;
+        return ctx.getNontokenCreaturesToGraveyardThisTurn(playerId);
+    }
     // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
     // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
     // sibling of `counters` above: `of` is a PLAYER selector resolved through

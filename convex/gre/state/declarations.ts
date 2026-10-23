@@ -1923,6 +1923,14 @@ export type PlayerState = {
      *  "a card left your graveyard this turn" is `> 0`, and a future "for each
      *  card that left your graveyard this turn" reads the same field. */
     leftGraveyardThisTurn?: number;
+    /** Count of NONTOKEN creatures put into THIS player's graveyard from the
+     *  battlefield this turn (CR 700.4 — "dies"; CR 111.7 — a token that
+     *  leaves the battlefield is never a card in a graveyard, so it is not
+     *  counted). Keyed by the OWNER, the player whose graveyard the card
+     *  lands in (CR 404.1). Written at the one battlefield-departure funnel
+     *  (`removePermanentTo`) beside the global `deathsThisTurn`, reset at turn
+     *  start. Read by the `{ nontokenCreaturesToGraveyardThisTurn: { of } }` EffectValue. */
+    nontokenCreaturesToGraveyardThisTurn?: number;
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)

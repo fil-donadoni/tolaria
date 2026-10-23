@@ -4869,6 +4869,14 @@ function lowerCreateToken(
         op.count = x.value;
         return lowered([op]);
     }
+    if (count.kind === "nontoken-creatures-to-your-graveyard-this-turn") {
+        // CR 700.4 — the controller's own per-turn tally: "your graveyard" is
+        // the graveyard of the player who controls the ability.
+        op.count = {
+            nontokenCreaturesToGraveyardThisTurn: { of: "controller" },
+        };
+        return lowered([op]);
+    }
     const actedOn = walk.actedOn;
     if (actedOn === null)
         return unlowerable(

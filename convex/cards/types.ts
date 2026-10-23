@@ -5445,6 +5445,11 @@ export interface SpellContext {
      *  you later discarded. Used by the `{ cardsDrawnThisTurn: { of } }`
      *  EffectValue grammar member (Proft's Eidetic Memory). */
     getCardsDrawnThisTurn: (playerId: string) => number;
+    /** CR 700.4 — how many NONTOKEN creatures were put into `playerId`'s
+     *  graveyard from the battlefield this turn (CR 111.7: tokens never
+     *  count). Reads `PlayerState.nontokenCreaturesToGraveyardThisTurn`. Used by the
+     *  `{ nontokenCreaturesToGraveyardThisTurn: { of } }` EffectValue member. */
+    getNontokenCreaturesToGraveyardThisTurn: (playerId: string) => number;
     /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
      *  `attackerId` is attacking RIGHT NOW: the planeswalker its
      *  `combat.attackTargets` entry names, else the defending player. A
@@ -12056,6 +12061,10 @@ export interface TriggerStateView {
          *  Mirrors `PlayerState.leftGraveyardThisTurn`; undefined defaults
          *  to 0. */
         leftGraveyardThisTurn?: number;
+        /** Nontoken creatures put into this player's graveyard from the
+         *  battlefield this turn (CR 700.4). Mirrors
+         *  `PlayerState.nontokenCreaturesToGraveyardThisTurn`; undefined is 0. */
+        nontokenCreaturesToGraveyardThisTurn?: number;
         /** Graveyard contents in stack order (index 0 = bottom, last = top).
          *  Exposed so graveyard-zone triggers can inspect card position —
          *  Nether Shadow needs "three or more creature cards above it"
@@ -14565,6 +14574,7 @@ export type EffectValue =
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
     | EffectCardsDrawnThisTurnValue
+    | EffectNontokenCreaturesToGraveyardThisTurnValue
     | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
@@ -14644,6 +14654,22 @@ export type EffectLifeGainedThisTurnValue = {
  *  never reaches the interpreter. */
 export type EffectCardsDrawnThisTurnValue = {
     cardsDrawnThisTurn: { of: EffectPlayerRef };
+};
+
+/** nontokenCreaturesToGraveyardThisTurn — how many NONTOKEN creatures were put into a PLAYER's graveyard from
+ *  the battlefield so far this turn (CR 700.4 "dies", CR 111.7 tokens never
+ *  reach a graveyard), a thin JSON-pure skin over
+ *  `SpellContext.getNontokenCreaturesToGraveyardThisTurn`. Like
+ *  `cardsDrawnThisTurn` it is NOT an Op and NOT a structural construct.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`) naming the graveyard's OWNER
+ *  (CR 404.1); it resolves through `resolvePlayerRef`, an unresolvable player
+ *  yields undefined (CR 608.2b). The count reads the per-owner tally
+ *  `PlayerState.nontokenCreaturesToGraveyardThisTurn`, so a creature that was replaced into exile or another
+ *  zone never raises it. It is the retrospective "for each nontoken creature
+ *  put into your graveyard from the battlefield this turn" count. */
+export type EffectNontokenCreaturesToGraveyardThisTurnValue = {
+    nontokenCreaturesToGraveyardThisTurn: { of: EffectPlayerRef };
 };
 
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a
