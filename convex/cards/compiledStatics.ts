@@ -314,6 +314,11 @@ export type CompiledStaticEffect =
           readonly kind: "attack-restriction" | "block-restriction";
           readonly id: string;
           readonly oracleText: string;
+          /** CR 509.1b — `block-restriction` only: "can't block unless you
+           *  control more creatures than attacking player". The rebuilt
+           *  predicate compares the creature counts of the blocker's and the
+           *  attacker's controllers; absent: unconditional. */
+          readonly unlessControlMoreCreatures?: true;
       }
     /**
      * CR 601.3a / 201.2a — "Spells with the chosen name can't be cast": the
@@ -568,6 +573,20 @@ function spellMatches(
 }
 
 /** CR 118.7a — a generic-only cost delta, as the engine's `ManaCost`. */
+/** CR 509.1b — creatures the controller of `permanent` controls right now. */
+function countCreaturesControlledBy(
+    state: StaticEffectStateView,
+    permanent: PermanentView
+): number {
+    const controller = state.players.find(
+        (p) => p.id === permanent.controllerId
+    );
+    return (
+        controller?.battlefield.filter((c) => c.types.includes("Creature"))
+            .length ?? 0
+    );
+}
+
 function generic(amount: number): ManaCost {
     return { X: amount };
 }
@@ -700,7 +719,13 @@ export function resolveCompiledStatic(
                 // CR 509.1b — the restriction is on the enchanted creature AS
                 // a blocker; the attacker side restricts who may block IT.
                 side: "blocker",
-                predicate: () => false,
+                predicate:
+                    descriptor.unlessControlMoreCreatures === true
+                        ? (self, attacker, state) =>
+                              state !== undefined &&
+                              countCreaturesControlledBy(state, self) >
+                                  countCreaturesControlledBy(state, attacker)
+                        : () => false,
                 oracleText: descriptor.oracleText,
             };
         case "cast-restriction":
