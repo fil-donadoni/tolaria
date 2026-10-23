@@ -3967,6 +3967,75 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.24a + CR 404.1 — "When this card is put into your graveyard from
+    // your library, shuffle your graveyard into your library": the whole
+    // graveyard moves into the library and the library is shuffled. Exhibits the
+    // whole-zone move at a milled-self head: the canned smoke scenario models
+    // no graveyard-to-library move, so this fixture is the evidence the
+    // `moveZone` + `libraryLook` pair the grammar emits is Feldon's Cane's
+    // hand-written composition.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "bd5478df-3854-404b-8634-9debcef69b99",
+            name: "Gaea's Blessing",
+            manaCost: "{1}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Target player shuffles up to three target cards from their graveyard into their library.\nDraw a card.\nWhen this card is put into your graveyard from your library, shuffle your graveyard into your library.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gaea's Blessing",
+            types: ["Sorcery"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "Target player shuffles up to three target cards from their graveyard into their library.\nDraw a card.\nWhen this card is put into your graveyard from your library, shuffle your graveyard into your library.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "gaea-s-blessing-trigger",
+                    oracleText:
+                        "When this card is put into your graveyard from your library, shuffle your graveyard into your library.",
+                    head: { kind: "library-to-graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: "controller",
+                            from: "graveyard",
+                            to: "library",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "graveyard",
+                    count: { min: 0, max: 3 },
+                    prompt: "Shuffle up to three target cards from that player's graveyard into their library.",
+                    bind: "$reclaimed1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$reclaimed1" },
+                    player: { target: 0 },
+                    from: "graveyard",
+                    to: "library",
+                },
+                { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a basic
     // land card, reveal it, put it into your hand, then shuffle": the
     // controller may find one basic land, shows it to every player, takes it,
