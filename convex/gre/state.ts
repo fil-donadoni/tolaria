@@ -1045,6 +1045,10 @@ export function resolveTargetRequirementCount(
     options: {
         requireX?: boolean;
         announcement?: TargetCountAnnouncement;
+        /** A text-defined bound ALREADY determined for this object — a copy
+         *  or a retargeted spell keeps the number of targets its cast fixed
+         *  (CR 707.10, CR 601.2c), so the board is never read again. */
+        determinedMax?: number;
     } = {}
 ): number | { min: number; max?: number } {
     const resolveX = (): number => {
@@ -1075,6 +1079,12 @@ export function resolveTargetRequirementCount(
     // the group takes targets at all, and folding it to `min` would answer
     // "no" for an "up to X" group. Every site that OPENS a selection passes
     // the announcement.
+    if (options.determinedMax !== undefined) {
+        return {
+            min: count.min,
+            max: Math.max(count.min, options.determinedMax),
+        };
+    }
     if (!options.announcement) return { min: count.min };
     const quantity = evaluateAnnouncedQuantity(
         options.announcement,
@@ -11062,15 +11072,10 @@ export function requestCopyRetargetOn(
     // the single shared resolver. `requireX` stays false (the default): a
     // copy's `chosenX` is read defensively off already-resolved state, so a
     // missing X here folds to 0 instead of throwing mid-resolve.
-    // CR 707.10c — the copy's controller may choose new targets; the primary
-    // group's text-defined bound has no earlier picks, as at the cast.
+    // CR 707.10 — the copy copies "all decisions made for it, including …
+    // targets": a text-defined bound keeps the number its cast fixed.
     const count = resolveTargetRequirementCount(req.count, copy.chosenX, {
-        announcement: {
-            state,
-            controllerId: copy.castById,
-            sourceInstanceId: copy.id,
-            priorTargets: [],
-        },
+        determinedMax: copy.targets?.length ?? 0,
     });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
@@ -16442,14 +16447,9 @@ export function buildSpellContext(
             const count = resolveTargetRequirementCount(
                 requirement.count,
                 item.chosenX,
-                {
-                    announcement: {
-                        state,
-                        controllerId: item.castById,
-                        sourceInstanceId: spell.id,
-                        priorTargets: [],
-                    },
-                }
+                // CR 601.2c — the spell keeps the number of targets its
+                // cast fixed; only the targets change.
+                { determinedMax: spell.targets?.length ?? 0 }
             );
             const minNeeded = typeof count === "number" ? count : count.min;
             if (minNeeded <= 0) return; // no targets to choose

@@ -57,6 +57,15 @@ describe("resolveTargetRequirementCount — a text-defined bound (CR 601.2c, iss
         ).toEqual({ min: 0, max: 0 });
     });
 
+    it("keeps a bound already determined — a copy keeps its cast's number (CR 707.10)", () => {
+        expect(
+            resolve({ min: 0, max: BLACK_PERMANENTS_OF_TARGET_0 }, undefined, {
+                determinedMax: 1,
+                announcement: announcement(2, [{ type: "player", id: "p2" }]),
+            })
+        ).toEqual({ min: 0, max: 1 });
+    });
+
     it("stays open without an announcement — the bound is not known yet", () => {
         expect(
             resolve({ min: 0, max: BLACK_PERMANENTS_OF_TARGET_0 }, undefined)

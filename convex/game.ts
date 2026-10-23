@@ -4441,17 +4441,18 @@ function applyRequirementToPendingTarget(
     state: GameState,
     pt: PendingTarget,
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    priorTargets: readonly TargetSelection[]
 ): void {
     pt.targetType = req.type;
     // CR 601.2c — a text-defined bound is read HERE, once, against the picks
-    // the earlier groups locked into `priorSelected`; the stored number is
-    // what the rest of the cast reads, never the board again.
+    // the earlier groups made (the slots its `{ target: N }` names); the
+    // stored number is what the rest of the cast reads, never the board again.
     pt.count = resolveTargetCount(req.count, chosenX, {
         state,
         controllerId: pt.playerId,
         sourceInstanceId: pt.cardInstanceId,
-        priorTargets: pt.priorSelected ?? [],
+        priorTargets,
     });
     pt.selected = [];
     // Clear every optional filter so a prior group's constraint never leaks,
@@ -4556,14 +4557,19 @@ export function advanceTargetGroupOrFinalize(
         recordModeTargetGroup(pt, pt.selected.length);
         pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
         pt.remainingRequirements = rest.length > 0 ? rest : undefined;
+        // ADR 0094 — with several mode instances, the earlier picks a group
+        // sees are its own instance's: the slots its script reads at
+        // resolution.
+        const instancePrior = priorTargetsOfSameModeInstance(
+            pt,
+            pt.priorSelected
+        );
         applyRequirementToPendingTarget(
             state,
             pt,
-            excludingPriorTargets(
-                next,
-                priorTargetsOfSameModeInstance(pt, pt.priorSelected)
-            ),
-            pt.chosenX
+            excludingPriorTargets(next, instancePrior),
+            pt.chosenX,
+            instancePrior
         );
         // CR 601.2c — one announcement, one set of targets: a requirement the
         // earlier groups left unobeyed follows the walk into this one, and the

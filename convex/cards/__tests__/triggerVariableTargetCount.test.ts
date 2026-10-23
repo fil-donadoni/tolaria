@@ -35,15 +35,22 @@ import type { TriggeredAbility } from "../types";
 // A text-defined bound (`TargetCountQuantity`, issue #6526) is just as
 // inert there: `triggerTargetMinMax` has no announcement to read it against
 // and collapses it to `min` the same way.
+// A modal trigger announces its chosen mode's requirement through the same
+// collapse, so every mode is swept too.
 function hasInertVariableMax(ability: TriggeredAbility): boolean {
-    const count = ability.targetRequirement?.count;
-    return (
-        typeof count === "object" &&
-        count !== null &&
-        !Array.isArray(count) &&
-        count.max !== undefined &&
-        typeof count.max !== "number"
-    );
+    return [
+        ability.targetRequirement,
+        ...(ability.modes ?? []).map((m) => m.targetRequirement),
+    ].some((req) => {
+        const count = req?.count;
+        return (
+            typeof count === "object" &&
+            count !== null &&
+            !Array.isArray(count) &&
+            count.max !== undefined &&
+            typeof count.max !== "number"
+        );
+    });
 }
 
 describe("Triggered ability targetRequirement — no inert 'up to X' count (CR 603.3d, issue #2365)", () => {

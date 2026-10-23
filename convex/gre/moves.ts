@@ -2694,11 +2694,15 @@ function enumerateTargetGroupTuples(
 ): {
     targets: TargetSelection[];
     lastGroupSize: number;
+    lastGroupPrior: readonly TargetSelection[];
     modeTargetCounts?: number[];
 }[] {
     type Tuple = {
         targets: TargetSelection[];
         lastGroupSize: number;
+        /** The earlier picks the LAST group's count was read over — its own
+         *  mode instance's, as the server's walk reads them (CR 601.2c). */
+        lastGroupPrior: readonly TargetSelection[];
         modeTargetCounts?: number[];
     };
     const groupInstances = modeInstances?.groupInstances;
@@ -2729,6 +2733,7 @@ function enumerateTargetGroupTuples(
         {
             targets: [],
             lastGroupSize: 0,
+            lastGroupPrior: [],
             ...(modeInstances
                 ? {
                       modeTargetCounts: new Array<number>(
@@ -2788,7 +2793,7 @@ function enumerateTargetGroupTuples(
                               prefix.modeTargetCounts[instance]
                       )
                     : prefix.targets;
-            for (const tuple of sharedTuples ?? tuplesAfter(prefix.targets)) {
+            for (const tuple of sharedTuples ?? tuplesAfter(priorPicks)) {
                 // CR 115.3 "another target" (issue #3236) — the group may not
                 // re-pick a permanent an earlier group chose; the engine lowers
                 // the same directive into `excludeInstanceIds` when the walk
@@ -2836,6 +2841,7 @@ function enumerateTargetGroupTuples(
                 next.push({
                     targets: [...prefix.targets, ...tuple],
                     lastGroupSize: tuple.length,
+                    lastGroupPrior: priorPicks,
                     ...(modeTargetCounts ? { modeTargetCounts } : {}),
                 });
                 if (next.length >= MAX_COMBINATIONS) break;
@@ -4067,6 +4073,7 @@ function enumerateCastMovesFromZone(
                 for (const {
                     targets,
                     lastGroupSize,
+                    lastGroupPrior,
                     modeTargetCounts,
                 } of enumerateTargetGroupTuples(
                     state,
@@ -4103,12 +4110,7 @@ function enumerateCastMovesFromZone(
                             lastReq,
                             lastGroupSize,
                             x,
-                            announcementOf(
-                                state,
-                                player,
-                                card,
-                                targets.slice(0, targets.length - lastGroupSize)
-                            )
+                            announcementOf(state, player, card, lastGroupPrior)
                         ),
                         tapPlan,
                         ...(payLife > 0 ? { payLife } : {}),
@@ -5057,6 +5059,7 @@ function enumerateAbilityMoves(
             for (const {
                 targets,
                 lastGroupSize,
+                lastGroupPrior,
                 modeTargetCounts,
             } of enumerateTargetGroupTuples(
                 state,
@@ -5119,12 +5122,7 @@ function enumerateAbilityMoves(
                             lastAbilityReq,
                             lastGroupSize,
                             undefined,
-                            announcementOf(
-                                state,
-                                player,
-                                perm,
-                                targets.slice(0, targets.length - lastGroupSize)
-                            )
+                            announcementOf(state, player, perm, lastGroupPrior)
                         ),
                         tapPlan: tupleTapPlan,
                         ...(costPicks ? { costPicks } : {}),
