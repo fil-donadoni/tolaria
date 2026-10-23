@@ -67,7 +67,11 @@ import {
     manaValue,
     stackManaValue,
 } from "./constants";
-import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import {
+    getInstanceManaCost,
+    getPermanentManaValueCost,
+    tryGetDefinition,
+} from "../cards";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 import { effectiveTriggeredAbilities } from "./copy";
 
@@ -113,9 +117,7 @@ export function resolveMvFilter(
  *  battlefield, X-cost permanents currently report 0 for X (the chosen X
  *  is not persisted on the resulting permanent). */
 function mvOfPermanent(card: CardInstanceState): number {
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost);
+    return manaValue(getPermanentManaValueCost(card));
 }
 
 /** Computes mana value for a graveyard (or hand) card target lookup (CR

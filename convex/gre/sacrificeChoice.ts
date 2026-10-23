@@ -24,7 +24,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
 // CR 202.3 — the single mana-value authority (hybrid + Phyrexian pips, CR 202.3f).
 import { manaValue } from "./constants";
-import { tryGetDefinition } from "../cards/index";
+import { getPermanentManaValueCost } from "../cards/index";
 import { liveSupertypesOf } from "../cards/snowReads";
 
 export type SacrificeRequirement = {
@@ -357,9 +357,7 @@ export function isSacrificeSelectionComplete(sel: SacrificeSelection): boolean {
  *  permanent's mana value" (issue #2375) — a hybrid victim dealt 2 instead
  *  of 3. */
 function manaValueOf(c: CardInstanceState): number {
-    const cardId = (c.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost);
+    return manaValue(getPermanentManaValueCost(c));
 }
 
 function pickRequirements(

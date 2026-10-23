@@ -63,7 +63,7 @@ import {
 } from "../cards";
 import {
     declaresLingeringStaticEffect,
-    getInstanceManaCost,
+    getPermanentManaValueCost,
 } from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
@@ -14432,7 +14432,7 @@ export function buildSpellContext(
                 // CR 202.3a — an object with no mana cost has mana value 0; the
                 // instance's own cost, so a token or copy "except it has no mana
                 // cost" (`manaCostOverride`) reads 0, not the printed cost.
-                return manaValue(getInstanceManaCost(found.card));
+                return manaValue(getPermanentManaValueCost(found.card));
             }
             if (target.type === "spell") {
                 const stackItem =
