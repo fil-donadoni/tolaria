@@ -312,7 +312,13 @@ describe("gold round-trip — precision", () => {
         // projection cannot compare, while its line is now compiled — the same
         // move as the entries above. The compiled definition is proven by
         // `shuffleGraveyardIntoLibrary.test.ts` and its golden fixture instead.
-        expect(REPORT.incomparable.length).toBeLessThan(76);
+        //
+        // Raised 76 -> 77 with the controller damage prevention rule:
+        // Solitary Confinement's hand-written upkeep trigger is a closure the
+        // projection cannot compare, while its prevention line is now
+        // compiled — the same move as the entries above. The compiled
+        // definition is proven by `controllerDamagePrevention.test.ts`.
+        expect(REPORT.incomparable.length).toBeLessThan(77);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
