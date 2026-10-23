@@ -789,8 +789,10 @@ Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
 `check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
 most 8 s on a landing that admits all three, nothing on one that admits none.
 `blade-index`: 1.9 s at load ~2, 4.5–9.2 s wall at load 33–35 (2026-10-18).
-`search-cost`: 4.4 s wall at load ~6–8 (2026-10-23); the first run in a fresh
-worktree, vitest's transform cache cold, took 12.7 s at load ~17.
+`search-cost`: 4.4 s wall at load ~6–8 on the MacBook (2026-10-23; 12.7 s on a
+fresh worktree's cold transform cache at load ~17), ~22 s wall warm on the
+Huawei — over the budget there by the owner's explicit exception (ADR 0154
+§12).
 
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or
