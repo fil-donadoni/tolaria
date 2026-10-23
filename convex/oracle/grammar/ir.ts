@@ -126,7 +126,10 @@ export type ManaRiderIR =
      *  permanents, return this land to its owner's hand"
      *  (`manaAbilityEffects` → `returnToHandAtNextUntap $source`, Undiscovered
      *  Paradise; issue #5509). */
-    | { readonly kind: "return-source-at-next-untap" };
+    | { readonly kind: "return-source-at-next-untap" }
+    /** CR 602.5b — "Activate only once each turn." (`oncePerTurn`, an
+     *  activation gate rather than a tap-route effect). */
+    | { readonly kind: "once-per-turn" };
 
 export type ManaProductionIR =
     | {
