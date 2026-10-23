@@ -500,6 +500,20 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "self-pt-cda-exiled-totals":
+            return {
+                ok: true,
+                lowered: {
+                    definesPowerToughness: true,
+                    effects: [
+                        {
+                            kind: "pt-cda",
+                            appliesTo: "self",
+                            count: { kind: "exiled-with-source-totals" },
+                        },
+                    ],
+                },
+            };
         case "as-enters-choose-creature-type":
             return { ok: true, lowered: { asEntersCreatureType: true } };
         case "as-enters-choose-card-name":

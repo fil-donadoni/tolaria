@@ -8341,6 +8341,12 @@ export interface StaticEffectStateView {
             readonly id: string;
             readonly exiledBySourceId?: string;
             readonly card: Readonly<Record<string, unknown>>;
+            /** The exiled card's printed power / toughness, for a CDA that
+             *  totals a linked pile (CR 604.3, 607.2a). Both survive the wire
+             *  projection (`slimCard` is a spread), so the total is identical
+             *  server-side and client-side. */
+            readonly power?: number;
+            readonly toughness?: number;
         }>;
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
