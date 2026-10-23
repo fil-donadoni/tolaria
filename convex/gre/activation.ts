@@ -632,7 +632,7 @@ export function assertDiscardFilterCostAffordable(
     }
 }
 
-/** CR 602.1 / 118.3 / 118.5 — a filtered give-up-a-permanent leg ("Sacrifice
+/** CR 602.1 / 118.3 — a filtered give-up-a-permanent leg ("Sacrifice
  *  a permanent matching <filter>", "Return a permanent matching <filter> you
  *  control to its owner's hand") is unpayable unless the activator controls
  *  enough matching permanents. The twin of
@@ -665,7 +665,7 @@ export function assertPermanentGiveUpCostAffordable(
                 }
             )
         );
-        // CR 602.1 / 118.5 — "Sacrifice TEN nonland permanents" (Bolas's
+        // CR 602.1 / 118.3 — "Sacrifice TEN nonland permanents" (Bolas's
         // Citadel): the gate is a COUNT, not mere existence.
         if (candidates.length < leg.count) {
             throw new Error(
@@ -2609,7 +2609,7 @@ export function activateAbilityOnState(
     if (ability.cost.life !== undefined && player.life < ability.cost.life) {
         throw new Error("Not enough life");
     }
-    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" / "return a
+    // CR 602.1 / 118.3 — "sacrifice a permanent matching <filter>" / "return a
     // permanent matching <filter> you control to its owner's hand": the
     // activation is illegal if no matching permanent is on the activating
     // player's battlefield. Validated up-front so we never enter a

@@ -2427,7 +2427,7 @@ export function getStackAbilities(
         // to its owner's hand") is gated by the same count, through the one
         // leg list `permanentGiveUpCostLegs`.
         if (stateView) {
-            // CR 602.1 / 118.5 — the cost is paid by the ACTIVATOR, not
+            // CR 602.1a — the cost is paid by the ACTIVATOR, not
             // necessarily the source's controller ("any player may
             // activate"/enchanted-controller abilities, `activatorId` above):
             // `activateAbilityOnState` (`convex/gre/activation.ts`) scans
