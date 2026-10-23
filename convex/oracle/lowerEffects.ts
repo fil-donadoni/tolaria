@@ -66,9 +66,9 @@ import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
  * CR 205.4a — "other than basic land cards": a card matches unless it is BOTH
  * a land and basic, which an AND-of-fields filter cannot spell on its own.
  */
-const NOT_A_BASIC_LAND = {
+const NOT_A_BASIC_LAND: EffectCardFilter = {
     any: [{ excludeType: "Land" }, { excludeSupertype: "Basic" }],
-} as const;
+};
 
 /**
  * A lowering step's outcome.
@@ -3574,7 +3574,7 @@ function lowerSentenceBody(
                     select: {
                         set: "graveyard",
                         controller: player.value,
-                        filter: NOT_A_BASIC_LAND,
+                        filter: structuredClone(NOT_A_BASIC_LAND),
                     },
                     effects: [
                         {
@@ -3583,7 +3583,7 @@ function lowerSentenceBody(
                             fromZones: ["graveyard"],
                             filter: {
                                 name: { ref: "$each.name" },
-                                ...NOT_A_BASIC_LAND,
+                                ...structuredClone(NOT_A_BASIC_LAND),
                             },
                             to: "exile",
                         },
@@ -3618,7 +3618,7 @@ function lowerSentenceBody(
                         op: "moveZone",
                         player: player.value,
                         fromZones: ["graveyard"],
-                        filter: NOT_A_BASIC_LAND,
+                        filter: structuredClone(NOT_A_BASIC_LAND),
                         to: "exile",
                     },
                 ]);
