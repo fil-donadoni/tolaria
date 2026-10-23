@@ -2490,6 +2490,9 @@ function lowerSentenceBody(
             // price is the FOURTH `mayPay` cost leg: a generic amount built
             // from a runtime tally (`genericEqualTo`), never a base cost with
             // a reduction, which has nothing to subtract from.
+            // The pronoun form is untaxed only (effectSentence refuses a taxed one).
+            if (!("target" in target.value))
+                return unlowerable('a taxed "it" names no announced spell');
             const bind = walk.nextBind("may");
             // CR 118.12a — the taxed player is the spell's controller.
             const taxed = { controllerOf: target.value };
