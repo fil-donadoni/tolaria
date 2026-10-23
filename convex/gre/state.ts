@@ -6223,6 +6223,9 @@ export function isCombatDamageImmune(
  *  for a cast-and-resolved permanent, `stageReanimatedOnBattlefield` for
  *  reanimation / tutor-to-battlefield, `settleEnteredLand` for every play-a-
  *  land origin) — NOT from `removePermanentTo`'s departure path any more.
+ *  An entry PARKED on an as-enters choice is cleared at park time instead
+ *  (`stageAsEntersEntry`), and the funnel skips it on the resume: the
+ *  `exileFromGraveyard` answer links its pile before the permanent enters.
  *  Moving the clear to entry is the fix for issue #2001: CR 113.7a ("Once
  *  activated or triggered, an ability exists on the stack independently of
  *  its source. Destruction or removal of the source after that time won't
@@ -9852,6 +9855,11 @@ export function stageAsEntersEntry(
     // pile to this id BEFORE the permanent enters (CR 614.12a), and the
     // tail's own clear would erase it. Every entry funnel therefore skips its
     // clear on the `asEntersResolved` resume — a parked entry has had it.
+    // The price: an entry its answer then ABORTS (a declined `discard`, an
+    // `aura-host` with no legal host) never enters, yet its previous
+    // incarnation's links are gone — an ability of that incarnation still on
+    // the stack reads an empty pile. No card pairs an abortable as-enters
+    // choice with a linked exile.
     clearExileLinksToEnteringSource(state, card.id);
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
