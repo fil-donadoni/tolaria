@@ -829,7 +829,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // position punishes the tap, so declining the attack throws away two
         // damage. The vanilla twin of this position (Hill Giant / Grizzly
         // Bears) attacked on every seed; the Ballista did not.
-        label: "must: attacks with a counter-bodied Walking Ballista into an empty board",
+        label: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
         classification: {
             kind: "conditional",
             discriminant: {
@@ -865,7 +865,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         label: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
         pairOf: {
-            anchor: "must: attacks with a counter-bodied Walking Ballista into an empty board",
+            anchor: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
             discriminant: {
                 kind: "card",
                 detail: "an untapped opposing Hill Giant that blocks and kills it",

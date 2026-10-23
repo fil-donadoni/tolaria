@@ -73,6 +73,7 @@ import {
     applyAllCombatDamage,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
+    PHASE_ORDER,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -1313,15 +1314,58 @@ export function applyMoveInSearch(
  *  material `margin` (breaks outcome-equal ties), both from the bot's view. */
 type Leaf = { reward: number; margin: number };
 
+/** A point on the game clock: the turn number and the step's index in
+ *  `PHASE_ORDER` (CR 500.1). */
+type GameClock = { turn: number; step: number };
+
+function gameClockOf(state: GameState): GameClock {
+    return { turn: state.turn, step: PHASE_ORDER.indexOf(state.phase) };
+}
+
+/** Steps of game time from `since` to `state` — never negative. */
+function stepsSince(since: GameClock, state: GameState): number {
+    const now = gameClockOf(state);
+    return Math.max(
+        0,
+        (now.turn - since.turn) * PHASE_ORDER.length + (now.step - since.step)
+    );
+}
+
 /** Score a stable leaf from the bot's perspective — ONE evaluation yields both
  *  the value the reward band shapes and the material margin (issue #4459),
- *  byte-identical to `reward` + `materialMargin` at half the player scores. */
+ *  byte-identical to `reward` + `materialMargin` at half the player scores.
+ *
+ *  `since` — the search root's game clock — makes a WON leaf pay for the game
+ *  time it took (issue #3376): a sooner win outranks a later one. A won game's
+ *  material only orders wins by how decisive they are (`evaluate`), and
+ *  reaching the win sooner is the more decisive: every step in between is a
+ *  window the opponent acts in with cards the search cannot see. Without it,
+ *  a creature that can win NOW by spending itself scored below passing and
+ *  winning a few steps later with the creature still on the board — inside
+ *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
+ *  see. The cost is two `materialFull` per turn's worth of steps — a win one
+ *  turn later falls the whole width of the win band, the full material signal
+ *  from +1 to −1 — and comes off BOTH channels, the reward and
+ *  the tie-break margin, so neither the outcome-equality band nor the
+ *  material tie-break re-orders what the other separated. A win stays in the
+ *  win band. Losses and open leaves are untouched; with no `since` the leaf
+ *  is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
-    weights: EvalWeights
+    weights: EvalWeights,
+    since?: GameClock
 ): Leaf {
     const { value, margin } = evaluateWithMargin(state, botId, weights);
+    if (since && value >= terminalMagnitude(weights)) {
+        const delay =
+            (stepsSince(since, state) * 2 * weights.materialFull) /
+            PHASE_ORDER.length;
+        return {
+            reward: rewardFromValue(value - delay, weights),
+            margin: margin - delay,
+        };
+    }
     return { reward: rewardFromValue(value, weights), margin };
 }
 
@@ -1421,7 +1465,9 @@ export function rollout(
     state: GameState,
     botId: string,
     rng: () => number,
-    weights: EvalWeights
+    weights: EvalWeights,
+    /** The search root's clock, for `scoreLeaf`'s win timing. */
+    since?: GameClock
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1525,7 +1571,7 @@ export function rollout(
         }
         applyMoveInSearch(state, pid, chosen, true);
     }
-    return scoreLeaf(state, botId, weights);
+    return scoreLeaf(state, botId, weights, since);
 }
 
 /** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
@@ -2902,7 +2948,8 @@ function puctDescend(
     path: Edge[],
     rng: () => number,
     weights: EvalWeights,
-    config: ActionPriorConfig
+    config: ActionPriorConfig,
+    since: GameClock
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -3002,7 +3049,7 @@ function puctDescend(
     };
     node.children.set(opened.key, opened);
     path.push(opened);
-    backpropagate(path, rollout(world, botId, rng, weights), botId);
+    backpropagate(path, rollout(world, botId, rng, weights, since), botId);
     return true;
 }
 
@@ -3036,6 +3083,7 @@ function iterate(
         deckKnowledge,
         opponentModel
     );
+    const since = gameClockOf(rootState);
     const path: Edge[] = [];
     let node = root;
 
@@ -3135,7 +3183,8 @@ function iterate(
                     path,
                     rng,
                     weights,
-                    actionPriors
+                    actionPriors,
+                    since
                 )
             ) {
                 return; // expanded + rolled out
@@ -3166,7 +3215,11 @@ function iterate(
             };
             node.children.set(pick.key, edge);
             path.push(edge);
-            backpropagate(path, rollout(world, botId, rng, weights), botId);
+            backpropagate(
+                path,
+                rollout(world, botId, rng, weights, since),
+                botId
+            );
             return;
         }
 
@@ -3207,7 +3260,7 @@ function iterate(
     }
 
     // Reached a terminal/at-depth leaf without expanding: score it as-is.
-    backpropagate(path, scoreLeaf(world, botId, weights), botId);
+    backpropagate(path, scoreLeaf(world, botId, weights, since), botId);
 }
 
 /** Propagate a bot-perspective leaf along the visited edges, each edge storing
