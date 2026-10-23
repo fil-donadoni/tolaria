@@ -4836,12 +4836,32 @@
         "source": "compiled"
     },
     {
+        "name": "Barrels of Blasting Jelly",
+        "scryfallId": "4fd83083-3779-41f0-90a0-a00e3270e4e6",
+        "oracleId": "c6cd520c-106b-4ee5-bc02-6c5fbdbc78dd",
+        "firstSet": "tla",
+        "firstPrintId": "4fd83083-3779-41f0-90a0-a00e3270e4e6",
+        "firstPrintSet": "tla",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Barren Moor",
         "scryfallId": "45be3811-a223-4c45-9b24-0317f2d53c60",
         "oracleId": "326ba371-124c-4949-a048-3a0c8962e567",
         "firstSet": "ons",
         "firstPrintId": "45be3811-a223-4c45-9b24-0317f2d53c60",
         "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Barrenton Medic",
+        "scryfallId": "8888e0aa-3682-4800-9c50-fff5d5c9547d",
+        "oracleId": "17661062-928c-4e33-a4f3-92ddc9d8c817",
+        "firstSet": "shm",
+        "firstPrintId": "8888e0aa-3682-4800-9c50-fff5d5c9547d",
+        "firstPrintSet": "shm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -10648,6 +10668,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cinderhaze Wretch",
+        "scryfallId": "644319c2-f122-4369-b1f8-56ad7d8ce861",
+        "oracleId": "df6d9787-b423-4067-adf4-c09dcee1329e",
+        "firstSet": "shm",
+        "firstPrintId": "644319c2-f122-4369-b1f8-56ad7d8ce861",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Circle of Dreams Druid",
         "scryfallId": "be6fdec0-a2c4-4da2-ae14-961185eaee66",
         "oracleId": "1c857fa4-e823-494d-9ea4-7eb9e719c9b6",
@@ -15702,6 +15732,16 @@
         "firstSet": "grn",
         "firstPrintId": "490cd287-5f09-442f-9150-4a6ac2cf3e2e",
         "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Devoted Druid",
+        "scryfallId": "820e2f07-f637-4144-b45a-0e1430dcf55e",
+        "oracleId": "cb814e16-acf7-41d5-a357-1323dcc369f3",
+        "firstSet": "shm",
+        "firstPrintId": "820e2f07-f637-4144-b45a-0e1430dcf55e",
+        "firstPrintSet": "shm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -38490,6 +38530,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mardu Devotee",
+        "scryfallId": "da45e9b0-a4f6-413b-9e62-666c511eb5b0",
+        "oracleId": "24ee57b5-a505-4264-97ca-8b8dfb12298e",
+        "firstSet": "tdm",
+        "firstPrintId": "da45e9b0-a4f6-413b-9e62-666c511eb5b0",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mardu Hateblade",
         "scryfallId": "f1d1cdfa-834c-4028-8036-c4bfb7da071b",
         "oracleId": "acff2573-cf8a-4aee-96a3-28721a4128f6",
@@ -53490,6 +53540,16 @@
         "source": "compiled"
     },
     {
+        "name": "Salvaged Manaworker",
+        "scryfallId": "5fc22ecb-5d87-464e-8c7d-5d40a52e1e4f",
+        "oracleId": "a96814fe-dc74-4d02-a44e-f7daa794b647",
+        "firstSet": "dmu",
+        "firstPrintId": "5fc22ecb-5d87-464e-8c7d-5d40a52e1e4f",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Salvager of Secrets",
         "scryfallId": "3a55f484-5734-469c-8d41-95ce44473ec1",
         "oracleId": "3e400e13-6cae-45e6-b5cc-5b5f9d74dec5",
@@ -54228,6 +54288,16 @@
         "firstSet": "drk",
         "firstPrintId": "93850e74-744c-4261-a84e-01eaced6e49a",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Scarecrow Guide",
+        "scryfallId": "3dc08461-bec6-4a18-b782-da4c92abb789",
+        "oracleId": "cf7bb5d4-c33f-4879-a793-6d6f2a4d94be",
+        "firstSet": "woe",
+        "firstPrintId": "3dc08461-bec6-4a18-b782-da4c92abb789",
+        "firstPrintSet": "woe",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Scarland Thrinax",
@@ -56573,6 +56643,16 @@
         "firstPrintId": "59d38ef7-5017-4ea3-b97f-a8fe12d03e98",
         "firstPrintSet": "m21",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Shire Scarecrow",
+        "scryfallId": "b60b4f2e-ff47-4762-a803-30e81b665c09",
+        "oracleId": "4b9f6a6e-c168-4732-b454-2272d56636da",
+        "firstSet": "ltr",
+        "firstPrintId": "b60b4f2e-ff47-4762-a803-30e81b665c09",
+        "firstPrintSet": "ltr",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -62708,6 +62788,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sultai Devotee",
+        "scryfallId": "c32487e9-f3ac-472e-b6ea-81bd9254770c",
+        "oracleId": "ee7b3fc0-6128-4bf6-b3e7-7371e6f93c4b",
+        "firstSet": "tdm",
+        "firstPrintId": "c32487e9-f3ac-472e-b6ea-81bd9254770c",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sultai Scavenger",
         "scryfallId": "2cb8e423-f7e7-4ac3-acc2-2a3722e409e7",
         "oracleId": "837f72a9-9522-46e9-a48c-c6ff6d0bbe67",
@@ -64744,6 +64834,16 @@
         "firstSet": "ktk",
         "firstPrintId": "9990bdff-c27a-447f-b530-d8b7614fe9a0",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Temur Devotee",
+        "scryfallId": "a2ef698e-5466-43bd-985d-020f2e5d8205",
+        "oracleId": "e444f072-ce24-4fd1-99eb-d20d12bc119a",
+        "firstSet": "tdm",
+        "firstPrintId": "a2ef698e-5466-43bd-985d-020f2e5d8205",
+        "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -71957,6 +72057,16 @@
         "firstPrintId": "0bb37bcd-0bbd-4f3f-9623-803885750344",
         "firstPrintSet": "sth",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wall of Roots",
+        "scryfallId": "aeb151d2-c313-44d2-972e-33487f070c23",
+        "oracleId": "3a21a6ae-b2f2-4f0c-acfd-5f3e8d63fd2f",
+        "firstSet": "mir",
+        "firstPrintId": "aeb151d2-c313-44d2-972e-33487f070c23",
+        "firstPrintSet": "mir",
+        "rarity": "common",
         "source": "compiled"
     },
     {
