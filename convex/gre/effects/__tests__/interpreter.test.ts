@@ -37069,12 +37069,16 @@ describe("Effect Script Op: retarget (CR 115.7a, issue #5259)", () => {
         });
     });
 
-    it("is validator-clean as a Deflection-class script", () => {
-        expect(
-            validateEffectScript([{ op: "retarget", target: { target: 0 } }])
-        ).toEqual([]);
-        expect(
-            validateEffectScript([{ op: "retarget" } as never]).length
-        ).toBeGreaterThan(0);
+    it("validates a Deflection-class script and refuses a missing target", () => {
+        const host = (effects: unknown[]) =>
+            validateEffectScript({
+                id: "retarget-probe",
+                name: "Retarget Probe",
+                types: ["Instant"],
+                targetRequirement: { type: "spell", count: 1 },
+                effects,
+            } as never);
+        expect(host([{ op: "retarget", target: { target: 0 } }])).toEqual([]);
+        expect(host([{ op: "retarget" }]).length).toBeGreaterThan(0);
     });
 });
