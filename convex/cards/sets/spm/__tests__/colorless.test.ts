@@ -127,7 +127,7 @@ function passageIn(zone: "hand" | "graveyard" | "exile" | "library") {
             makePlayer("p1", {
                 life: 20,
                 battlefield: [courser],
-                // The library origin is positional (CR 400.2): the land is on
+                // The library origin plays only the TOP card: the land is on
                 // TOP, with a card under it to prove it goes back on top.
                 [zone]: zone === "library" ? [passage, filler] : [passage],
             }),
@@ -312,7 +312,7 @@ describe("Multiversal Passage put onto the battlefield by an effect (issue #2672
             expect(second?.kind).toBe("land-entry-tapped");
             expect(second?.landSourceZone).toBe("battlefield");
             // The parked resolution resumed and completed: the stackless
-            // pay-choice never holds a resolution (CR 614.12, ADR 0051).
+            // pay-choice never holds a resolution (ADR 0051).
             expect(state.stack).toHaveLength(0);
             // Provisional, as ADR 0051 enters it — but already TYPED.
             const land = onBattlefield(player)!;

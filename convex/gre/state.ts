@@ -9406,7 +9406,7 @@ function stageReanimatedOnBattlefield(
     // CR 614.1c vs CR 400.7 — the as-enters answers are part of HOW this
     // permanent enters, so they go back on the far side of the reset above and
     // AHEAD of every reader below: the entry counters, the Kismet tap check,
-    // the CR 611.2 grant passes — and the `entersTappedUnlessPay` branch, which
+    // the static-grant passes — and the `entersTappedUnlessPay` branch, which
     // applies the permanent's own statics and parks on the pay-choice without
     // returning `true`. Re-applying only after a `true` return (the pre-#2672
     // shape) left a tutored Multiversal Passage typeless: its `subtype-set`
