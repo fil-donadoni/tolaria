@@ -656,6 +656,26 @@
         "libraryCount": 20
     },
     "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)": null,
+    "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board": {
+        "cards": [
+            {
+                "name": "Walking Ballista",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false,
+                "counters": {
+                    "+1/+1": 2
+                }
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 4,
+        "libraryCount": 20,
+        "hiddenHand": {
+            "opp": 5
+        }
+    },
     "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)": {
         "cards": [
             {
