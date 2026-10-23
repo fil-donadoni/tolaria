@@ -28,6 +28,7 @@
  *                                                   → CR 614.1a `shuffleFromAnywhere`
  *   "If damage would be dealt to <self>, prevent that damage. Remove a
  *    +1/+1 counter from <self>"                     → CR 615 `damagePreventionCounterRemoval`
+ *   "Prevent all damage that would be dealt to you" → CR 615 `preventsDamageToController`
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
  *   "While an opponent is choosing targets as part of casting a spell they
@@ -335,6 +336,9 @@ export type StaticClauseIR =
      *  Remove a +1/+1 counter from <self>". Lowered to
      *  `damagePreventionCounterRemoval`. */
     | { readonly kind: "damage-prevention-counter-removal" }
+    /** CR 615 — "Prevent all damage that would be dealt to you". Lowered to
+     *  `preventsDamageToController`. */
+    | { readonly kind: "controller-damage-prevention" }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -1774,6 +1778,25 @@ const damagePreventionCounterRemovalRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: the controller's damage-prevention shield (CR 615) ───────────────
+
+/**
+ * "Prevent all damage that would be dealt to you." (Solitary Confinement,
+ * Glacial Chasm.) CR 615.1a: "prevent" makes it a prevention effect; "you" is
+ * the permanent's controller. The anchored text refuses every neighbour: a
+ * duration ("… this turn"), a source filter ("… by sources you don't
+ * control"), and extra recipients ("… and permanents you control").
+ */
+const CONTROLLER_DAMAGE_PREVENTION =
+    /^Prevent all damage that would be dealt to you$/;
+
+const controllerDamagePreventionRule: Rule<StaticClauseIR> = pattern(
+    "controller damage prevention",
+    CONTROLLER_DAMAGE_PREVENTION,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "controller-damage-prevention" as const })
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -2227,6 +2250,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         flashCastCleanupSacrificeRule,
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
+        controllerDamagePreventionRule,
         selfConditionalPumpRule,
         abilityLossPtSetRule,
         chosenTypePumpRule,
