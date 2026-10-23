@@ -41,6 +41,22 @@ function requiredFirst<T extends { targetId: string }>(
     ];
 }
 
+/** The banner's words for what a divide budget DOES (CR 601.2d): the noun of
+ *  the "Divide … — N left" instruction and the finalize button's label. */
+export function divideKindLabels(kind: DivideBuffer["kind"]): {
+    budget: string;
+    submit: string;
+} {
+    switch (kind) {
+        case "prevent":
+            return { budget: "prevented damage", submit: "Prevent damage" };
+        case "counters":
+            return { budget: "counters", submit: "Put counters" };
+        case "deal":
+            return { budget: "damage", submit: "Deal damage" };
+    }
+}
+
 export type DivideBuffer = {
     /** True while THIS viewer is assigning a divide split (set by the board,
      *  which knows the viewer; the raw state hook reports the spell-level
@@ -49,8 +65,9 @@ export type DivideBuffer = {
     /** What the divided budget DOES (`pendingTarget.divideKind`, default
      *  `"deal"` damage — Pollen Remedy is the one shipped `"prevent"` case).
      *  Drives the banner/finalize-button label instead of a hard-coded
-     *  "Deal damage" for every divide spell (QA). */
-    kind: "deal" | "prevent";
+     *  "Deal damage" for every divide spell (QA). `"counters"` for a
+     *  distributed-counters budget (CR 601.2d). */
+    kind: NonNullable<PendingTarget["divideKind"]>;
     /** The budget to divide (`divideTotal`). */
     total: number;
     /** Points assigned so far across all targets. */
@@ -147,8 +164,7 @@ export function useDivideBufferState(args: {
     }
 
     const active = key !== null;
-    const kind =
-        active && pendingTarget?.divideKind === "prevent" ? "prevent" : "deal";
+    const kind = (active && pendingTarget?.divideKind) || "deal";
     const total =
         active && pendingTarget ? (pendingTarget.divideTotal ?? 0) : 0;
     const sum = bufferSum(buffer);

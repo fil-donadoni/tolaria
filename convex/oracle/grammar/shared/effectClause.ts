@@ -774,6 +774,36 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 601.2d / 122.1 — "Distribute N <kind> counters among <count
+           * phrase> <targets>": the counters twin of `deal-damage-divided`.
+           * ONE announced group whose count is a range (`among`), and a budget
+           * of counters the caster splits across whoever they chose, each at
+           * least one. The budget is a printed number or the announced {X};
+           * "X …, where X is …" and every other magnitude are other sentences.
+           */
+          readonly kind: "distribute-counters";
+          readonly amount: AmountIR;
+          readonly counter: string;
+          readonly among: TargetRequirement;
+      }
+    | {
+          /**
+           * CR 603.7a / 603.7c — "For each <kind> counter you put on a
+           * creature this way, remove a <kind> counter from that creature at
+           * the beginning of the next cleanup step" (or end step): a delayed
+           * triggered ability created now, whose body takes back, creature by
+           * creature, the counters an EARLIER `distribute-counters` sentence
+           * of the same ability put on. "This way" is anaphora (CR 608.2c),
+           * so the sentence carries no subject: the lowering binds it to that
+           * sentence and refuses every other site. Both counter words must
+           * name the same kind.
+           */
+          readonly kind: "delayed-remove-distributed-counters";
+          readonly counter: string;
+          readonly timing: "next-cleanup-step" | "next-end-step";
+      }
+    | {
+          /**
            * CR 615.12 — "Damage can't be prevented this turn."
            *
            * A one-shot instruction with no subject at all: it names no source,
@@ -4086,6 +4116,14 @@ const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =
     /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
+/** CR 601.2d / 122.1a — "Distribute N +X/+Y counters among <targets>". The
+ *  kind is a P/T counter only: a stun, shield or oil counter is a different
+ *  mechanic the corpus distributes under other wording, and stays unread. */
+const DISTRIBUTE_COUNTERS =
+    /^Distribute (\S+) ([+-]\d+\/[+-]\d+) counters among (.+)$/;
+/** CR 603.7a — the delayed take-back of the counters distributed this way. */
+const REMOVE_DISTRIBUTED_COUNTERS =
+    /^For each ([+-]\d+\/[+-]\d+) counter you put on a creature this way, remove a ([+-]\d+\/[+-]\d+) counter from that creature at the beginning of the next (cleanup|end) step$/;
 /**
  * CR 613.1e — "<subject> becomes the color of your choice[ <duration>]".
  *
@@ -6530,6 +6568,38 @@ function effectSentence(
             amount,
             among: among.value,
             ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── counters distributed as you choose (CR 601.2d) ─────────────────────
+    const distributed = span.match(DISTRIBUTE_COUNTERS);
+    if (distributed !== null) {
+        const amount = readAmount(distributed[1]!);
+        if (amount === null)
+            return fail(`"${distributed[1]}" is not a counter count`, span);
+        const among = dividedTargetsRule.run(distributed[3]!, ctx);
+        if (!among.ok) return among;
+        return ok({
+            kind: "distribute-counters" as const,
+            amount,
+            counter: distributed[2]!,
+            among: among.value,
+        } satisfies EffectSentenceIR);
+    }
+    const takeBack = span.match(REMOVE_DISTRIBUTED_COUNTERS);
+    if (takeBack !== null) {
+        if (takeBack[1] !== takeBack[2])
+            return fail(
+                `"${takeBack[2]}" counters are not the "${takeBack[1]}" counters put on this way`,
+                span
+            );
+        return ok({
+            kind: "delayed-remove-distributed-counters" as const,
+            counter: takeBack[1]!,
+            timing:
+                takeBack[3] === "cleanup"
+                    ? ("next-cleanup-step" as const)
+                    : ("next-end-step" as const),
         } satisfies EffectSentenceIR);
     }
 

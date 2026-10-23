@@ -254,6 +254,16 @@
         "source": "compiled"
     },
     {
+        "name": "Abzan Charm",
+        "scryfallId": "8f7b7598-35b0-4bb5-8347-8c868500f846",
+        "oracleId": "4137a22c-f793-4e27-a9b2-72740a6e2121",
+        "firstSet": "ktk",
+        "firstPrintId": "8f7b7598-35b0-4bb5-8347-8c868500f846",
+        "firstPrintSet": "ktk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Abzan Guide",
         "scryfallId": "1b7f7158-4a31-4a1c-bf3b-574c0b09276a",
         "oracleId": "85b2fb89-5ebe-4c13-bc12-38d1417e5880",
@@ -2740,6 +2750,16 @@
         "firstPrintSet": "mh2"
     },
     {
+        "name": "Archon of Falling Stars",
+        "scryfallId": "d0dd1e40-a514-42df-8cc1-364998c7700c",
+        "oracleId": "38e0a1d0-2a4c-4510-9610-abea7fa1de7c",
+        "firstSet": "thb",
+        "firstPrintId": "d0dd1e40-a514-42df-8cc1-364998c7700c",
+        "firstPrintSet": "thb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Archon of Justice",
         "scryfallId": "ab707e7f-8ab5-43f1-9428-6a17c1b672fa",
         "oracleId": "d551931d-4ebe-4acc-9e87-6c628897071a",
@@ -3034,6 +3054,26 @@
         "firstSet": "atq",
         "firstPrintId": "44a31889-6a8d-450c-a73d-381a7ff28bf9",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Armament Corps",
+        "scryfallId": "a5c69876-809d-4af3-9fd6-3bac41541dad",
+        "oracleId": "3b93427c-5b40-4119-96ae-7dce3ca2bbb9",
+        "firstSet": "ktk",
+        "firstPrintId": "a5c69876-809d-4af3-9fd6-3bac41541dad",
+        "firstPrintSet": "ktk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Armament Dragon",
+        "scryfallId": "17f61c01-0a41-4fa1-ac34-ffa83baad989",
+        "oracleId": "23c75386-8011-4ee4-97e2-eaafeb20b788",
+        "firstSet": "tdm",
+        "firstPrintId": "17f61c01-0a41-4fa1-ac34-ffa83baad989",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Armor of Faith",
@@ -7741,6 +7781,16 @@
         "firstPrintId": "e9a950d8-e6e2-42d6-83d7-a60c15d2035d",
         "firstPrintSet": "grn",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Bounty of the Hunt",
+        "scryfallId": "21ed522a-cf5a-41e1-9677-1226f689ec9c",
+        "oracleId": "77a43c24-398f-42c6-a0d3-b28b33a0ce12",
+        "firstSet": "all",
+        "firstPrintId": "21ed522a-cf5a-41e1-9677-1226f689ec9c",
+        "firstPrintSet": "all",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -14984,6 +15034,16 @@
         "source": "compiled"
     },
     {
+        "name": "Defend the Celestus",
+        "scryfallId": "c11e4420-06f3-48e2-91d1-a9199483add2",
+        "oracleId": "c079a636-cfd4-49cd-bcd4-54375b3fa355",
+        "firstSet": "mid",
+        "firstPrintId": "c11e4420-06f3-48e2-91d1-a9199483add2",
+        "firstPrintSet": "mid",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Defender en-Vec",
         "scryfallId": "e7b224b7-d5f7-4515-beca-523f305ee3b8",
         "oracleId": "bb8a55a5-596e-427c-b745-4de8b0dfb095",
@@ -17344,6 +17404,16 @@
         "source": "compiled"
     },
     {
+        "name": "Driver of the Dead",
+        "scryfallId": "56113cde-4210-46be-bd53-8966c36ef2a3",
+        "oracleId": "7c179e54-3beb-4761-bddf-41fa98b082db",
+        "firstSet": "avr",
+        "firstPrintId": "56113cde-4210-46be-bd53-8966c36ef2a3",
+        "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dromad Purebred",
         "scryfallId": "0106caf1-2201-4661-96a5-56af02963fa6",
         "oracleId": "c7adac8f-8187-49a0-80b2-3281d42f1b92",
@@ -18822,6 +18892,16 @@
         "firstSet": "leg",
         "firstPrintId": "ad1d349b-b5ab-4b2b-9b39-f8d8f6374aa5",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Elven Rite",
+        "scryfallId": "daba8742-c246-4e64-8af1-8f4ebcdc4b5f",
+        "oracleId": "755dbf29-7484-444f-b5df-29ec4b4bbc82",
+        "firstSet": "sth",
+        "firstPrintId": "daba8742-c246-4e64-8af1-8f4ebcdc4b5f",
+        "firstPrintSet": "sth",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Elvenking's Halls",
@@ -33461,6 +33541,16 @@
         "firstPrintId": "0fc51899-3970-416b-b7de-fadbc9678955",
         "firstPrintSet": "rtr",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Jugan, the Rising Star",
+        "scryfallId": "5c77814d-c594-45a8-845f-79f608b8cde7",
+        "oracleId": "6d138115-36bf-4cf8-8033-197cea2d0208",
+        "firstSet": "chk",
+        "firstPrintId": "5c77814d-c594-45a8-845f-79f608b8cde7",
+        "firstPrintSet": "chk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -56250,6 +56340,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shambling Swarm",
+        "scryfallId": "b5b93715-985f-4719-a3c3-044c2a150e96",
+        "oracleId": "7807122e-917f-4a79-876e-d1c10f7a38ed",
+        "firstSet": "tor",
+        "firstPrintId": "b5b93715-985f-4719-a3c3-044c2a150e96",
+        "firstPrintSet": "tor",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shanodin Dryads",
         "scryfallId": "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
         "oracleId": "998484cc-fefc-4da5-9987-5d6e89599c34",
@@ -60820,6 +60920,16 @@
         "firstSet": "dmu",
         "firstPrintId": "5045027d-0ff4-484c-b4cb-e0b61885d428",
         "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Splendid Agony",
+        "scryfallId": "58d38abd-116d-4015-91e4-3fc267ad099d",
+        "oracleId": "e9958344-13d5-4f7b-acc8-904e5d99b90e",
+        "firstSet": "akh",
+        "firstPrintId": "58d38abd-116d-4015-91e4-3fc267ad099d",
+        "firstPrintSet": "akh",
         "rarity": "common",
         "source": "compiled"
     },
@@ -70334,6 +70444,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Verdurous Gearhulk",
+        "scryfallId": "0130b99e-5b2f-4482-b141-752e59b72c31",
+        "oracleId": "3765e8bb-e70d-4503-b8dc-1e684e434c18",
+        "firstSet": "kld",
+        "firstPrintId": "0130b99e-5b2f-4482-b141-752e59b72c31",
+        "firstPrintSet": "kld",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Vernadi Shieldmate",
         "scryfallId": "efddad21-553e-4947-80d2-833b42c45f77",
         "oracleId": "03e04034-48b5-4f1f-9859-2b46dedf4d8b",
@@ -74828,6 +74948,16 @@
         "firstSet": "ptk",
         "firstPrintId": "ebe4115e-7ca3-4996-a390-133c2e6d09b7",
         "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wurmskin Forger",
+        "scryfallId": "f14f303e-371b-47dd-bbb8-7f3e44ef9af0",
+        "oracleId": "c94332ac-982a-4c0f-85d4-43e950ac3069",
+        "firstSet": "mrd",
+        "firstPrintId": "f14f303e-371b-47dd-bbb8-7f3e44ef9af0",
+        "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
     },

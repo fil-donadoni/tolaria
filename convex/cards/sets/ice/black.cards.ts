@@ -3176,7 +3176,7 @@ export const spoilsOfWar = defineCard(() => ({
     targetRequirement: {
         type: "Creature",
         count: { min: 1 },
-        divideAsChosen: { total: "X" },
+        divideAsChosen: { total: "X", kind: "counters" },
     },
     resolve: (ctx: SpellContext) => {
         // CR 608.2b (issue #2985) — the division is announced per object;

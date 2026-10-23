@@ -31,12 +31,17 @@ export const SCRYFALL = "https://api.scryfall.com";
 /** Set types that are not a real paper printing of the card. `funny` joins
  *  the three the two copies already shared: an acorn/silver-border set is
  *  printed on paper but is not the card's home set, and it is the filter the
- *  issue #3423 audit measured the population with. */
+ *  issue #3423 audit measured the population with. `masterpiece` (Kaladesh
+ *  Inventions, Zendikar Expeditions): a bonus sheet inserted in another set's
+ *  boosters, released the SAME day as that set — so the released-ascending
+ *  order can put it first (Verdurous Gearhulk read as `mps`, rarity
+ *  "special", instead of `kld`), yet it is never the card's home set. */
 export const NON_PRINT_SET_TYPES: ReadonlySet<string> = new Set([
     "token",
     "memorabilia",
     "minigame",
     "funny",
+    "masterpiece",
 ]);
 
 export interface PaperPrint {
@@ -128,9 +133,15 @@ export async function resolveFirstPaperPrint(
         // this the card reads exactly like a Scryfall that never answered.
         // Only `funny` earns the fallback — a token or memorabilia print is
         // not a printing of a card at all.
+        // `masterpiece` earns it on the same argument: skipped only because a
+        // real printing exists beside it.
         const home =
             paper[0] ??
-            prints.find((p) => !p.digital && p.set_type === "funny");
+            prints.find(
+                (p) =>
+                    !p.digital &&
+                    (p.set_type === "funny" || p.set_type === "masterpiece")
+            );
         if (home === undefined) return null;
         return { id: home.id, set: home.set, rarity: home.rarity };
     }

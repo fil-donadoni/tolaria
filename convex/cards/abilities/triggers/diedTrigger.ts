@@ -13,6 +13,7 @@ import type {
     GameEvent,
     PermanentView,
     SpellContext,
+    TargetRequirement,
     TriggeredAbility,
     TriggerStateView,
 } from "../../types";
@@ -53,6 +54,12 @@ export interface DiedTriggerArgs {
      *  subtype / static-ability constraints are not supported because the
      *  event payload doesn't carry that information. */
     filter?: PermanentFilter;
+    /** CR 603.3d — the targets the trigger announces as it goes on the stack
+     *  ("When this creature dies, distribute three -1/-1 counters among one,
+     *  two, or three target creatures"). Forwarded verbatim onto the built
+     *  `TriggeredAbility`, mirroring `EnteredTriggerArgs.targetRequirement`;
+     *  without it a compiled dies-head trigger announces nothing. */
+    targetRequirement?: TargetRequirement;
     /** CR 603.4 check-time predicate. Evaluated once when the event fires;
      *  if false the trigger never goes on the stack. Use for arbitrary
      *  domain logic that can't be expressed by `scope` + `filter` (e.g.
@@ -179,6 +186,9 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
     }
     if (args.aiEffects !== undefined) {
         ability.aiEffects = args.aiEffects;
+    }
+    if (args.targetRequirement !== undefined) {
+        ability.targetRequirement = args.targetRequirement;
     }
     return withTriggerGate(ability, args);
 }

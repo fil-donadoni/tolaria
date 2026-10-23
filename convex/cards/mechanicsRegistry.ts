@@ -2873,6 +2873,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'CR 601.2d / 120.4 divide-as-you-choose damage over the WHOLE announced target group (ctx.targets), unlike the single-`to` dealDamage Op. A thin declarative skin over the single SpellContext.dealDamageDividedAsChosen primitive (one execution path, ADR 0045). The per-target split is chosen at ANNOUNCEMENT (targetRequirement.divideAsChosen, each target ≥1) and snapshotted onto the stack item\'s targetAmounts, which the primitive reads back at resolution via resolveChosenDivision (gre/state.ts); `total` is the fallback cap and mirrors the card\'s divideAsChosen.total. `total` reuses the exact divideAsChosen.total vocabulary (number | "X" | "X+1"): a fixed amount, the announced {X} (getX() — Fire Covenant\'s pay-X-life), or X+1 (Meteor Shower\'s "X plus 1 damage"). Powers Arc Lightning, Fiery Justice, Meteor Shower, Fury (ETB trigger), Arc Mage (activated), Fire Covenant.',
     },
     {
+        op: "distributeCountersAsChosen",
+        status: "implemented",
+        cr: "601.2d",
+        binding: "SpellContext.distributeCountersAsChosen",
+        note: 'CR 601.2d / 122.1 — "Distribute N <kind> counters among one, two, or three target creatures": the counters twin of dealDamageDividedAsChosen over the WHOLE announced target group. A thin declarative skin over the single SpellContext.distributeCountersAsChosen primitive (one execution path, ADR 0045), which reads the announcement-time split (targetRequirement.divideAsChosen with kind "counters", each target ≥1, snapshotted as the stack item\'s targetAmounts) and puts each share through the shared addCounterToCard chokepoint, so CR 614 counter-placement replacements apply. `total` mirrors divideAsChosen.total (number | "X" | "X+1"). Optional `bind` declares a PICKS binding holding one entry per counter actually put on a creature (its id repeated) — the set "for each counter you put on a creature this way, … that creature" iterates (Bounty of the Hunt\'s delayed removal: a delayedTrigger list-captures it, its body a forEach of counters remove).',
+    },
+    {
         op: "draw",
         status: "implemented",
         cr: "121.1",

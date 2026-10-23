@@ -8265,14 +8265,15 @@ export function markDeathtouchDamage(
  *  counter type's matching keyword on the 0 → present transition (CR
  *  122.1c / 613.4d, issue #1194) and emits COUNTER_ADDED (issue #1319) so
  *  "whenever one or more counters are put on ~" triggers fire regardless of
- *  which caller added them. */
+ *  which caller added them. Returns the number actually put on (0 when a
+ *  replacement rewrote it away). */
 export function addCounterToCard(
     state: GameState,
     card: CardInstanceState,
     type: string,
     count: number
-): void {
-    if (count <= 0) return;
+): number {
+    if (count <= 0) return 0;
     // CR 122.1 / 614 (issue #3230) — counter-placement replacement chokepoint
     // (Michelangelo, Weirdness to 11: "that many plus one +1/+1 counters are
     // put on it instead"). This mutator is ONE of the two seams that put
@@ -8290,7 +8291,7 @@ export function addCounterToCard(
         counterType: type,
         count,
     }).count;
-    if (placed <= 0) return;
+    if (placed <= 0) return 0;
     const wasZero = (card.counters?.[type] ?? 0) === 0;
     const next = { ...(card.counters ?? {}) };
     next[type] = (next[type] ?? 0) + placed;
@@ -8314,6 +8315,7 @@ export function addCounterToCard(
             subtypes: [...card.subtypes],
         },
     ];
+    return placed;
 }
 
 /** CR 716.2a (issue #3234) — set a permanent's LEVEL and emit the
@@ -14823,13 +14825,16 @@ export function buildSpellContext(
         // CR 601.2d / 120.4 — distribute counters AS YOU CHOOSE, each chosen
         // target getting at least 1. Same announcement-time split / fallback
         // rules as `dealDamageDividedAsChosen`. Non-permanent targets are
-        // skipped (counters live on permanents, CR 122).
+        // skipped (counters live on permanents, CR 122). Returns what each
+        // permanent actually received through the shared `addCounterToCard`
+        // chokepoint (a CR 614 replacement may change the count).
         distributeCountersAsChosen(
             targets: TargetSelection[],
             totalAmount: number,
             type: string
-        ): void {
-            if (targets.length === 0 || totalAmount <= 0) return;
+        ): Record<string, number> {
+            const placed: Record<string, number> = {};
+            if (targets.length === 0 || totalAmount <= 0) return placed;
             const split = resolveChosenDivision(
                 item.targetAmounts,
                 targets,
@@ -14838,8 +14843,13 @@ export function buildSpellContext(
             for (const target of targets) {
                 if (target.type !== "permanent") continue;
                 const amount = split.get(targetKey(target)) ?? 0;
-                if (amount > 0) this.addCounter(target, type, amount);
+                if (amount <= 0) continue;
+                const found = findOnBattlefield(state, target.id);
+                if (!found) continue;
+                const n = addCounterToCard(state, found.card, type, amount);
+                if (n > 0) placed[target.id] = (placed[target.id] ?? 0) + n;
             }
+            return placed;
         },
         // CR 615.1 / 601.2d / 120.4 — install a prevent-the-next-N shield on
         // each announced target, sized by the split the caster assigned at
