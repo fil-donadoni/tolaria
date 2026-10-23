@@ -3839,17 +3839,23 @@ function lowerSentenceBody(
             // controls more creatures than the head's player; the strict
             // comparison already excludes the baseline seat. The player is
             // only announced: the dig below belongs to the head's player.
+            // The baseline `than: "active"` is the upkeep player's seat, so
+            // only a head naming the active player may be read.
+            const first = site.antecedents?.player;
+            if (
+                typeof first !== "object" ||
+                !("ref" in first) ||
+                first.ref !== "$event.activePlayerId"
+            )
+                return unlowerable(
+                    '"the first player" is not the player whose phase it is'
+                );
             const announced = slots.allocate({
                 type: "player",
                 count: 1,
                 playerControlsMoreThan: { type: "Creature", than: "active" },
             });
             if (!announced.ok) return announced;
-            const first = site.antecedents?.player;
-            if (first === undefined)
-                return unlowerable(
-                    '"the first player" names no player at this site'
-                );
             // CR 701.20a — "may reveal": the cost-free `mayPay` pair binds
             // whether the head's player took the option.
             return lowered([

@@ -112,4 +112,11 @@ describe("First player's optional reveal-until — refusals (fail-closed)", () =
             ).state
         ).toBe("unparsed");
     });
+    it("a head whose player is not the active player is refused", () => {
+        expect(
+            probe(
+                `Whenever a player casts a spell, ${CHOOSE} ${WINDOW} ${ROUTE}`
+            ).state
+        ).toBe("unparsed");
+    });
 });
