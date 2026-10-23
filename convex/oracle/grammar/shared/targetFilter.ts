@@ -1022,8 +1022,9 @@ function finish(
  * It is the count's MAXIMUM: "up to two" announces at most two, and an
  * unchosen slot resolves to nothing and skips its op (CR 608.2b).
  *
- * `"X"` at either position is refused by returning `null`: the width is then a
- * fact about the cast, not about the sentence, and neither the fan-out nor the
+ * `"X"` at either position, or a text-defined `max` (`TargetCountQuantity`), is
+ * refused by returning `null`: the width is then a fact about the cast, not
+ * about the sentence, and neither the fan-out nor the
  * next group's index can be written down at compile time.
  */
 export function announcedSlots(
@@ -1031,7 +1032,7 @@ export function announcedSlots(
 ): number | null {
     if (count === "X") return null;
     if (typeof count === "number") return count;
-    if (count.max === undefined || count.max === "X") return null;
+    if (typeof count.max !== "number") return null;
     return count.max;
 }
 
