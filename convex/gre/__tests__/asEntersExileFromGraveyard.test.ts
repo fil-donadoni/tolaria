@@ -17,9 +17,10 @@
 // survive.
 //
 // Sutured Ghoul's characteristic-defining P/T reads the pile through PR #6514
-// (issue #5367), not yet on base: the hand-built definition below is printed
-// 2/2 so the sweep does not bin it, and the pile is read straight off the
-// CR 607 authority (`getCardsExiledWith`).
+// (issue #5367), not yet on base: the hand-built definition
+// (`suturedGhoulProbe.fixture.ts`) is printed 2/2 so the sweep does not bin
+// it, and the pile is read straight off the CR 607 authority
+// (`getCardsExiledWith`).
 import { describe, expect, it } from "vitest";
 import {
     putReanimatedSetOnBattlefield,
@@ -35,6 +36,7 @@ import { projectPublicState } from "../../gameProjections";
 import type { GameEvent } from "../../cards/types";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
+import { GHOUL_ID, suturedGhoul } from "./fixtures/suturedGhoulProbe.fixture";
 import {
     makeInstance,
     makePlayer,
@@ -46,26 +48,6 @@ import {
     grizzlyBears,
     serraAngel,
 } from "../../cards/sets/lea/index.cards";
-
-const GHOUL_ID = "test-6528-sutured-ghoul";
-const suturedGhoul: CardDefinition = {
-    id: GHOUL_ID,
-    rarity: "rare",
-    name: "Sutured Ghoul",
-    oracleText:
-        "Trample\nAs this creature enters, exile any number of creature cards from your graveyard.",
-    manaCost: { generic: 4, B: 3 },
-    types: ["Creature"],
-    subtypes: ["Zombie"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["trample"],
-    entersWith: {
-        asEnters: [
-            { kind: "exileFromGraveyard", filter: { type: "Creature" } },
-        ],
-    },
-};
 
 const withGhoul = <T>(fn: () => T): T =>
     withTemporaryDefinition(suturedGhoul, fn);
