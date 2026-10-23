@@ -46,7 +46,7 @@ function instant(name: string, manaCost: string, oracleText: string) {
     });
 }
 
-describe("Searched pile, an opponent picks — golden fixture (CR 701.23d, CR 701.20a)", () => {
+describe("Searched pile, an opponent picks — golden fixture (CR 701.23d search, CR 701.20a reveal)", () => {
     it("three cards, the pick to hand, the rest to graveyard: Intuition", () => {
         const text =
             "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle.";

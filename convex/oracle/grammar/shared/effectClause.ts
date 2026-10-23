@@ -1753,10 +1753,10 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.23d + CR 701.20a — a searched pile another player picks
-           * from: "Search your library for three cards and reveal them.
-           * Target opponent chooses one. Put that card into your hand and the
-           * rest into your graveyard. Then shuffle." The search is for a bare
+           * CR 701.23d (search) + CR 701.20a (reveal) — a searched pile another
+           * player picks from: "Search your library for three cards and reveal
+           * them. Target opponent chooses one. Put that card into your hand
+           * and the rest into your graveyard. Then shuffle." The search is for a bare
            * QUANTITY, so the searcher must find that many (CR 701.23d); the
            * reveal is what lets the chooser see the pile at all. The four
            * printed sentences are one effect, folded by `assembleSentences`;
@@ -4526,9 +4526,10 @@ const PILE_SPLIT_WINDOW =
 const PILE_OPPONENT_PICKS = /^An opponent chooses one of those piles$/;
 const PILE_ROUTE =
     /^Put (one|that) pile into your hand and the other into your graveyard$/;
-/** CR 701.23d + CR 701.20a — a searched pile: "Search your library for three
- *  cards and reveal them". A bare QUANTITY only; a described search ("three
- *  creature cards", "with different names") is not this window. */
+/** CR 701.23d (search) + CR 701.20a (reveal) — a searched pile: "Search your
+ *  library for three cards and reveal them". A bare QUANTITY only; a
+ *  described search ("three creature cards", "with different names") is not
+ *  this window. */
 const SEARCH_REVEAL_PILE =
     /^Search your library for (\S+) cards and reveal them$/;
 /** The other player's pick from the pile: "Target opponent chooses one". */
