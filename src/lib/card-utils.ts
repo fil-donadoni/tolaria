@@ -87,6 +87,7 @@ import type {
 } from "@convex/gre/state";
 import {
     assignMayPayHandCards,
+    canPayExileTopOfLibrary,
     manaBalanceForRestrictionAnyRider,
     mayPayGraveyardCandidates,
 } from "@convex/gre/state";
@@ -2222,7 +2223,14 @@ export function getStackAbilities(
      *  controller of the enchanted creature may activate this ability") divorces
      *  the two: the Aura's controller and the activator can be different
      *  players. Omit for the ordinary controller-activates listing. */
-    activatorId?: string
+    activatorId?: string,
+    /** Card count of the PAYER's own library (`PublicLibrary.count` on the
+     *  wire). Gates the CR 118.3 `exileTopOfLibrary` activation cost ("Exile
+     *  the top card of your library") as a UI hint: with an empty library the
+     *  ability is unpayable and hidden, mirroring the server throw ("No card
+     *  in library to exile"). Omit to skip the gate — same fail-open
+     *  discipline as `payerLife`. */
+    payerLibraryCount?: number
 ): { id: string; oracleText: string }[] {
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
@@ -2236,6 +2244,7 @@ export function getStackAbilities(
             loyalty?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
+            exileTopOfLibrary?: boolean;
             discardFilter?: { filter: EffectCardFilter; count: number };
             exileFromGraveyard?: {
                 count: number;
@@ -2501,6 +2510,15 @@ export function getStackAbilities(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
+        // CR 118.3 — "Exile the top card of your library" is unpayable with an
+        // empty library, through the engine's own affordability authority.
+        if (
+            a.cost.exileTopOfLibrary &&
+            payerLibraryCount !== undefined &&
+            !canPayExileTopOfLibrary({ library: { count: payerLibraryCount } })
+        ) {
+            return false;
+        }
         // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
         // (Survival of the Fittest) is unpayable unless at least `count`
         // cards in the controller's OWN hand match the filter. UI hint

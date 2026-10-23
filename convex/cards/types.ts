@@ -1785,6 +1785,31 @@ export interface ActivatedAbility {
             cardType?: CardType;
             owner?: "you";
         };
+        /** "Exile the top card of your library" as an activation cost (CR 118.1
+         *  — a cost is an action necessary to take another action; CR 701.13a —
+         *  exiling moves the card to the exile zone). The ACTIVATING player's
+         *  own top library card moves library → exile, face up, as the ability
+         *  goes on the stack. No choice: the card is fixed by the library's
+         *  order, so it belongs with `discardAtRandom`, never with a picker.
+         *
+         *  Unaffordable with an EMPTY library (CR 118.3 — a player can't pay a
+         *  cost without the resources to pay it fully), gated by the single
+         *  authority `canPayExileTopOfLibrary` (`gre/state.ts`) on every
+         *  surface: the announcement throw, the Move enumerator and the UI hint.
+         *
+         *  Paid at activation COMMIT, never at announcement (CR 601.2h via
+         *  CR 602.2b), and LAST among the legs — CR 601.2h pays every cost that
+         *  does not move an object from the library to a public zone first.
+         *  `PendingActivation.exileTopOfLibrary` carries the intent across the
+         *  mana-payment phase; every commit path pays through
+         *  `payExileTopOfLibraryCost` (`gre/state.ts`).
+         *
+         *  The exiled card's last-known characteristics ride on the stack item
+         *  as `additionalSacrificeSnapshot` (CR 608.2h — the additional-cost
+         *  victim snapshot every cost departure writes), so "where X is the
+         *  exiled card's mana value" reads it back through the existing
+         *  `{ sacrificed: { read: "manaValue" } }` value. */
+        exileTopOfLibrary?: boolean;
         /** Derives the value of X in this ability's mana cost from the targeted
          *  spell instead of asking the player to choose it (CR 107.3 — "X is
          *  twice the mana value of that spell"). Only meaningful when
