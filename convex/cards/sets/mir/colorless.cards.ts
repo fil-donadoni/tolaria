@@ -103,7 +103,6 @@ export const phyrexianDreadnought = defineCard(() => ({
 // (CR 109.2), read live by `activationRestrictionViolation`. No mana-ability
 // exemption: a mana ability is an activated ability (CR 605.1a), so a Llanowar
 // Elves can't tap for mana while the Totem is out.
-// compiler-gap: "Activated abilities of creatures can't be activated." (#5309)
 export const cursedTotem = defineCard(() => ({
     id: "cc99ee76-45b6-4f1d-b0b0-7da8775ca90c",
     rarity: "rare",

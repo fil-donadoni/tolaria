@@ -50,6 +50,7 @@ import type {
     Color,
     ManaCost,
     PermanentView,
+    StaticActivationRestriction,
     StaticCastPermission,
     StaticEffect,
     StaticEffectContext,
@@ -464,7 +465,14 @@ export type CompiledStaticEffect =
      * `playerHasShroud` (`gre/permanentGuard.ts`) and carries no predicate —
      * only an id and a boolean — so there is nothing to rebuild.
      */
-    | StaticPlayerGuard;
+    | StaticPlayerGuard
+    /**
+     * CR 602.5 / 605.1a — "Activated abilities of <permanents> can't be
+     * activated": the fourth member that is the engine's own effect verbatim.
+     * `StaticActivationRestriction` is a declarative `PermanentFilter` read
+     * live by `activationRestrictionViolation`, with no predicate to rebuild.
+     */
+    | StaticActivationRestriction;
 
 /**
  * One descriptor's filter as a live predicate.
@@ -874,6 +882,9 @@ export function resolveCompiledStatic(
             return descriptor;
         // CR 702.18a — verbatim, by the same argument.
         case "player-guard":
+            return descriptor;
+        // CR 602.5 — verbatim, by the same argument.
+        case "activation-restriction":
             return descriptor;
         default: {
             const never: never = descriptor;
