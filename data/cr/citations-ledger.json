@@ -2834,7 +2834,7 @@
         {"id":"109.2","line":"// zone (CR 109.2). `ownerId` (not `controllerId`, which is not","sites":1,"status":"baseline"},
         {"id":"109.2","line":"// ── The targeted-permanent clause (CR 115.2 / 109.2)","sites":1,"status":"baseline"},
         {"id":"109.2","line":"// ─── graveyard-card kind (CR 109.2 / 400.7) ─────────────────────────────────","sites":1,"status":"baseline"},
-        {"id":"109.2","line":": fail(`\"${match[1]}\" is not this permanent (CR 109.2)`, match[1]!)","sites":6,"status":"confirmed","ruleHash":"219aa9b84f65634a"},
+        {"id":"109.2","line":": fail(`\"${match[1]}\" is not this permanent (CR 109.2)`, match[1]!)","sites":7,"status":"confirmed","ruleHash":"219aa9b84f65634a"},
         {"id":"109.2","line":"`\"${match[1]}\" is not this permanent (CR 109.2)`,","sites":2,"status":"confirmed","ruleHash":"219aa9b84f65634a"},
         {"id":"109.2","line":"`\"${part}\" does not name a CLASS of spells (CR 109.2)`,","sites":1,"status":"baseline"},
         {"id":"109.2","line":"describe(\"Bristly Bill, Spine Sower — Landfall (CR 603.6a / 109.2)\", () => {","sites":1,"status":"baseline"},
