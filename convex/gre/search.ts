@@ -1350,12 +1350,15 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  see.
  *
  *  The win's height ABOVE the band floor shrinks by `WIN_STEP_DECAY` per step
- *  of game time. A factor, never a subtracted cost: a cost large enough to
+ *  of game time, down to `WIN_DECAY_FLOOR`. A factor, never a subtracted cost: a cost large enough to
  *  separate a win now from a win a combat later pinned every win a turn or
  *  more away to the band floor, and wins that all score the floor are wins
  *  the material can no longer order (the saturation ADR 0102 measured) — a
  *  sacrifice that threw a land away tied `pass` on a board both lines win by
- *  decking. Scaled, two wins at the same step keep their material order
+ *  decking. Floored, because a win a turn away is still a win: decayed to a
+ *  sliver of its height, a storm kill that decks the opponent at their next
+ *  draw read barely above a burn spell that did not. Scaled, two wins at the
+ *  same step keep their material order
  *  exactly, and a win never leaves the band. It touches the REWARD only: the
  *  tie-break margin stays pure material (issue #138), like `evaluate`'s race
  *  and combat terms. Losses and open leaves are untouched; with no `since`
@@ -1370,19 +1373,24 @@ function scoreLeaf(
     const reward = rewardFromValue(value, weights);
     if (since && value >= terminalMagnitude(weights)) {
         const floor = 1 - weights.terminalBand;
-        const decay = WIN_STEP_DECAY ** stepsSince(since, state);
+        const decay = Math.max(
+            WIN_DECAY_FLOOR,
+            WIN_STEP_DECAY ** stepsSince(since, state)
+        );
         return { reward: floor + (reward - floor) * decay, margin };
     }
     return { reward, margin };
 }
 
 /** Per step of game time, the share of a win's height above the band floor
- *  that survives (`scoreLeaf`, issue #3376). Measured against the case that
- *  needs it: a win now against a win five steps later (main phase → combat
- *  damage) must land more than `outcomeEps` apart for a typical material
- *  gap, and 0.85⁵ ≈ 0.44 halves the later win's height; a whole turn later
- *  keeps about a tenth. */
+ *  that survives (`scoreLeaf`, issue #3376), never below `WIN_DECAY_FLOOR`.
+ *  Measured against the two cases that bound it: a win now against a win
+ *  five steps later (main phase → combat damage) must land more than
+ *  `outcomeEps` apart — 0.85⁵ ≈ 0.44, floored at half — and a win a turn
+ *  away must keep enough height to beat a line that never wins (the
+ *  Brain Freeze decking entry), which half does and a tenth did not. */
 const WIN_STEP_DECAY = 0.85;
+const WIN_DECAY_FLOOR = 0.5;
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
  *  resolution can raise a second mandatory discard, and a cleanup discard can
