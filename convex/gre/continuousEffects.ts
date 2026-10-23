@@ -17,7 +17,7 @@
 // `cast-timing-lock`, `untap-restriction`, `hand-size-override`,
 // `loyalty-activation-allowance`, `permanent-guard`, `mana-substitution`,
 // `landwalk-negation`,
-// `enters-tapped-restriction`) are deliberately OUT — the CR keeps them out of
+// `enters-tapped-restriction`, `activation-restriction`) are deliberately OUT — the CR keeps them out of
 // the layer system, and so does this registry. They share the `StaticEffect`
 // union today; that is the incoherence, not a reason to widen the boundary.
 //
