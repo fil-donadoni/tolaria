@@ -1924,8 +1924,8 @@ export type PlayerState = {
      *  card that left your graveyard this turn" reads the same field. */
     leftGraveyardThisTurn?: number;
     /** Count of NONTOKEN creatures put into THIS player's graveyard from the
-     *  battlefield this turn (CR 700.4 — "dies"; CR 111.7 — a token that
-     *  leaves the battlefield is never a card in a graveyard, so it is not
+     *  battlefield this turn (CR 700.4 — "dies"; a token is not a card
+     *  and CR 111.7 has it cease to exist in the graveyard, so it is not
      *  counted). Keyed by the OWNER, the player whose graveyard the card
      *  lands in (CR 404.1). Written at the one battlefield-departure funnel
      *  (`removePermanentTo`) beside the global `deathsThisTurn`, reset at turn

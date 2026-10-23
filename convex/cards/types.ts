@@ -12061,10 +12061,6 @@ export interface TriggerStateView {
          *  Mirrors `PlayerState.leftGraveyardThisTurn`; undefined defaults
          *  to 0. */
         leftGraveyardThisTurn?: number;
-        /** Nontoken creatures put into this player's graveyard from the
-         *  battlefield this turn (CR 700.4). Mirrors
-         *  `PlayerState.nontokenCreaturesToGraveyardThisTurn`; undefined is 0. */
-        nontokenCreaturesToGraveyardThisTurn?: number;
         /** Graveyard contents in stack order (index 0 = bottom, last = top).
          *  Exposed so graveyard-zone triggers can inspect card position —
          *  Nether Shadow needs "three or more creature cards above it"
@@ -14657,8 +14653,8 @@ export type EffectCardsDrawnThisTurnValue = {
 };
 
 /** nontokenCreaturesToGraveyardThisTurn — how many NONTOKEN creatures were put into a PLAYER's graveyard from
- *  the battlefield so far this turn (CR 700.4 "dies", CR 111.7 tokens never
- *  reach a graveyard), a thin JSON-pure skin over
+ *  the battlefield so far this turn (CR 700.4 "dies", tokens are excluded —
+ *  CR 111.7 has them cease to exist off the battlefield), a thin JSON-pure skin over
  *  `SpellContext.getNontokenCreaturesToGraveyardThisTurn`. Like
  *  `cardsDrawnThisTurn` it is NOT an Op and NOT a structural construct.
  *
