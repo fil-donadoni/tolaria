@@ -197,6 +197,10 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : {}),
         ...(damagedPlayer !== null ? { player: damagedPlayer } : {}),
         ...(caster !== null ? { player: caster } : {}),
+        // CR 603.2 — a cast head names the spell it fired for.
+        ...(head.kind === "spell-cast"
+            ? { spell: { ref: "$event.spell" } }
+            : {}),
         // CR 120.3 — "that much" after a damage head is the damage dealt.
         ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
             ? { amount: { ref: "$event.amount" } }

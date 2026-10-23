@@ -88,9 +88,6 @@ export const brainFreeze = defineCard(() => ({
 // declared hole #3118 (`gre/costLegClaims.ts`) live — the SEARCH-side discard
 // omitted `cause: "cycling"`, so the trigger fired on the real board and not
 // inside the Bot's tree. Closed in this same PR, in `applyMove.ts`.
-//
-// compiler-gap: "Whenever an opponent casts a spell, counter that spell and put a depletion counter on this enchantment. If there are three or more depletion counters on this enchantment, sacrifice it." (#2693)
-// compiler-gap: "When you cycle this card, you may counter target spell." (#2693)
 export const decreeOfSilence = defineCard(() => ({
     id: "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
     rarity: "rare",
