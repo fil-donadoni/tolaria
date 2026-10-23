@@ -396,7 +396,7 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     return out;
 }
 
-/** CR 602.1a / 118.5 — the ability's FILTERED give-up leg (sacrifice or
+/** CR 602.1a / 118.3 — the ability's FILTERED give-up leg (sacrifice or
  *  return-to-hand) as one record, so every fixture branch below builds and
  *  breaks both shapes the same way. Restated here rather than read off the
  *  engine's `permanentGiveUpCostLegs`, for the reason `holds` below gives. */

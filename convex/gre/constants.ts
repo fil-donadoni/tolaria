@@ -2309,7 +2309,7 @@ export function getManaTapOptionsDetailed(
             ) {
                 continue;
             }
-            // CR 602.1 / 118.5 (issue #3455) — an unpayable FILTERED give-up
+            // CR 602.1 / 118.3 (issue #3455) — an unpayable FILTERED give-up
             // leg (sacrifice or return-to-hand, `permanentGiveUpCostLegs`) is
             // not a mana source: with no legal victim the activation is
             // illegal, and both the client picker and the payment-source click

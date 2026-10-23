@@ -4897,7 +4897,7 @@ export function finalizeTargetSelection(
             ability
         );
         if (precondition !== null) throw new Error(precondition);
-        // CR 602.1 / 118.5 — the filtered give-up legs ("sacrifice a permanent
+        // CR 602.1 / 118.3 — the filtered give-up legs ("sacrifice a permanent
         // matching <filter>", "return a permanent matching <filter> you
         // control to its owner's hand"): illegal unless the activating player
         // controls enough matching permanents. The SAME predicate the
