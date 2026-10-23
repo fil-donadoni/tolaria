@@ -1184,11 +1184,25 @@ export function targetRequirementFromDescriptor(
         requirement.toughnessFilter = descriptor.toughnessFilter;
     if (descriptor.mvFilter) requirement.mvFilter = descriptor.mvFilter;
     if (descriptor.zone !== undefined) {
+        // CR 404.1 — the graveyard's owner is named by `zoneOwner` alone; a
+        // trailing "you control" would be dropped here, so it is refused.
+        if (descriptor.controller !== undefined)
+            return fail(
+                "a controller clause beside a graveyard is not expressible",
+                "controller"
+            );
         requirement.zone = descriptor.zone;
         requirement.controller = descriptor.zoneOwner === "you" ? "you" : "any";
         // CR 404.1 + CR 601.2c — every pick shares the first pick's graveyard
         // (`TargetRequirement.sameController`, read on the owner here).
-        if (descriptor.singleZone === true) requirement.sameController = true;
+        if (descriptor.singleZone === true) {
+            if (descriptor.plural !== true)
+                return fail(
+                    'a single graveyard constrains a group, not one "target card"',
+                    "zone"
+                );
+            requirement.sameController = true;
+        }
     } else if (descriptor.controller !== undefined) {
         requirement.controller = descriptor.controller;
     }
