@@ -194,11 +194,12 @@ describe("as-enters exileFromGraveyard — cast (CR 614.12a / 607.2b, issue #652
 
             answer(state, ["bears", "angel"]);
 
-            const events = seen.filter((e) => e.type === "CARDS_EXILED");
+            const events = seen.filter(
+                (e): e is Extract<GameEvent, { type: "CARDS_EXILED" }> =>
+                    e.type === "CARDS_EXILED"
+            );
             expect(events).toHaveLength(1);
-            const cards = (
-                events[0] as { cards: { cardInstanceId: string }[] }
-            ).cards.map((c) => c.cardInstanceId);
+            const cards = events[0].cards.map((c) => c.cardInstanceId);
             expect(cards).toEqual(["bears", "angel"]);
         });
     });
