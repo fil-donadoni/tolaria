@@ -413,6 +413,9 @@ function lowerLine(
                     ? `${slugify(card.name)}-ability`
                     : `${slugify(card.name)}-ability-${index + 1}`;
             censusGrantedKeywords(ir.effects, acc);
+            // CR 113.1a — templates the ability's own text grants; committed
+            // to the card only once the whole ability has lowered.
+            const granted: ActivatedAbility[] = [];
             const lowered = lowerActivatedAbility({
                 id,
                 oracleText: parsed.line,
@@ -420,8 +423,29 @@ function lowerLine(
                 cost: ir.cost,
                 effects: ir.effects,
                 restrictions: ir.restrictions,
+                grantQuotedAbility: (quoted) => {
+                    const template = lowerQuotedAbility(
+                        {
+                            id: mintId(acc, `${slugify(card.name)}-grant`),
+                            text: quoted.text,
+                            ability: quoted.ability,
+                        },
+                        card,
+                        acc
+                    );
+                    if (!template.ok)
+                        return { ok: false, reason: template.reason };
+                    if (template.kind !== "activated")
+                        return {
+                            ok: false,
+                            reason: "a granted triggered ability here",
+                        };
+                    granted.push(template.ability);
+                    return { ok: true, value: template.ability.id };
+                },
             });
             if (!lowered.ok) return lowered.reason;
+            acc.grantTemplates.push(...granted);
             acc.activatedAbilities.push(lowered.ability);
             return null;
         }

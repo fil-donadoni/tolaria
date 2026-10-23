@@ -105,6 +105,7 @@ import {
     type StaticFilterEvaluation,
 } from "./targetFilter";
 import { keywordVocabulary } from "./keywordVocabulary";
+import { registerQuotedAbilityReader } from "./quotedAbilityReader";
 import type { KeywordIR, SlotIR } from "../ir";
 import { activatedSlot } from "../slots/activated";
 import { manaAbilitySlot } from "../slots/manaAbility";
@@ -1930,6 +1931,22 @@ function readQuotedAbilityIn(
         return fail("ambiguous quoted ability: two slots consumed it", text);
     return fail(`quoted ability — ${[...new Set(misses)].join("; ")}`, text);
 }
+
+// CR 113.1a + CR 205.1b — "This land becomes a … creature with \"<ability>\"":
+// the quoted ability belongs to the animated SOURCE, which is a creature while
+// the grant lasts, so "this creature" inside the quote names it. The effect
+// clause cannot import the slots (cycle), so it reads through this reader.
+registerQuotedAbilityReader((text, ctx) =>
+    readQuotedAbilityIn(text, {
+        ...ctx,
+        typeLine: {
+            types: ["Creature"],
+            supertypes: [],
+            subtypes: [],
+            hostTypeOnly: true,
+        },
+    })
+);
 
 /** What follows "Enchanted <noun> gets +N/+N and" — or the whole predicate. */
 function readHostPredicate(
