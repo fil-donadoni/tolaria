@@ -60300,6 +60300,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spinning Darkness",
+        "scryfallId": "58e64a8e-84b1-416c-9fa7-8b10130dc9e9",
+        "oracleId": "69eeee95-cc69-41d1-833b-8895ef72df82",
+        "firstSet": "wth",
+        "firstPrintId": "58e64a8e-84b1-416c-9fa7-8b10130dc9e9",
+        "firstPrintSet": "wth",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spinning Wheel",
         "scryfallId": "070ff479-9d87-4ab6-aaaa-e96b9df0bac4",
         "oracleId": "e0935a0f-7087-40cd-a094-89f200da6ef0",
