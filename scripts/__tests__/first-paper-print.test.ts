@@ -128,13 +128,36 @@ describe("resolveFirstPaperPrint (issue #3423)", () => {
                 sleep: noSleep,
             })
         ).toBeNull();
-        // The four types the filter drops, pinned so a rename can't widen it.
+        // The five types the filter drops, pinned so a rename can't widen it.
         expect([...NON_PRINT_SET_TYPES].sort()).toEqual([
             "funny",
+            "masterpiece",
             "memorabilia",
             "minigame",
             "token",
         ]);
+    });
+
+    it("skips a same-day masterpiece print for the set it was inserted in (Verdurous Gearhulk)", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [
+                    print({
+                        id: "mps-print",
+                        set: "mps",
+                        set_type: "masterpiece",
+                        rarity: "special",
+                    }),
+                    print({ id: "kld-print", set: "kld", rarity: "mythic" }),
+                ],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: "kld-print", set: "kld", rarity: "mythic" });
     });
 });
 

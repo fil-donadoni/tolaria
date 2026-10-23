@@ -31,12 +31,17 @@ export const SCRYFALL = "https://api.scryfall.com";
 /** Set types that are not a real paper printing of the card. `funny` joins
  *  the three the two copies already shared: an acorn/silver-border set is
  *  printed on paper but is not the card's home set, and it is the filter the
- *  issue #3423 audit measured the population with. */
+ *  issue #3423 audit measured the population with. `masterpiece` (Kaladesh
+ *  Inventions, Zendikar Expeditions): a bonus sheet inserted in another set's
+ *  boosters, released the SAME day as that set — so the released-ascending
+ *  order can put it first (Verdurous Gearhulk read as `mps`, rarity
+ *  "special", instead of `kld`), yet it is never the card's home set. */
 export const NON_PRINT_SET_TYPES: ReadonlySet<string> = new Set([
     "token",
     "memorabilia",
     "minigame",
     "funny",
+    "masterpiece",
 ]);
 
 export interface PaperPrint {
