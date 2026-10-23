@@ -208,6 +208,11 @@ export interface SiteAntecedents {
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
+     * CR 603.2 + CR 608.2h — "that spell": the spell a cast-trigger head
+     * named (`$event.spell`, the stack-object field of `SPELL_CAST`).
+     */
+    readonly spell?: Extract<EffectOp, { op: "counter" }>["target"];
+    /**
      * CR 404.1 / 110.2a — "that card" sits in the graveyard of the ability's
      * own controller (the head pins its owner), so putting it onto the
      * battlefield returns it under its owner's control.
@@ -1247,6 +1252,9 @@ function selectorsFor(
     // change can act on; `lowerMoveZone` binds it, every other verb refuses.
     if (subject.kind === "that-card")
         return unlowerable('"that card" is read only as a returned card');
+    // CR 701.6a — "that spell" is read only by the counter verb.
+    if (subject.kind === "that-spell")
+        return unlowerable('"that spell" is read only as a countered spell');
     // CR 115.1 — a sweep announces nothing, so there is no slot to point at;
     // only the verbs that fan out (`sweepOps`) read one.
     if (subject.kind === "mass")
@@ -2293,6 +2301,16 @@ function lowerSentenceBody(
         // CR 701.6a — counter the announced spell, with CR 118.12a's punisher
         // when the sentence prints one.
         case "counter": {
+            // CR 603.2 + CR 608.2h — "counter that spell" names the spell the
+            // head's cast event carried: no announced slot, a ref to the event.
+            if (sentence.subject.kind === "that-spell") {
+                const spell = site.antecedents?.spell;
+                if (spell === undefined)
+                    return unlowerable(
+                        '"that spell" names no spell at this site'
+                    );
+                return lowered([{ op: "counter", target: spell }]);
+            }
             const target = spellSelector(sentence.subject, slots);
             if (!target.ok) return target;
             const counter: Extract<EffectOp, { op: "counter" }> = {
@@ -3519,6 +3537,26 @@ function lowerSentenceBody(
                 { op: "discard", player: player.value, cards: { ref: bind } },
             ]);
         }
+        // CR 122.1 + CR 701.21a — the source's tally, read as the sentence
+        // resolves (after any counter an earlier sentence put on it), gates
+        // its sacrifice.
+        case "sacrifice-source-at-counters":
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: sentence.counter,
+                            },
+                        },
+                        op: "ge",
+                        right: sentence.atLeast,
+                    },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ]);
         // CR 118.12a — "sacrifice it unless you <payment>" MEANS "you may pay;
         // if you don't, sacrifice it": the `mayPay` + `if not` pair verbatim
         // (Phyrexian Dreadnought). The payment is one `CostLegs` leg.

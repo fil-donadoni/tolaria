@@ -8899,4 +8899,142 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 603.2 + CR 701.6a + CR 122.1 — "Whenever an opponent casts a spell,
+    // counter that spell and put a depletion counter on this enchantment. If
+    // there are three or more depletion counters on this enchantment,
+    // sacrifice it.": the cast head's `$event.spell` countered with no
+    // announcement, and the source's own tally gating its sacrifice. Exhibits
+    // `counter` on a spell the canned smoke scenario cannot stage and an `if`
+    // reading a runtime tally it does not size.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
+            name: "Decree of Silence",
+            manaCost: "{6}{U}{U}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever an opponent casts a spell, counter that spell and put a depletion counter on this enchantment. If there are three or more depletion counters on this enchantment, sacrifice it.\nCycling {4}{U}{U} ({4}{U}{U}, Discard this card: Draw a card.)\nWhen you cycle this card, you may counter target spell.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Decree of Silence",
+            types: ["Enchantment"],
+            manaCost: {
+                X: 6,
+                U: 2,
+            },
+            oracleText:
+                "Whenever an opponent casts a spell, counter that spell and put a depletion counter on this enchantment. If there are three or more depletion counters on this enchantment, sacrifice it.\nCycling {4}{U}{U} ({4}{U}{U}, Discard this card: Draw a card.)\nWhen you cycle this card, you may counter target spell.",
+            activatedAbilities: [
+                {
+                    id: "cycling",
+                    oracleText:
+                        "Cycling {4}{U}{U} ({4}{U}{U}, Discard this card: Draw a card.)",
+                    cost: {
+                        mana: {
+                            generic: 4,
+                            U: 2,
+                        },
+                        discardThis: true,
+                        cyclingCost: true,
+                    },
+                    activateFromHand: true,
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "decree-of-silence-trigger",
+                    oracleText:
+                        "Whenever an opponent casts a spell, counter that spell and put a depletion counter on this enchantment. If there are three or more depletion counters on this enchantment, sacrifice it.",
+                    head: {
+                        kind: "spell-cast",
+                        scope: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "counter",
+                            target: {
+                                ref: "$event.spell",
+                            },
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "depletion",
+                            target: {
+                                ref: "$source",
+                            },
+                            count: 1,
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    counters: {
+                                        of: {
+                                            ref: "$source",
+                                        },
+                                        type: "depletion",
+                                    },
+                                },
+                                op: "ge",
+                                right: 3,
+                            },
+                            then: [
+                                {
+                                    op: "sacrifice",
+                                    target: {
+                                        ref: "$source",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "decree-of-silence-trigger-2",
+                    oracleText:
+                        "When you cycle this card, you may counter target spell.",
+                    head: {
+                        kind: "cycled",
+                    },
+                    targetRequirement: {
+                        type: "spell",
+                        count: 1,
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Counter target spell?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                binding: "$may1",
+                            },
+                            then: [
+                                {
+                                    op: "counter",
+                                    target: {
+                                        target: 0,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
