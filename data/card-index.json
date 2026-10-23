@@ -8860,6 +8860,16 @@
         "source": "compiled"
     },
     {
+        "name": "Caller of the Claw",
+        "scryfallId": "a073459e-1f00-47e0-a1b3-d30203aa35d1",
+        "oracleId": "ec79255f-4b4d-4a0a-89d8-c59ba640275b",
+        "firstSet": "lgn",
+        "firstPrintId": "a073459e-1f00-47e0-a1b3-d30203aa35d1",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Callous Giant",
         "scryfallId": "330028c4-8e91-4fe3-a87d-1660dfd2507e",
         "oracleId": "7a2336ff-c8ed-4daa-b182-403c21bc8133",

@@ -1676,6 +1676,25 @@ function isCardsDrawnThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ nontokenCreaturesToGraveyardThisTurn: { of } }` — SHAPE of the per-turn
+ *  "nontoken creatures put into a graveyard" count (CR 700.4). `of` is a
+ *  PLAYER selector naming the graveyard's owner, family-checked as a PLAYER
+ *  position by the ordered ref pass (the `keyHint === "nontokenCreaturesToGraveyardThisTurn"`
+ *  case in `collectRefUses`, for the `of`-key collision reason `domain`
+ *  documents). No other keys are permitted. */
+function isNontokenCreaturesToGraveyardThisTurnValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "nontokenCreaturesToGraveyardThisTurn")
+        return false;
+    const spec = (value as { nontokenCreaturesToGraveyardThisTurn: unknown })
+        .nontokenCreaturesToGraveyardThisTurn;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isPlayerRef(s.of);
+}
+
 /** `{ playerCounters: { of, type } }` — SHAPE of the player-counter read
  *  (CR 122.1, issue #1969, fourteenth EffectValue member). `of` is a PLAYER
  *  selector (`EffectPlayerRef`) — like `domain`'s / `lifeGainedThisTurn`'s and
@@ -1894,6 +1913,7 @@ function isEffectValue(value: unknown): boolean {
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
         isCardsDrawnThisTurnValue(value) ||
+        isNontokenCreaturesToGraveyardThisTurnValue(value) ||
         isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
@@ -7039,6 +7059,16 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     // `counters`/`manaValue` established.
     if (
         keyHint === "cardsDrawnThisTurn" &&
+        keys.length === 1 &&
+        keys[0] === "of"
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // nontokenCreaturesToGraveyardThisTurn — { nontokenCreaturesToGraveyardThisTurn: { of } } (CR 700.4): `of` is a PLAYER
+    // position, routed before the generic recursion like `cardsDrawnThisTurn`.
+    if (
+        keyHint === "nontokenCreaturesToGraveyardThisTurn" &&
         keys.length === 1 &&
         keys[0] === "of"
     ) {
