@@ -148,34 +148,25 @@ export function mergeArgs(pr: number, head?: string, admin = false): string[] {
 }
 
 /**
- * What a HAND-RUN `pr-merge` still owes when it succeeds (issue #4159).
+ * What a HAND-RUN `pr-merge` tells the reader when it succeeds (issue #6473).
  *
- * This script is the raw primitive: it merges, and that is all it has ever
- * done. `land` wraps it in a post-merge step list — record the landing,
- * fast-forward the primary checkout, seed the PR's preset scenario, ingest
- * telemetry, start the health decision, tear the worktree down (the
- * GitHub-bound steps are the hourly `housekeeping` cron's, issue #5457) — and CLAUDE.md § Merging sends a
- * session HERE when only the merge failed, precisely so the (expensive) lane
- * gate is not re-paid. The cost of that advice was silence: the PR landed and
- * every one of those steps was skipped with nothing said, which is a
- * regression path straight back into issue #3253 (an unseeded scenario is lost
- * without a word — 10 of 14 specs in 80 PRs). Observed on PR #4153, 2026-09-19.
+ * This script only merges. `post-merge.yml` fires on every push to the base,
+ * whoever merged, and owns the rest: primary-checkout fast-forward, worktree
+ * teardown, telemetry ingest, preset-scenario seed, claim release,
+ * `gaps:sync` / `derive:sync`. Nothing is owed by hand, and `land` is refused
+ * to a session, so the notice names that pipeline and where its run is.
  *
- * So say it. `land` now re-enters on an already-MERGED PR and runs exactly the
- * housekeeping, so the follow-up is one command and it is cheap.
- *
- * Empty when `land` is the caller (`--from-land`): it is about to run the very
- * steps this would be telling it to run, and a line telling the merge-train to
- * run the merge-train is the kind of noise that trains a reader to skip the
- * tail of a green landing (issue #2877, same lesson).
+ * Empty when `land` is the caller (`--from-land`): a line about the pipeline
+ * in the tail of a green landing only trains a reader to skip it.
  */
 export function followUpNotice(pr: number, fromLand: boolean): string[] {
     if (fromLand) return [];
     return [
-        `pr-merge: merged ONLY — the post-merge housekeeping has NOT run ` +
-            `(landing record, primary-checkout fast-forward, preset-scenario seed, telemetry ingest, health detach, worktree teardown).`,
-        `pr-merge: run it from the PR's worktree — it costs no rebase and no lane gate on an already-merged PR:`,
-        `pr-merge:     TOLARIA_GATE_RUN_KEY=land-${pr} bun run gate:run land ${pr}`,
+        `pr-merge: merged — the post-merge steps (primary-checkout fast-forward, worktree teardown, ` +
+            `telemetry ingest, preset-scenario seed, claim release, gaps:sync / derive:sync) are ` +
+            `post-merge.yml's, run by GitHub on this push to the base; nothing is left to run by hand.`,
+        `pr-merge: a failed step is that run's: gh run list --workflow post-merge.yml --limit 5 ` +
+            `(PR #${pr}'s merge commit is the run's head sha).`,
     ];
 }
 
