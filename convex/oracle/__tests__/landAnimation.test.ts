@@ -155,17 +155,48 @@ describe("a land animating itself (CR 205.1b, 611.1)", () => {
     });
 
     // REFUSALS — each stays under its own Grammar Gap key.
-    it("refuses a quoted granted ability — Spawning Pool", () => {
+    // CR 113.1a + CR 613.1f — a quoted ability granted with the animation.
+    it("compiles a quoted granted ability — Spawning Pool", () => {
         const text =
             'This land enters tapped.\n{T}: Add {B}.\n{1}{B}: This land becomes a 1/1 black Skeleton creature with "{B}: Regenerate this creature" until end of turn. It\'s still a land.';
+        const def = compiled(
+            land("Spawning Pool", text, "907b49ff-2020-4203-b93e-4b3306afc337")
+        );
+        const ability = animateAbility(
+            land("Spawning Pool", text, "907b49ff-2020-4203-b93e-4b3306afc337")
+        );
+        expect(ability?.animatesSelf).toBe(true);
+        const templateId = (def.grantTemplates ?? [])[0]?.id;
+        expect(templateId).toBeDefined();
+        expect(sortKeys(ability?.effects)).toEqual(
+            sortKeys([
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    subtype: "Skeleton",
+                    colors: ["B"],
+                    duration: EOT,
+                },
+                {
+                    op: "grantAbility",
+                    target: { ref: "$source" },
+                    grantedActivatedId: templateId,
+                    duration: EOT,
+                },
+            ])
+        );
+        expect(sortKeys(def.grantTemplates?.[0]?.effects)).toEqual(
+            sortKeys([{ op: "regenerate", target: { ref: "$source" } }])
+        );
+    });
+
+    it("refuses a quoted ability that is not readable", () => {
+        const text =
+            '{1}{B}: This land becomes a 1/1 black Skeleton creature with "{B}: Frobnicate this creature" until end of turn. It\'s still a land.';
         expect(
-            refusedAt(
-                land(
-                    "Spawning Pool",
-                    text,
-                    "907b49ff-2020-4203-b93e-4b3306afc337"
-                )
-            ).length
+            refusedAt(land("Spawning Pool", text, "x")).length
         ).toBeGreaterThan(0);
     });
 

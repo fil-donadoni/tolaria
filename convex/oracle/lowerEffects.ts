@@ -59,6 +59,7 @@ import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
+import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
 
 /**
  * A lowering step's outcome.
@@ -121,6 +122,15 @@ export interface SiteOptions {
      * by a player exactly as that label is.
      */
     readonly selfName: string;
+    /**
+     * CR 113.1a — registers an ability granted in quotation marks on the
+     * card's `grantTemplates[]` and returns its template id. Absent = the
+     * site cannot carry a granted template, and the sentence is refused.
+     */
+    readonly grantQuotedAbility?: (quoted: {
+        readonly text: string;
+        readonly ability: QuotedAbilityIR;
+    }) => Lowered<string>;
     /**
      * CR 702.33e — the kicker costs this site's card prints, with their ids.
      *
@@ -1892,8 +1902,25 @@ function lowerSentenceBody(
             // CR 205.1b + CR 613.1d — the source's own animation: one op on
             // `$source`, carrying the type line the clause printed.
             if (sentence.self !== undefined) {
-                const { subtype, additionalTypes, colors, keyword } =
+                const { subtype, additionalTypes, colors, keyword, quoted } =
                     sentence.self;
+                // CR 113.1a + CR 613.1f — a quoted ability rides a second Op
+                // on the same source and duration, as `grantAbility`'s
+                // activated leg reads the template off the source.
+                let grantedActivatedId: string | undefined;
+                if (quoted !== undefined) {
+                    if (site.grantQuotedAbility === undefined)
+                        return unlowerable(
+                            "a quoted ability granted where no card template can carry it"
+                        );
+                    if (quoted.ability.kind !== "activated")
+                        return unlowerable(
+                            "an animation grants an activated ability only"
+                        );
+                    const id = site.grantQuotedAbility(quoted);
+                    if (!id.ok) return id;
+                    grantedActivatedId = id.value;
+                }
                 return lowered([
                     {
                         op: "animate",
@@ -1910,6 +1937,16 @@ function lowerSentenceBody(
                             : {}),
                         duration: durationSpec(sentence.duration),
                     },
+                    ...(grantedActivatedId !== undefined
+                        ? [
+                              {
+                                  op: "grantAbility" as const,
+                                  target: { ref: "$source" as const },
+                                  grantedActivatedId,
+                                  duration: durationSpec(sentence.duration),
+                              },
+                          ]
+                        : []),
                 ]);
             }
             if (sentence.subject.kind !== "mass")

@@ -49,6 +49,8 @@ import {
     subGrammar,
 } from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
+import { readQuotedAbilityOf } from "./quotedAbilityReader";
+import type { QuotedAbilityIR } from "./staticClause";
 import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import {
@@ -596,6 +598,12 @@ export type EffectSentenceIR =
               readonly additionalTypes: readonly CardType[];
               readonly colors: readonly Color[];
               readonly keyword?: KeywordIR;
+              /** CR 113.1a — an ability granted in quotation marks for the
+               *  animation's duration; exclusive with `keyword`. */
+              readonly quoted?: {
+                  readonly text: string;
+                  readonly ability: QuotedAbilityIR;
+              };
           };
       }
     | {
@@ -3825,6 +3833,8 @@ const STILL_TYPE_SELF = /^It(?:'|’)s still a (land)$/;
  */
 const ANIMATE_SELF =
     /^This (land) becomes a (\d+)\/(\d+) (.+?) creature(?: with (.+?))? (until .+)$/;
+/** CR 113.1a — the `with` tail of an animation that is ONE quoted ability. */
+const QUOTED_GRANT_TAIL = /^"([^"]+)"$/;
 const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
 const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
@@ -5214,8 +5224,8 @@ function readUpgrade(
  * second subtype or a colour list ("blue and black") refuses the line, so the
  * rule reads exactly the forms with a fixture rather than a near-English
  * superset (ADR 0105 § 2). A `with` tail must be ONE Mechanics Registry
- * keyword: a quoted granted ability ("with \"{1}{B}: Regenerate this
- * creature\"") is not a keyword and stays refused.
+ * keyword, or ONE quoted ability ("with \"{B}: Regenerate this creature\"",
+ * CR 113.1a) read by the slots through `quotedAbilityReader`.
  */
 function readSelfAnimation(
     m: RegExpMatchArray,
@@ -5247,10 +5257,24 @@ function readSelfAnimation(
     if (subtype === undefined)
         return fail("an animated source names its creature subtype", span);
     let keyword: KeywordIR | undefined;
+    let quoted: { text: string; ability: QuotedAbilityIR } | undefined;
     if (m[5] !== undefined) {
-        keyword = KEYWORDS.get(m[5].toLowerCase());
-        if (keyword === undefined)
-            return fail(`"${m[5]}" is not a Mechanics Registry keyword`, span);
+        const quote = m[5].match(QUOTED_GRANT_TAIL);
+        if (quote !== null) {
+            // The quote's own sentence ends with the full stop the printer
+            // left outside the marks; the granted ability's Oracle text has it.
+            const text = `${quote[1]!}.`;
+            const ability = readQuotedAbilityOf(text, ctx as ParseContext);
+            if (!ability.ok) return ability;
+            quoted = { text, ability: ability.value };
+        } else {
+            keyword = KEYWORDS.get(m[5].toLowerCase());
+            if (keyword === undefined)
+                return fail(
+                    `"${m[5]}" is not a Mechanics Registry keyword`,
+                    span
+                );
+        }
     }
     const duration = durationRule.run(m[6]!, ctx);
     if (!duration.ok) return duration;
@@ -5265,6 +5289,7 @@ function readSelfAnimation(
             additionalTypes,
             colors,
             ...(keyword !== undefined ? { keyword } : {}),
+            ...(quoted !== undefined ? { quoted } : {}),
         },
     } satisfies EffectSentenceIR);
 }
