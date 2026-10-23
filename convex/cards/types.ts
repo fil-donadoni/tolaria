@@ -10098,6 +10098,40 @@ export interface StaticCastTimingLock {
     oracleText: string;
 }
 
+/** Battlefield-scanned activation prohibition (CR 602.5 — "A player can't
+ *  begin to activate an ability that's prohibited from being activated"): the
+ *  activated abilities of every permanent matching `filter` can't be
+ *  activated, by any player. The activation sibling of
+ *  `StaticCastRestriction`, and read the same way — a read-time gate, never
+ *  materialized onto a permanent, so it ends the instant its source leaves
+ *  the battlefield (CR 611.2).
+ *
+ *  `filter` names permanents only: a description with a card type and no zone
+ *  means a permanent of that type on the battlefield (CR 109.2), so a creature
+ *  card's cycling in hand or a graveyard ability is never locked. Matched by
+ *  the single `matchesPermanentFilter` authority against the LIVE row, with
+ *  the source as `self` (so "your opponents control" scopes work).
+ *
+ *  CR 605.1a — mana abilities are activated abilities too, so they are locked
+ *  unless `exemptManaAbilities` says otherwise ("…unless they're mana
+ *  abilities"). Cursed Totem ("Activated abilities of creatures can't be
+ *  activated."): `filter: { types: "Creature" }`, no exemption — a Llanowar
+ *  Elves can't tap for mana under it.
+ *
+ *  Consumed by `activationRestrictionViolation`
+ *  (`gre/activationRestrictions.ts`). */
+export interface StaticActivationRestriction {
+    kind: "activation-restriction";
+    id: string;
+    /** The permanents whose activated abilities can't be activated. */
+    filter: PermanentFilter;
+    /** CR 605.1a — "unless they're mana abilities": mana abilities stay
+     *  activatable. Absent: every activated ability is locked. */
+    exemptManaAbilities?: true;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
 /** CR 613.5 / 122.1 — counter dependency declaration, carried by EVERY static
  *  effect kind (issue #1711).
  *
@@ -10422,6 +10456,7 @@ export type StaticEffect =
         | StaticCastRestriction
         | StaticCastTimingLock
         | StaticCastPermission
+        | StaticActivationRestriction
     ) &
         CounterGatedStatic &
         DependencyReads;
