@@ -81,7 +81,7 @@ const EXILE_COLOURED = /^exile an? (\w+) card from your hand$/;
 
 /** CR 701.13 / 404.2 — "exile the top three black cards of your graveyard". */
 const EXILE_GRAVEYARD_TOP =
-    /^exile the top (\S+) (\w+) cards of your graveyard$/;
+    /^exile the top ([a-z]+) (\w+) cards of your graveyard$/;
 
 /** CR 701.9 — Foil's two-requirement discard, Island first (see the greedy-
  *  ordering constraint on `CostLegs.hand`). */

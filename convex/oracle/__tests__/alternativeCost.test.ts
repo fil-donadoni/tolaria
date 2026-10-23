@@ -199,6 +199,10 @@ describe("alternative cost — refusals (fail-closed)", () => {
             "You may exile the top one black cards of your graveyard rather than pay this spell's mana cost.",
         ],
         [
+            "graveyard exile leg with a digit count, not printed",
+            "You may exile the top 3 black cards of your graveyard rather than pay this spell's mana cost.",
+        ],
+        [
             "graveyard exile leg from the opponent's graveyard",
             "You may exile the top three black cards of target opponent's graveyard rather than pay this spell's mana cost.",
         ],
