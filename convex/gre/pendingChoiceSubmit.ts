@@ -12,6 +12,8 @@ import {
     mayPaySacrificeThreshold,
     mayPaySacrificeSetPower,
     getMayPayDiscardCandidateIds,
+    mayPayGraveyardChoiceRequired,
+    mayPayGraveyardSelectionLegal,
     mayPayDiscardChoiceRequired,
     mayPayHandLegCount,
     mayPayHandSelectionLegal,
@@ -76,6 +78,11 @@ export type SubmitMayPayArgs = {
      *  when the pick auto-resolves (hand size ≤ `count`) or the accepted cost
      *  has no discard leg. Mirrors `sacrificeIds`. */
     discardIds?: string[];
+    /** CR 118.3 / 118.12a — the payer's chosen graveyard card id(s) for a
+     *  may-pay whose GRAVEYARD leg is being paid. Required (exactly `count`
+     *  legal ids) whenever the accepted cost has that leg — it never
+     *  auto-picks; ignored otherwise. */
+    graveyardIds?: string[];
 };
 
 /** Validates and applies a yes/no `may-pay` submission (CR 117.3a / 118.4)
@@ -202,13 +209,33 @@ export function applyMayPaySubmit(
         } else {
             discardIds = undefined;
         }
+        // CR 118.3 / 118.12a — the graveyard leg is ALWAYS the payer's pick
+        // (`canPayMayPayCost` above already proved a candidate exists, so the
+        // choice is required): exactly `count` distinct, currently-legal
+        // graveyard cards, recomputed live.
+        let graveyardIds = args.graveyardIds;
+        if (mayPayGraveyardChoiceRequired(state, args.playerId, head.cost)) {
+            if (
+                !mayPayGraveyardSelectionLegal(
+                    state,
+                    args.playerId,
+                    head.cost,
+                    graveyardIds ?? []
+                )
+            ) {
+                throw new Error("Illegal graveyard choice");
+            }
+        } else {
+            graveyardIds = undefined;
+        }
         payMayPayCost(
             state,
             args.playerId,
             head.cost,
             head.manaRestriction,
             sacrificeIds,
-            discardIds
+            discardIds,
+            graveyardIds
         );
     }
 

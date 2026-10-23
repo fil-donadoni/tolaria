@@ -13,6 +13,7 @@ import {
     mayPaySacrificeThreshold,
     mayPaySacrificeSelectionPower,
     mayPayRequiredDiscards,
+    mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
 import { numberChoiceRange } from "@convex/gre/state";
 import { formatOracleText } from "~/lib/oracle-text";
@@ -194,6 +195,12 @@ export default function PendingChoicePrompt({
             ? mayPayRequiredDiscards(choice.cost)
             : 0;
     const needsDiscardPick = discardPickCount > 0;
+    // CR 118.3 / 118.12a — a may-pay graveyard leg sets `zone: "graveyard"`;
+    // the chooser picks the card(s) to return in the graveyard picker.
+    const graveyardPickCount =
+        isMayPay && choice.zone === "graveyard"
+            ? mayPayRequiredGraveyardReturns(choice.cost)
+            : 0;
 
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
     // the buffer is empty.
@@ -516,6 +523,13 @@ export default function PendingChoicePrompt({
                                             {selected} / {discardPickCount}{" "}
                                             selected — click a card in hand to
                                             discard
+                                        </p>
+                                    )}
+                                    {graveyardPickCount > 0 && (
+                                        <p className="text-text-disabled text-xs">
+                                            {selected} / {graveyardPickCount}{" "}
+                                            selected — choose a card in your
+                                            graveyard to return
                                         </p>
                                     )}
                                     <div className="flex gap-2 mt-1">

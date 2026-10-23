@@ -17,12 +17,14 @@ import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
 import {
     buildTriggerStateView,
     getGraveyardStackAbilities,
+    mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
 import CardsPile from "./cards-pile";
 import GraveyardFlashbackButton from "./graveyard-flashback-button";
 import GraveyardPlayLandButton from "./graveyard-play-land-button";
 import GraveyardActivateButton from "./graveyard-activate-button";
 import LibrarySearchConfirm from "./library-search-confirm";
+import MayPayGraveyardConfirm from "./may-pay-graveyard-confirm";
 
 export default function PlayerGraveyard({
     player,
@@ -85,7 +87,14 @@ export default function PlayerGraveyard({
     const head = pendingChoices?.[0];
     const isGraveyardChoice = isGraveyardChoiceActive(head, player, playerId);
 
-    const choiceCount = isGraveyardChoice ? head!.count : 1;
+    // CR 118.3 / 118.12a — a may-pay graveyard leg picks exactly the leg's
+    // `count` (the may-pay entry's own `count` is its yes/no answer, 1).
+    const isMayPayGraveyardPick = isGraveyardChoice && head!.kind === "may-pay";
+    const choiceCount = isMayPayGraveyardPick
+        ? mayPayRequiredGraveyardReturns(head!.cost)
+        : isGraveyardChoice
+          ? head!.count
+          : 1;
     const choiceMin =
         typeof choiceCount === "number" ? choiceCount : choiceCount.min;
     const choiceMax =
@@ -162,7 +171,9 @@ export default function PlayerGraveyard({
             // selectable. Mirrors the library search + hand-pick paths.
             eligibleIds={isGraveyardChoice ? eligibleIds : undefined}
             footer={
-                isGraveyardChoice ? (
+                isMayPayGraveyardPick ? (
+                    <MayPayGraveyardConfirm required={choiceMax} />
+                ) : isGraveyardChoice ? (
                     <LibrarySearchConfirm min={choiceMin} max={choiceMax} />
                 ) : undefined
             }

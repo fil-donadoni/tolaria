@@ -973,6 +973,7 @@ function applyProbeChoice(
             accept: move.accept,
             ...(move.sacrificeIds ? { sacrificeIds: move.sacrificeIds } : {}),
             ...(move.discardIds ? { discardIds: move.discardIds } : {}),
+            ...(move.graveyardIds ? { graveyardIds: move.graveyardIds } : {}),
         });
         checkStateBasedActions(branch);
         return true;
