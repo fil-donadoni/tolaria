@@ -1721,7 +1721,7 @@ const moveSpellFromStack: Valuer<"moveSpellFromStack"> = (op, ctx) => ({
 // resolves, only against a target of the retargeting player's choosing, so it
 // prices BELOW an answer (`counter`) — as a quarter of one.
 const retarget: Valuer<"retarget"> = (_op, ctx) => ({
-    points: pricedFraction(ctx, "disruption", 0.25),
+    points: pricedFraction(ctx, "disruption", { num: 1, den: 4 }),
     tags: ["disruption", "targeted"],
 });
 
