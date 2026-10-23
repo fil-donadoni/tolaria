@@ -243,6 +243,8 @@ describe("cost.exileTopOfLibrary — DEFERRED commit (CR 601.2h)", () => {
         expect(tryAutoCommitPendingActivation(state, "p1")).toBeNull();
         expect(state.stack).toHaveLength(0);
         expect(state.pendingActivation).toBeUndefined();
+        // CR 601.2h — no partial payment: the floating mana was not spent.
+        expect(getPlayer(state, "p1").manaPool.C).toBe(1);
     });
 
     it("drives the whole mutation path: activateAbilityOnState defers, the commit pays", () => {

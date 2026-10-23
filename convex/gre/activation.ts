@@ -969,6 +969,14 @@ export function tryAutoCommitPendingActivation(
         state.pendingActivation = undefined;
         return null;
     }
+    // CR 118.3 / 601.2h — re-check at commit, BEFORE any leg (mana included)
+    // is paid: the library may have emptied while mana was being tapped. The
+    // leg itself is paid LAST (CR 601.2h, below), so its affordability is
+    // settled here, where dropping the activation spends nothing.
+    if (pa.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
+        state.pendingActivation = undefined;
+        return null;
+    }
 
     // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the
     // activator's choice of which mana pays the generic cost. Evaluated once
@@ -1054,14 +1062,6 @@ export function tryAutoCommitPendingActivation(
             return null;
         }
         payDiscardLastDrawn(state, player);
-    }
-    // CR 118.3 — re-check at commit, BEFORE any leg is paid: the library may
-    // have emptied while mana was being tapped. The leg itself is paid LAST
-    // (CR 601.2h, below), so its affordability is settled up front rather than
-    // after the other legs are already spent.
-    if (pa.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
-        state.pendingActivation = undefined;
-        return null;
     }
     if (pa.discardAtRandomCount) {
         // CR 118.3 — re-check at commit: the hand may have emptied while mana
