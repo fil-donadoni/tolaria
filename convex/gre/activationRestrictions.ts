@@ -16,7 +16,11 @@
 import { tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent } from "../cards/filters";
-import type { TriggerStateView } from "../cards/types";
+import type {
+    CardDefinition,
+    StaticActivationRestriction,
+    TriggerStateView,
+} from "../cards/types";
 
 type BattlefieldRow =
     TriggerStateView["players"][number]["battlefield"][number];
@@ -32,6 +36,29 @@ export interface RestrictionBoardView {
 /** CR 613.1f — a permanent that lost all abilities generates no static effect. */
 function abilitiesSuppressed(row: BattlefieldRow): boolean {
     return (row.abilitiesSuppressedBy?.length ?? 0) > 0;
+}
+
+/** The `activation-restriction` statics a definition declares, memoised per
+ *  definition OBJECT (a `WeakMap`, so a re-registered definition is read
+ *  afresh). The scan runs on the mana planner's hot path, once per candidate
+ *  source, so an ordinary board must cost a lookup per permanent and no more. */
+const RESTRICTIONS_OF = new WeakMap<
+    CardDefinition,
+    readonly StaticActivationRestriction[]
+>();
+
+function restrictionsOf(
+    def: CardDefinition
+): readonly StaticActivationRestriction[] {
+    let found = RESTRICTIONS_OF.get(def);
+    if (!found) {
+        found = (def.staticEffects ?? []).filter(
+            (e): e is StaticActivationRestriction & typeof e =>
+                e.kind === "activation-restriction"
+        );
+        RESTRICTIONS_OF.set(def, found);
+    }
+    return found;
 }
 
 function findBattlefieldRow(
@@ -58,16 +85,21 @@ export function activationRestrictionViolation(
     sourceId: string,
     isManaAbility: boolean
 ): string | null {
-    const source = findBattlefieldRow(state, sourceId);
-    if (!source) return null;
+    let source: BattlefieldRow | undefined | null = null;
     for (const player of state.players) {
         for (const lock of player.battlefield) {
             const cardId = (lock.card as { id?: string } | undefined)?.id;
             const def = cardId ? tryGetDefinition(cardId) : null;
-            if (!def?.staticEffects) continue;
-            if (abilitiesSuppressed(lock)) continue;
-            for (const effect of def.staticEffects) {
-                if (effect.kind !== "activation-restriction") continue;
+            if (!def) continue;
+            const restrictions = restrictionsOf(def);
+            if (restrictions.length === 0 || abilitiesSuppressed(lock)) {
+                continue;
+            }
+            // Resolved only once a live restriction exists — the common board
+            // has none and never pays for the lookup.
+            if (source === null) source = findBattlefieldRow(state, sourceId);
+            if (!source) return null;
+            for (const effect of restrictions) {
                 if (isManaAbility && effect.exemptManaAbilities) continue;
                 if (
                     matchesPermanentFilter(

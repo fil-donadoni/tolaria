@@ -20,6 +20,7 @@ import { activationPreconditionViolation } from "../activationPrecondition";
 import { activationRestrictionViolation } from "../activationRestrictions";
 import { getManaTapOptionsDetailed, hasManaAbility } from "../constants";
 import { enumerateMoves } from "../moves";
+import { collectManaConverterLegs } from "../manaConverters";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 
@@ -256,5 +257,22 @@ describe("activation-restriction: exemptManaAbilities (CR 605.1a — '…unless 
                 "Activated abilities of creatures can't be activated unless they're mana abilities."
             );
         });
+    });
+});
+
+describe("activation-restriction: tap-another mana converters (CR 605.1a)", () => {
+    it("Urza's tap-an-artifact mana funds nothing for the planner under the Totem", () => {
+        const legsOf = (totem: false | "theirs") => {
+            const { state, me } = board({
+                mine: [
+                    ["Urza, Lord High Artificer", "urza"],
+                    ["Ornithopter", "thopter"],
+                ],
+                totem,
+            });
+            return collectManaConverterLegs(state, me);
+        };
+        expect(legsOf(false).get("thopter")?.length).toBe(1);
+        expect(legsOf("theirs").size).toBe(0);
     });
 });
