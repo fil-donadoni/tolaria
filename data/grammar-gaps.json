@@ -1121,6 +1121,11 @@
         },
         {
             "kind": "grammar",
+            "key": "mana-ability › mana production › three mana of any one color. Activate only as an instant",
+            "issue": 6502
+        },
+        {
+            "kind": "grammar",
             "key": "mana-ability › mana production › {…} for each Elf on the battlefield",
             "issue": 5195
         },
