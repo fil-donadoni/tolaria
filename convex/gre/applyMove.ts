@@ -223,7 +223,9 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
             accept,
             head.landSourceZone,
             // CR 712.12 — the chosen face, as on the real submit path.
-            head.landEntryFace
+            head.landEntryFace,
+            // CR 614.1c (issue #2672) — the land's as-enters answers.
+            head.landEntryAnswers
         );
     }
 }
