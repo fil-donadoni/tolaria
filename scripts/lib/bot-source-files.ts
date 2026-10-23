@@ -53,9 +53,10 @@ const BOT_BLADE_INCLUDED = new Set(["baseState.ts"]);
 /**
  * Is `rel` (repo-relative, `/`-separated) one of the files `botHash` covers?
  * The ONE definition of the set: `botSourceFiles` walks the tree through it,
- * `deny-guard.sh` § 7 asks it (via `bot-sweep-inputs.ts`) whether a
- * worktree's diff moved the Bot hash (issue #4942), and `check-lane.ts`
- * whether a `full` diff runs the bot fast lane whole (issue #6149).
+ * and `check-lane.ts` asks it whether a `full` diff runs the bot fast lane
+ * whole (issue #6149). (`deny-guard.sh` § 7 used to ask it whether a
+ * worktree's diff moved the Bot hash, issue #4942 — retired with issue
+ * #6463, since a bare `oracle:compile` no longer sweeps on a moved hash.)
  */
 export function isBotSourceFile(rel: string): boolean {
     if ((BOT_SOURCE_FILES as readonly string[]).includes(rel)) return true;

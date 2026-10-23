@@ -233,20 +233,22 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
-## Oracle lockfile — `--carry-bot`, never the sweep
+## Oracle lockfile — a bare compile is session-scoped; the base replays
 
 Every Bot PR edits a Bot hash input (`isBotSourceFile`,
-`scripts/lib/oracle-bot-reach.ts`), and after that a bare
-`bun run oracle:compile` replays the Bot-play sweep over every `ready` card —
-20–47 min of CPU no gate needs (ADR 0105 § 7.2). A Bot PR refreshes the
-lockfile with **`bun run oracle:compile --carry-bot`** only — what `land`
-itself runs. The sweep belongs to the batch health run, or to `--replay-bot`
-on explicit owner request.
-
-`deny-guard.sh` § 7 enforces it (issue #4942): a bare `oracle:compile` — also
-through `gate:run` — is denied in a checkout whose diff touches a Bot hash
-input or the Bot globs. Hatch, on the command itself:
-`TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile`.
+`scripts/lib/oracle-bot-reach.ts`). A bare `bun run oracle:compile` in your
+worktree does NOT replay the catalogue for it (issue #6463): it carries every
+committed verdict whose definition is unchanged, plays only the definition
+misses (a card newly `ready`, one with no verdict — seconds), and keeps the
+committed Bot hash in the header. The whole replay under your Bot — every
+`ready` card, 20–47 min of CPU no gate needs (ADR 0105 § 7.2) — is
+`--replay-bot`, asked for by name, and the base runs it ONCE per Bot change
+after your PR merges: `derive:sync --replay-bot` (the `bot-replay` job of
+`post-merge.yml`) compares the header's Bot hash with the tree's, sweeps,
+and pushes the swept lockfile when no card left `ready`; a card your change
+froze is filed as a `bug` (`area:game-bot`) naming it and your commit range,
+never written into the lockfile silently. `land` and `derive:sync` refresh
+the lockfile with `--carry-bot` (never play).
 
 Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
 about, or whose `frozen` status the change should flip)?

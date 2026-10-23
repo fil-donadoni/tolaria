@@ -1748,19 +1748,19 @@ describe("deny-guard — the release is one act too: queue:release, never half a
         expect(denied(r)).toBe(false);
     });
 });
-describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, never the sweep (issue #4942)", () => {
-    // A bare `oracle:compile` after a Bot hash input moved replays every
-    // `ready` card (20–47 min). The rule keys on the checkout's DIFF against
-    // the base branch, so the fixture is a real repo with real worktrees: one
-    // whose commit touches `convex/gre/search.ts`, one with an uncommitted
-    // edit under `convex/gre/ai/`, one with an untracked Bot file, and one
-    // whose diff never leaves the docs.
+describe("deny-guard — a bare oracle:compile on a Bot diff is ALLOWED: § 7 is retired (issue #6463)", () => {
+    // Issue #4942 denied it because the bare write path replayed every
+    // `ready` card once the Bot hash moved. Since issue #6463 a bare run
+    // carries the committed verdicts on their definitions and plays only the
+    // definition misses, so a Bot diff costs it nothing — and the hook no
+    // longer has a reason to stand between a session and its compile. The
+    // fixture is the one the denial was proven on: a worktree whose commit
+    // touches `convex/gre/search.ts`, one with an uncommitted edit under
+    // `convex/gre/ai/`, one with an untracked Bot file.
     let repo: string;
     let botCommitted: string;
     let botUncommitted: string;
     let botUntracked: string;
-    let docsOnly: string;
-    // No tolaria.config.json in the fixture: the base falls back to `main`.
     const env = () => ({ CLAUDE_PROJECT_DIR: repo });
 
     beforeAll(() => {
@@ -1771,11 +1771,7 @@ describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, nev
         git(["init", "-q", "-b", "main"]);
         git(["config", "user.email", "t@example.invalid"]);
         git(["config", "user.name", "test"]);
-        for (const f of [
-            "convex/gre/search.ts",
-            "convex/gre/ai/brain.ts",
-            "docs/x.md",
-        ]) {
+        for (const f of ["convex/gre/search.ts", "convex/gre/ai/brain.ts"]) {
             fs.mkdirSync(path.join(repo, path.dirname(f)), { recursive: true });
             fs.writeFileSync(path.join(repo, f), "x\n");
         }
@@ -1798,99 +1794,30 @@ describe("deny-guard — a Bot diff refreshes the lockfile with --carry-bot, nev
         botCommitted = worktree("1", "convex/gre/search.ts", true);
         botUncommitted = worktree("2", "convex/gre/ai/brain.ts", false);
         botUntracked = worktree("3", "src/lib/ai/newThing.ts", false);
-        docsOnly = worktree("4", "docs/x.md", true);
     });
 
-    const BARE = [
-        "bun run oracle:compile",
-        "bun run gate:run oracle:compile",
-        "TOLARIA_GATE_RUN_KEY=x bun run gate:run oracle:compile",
-        "bun scripts/oracle-compile.ts",
-        "sh scripts/gate-run.sh oracle:compile",
-        "git fetch && bun run oracle:compile >log 2>&1",
-    ];
-
-    it("denies a bare oracle:compile in a worktree whose diff touches a Bot file, and names --carry-bot", () => {
+    it("allows every spelling of a bare oracle:compile in a worktree whose diff touches a Bot file", () => {
         for (const dir of [botCommitted, botUncommitted, botUntracked]) {
-            for (const cmd of BARE) {
+            for (const cmd of [
+                "bun run oracle:compile",
+                "bun run gate:run oracle:compile",
+                "bun scripts/oracle-compile.ts",
+                "git fetch && bun run oracle:compile >log 2>&1",
+                "bun run oracle:compile --replay-bot",
+                "bun run oracle:compile --carry-bot",
+            ]) {
                 const r = runHook(DENY_GUARD, bash(cmd, dir), env());
-                expect(denied(r), `expected DENY in ${dir} for: ${cmd}`).toBe(
-                    true
+                expect(denied(r), `expected ALLOW in ${dir} for: ${cmd}`).toBe(
+                    false
                 );
-                expect(r.stderr).toMatch(/oracle:compile --carry-bot/);
-                expect(r.stderr).toMatch(/TOLARIA_ALLOW_BOT_SWEEP=1/);
             }
         }
     });
 
-    it("reads the whole tree, root-relative, from a subdirectory too", () => {
-        // `git ls-files --others` is cwd-scoped and cwd-relative by default:
-        // from `docs/` it would miss `src/lib/ai/newThing.ts` and fail open.
-        const r = runHook(
-            DENY_GUARD,
-            bash("bun run oracle:compile", path.join(botUntracked, "docs")),
-            env()
-        );
-        expect(denied(r)).toBe(true);
-        expect(r.stderr).toMatch(/src\/lib\/ai\/newThing\.ts/);
-    });
-
-    it("names the Bot file that moved the hash", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash("bun run oracle:compile", botCommitted),
-            env()
-        );
-        expect(r.stderr).toMatch(/convex\/gre\/search\.ts/);
-    });
-
-    it("allows --carry-bot (also with --replay-card), --check and --replay-bot on the same Bot diff", () => {
-        for (const cmd of [
-            "bun run oracle:compile --carry-bot",
-            "bun run oracle:compile --check",
-            "bun run oracle:compile --replay-bot",
-            "bun run gate:run oracle:compile --carry-bot",
-            'bun run oracle:compile --carry-bot --replay-card "Ogre Arsonist"',
-            "bun scripts/oracle-compile.ts --check",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, botCommitted), env());
-            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
-        }
-    });
-
-    it("allows the sweep behind the hatch, on the command itself", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile",
-                botCommitted
-            ),
-            env()
-        );
-        expect(denied(r)).toBe(false);
-    });
-
-    it("allows a bare oracle:compile where the diff never touches the Bot", () => {
-        for (const dir of [docsOnly, repo]) {
-            const r = runHook(
-                DENY_GUARD,
-                bash("bun run oracle:compile", dir),
-                env()
-            );
-            expect(denied(r), `expected ALLOW in ${dir}`).toBe(false);
-        }
-    });
-
-    it("does not read prose that mentions the command as an invocation", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "git commit -m 'never run bun run oracle:compile bare'",
-                botCommitted
-            ),
-            env()
-        );
-        expect(denied(r)).toBe(false);
+    it("the hook names no sweep hatch any more", () => {
+        const hook = fs.readFileSync(DENY_GUARD, "utf8");
+        expect(hook).not.toMatch(/TOLARIA_ALLOW_BOT_SWEEP/);
+        expect(hook).not.toMatch(/ORACLE_COMPILE_INVOKE/);
     });
 });
 

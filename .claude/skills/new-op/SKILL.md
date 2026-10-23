@@ -84,7 +84,7 @@ PR #3878). There are two branches and no third.
 3. Regenerate and read the census back — the Op must show up as emitted:
 
     ```bash
-    bun run oracle:compile                  # the registry row alone moves registryHash
+    bun run oracle:compile                  # the registry row alone moves registryHash; plays only the newly `ready` cards (issue #6463), never the catalogue
     bun run check:oracle && bun run check:index
     grep -c '"opsUsed":\[[^]]*"<op>"' data/oracle-compiled.json   # ≥ 1, never 0
     bun run check:gaps                      # ✓ — the Op counted grammar-covered
