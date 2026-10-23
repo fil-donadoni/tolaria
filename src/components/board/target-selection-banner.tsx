@@ -6,7 +6,7 @@ import type { PendingTarget, Player, StackItem } from "~/types/game";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
-import { useDivideBuffer } from "~/hooks/useDivideBuffer";
+import { divideKindLabels, useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { displayCardId } from "~/lib/card-utils";
@@ -190,7 +190,7 @@ export default function TargetSelectionBanner({
                             </span>
                             <span className="text-xs text-text-muted">
                                 {divide.active
-                                    ? `Divide ${divide.kind === "prevent" ? "prevented damage" : "damage"} — ${divide.remaining} left`
+                                    ? `Divide ${divideKindLabels(divide.kind).budget} — ${divide.remaining} left`
                                     : hint}
                             </span>
                             {/* CR 601.2c (issue #4193) — directly under the
@@ -258,9 +258,7 @@ export default function TargetSelectionBanner({
                                 }
                                 onClick={() => void divide.submit()}
                             >
-                                {divide.kind === "prevent"
-                                    ? "Prevent damage"
-                                    : "Deal damage"}
+                                {divideKindLabels(divide.kind).submit}
                             </Button>
                         ) : (
                             showDone && (

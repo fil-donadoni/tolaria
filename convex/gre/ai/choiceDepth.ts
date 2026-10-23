@@ -124,6 +124,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     becomeCopy: false,
     dealDamage: false,
     dealDamageDividedAsChosen: false,
+    distributeCountersAsChosen: false,
     delayedTrigger: false,
     destroy: false,
     digMatchingToHand: false,

@@ -13,7 +13,7 @@ vi.mock("convex/react", () => ({
     useMutation: () => selectTargets,
 }));
 
-import { useDivideBufferState } from "../useDivideBuffer";
+import { divideKindLabels, useDivideBufferState } from "../useDivideBuffer";
 
 const GAME_ID = "game1" as never;
 
@@ -58,6 +58,22 @@ describe("useDivideBuffer — local distribution (CR 601.2d)", () => {
             divideKind: "prevent",
         } as unknown as PendingTarget);
         expect(result.current.kind).toBe("prevent");
+    });
+
+    // CR 601.2d — a distributed-counters budget (Bounty of the Hunt) must not
+    // be labelled as damage: the banner reads `divideKindLabels(kind)`.
+    it('reads kind "counters" and labels it as counters, not damage', () => {
+        const { result } = render({
+            ...dividePt(3),
+            divideKind: "counters",
+        } as unknown as PendingTarget);
+        expect(result.current.kind).toBe("counters");
+        expect(divideKindLabels(result.current.kind)).toEqual({
+            budget: "counters",
+            submit: "Put counters",
+        });
+        expect(divideKindLabels("deal").submit).toBe("Deal damage");
+        expect(divideKindLabels("prevent").submit).toBe("Prevent damage");
     });
 
     it("inc/dec dial a target and track remaining, capped at the budget", () => {
