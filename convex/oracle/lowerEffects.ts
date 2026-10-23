@@ -1574,8 +1574,21 @@ function slotFor(
  */
 function spellSelector(
     subject: SubjectIR,
-    slots: TargetSlots
-): Lowered<{ target: number }> {
+    slots: TargetSlots,
+    site: SiteOptions
+): Lowered<{ target: number } | { ref: string }> {
+    // CR 603.2 + CR 608.2h — "counter it": the spell the head's event named,
+    // unless an announced target is the nearer antecedent.
+    if (subject.kind === "pronoun") {
+        if (slots.requirements().length > 0)
+            return unlowerable(
+                '"it" follows an announced target, which is the nearer antecedent (CR 608.2h)'
+            );
+        const spell = site.antecedents?.spell;
+        return spell !== undefined
+            ? lowered(spell)
+            : unlowerable('"it" names no spell at this site');
+    }
     if (subject.kind !== "target" || subject.requirement.type !== "spell")
         return unlowerable("a stack verb names an announced spell (CR 112.1)");
     const index = slots.allocate(subject.requirement, subject.another === true);
@@ -2549,7 +2562,7 @@ function lowerSentenceBody(
                     );
                 return lowered([{ op: "counter", target: spell }]);
             }
-            const target = spellSelector(sentence.subject, slots);
+            const target = spellSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             const counter: Extract<EffectOp, { op: "counter" }> = {
                 op: "counter",
@@ -2576,6 +2589,9 @@ function lowerSentenceBody(
             // price is the FOURTH `mayPay` cost leg: a generic amount built
             // from a runtime tally (`genericEqualTo`), never a base cost with
             // a reduction, which has nothing to subtract from.
+            // The pronoun form is untaxed only (effectSentence refuses a taxed one).
+            if (!("target" in target.value))
+                return unlowerable('a taxed "it" names no announced spell');
             const bind = walk.nextBind("may");
             // CR 118.12a — the taxed player is the spell's controller.
             const taxed = { controllerOf: target.value };
@@ -2614,8 +2630,10 @@ function lowerSentenceBody(
         }
         // CR 115.7a — change the target of the announced spell.
         case "retarget": {
-            const target = spellSelector(sentence.subject, slots);
+            const target = spellSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
+            if ("ref" in target.value)
+                return unlowerable("retarget names an announced spell");
             return lowered([{ op: "retarget", target: target.value }]);
         }
         case "counter-limit-instead":

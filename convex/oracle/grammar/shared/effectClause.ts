@@ -977,9 +977,11 @@ export type EffectSentenceIR =
           /**
            * CR 701.6a — counter a spell on the stack.
            *
-           * The subject is always an announced spell target: nothing else is
-           * counterable by this grammar, and a sweep ("counter all spells")
-           * announces nothing and is refused where every other sweep is.
+           * The subject is an announced spell target or, behind a spell-cast
+           * head only, the bare pronoun "it" naming the spell that fired the
+           * trigger (CR 603.2 + CR 608.2h; the lowering refuses it at any
+           * other site). A sweep ("counter all spells") announces nothing
+           * and is refused where every other sweep is.
            *
            * `unlessPays` is CR 118.12a's PUNISHER half — "…, unless its
            * controller pays <tax>" — kept on the counter rather than modelled
@@ -6992,6 +6994,14 @@ function effectSentence(
                 ? subjectRule.run(phrase, ctx)
                 : ok({ kind: "target" as const, requirement: narrowed });
         if (!subject.ok) return subject;
+        // CR 603.2 + CR 608.2h — "counter it" behind a spell-cast head: the
+        // spell that fired the trigger announces no target. Untaxed only: a
+        // taxed pronoun counter has no fixture behind it (ADR 0105 § 2).
+        if (subject.value.kind === "pronoun" && taxAt === -1)
+            return ok({
+                kind: "counter" as const,
+                subject: subject.value,
+            } satisfies EffectSentenceIR);
         // CR 701.6a — only an announced STACK OBJECT is countered by this
         // rule: a spell, or (CR 701.6a names "spell or ability") an ability
         // the requirement's `spellStackKind` admits. A sweep announces nothing
