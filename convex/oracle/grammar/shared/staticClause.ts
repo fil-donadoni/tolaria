@@ -239,7 +239,14 @@ export type StaticClauseIR =
      * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
      * block") is an `enchanted-host` effect; this one binds the card itself.
      */
-    | { readonly kind: "self-block-restriction"; readonly sentence: string }
+    | {
+          readonly kind: "self-block-restriction";
+          readonly sentence: string;
+          /** CR 509.1b — "… unless you control more creatures than attacking
+           *  player": the block is legal only while the blocker's controller
+           *  controls more creatures than the attacker's controller. */
+          readonly unlessControlMoreCreatures?: true;
+      }
     /**
      * CR 502.3 — an untap-step lock over a SET: "Islands don't untap during
      * their controllers' untap steps" (`maxUntap: 0`), "players can't untap
@@ -1327,6 +1334,27 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
 
 const SELF_CANT_BLOCK = /^(.+) can't block$/;
 
+const SELF_CANT_BLOCK_UNLESS_MORE =
+    /^(.+) can't block unless you control more creatures than attacking player$/;
+
+/**
+ * "<self> can't block unless you control more creatures than attacking player"
+ * (Goblin Goon, Mogg Toady) — CR 509.1b. The one conditional tail read; any
+ * other "unless …" stays refused.
+ */
+const selfCantBlockUnlessMoreCreaturesRule: Rule<StaticClauseIR> = pattern(
+    "self can't block unless more creatures",
+    SELF_CANT_BLOCK_UNLESS_MORE,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-block-restriction" as const,
+                  sentence: `${match[1]!} can't block unless you control more creatures than attacking player.`,
+                  unlessControlMoreCreatures: true as const,
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 /**
  * "<self> can't block" (Craven Giant, Kavu Aggressor) — CR 509.1b. Only the
  * bare sentence: "can't attack or block", "can't block <set>" and a tail
@@ -2086,6 +2114,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersWithEachKickRule,
         doesNotUntapRule,
         selfCantBlockRule,
+        selfCantBlockUnlessMoreCreaturesRule,
         setDoesNotUntapRule,
         landUntapCapRule,
         nonManaAbilityLandLockRule,
