@@ -1386,7 +1386,6 @@ export type EffectSentenceIR =
            * assembler. Alone it names no exiled cards and fails.
            */
           readonly kind: "exile-same-name-library-copies";
-          readonly player: PlayerRefIR;
       }
     | {
           /**
@@ -3454,9 +3453,7 @@ export function assembleSentences(
             const previous = effects[effects.length - 1];
             if (
                 previous?.kind !== "exile-graveyard" ||
-                previous.exceptBasicLands !== true ||
-                JSON.stringify(previous.player) !==
-                    JSON.stringify(sentence.effect.player)
+                previous.exceptBasicLands !== true
             )
                 return {
                     ok: false,
@@ -6963,12 +6960,13 @@ function effectSentence(
     // ── the per-card library sweep after a graveyard exile (CR 608.2c) ─────
     const sameName = span.match(EXILE_SAME_NAME_LIBRARY_COPIES);
     if (sameName !== null) {
-        const player = playerSubject(capitalise(sameName[1]!), ctx);
-        if (player === null || player.kind !== "target")
-            return fail(`"${sameName[1]}" is not a targeted player`, span);
+        // "that player" is anaphora (CR 109.5) for the player whose graveyard
+        // the sentence before exiled; the fold below binds it.
+        const player = playerSubject(sameName[1]!, ctx);
+        if (player === null || player.kind !== "that-player")
+            return fail(`"${sameName[1]}" is not the player just named`, span);
         return ok({
             kind: "exile-same-name-library-copies" as const,
-            player,
         } satisfies EffectSentenceIR);
     }
     if (THEN_THAT_PLAYER_SHUFFLES.test(span))
