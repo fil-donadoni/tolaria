@@ -96,11 +96,11 @@ export const survivalOfTheFittest = defineCard(() => ({
 //    player-kind re-check (`playerTargetStillMeetsRestrictions`, gre/state.ts).
 //
 //  * RESOLUTION — the "may" is the DSL's cost-free `mayPay` + `if` pair
-//    (issue #680: `mayPay` with no `cost` IS "you may …", binding a boolean
+//    (`mayPay` with no `cost` IS "you may …", binding a boolean
 //    the `if` reads), and the taken branch is one `revealUntilMatch` Op:
 //    match → battlefield, rest → graveyard. Both the player offered the
 //    decision and the library dug are `{ ref: "$event.activePlayerId" }`
-//    (issue #1066 / ADR 0049 — the scoped player read straight off the firing
+//    (ADR 0049 — the scoped player read straight off the firing
 //    PHASE_BEGIN event), because "the first player" is the upkeep player, not
 //    the ability's controller.
 //
