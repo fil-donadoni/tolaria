@@ -109,6 +109,11 @@ export interface DescriptorIR {
      *  turns it into `colorCountAtLeast: 2`. Read live (layer 5), so only the
      *  sites that read live colours admit it. */
     readonly multicolored?: true;
+    /** CR 111.1 — "nontoken": a permanent represented by a card, not a token.
+     *  Not a characteristic (CR 109.3 lists none of it), so it sits beside
+     *  the type and colour clauses rather than inside them; the permanent
+     *  filter turns it into `isToken: false`. */
+    readonly nontoken?: true;
     readonly controller?: "you" | "opponent";
     readonly tapped?: "tapped" | "untapped";
     readonly combatRole?: readonly ("attacking" | "blocking")[];
@@ -221,6 +226,8 @@ export interface DescriptorState {
     excludeColors: Color[];
     /** See `DescriptorIR.multicolored`. */
     multicolored?: true;
+    /** See `DescriptorIR.nontoken`. */
+    nontoken?: true;
     controller?: "you" | "opponent";
     /** CR 508.5 — `controller` came from "defending player controls". */
     defendingPlayer?: true;
@@ -307,6 +314,13 @@ function readAdjective(
             return `colour "${token}" beside a colour disjunction`;
         if (into.colors.includes(color)) return `colour "${token}" twice`;
         into.colors.push(color);
+        return null;
+    }
+    // CR 111.1 — "nontoken" before the "non<word>" readers below, none of
+    // which knows "token" (it is no colour, type nor supertype).
+    if (lower === "nontoken") {
+        if (into.nontoken === true) return `"${token}" twice`;
+        into.nontoken = true;
         return null;
     }
     if (lower.startsWith("non")) {
@@ -938,6 +952,7 @@ function finish(
         const decorated =
             state.colors.length > 0 ||
             state.multicolored === true ||
+            state.nontoken === true ||
             state.subtypes.length > 0 ||
             state.supertypes.length > 0 ||
             state.tapped !== undefined ||
@@ -976,6 +991,7 @@ function finish(
             return fail("a colour count beside a colour adjective", span);
         out.multicolored = true;
     }
+    if (state.nontoken === true) out.nontoken = true;
     if (state.controller !== undefined) out.controller = state.controller;
     if (state.tapped !== undefined) out.tapped = state.tapped;
     if (state.combatRole !== undefined) out.combatRole = state.combatRole;
@@ -1075,6 +1091,14 @@ export function targetRequirementFromDescriptor(
         return fail(
             "a colour count is not expressible as a target requirement (CR 105.2b)",
             "multicolored"
+        );
+    // CR 111.1 — the same widening for "target nontoken creature": no target
+    // site reads the token status from the grammar yet, so the clause is
+    // refused rather than dropped.
+    if (descriptor.nontoken === true)
+        return fail(
+            "a token status is not read at a target site yet (CR 111.1)",
+            "nontoken"
         );
     if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {
@@ -1186,6 +1210,7 @@ export function permanentFilterFromDescriptor(
                 "excludeSubtypes",
                 "excludeSupertypes",
                 "plural",
+                "nontoken",
                 ...(allow.colors === true ? ["colors", "multicolored"] : []),
             ].includes(field)
         ) {
@@ -1208,6 +1233,8 @@ export function permanentFilterFromDescriptor(
     if (descriptor.colors) filter.colors = [...descriptor.colors];
     // CR 105.2b — two or more colours, read live like `colors` itself.
     if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
+    // CR 111.1 — `matchesPermanentFilter` reads the instance's own `isToken`.
+    if (descriptor.nontoken === true) filter.isToken = false;
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
     return ok(filter as PermanentFilter);
