@@ -209,7 +209,7 @@ describe("compiled whole, one card per subject (CR 603.4)", () => {
             compiled(EMPTY_BOARD_WATCHER).compiledTriggeredAbilities![0]!;
         expect(trigger.condition).toEqual({
             kind: "controls",
-            player: "any",
+            player: "any-player",
             filter: { types: ["Creature"] },
             atMost: 0,
         });
