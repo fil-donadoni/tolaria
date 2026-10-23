@@ -113,6 +113,16 @@ const ANOTHER_HEAD = "another target ";
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
 /** CR 400.3 — the plural destination of a sweep bounce. */
 const THEIR_OWNERS_HANDS = "their owners' hands";
+/**
+ * CR 400.3 — the singular-owner spelling of a sweep bounce: "Return
+ * all artifacts target player owns to their hand" (Hurkyl's Recall). The
+ * announced player is the sweep's whole scope, so the zone is "their hand".
+ * The sweep is scoped by the announced player's battlefield (the selector has
+ * no owner axis), the same reading the hand-written card carries
+ * (tracked-by: #2785).
+ */
+const TARGET_PLAYER_OWNS = / target player owns$/;
+const THEIR_HAND = "their hand";
 /** CR 120.3 — the player half of a creature sweep that is not the exact phrase. */
 const AND_EACH_PLAYER = " and each player";
 
@@ -7191,6 +7201,28 @@ function effectSentence(
             return ok({
                 kind: "move-zone" as const,
                 subject: { kind: "mass" as const, ...mass.value } as SubjectIR,
+                to: { zone: "hand" as const, owner: "its-owner" as const },
+            } satisfies EffectSentenceIR);
+        }
+        if (
+            objectSpan.startsWith("all ") &&
+            TARGET_PLAYER_OWNS.test(objectSpan) &&
+            span.slice(toAt + " to ".length) === THEIR_HAND
+        ) {
+            const mass = massSubjectRule.run(
+                objectSpan.replace(TARGET_PLAYER_OWNS, ""),
+                ctx
+            );
+            if (!mass.ok) return mass;
+            if (mass.value.select.controller !== undefined)
+                return fail("two owner clauses", span);
+            return ok({
+                kind: "move-zone" as const,
+                subject: {
+                    kind: "mass" as const,
+                    ...mass.value,
+                    targetPlayerControls: true as const,
+                } as SubjectIR,
                 to: { zone: "hand" as const, owner: "its-owner" as const },
             } satisfies EffectSentenceIR);
         }
