@@ -55,7 +55,7 @@ preloadDefinitions([
         id: INLINE_ID,
         name: "Synthetic Library Burner",
         rarity: "rare",
-        manaCost: { generic: 1 },
+        manaCost: { X: 1 },
         types: ["Artifact"],
         activatedAbilities: [
             {
@@ -73,14 +73,14 @@ preloadDefinitions([
         id: MANA_ID,
         name: "Synthetic Costed Library Burner",
         rarity: "rare",
-        manaCost: { generic: 1 },
+        manaCost: { X: 1 },
         types: ["Artifact"],
         activatedAbilities: [
             {
                 id: "burn-top-costed",
                 oracleText:
                     "{1}, Exile the top card of your library: You gain X life, where X is the exiled card's mana value.",
-                cost: { mana: { generic: 1 }, exileTopOfLibrary: true },
+                cost: { mana: { X: 1 }, exileTopOfLibrary: true },
                 useStack: true,
                 effects: [...GAIN_X],
             },
@@ -91,7 +91,7 @@ preloadDefinitions([
         id: TARGETED_ID,
         name: "Synthetic Targeted Library Burner",
         rarity: "rare",
-        manaCost: { generic: 1 },
+        manaCost: { X: 1 },
         types: ["Artifact"],
         activatedAbilities: [
             {
@@ -216,10 +216,10 @@ describe("cost.exileTopOfLibrary — DEFERRED commit (CR 601.2h)", () => {
                 id: "burn-top-costed",
                 oracleText:
                     "{1}, Exile the top card of your library: You gain X life.",
-                cost: { mana: { generic: 1 }, exileTopOfLibrary: true },
+                cost: { mana: { X: 1 }, exileTopOfLibrary: true },
                 useStack: true,
             },
-            manaCost: { generic: 1 },
+            manaCost: { X: 1 },
         });
     }
 
