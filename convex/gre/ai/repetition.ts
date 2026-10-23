@@ -109,6 +109,7 @@ const TALLY_PLAYER_KEYS = [
     "spellsWarpedThisTurn",
     "drawnThisTurn",
     "leftGraveyardThisTurn",
+    "nontokenCreaturesToGraveyardThisTurn",
     "permanentYouControlledLeftThisTurn",
     "lastDrawnCardId",
 ] as const;

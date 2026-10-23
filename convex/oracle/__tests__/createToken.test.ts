@@ -552,3 +552,57 @@ describe("create token — lowering invariants (CR 608.2h)", () => {
         ]);
     });
 });
+
+describe("create token — per-death count (CR 700.4, CR 111.7)", () => {
+    const CALLER_TEXT =
+        "Flash\nWhen this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.";
+    const caller = (oracleText: string) =>
+        oracleCard({
+            oracleId: "ec79255f-4b4d-4a0a-89d8-c59ba640275b",
+            name: "Caller of the Claw",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Elf",
+            oracleText,
+            power: "2",
+            toughness: "2",
+        });
+
+    it("golden: Caller of the Claw counts the controller's nontoken deaths", () => {
+        const definition = compiled(caller(CALLER_TEXT));
+        expect(definition.compiledTriggeredAbilities?.[0]?.effects).toEqual([
+            {
+                op: "createToken",
+                token: {
+                    name: "Bear",
+                    types: ["Creature"],
+                    subtypes: ["Bear"],
+                    power: 2,
+                    toughness: 2,
+                    colors: ["G"],
+                },
+                controller: "controller",
+                count: {
+                    nontokenCreaturesToGraveyardThisTurn: { of: "controller" },
+                },
+            },
+        ]);
+    });
+
+    it.each([
+        [
+            "a token creature",
+            CALLER_TEXT.replace("nontoken creature", "creature"),
+        ],
+        [
+            "an opponent's graveyard",
+            CALLER_TEXT.replace("your graveyard", "an opponent's graveyard"),
+        ],
+        ["no 'this turn' bound", CALLER_TEXT.replace(" this turn", "")],
+        [
+            "the plural token noun",
+            CALLER_TEXT.replace("Bear creature token", "Bear creature tokens"),
+        ],
+    ])("refuses the neighbour: %s", (_label, text) => {
+        expect(compileCard(caller(text)).state).toBe("unparsed");
+    });
+});

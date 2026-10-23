@@ -1203,6 +1203,11 @@ function normalize(
         // for a non-creature source, which never moves it at all.
         if (spent.wasCreature) {
             delete (state as unknown as Record<string, unknown>).deathsThisTurn;
+            // The same departure bumps the per-owner nontoken-creature tally
+            // on the mover (CR 700.4): the spent creature is the mover's own,
+            // so drop the mover's copy on both sides. The opponent's copy is
+            // untouched and still compared.
+            delete mover.nontokenCreaturesToGraveyardThisTurn;
         }
     }
     if (spentCardId === undefined) return state;

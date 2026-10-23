@@ -7025,6 +7025,12 @@ export function removePermanentTo(
         // turn"). Reset at turn start (CR 514.2 — strictly speaking this is
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
+        // CR 700.4 + CR 111.7 — per-owner tally of NONTOKEN creatures that
+        // reached a graveyard ("put into your graveyard from the battlefield").
+        if (creature.isToken !== true) {
+            owner.nontokenCreaturesToGraveyardThisTurn =
+                (owner.nontokenCreaturesToGraveyardThisTurn ?? 0) + 1;
+        }
     }
     // CR 607.2a + CR 113.7a — the pile this object's linked exile ability
     // exiled, read as it leaves: a return of the same id before its leaves
@@ -12885,6 +12891,14 @@ export function buildSpellContext(
             // carries the flag (e.g. read during its own ETB resolution).
             if (target.id === item.id) return item.escaped === true;
             return false;
+        },
+        // CR 700.4 — nontokens put into `playerId`'s graveyard from the
+        // battlefield this turn; reads the per-owner tally, 0 when none.
+        getNontokenCreaturesToGraveyardThisTurn(playerId: string): number {
+            return (
+                state.players.find((p) => p.id === playerId)
+                    ?.nontokenCreaturesToGraveyardThisTurn ?? 0
+            );
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
