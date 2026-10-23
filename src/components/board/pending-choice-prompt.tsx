@@ -19,7 +19,7 @@ import { numberChoiceRange } from "@convex/gre/state";
 import { formatOracleText } from "~/lib/oracle-text";
 import {
     mayPayPermanentPickHint,
-    pendingChoiceLabel,
+    pendingChoiceSourceLabel,
     pendingChoiceRequiresBoardTap,
 } from "~/lib/pending-choice-labels";
 import {
@@ -149,7 +149,7 @@ export default function PendingChoicePrompt({
 
     const chooserName =
         allPlayers.find((p) => p.id === choice.playerId)?.name ?? "opponent";
-    const sourceLabel = pendingChoiceLabel(choice.kind);
+    const sourceLabel = pendingChoiceSourceLabel(choice);
 
     // "Pay" enables once the chooser's mana pool covers the cost (CR 118.3);
     // the chooser may activate mana abilities while the may-pay window is open

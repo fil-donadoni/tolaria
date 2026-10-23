@@ -74,7 +74,10 @@ function declaredAsEnters(
  *  Race): they reuse the shipped `name-card` and `option-pick` shapes,
  *  `optionPickCandidates` now enumerates multi-pick answers so the bot cannot
  *  offer an illegal one, and the `payLife` → `body` composition is covered on
- *  both the cast and the reanimation path. */
+ *  both the cast and the reanimation path. `exileFromGraveyard` (issue #6528,
+ *  Sutured Ghoul) shipped wired: it reuses `choose-graveyard-card`, whose
+ *  `chooseResolution` arm already takes the whole allow-list, and is covered
+ *  GRE → game.ts → UI before any card declares it. */
 const UNWIRED_KINDS = ["aura-host", "pay", "anchor"] as const;
 
 describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)", () => {

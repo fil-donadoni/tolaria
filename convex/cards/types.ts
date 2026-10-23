@@ -3762,6 +3762,27 @@ export type AsEntersChoice =
      *  as-enters `name` filter use — so it reads 10 of `EffectCardFilter`'s
      *  fields and treats the rest as "matches". */
     | { kind: "discard"; filter?: EffectCardFilter; ifDeclined: "graveyard" }
+    /** CR 614.1c + CR 607.2b — "as this enters, exile any number of <filter>
+     *  cards from your graveyard" (Sutured Ghoul). The chooser picks ANY number
+     *  of their own graveyard cards matching `filter`, zero included — an
+     *  empty answer is a real one, never an abort: the permanent always
+     *  enters. The picked cards are exiled linked to the entering permanent
+     *  (`exiledBySourceId`), the pile `{ exiledWithSource: true }` and every
+     *  "cards exiled with this" reader see.
+     *
+     *  CR 614.12a puts the exile BEFORE the permanent exists, so the pile is
+     *  already complete when it enters: a characteristic-defining ability
+     *  reading it has its value on arrival, not after an ETB window. The CR
+     *  400.7 drop of a previous incarnation's links therefore runs when the
+     *  entry is PARKED (`stageAsEntersEntry`), never in the entry tail, which
+     *  would erase the pile this answer just made.
+     *
+     *  `filter` is matched with the shared `handCardMatchesFilter`, the same
+     *  matcher the `discard` leg uses, and the candidate set is read LIVE as
+     *  the choice is offered and re-derived as it is applied: a sibling staged
+     *  in the same simultaneous batch may already have exiled a card. The
+     *  matcher reads it as a GRAVEYARD card (CR 113.6b). */
+    | { kind: "exileFromGraveyard"; filter?: EffectCardFilter }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
      *  marked with an anchor word". No shipped card uses anchor words; the kind
