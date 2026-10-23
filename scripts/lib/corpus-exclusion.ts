@@ -52,3 +52,11 @@ export function withoutCorpusExclusion(
     delete rest[CORPUS_EXCLUSION_ENV];
     return rest;
 }
+
+/** Whether a test file's source reads the locked verdict corpus: it imports
+ *  the committed-corpus fixture (or its `CORPUS_EXCLUDED` switch). The
+ *  `repair-proof` check uses it to tell the tests a hosted run cannot prove
+ *  from the ones it can (issue #6563). */
+export function readsLockedCorpus(source: string): boolean {
+    return /committedVerdictCorpus\.fixture|\bCORPUS_EXCLUDED\b/.test(source);
+}

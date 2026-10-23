@@ -3,10 +3,12 @@
  * `TOLARIA_HOSTED_NO_VERDICT_CORPUS=1` skips the committed-corpus tests, and
  * every gating lane refuses to start with the variable set at all.
  */
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
     CORPUS_EXCLUSION_ENV,
     corpusExcluded,
+    readsLockedCorpus,
     refuseCorpusExclusion,
 } from "../lib/corpus-exclusion";
 
@@ -57,5 +59,16 @@ describe("refuseCorpusExclusion — a gating lane never skips the corpus", () =>
         expect(() =>
             refuseCorpusExclusion("health", { [CORPUS_EXCLUSION_ENV]: "" })
         ).not.toThrow();
+    });
+});
+
+describe("readsLockedCorpus (issue #6563)", () => {
+    it("recognises the corpus fixture import, not an unrelated test", () => {
+        const weightFit = readFileSync(
+            "convex/gre/ai/__tests__/weightFit.bot.test.ts",
+            "utf8"
+        );
+        expect(readsLockedCorpus(weightFit)).toBe(true);
+        expect(readsLockedCorpus('import { it } from "vitest";')).toBe(false);
     });
 });

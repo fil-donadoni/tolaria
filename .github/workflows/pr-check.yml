@@ -117,4 +117,8 @@ jobs:
               env:
                   PR_BODY: ${{ github.event.pull_request.body }}
                   GH_TOKEN: ${{ github.token }}
+                  # No reader key in a PR job (ADR 0156 §8): `repair-proof`
+                  # reports a failing test over the locked corpus as "not
+                  # provable here" instead of running it (issue #6563).
+                  TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
               run: bun run pr:checks ${{ matrix.check }}

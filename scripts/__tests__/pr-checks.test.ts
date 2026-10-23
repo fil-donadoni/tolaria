@@ -117,4 +117,69 @@ describe("repair-proof (issue #5462)", () => {
         expect(r.refusal).toBeNull();
         expect(r.note).toContain("not provable here");
     });
+
+    describe("the locked corpus (issue #6563)", () => {
+        const CORPUS_TEST = "scripts/__tests__/corpus-exclusion.test.ts";
+        const both = () => redLineage([CORPUS_TEST, THIS_FILE]);
+        const readsCorpus = (f: string) => f === CORPUS_TEST;
+
+        it("hosted: passes with a note naming the unprovable file, never running it", () => {
+            let ran: readonly string[] = [];
+            const r = repairProofCheck(
+                ctx({
+                    lineage: both,
+                    corpusExcluded: () => true,
+                    readsCorpus,
+                    runTests: (t) => {
+                        ran = t;
+                        return 0;
+                    },
+                })
+            );
+            expect(r.refusal).toBeNull();
+            expect(r.note).toContain(CORPUS_TEST);
+            expect(r.note).toContain("not provable here");
+            expect(ran).toEqual([THIS_FILE]);
+        });
+
+        it("hosted: a failing test that does not read the corpus still refuses", () => {
+            const r = repairProofCheck(
+                ctx({
+                    lineage: both,
+                    corpusExcluded: () => true,
+                    readsCorpus,
+                    runTests: () => 1,
+                })
+            );
+            expect(r.refusal).toContain(THIS_FILE);
+            expect(r.refusal).not.toContain(CORPUS_TEST);
+        });
+
+        it("hosted: only corpus tests means a note and no run at all", () => {
+            let ran = false;
+            const r = repairProofCheck(
+                ctx({
+                    lineage: () => redLineage([CORPUS_TEST]),
+                    corpusExcluded: () => true,
+                    readsCorpus,
+                    runTests: () => ((ran = true), 1),
+                })
+            );
+            expect(r.refusal).toBeNull();
+            expect(r.note).toContain(CORPUS_TEST);
+            expect(ran).toBe(false);
+        });
+
+        it("with the key: a corpus test that still fails refuses", () => {
+            const r = repairProofCheck(
+                ctx({
+                    lineage: both,
+                    corpusExcluded: () => false,
+                    readsCorpus,
+                    runTests: () => 1,
+                })
+            );
+            expect(r.refusal).toContain(CORPUS_TEST);
+        });
+    });
 });
