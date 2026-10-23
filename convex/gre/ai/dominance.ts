@@ -1393,6 +1393,10 @@ export function isProbeEligibleMove(
         // graveyard filler, a loyalty tick) is out of scope for the probe.
         return !(
             cost.sacrificeFilter ||
+            // CR 602.1a — "Return an Elf you control to its owner's hand"
+            // names a separate permanent the probe never gives back, and
+            // re-buying its enters-the-battlefield effect can BE the point.
+            cost.returnToHandFilter ||
             cost.tapOtherFilter ||
             cost.discardFilter ||
             cost.discardThis ||

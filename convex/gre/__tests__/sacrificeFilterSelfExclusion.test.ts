@@ -14,15 +14,21 @@ import * as path from "path";
  * wrong SILENTLY: the affordance simply never appears, on whichever surface
  * forgot.
  *
- * There is no choke point to guard instead. `cost.sacrificeFilter` is read by
- * ~5 independent payability sites across the server, the bot's move enumerator
- * and the client's two affordability gates, each of which builds its OWN
- * `FilterMatchContext` inline; they already drifted once on `selfControllerId`
- * / `supertypesOf` (issues #1209, #2235). This makes "every one of them threads
+ * There is no choke point to guard instead. The filtered give-up legs
+ * (`cost.sacrificeFilter`, `cost.returnToHandFilter` — listed once by
+ * `permanentGiveUpCostLegs`, `gre/constants.ts`) are matched by independent
+ * payability sites across the server, the bot's move enumerator, the mana
+ * option list and the client's affordability gates, each of which builds its
+ * OWN `FilterMatchContext` inline — the matcher differs per surface (layered
+ * server view vs projected client board), so only the leg list and the count
+ * rule are shared. They already drifted once on `selfControllerId` /
+ * `supertypesOf` (issues #1209, #2235). This makes "every one of them threads
  * the source id" mechanical instead of a prose norm.
  *
- * Deliberately NOT a whole-repo sweep: only the files where a
- * `cost.sacrificeFilter` decides whether an activation is legal or offered.
+ * Deliberately NOT a whole-repo sweep: only the files where a give-up leg
+ * decides whether an activation is legal or offered. A site is recognised by
+ * its matcher call sitting inside a `canPayPermanentGiveUpCostLegs(…)` call or
+ * a `for (… of permanentGiveUpCostLegs(…)) { … }` loop.
  * The SELECTION path (`gre/sacrificeChoice.ts`, `legalActions.ts`, the client
  * picker) is exempt by construction — it reads a requirement whose filter was
  * already lowered to a concrete `excludeInstanceIds` entry by
@@ -31,10 +37,11 @@ import * as path from "path";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 
-/** Every file that matches an ability's `cost.sacrificeFilter` to decide
- *  whether the activation is legal (server) or offered (client / bot). */
+/** Every file that matches an ability's give-up legs to decide whether the
+ *  activation is legal (server) or offered (client / bot / mana list). */
 const GUARDED_FILES = [
-    "convex/game.ts",
+    "convex/gre/activation.ts",
+    "convex/gre/constants.ts",
     "convex/gre/moves.ts",
     "src/lib/card-utils.ts",
 ];
@@ -104,17 +111,60 @@ function calls(src: string): Call[] {
     return out;
 }
 
-/** The calls whose FILTER argument is an ability's activation-cost sacrifice
- *  filter — the only ones this guard is about. */
-function sacrificeCostCalls(src: string): Call[] {
-    return calls(src).filter((c) =>
-        /\bcost\.sacrificeFilter\b/.test(c.filterArg)
-    );
+/** The index one past the bracket closing the one opened at `open`. */
+function closeOf(src: string, open: number): number {
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+        const ch = src[i];
+        if (ch === "(" || ch === "[" || ch === "{") depth++;
+        else if (ch === ")" || ch === "]" || ch === "}") {
+            depth--;
+            if (depth === 0) return i + 1;
+        }
+    }
+    return src.length;
 }
 
-describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issue #2367)", () => {
+/** The source spans that weigh a give-up leg: every
+ *  `canPayPermanentGiveUpCostLegs(…)` call's argument list, and every
+ *  `for (… of permanentGiveUpCostLegs(…)) { … }` loop body. */
+function giveUpSpans(src: string): [number, number][] {
+    const spans: [number, number][] = [];
+    const needle = "canPayPermanentGiveUpCostLegs(";
+    for (let at = src.indexOf(needle); at !== -1; ) {
+        const before = src.slice(Math.max(0, at - 24), at);
+        const open = at + needle.length - 1;
+        if (!/(function|import|export)\s*$/.test(before)) {
+            spans.push([open, closeOf(src, open)]);
+        }
+        at = src.indexOf(needle, at + needle.length);
+    }
+    const loop = /for \(const \w+ of permanentGiveUpCostLegs\(/g;
+    for (let m = loop.exec(src); m; m = loop.exec(src)) {
+        const body = src.indexOf("{", closeOf(src, src.indexOf("(", m.index)));
+        spans.push([body, closeOf(src, body)]);
+    }
+    return spans;
+}
+
+/** The matcher calls that weigh an activation-cost give-up leg — the only
+ *  ones this guard is about. */
+function sacrificeCostCalls(src: string): Call[] {
+    const spans = giveUpSpans(src);
+    const lineStart = (line: number) =>
+        src
+            .split("\n")
+            .slice(0, line - 1)
+            .join("\n").length;
+    return calls(src).filter((c) => {
+        const at = lineStart(c.line);
+        return spans.some(([a, b]) => at >= src.lastIndexOf("\n", a) && at < b);
+    });
+}
+
+describe("give-up-leg payability threads selfInstanceId (CR 109.2, issue #2367)", () => {
     for (const rel of GUARDED_FILES) {
-        it(`${rel} passes ctx.selfInstanceId to every sacrificeFilter match`, () => {
+        it(`${rel} passes ctx.selfInstanceId to every give-up-leg match`, () => {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
             const offenders = sacrificeCostCalls(src).filter(
                 (c) => !/\bselfInstanceId\s*:/.test(c.ctxArg)
@@ -130,7 +180,7 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
     // without `ctx.selfAttachedToId`, so a payability site that forgets the host
     // silently reports the ability as unactivatable.
     for (const rel of GUARDED_FILES) {
-        it(`${rel} passes ctx.selfAttachedToId to every sacrificeFilter match`, () => {
+        it(`${rel} passes ctx.selfAttachedToId to every give-up-leg match`, () => {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
             const offenders = sacrificeCostCalls(src).filter(
                 (c) => !/\bselfAttachedToId\s*:/.test(c.ctxArg)
@@ -141,35 +191,12 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         });
     }
 
-    it("the shared assertSacrificeFilterCostAffordable gate threads selfAttachedToId too", () => {
-        const src = fs.readFileSync(
-            path.join(REPO_ROOT, "convex/gre/activation.ts"),
-            "utf8"
-        );
-        const gate = src.slice(
-            src.indexOf("export function assertSacrificeFilterCostAffordable(")
-        );
-        expect(gate.slice(0, gate.indexOf("\n}\n"))).toMatch(
-            /\bselfAttachedToId\s*:/
-        );
-    });
-
-    it("the mana-source gate in constants.ts threads selfAttachedToId (its filter arg is a local, so the scan above cannot see it)", () => {
-        const src = fs.readFileSync(
-            path.join(REPO_ROOT, "convex/gre/constants.ts"),
-            "utf8"
-        );
-        const at = src.indexOf("const leg = ability.cost.sacrificeFilter;");
-        expect(at).toBeGreaterThan(-1);
-        expect(src.slice(at, at + 900)).toMatch(/\bselfAttachedToId\s*:/);
-    });
-
     it("guards files that actually contain such a call (never vacuously green)", () => {
         for (const rel of GUARDED_FILES) {
             const src = fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
             expect(
                 sacrificeCostCalls(src).length,
-                `${rel} has no cost.sacrificeFilter match — drop it from GUARDED_FILES or fix the path`
+                `${rel} has no give-up-leg match — drop it from GUARDED_FILES or fix the path`
             ).toBeGreaterThan(0);
         }
     });
@@ -179,7 +206,7 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         // same eight lines in `activateAbilityOnState` and in the
         // `pendingActivation` path — and this guard counted `>= 2` because
         // fixing one and not the other was the regression shape. The
-        // duplication is GONE: `assertSacrificeFilterCostAffordable` is the
+        // duplication is GONE: `assertPermanentGiveUpCostAffordable` is the
         // single authority both call, which is strictly stronger than two
         // copies agreeing. So the guard asserts the shape that replaced it —
         // exactly one matcher call, owned by that helper, with every
@@ -200,19 +227,27 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
             path.join(REPO_ROOT, "convex/gre/activation.ts"),
             "utf8"
         );
-        expect(sacrificeCostCalls(gameSrc).length).toBe(1);
-        expect(sacrificeCostCalls(activationSrc).length).toBe(0);
-        expect(activationSrc).toContain(
-            "export function assertSacrificeFilterCostAffordable("
+        // Since issue #6500 `finalizeTargetSelection` calls the helper too,
+        // so `game.ts` holds NO matcher of its own.
+        expect(sacrificeCostCalls(gameSrc).length).toBe(0);
+        expect(sacrificeCostCalls(activationSrc).length).toBe(1);
+        const gate = activationSrc.slice(
+            activationSrc.indexOf(
+                "export function assertPermanentGiveUpCostAffordable("
+            )
         );
-        // The declaration plus at least the two announcement paths (the STACK
-        // activation and the non-stack mana one), wherever they now live.
+        expect(
+            sacrificeCostCalls(gate.slice(0, gate.indexOf("\n}\n")))
+        ).toHaveLength(1);
+        // The declaration plus the three announcement paths (the STACK
+        // activation, the non-stack mana one and `finalizeTargetSelection`),
+        // wherever they now live.
         expect(
             (
                 (gameSrc + activationSrc).match(
-                    /assertSacrificeFilterCostAffordable\(/g
+                    /assertPermanentGiveUpCostAffordable\(/g
                 ) ?? []
             ).length
-        ).toBeGreaterThanOrEqual(3);
+        ).toBeGreaterThanOrEqual(4);
     });
 });

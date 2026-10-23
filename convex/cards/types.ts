@@ -1524,6 +1524,32 @@ export interface ActivatedAbility {
          *  (`getAdditionalSacrificeMv()`) is taken only for a count of 1,
          *  since "the sacrificed permanent" is ambiguous above that. */
         sacrificeFilterCount?: number;
+        /** "Return a permanent matching <filter> you control to its owner's
+         *  hand" as an activation cost (CR 602.1a — the activation cost is
+         *  everything before the colon; CR 118.1 — a cost is an action
+         *  necessary to take another action): Wirewood Symbiote's "Return an
+         *  Elf you control to its owner's hand", Meloku's "Return a land you
+         *  control to its owner's hand". The bounce twin of `sacrificeFilter`.
+         *
+         *  A cost that GIVES UP a chosen permanent, so the activator picks it
+         *  through the ONE selection layer every sacrifice and return-to-hand
+         *  cost uses (`gre/sacrificeChoice.ts`, a requirement with
+         *  `action: "return"`), built by `buildActivationSacrificeSelection`.
+         *  The pick is applied at COMMIT, never at announcement, so a cancelled
+         *  mana payment leaves the permanent on the battlefield (CR 601.2h via
+         *  CR 602.2b — an aborted activation is rewound).
+         *
+         *  The activation is illegal unless the activator controls a matching
+         *  permanent (CR 118.3). The source itself is a legal payment when it
+         *  matches — CR 109.2 reads "an Elf you control" as any Elf permanent —
+         *  unless the filter says `excludeSource` ("another"). Always ONE
+         *  permanent: no shipped activation returns more than one.
+         *
+         *  Distinct from `returnThisToHand` (the source, no choice) and
+         *  `returnUnblockedAttacker` (Ninjutsu's combat-scoped candidate set,
+         *  not expressible as a filter). Every gate reads it through
+         *  `permanentGiveUpCostLegs` (`gre/constants.ts`), never directly. */
+        returnToHandFilter?: PermanentFilter;
         /** "Return an unblocked attacking creature you control to its owner's
          *  hand" as an activation cost (CR 702.49a — the Ninjutsu cost's
          *  non-mana component, alongside its mana leg and the reveal).
