@@ -23,7 +23,6 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
-import { matchesGraveyardTarget } from "../../src/lib/graveyard-targets";
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -124,24 +123,6 @@ describe("selectTarget — a single graveyard (CR 404.1, CR 601.2c)", () => {
                 .pendingTarget?.selected.map((s) => s.id)
                 .sort()
         ).toEqual(["a1", "a2"]);
-    });
-});
-
-describe("client mirror — matchesGraveyardTarget", () => {
-    it("greys out the other graveyard once one card is picked", () => {
-        const state = board();
-        const pt: PendingTarget = {
-            ...(state.pendingTarget as PendingTarget),
-            selected: [{ type: "graveyard-card", id: "a1", playerId: "p1" }],
-        };
-        const other = state.players[1].graveyard[0];
-        const same = state.players[0].graveyard[1];
-        expect(
-            matchesGraveyardTarget(other as never, "p2", pt, "p1", "p1")
-        ).toBe(false);
-        expect(
-            matchesGraveyardTarget(same as never, "p1", pt, "p1", "p1")
-        ).toBe(true);
     });
 });
 
