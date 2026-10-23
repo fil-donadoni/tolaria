@@ -220,12 +220,48 @@ export type Step =
     | { kind: "mkdir"; why: string; path: string }
     | { kind: "remove"; why: string; path: string }
     | { kind: "download"; why: string }
-    | { kind: "note"; why: string };
+    | { kind: "note"; why: string }
+    /** A stop the plan withheld (issue #6467): printed, never run, and the
+     *  CLI exits non-zero so it is not missed. */
+    | { kind: "defer"; why: string };
 
 export const TOKEN_PLACEHOLDER = "<registration-token>";
 export const REMOVE_TOKEN_PLACEHOLDER = "<removal-token>";
 export const TARBALL_PLACEHOLDER = "<runner-tarball>";
 export const PAUSED_MARKER = ".paused";
+/** In a runner's directory: its service definition changed while it could
+ *  not be restarted, so the next `install` restarts it even though the
+ *  definition on disk already matches. */
+export const RESTART_PENDING_MARKER = ".restart-pending";
+
+/** GitHub's busy view (`gh api repos/<slug>/actions/runners`): runner name →
+ *  running a job right now; null when it could not be read. A runner absent
+ *  from it is registered nowhere, so it runs no job. */
+export type BusyView = Record<string, boolean> | null;
+
+/** The busy view from `<name>\t<busy>` lines. Pure. */
+export function parseBusyView(text: string): Record<string, boolean> {
+    const view: Record<string, boolean> = {};
+    for (const line of text.split("\n")) {
+        const [name, busy] = line.trim().split("\t");
+        if (name) view[name] = busy === "true";
+    }
+    return view;
+}
+
+/** Why runner `name` must not be stopped now, or null when it may be
+ *  (issue #6467): stopping a busy runner kills its job, and an `afk-pass`
+ *  killed that way leaves no pass record. Fails closed: an unreadable view
+ *  blocks too. `force` (`--force-restart`) overrides both. */
+export function restartBlock(
+    name: string,
+    busy: BusyView,
+    force: boolean
+): string | null {
+    if (force) return null;
+    if (busy === null) return "GitHub's busy view is unreadable";
+    return busy[name] ? "busy" : null;
+}
 
 /** What the CLI saw of one runner on this machine. */
 export interface ObservedRunner {
@@ -241,6 +277,8 @@ export interface ObservedRunner {
     paused: boolean;
     /** Loaded/active in the service manager right now. */
     running: boolean;
+    /** Its directory carries the `.restart-pending` marker. */
+    restartPending?: boolean;
 }
 
 export interface ObservedMachine {
@@ -256,6 +294,8 @@ export interface ObservedMachine {
     linger: boolean;
     /** The installed `machine.json`'s text. */
     machineText: string | null;
+    /** GitHub's view of which runners run a job right now. */
+    busy: BusyView;
 }
 
 export interface InstallInput {
@@ -280,6 +320,9 @@ export interface InstallInput {
      *  job's `notifyOwner` reaches the owner from a headless machine too.
      *  Undefined = leave each runner's `.env` as it is. */
     notifyCmd?: string;
+    /** `--force-restart`: restart a changed runner even when busy, or when
+     *  GitHub's busy view is unreadable (today's behaviour before #6467). */
+    forceRestart?: boolean;
 }
 
 /** The runner's `.env` for `notifyCmd` (actions/runner reads `<dir>/.env`
@@ -325,19 +368,58 @@ const EMPTY_RUNNER: ObservedRunner = {
     running: false,
 };
 
+/** A restart withheld: the marker that makes the next `install` retry it,
+ *  and the deferral line. */
+function deferRestart(
+    name: string,
+    block: string,
+    marker: string,
+    pending: boolean
+): Step[] {
+    const steps: Step[] = [];
+    if (!pending) {
+        steps.push({
+            kind: "write",
+            why: `${name}: mark its restart pending`,
+            path: marker,
+            content: "",
+        });
+    }
+    steps.push({
+        kind: "defer",
+        why: `${name}: ${block} — restart deferred, re-run install when idle (\`--force-restart\` restarts it now)`,
+    });
+    return steps;
+}
+
+/** A runner's restart guard: why it may not be stopped now (null = it may),
+ *  and its pending-restart marker. */
+interface RestartGuard {
+    block: string | null;
+    marker: string;
+}
+
 /** launchd: load (or reload, when the plist changed) an agent that is not
  *  disabled. `bootout` before `bootstrap` because bootstrapping a loaded
- *  label fails. */
+ *  label fails. A runner's reload is deferred while `guard` blocks it. */
 function launchdLoad(
     uid: number,
     label: string,
     plistPath: string,
     content: string,
-    observed: { text: string | null; running: boolean; paused: boolean },
-    what: string
+    observed: {
+        text: string | null;
+        running: boolean;
+        paused: boolean;
+        restartPending?: boolean;
+    },
+    what: string,
+    guard: RestartGuard | null = null
 ): Step[] {
     const steps: Step[] = [];
     const changed = observed.text !== content;
+    const pending = observed.restartPending ?? false;
+    const reload = observed.running && (changed || pending);
     if (changed) {
         steps.push({
             kind: "write",
@@ -353,7 +435,11 @@ function launchdLoad(
         });
         return steps;
     }
-    if (observed.running && changed) {
+    if (reload && guard?.block) {
+        steps.push(...deferRestart(what, guard.block, guard.marker, pending));
+        return steps;
+    }
+    if (reload) {
         steps.push({
             kind: "run",
             why: `stop ${what} to reload its changed plist`,
@@ -361,12 +447,19 @@ function launchdLoad(
             okFail: true,
         });
     }
-    if (!observed.running || changed) {
+    if (!observed.running || reload) {
         steps.push({
             kind: "run",
             why: `start ${what}`,
             argv: ["launchctl", "bootstrap", `gui/${uid}`, plistPath],
             retry: observed.running,
+        });
+    }
+    if (pending && guard) {
+        steps.push({
+            kind: "remove",
+            why: `${what}: clear the pending-restart mark`,
+            path: guard.marker,
         });
     }
     return steps;
@@ -380,6 +473,10 @@ export function planInstall(
 ): Step[] {
     const steps: Step[] = [];
     const runnerState = (n: string) => seen.runners[n] ?? EMPTY_RUNNER;
+    const guard = (r: RunnerSpec): RestartGuard => ({
+        block: restartBlock(r.name, seen.busy, input.forceRestart ?? false),
+        marker: join(r.dir, RESTART_PENDING_MARKER),
+    });
     if (seen.machineText !== input.machineFile.content) {
         steps.push({
             kind: "write",
@@ -463,8 +560,14 @@ export function planInstall(
                     label,
                     join(input.launchAgentsDir, `${label}.plist`),
                     input.plists[r.name],
-                    { text: s.unitText, running: s.running, paused: s.paused },
-                    r.name
+                    {
+                        text: s.unitText,
+                        running: s.running,
+                        paused: s.paused,
+                        restartPending: s.restartPending,
+                    },
+                    r.name,
+                    guard(r)
                 )
             );
         }
@@ -519,22 +622,39 @@ export function planInstall(
         for (const r of input.runners) {
             const s = runnerState(r.name);
             const unit = systemdRunnerUnit(r.name);
+            const pending = s.restartPending ?? false;
+            const g = guard(r);
             if (s.paused) {
                 steps.push({
                     kind: "note",
                     why: `${r.name} is paused — left stopped (\`bun run runner resume\` starts it)`,
                 });
-            } else if (!s.running) {
+                continue;
+            }
+            if (!s.running) {
                 steps.push({
                     kind: "run",
                     why: `${r.name}: enable and start`,
                     argv: ["systemctl", "--user", "enable", "--now", unit],
                 });
-            } else if (templateChanged) {
+            } else if (templateChanged || pending) {
+                if (g.block) {
+                    steps.push(
+                        ...deferRestart(r.name, g.block, g.marker, pending)
+                    );
+                    continue;
+                }
                 steps.push({
                     kind: "run",
                     why: `${r.name}: restart on the changed template`,
                     argv: ["systemctl", "--user", "restart", unit],
+                });
+            }
+            if (pending) {
+                steps.push({
+                    kind: "remove",
+                    why: `${r.name}: clear the pending-restart mark`,
+                    path: g.marker,
                 });
             }
         }
@@ -656,14 +776,16 @@ export function planToggle(
 }
 
 /** `remove <name>`: stop the service, delete its unit, unregister the runner
- *  from GitHub and delete its directory. */
+ *  from GitHub and delete its directory. A running runner `restartBlock`
+ *  holds (busy, or GitHub unreadable) is refused unless `force`. */
 export function planRemove(
     name: string,
     platform: RunnerPlatform,
     uid: number,
     launchAgentsDir: string,
     runnerRoot: string,
-    seen: ObservedMachine
+    seen: ObservedMachine,
+    force = false
 ): Step[] {
     if (!isRunnerName(name)) {
         return [
@@ -674,6 +796,15 @@ export function planRemove(
         ];
     }
     const s = seen.runners[name] ?? EMPTY_RUNNER;
+    const block = s.running ? restartBlock(name, seen.busy, force) : null;
+    if (block) {
+        return [
+            {
+                kind: "defer",
+                why: `${name}: ${block} — not removed, re-run remove when idle (\`--force-restart\` removes it now)`,
+            },
+        ];
+    }
     const dir = join(runnerRoot, name);
     const steps: Step[] = [];
     if (platform === "darwin") {
@@ -753,5 +884,7 @@ export function describeStep(s: Step): string {
             return `fetch  ${TARBALL_PLACEHOLDER}   # ${s.why}`;
         case "note":
             return `note   ${s.why}`;
+        case "defer":
+            return `defer  ${s.why}`;
     }
 }
