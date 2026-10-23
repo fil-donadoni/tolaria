@@ -2209,8 +2209,10 @@ function lowerSentenceBody(
             if (!amount.ok) return amount;
             // CR 601.2c — the group's width IS the announced X, so the site
             // must announce one; the same gate the amount's "X" passes.
-            const width = lowerAmount({ kind: "x" }, site);
-            if (!width.ok) return width;
+            if (!site.allowX)
+                return unlowerable(
+                    "an effect reads X but its source announces no {X} (CR 107.3)"
+                );
             // The width is a fact about the cast: the group takes no
             // positional slot and the damage reads the announced set.
             const index = slots.allocate(

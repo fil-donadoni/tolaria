@@ -2069,7 +2069,7 @@ function resolveObjectRef(
     if (ctx.getOwnerId(id) !== undefined) {
         return { type: "permanent", id };
     }
-    // CR 115.1 — a `forEach { set: "targets" }` member that is a PLAYER target
+    // CR 115.4 — a `forEach { set: "targets" }` member that is a PLAYER target
     // binds its player id; a player never leaves the game mid-resolution here.
     if (ctx.apNapOrder().includes(id)) return { type: "player", id };
     // CR 608.2h (issue #1101) — a `lookDistribute` `bind` snapshots the KEPT card
@@ -7553,14 +7553,13 @@ function selectForEachMembers(
     // `targets` (issue #1083) — iterate the currently-resolving spell/
     // ability's WHOLE announced target set (Distorting Wake's "X target
     // nonland permanents", Sway of Illusion's "any number of target
-    // creatures"), instead of one fixed `{ target: N }` slot. Only permanent
-    // entries are iterable (CR 608.2b — a non-permanent entry is unreachable
-    // for the shipped target types this selector pairs with, skipped rather
-    // than erroring); each member is snapshotted as a permanent by the
-    // generic (non-"players"/"graveyard") branch of `execForEach`'s per-member
-    // loop below, exactly like the `permanents` set.
+    // creatures"), instead of one fixed `{ target: N }` slot. Permanent and
+    // player entries are iterable (any other entry kind is skipped rather
+    // than erroring); a permanent is snapshotted by the generic branch of
+    // `execForEach`'s per-member loop below, exactly like the `permanents`
+    // set, a player by the `targets`-specific player branch.
     if (select.set === "targets") {
-        // CR 115.1 — "any target" also announces players, who are members of
+        // CR 115.4 — "any target" also announces players, who are members of
         // the set like any other target (Meteor Blast's "each of X targets").
         return legalTargetSlots(ctx.targets)
             .filter((t) => t.type === "permanent" || t.type === "player")
