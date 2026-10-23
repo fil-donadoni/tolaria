@@ -423,6 +423,18 @@ export type CompiledStaticEffect =
           readonly perAttacker: number;
       }
     /**
+     * CR 508.1c — "<creatures> can't attack you" (Elephant Grass): a
+     * battlefield-scanned `global-attack-restriction` whose predicate forbids
+     * the creatures `attackers` selects when they belong to someone other than
+     * the source's controller — the player the clause calls "you".
+     */
+    | {
+          readonly kind: "attack-prohibition";
+          readonly id: string;
+          readonly oracleText: string;
+          readonly attackers: PermanentFilter;
+      }
+    /**
      * CR 601.3 / 118.9 — "<grantee> may cast <class> spells [without paying
      * their mana costs] [as though they had flash]" (issue #3268).
      *
@@ -833,6 +845,21 @@ export function resolveCompiledStatic(
                 taxes: (attacker, source, _state, ctx) =>
                     filterMatches(attackers, attacker, source, ctx),
                 costPerAttacker: generic(descriptor.perAttacker),
+                oracleText: descriptor.oracleText,
+            };
+        }
+        case "attack-prohibition": {
+            const attackers = descriptor.attackers;
+            return {
+                kind: "global-attack-restriction",
+                id: descriptor.id,
+                // CR 508.1c — directed at the source's controller: only
+                // attacks by another player's creatures are forbidden.
+                // `forbids` has no defender parameter: exact for two players
+                // (the engine's scope), wider than "you" with three or more.
+                forbids: (attacker, source, _state, ctx) =>
+                    attacker.controllerId !== source.controllerId &&
+                    filterMatches(attackers, attacker, source, ctx),
                 oracleText: descriptor.oracleText,
             };
         }
