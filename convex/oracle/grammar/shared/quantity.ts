@@ -110,7 +110,15 @@ export const quantityRule: Rule<QuantityIR> = subGrammar(
  * opponent's hand" — a hidden zone whose SIZE is public, CR 402.3).
  */
 export type CountedSetIR =
-    | { readonly kind: "permanents"; readonly descriptor: DescriptorIR }
+    | {
+          readonly kind: "permanents";
+          readonly descriptor: DescriptorIR;
+          /**
+           * CR 109.2 — "the number of Goblins on the battlefield": no
+           * controller clause, so the set is every player's permanents.
+           */
+          readonly wholeBoard?: true;
+      }
     | { readonly kind: "cards-in-hand"; readonly player: PlayerRefIR }
     /**
      * CR 201.2 + CR 404.1 — "the number of cards named {self} in all
@@ -121,6 +129,8 @@ export type CountedSetIR =
 
 /** CR 201.2 + CR 404.1 — a name count over every graveyard. */
 const NAMED_SELF_IN_ALL_GRAVEYARDS = `the number of cards named ${SELF_MARKER} in all graveyards`;
+
+const ON_THE_BATTLEFIELD = " on the battlefield";
 
 /** CR 402.3 — the two hands a count is printed over. */
 const CARDS_IN_HAND = /^for each card in (your|target opponent's) hand$/;
@@ -172,16 +182,26 @@ export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
             return fail('not a "the number of" phrase', span);
         if (span === NAMED_SELF_IN_ALL_GRAVEYARDS)
             return ok({ kind: "named-self-in-all-graveyards" as const });
+        // CR 109.2 — "on the battlefield" is the whole-board scope; behind a
+        // controller clause it would contradict it, so that stays refused.
+        const noun = span.slice("the number of ".length);
+        const wholeBoard = noun.endsWith(ON_THE_BATTLEFIELD);
         const descriptor = descriptorRule.run(
-            span.slice("the number of ".length),
+            wholeBoard ? noun.slice(0, -ON_THE_BATTLEFIELD.length) : noun,
             ctx
         );
         if (!descriptor.ok) return descriptor;
         if (descriptor.value.plural !== true)
             return fail('"the number of" counts a plural descriptor', span);
+        if (wholeBoard && descriptor.value.controller !== undefined)
+            return fail(
+                '"on the battlefield" beside a controller clause',
+                span
+            );
         return ok({
             kind: "permanents" as const,
             descriptor: descriptor.value,
+            ...(wholeBoard ? { wholeBoard: true as const } : {}),
         });
     })
 );
