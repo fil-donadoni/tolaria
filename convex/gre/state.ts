@@ -10186,6 +10186,26 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "sacrifice": {
+            // CR 614.1a / 701.21a (Heart of Yavimaya) — REUSES the shipped
+            // `sacrifice-permanents` battlefield pick. `min: 1` is what makes
+            // it mandatory: unlike the `discard` leg there is no decline, and
+            // `forcedAsEntersAnswer` has already routed an empty candidate set
+            // to the graveyard branch without a prompt.
+            pending = {
+                ...base,
+                kind: "sacrifice-permanents",
+                zone: "battlefield",
+                candidateIds: asEntersSacrificeCandidates(
+                    state,
+                    entry,
+                    choice.filter
+                ),
+                count: { min: 1, max: 1 },
+                prompt: `Sacrifice a permanent as ${subject} enters. If you can't, it's put into its owner's graveyard instead.`,
+            };
+            break;
+        }
         case "pay": {
             // ADR 0100 D6 — the shipped `entersTappedUnlessPay` park (ADR 0051)
             // owns every CR 614.12 pay-to-enter card (shock lands); no card
@@ -10241,6 +10261,21 @@ function asEntersGraveyardExileCandidates(
             (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
         )
         .map((c) => c.id);
+}
+
+/** CR 701.21a / 614.1a — the permanents the entering object's controller can
+ *  sacrifice for an as-enters `sacrifice` cost, read LIVE (never carried on the
+ *  declaration) so a sibling staged entry's committed sacrifice is gone from the
+ *  set (CR 614.12b). The shared `sacrificeCandidates` matcher is the one the
+ *  may-pay permanent leg reads — snow supertypes and colours resolve live. */
+function asEntersSacrificeCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: PermanentFilter
+): string[] {
+    return sacrificeCandidates(state, entry.controllerId, filter).map(
+        (c) => c.id
+    );
 }
 
 /** CR 508.4 — what a creature entering attacking may attack: the defending
@@ -10354,6 +10389,12 @@ function forcedAsEntersAnswer(
         // Nothing to exile: the only answer is "zero cards", and the
         // permanent enters with an empty pile.
         return asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            .length === 0
+            ? []
+            : undefined;
+    }
+    if (choice?.kind === "sacrifice") {
+        return asEntersSacrificeCandidates(state, entry, choice.filter)
             .length === 0
             ? []
             : undefined;
@@ -10666,6 +10707,32 @@ function applyAsEntersAnswer(
             // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
             emitCardsExiled(state, exiled);
             return {};
+        }
+        case "sacrifice": {
+            // CR 701.21a — re-derived against the LIVE board, fail-closed as
+            // `discard` is: an id that is no longer a legal victim means the
+            // "instead" is never applied, so the permanent never enters.
+            const victimId = selected[0];
+            const candidates = asEntersSacrificeCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            if (victimId !== undefined && candidates.includes(victimId)) {
+                // CR 609.1 — the sacrifice IS the permanent's own replacement
+                // effect, paid by the entering permanent's controller; routed
+                // through the unified permanent-cost layer so sacrifice
+                // replacements and "dies" triggers see it like any other.
+                applySacrificeSelection(state, {
+                    playerId: entry.controllerId,
+                    reason: "as-enters sacrifice",
+                    requirements: [{ filter: choice.filter, count: 1 }],
+                    picked: [victimId],
+                });
+                return {};
+            }
+            abortStagedEntryTo(state, entry, choice.ifDeclined);
+            return { aborted: true };
         }
         case "pay":
             throw new Error(
