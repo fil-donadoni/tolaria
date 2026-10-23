@@ -3798,6 +3798,156 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 601.2d / 603.7a — "Distribute three +1/+1 counters among one, two,
+    // or three target creatures", then the delayed take-back of each counter
+    // put on a creature this way at the next cleanup step. The smoke planner
+    // can scenario-ize neither the announced division nor the delayed body
+    // (a list-captured binding walked by `forEach`, a `counters` remove of
+    // counters it never seeded), so this row is the evidence for every card
+    // printing a +1/+1 division (Elven Rite, Wurmskin Forger, …) and for the
+    // cleanup-step take-back. Resolution: `__tests__/distributedCounters.test.ts`.
+    {
+        rule: "distributed counters",
+        card: {
+            oracleId: "77a43c24-398f-42c6-a0d3-b28b33a0ce12",
+            name: "Bounty of the Hunt",
+            manaCost: "{3}{G}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "You may exile a green card from your hand rather than pay this spell's mana cost.\nDistribute three +1/+1 counters among one, two, or three target creatures. For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Bounty of the Hunt",
+            types: ["Instant"],
+            manaCost: { X: 3, G: 2 },
+            oracleText:
+                "You may exile a green card from your hand rather than pay this spell's mana cost.\nDistribute three +1/+1 counters among one, two, or three target creatures. For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+            effects: [
+                {
+                    op: "distributeCountersAsChosen",
+                    counter: "+1/+1",
+                    total: 3,
+                    bind: "$placed1",
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-cleanup-step",
+                    oracleText:
+                        "For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+                    capture: {
+                        $placed: { select: { set: "bound", ref: "$placed1" } },
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$placed" },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "remove",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 1 },
+                divideAsChosen: { total: 3, kind: "counters" },
+            },
+            alternativeCosts: [
+                {
+                    id: "pitch-exile-green",
+                    description: "Exile a green card from your hand",
+                    hand: {
+                        action: "exile",
+                        requirements: [{ filter: { color: "G" }, count: 1 }],
+                    },
+                },
+            ],
+        },
+    },
+    // The same family with −1/−1 counters and an END-step take-back, on a
+    // dies trigger. A distinct form from the row above: the skeleton keeps
+    // the counter kind and the timing (`opSkeleton`), so Bounty of the Hunt's
+    // row does not clear it — and this one clears Splendid Agony's −1/−1
+    // division.
+    {
+        rule: "distributed counters",
+        card: {
+            oracleId: "7807122e-917f-4a79-876e-d1c10f7a38ed",
+            name: "Shambling Swarm",
+            manaCost: "{1}{B}{B}{B}",
+            typeLine: "Creature — Horror",
+            oracleText:
+                "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Shambling Swarm",
+            types: ["Creature"],
+            subtypes: ["Horror"],
+            manaCost: { X: 1, B: 3 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "shambling-swarm-trigger",
+                    oracleText:
+                        "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+                    head: { kind: "died", scope: "self" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: { min: 1 },
+                        divideAsChosen: { total: 3, kind: "counters" },
+                    },
+                    effects: [
+                        {
+                            op: "distributeCountersAsChosen",
+                            counter: "-1/-1",
+                            total: 3,
+                            bind: "$placed1",
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+                            capture: {
+                                $placed: {
+                                    select: { set: "bound", ref: "$placed1" },
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "forEach",
+                                    select: { set: "bound", ref: "$placed" },
+                                    effects: [
+                                        {
+                                            op: "counters",
+                                            action: "remove",
+                                            counter: "-1/-1",
+                                            target: { ref: "$each" },
+                                            count: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).
