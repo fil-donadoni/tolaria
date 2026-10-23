@@ -3748,8 +3748,8 @@ export type AsEntersChoice =
      *  `filter` is matched with the shared `handCardMatchesFilter`, the same
      *  matcher the `discard` leg uses, and the candidate set is read LIVE as
      *  the choice is offered and re-derived as it is applied: a sibling staged
-     *  in the same simultaneous batch may already have exiled a card (CR
-     *  614.12b's simultaneous-entry case). */
+     *  in the same simultaneous batch may already have exiled a card. The
+     *  matcher reads it as a GRAVEYARD card (CR 113.6b). */
     | { kind: "exileFromGraveyard"; filter?: EffectCardFilter }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each

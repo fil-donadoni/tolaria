@@ -10072,7 +10072,7 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             // and the `chooseResolution` arm the bot already dispatches on).
             // `min: 0` because zero is a legal number; `max` is every
             // candidate. Read HERE, as the choice is offered, so a sibling's
-            // already-committed exile is gone from it (CR 614.12b).
+            // already-committed exile is gone from it.
             const candidateIds = asEntersGraveyardExileCandidates(
                 state,
                 entry,
@@ -10138,8 +10138,8 @@ function asEntersGraveyardExileCandidates(
 ): string[] {
     return getPlayer(state, entry.controllerId)
         .graveyard.filter(
-            // CR 113.6c — matched as a GRAVEYARD card, so a static that
-            // functions there overrides the printed type line.
+            // CR 113.6b — matched as a GRAVEYARD card, so an ability that
+            // functions from the graveyard applies.
             (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
         )
         .map((c) => c.id);
@@ -10564,8 +10564,8 @@ function applyAsEntersAnswer(
                     ownerId: player.id,
                 });
             }
-            // CR 603.3b — one instruction, one CARDS_EXILED occurrence (the
-            // `moveCardsById` batching rule).
+            // CR 603.2c — one instruction is ONE event with several
+            // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
             emitCardsExiled(state, exiled);
             return {};
         }

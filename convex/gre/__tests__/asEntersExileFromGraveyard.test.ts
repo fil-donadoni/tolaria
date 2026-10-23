@@ -172,7 +172,7 @@ describe("as-enters exileFromGraveyard — cast (CR 614.12a / 607.2b, issue #652
         });
     });
 
-    it("one instruction is one CARDS_EXILED occurrence (CR 603.3b)", () => {
+    it("one instruction is one CARDS_EXILED event (CR 603.2c)", () => {
         withGhoul(() => {
             const state = board();
             castGhoul(state);
@@ -270,7 +270,7 @@ describe("as-enters exileFromGraveyard — put onto the battlefield (CR 400.7, i
         });
     });
 
-    it("two entering together: the second prompt shrinks to what the first left (CR 614.12b)", () => {
+    it("two entering together: the second prompt shrinks to what the first left", () => {
         withGhoul(() => {
             const state = board();
             const a = gy(GHOUL_ID, "ghoul-a");
