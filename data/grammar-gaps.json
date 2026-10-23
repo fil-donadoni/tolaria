@@ -3791,6 +3791,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"choice\" reads ref \"$event.caster\" — depends on a runtime binding",
+            "issue": 6424
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"counters\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4023
         },
@@ -3821,8 +3826,18 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads ref \"$sacrificed1\" — depends on a runtime binding",
+            "issue": 6423
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"mill\" reads a runtime \"count\" amount — the canned generator does not size it",
             "issue": 5944
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"mill\" reads ref \"$event.caster\" — depends on a runtime binding",
+            "issue": 6425
         },
         {
             "kind": "scenario",
