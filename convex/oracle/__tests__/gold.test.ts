@@ -301,7 +301,7 @@ describe("gold round-trip — precision", () => {
         // compiled — the same move as the entries above. The compiled
         // definition is proven by `optionalDrawSkip.test.ts` instead.
         //
-        // Raised 74 -> 75 with the source sacrifice rule (issue #5221): Ball
+        // Raised 74 -> 75 with the source sacrifice rule: Ball
         // Lightning's hand-written end-step sacrifice is a closure the
         // projection cannot compare, while "sacrifice it" is now compiled —
         // the same move as the entries above. The compiled definition is
