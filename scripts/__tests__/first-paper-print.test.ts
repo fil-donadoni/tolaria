@@ -159,6 +159,27 @@ describe("resolveFirstPaperPrint (issue #3423)", () => {
             })
         ).toEqual({ id: "kld-print", set: "kld", rarity: "mythic" });
     });
+
+    it("takes a masterpiece print when the card has no other paper home", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [
+                    print({
+                        id: "mps-print",
+                        set: "mps",
+                        set_type: "masterpiece",
+                        rarity: "special",
+                    }),
+                ],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: "mps-print", set: "mps", rarity: "special" });
+    });
 });
 
 describe("resolveFirstPaperPrint — a card printed only in funny sets (issue #3833)", () => {

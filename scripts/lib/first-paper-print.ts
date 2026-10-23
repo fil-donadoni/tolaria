@@ -133,9 +133,15 @@ export async function resolveFirstPaperPrint(
         // this the card reads exactly like a Scryfall that never answered.
         // Only `funny` earns the fallback — a token or memorabilia print is
         // not a printing of a card at all.
+        // `masterpiece` earns it on the same argument: skipped only because a
+        // real printing exists beside it.
         const home =
             paper[0] ??
-            prints.find((p) => !p.digital && p.set_type === "funny");
+            prints.find(
+                (p) =>
+                    !p.digital &&
+                    (p.set_type === "funny" || p.set_type === "masterpiece")
+            );
         if (home === undefined) return null;
         return { id: home.id, set: home.set, rarity: home.rarity };
     }

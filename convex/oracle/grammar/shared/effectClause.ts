@@ -3965,11 +3965,14 @@ const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =
     /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
-/** CR 601.2d — "Distribute N <kind> counters among <targets>". */
-const DISTRIBUTE_COUNTERS = /^Distribute (\S+) (\S+) counters among (.+)$/;
+/** CR 601.2d / 122.1a — "Distribute N +X/+Y counters among <targets>". The
+ *  kind is a P/T counter only: a stun, shield or oil counter is a different
+ *  mechanic the corpus distributes under other wording, and stays unread. */
+const DISTRIBUTE_COUNTERS =
+    /^Distribute (\S+) ([+-]\d+\/[+-]\d+) counters among (.+)$/;
 /** CR 603.7a — the delayed take-back of the counters distributed this way. */
 const REMOVE_DISTRIBUTED_COUNTERS =
-    /^For each (\S+) counter you put on a creature this way, remove a (\S+) counter from that creature at the beginning of the next (cleanup|end) step$/;
+    /^For each ([+-]\d+\/[+-]\d+) counter you put on a creature this way, remove a ([+-]\d+\/[+-]\d+) counter from that creature at the beginning of the next (cleanup|end) step$/;
 /**
  * CR 613.1e — "<subject> becomes the color of your choice[ <duration>]".
  *

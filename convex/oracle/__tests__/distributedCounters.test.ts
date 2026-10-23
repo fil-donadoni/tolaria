@@ -302,6 +302,12 @@ describe("distributed counters — refused neighbours (fail-closed)", () => {
         );
     });
 
+    it("refuses a non-P/T counter kind — a stun or shield counter is another mechanic (CR 122.1)", () => {
+        refuses(
+            "Distribute three stun counters among one, two, or three target creatures."
+        );
+    });
+
     it("refuses a take-back naming a different counter kind", () => {
         refuses(
             "Distribute three +1/+1 counters among one, two, or three target creatures. For each +1/+1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next cleanup step."
