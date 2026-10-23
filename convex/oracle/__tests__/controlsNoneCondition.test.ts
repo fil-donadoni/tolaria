@@ -31,6 +31,8 @@ import { conditionRule } from "../grammar/shared/condition";
 import {
     descriptorRule,
     permanentFilterFromDescriptor,
+    sacrificeFilterFromDescriptor,
+    staticFilterFromDescriptor,
     targetRequirementFromDescriptor,
 } from "../grammar/shared/targetFilter";
 import type { OracleCard } from "../types";
@@ -124,7 +126,7 @@ describe('"nontoken" in a descriptor (CR 111.1)', () => {
         );
     });
 
-    it("refuses it at a target site rather than dropping it", () => {
+    it("refuses it at every site that does not read it, rather than dropping it", () => {
         const descriptor = descriptorRule.run(
             "nontoken creature",
             parseContext()
@@ -134,6 +136,10 @@ describe('"nontoken" in a descriptor (CR 111.1)', () => {
         expect(targetRequirementFromDescriptor(descriptor.value).ok).toBe(
             false
         );
+        expect(sacrificeFilterFromDescriptor(descriptor.value).ok).toBe(false);
+        expect(
+            staticFilterFromDescriptor(descriptor.value, "recomputed").ok
+        ).toBe(false);
         expect(permanentFilterFromDescriptor(descriptor.value)).toEqual({
             ok: true,
             value: { types: ["Creature"], isToken: false },
