@@ -276,7 +276,7 @@ const UPHEAVAL_DEFINITION: CompiledDefinition = {
 };
 
 const HURKYLS_RECALL: OracleCard = {
-    oracleId: "f32373dd-06d8-45d1-8777-3b1411bcb30a",
+    oracleId: "ed1e5d24-c8a8-48fe-a88f-1003ad432477",
     name: "Hurkyl's Recall",
     manaCost: "{1}{U}",
     typeLine: "Instant",
