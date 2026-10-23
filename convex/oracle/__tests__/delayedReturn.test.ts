@@ -66,7 +66,7 @@ describe("delayed return — golden fixtures (CR 603.7a)", () => {
         const out = outcome(THAWING_GLACIERS);
         if (out.state === "unparsed") throw new Error("did not compile");
         const ability = out.definition.activatedAbilities![0]!;
-        expect(sortKeys(ability.effects!.at(-1))).toEqual(
+        expect(sortKeys(ability.effects![ability.effects!.length - 1])).toEqual(
             sortKeys({
                 op: "delayedTrigger",
                 timing: "next-cleanup-step",

@@ -1121,8 +1121,8 @@ export class SentenceWalk {
      * nothing it was not written for.
      */
     actedOn: {
-        /** A `destroy` or announced-target `moveZone` — both carry `bind`. */
-        readonly op: { bind?: string };
+        /** A `destroy`, `exile` or announced-target `moveZone` — each carries `bind`. */
+        readonly op: { op: string; bind?: string };
         readonly requirement: TargetRequirement;
     } | null = null;
 
