@@ -301,7 +301,10 @@ export function applyLandEntrySubmit(
         // CR 712.12 — the face the play chose, read off the same choice for
         // the same reason: the entry has to finish on the face the player
         // named, and a `land // land` pathway has two legal answers.
-        head.landEntryFace
+        head.landEntryFace,
+        // CR 614.1c (issue #2672) — the land's as-enters answers, made before
+        // this pay-choice; the settlement re-applies them past its reset.
+        head.landEntryAnswers
     );
 
     // CR 614.12 — a played land is not a stack resolution; resume priority to

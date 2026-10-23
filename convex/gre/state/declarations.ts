@@ -3278,6 +3278,16 @@ export type PendingChoice = {
      *  stays satisfied — the card in hand keeps its front-face identity for
      *  the whole window, and the swap happens at the zone move. */
     landEntryFace?: PlayLandFace;
+    /** For `kind: "land-entry-tapped"` only (CR 614.1c / 614.12a, issue #2672)
+     *  — what the land's own "as it enters" choices answered, already made
+     *  BEFORE this pay-choice (Multiversal Passage's basic land type).
+     *  Carried here rather than left on the waiting card because the card sits
+     *  back in the zone it is played from for this window, and a hidden zone's
+     *  codec does not keep instance state across the save point (a
+     *  play-from-top land, CR 400.2). `finalizeLandEntry` re-applies it on the
+     *  far side of the entry's CR 400.7 reset. Absent when the land owed no
+     *  as-enters choice. */
+    landEntryAnswers?: StagedEntryAnswers;
     /** For `kind: "madness-cast"` only (CR 702.35a) — the instance id of the
      *  discarded-and-exiled card this choice decides. The client's "Cast" button
      *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
@@ -5489,6 +5499,24 @@ export interface MonarchReturnWatch {
      *  monarch"). */
     controllerId: string;
 }
+
+/** What a parked entry's as-enters answers wrote that the entry-side CR 400.7
+ *  reset clears: `attachedTo` (`aura-host`), `chosenName` (`name`, deleted by
+ *  `resetBattlefieldTransientState` per CR 614.12 / issue #1953),
+ *  `chosenSubtypes` (`subtypes`, CR 614.12a) and the `copy` leg's own carry
+ *  (`colorOverride` / `grantedTriggeredAbilities`, issue #2451). `mode` →
+ *  `chosenModeId`, `body`/`anchor` → the printed characteristics and `payLife`
+ *  → the player's life are untouched by the reset. JSON-pure: it rides a
+ *  persisted `PendingChoice` (`landEntryAnswers`). */
+export type StagedEntryAnswers = {
+    attachedTo?: string;
+    chosenName?: string;
+    chosenSubtypes?: string[];
+    copy: {
+        colorOverride?: readonly Color[];
+        grantedTriggeredAbilities?: CardInstanceState["grantedTriggeredAbilities"];
+    };
+};
 
 /** CR 614.1c / 614.12a (ADR 0100 D2) — a permanent removed from its origin zone
  *  and awaiting its controller's "as it enters" choices before it enters the

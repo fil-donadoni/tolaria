@@ -660,7 +660,60 @@ describe("Zanam Djinn (flying; -2/-2 while blue is most common or tied; CR 702.9
     });
 });
 
-describe("Traveler's Cloak (Aura, ETB choose a land type, draw, grant landwalk; CR 603.6b / 702.14)", () => {
+describe("Traveler's Cloak (Aura, as-enters land type, ETB draw, grant landwalk; CR 614.12a / 702.14)", () => {
+    // Issue #2672 — the land type is chosen BEFORE the Aura enters (an
+    // as-enters replacement, not an ETB trigger), so the landwalk grant is
+    // live the moment it is on the battlefield.
+    it("chooses the land type before entering; the landwalk is live on entry", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bear],
+                    library: [makeInstance(grizzlyBears.id, { id: "lib" })],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        pushSpell(state, travelersCloak.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.asEntersKind).toBe("subtypes");
+        expect(head.kind).toBe("option-pick");
+        // Not on the battlefield, and so no ETB draw on the stack yet.
+        expect(
+            state.players[0].battlefield.some(
+                (c) => c.card.id === travelersCloak.id
+            )
+        ).toBe(false);
+        expect(state.stack).toHaveLength(0);
+
+        submitChoice(state, ["Island"]);
+        const cloak = state.players[0].battlefield.find(
+            (c) => c.card.id === travelersCloak.id
+        )!;
+        expect(cloak.attachedTo).toBe("bear");
+        expect(cloak.chosenSubtypes).toEqual(["Island"]);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("islandwalk");
+        expect(bearAfter.staticAbilities).not.toContain("forestwalk");
+        // CR 603.6a — the ETB draw triggers off the entry that already
+        // carries the chosen type.
+        expect(state.stack.map((i) => i.triggeredAbilityId)).toEqual([
+            "travelers-cloak-draw",
+        ]);
+    });
+
     it("grants only the chosen type's landwalk once the choice is stored", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",

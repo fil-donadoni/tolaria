@@ -1,36 +1,47 @@
 // SPM (Marvel's Spider-Man) — colorless behavior tests (ADR 0043 colour
-// split). Multiversal Passage (issue #1306, parent PRD #620): CR 614.12
-// land-entry pay-choice + CR 603.6b on-entry instance-scoped choice + CR
-// 305.7 layer-4 subtype replacement, composing three independently-tested
-// existing mechanisms (see the card's own doc comment in `../colorless.ts`
-// for the precedent citations).
+// split). Multiversal Passage (issue #1306, parent PRD #620; issue #2672):
+// the as-enters basic-land-type choice (CR 614.12a, ADR 0100 `subtypes`), THEN
+// the land-entry pay-choice (CR 614.12, ADR 0051), then CR 305.7 layer-4
+// subtype replacement — see the card's own doc comment in
+// `../colorless.cards.ts`.
 
 import { describe, it, expect } from "vitest";
 import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import {
-    resolveTopOfStack,
     beginApplyingStaticEffects,
     getPlayer,
+    resolveTopOfStack,
     type GameState,
+    type PlayerState,
 } from "../../../../gre/state";
 import { getBasicLandMana } from "../../../../gre/constants";
-import { applyPlayLand } from "../../../../gre/playLand";
 import {
-    applyLandEntrySubmit,
-    applyPendingChoiceSubmit,
-} from "../../../../gre/pendingChoiceSubmit";
-import { getDefinition } from "../../../index";
+    applyPlayLand,
+    applyPlayLandFromExile,
+    applyPlayLandFromGraveyard,
+    applyPlayLandFromLibraryTop,
+} from "../../../../gre/playLand";
+import { applyLandEntrySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { compactState, expandState } from "../../../../gre/serialize";
+import { getDefinition, withTemporaryDefinition } from "../../../index";
+import type { CardDefinition } from "../../../types";
 
 const multiversalPassage = getDefinition(
     "f5fb426a-5618-4dd4-9c51-0cc847be8c1d"
 );
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+// Courser of Kruphix: "You may play lands from the top of your library" (the
+// library-top origin) AND a landfall watcher — the observer for the CR 603.6a
+// PERMANENT_ENTERED the two entry choices must both precede.
+const courserOfKruphix = getDefinition("da5a807f-58e8-4d92-a61c-47bb9b28977f");
 
-describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.7 subtype-set)", () => {
+describe("Multiversal Passage (CR 614.12a as-enters type, THEN CR 614.12 pay-choice, CR 305.7 subtype-set)", () => {
     it("the subtype-set static applies ONLY to itself (a pre-set chosenSubtypes)", () => {
         const passage = makeInstance(multiversalPassage.id, {
             id: "passage-1",
@@ -57,7 +68,7 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
         expect(otherLand.subtypes).toEqual(["Forest"]);
     });
 
-    it("has no subtype (and no intrinsic mana) before the choice resolves", () => {
+    it("has no subtype (and no intrinsic mana) without a chosen type", () => {
         const passage = makeInstance(multiversalPassage.id, {
             id: "passage-1",
             controllerId: "p1",
@@ -73,140 +84,261 @@ describe("Multiversal Passage (CR 614.12 pay-choice + CR 603.6b choice + CR 305.
         expect(passage.subtypes).toEqual([]);
         expect(getBasicLandMana(passage)).toBeNull();
     });
+});
 
-    it("stores the chosen type on entry via the resolve()/requestOptionChoice protocol (CR 603.6b)", () => {
+/** Every zone a played Multiversal Passage can come from, and the play-land
+ *  transition for it. `zone` is the `PlayerState` array that holds the card. */
+const PLAY_ORIGINS = [
+    { origin: "hand", zone: "hand" as const, play: applyPlayLand },
+    {
+        origin: "graveyard",
+        zone: "graveyard" as const,
+        play: applyPlayLandFromGraveyard,
+    },
+    { origin: "exile", zone: "exile" as const, play: applyPlayLandFromExile },
+    {
+        origin: "library-top",
+        zone: "library" as const,
+        play: applyPlayLandFromLibraryTop,
+    },
+];
+
+function passageIn(zone: "hand" | "graveyard" | "exile" | "library") {
+    const passage = makeInstance(multiversalPassage.id, {
+        id: "passage",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone,
+    });
+    const filler = makeInstance(forest.id, {
+        id: "filler",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone,
+    });
+    const courser = makeInstance(courserOfKruphix.id, {
+        id: "courser",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                life: 20,
+                battlefield: [courser],
+                // The library origin is positional (CR 400.2): the land is on
+                // TOP, with a card under it to prove it goes back on top.
+                [zone]: zone === "library" ? [passage, filler] : [passage],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+    state.activePlayerId = "p1";
+    state.priorityPlayerId = "p1";
+    return { state, player: getPlayer(state, "p1") };
+}
+
+function onBattlefield(player: PlayerState) {
+    return player.battlefield.find((c) => c.id === "passage");
+}
+
+/** Mirrors the DB save point every pending choice is: the state is compacted
+ *  and rehydrated between two submissions, so the staged land must survive
+ *  the round trip with its answer on it. */
+function persisted(state: GameState): GameState {
+    return expandState(
+        JSON.parse(JSON.stringify(compactState(state))) as Record<
+            string,
+            unknown
+        >
+    );
+}
+
+describe.each(PLAY_ORIGINS)(
+    "Multiversal Passage played from $origin — the type is chosen FIRST, the 2 life SECOND (issue #2672)",
+    ({ zone, play }) => {
+        it("raises the basic-land-type pick first; nothing has entered", () => {
+            const { state, player } = passageIn(zone);
+            expect(play(state, player, "passage")).toBeNull();
+
+            const head = state.pendingChoices?.[0];
+            expect(head?.asEntersKind).toBe("subtypes");
+            expect(head?.kind).toBe("option-pick");
+            expect(head?.playerId).toBe("p1");
+            expect(head?.options?.map((o) => o.id)).toEqual([
+                "Plains",
+                "Island",
+                "Swamp",
+                "Mountain",
+                "Forest",
+            ]);
+            // Only ONE choice is queued: the pay-choice is not raised yet.
+            expect(state.pendingChoices).toHaveLength(1);
+            expect(onBattlefield(player)).toBeUndefined();
+            expect(state.stack).toHaveLength(0);
+            expect(state.priorityPlayerId).toBe("p1");
+        });
+
+        it("then raises the pay-2-life choice; still not on the battlefield, no land drop, no entry event", () => {
+            const { state, player } = passageIn(zone);
+            play(state, player, "passage");
+            submitChoice(state, ["Mountain"]);
+
+            const head = state.pendingChoices?.[0];
+            expect(head?.kind).toBe("land-entry-tapped");
+            expect(head?.landInstanceId).toBe("passage");
+            expect(head?.cost).toEqual({ life: 2 });
+            expect(state.pendingChoices).toHaveLength(1);
+            expect(onBattlefield(player)).toBeUndefined();
+            // CR 305.2 — the drop is recorded only as the land settles.
+            expect(player.landsPlayedThisTurn ?? 0).toBe(0);
+            // No PERMANENT_ENTERED has been emitted: landfall is silent.
+            expect(state.stack).toHaveLength(0);
+            expect(state.priorityPlayerId).toBe("p1");
+        });
+
+        it("decline → enters TAPPED and typed; taps for the chosen colour at once", () => {
+            const { state, player } = passageIn(zone);
+            play(state, player, "passage");
+            submitChoice(state, ["Mountain"]);
+            applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+
+            const land = onBattlefield(player)!;
+            expect(land).toBeDefined();
+            expect(land.isTapped).toBe(true);
+            expect(player.life).toBe(20);
+            // No extra materialisation pass: the type is live on entry.
+            expect(land.chosenSubtypes).toEqual(["Mountain"]);
+            expect(land.subtypes).toEqual(["Mountain"]);
+            expect(getBasicLandMana(land)).toBe("R");
+            expect(player.landsPlayedThisTurn).toBe(1);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stagedEntries ?? []).toHaveLength(0);
+            // CR 603.6a — the land entered exactly once, after both choices:
+            // Courser's landfall is the one item on the stack.
+            expect(state.stack.map((i) => i.triggeredAbilityId)).toEqual([
+                "courser-of-kruphix-landfall",
+            ]);
+        });
+
+        it("pay → enters UNTAPPED and typed, across a save point between the two choices", () => {
+            const first = passageIn(zone);
+            play(first.state, first.player, "passage");
+            const mid = persisted(first.state);
+            submitChoice(mid, ["Island"]);
+            const state = persisted(mid);
+            applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+
+            const player = getPlayer(state, "p1");
+            const land = onBattlefield(player)!;
+            expect(land.isTapped).toBe(false);
+            expect(player.life).toBe(18);
+            expect(land.subtypes).toEqual(["Island"]);
+            expect(getBasicLandMana(land)).toBe("U");
+            // The source zone is left exactly as it was, minus the land.
+            const rest = player[zone].map((c) => c.id);
+            expect(rest).not.toContain("passage");
+            if (zone === "library") expect(rest).toEqual(["filler"]);
+        });
+    }
+);
+
+/** "Return target land card from your graveyard to the battlefield." — a
+ *  stand-in reanimation spell on the shipped Resurrection shape (an Effect
+ *  Script `moveZone`, so its resolution is CHECKPOINTED and genuinely waits on
+ *  the as-enters choice). */
+const LAND_REANIMATION: CardDefinition = {
+    id: "test-land-reanimation",
+    name: "Test Land Reanimation",
+    rarity: "common",
+    oracleText:
+        "Return target land card from your graveyard to the battlefield.",
+    manaCost: { X: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Land",
+        count: 1,
+        zone: "graveyard",
+        controller: "you",
+    },
+    effects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
+};
+
+describe("Multiversal Passage put onto the battlefield by an effect (issue #2672)", () => {
+    function reanimate() {
         const passage = makeInstance(multiversalPassage.id, {
-            id: "passage-1",
+            id: "passage",
             controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+            // A previous existence's stale choice must not survive (CR 400.7).
+            chosenSubtypes: ["Plains"],
+        });
+        const courser = makeInstance(courserOfKruphix.id, {
+            id: "courser",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [passage] }),
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [courser],
+                    graveyard: [passage],
+                }),
                 makePlayer("p2"),
             ],
         });
         state.activePlayerId = "p1";
-        state.stack.push({
-            ...passage,
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "multiversal-passage-choose-type",
-            triggerSourceId: "passage-1",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "passage-1",
-                controllerId: "p1",
-                types: ["Land"],
-            } as GameState["stack"][number]["triggerEvent"],
-            targets: [],
-        });
+        pushSpell(state, LAND_REANIMATION.id, "p1", [
+            { type: "graveyard-card", id: "passage", playerId: "p1" },
+        ]);
         resolveTopOfStack(state);
+        return { state, player: getPlayer(state, "p1") };
+    }
 
-        const head = state.pendingChoices?.[0];
-        expect(head?.playerId).toBe("p1");
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head!.stackItemId,
-            step: head!.step,
-            choiceId: head!.choiceId,
-            cardInstanceIds: ["Mountain"],
+    it("raises the type pick first, then the pay-choice; the spell finishes resolving between them", () => {
+        withTemporaryDefinition(LAND_REANIMATION, () => {
+            const { state, player } = reanimate();
+            const first = state.pendingChoices?.[0];
+            expect(first?.asEntersKind).toBe("subtypes");
+            expect(state.pendingChoices).toHaveLength(1);
+            expect(onBattlefield(player)).toBeUndefined();
+
+            submitChoice(state, ["Swamp"]);
+            const second = state.pendingChoices?.[0];
+            expect(second?.kind).toBe("land-entry-tapped");
+            expect(second?.landSourceZone).toBe("battlefield");
+            // The parked resolution resumed and completed: the stackless
+            // pay-choice never holds a resolution (CR 614.12, ADR 0051).
+            expect(state.stack).toHaveLength(0);
+            // Provisional, as ADR 0051 enters it — but already TYPED.
+            const land = onBattlefield(player)!;
+            expect(land.isTapped).toBe(true);
+            expect(land.chosenSubtypes).toEqual(["Swamp"]);
+            expect(land.subtypes).toEqual(["Swamp"]);
         });
-
-        const after = state.players[0].battlefield.find(
-            (c) => c.id === "passage-1"
-        )!;
-        expect(after.chosenSubtypes).toEqual(["Mountain"]);
-        beginApplyingStaticEffects(state, after);
-        expect(after.subtypes).toEqual(["Mountain"]);
-        expect(getBasicLandMana(after)).toBe("R");
     });
 
-    it("end-to-end: decline the pay-choice (enters tapped), then choose the type", () => {
-        const passage = makeInstance(multiversalPassage.id, {
-            id: "passage-1",
-            zone: "hand",
+    it("pay → untapped, typed, no land drop (CR 305.2)", () => {
+        withTemporaryDefinition(LAND_REANIMATION, () => {
+            const { state, player } = reanimate();
+            submitChoice(state, ["Forest"]);
+            applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+
+            const land = onBattlefield(player)!;
+            expect(land.isTapped).toBe(false);
+            expect(player.life).toBe(18);
+            expect(land.subtypes).toEqual(["Forest"]);
+            expect(getBasicLandMana(land)).toBe("G");
+            expect(player.landsPlayedThisTurn ?? 0).toBe(0);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            // CR 603.6a — the deferred entry is announced only now.
+            expect(state.stack.map((i) => i.triggeredAbilityId)).toEqual([
+                "courser-of-kruphix-landfall",
+            ]);
         });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20, hand: [passage] }),
-                makePlayer("p2"),
-            ],
-        });
-        const player = getPlayer(state, "p1");
-        applyPlayLand(state, player, "passage-1");
-        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
-
-        const land = player.battlefield.find((c) => c.id === "passage-1")!;
-        expect(land.isTapped).toBe(true);
-        expect(getPlayer(state, "p1").life).toBe(20);
-
-        // The choose-type trigger is queued on the stack (CR 603.3b); it
-        // isn't resolved until priority resolves it.
-        expect(state.stack).toHaveLength(1);
-        resolveTopOfStack(state);
-
-        const head = state.pendingChoices?.[0];
-        expect(head?.playerId).toBe("p1");
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head!.stackItemId,
-            step: head!.step,
-            choiceId: head!.choiceId,
-            cardInstanceIds: ["Swamp"],
-        });
-
-        expect(land.chosenSubtypes).toEqual(["Swamp"]);
-        beginApplyingStaticEffects(state, land);
-        expect(land.subtypes).toEqual(["Swamp"]);
-        expect(getBasicLandMana(land)).toBe("B");
-    });
-
-    // Regression (#727 QA, relocated here by #2467). `setChosenSubtypes`
-    // (`convex/gre/state.ts`) does two things: it writes `chosenSubtypes`, and
-    // it then RE-MATERIALISES the source's continuous statics
-    // (`beginApplyingStaticEffects`). The second half is load-bearing because
-    // the `subtype-set` static was already materialised when the land entered
-    // — with no type chosen yet, `subtypesFor` returned null, a no-op — and
-    // NOTHING runs between the submission and the next board read.
-    //
-    // Illusionary Terrain (`ice/blue.cards.ts`) used to be the only guard on that
-    // line; #2467 moved it to a CR 614.12a as-enters choice made BEFORE the
-    // permanent enters, which structurally removes the race for that card.
-    // Multiversal Passage is still a POST-entry `enteredTrigger`, so it is now
-    // the only card the re-materialisation is load-bearing for.
-    //
-    // Deliberately does NOT call `beginApplyingStaticEffects` itself: that call
-    // is what the cases above use, and it is exactly what masks the bug.
-    it("the chosen type is live on the board immediately after the submission, with no extra materialisation pass (CR 611.2c)", () => {
-        const passage = makeInstance(multiversalPassage.id, {
-            id: "passage-1",
-            zone: "hand",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { life: 20, hand: [passage] }),
-                makePlayer("p2"),
-            ],
-        });
-        const player = getPlayer(state, "p1");
-        applyPlayLand(state, player, "passage-1");
-        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
-
-        const land = player.battlefield.find((c) => c.id === "passage-1")!;
-        // Entered with the static already materialised over an empty choice.
-        expect(land.subtypes).toEqual([]);
-
-        resolveTopOfStack(state);
-        const head = state.pendingChoices?.[0];
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head!.stackItemId,
-            step: head!.step,
-            choiceId: head!.choiceId,
-            cardInstanceIds: ["Island"],
-        });
-
-        expect(land.subtypes).toEqual(["Island"]);
-        expect(getBasicLandMana(land)).toBe("U");
     });
 });

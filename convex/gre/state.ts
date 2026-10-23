@@ -394,6 +394,7 @@ export type {
     ExileReturnBundle,
     MonarchReturnWatch,
     StagedEntry,
+    StagedEntryAnswers,
     SourcePreventionStateView,
     RecipientPreventionStateView,
     StackTransformStamp,
@@ -425,6 +426,7 @@ import type {
     ExileReturnBundle,
     MonarchReturnWatch,
     StagedEntry,
+    StagedEntryAnswers,
     SourcePreventionStateView,
     RecipientPreventionStateView,
     ManaCost,
@@ -10595,28 +10597,13 @@ function restoreCopyAnswer(
     }
 }
 
-/** What a parked entry's as-enters answers wrote that the entry-side CR 400.7
- *  reset clears: `attachedTo` (`aura-host`), `chosenName` (`name`, deleted by
- *  `resetBattlefieldTransientState` per CR 614.12 / issue #1953),
- *  `chosenSubtypes` (`subtypes`, CR 614.12a) and the `copy` leg's own carry.
- *  `mode` → `chosenModeId`, `body`/`anchor` → the printed characteristics and
- *  `payLife` → the player's life are untouched by the reset.
- *
- *  Reading the values straight off the instance is sound ONLY because
- *  `stageAsEntersEntry` cleared these same slots when it parked the entry (the
- *  CR 400.7 clean applied early — see there): a value present now was
- *  necessarily written by an answer THIS entry received, never carried over
- *  from a previous existence. Carry only what we wrote — never trust what
- *  happens to be there. */
-export type StagedEntryAnswers = {
-    attachedTo?: string;
-    chosenName?: CardInstanceState["chosenName"];
-    chosenSubtypes?: string[];
-    copy: ReturnType<typeof copyAnswerCarry>;
-};
-
 /** Snapshots {@link StagedEntryAnswers} off a parked permanent, before the
- *  entry tail resets it. */
+ *  entry tail resets it. Reading the values straight off the instance is sound
+ *  ONLY because `stageAsEntersEntry` cleared these same slots when it parked
+ *  the entry (the CR 400.7 clean applied early — see there): a value present
+ *  now was necessarily written by an answer THIS entry received, never carried
+ *  over from a previous existence. Carry only what we wrote — never trust what
+ *  happens to be there. */
 export function stagedEntryAnswers(
     card: CardInstanceState
 ): StagedEntryAnswers {
