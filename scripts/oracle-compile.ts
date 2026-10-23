@@ -7,7 +7,7 @@
  * the cache is written, the fragment table is sorted by
  * (text asc, reason asc, attribution asc) — the full intern key, so the order
  * is total and never rests on sort stability — a row cites its fragments by
- * content-derived Fragment Key (issue #6169), and the serializer emits one
+ * content-derived Fragment Key, and the serializer emits one
  * row per line with a fixed key order. Two runs on
  * the same tree and the same corpus are byte-identical — asserted in
  * `scripts/__tests__/oracle-compile.test.ts`.
@@ -24,17 +24,17 @@
  * every card that compiles `ready` is played by the Bot at both seats
  * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
  * definition is unchanged (`lib/oracle-bot-reach.ts`). A bare run is
- * SESSION-SCOPED (issue #6463): it plays only the definition misses (a
+ * SESSION-SCOPED: it plays only the definition misses (a
  * changed definition, a card newly `ready`, a `ready` card with no verdict)
  * and keeps the committed Bot hash in the header; a Bot hash that moved is
  * never a reason to replay the catalogue here — that whole replay is
  * `--replay-bot`, run on the base by `derive:sync --replay-bot` once per Bot
  * change. `--check` never plays; it carries the committed verdicts forward.
- * A bare run first counts its cache misses with no lock (issue #6069): zero
+ * A bare run first counts its cache misses with no lock: zero
  * misses → it writes the carried lockfile and never queues; up to
  * `LOCK_FREE_MISSES` → it plays them in place, like `--replay-card` does
  * (seconds, not a sweep); more → it takes the heavy gate's mutex (`gate.ts
- * job`, issue #4941) and plays only the misses. `--replay-bot` always takes
+ * job`) and plays only the misses. `--replay-bot` always takes
  * the mutex; `--check` and `--carry-bot` take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is

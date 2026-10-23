@@ -12,7 +12,7 @@
  *
  *   1. `oracle:compile --carry-bot` and `catalogue:pack` on the tip — on a
  *      corpus cache matching the tip's pin: the primary checkout's when it
- *      matches, else the pinned bulk (`lib/corpus-cache.ts`, issue #6381);
+ *      matches, else the pinned bulk (`lib/corpus-cache.ts`);
  *   2. the five derived paths compared, blob by blob, with the tip's
  *      (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no commit;
  *   3. else ONE commit with exactly the changed paths, built on a scratch
@@ -39,7 +39,7 @@
  * (MacBook, load 6): `oracle:compile --check` 3.7 s, `catalogue:check`
  * 1.0 s; the write path adds the two generators' disk writes and one push.
  *
- * `--replay-bot` is the Bot-play replay on the base (issue #6463), the
+ * `--replay-bot` is the Bot-play replay on the base, the
  * `bot-replay` job of `post-merge.yml`: a session's bare `oracle:compile`
  * carries the committed verdicts whatever the Bot hash says, so the header's
  * Bot hash moves only here. Seconds when the header's hash is the tree's
@@ -51,7 +51,7 @@
  *     and ONE commit pushed, header = this tree's Bot hash. A base that moved
  *     meanwhile is not a dropped sweep: the swept verdicts are laid over the
  *     new tip's lockfile through the merge driver's overlay
- *     (`lib/oracle-verdict-overlay.ts`, issue #5814), the tree moved to that
+ *     (`lib/oracle-verdict-overlay.ts`), the tree moved to that
  *     tip and a bare compile plays its definition misses, and the commit is
  *     built there; a second Bot-hash move in the meantime simply leaves a
  *     mismatch for the next run;
