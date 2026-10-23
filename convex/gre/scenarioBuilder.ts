@@ -561,6 +561,8 @@ export function buildStateFromScenario(
     p2.drawnThisTurn = undefined;
     p1.leftGraveyardThisTurn = undefined;
     p2.leftGraveyardThisTurn = undefined;
+    p1.nontokenCreaturesToGraveyardThisTurn = undefined;
+    p2.nontokenCreaturesToGraveyardThisTurn = undefined;
     // CR 305.2 (issue #3446) — the land drop is a per-turn tally of the same
     // family, and it is cleared here for the same reason: a scenario places a
     // position rather than replaying the turn that reached it, so the board a

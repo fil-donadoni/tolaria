@@ -607,6 +607,7 @@ type CompactPlayer = {
     lastDrawnCardId?: string;
     drawnThisTurn?: string[];
     leftGraveyardThisTurn?: number;
+    nontokenCreaturesToGraveyardThisTurn?: number;
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
     /** COUNT of pending skipped turns (CR 614.10a, issue #1957) — see
@@ -681,6 +682,12 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // survive a save/load taken between the two end steps of the same turn.
     if (player.leftGraveyardThisTurn) {
         out.leftGraveyardThisTurn = player.leftGraveyardThisTurn;
+    }
+    // CR 700.4 — a mid-turn save/load must not zero a count a later "for each"
+    // reads.
+    if (player.nontokenCreaturesToGraveyardThisTurn) {
+        out.nontokenCreaturesToGraveyardThisTurn =
+            player.nontokenCreaturesToGraveyardThisTurn;
     }
     if (player.turnsTaken) out.turnsTaken = player.turnsTaken;
     if (player.grantedAbilities?.length) {
@@ -779,6 +786,10 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.leftGraveyardThisTurn !== undefined) {
         result.leftGraveyardThisTurn = player.leftGraveyardThisTurn;
+    }
+    if (player.nontokenCreaturesToGraveyardThisTurn !== undefined) {
+        result.nontokenCreaturesToGraveyardThisTurn =
+            player.nontokenCreaturesToGraveyardThisTurn;
     }
     if (player.turnsTaken !== undefined) {
         result.turnsTaken = player.turnsTaken;
