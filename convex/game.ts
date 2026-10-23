@@ -58,6 +58,7 @@ import {
     manaRidersForAbility,
     reverseRestrictedManaFromPool,
     payRemoveCounterCost,
+    addCounterToCard,
     applyKeywordCounterGrant,
     payDiscardAtRandomCost,
     commitLandsForCost,
@@ -1065,6 +1066,11 @@ export function applyManaAbilityRemoveCounterCost(
     ability: ActivatedAbility | undefined | null,
     card: CardInstanceState
 ): void {
+    // CR 122.1 / 118.1 — a `{T}` + `addCounter` mana ability places its counter
+    // here too, so the tap paths never give the mana without the price. Not
+    // reversed by an untap refund: the counter is on the permanent for good.
+    const placed = ability?.cost.addCounter;
+    if (placed) addCounterToCard(state, card, placed.type, placed.count);
     const leg = ability?.cost.removeCounter;
     if (!leg || leg.count <= 0) return;
     payRemoveCounterCost(state, card, leg);
@@ -5119,6 +5125,15 @@ export function finalizeTargetSelection(
             : undefined;
         if (ability.cost.removeCounter) {
             payRemoveCounterCost(state, card, ability.cost.removeCounter);
+        }
+        // CR 122.1 / 118.1 — counter-placement cost; always payable.
+        if (ability.cost.addCounter) {
+            addCounterToCard(
+                state,
+                card,
+                ability.cost.addCounter.type,
+                ability.cost.addCounter.count
+            );
         }
         if (ability.cost.discardAtRandom) {
             payDiscardAtRandomCost(
@@ -14333,6 +14348,18 @@ export const activateManaAbility = mutation({
         }
         payManaCostWithRiders(player, manaCost, manaAbilitySubs);
         commitLandsForCost(player, manaCost);
+        // CR 605.1a / 122.1 / 118.1 — a counter-placement cost leg on a tap-less
+        // mana ability (Wall of Roots: "Put a -0/-1 counter on this creature:
+        // Add {G}."). Always payable; paid before the mana is produced, and a
+        // lethal counter is left to the next SBA pass (CR 704.5f).
+        if (ability.cost.addCounter) {
+            addCounterToCard(
+                state,
+                card,
+                ability.cost.addCounter.type,
+                ability.cost.addCounter.count
+            );
+        }
 
         // CR 605.1a / 613.4 (issue #1179) — a non-tap mana ability that
         // declares `manaChoices` / `getManaChoices` (Vivi Ornitier's runtime

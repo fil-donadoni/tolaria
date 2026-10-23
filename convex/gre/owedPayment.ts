@@ -205,6 +205,8 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         inlineManaOutput: "non-park",
         /** CR 122.6 — counters removed at commit. */
         removeCounterCost: "non-park",
+        /** CR 122.1 — counters placed at commit. */
+        addCounterCost: "non-park",
         /** CR 119.4 — life deducted at commit. */
         lifeCost: "non-park",
         /** Jandor's Ring — the card is determined by the game, not the payer. */
