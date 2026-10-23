@@ -73,6 +73,7 @@ import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
     assembleSentences,
     assemblyTrace,
+    comparativeSentenceRule,
     kickedSentenceRule,
     sentenceRule,
     type SentenceIR,
@@ -109,7 +110,9 @@ function readSentences(
  * has, and the kicker a gate reads is lowered from the card's own kicker line
  * (`lower.ts`), which no ability site sees.
  */
-const spellSentence: Rule<SentenceIR> = kickedSentenceRule(sentenceRule);
+const spellSentence: Rule<SentenceIR> = kickedSentenceRule(
+    comparativeSentenceRule(sentenceRule)
+);
 
 const plainSpell: Rule<SlotIR> = terminated(
     ".",

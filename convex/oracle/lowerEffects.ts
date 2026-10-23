@@ -4017,6 +4017,43 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "controls-more": {
+            // CR 608.2c + CR 109.5 — read when the spell resolves: strictly
+            // more permanents the filter matches under an opponent's control
+            // than under the controller's. Targets inside the gate are still
+            // announced (CR 601.2c); only the effect is conditional.
+            if (sentence.condition.subject !== "opponent")
+                return unlowerable(
+                    "a spell compares an opponent's count against its controller's"
+                );
+            const filter = countFilterOf(sentence.condition.filter);
+            if (!filter.ok) return filter;
+            const inner = gatedSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "opponent",
+                                filter: filter.value,
+                            },
+                        },
+                        op: "gt",
+                        right: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: structuredClone(filter.value),
+                            },
+                        },
+                    },
+                    then: inner.value,
+                },
+            ]);
+        }
         case "replace-if-kicked": {
             // CR 702.33e + CR 608.2c — kicked: the replacement happens; else the
             // base does. Both halves are sweeps (`foldKickedInstead`), so no
