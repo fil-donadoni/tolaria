@@ -109,6 +109,16 @@ describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (i
         });
     });
 
+    it("a freeze acknowledged in data/oracle-state-regressions.json is not lost — check:oracle accepts the commit, so does the replay", () => {
+        const before = [ready("b", "Bolt"), ready("s", "Stasis")];
+        const after = [frozen("b", "Bolt"), frozen("s", "Stasis")];
+        expect(
+            botReplayOutcome(before, after, new Set(["b"])).lost.map(
+                (c) => c.name
+            )
+        ).toEqual(["Stasis"]);
+    });
+
     it("a `ready` row that vanished is lost too — a re-pin dropping rows is not 'no change'", () => {
         expect(botReplayOutcome([ready("b", "Bolt")], []).lost).toEqual([
             {

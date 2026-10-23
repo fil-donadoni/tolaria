@@ -100,6 +100,10 @@ import {
     serializeLockfile,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import {
+    REGRESSION_LEDGER_PATH,
+    parseRegressionLedger,
+} from "./lib/oracle-state-regressions";
 import { overlayBranchVerdicts } from "./lib/oracle-verdict-overlay";
 import { PACKED_CORPUS_PATH } from "./lib/packed-corpus";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -202,17 +206,23 @@ function ensureCorpus(): boolean {
     return true;
 }
 
-/** One generator, inheriting stdio: its own lines are the log. */
+/** One generator, inheriting stdio: its own lines are the log. `signal` is
+ *  what the wall sends: SIGKILL reaches the direct child only, so a generator
+ *  that re-runs itself under the heavy gate (`oracle:compile`'s sweep,
+ *  `lib/heavy-admission.ts`) takes SIGTERM, which it forwards to the gate
+ *  and the gate reaps its group — an orphaned sweep would keep the mutex
+ *  and write into a tree this run has already moved. */
 function generate(
     label: string,
     argv: string[],
-    wallMs: number = GENERATOR_WALL_MS
+    wallMs: number = GENERATOR_WALL_MS,
+    signal: NodeJS.Signals = "SIGKILL"
 ): boolean {
     const r = spawnSync("bun", argv, {
         cwd: ROOT,
         stdio: "inherit",
         timeout: wallMs,
-        killSignal: "SIGKILL",
+        killSignal: signal,
     });
     if (r.status === 0) return true;
     complain(
@@ -270,23 +280,25 @@ function write(dryRun: boolean): number {
         `${head.slice(0, 10)} is derived-stale: ${plan.paths.join(", ")}${dryRun ? " — dry run, nothing committed" : ""}`
     );
     if (dryRun) return 0;
-    return commitAndPush(head, plan.paths, DERIVE_SYNC_COMMIT_SUBJECT);
+    return commitAndPush(head, plan.paths, DERIVE_SYNC_COMMIT_SUBJECT).code;
 }
 
 /** ONE commit with exactly `paths`, built on `head` on a scratch index and
  *  pushed once — the mechanics ADR 0157 gave the derive commit, shared with
- *  the replay commit so there is one pusher. Exit code. */
+ *  the replay commit so there is one pusher. The exit code, and the push's
+ *  outcome (`error` when nothing was pushed) for a caller that retries a
+ *  coalesced push. */
 function commitAndPush(
     head: string,
     paths: readonly string[],
     subject: string
-): number {
+): { code: number; outcome: "landed" | "coalesced" | "failed" | "error" } {
     const files: { path: string; blob: string }[] = [];
     for (const path of paths) {
         const blob = git(["hash-object", "-w", join(ROOT, path)]);
         if (blob.status !== 0) {
             complain(`could not store ${path}: ${blob.stderr.trim()}`);
-            return 1;
+            return { code: 1, outcome: "error" };
         }
         files.push({ path, blob: blob.stdout.trim() });
     }
@@ -298,7 +310,7 @@ function commitAndPush(
     );
     if ("error" in built) {
         complain(`could not build the commit on ${head}: ${built.error}`);
-        return 1;
+        return { code: 1, outcome: "error" };
     }
     const pushed = pushDerivedCommit((args, opts) => git(args, opts), {
         sha: built.sha,
@@ -313,17 +325,17 @@ function commitAndPush(
             say(
                 `${built.sha.slice(0, 10)} pushed to ${BASE_BRANCH} (${paths.length} file(s))`
             );
-            return 0;
+            return { code: 0, outcome };
         case "coalesced":
             say(
-                `push refused (${why}) and ${BASE_BRANCH} moved to ${pushed.remoteTip.slice(0, 10)} meanwhile — dropped, not retried: the newer tip's own run regenerates (ADR 0157)`
+                `push refused (${why}) and ${BASE_BRANCH} moved to ${pushed.remoteTip.slice(0, 10)} meanwhile — not retried here: the newer tip's own run regenerates (ADR 0157)`
             );
-            return 0;
+            return { code: 0, outcome };
         case "failed":
             complain(
                 `push refused (${why}) with ${BASE_BRANCH} still at ${head.slice(0, 10)} — the next housekeeping run retries`
             );
-            return 1;
+            return { code: 1, outcome };
     }
 }
 
@@ -337,8 +349,28 @@ const SWEEP_WALL_MS = 120 * 60_000;
  *  network, one call per new card, 503s retried by the script itself. */
 const INDEX_WALL_MS = 30 * 60_000;
 
+/** How many times the base may move under the sweep before the run gives
+ *  its work up (review of this PR, finding 8): the derive commit of the push
+ *  that triggered the run lands minutes into the sweep, so a moved tip is
+ *  the COMMON case, and each re-apply is seconds — a bare compile over the
+ *  overlaid verdicts, a pack, a push. */
+const MAX_TIP_MOVES = 3;
+
 function readLockfile(): Lockfile {
     return parseLockfile(readFileSync(join(ROOT, LOCKFILE_PATH), "utf8"));
+}
+
+/** The oracle ids `data/oracle-state-regressions.json` acknowledges: a
+ *  freeze a human ruled correct is not a regression the replay files, and
+ *  `check:oracle` accepts the commit for the same reason. */
+function acknowledgedRegressions(): ReadonlySet<string> {
+    const path = join(ROOT, REGRESSION_LEDGER_PATH);
+    if (!existsSync(path)) return new Set();
+    return new Set(
+        parseRegressionLedger(readFileSync(path, "utf8")).acknowledged.map(
+            (a) => a.oracleId
+        )
+    );
 }
 
 /** The open regression issue for THIS tree's Bot, by its title, or null.
@@ -371,7 +403,9 @@ function openRegressionIssue(title: string): number | null {
 
 /** The commit range that moved the Bot hash off the header's — from the
  *  commit that wrote the header's hash to HEAD — and the Bot-source commits
- *  in it, `%h %s` each, newest first. */
+ *  in it, `%h %s` each, newest first. The hash is in HEAD's header, so the
+ *  NEWEST commit changing its occurrence count is the one that wrote it (an
+ *  older one is a revert-and-reland's first life). */
 function botHashMove(headerBotHash: string): {
     range: string;
     commits: string[];
@@ -387,7 +421,7 @@ function botHashMove(headerBotHash: string): {
         .stdout.trim()
         .split("\n")
         .filter((l) => l !== "")
-        .at(-1);
+        .at(0);
     const range = since === undefined ? "HEAD" : `${since.slice(0, 10)}..HEAD`;
     const commits =
         since === undefined
@@ -430,32 +464,65 @@ function fileRegression(input: {
     say(`filed ${url}`);
 }
 
+/** Detach this tree at `tip` and bootstrap it (`worktree:init`: the tip's
+ *  `_generated`, dependencies, corpus pin). The tree must be clean — the
+ *  caller restores its generated files first. */
+function detachAt(tip: string): boolean {
+    if (git(["checkout", "-q", "--detach", tip]).status !== 0) {
+        complain(`could not move the tree to ${tip.slice(0, 10)}`);
+        return false;
+    }
+    return (
+        generate("worktree:init", ["scripts/bootstrap-worktree.ts"]) &&
+        ensureCorpus()
+    );
+}
+
+/** The base's tip, fetched — null when the fetch failed. */
+function fetchedBaseTip(): string | null {
+    const fetched = git(["fetch", "-q", "origin", BASE_BRANCH], {
+        timeout: GIT_NET_TIMEOUT_MS,
+    });
+    if (fetched.status !== 0) {
+        complain(`could not fetch ${BASE_BRANCH}: ${fetched.stderr.trim()}`);
+        return null;
+    }
+    return git(["rev-parse", ORIGIN_BASE]).stdout.trim();
+}
+
 /**
  * The base moved while the sweep ran: move this tree to the new tip and
  * carry the swept verdicts onto its lockfile through the overlay, so the bare
  * compile that follows plays only the definition misses the new tip brought
  * (issue #6463). `swept` is the lockfile the sweep wrote on `head`.
+ *
+ * The overlay and the intermediate serialization run in THIS process — the
+ * old tip's code — over a file the new tip's compile then rewrites whole; a
+ * lockfile schema change between the two tips would have to survive one
+ * parse/serialize round trip of the old code, an accepted bound (the schema
+ * moves in the same PRs as `serializeLockfile`, which is also the one that
+ * restamps `compilerHash`, and the compile reads the file back through
+ * `cachedVerdict`, which carries only rows it can read).
  */
 function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     say(
         `${BASE_BRANCH} moved to ${newTip.slice(0, 10)} during the sweep — re-applying the verdicts over it`
     );
-    const restore = git(["checkout", "-q", "--", "."]);
-    const moved =
-        restore.status === 0 &&
-        git(["checkout", "-q", "--detach", newTip]).status === 0;
-    if (!moved) {
-        complain(`could not move the tree to ${newTip.slice(0, 10)}`);
+    // The sweep's and the pack's writes: the detach needs a clean tree.
+    if (git(["checkout", "-q", "--", "."]).status !== 0) {
+        complain("could not restore the generated files before moving");
         return false;
     }
-    if (!generate("worktree:init", ["scripts/bootstrap-worktree.ts"]))
-        return false;
-    if (!ensureCorpus()) return false;
+    if (!detachAt(newTip)) return false;
     const base = parseLockfile(
         git(["show", `${head}:${LOCKFILE_PATH}`]).stdout
     );
     const ours = readLockfile();
     const { lock, carried } = overlayBranchVerdicts(base, ours, swept);
+    // The header: the swept Bot hash — every carried verdict was played
+    // under it; the misses the bare compile plays next are played under the
+    // new tip's Bot, a mixed state the next run resolves when the two hashes
+    // differ (the same honesty bound as `--carry-bot --replay-card`).
     writeFileSync(
         join(ROOT, LOCKFILE_PATH),
         serializeLockfile({
@@ -471,13 +538,35 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     return generate(
         "oracle:compile",
         ["scripts/oracle-compile.ts"],
-        SWEEP_WALL_MS
+        SWEEP_WALL_MS,
+        "SIGTERM"
     );
 }
 
 /** The Bot-play replay on the base (issue #6463). Exit code. */
 function replayBot(dryRun: boolean): number {
+    // A throwaway tree only: the run detaches and restores files below, and
+    // would take a session's uncommitted work with it.
+    const dirt = git(["status", "--porcelain"]).stdout.trim();
+    if (dirt !== "") {
+        complain(
+            `--replay-bot moves and restores this tree — refusing on a tree with uncommitted changes:\n${dirt.split("\n").slice(0, 5).join("\n")}`
+        );
+        return 2;
+    }
+    // The BASE's tip, never the job's own sha: a scheduled or dispatched run
+    // is handed the default branch's sha (the release branch), and the Bot
+    // hash to compare is the base's.
+    const tip = fetchedBaseTip();
+    if (tip === null) return 1;
     let head = git(["rev-parse", "HEAD"]).stdout.trim();
+    if (head !== tip) {
+        say(
+            `${head.slice(0, 10)} is not ${BASE_BRANCH}'s tip — moving to ${tip.slice(0, 10)}`
+        );
+        if (!detachAt(tip)) return 1;
+        head = tip;
+    }
     const committed = readLockfile();
     const headerBotHash = committed.header.botHash;
     const treeBotHash = botHash(ROOT);
@@ -504,16 +593,30 @@ function replayBot(dryRun: boolean): number {
         `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)} — replaying every \`ready\` card`
     );
     if (!ensureCorpus()) return 1;
+    // `before` is this tree's own compile with the verdicts carried, not the
+    // committed rows: a tip whose derive commit has not landed yet may owe
+    // state changes to the compiler or the registry, and those are not the
+    // Bot's regression (review of this PR, finding 7).
+    if (
+        !generate("oracle:compile --carry-bot", [
+            "scripts/oracle-compile.ts",
+            "--carry-bot",
+        ])
+    )
+        return 1;
+    const before = readLockfile();
     if (
         !generate(
             "oracle:compile --replay-bot",
             ["scripts/oracle-compile.ts", "--replay-bot"],
-            SWEEP_WALL_MS
+            SWEEP_WALL_MS,
+            "SIGTERM"
         )
     )
         return 1;
     let swept = readLockfile();
-    let outcome = botReplayOutcome(committed.cards, swept.cards);
+    const acknowledged = acknowledgedRegressions();
+    let outcome = botReplayOutcome(before.cards, swept.cards, acknowledged);
     if (outcome.lost.length > 0) {
         fileRegression({
             sha: head,
@@ -525,62 +628,81 @@ function replayBot(dryRun: boolean): number {
         return 0;
     }
 
-    const fetched = git(["fetch", "-q", "origin", BASE_BRANCH], {
-        timeout: GIT_NET_TIMEOUT_MS,
-    });
-    const remoteTip =
-        fetched.status === 0
-            ? git(["rev-parse", ORIGIN_BASE]).stdout.trim()
-            : head;
-    if (remoteTip !== head) {
-        const before = parseLockfile(
-            git(["show", `${remoteTip}:${LOCKFILE_PATH}`]).stdout
-        );
-        if (!moveToTip(head, remoteTip, swept)) return 1;
-        head = remoteTip;
-        swept = readLockfile();
-        outcome = botReplayOutcome(before.cards, swept.cards);
-        if (outcome.lost.length > 0) {
-            fileRegression({
-                sha: head,
-                headerBotHash,
-                treeBotHash,
-                lost: outcome.lost,
-                dryRun,
-            });
+    for (let moves = 0; moves <= MAX_TIP_MOVES; moves++) {
+        const remoteTip = fetchedBaseTip();
+        if (remoteTip === null) return 1;
+        if (remoteTip !== head) {
+            if (dryRun) {
+                say(
+                    `${BASE_BRANCH} moved to ${remoteTip.slice(0, 10)} — dry run, the verdicts would be re-applied over it; nothing moved, nothing committed`
+                );
+                return 0;
+            }
+            const tipBefore = parseLockfile(
+                git(["show", `${remoteTip}:${LOCKFILE_PATH}`]).stdout
+            );
+            if (!moveToTip(head, remoteTip, swept)) return 1;
+            head = remoteTip;
+            swept = readLockfile();
+            outcome = botReplayOutcome(
+                tipBefore.cards,
+                swept.cards,
+                acknowledged
+            );
+            if (outcome.lost.length > 0) {
+                fileRegression({
+                    sha: head,
+                    headerBotHash,
+                    treeBotHash,
+                    lost: outcome.lost,
+                    dryRun,
+                });
+                return 0;
+            }
+        }
+        if (outcome.gained.length > 0) {
+            say(
+                `${outcome.gained.length} card(s) newly \`ready\` under this Bot — indexing their printings`
+            );
+            if (
+                !generate(
+                    "oracle:index",
+                    ["scripts/oracle-index-backfill.ts"],
+                    INDEX_WALL_MS
+                )
+            )
+                return 1;
+        }
+        if (!generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]))
+            return 1;
+        const found = entries(BOT_REPLAY_PATHS);
+        if (found === null) return 1;
+        const plan2 = derivePlan(found, BOT_REPLAY_PATHS);
+        if (plan2.kind === "no-op") {
+            // Cannot happen with a moved header hash, but never push an empty commit.
+            say(
+                `${head.slice(0, 10)}: the sweep changed nothing — nothing to commit`
+            );
             return 0;
         }
-    }
-    if (outcome.gained.length > 0) {
         say(
-            `${outcome.gained.length} card(s) newly \`ready\` under this Bot — indexing their printings`
+            `${head.slice(0, 10)}: replayed, header → ${swept.header.botHash.slice(0, 19)}: ${plan2.paths.join(", ")}${dryRun ? " — dry run, nothing committed" : ""}`
         );
-        if (
-            !generate(
-                "oracle:index",
-                ["scripts/oracle-index-backfill.ts"],
-                INDEX_WALL_MS
-            )
-        )
-            return 1;
-    }
-    if (!generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]))
-        return 1;
-    const found = entries(BOT_REPLAY_PATHS);
-    if (found === null) return 1;
-    const plan2 = derivePlan(found, BOT_REPLAY_PATHS);
-    if (plan2.kind === "no-op") {
-        // Cannot happen with a moved header hash, but never push an empty commit.
+        if (dryRun) return 0;
+        const pushed = commitAndPush(
+            head,
+            plan2.paths,
+            BOT_REPLAY_COMMIT_SUBJECT
+        );
+        if (pushed.outcome !== "coalesced") return pushed.code;
         say(
-            `${head.slice(0, 10)}: the sweep changed nothing — nothing to commit`
+            `re-applying the sweep over the moved tip (${moves + 1}/${MAX_TIP_MOVES})`
         );
-        return 0;
     }
     say(
-        `${head.slice(0, 10)}: replayed, header → ${swept.header.botHash.slice(0, 19)}: ${plan2.paths.join(", ")}${dryRun ? " — dry run, nothing committed" : ""}`
+        `${BASE_BRANCH} moved ${MAX_TIP_MOVES} times under the replay — giving the sweep up; the next run sweeps again`
     );
-    if (dryRun) return 0;
-    return commitAndPush(head, plan2.paths, BOT_REPLAY_COMMIT_SUBJECT);
+    return 0;
 }
 
 if (import.meta.main) {

@@ -147,14 +147,20 @@ export interface LostCard {
  * before and not after (the Bot regression the replay must never write into
  * the lockfile silently), `gained` every card `ready` after and not before
  * (a card the Bot change unfroze — it owes a card-index row before the
- * catalogue packs). Both sorted by name.
+ * catalogue packs). Both sorted by name. A card in `acknowledged` — the
+ * oracle ids of `data/oracle-state-regressions.json`, a freeze a human ruled
+ * correct — is not lost: `check:oracle` accepts the commit for it, and so
+ * does the replay.
  */
 export function botReplayOutcome(
     before: readonly ReplayRow[],
-    after: readonly ReplayRow[]
+    after: readonly ReplayRow[],
+    acknowledged: ReadonlySet<string> = new Set()
 ): { readonly lost: readonly LostCard[]; readonly gained: readonly string[] } {
     const wasReady = new Set(
-        before.filter((r) => r.state === "ready").map((r) => r.oracleId)
+        before
+            .filter((r) => r.state === "ready" && !acknowledged.has(r.oracleId))
+            .map((r) => r.oracleId)
     );
     const lost: LostCard[] = [];
     const gained: string[] = [];
@@ -243,7 +249,7 @@ export function renderBotRegressionIssue(input: {
         "",
         commits,
         "",
-        '**Desired behavior:** every card above plays again (`bun run oracle:compile --carry-bot --replay-card "<name>"` on the fix, a `must` blade entry per `/bot-change`), or the freeze is ruled a correct verdict in the PR that acknowledges it. Once the Bot hash moves again the replay runs on its own.',
+        '**Desired behavior:** every card above plays again (`bun run oracle:compile --carry-bot --replay-card "<name>"` on the fix, a `must` blade entry per `/bot-change`) — the fix moves the Bot hash and the replay runs again on its own. A freeze ruled CORRECT is acknowledged in `data/oracle-state-regressions.json` (`bun run oracle:mark-regressions`, a human-written reason): the replay then commits without it. Closing this issue alone re-sweeps and re-files it.',
         "",
         "## Band",
         "",

@@ -173,12 +173,17 @@ jobs:
         # time), seconds when the header's hash is the tree's — the common
         # push. One run at a time; a RUNNING run is never cancelled (a sweep
         # cut short is a sweep paid for nothing), a pending one dropped loses
-        # nothing: the next push or the nightly re-reads the two hashes.
+        # nothing: the next push or the nightly re-reads the two hashes. The
+        # job worktree is at $GITHUB_SHA — the DEFAULT branch's sha on a
+        # schedule or a dispatch — so the script itself moves to the base's
+        # fetched tip first; the worktree here is only the tree it starts in.
+        # The wall is the worst path: sweep (120) + a moved tip's bare
+        # compile (120) + oracle:index (30) + bootstraps and packs.
         runs-on: [self-hosted, lane, "host:huawei"]
         concurrency:
             group: post-merge-bot-replay
             cancel-in-progress: false
-        timeout-minutes: 180
+        timeout-minutes: 300
         steps:
             - name: Job worktree
               shell: bash

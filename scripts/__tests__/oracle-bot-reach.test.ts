@@ -604,6 +604,34 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
         expect(LOCK_FREE_MISSES).toBe(25);
     });
 
+    it("the boundary is inclusive: exactly the threshold plays in place, one more admits", async () => {
+        /** Both definitions moved — two misses. */
+        const bothMoved: Lockfile = {
+            ...bolted,
+            cards: bolted.cards.map((c) =>
+                c.oracleId === BEAR_ID
+                    ? {
+                          ...c,
+                          definition: {
+                              ...c.definition!,
+                              name: "Stale Bear",
+                          } as CompiledDefinition,
+                      }
+                    : c
+            ),
+        };
+        const one = run(bolted, false, null, 1);
+        await one.result;
+        expect(one.events).toEqual([`play:${BOLT_ID}`]);
+        const two = run(bothMoved, false, null, 1);
+        await two.result;
+        expect(two.events).toEqual([
+            "admit",
+            `play:${BEAR_ID}`,
+            `play:${BOLT_ID}`,
+        ]);
+    });
+
     it("a run re-executed under the mutex returns the child's code and plays nothing here", async () => {
         const { events, result } = run(bolted, false, 3, 0);
         expect(await result).toEqual({ exit: 3 });
