@@ -35,6 +35,7 @@ import { getDefinition, tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { activationRestrictionViolation } from "./activationRestrictions";
 import type {
     CardInstanceState,
     GameState,
@@ -2171,6 +2172,20 @@ export function getManaTapOptionsDetailed(
      *  read behind a board-conditional `manaAmount`. See `manaLayerView`. */
     continuousEffects?: readonly ContinuousEffect[]
 ): ManaTapOption[] {
+    // CR 602.5 / 605.1a — an `activation-restriction` static (Cursed Totem)
+    // prohibits this permanent's mana abilities, intrinsic basic-land mana
+    // (CR 305.6) included: no option exists, so the tap mutations, the auto-tap
+    // planner, the castability census and the client menu all see none.
+    if (
+        battlefields &&
+        activationRestrictionViolation(
+            { players: battlefields },
+            card.id,
+            true
+        ) !== null
+    ) {
+        return [];
+    }
     const nonSacrifice: ManaTapOption[] = [];
     const sacrifice: ManaTapOption[] = [];
     const requireTap = opts?.requireTap ?? false;
@@ -2933,6 +2948,15 @@ export function getActivatedManaAbility(
             isManaAbilityDefinition(a)
         )?.ability ?? null;
     if (!ability) return null;
+    // CR 602.5 / 605.1a — a mana ability an `activation-restriction` static
+    // prohibits (Cursed Totem) is no usable mana ability, like an
+    // un-imprinted Chrome Mox below.
+    if (
+        state &&
+        activationRestrictionViolation(state, card.id, true) !== null
+    ) {
+        return null;
+    }
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
     }
@@ -3015,7 +3039,14 @@ export function hasManaAbility(
     controllerBattlefield?: readonly CardInstanceState[],
     continuousEffects?: readonly ContinuousEffect[]
 ): boolean {
-    if (hasBasicLandMana(card)) return true;
+    // CR 602.5 / 305.6 — a prohibited intrinsic basic-land mana ability
+    // (a Dryad Arbor under Cursed Totem) produces nothing either.
+    if (hasBasicLandMana(card)) {
+        return (
+            !state ||
+            activationRestrictionViolation(state, card.id, true) === null
+        );
+    }
     const ability = getActivatedManaAbility(card, state);
     if (!ability) return false;
     // CR 608.2h (issue #5195) — a `manaAmountSource` count is gated the same

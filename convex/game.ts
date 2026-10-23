@@ -532,6 +532,7 @@ export {
     tryAutoCommitPendingCast,
 } from "./gre/activation";
 import { activationPreconditionViolation } from "./gre/activationPrecondition";
+import { activationRestrictionViolation } from "./gre/activationRestrictions";
 import { commitCast } from "./gre/castCommit";
 import {
     activateAbilityOnState,
@@ -1867,6 +1868,12 @@ export function tapSourceIntoPayment(
     manaChoiceIndex: number | undefined,
     tappedLandIds: string[]
 ): void {
+    // CR 602.5 / 605.1a — an `activation-restriction` static (Cursed Totem)
+    // prohibits this source's mana abilities, a sacrifice-only one included
+    // (the summoning-sickness gate below spares those; this one must not).
+    const restricted = activationRestrictionViolation(state, card.id, true);
+    if (restricted !== null) throw new Error(restricted);
+
     // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
     // precondition so an un-imprinted Chrome Mox is treated as having no
     // usable mana ability at all.
@@ -8001,6 +8008,14 @@ export const tapForPayment = mutation({
                 (c) => c.id === payment.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
+            // CR 602.5 — name the `activation-restriction` (Cursed Totem)
+            // rather than the generic refusal below, which it also trips.
+            const restricted = activationRestrictionViolation(
+                state,
+                card.id,
+                true
+            );
+            if (restricted !== null) throw new Error(restricted);
             // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any
             // source whose mana ability's `canActivate` currently fails) has
             // no usable mana ability at all; reject cleanly rather than
@@ -13354,6 +13369,19 @@ export const tapUntap = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
+        // CR 602.5 / 605.1a — an `activation-restriction` static (Cursed
+        // Totem) prohibits tapping this source for mana. Untapping a tapped
+        // source is a refund, not an activation, so only the tap is refused
+        // here with the restriction's own reason.
+        if (!card.isTapped) {
+            const restricted = activationRestrictionViolation(
+                state,
+                card.id,
+                true
+            );
+            if (restricted !== null) throw new Error(restricted);
+        }
+
         // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
         // precondition so an un-imprinted Chrome Mox (or any source whose
         // mana ability currently fails its gate) reads as having no mana
@@ -14267,6 +14295,15 @@ export const activateManaAbility = mutation({
         // turn."). Mirrors the check every other activation entry point runs
         // before cost lock.
         assertActivationTimingLegal(state, card, ability);
+        // CR 602.5 — the ability's own restriction and an
+        // `activation-restriction` static (Cursed Totem), read through the
+        // one authority every other activation entry point reads.
+        const precondition = activationPreconditionViolation(
+            state,
+            card,
+            ability
+        );
+        if (precondition !== null) throw new Error(precondition);
 
         // CR 605.3b / 118.3 / 118.5 (issue #3455) — a FILTERED give-up cost
         // ("Sacrifice a creature", "Sacrifice a Goblin", "Discard a card":

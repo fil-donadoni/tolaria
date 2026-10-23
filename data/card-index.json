@@ -13372,6 +13372,14 @@
         "firstPrintSet": "tmp"
     },
     {
+        "name": "Cursed Totem",
+        "scryfallId": "cc99ee76-45b6-4f1d-b0b0-7da8775ca90c",
+        "oracleId": "6225a704-430a-4f56-ad87-0e8d87f285f5",
+        "firstSet": "mir",
+        "firstPrintId": "cc99ee76-45b6-4f1d-b0b0-7da8775ca90c",
+        "firstPrintSet": "mir"
+    },
+    {
         "name": "Custodian of the Trove",
         "scryfallId": "eb14f061-9506-40fb-b10d-4bada38ca0f7",
         "oracleId": "0d060d19-9c8b-4831-a9be-aa2c98b6858a",

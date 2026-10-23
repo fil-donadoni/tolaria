@@ -5,6 +5,8 @@ import type {
     PermanentView,
     TriggerStateView,
 } from "../cards/types";
+import { activationRestrictionViolation } from "./activationRestrictions";
+import { isManaAbilityDefinition } from "./constants";
 
 /**
  * CR 602.1b / 602.5 — an activated ability's own printed restriction ("Activate only
@@ -23,6 +25,11 @@ import type {
  * one the server would accept (issue #3441: before this, both Bot sites skipped
  * EVERY ability carrying a closure, and 21 shipped abilities were unreachable).
  *
+ * It also answers CR 602.5's OTHER half — a prohibition imposed from outside
+ * the ability, by an `activation-restriction` static on the battlefield
+ * (Cursed Totem, `activationRestrictionViolation`) — checked first, so every
+ * one of those consumers honours it with no second gate to forget.
+ *
  * `source` is the instance exactly as the mutation resolves it, from whichever
  * zone the ability functions in (a battlefield permanent, or the graveyard
  * card of an `activateFromGraveyard` ability); `state` is the live game state.
@@ -30,8 +37,22 @@ import type {
 export function activationPreconditionViolation(
     state: TriggerStateView,
     source: PermanentView,
-    ability: Pick<ActivatedAbility, "canActivate" | "activationCondition">
+    ability: Pick<
+        ActivatedAbility,
+        | "canActivate"
+        | "activationCondition"
+        | "useStack"
+        | "manaProduced"
+        | "manaChoices"
+        | "manaColorSource"
+    >
 ): string | null {
+    const restricted = activationRestrictionViolation(
+        state,
+        source.id,
+        isManaAbilityDefinition(ability)
+    );
+    if (restricted !== null) return restricted;
     if (
         ability.activationCondition !== undefined &&
         !activationConditionHolds(state, source, ability.activationCondition)
