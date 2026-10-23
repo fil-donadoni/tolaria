@@ -24,7 +24,7 @@ describe("Shuffle graveyard into library — (CR 701.24a, CR 404.1)", () => {
         if (outcome.state === "unparsed")
             throw new Error(JSON.stringify(outcome.gaps));
         const { compiledTriggeredAbilities } = outcome.definition as {
-            compiledTriggeredAbilities: { effects: unknown[] }[];
+            compiledTriggeredAbilities: { effects: readonly object[] }[];
         };
         const trig = compiledTriggeredAbilities[0]!;
         expect(sortKeys(trig.effects)).toEqual(
