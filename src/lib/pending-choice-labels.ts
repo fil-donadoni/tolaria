@@ -78,6 +78,17 @@ export function pendingChoiceLabel(kind: PendingChoiceKind): string {
     return PENDING_CHOICE_KIND_LABELS[kind];
 }
 
+/** The source tag for a live choice: its kind's label, except where an
+ *  as-enters prompt reuses a kind whose verb would misname it. CR 614.1c —
+ *  the as-enters graveyard exile (Sutured Ghoul) reuses
+ *  `choose-graveyard-card`, whose label reads "Return". */
+export function pendingChoiceSourceLabel(
+    choice: Pick<PendingChoice, "kind" | "asEntersKind">
+): string {
+    if (choice.asEntersKind === "exileFromGraveyard") return "Exile";
+    return pendingChoiceLabel(choice.kind);
+}
+
 /** True when a `may-pay` cost's mana leg demands an actual payment — at least
  *  one non-zero colored/generic pip, a variable `{X}`, a guild-hybrid pip
  *  (CR 202.1a — `{B/G}`), or a Phyrexian pip (CR 107.4f — `{U/P}`) — as

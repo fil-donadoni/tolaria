@@ -2,7 +2,7 @@ import { Maximize2 } from "lucide-react";
 import type { PendingChoice } from "~/types/game";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
-import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import { pendingChoiceSourceLabel } from "~/lib/pending-choice-labels";
 import { cn } from "~/lib/utils";
 
 /** Collapsed stand-in for a minimized blocking choice dialog (issue #315).
@@ -37,7 +37,7 @@ export default function MinimizedChoiceIndicator({
     choice: PendingChoice;
 }) {
     const { restore } = useMinimizedChoice();
-    const label = pendingChoiceLabel(choice.kind);
+    const label = pendingChoiceSourceLabel(choice);
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
         usePromptBannerPosition({ pinned: true });
 

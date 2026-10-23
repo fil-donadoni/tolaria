@@ -10137,7 +10137,11 @@ function asEntersGraveyardExileCandidates(
     filter: EffectCardFilter | undefined
 ): string[] {
     return getPlayer(state, entry.controllerId)
-        .graveyard.filter((c) => !filter || handCardMatchesFilter(c, filter))
+        .graveyard.filter(
+            // CR 113.6c — matched as a GRAVEYARD card, so a static that
+            // functions there overrides the printed type line.
+            (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
+        )
         .map((c) => c.id);
 }
 
