@@ -135,7 +135,16 @@ export interface PreQueueDeps {
     plan: LanePlan;
     added: string[];
     present: string[];
+    /** Rebuild the derived whole-file state in the tested tree, as the
+     *  queue's `check:lane --regenerate-derived` does (issue #6491); false =
+     *  it could not be rebuilt. */
+    regenerate: () => boolean;
+    /** Put the derived paths back to `HEAD`, so the worktree stays clean. */
+    restore: () => void;
 }
+
+/** The step id reported when the derived state could not be rebuilt. */
+export const REGENERATE_STEP = "derive:regenerate";
 
 /**
  * Run the pre-queue steps. Returns the failing step's id, or null when green.
@@ -150,9 +159,33 @@ export function runPreQueue(deps: PreQueueDeps): {
         `land:ready: pre-queue check — lane ${deps.plan.lane}, ${run.length} step(s): ${run.map((c) => c.id).join(", ")}`
     );
     for (const s of skip) deps.log(`  skip ${s.id}: ${s.reason}`);
-    const result = runPlan({ ...deps.plan, run }, deps.exec, () => undefined);
-    const failed = result.outcomes.find((o) => o.status === "fail");
-    return { failed: failed?.id ?? null, result };
+    // Issue #6491: the lane was classified on the PR's own diff; the steps
+    // run on a tree whose derived state is rebuilt, like the queue's draft
+    // (`check:lane --regenerate-derived`) — never the merge-base's bytes.
+    try {
+        if (!deps.regenerate()) {
+            deps.log(
+                "land:ready: derive:regenerate failed — the derived state could not be rebuilt"
+            );
+            return {
+                failed: REGENERATE_STEP,
+                result: {
+                    ok: false,
+                    outcomes: [{ id: REGENERATE_STEP, status: "fail", ms: 0 }],
+                    totalMs: 0,
+                },
+            };
+        }
+        const result = runPlan(
+            { ...deps.plan, run },
+            deps.exec,
+            () => undefined
+        );
+        const failed = result.outcomes.find((o) => o.status === "fail");
+        return { failed: failed?.id ?? null, result };
+    } finally {
+        deps.restore();
+    }
 }
 
 /**
@@ -429,6 +462,11 @@ function preQueueGate(
         added: addedPaths(ORIGIN_BASE, cwd),
         exec: (command) => execLight(command, cwd, role),
         log: console.log,
+        regenerate: () =>
+            execLight("bun run derive:regenerate", cwd, "draft").ok,
+        restore: () => {
+            git(["checkout", "-q", "HEAD", "--", ...DERIVED_PATHS]);
+        },
     });
     const seconds = Math.round((Date.now() - t0) / 1000);
     if (failed === null) {
