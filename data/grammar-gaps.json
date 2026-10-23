@@ -271,6 +271,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [flying] › gainControl+if+sacrifice",
+            "issue": 6578
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flying] › pump",
             "issue": 4275
         },
