@@ -37410,7 +37410,6 @@
         {"id":"700.4","line":"* battlefield LKI, nothing that \"dies\" triggers can see (CR 700.4).","sites":1,"status":"baseline"},
         {"id":"700.4","line":"* battlefield death (CR 700.4), discard (CR 701.9), mill (CR 701.17), and","sites":1,"status":"baseline"},
         {"id":"700.4","line":"* battlefield this turn (CR 700.4 — \"dies\"; a token is not a card","sites":1,"status":"confirmed","ruleHash":"053de209767946ac"},
-        {"id":"700.4","line":"* non-ADR-0045-reopening status: CR 700.4, how many NONTOKEN creatures were","sites":1,"status":"confirmed","ruleHash":"053de209767946ac"},
         {"id":"700.4","line":"* permanent type (CR 700.4 defines \"dies\" the same way, but the engine's","sites":1,"status":"confirmed","ruleHash":"053de209767946ac"},
         {"id":"700.4","line":"* permanent's characteristics. CR 603.6 / 700.4 — the departure routes through","sites":1,"status":"baseline"},
         {"id":"700.4","line":"* the battlefield so far this turn (CR 700.4 \"dies\", tokens are excluded —","sites":1,"status":"confirmed","ruleHash":"053de209767946ac"},
