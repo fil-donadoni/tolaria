@@ -29,7 +29,7 @@ import {
     EXILE_TOP_THREE_BLACK,
     ownedCard,
 } from "@convex/gre/__tests__/fixtures/altCostGraveyardExileProbe.fixture";
-import { affordableAltCostsForCard } from "../card-utils";
+import { affordableAltCostsForCard, mayPayCanAfford } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 
 const GAME_ID = "game-1" as Id<"games">;
@@ -111,6 +111,38 @@ describe("alt-cost graveyard exile leg — GRE → wire → client → game.ts (
                 ])
             )
         ).toEqual([]);
+    });
+
+    it("the client's may-pay Pay gate refuses the exile action, as the server does", () => {
+        const projected = projectPublicState(
+            board([
+                [RITUAL, "ritual"],
+                [TERROR, "terror"],
+                [VAMPIRE, "vampire"],
+            ]),
+            1,
+            "p1"
+        );
+        const graveyard = projected.players[0]!.graveyard;
+        const leg = EXILE_TOP_THREE_BLACK.graveyard!;
+        const afford = (cost: Parameters<typeof mayPayCanAfford>[0]) =>
+            mayPayCanAfford(
+                cost,
+                {},
+                20,
+                0,
+                undefined,
+                undefined,
+                [],
+                0,
+                graveyard
+            );
+        expect(afford({ graveyard: leg })).toBe(false);
+        expect(
+            afford({
+                graveyard: { action: "return", filter: leg.filter, count: 3 },
+            })
+        ).toBe(true);
     });
 
     it("the offered option, announced and targeted, exiles the top three black cards", async () => {
