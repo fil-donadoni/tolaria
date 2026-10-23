@@ -3899,8 +3899,16 @@ export const OP_EXECUTORS: {
             // over a permanents-set whose member died mid-resolution would
             // wrongly follow that (now distinct, CR 400.7) object into the
             // graveyard and bounce it. The guard keeps that path a CR 608.2b skip.
+            // An explicit graveyard `from` lifts it: the script DECLARES the
+            // object departed, so following it is the instruction, not a
+            // mistake ("When the creature dies this turn, exile the
+            // creature", CR 603.7a).
             const isSource = op.target.ref === "$source";
-            if (isSource || op.to === "battlefield") {
+            if (
+                isSource ||
+                op.to === "battlefield" ||
+                explicitFrom === "graveyard"
+            ) {
                 const gid = isSource
                     ? ctx.sourceInstanceId
                     : readBinding(ctx, op.target.ref)?.[SNAP_ID];

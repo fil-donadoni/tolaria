@@ -362,7 +362,13 @@ export function lowerTriggeredAbility(input: {
             ? lowerCondition(input.condition, input.head, input.kickers ?? [])
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
-    const antecedents = headAntecedents(input.head);
+    const headAntecedentsRead = headAntecedents(input.head);
+    // CR 608.2c — a head whose subject is not the source names a creature a
+    // later "that creature" may mean, beside any target the body announces.
+    const antecedents: SiteAntecedents =
+        "scope" in input.head && input.head.scope !== "self"
+            ? { ...headAntecedentsRead, headSubjectIsObject: true as const }
+            : headAntecedentsRead;
     // CR 608.2h — the head's "it" reaches the FIRST sentence and no further.
     // Every later sentence has a nearer antecedent by construction — the
     // object the sentence before it created, drew, moved or acted on ("…,

@@ -98,11 +98,6 @@
             "issue": 5186
         },
         {
-            "key": "(op) › lockDamage",
-            "op": "lockDamage",
-            "issue": 5179
-        },
-        {
             "key": "(op) › loseAllAbilities",
             "op": "loseAllAbilities",
             "issue": 4533
