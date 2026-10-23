@@ -731,6 +731,15 @@ export type EffectSentenceIR =
            * information, read off the acting Op's `bind` snapshot.
            */
           readonly sourceIsActedOn?: string;
+          /**
+           * CR 615.12 + CR 614.9 — the spell's own rider "If {self} would deal
+           * damage to a creature, that damage can't be prevented or dealt
+           * instead to another permanent or player." Folded onto the preceding
+           * "deals X damage to any target" by `assembleSentences` from the
+           * `creature-damage-lock` marker. Conditional on the target being a
+           * creature: aimed at a player it is ordinary damage.
+           */
+          readonly creatureDamageLock?: true;
       }
     | {
           /**
@@ -2017,6 +2026,14 @@ export type SentenceIR =
     | { readonly role: "flashback-grant"; readonly subject: SubjectIR }
     | { readonly role: "flashback-cost" }
     /**
+     * CR 615.12 + CR 614.9 — "If {self} would deal damage to a creature, that
+     * damage can't be prevented or dealt instead to another permanent or
+     * player.": the rider of the damage sentence before it, folded onto that
+     * `deal-damage` as `creatureDamageLock` by `assembleSentences`. Alone it
+     * names no damage, so it is refused.
+     */
+    | { readonly role: "creature-damage-lock" }
+    /**
      * CR 107.1c / CR 705.2 — the three sentences of a coin-flip series
      * (`coinFlipSeries.ts`): each names an antecedent only the next one
      * reads, so none is an effect alone. Folded into one `coin-flip-series`
@@ -2486,6 +2503,34 @@ export function assembleSentences(
                 ok: false,
                 reason: "a flashback cost follows no flashback grant",
             };
+        if (sentence.role === "creature-damage-lock") {
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "deal-damage" ||
+                previous.creatureDamageLock === true ||
+                previous.sourceIsPronoun === true ||
+                previous.sourceIsActedOn !== undefined ||
+                previous.to.kind !== "target" ||
+                previous.to.requirement.type !== "any" ||
+                (previous.to.requirement.count ?? 1) !== 1 ||
+                window !== null ||
+                awaitingColorChoice ||
+                restrictions.length > 0 ||
+                revealUntil !== null ||
+                piles !== null ||
+                coinFlip.length > 0
+            )
+                return {
+                    ok: false,
+                    reason: 'a creature damage lock follows no "deals damage to any target" sentence',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                creatureDamageLock: true,
+            };
+            continue;
+        }
         if (sentence.role === "flashback-grant") {
             const coinFlipPending = flushCoinFlip();
             if (coinFlipPending !== null)
@@ -4464,6 +4509,13 @@ const KEYWORDS = keywordVocabulary();
  * its own Grammar Gap.
  */
 const GRANT_FLASHBACK = /^(.+) gains flashback until end of turn$/;
+/**
+ * CR 615.12 + CR 614.9 — the damage-lock rider, whole. The subject must be the
+ * spell itself; both halves ("can't be prevented" AND "or dealt instead to
+ * another permanent or player") and the creature condition are required.
+ */
+const CREATURE_DAMAGE_LOCK =
+    /^If (.+) would deal damage to a creature, that damage can't be prevented or dealt instead to another permanent or player$/;
 /** CR 702.34a — the pricing sentence, in both of its printed spellings. */
 const FLASHBACK_COST_IS_MANA_COST =
     /^The flashback cost is equal to (?:its|that card's) mana cost$/;
@@ -4715,6 +4767,17 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         }
         if (FLASHBACK_COST_IS_MANA_COST.test(span))
             return ok({ role: "flashback-cost" as const });
+
+        // CR 615.12 + CR 614.9 — the creature-conditional damage lock rider.
+        const damageLock = span.match(CREATURE_DAMAGE_LOCK);
+        if (damageLock !== null) {
+            if (!isSelfPhrase(damageLock[1]!))
+                return fail(
+                    `"${damageLock[1]}" is not the spell whose damage is locked`,
+                    span
+                );
+            return ok({ role: "creature-damage-lock" as const });
+        }
 
         // CR 107.3f (issue #4529) — a variable payment in its two sentences
         // (the roles' own doc comment). "You may pay {X}" is the whole first
