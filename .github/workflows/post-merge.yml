@@ -163,23 +163,24 @@ jobs:
     bot-replay:
         name: Bot-play replay on the base (one per Bot change)
         if: ${{ github.event_name == 'push' || github.event.schedule == '40 3 * * *' || inputs.job == 'bot-replay' }}
-        # The Huawei (issue #6463): the sweep holds the heavy mutex (`gate.ts
-        # job`) for 20–40 min, and on the MacBook that mutex is `land`'s — a
-        # replay there would stall every landing for its duration. On the
-        # Huawei it queues beside health and the hourly housekeeping (both
-        # idempotent, both re-run), and a pass runner feels nothing: a
-        # session's bare compile no longer waits on the mutex for a handful
-        # of misses. CPU: one core for the sweep (the Bot plays one card at a
-        # time), seconds when the header's hash is the tree's — the common
-        # push. One run at a time; a RUNNING run is never cancelled (a sweep
-        # cut short is a sweep paid for nothing), a pending one dropped loses
-        # nothing: the next push or the nightly re-reads the two hashes. The
-        # job worktree is at $GITHUB_SHA — the DEFAULT branch's sha on a
-        # schedule or a dispatch — so the script itself moves to the base's
-        # fetched tip first; the worktree here is only the tree it starts in.
-        # The wall is the worst path: sweep (120) + a moved tip's bare
-        # compile (120) + oracle:index (30) + bootstraps and packs.
-        runs-on: [self-hosted, lane, "host:huawei"]
+        # Any lane runner (issue #5873 — a pinned host offline holds the job
+        # 24 h), like `nightly`'s Bot refresh, which is the same shape of work.
+        # Cost (issue #6463): the sweep holds the heavy mutex (`gate.ts job`)
+        # for 20–40 min on ONE core (the Bot plays one card at a time) — on
+        # the MacBook that is the mutex `land` takes, so a landing waits
+        # behind it, as it does behind any heavy run there; a pass runner
+        # feels nothing, since a session's bare compile no longer queues for a
+        # handful of misses. Seconds, no mutex, when the header's hash is the
+        # tree's — the common push. One run at a time; a RUNNING run is never
+        # cancelled (a sweep cut short is a sweep paid for nothing), a pending
+        # one dropped loses nothing: the next push or the nightly re-reads the
+        # two hashes. The job worktree is at $GITHUB_SHA — the DEFAULT
+        # branch's sha on a schedule or a dispatch — so the script itself
+        # moves to the base's fetched tip first; the worktree here is only the
+        # tree it starts in. The wall is the worst path: sweep (120) + a
+        # moved tip's bare compile (120) + oracle:index (30) + bootstraps and
+        # packs.
+        runs-on: [self-hosted, lane]
         concurrency:
             group: post-merge-bot-replay
             cancel-in-progress: false

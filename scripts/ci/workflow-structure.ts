@@ -184,6 +184,9 @@ export const SERIALISED_DISPATCHERS: ReadonlySet<string> = new Set([
 export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
     ".github/workflows/post-merge.yml#housekeeping",
     ".github/workflows/post-merge.yml#nightly",
+    // Two replays at once would sweep the same Bot twice and race one push
+    // (issue #6463); a dropped pending run re-reads the two hashes next time.
+    ".github/workflows/post-merge.yml#bot-replay",
 ]);
 
 /** Jobs whose newer run makes the older one worthless, RUNNING included
