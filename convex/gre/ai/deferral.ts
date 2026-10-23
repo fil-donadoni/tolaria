@@ -34,7 +34,11 @@
 import { tryGetDefinition } from "../../cards";
 import type { EffectOp, TargetSelection } from "../../cards/types";
 import { validateAttackerEligibility } from "../combat";
-import { hasInstantSpeed, isTapLockedBySummoningSickness } from "../constants";
+import {
+    hasInstantSpeed,
+    isTapLockedBySummoningSickness,
+    permanentGiveUpCostLegs,
+} from "../constants";
 import type { Move } from "../moves";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
 import type { CardInstanceState, GameState } from "../state";
@@ -128,7 +132,10 @@ export function isDeferrableAction(
         if (!source) return false;
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability || !isDeferrableStackAbility(ability)) return false;
-        if (ability.cost.sacrificeFilter !== undefined) return false;
+        // A conversion of ANOTHER permanent — sacrificed, or bounced by the
+        // `returnToHandFilter` twin (Meloku's land) — is a question of WHAT,
+        // not when (see the doc comment).
+        if (permanentGiveUpCostLegs(ability.cost).length > 0) return false;
         return reachesOnlyOwnSide(state, pid, move.targets);
     }
     return false;

@@ -208,6 +208,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 701.21 — the count modifier on `sacrificeFilter`; the same gate and the same pick builder read it, never separately.",
         autoPayable: false,
     },
+    returnToHandFilter: {
+        paidBy: {
+            file: "convex/gre/activationCostPicks.ts",
+            symbol: "buildActivationSacrificeSelection",
+        },
+        why: 'CR 602.1a / 118.3 — the bounce twin of `sacrificeFilter`: the enumerator gates on a matching permanent existing through the shared `canPayPermanentGiveUpCostLegs`, and this helper turns the leg into an `action: "return"` requirement on the same selection, so the picks ride `sacrificeIds` and `applySacrificeSelection` bounces the named permanent exactly as the mutation does.',
+        autoPayable: false,
+    },
     returnUnblockedAttacker: {
         paidBy: {
             file: "convex/gre/applyMove.ts",

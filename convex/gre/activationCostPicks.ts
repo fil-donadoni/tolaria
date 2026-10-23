@@ -11,6 +11,7 @@
 //   `cost.exileFromGraveyard` → `selectActivationExileCost`    (CR 118.5)
 //   `cost.tapOtherFilter`     → `selectActivationCost`         (CR 118.8)
 //   `cost.sacrificeFilter`    → `selectSacrifice`              (CR 701.21 / 118.5)
+//   `cost.returnToHandFilter` → `selectSacrifice`              (CR 602.1a / 118.3)
 //
 // The bot has to answer them exactly like a human does, so the picks are part of
 // the `activate-ability` Move (`moves.ts`) rather than re-derived at each site:
@@ -27,6 +28,7 @@
 import type { ActivatedAbility } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getStaticAdditionalSacrifices } from "./state";
+import { permanentGiveUpCostLegs } from "./constants";
 import { ninjutsuReturnRequirement } from "./ninjutsu";
 import type {
     SacrificeRequirement,
@@ -82,7 +84,9 @@ export type ActivationCostPicks = {
      *  (Hand of Justice's fixed N, Crew N's power threshold). */
     tapOtherIds?: string[];
     /** CR 701.21 / 118.5 — permanents sacrificed to pay `cost.sacrificeFilter`
-     *  (plus any static additional-sacrifice tax, CR 601.2f). Only the picks
+     *  or returned to hand to pay `cost.returnToHandFilter` /
+     *  `cost.returnUnblockedAttacker` (plus any static additional-sacrifice
+     *  tax, CR 601.2f): one selection, one pick list. Only the picks
      *  the payer must SUBMIT: a fungible board is auto-resolved server-side at
      *  announcement (`autoResolveFungible`), and those victims are already
      *  recorded, so re-naming them would be rejected. */
@@ -218,7 +222,10 @@ export function buildActivationSacrificeSelection(
     if (ability.cost.returnUnblockedAttacker) {
         specs.push(ninjutsuReturnRequirement(state, player.id));
     }
-    if (ability.cost.sacrificeFilter) {
+    // CR 602.1a / 118.3 — the filtered give-up legs, `sacrificeFilter` and
+    // `returnToHandFilter`, read through their one authority so a leg is never
+    // gated in one place and missing from the payment here.
+    for (const leg of permanentGiveUpCostLegs(ability.cost)) {
         specs.push({
             // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact". This is
             // the one point where the ability's STATIC, per-card filter becomes
@@ -235,18 +242,26 @@ export function buildActivationSacrificeSelection(
             // to the source's `attachedTo` host at the same point, for the
             // same reason.
             filter: resolveHostOfSource(
-                resolveExcludeSource(ability.cost.sacrificeFilter, source.id),
+                resolveExcludeSource(leg.filter, source.id),
                 source.attachedTo
             ),
             // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
-            // permanents" (Bolas's Citadel). Default 1: the single-permanent
-            // shape every earlier card uses. The mana-value snapshot is taken
-            // only for a count of 1 — "the sacrificed permanent" (Priest of
-            // Yawgmoth's `getAdditionalSacrificeMv()`) names no single victim
-            // above that, and `sacrificeSnapshotFromSelection` picks the first
-            // flagged result, which would be an arbitrary one of ten.
-            count: ability.cost.sacrificeFilterCount ?? 1,
-            snapshot: (ability.cost.sacrificeFilterCount ?? 1) === 1,
+            // permanents" (Bolas's Citadel). The mana-value snapshot is taken
+            // only for a single SACRIFICE — "the sacrificed permanent"
+            // (Priest of Yawgmoth's `getAdditionalSacrificeMv()`) names no
+            // single victim above that, and `sacrificeSnapshotFromSelection`
+            // picks the first flagged result, which would be an arbitrary one
+            // of ten. A returned permanent is never read back.
+            count: leg.count,
+            ...(leg.action === "return"
+                ? {
+                      // CR 602.1a — Wirewood Symbiote's "Return an Elf you
+                      // control to its owner's hand": the pick goes to its
+                      // owner's HAND, per requirement, so it can share one
+                      // payment with a static sacrifice tax (Drought).
+                      action: "return" as const,
+                  }
+                : { snapshot: leg.count === 1 }),
         });
     }
     for (const req of getStaticAdditionalSacrifices(

@@ -1718,7 +1718,68 @@ export function isAutoPayableManaAbilityCost(
  *  (`getManaCostMenuAbility`, `src/lib/card-utils.ts`) — a private copy in any
  *  one of them is how a "clickable but rejected" mana source ships. */
 export function hasFilteredGiveUpCost(cost: ActivatedAbility["cost"]): boolean {
-    return !!cost.sacrificeFilter || !!cost.discardFilter;
+    return permanentGiveUpCostLegs(cost).length > 0 || !!cost.discardFilter;
+}
+
+/** CR 602.1a / 118.3 — one activation-cost leg that gives up CHOSEN
+ *  permanents the activator controls, matching `filter`: `count` of them leave
+ *  the battlefield by `action` (CR 701.21 sacrifice, or a bounce to the
+ *  owner's hand). */
+export type PermanentGiveUpCostLeg = {
+    filter: PermanentFilter;
+    count: number;
+    action: "sacrifice" | "return";
+};
+
+/** The cost keys {@link permanentGiveUpCostLegs} reads — a `Pick`, so a
+ *  narrowed client-side cost shape (`getStackAbilities`) can be passed too. */
+export type PermanentGiveUpCostFields = Pick<
+    ActivatedAbility["cost"],
+    "sacrificeFilter" | "sacrificeFilterCount" | "returnToHandFilter"
+>;
+
+/** The filtered give-up-a-permanent legs of an activation cost —
+ *  `sacrificeFilter` (× `sacrificeFilterCount`) and `returnToHandFilter`. The
+ *  single authority on WHICH cost keys name a chosen permanent and how many
+ *  each owes, read by the selection builder
+ *  (`buildActivationSacrificeSelection`), the server gate
+ *  (`assertPermanentGiveUpCostAffordable`), the Bot's enumerator, the
+ *  mana-ability option list below and the client's menu gates — so a new leg
+ *  is one row here rather than one more copy of the count check at each site.
+ *  Pure data: callers match candidates with their own view of the board. */
+export function permanentGiveUpCostLegs(
+    cost: PermanentGiveUpCostFields
+): PermanentGiveUpCostLeg[] {
+    const legs: PermanentGiveUpCostLeg[] = [];
+    if (cost.sacrificeFilter) {
+        legs.push({
+            filter: cost.sacrificeFilter,
+            count: cost.sacrificeFilterCount ?? 1,
+            action: "sacrifice",
+        });
+    }
+    if (cost.returnToHandFilter) {
+        legs.push({
+            filter: cost.returnToHandFilter,
+            count: 1,
+            action: "return",
+        });
+    }
+    return legs;
+}
+
+/** CR 118.3 — can every filtered give-up leg of `cost` be paid, given a count
+ *  of the activator's permanents matching a filter? The count rule ("at least
+ *  `count` matching permanents", never mere existence) lives here once; the
+ *  matcher is the caller's, because the server reads the layered permanent view
+ *  and the client its projected board. */
+export function canPayPermanentGiveUpCostLegs(
+    cost: PermanentGiveUpCostFields,
+    countMatching: (filter: PermanentFilter) => number
+): boolean {
+    return permanentGiveUpCostLegs(cost).every(
+        (leg) => countMatching(leg.filter) >= leg.count
+    );
 }
 
 /** Compile-time witness that every leg of `ActivatedAbility["cost"]` has been
@@ -2248,8 +2309,9 @@ export function getManaTapOptionsDetailed(
             ) {
                 continue;
             }
-            // CR 602.1 / 118.5 (issue #3455) — an unpayable FILTERED sacrifice
-            // leg is not a mana source: with no legal victim the activation is
+            // CR 602.1 / 118.3 (issue #3455) — an unpayable FILTERED give-up
+            // leg (sacrifice or return-to-hand, `permanentGiveUpCostLegs`) is
+            // not a mana source: with no legal victim the activation is
             // illegal, and both the client picker and the payment-source click
             // resolve their `manaChoiceIndex` against THIS list, so leaving it
             // in is the "clickable but rejected" shape. Dropped as a whole
@@ -2260,7 +2322,7 @@ export function getManaTapOptionsDetailed(
             //
             // Only when the controller's board is in hand: a caller that
             // supplied none gets the pre-existing behaviour, and the server
-            // re-validates (`assertSacrificeFilterCostAffordable`). The
+            // re-validates (`assertPermanentGiveUpCostAffordable`). The
             // DISCARD leg has no twin here — no caller passes a hand — so it
             // stays a server-side rejection; `getManaCostMenuAbility`
             // (`src/lib/card-utils.ts`) covers it on the menu surface.
@@ -2278,28 +2340,32 @@ export function getManaTapOptionsDetailed(
             if (counterLeg && !canPayRemoveCounterCost(card, counterLeg)) {
                 continue;
             }
-            if (ability.cost.sacrificeFilter && controllerBattlefield) {
-                const leg = ability.cost.sacrificeFilter;
-                const victims = controllerBattlefield.filter((c) =>
-                    matchesPermanentFilter(
-                        c as unknown as MatchablePermanent,
-                        leg,
-                        {
-                            selfControllerId: controllerId,
-                            // CR 109.2 — honoured only by an `excludeSource`
-                            // filter: Skirk Prospector IS a Goblin and may eat
-                            // itself.
-                            selfInstanceId: card.id,
-                            // "Sacrifice enchanted creature": `hostOfSource`
-                            // fails closed without the host.
-                            selfAttachedToId: card.attachedTo,
-                            supertypesOf: liveSupertypesOf,
-                        }
-                    )
-                );
-                if (victims.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-                    continue;
-                }
+            if (
+                controllerBattlefield &&
+                !canPayPermanentGiveUpCostLegs(
+                    ability.cost,
+                    (filter) =>
+                        controllerBattlefield.filter((c) =>
+                            matchesPermanentFilter(
+                                c as unknown as MatchablePermanent,
+                                filter,
+                                {
+                                    selfControllerId: controllerId,
+                                    // CR 109.2 — honoured only by an
+                                    // `excludeSource` filter: Skirk Prospector
+                                    // IS a Goblin and may eat itself.
+                                    selfInstanceId: card.id,
+                                    // "Sacrifice enchanted creature":
+                                    // `hostOfSource` fails closed without the
+                                    // host.
+                                    selfAttachedToId: card.attachedTo,
+                                    supertypesOf: liveSupertypesOf,
+                                }
+                            )
+                        ).length
+                )
+            ) {
+                continue;
             }
             const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
             const sacrificeMark = ability.cost.sacrifice
