@@ -50,6 +50,13 @@ describe("have it deal damage", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
+    it("refuses 'on the battlefield' behind a graveyard count", () => {
+        const outcome = creatureWith(
+            "When you cycle this card, you may have it deal X damage to target creature, where X is the number of creature cards in your graveyard on the battlefield."
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
     it("refuses 'have it' with another verb", () => {
         const outcome = creatureWith(
             "When you cycle this card, you may have it gain 2 life."

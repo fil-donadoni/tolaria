@@ -193,7 +193,11 @@ export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
         if (!descriptor.ok) return descriptor;
         if (descriptor.value.plural !== true)
             return fail('"the number of" counts a plural descriptor', span);
-        if (wholeBoard && descriptor.value.controller !== undefined)
+        if (
+            wholeBoard &&
+            (descriptor.value.controller !== undefined ||
+                descriptor.value.zone !== undefined)
+        )
             return fail(
                 '"on the battlefield" beside a controller clause',
                 span
