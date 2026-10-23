@@ -176,6 +176,7 @@ import {
 // activation could just as well happen in a later, better-informed window.
 import {
     animatedBodyCannotFight,
+    costShrinksSource,
     effectiveAbilityOf,
     effectiveActivatedAbilityEntryOf,
     isDeferrableStackAbility,
@@ -1490,7 +1491,8 @@ export function rollout(
                     !isDiscardExchangeSacrifice(state, pid, botId, m) &&
                     !isDrainExchangeSacrifice(state, pid, botId, m) &&
                     !isDrawExchangeSacrifice(state, pid, botId, m) &&
-                    !isDenialExchangeSacrifice(state, pid, botId, m)
+                    !isDenialExchangeSacrifice(state, pid, botId, m) &&
+                    !isSourceBodyDamageConversion(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2653,6 +2655,54 @@ export function isDenialExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own activation that pays for damage out of its
+ *  source's BODY (`costShrinksSource`: the counters it removes are part of
+ *  the source's power or toughness), on an empty stack (issue #3376).
+ *
+ *  The counter-cost sibling of `isRemovalExchangeSacrifice`, and broader on
+ *  one axis on purpose: the damage may aim at a FACE. Below the root no
+ *  window makes a chip shot worth a slice of a standing creature — the greedy
+ *  policy still takes the shot whose probe reads it as decisive (lethal, a
+ *  creature it kills), and only the ε draw and the tree's own children lose
+ *  it. Those two are where it hurt: an "any target" ping offers one variant
+ *  per player and creature against one `pass`, so it is the likeliest ε draw
+ *  at every window, and the body erodes once per window the line opens. A
+ *  declared attack opens three more windows (blocks, damage, end of combat)
+ *  than a declined one, so the attack edge's subtree lost the creature more
+ *  often than `pass`'s and its own damage drowned in that — a risk-free
+ *  attack into an empty board read below declining it on most seeds, while
+ *  the same position with a vanilla attacker attacked on every seed.
+ *  Measured: neither site alone fixes it (ε draw only: the 1-counter attack
+ *  on 3 of 12 seeds; tree only: the hand-holding one on 7 of 12).
+ *
+ *  An empty stack only: in response is the window where spending the body is
+ *  the play (the creature is about to die anyway). Damage only: a shield paid
+ *  in counters (`preventDamage`) creates its value inside a combat window, as
+ *  `isSourceConfinedSacrificeConversion` already argues. The bot's own moves
+ *  only and never at the root, like its siblings.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isSourceBodyDamageConversion(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId || state.stack.length > 0) return false;
+    if (move.kind !== "activate-ability") return false;
+    const source = state.players
+        .find((p) => p.id === pid)
+        ?.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    if (!ability || ability.resolve || ability.resolveSteps || ability.effect)
+        return false;
+    const effects = ability.effects;
+    if (!effects?.length || !effects.every((op) => op.op === "dealDamage"))
+        return false;
+    return costShrinksSource(state, source, ability);
+}
+
 /** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
  *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
  *  #5445) — lands given up for a spell.
@@ -3049,6 +3099,12 @@ function iterate(
                                 k.move
                             ) ||
                             isDenialExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ) ||
+                            isSourceBodyDamageConversion(
                                 world,
                                 pid,
                                 botId,
