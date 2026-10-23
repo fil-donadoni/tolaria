@@ -16904,7 +16904,6 @@
         {"id":"508.1b","line":"the life (CR 508.1b), and its trample overflow goes to the walker, not the","sites":1,"status":"confirmed","ruleHash":"5a23d5d1a5455ed1"},
         {"id":"508.1c","line":"\"attacks with Gray Ogre ALONE — Scarred Puma has no black or green co-attacker (CR 508.1c)\",","sites":1,"status":"confirmed","ruleHash":"2a0263833d3afcad"},
         {"id":"508.1c","line":"### `StaticAttackRestriction` (CR 508.1c)","sites":1,"status":"baseline"},
-        {"id":"508.1c","line":"* \"<Colour> creatures can't attack you\" → CR 508.1c `global-attack-restriction`","sites":1,"status":"confirmed","ruleHash":"2a0263833d3afcad"},
         {"id":"508.1c","line":"* \"Enchanted <noun> can't attack[ or block]\" → CR 508.1c / 509.1b","sites":1,"status":"confirmed","ruleHash":"2a0263833d3afcad"},
         {"id":"508.1c","line":"* (CR 508.1a-d). `defenderBattlefield` (CR 508.1c) lets the check evaluate","sites":1,"status":"baseline"},
         {"id":"508.1c","line":"* (CR 508.1c / 509.1b).","sites":1,"status":"baseline"},

@@ -16,7 +16,6 @@
  *                                                   → CR 602.2b `cost-modifier`
  *   "Creatures can't attack you unless their controller pays {N} for each
  *    creature they control that's attacking you"   → CR 508.1d `attack-mana-tax`
- *   "<Colour> creatures can't attack you"           → CR 508.1c `global-attack-restriction`
  *   "<self> enters tapped[ with N <kind> counters on it]"
  *                                                   → CR 614.1c entry riders
  *   "If <self> was kicked, it enters with N <kind> counters on it",
