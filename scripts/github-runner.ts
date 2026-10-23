@@ -11,9 +11,9 @@
 // Observes the machine, asks scripts/lib/github-runner.ts for the plan, and
 // runs it — or prints it under `--dry-run`. `install` is idempotent: a second
 // run plans nothing. It prunes dead units too (issue #6019). It never stops a
-// runner GitHub reports busy, nor any running one when GitHub cannot be read
-// (issue #6467): the restart is deferred and the verb exits 1, unless
-// `--force-restart`. Guide: docs/guides/github-pipeline.md.
+// runner GitHub reports busy, nor any running one when GitHub cannot be read:
+// the restart is deferred and the verb exits 1, unless `--force-restart`.
+// Guide: docs/guides/github-pipeline.md.
 import { execFileSync, spawnSync } from "node:child_process";
 import {
     existsSync,
