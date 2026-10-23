@@ -2865,14 +2865,25 @@ function enumerateTargetGroupTuples(
 
 /** CR 601.2c (issue #1104) — true iff every PERMANENT-type target in `combo`
  *  shares one live controllerId (Barrin's Spite's "two target creatures
- *  controlled by the same player"). A combo of size ≤ 1, or one with no
- *  permanent members, trivially passes (nothing to compare). */
+ *  controlled by the same player"), and every GRAVEYARD-card target shares one
+ *  graveyard owner (CR 404.1 — "from a single graveyard"). A combo of size
+ *  ≤ 1, or one with no such members, trivially passes (nothing to compare). */
 function comboSharesController(
     state: GameState,
     combo: TargetSelection[]
 ): boolean {
     let controllerId: string | undefined;
+    let graveyardOwnerId: string | undefined;
     for (const t of combo) {
+        if (t.type === "graveyard-card") {
+            const owner = state.players.find((p) =>
+                p.graveyard.some((c) => c.id === t.id)
+            )?.id;
+            if (owner === undefined) return false; // CR 608.2b — shouldn't happen
+            if (graveyardOwnerId === undefined) graveyardOwnerId = owner;
+            else if (graveyardOwnerId !== owner) return false;
+            continue;
+        }
         if (t.type !== "permanent") continue;
         let found: string | undefined;
         for (const p of state.players) {

@@ -1153,8 +1153,13 @@ export interface TargetRequirement {
      *  first pick's LIVE controller (`siblingControllerIdFor`). The FIRST
      *  pick is unconstrained by itself (nothing to compare against yet) —
      *  legal like any other candidate. Meaningful only for `count >= 2`
-     *  permanent-kind requirements; ignored for player/spell/graveyard
-     *  targets and a `count: 1` requirement (nothing to compare). */
+     *  permanent-kind or graveyard-card requirements; ignored for
+     *  player/spell targets and a `count: 1` requirement (nothing to compare).
+     *
+     *  On a `zone: "graveyard"` requirement the relation is the graveyard's
+     *  OWNER instead (CR 404.1 — a card in a graveyard has no controller):
+     *  every pick shares the first pick's graveyard, "up to three target
+     *  cards from a single graveyard". */
     sameController?: boolean;
     /** Restricts legal permanent targets by token-ness (CR 111.5, issue
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY NONTOKEN
