@@ -9,6 +9,12 @@
 # triggers: housekeeping's hourly retry (and derive:sync's backstop for a push
 # the base outran) and `health:nightly`. `sync` fast-forwards the primary only
 # to a derived-fresh tip (`derive:sync --fresh` on the job worktree).
+# `bot-replay` (issue #6463) is the ONE whole Bot-play sweep per Bot change:
+# on every push and nightly it compares the lockfile header's Bot hash with the
+# tree's (seconds, no push when equal) and on a mismatch replays every `ready`
+# card once on that tip — pushing the swept lockfile when no card left `ready`,
+# filing a regression issue when one did. A session's bare `oracle:compile`
+# never replays for a Bot hash it did not move.
 # They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
 # The hourly schedule also runs `sweep` on EVERY machine (issue #6083):
 # worktrees are machine-local, so the issue worktrees no merge cleans up (PR
@@ -37,7 +43,7 @@ on:
             job:
                 description: Job to run by hand
                 type: choice
-                options: [housekeeping, nightly, sweep]
+                options: [housekeeping, nightly, sweep, bot-replay]
                 default: housekeeping
 
 permissions:
@@ -148,6 +154,41 @@ jobs:
             - uses: ./.github/actions/job-setup
             - name: housekeeping
               run: bun run housekeeping
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    bot-replay:
+        name: Bot-play replay on the base (one per Bot change)
+        if: ${{ github.event_name == 'push' || github.event.schedule == '40 3 * * *' || inputs.job == 'bot-replay' }}
+        # The Huawei (issue #6463): the sweep holds the heavy mutex (`gate.ts
+        # job`) for 20–40 min, and on the MacBook that mutex is `land`'s — a
+        # replay there would stall every landing for its duration. On the
+        # Huawei it queues beside health and the hourly housekeeping (both
+        # idempotent, both re-run), and a pass runner feels nothing: a
+        # session's bare compile no longer waits on the mutex for a handful
+        # of misses. CPU: one core for the sweep (the Bot plays one card at a
+        # time), seconds when the header's hash is the tree's — the common
+        # push. One run at a time; a RUNNING run is never cancelled (a sweep
+        # cut short is a sweep paid for nothing), a pending one dropped loses
+        # nothing: the next push or the nightly re-reads the two hashes.
+        runs-on: [self-hosted, lane, "host:huawei"]
+        concurrency:
+            group: post-merge-bot-replay
+            cancel-in-progress: false
+        timeout-minutes: 180
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: derive:sync --replay-bot
+              run: bun run derive:sync --replay-bot
             - name: Remove the job worktree
               if: always()
               shell: bash

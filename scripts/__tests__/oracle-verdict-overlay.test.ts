@@ -154,6 +154,67 @@ describe("merge-driver-regenerated on the lockfile (real driver)", () => {
         ]);
     });
 
+    // Issue #6463: a PR's bare compile played the card its rule graduated
+    // (`newcard`, absent from base and from the base's tip) under the
+    // committed Bot hash; meanwhile `derive:sync --replay-bot` pushed a
+    // commit on the base that flipped verdicts and moved the header's Bot
+    // hash. The rebase conflicts on the lockfile; the PR's verdict must
+    // survive it, and the replay's header must stay the side taken.
+    it("a rebase over the Bot replay's commit keeps the verdicts the PR played (issue #6463)", () => {
+        const write = (name: string, l: Lockfile) =>
+            writeFileSync(join(dir, name), JSON.stringify(l, null, 2));
+        const withHeader = (l: Lockfile, botHash: string): Lockfile => ({
+            ...l,
+            header: { botHash } as unknown as Lockfile["header"],
+        });
+        write(
+            "base",
+            withHeader(
+                lock([row("stasis", "ignored", GAP), row("bolt", "played")]),
+                "sha256:old-bot"
+            )
+        );
+        // OURS: the replay commit — Stasis now `played`, Bolt `frozen`.
+        write(
+            "ours",
+            withHeader(
+                lock(
+                    [row("stasis", "played"), row("bolt", "frozen", GAP)],
+                    "replay"
+                ),
+                "sha256:new-bot"
+            )
+        );
+        // THEIRS: the PR — carried base verdicts, plus the card it played.
+        write(
+            "theirs",
+            withHeader(
+                lock([
+                    row("stasis", "ignored", GAP),
+                    row("bolt", "played"),
+                    row("newcard", "played"),
+                ]),
+                "sha256:old-bot"
+            )
+        );
+        const r = spawnSync(
+            "bun",
+            [DRIVER, "base", "ours", "theirs", BOT_VERDICT_OVERLAY_PATH],
+            { cwd: dir, encoding: "utf8" }
+        );
+        expect(r.status, r.stderr).toBe(0);
+        const out = JSON.parse(
+            readFileSync(join(dir, "ours"), "utf8")
+        ) as Lockfile;
+        expect(out.generator).toBe("replay");
+        expect(out.header.botHash).toBe("sha256:new-bot");
+        expect(out.cards).toEqual([
+            row("stasis", "played"),
+            row("bolt", "frozen", GAP),
+            row("newcard", "played"),
+        ]);
+    });
+
     it("takes OURS byte-for-byte on any other regenerated artifact", () => {
         const out = runDriver("data/oracle-legality.json");
         expect(out.cards).toEqual([
