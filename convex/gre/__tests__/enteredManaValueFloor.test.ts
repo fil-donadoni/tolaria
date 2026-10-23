@@ -348,7 +348,13 @@ describe("permanentManaValue of a double-faced permanent (CR 712.8e / 202.3b)", 
         transformPermanent(state, card!);
         expect(card!.transformed).toBe(true);
         expect(permanentManaValue(card!)).toBe(4);
-        expect(effectivePermanentView(state, card!).manaValue).toBe(4);
+        const view = effectivePermanentView(state, card!);
+        expect(matchesPermanentFilter(view, { manaValueAtLeast: 4 })).toBe(
+            true
+        );
+        expect(matchesPermanentFilter(view, { manaValueAtLeast: 5 })).toBe(
+            false
+        );
     });
 
     it("values a copy of the nonmodal back face at 0 (CR 202.3b)", () => {
