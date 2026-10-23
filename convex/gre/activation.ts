@@ -141,6 +141,7 @@ import {
     spendablePoolForSpell,
     tapPermanent,
     type CardInstanceState,
+    type TargetCountAnnouncement,
     type GameState,
     type ManaSubstitution,
     type PendingActivation,
@@ -1881,10 +1882,14 @@ export function minTargetCount(
  *  consumer that must reject an X-bearing count with no announced X
  *  (activated abilities without X in their cost never carry one). */
 export function resolveTargetCount(
-    count: number | "X" | { min: number; max?: number | "X" },
-    chosenX: number | undefined
+    count: TargetRequirement["count"],
+    chosenX: number | undefined,
+    announcement?: TargetCountAnnouncement
 ): number | { min: number; max?: number } {
-    return resolveTargetRequirementCount(count, chosenX, { requireX: true });
+    return resolveTargetRequirementCount(count, chosenX, {
+        requireX: true,
+        announcement,
+    });
 }
 
 /** CR 601.2f / 118.5 — affordability gate for board-wide static NON-mana
@@ -2379,7 +2384,14 @@ export function activateAbilityOnState(
         );
         let abilityCount = resolveTargetCount(
             effectiveTargetReq.count,
-            targetChosenX
+            targetChosenX,
+            // CR 601.2c via CR 602.2b — the primary group has no earlier picks.
+            {
+                state,
+                controllerId: args.playerId,
+                sourceInstanceId: card.id,
+                priorTargets: [],
+            }
         );
         // CR 602.2b / 601.2c — mirrors the cast path's identical check
         // (`legalTargets.length < required` above): activating with a

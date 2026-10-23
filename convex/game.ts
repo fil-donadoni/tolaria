@@ -4438,12 +4438,21 @@ export { payLoyaltyCost };
 // the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
 // `PendingTarget` without importing `game.ts`. Imported above; same behavior.
 function applyRequirementToPendingTarget(
+    state: GameState,
     pt: PendingTarget,
     req: TargetRequirement,
     chosenX: number | undefined
 ): void {
     pt.targetType = req.type;
-    pt.count = resolveTargetCount(req.count, chosenX);
+    // CR 601.2c — a text-defined bound is read HERE, once, against the picks
+    // the earlier groups locked into `priorSelected`; the stored number is
+    // what the rest of the cast reads, never the board again.
+    pt.count = resolveTargetCount(req.count, chosenX, {
+        state,
+        controllerId: pt.playerId,
+        sourceInstanceId: pt.cardInstanceId,
+        priorTargets: pt.priorSelected ?? [],
+    });
     pt.selected = [];
     // Clear every optional filter so a prior group's constraint never leaks,
     // then re-apply from the shared builder. The key set is COMPILE-FORCED —
@@ -4548,6 +4557,7 @@ export function advanceTargetGroupOrFinalize(
         pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
         pt.remainingRequirements = rest.length > 0 ? rest : undefined;
         applyRequirementToPendingTarget(
+            state,
             pt,
             excludingPriorTargets(
                 next,
@@ -4559,6 +4569,13 @@ export function advanceTargetGroupOrFinalize(
         // earlier groups left unobeyed follows the walk into this one, and the
         // ids it narrows to are this group's, not the previous group's.
         refreshRequiredTargetChoiceIds(state, pt);
+        // CR 601.2c — a group whose count resolved to no targets at all (an
+        // "up to X" whose X came out 0) has nothing to announce: move on
+        // rather than rest on a selection no pick can enter. The announcement
+        // side of the same rule is `announcedTargetCount`'s `undefined`.
+        if (pendingTargetCountMaxReached(pt.count, 0)) {
+            advanceTargetGroupOrFinalize(state, pt, playerId);
+        }
         return;
     }
     finalizeTargetSelection(state, pt, playerId);
@@ -7035,9 +7052,19 @@ export const announceCast = mutation({
         const resolvedCount = announcedTargetCount(
             activeTargetRequirement,
             chosenX,
-            // The cast path is the consumer that must REJECT an X-bearing count
-            // with no announced X — see `resolveTargetCount`'s doc comment.
-            { requireX: true }
+            {
+                // The cast path is the consumer that must REJECT an X-bearing
+                // count with no announced X — see `resolveTargetCount`'s doc
+                // comment.
+                requireX: true,
+                // CR 601.2c — the opening group has no earlier picks.
+                announcement: {
+                    state,
+                    controllerId: args.playerId,
+                    sourceInstanceId: args.cardInstanceId,
+                    priorTargets: [],
+                },
+            }
         );
         const requiresTargets = resolvedCount !== undefined;
 
