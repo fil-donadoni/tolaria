@@ -9237,4 +9237,66 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 603.3d + CR 701.20a — "that player chooses target player who controls
+    // more creatures than they do and is their opponent. The first player may
+    // reveal cards … until they reveal a creature card": the head's player
+    // digs, behind a cost-free `mayPay`. Exhibits `mayPay` and
+    // `revealUntilMatch` on an `$event` player, a recipient the canned smoke
+    // scenario cannot pick (issue #5692).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "cf14de50-d123-400c-862e-2c95fd2aa23f",
+            name: "Oath of Druids",
+            manaCost: "{1}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Oath of Druids",
+            types: ["Enchantment"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "oath-of-druids-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        playerControlsMoreThan: {
+                            type: "Creature",
+                            than: "active",
+                        },
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: { ref: "$event.activePlayerId" },
+                            prompt: "Reveal cards from the top of your library until you reveal a creature card?",
+                            bind: "$revealed",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$revealed" },
+                            then: [
+                                {
+                                    op: "revealUntilMatch",
+                                    player: { ref: "$event.activePlayerId" },
+                                    filter: { type: "Creature" },
+                                    match: "battlefield",
+                                    rest: "graveyard",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
