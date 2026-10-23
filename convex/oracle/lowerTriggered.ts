@@ -288,6 +288,33 @@ function lowerCondition(
             };
         case "self-has-type":
             return { kind: "self-has-type", type: condition.type };
+        case "controls-more": {
+            // CR 603.4 — "that player" must be a player the head introduced,
+            // or the comparison is about nobody.
+            if (condition.subject === "opponent")
+                return {
+                    kind: "controls-more",
+                    subject: { kind: "opponent" },
+                    than: condition.than,
+                    filter: condition.filter,
+                };
+            if (condition.subject === "any-player")
+                return {
+                    kind: "controls-more",
+                    subject: { kind: "any-player" },
+                    than: condition.than,
+                    filter: condition.filter,
+                };
+            const eventField = namedPlayerField(head);
+            if (eventField === null)
+                return '"that player" in the condition names no player the head introduced';
+            return {
+                kind: "controls-more",
+                subject: { kind: "event-player", eventField },
+                than: condition.than,
+                filter: condition.filter,
+            };
+        }
         case "self-in-graveyard":
             // Lowered as the ability's zone by the caller, never as a predicate.
             return "a graveyard-zone condition is not a board predicate";

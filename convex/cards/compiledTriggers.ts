@@ -111,6 +111,25 @@ export type CompiledTriggerCondition =
           readonly atLeast: number;
       }
     /**
+     * CR 109.5 + CR 603.4 — "if an opponent controls more lands than you" /
+     * "if that player controls more lands than each other player": a strict
+     * comparison of per-player counts of the permanents `filter` matches.
+     * `subject` names the player whose count must be the larger: any opponent
+     * of the ability's controller, a player named by a censused `$event`
+     * player field ("that player"), or any player at all. `than` is `you` (the
+     * controller) or `each-other-player` (strictly more than EVERY other
+     * player, so a tie for the most fails).
+     */
+    | {
+          readonly kind: "controls-more";
+          readonly subject:
+              | { readonly kind: "opponent" }
+              | { readonly kind: "any-player" }
+              | { readonly kind: "event-player"; readonly eventField: string };
+          readonly than: "you" | "each-other-player";
+          readonly filter: PermanentFilter;
+      }
+    /**
      * CR 610.3 / ADR 0028 — the source holds an exile-and-return bundle
      * (`holdsExileBundle`). NOT an intervening-if: nothing is printed. It gates
      * the return an "exile … until this leaves the battlefield" creates, a
@@ -324,8 +343,27 @@ function conditionHolds(
         if (playerId === undefined || playerId === null) return false;
         return countDomain(state as never, playerId) >= condition.atLeast;
     }
+    if (condition.kind === "controls-more")
+        return controlsMore(condition, event, self, state);
     const player = state.players.find((p) => p.id === self.controllerId);
     if (player === undefined) return false;
+    return (
+        countMatching(player, condition.filter, self, condition.atLeast) >=
+        condition.atLeast
+    );
+}
+
+/**
+ * How many of `player`'s battlefield permanents `filter` matches, counting no
+ * further than `cap` (the caller only needs "at least N"). Reads the LIVE
+ * colours through the one authority every other colour read uses.
+ */
+function countMatching(
+    player: TriggerStateView["players"][number],
+    filter: PermanentFilter,
+    self: PermanentView,
+    cap = Infinity
+): number {
     let matched = 0;
     for (const permanent of player.battlefield) {
         if (
@@ -351,7 +389,7 @@ function conditionHolds(
                             permanent as unknown as PermanentView
                         ),
                 },
-                condition.filter,
+                filter,
                 {
                     selfInstanceId: self.id,
                     selfControllerId: self.controllerId,
@@ -359,10 +397,48 @@ function conditionHolds(
             )
         ) {
             matched += 1;
-            if (matched >= condition.atLeast) return true;
+            if (matched >= cap) break;
         }
     }
-    return false;
+    return matched;
+}
+
+/**
+ * CR 109.5 + CR 603.4 — the strict per-player comparison. Fails CLOSED when
+ * the controller, or the player a `$event` field should name, cannot be found.
+ */
+function controlsMore(
+    condition: Extract<CompiledTriggerCondition, { kind: "controls-more" }>,
+    event: GameEvent,
+    self: PermanentView,
+    state: TriggerStateView
+): boolean {
+    const counts = new Map<string, number>();
+    for (const p of state.players)
+        counts.set(p.id, countMatching(p, condition.filter, self));
+    const mine = counts.get(self.controllerId);
+    if (mine === undefined) return false;
+    const subject = condition.subject;
+    const larger = (id: string): boolean => {
+        const count = counts.get(id)!;
+        if (condition.than === "you")
+            return id !== self.controllerId && count > mine;
+        for (const [other, n] of counts)
+            if (other !== id && n >= count) return false;
+        return true;
+    };
+    if (subject.kind === "opponent")
+        return [...counts.keys()].some(
+            (id) => id !== self.controllerId && larger(id)
+        );
+    if (subject.kind === "any-player") return [...counts.keys()].some(larger);
+    // CR 603.4 — fail CLOSED on a field the event does not carry, like the
+    // absent state view above.
+    if (event === undefined) return false;
+    const row = getEventFieldRow(event.type, subject.eventField);
+    const playerId = row?.family === "player" ? row.resolve(event) : null;
+    if (playerId === undefined || playerId === null) return false;
+    return counts.has(playerId) && larger(playerId);
 }
 
 /** One descriptor → the real ability, through the hand-written factories. */

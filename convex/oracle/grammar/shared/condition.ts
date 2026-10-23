@@ -91,7 +91,26 @@ export type TriggerConditionIR =
      * as it resolves (a permanent that already became a creature has lost the
      * type, so the second firing is gated out).
      */
-    | { readonly kind: "self-has-type"; readonly type: "Enchantment" };
+    | { readonly kind: "self-has-type"; readonly type: "Enchantment" }
+    /** CR 603.4 — "if an opponent controls more lands than you". */
+    | ComparativeControlsIR;
+
+/**
+ * CR 109.5 + CR 603.4 — "an opponent controls more lands than you": a strict
+ * COMPARISON of two players' permanent counts, not a threshold.
+ *
+ * `subject` is the player whose count must be the larger; `than` is what it is
+ * measured against. `you` is the ability's controller; `each-other-player`
+ * means strictly more than EVERY other player, so a tie for the most fails.
+ * `that-player` is anaphora, bound by lowering to the head's named player or
+ * refused.
+ */
+export type ComparativeControlsIR = {
+    readonly kind: "controls-more";
+    readonly subject: "opponent" | "that-player" | "any-player";
+    readonly than: "you" | "each-other-player";
+    readonly filter: PermanentFilter;
+};
 
 const ARTICLES: readonly string[] = ["a ", "an "];
 
@@ -146,6 +165,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
                 : fail(`"${selfType[1]}" is not the source itself`, span);
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
+        if (COMPARATIVE_CONTROLS.test(clause))
+            return comparativeControlsRule.run(clause, ctx);
         return controlsRule.run(clause, ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
@@ -233,6 +254,64 @@ function readBasicLandTypes(
         atLeast,
     });
 }
+
+const COMPARATIVE_CONTROLS =
+    /^(an opponent|that player|a player) controls more (.+) than (you|each other player)$/;
+
+const COMPARATIVE_SUBJECTS: Readonly<
+    Record<string, ComparativeControlsIR["subject"]>
+> = {
+    "an opponent": "opponent",
+    "that player": "that-player",
+    "a player": "any-player",
+};
+
+/**
+ * `"an opponent controls more lands than you"` — CR 603.4's comparative
+ * intervening-if. The compared noun is a PLURAL descriptor with no controller
+ * clause of its own (the sentence already says whose permanents are counted).
+ * "an opponent … than each other player" and "a player … than you" are
+ * phrases nobody prints and are refused rather than guessed at.
+ */
+export const comparativeControlsRule: Rule<ComparativeControlsIR> = rule(
+    "comparative controls",
+    (span, ctx) => {
+        const match = span.match(COMPARATIVE_CONTROLS);
+        if (match === null) return fail("not a comparative controls", span);
+        const subject = COMPARATIVE_SUBJECTS[match[1]!]!;
+        const than = match[3] === "you" ? "you" : "each-other-player";
+        if (
+            (subject === "opponent" && than !== "you") ||
+            (subject === "any-player" && than !== "each-other-player")
+        )
+            return fail(
+                `"${match[1]} … than ${match[3]}" is not printed`,
+                span
+            );
+        const descriptor = descriptorRule.run(match[2]!, ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail('"more" introduces a plural descriptor', span);
+        const filter = permanentFilterFromDescriptor(descriptor.value, {
+            colors: true,
+        });
+        if (!filter.ok) return filter;
+        const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
+            (key) => filter.value[key] !== undefined
+        );
+        if (unevaluable !== undefined)
+            return fail(
+                `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
+                span
+            );
+        return ok({
+            kind: "controls-more" as const,
+            subject,
+            than,
+            filter: filter.value,
+        });
+    }
+);
 
 /**
  * `"you control a Goblin"` — the controls clause itself, without the word that
