@@ -3342,6 +3342,12 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter)
         );
     }
+    // costVictimMatchesFilter form (issue #6503, Storm Elemental) — a single
+    // key holding the card shape to test the cost victim's CR 608.2h snapshot
+    // against. No ref, no player: the snapshot rides on the stack item.
+    if (keys.length === 1 && keys[0] === "costVictimMatchesFilter") {
+        return isCardFilter(obj.costVictimMatchesFilter);
+    }
     // boundMatchesFilter form (Minsc & Boo) — a bare ref to an object
     // SNAPSHOT plus the card shape to test its CR 608.2h last-known
     // characteristics against. No `player`: unlike `picksMatchFilter` this

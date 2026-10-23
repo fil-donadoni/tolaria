@@ -2161,6 +2161,18 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
          *  answer for a colourless one (CR 105.2c), distinct from the field
          *  being absent on a snapshot written before this field existed. */
         colors?: Color[];
+        /** Card TYPES of the victim at the moment it left (CR 205.2a, last-known
+         *  information CR 608.2h). Read at resolve via
+         *  `SpellContext.getAdditionalCostTypes` for "if the exiled card is a
+         *  land" shapes (Storm Elemental). Present at every writer; an absent
+         *  field is a snapshot written before this field existed. */
+        types?: string[];
+        /** SUPERTYPES of the victim (CR 205.4a, CR 608.2h), through the same
+         *  `liveSupertypesOf` authority the cost filters use, so a granted or
+         *  removed supertype counts. Read via
+         *  `SpellContext.getAdditionalCostSupertypes` ("if the exiled card is
+         *  a snow land"). Omitted when the victim has none. */
+        supertypes?: string[];
     };
     /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
      *  Captured at activation commit (the manaPool delta) when the ability sets
