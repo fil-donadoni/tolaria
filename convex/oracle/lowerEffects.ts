@@ -27,6 +27,7 @@ import type {
     EffectCountSpec,
     EffectPlayerRef,
     EffectPredicate,
+    EffectCaptureSource,
     EffectSignedValue,
     EffectTokenSpec,
     EffectValue,
@@ -3793,6 +3794,77 @@ function lowerSentenceBody(
                     capture: { $captured: { ref: bind } },
                     effects: [
                         { op: sentence.verb, target: { ref: "$captured" } },
+                    ],
+                },
+            ]);
+        }
+        case "delayed-return": {
+            // CR 603.7a — the delayed trigger is created now; its body moves
+            // the one object the sentence names, carried across by `capture`
+            // (gone or moved by then, the body skips, CR 608.2b).
+            let capture: EffectCaptureSource;
+            if (sentence.referent !== "it") {
+                capture = { ref: "$source" };
+            } else {
+                // CR 608.2h — "it" / "that card" is the ONE announced object.
+                const announced = slots.requirements();
+                const actedOn = walk.actedOn;
+                if (
+                    announced.length !== 1 ||
+                    walk.gatedRemoval ||
+                    headNamesAnObject(site)
+                )
+                    return unlowerable(
+                        '"it" names no single object announced before it (CR 608.2h)'
+                    );
+                if (sentence.destination === "battlefield") {
+                    // A card returned from exile: the exile sentence's object.
+                    if (
+                        actedOn === null ||
+                        actedOn.op.op !== "exile" ||
+                        actedOn.requirement !== announced[0]
+                    )
+                        return unlowerable(
+                            '"it" returned to the battlefield names no object exiled by the sentence before it (CR 608.2h)'
+                        );
+                    const bind = actedOn.op.bind ?? walk.nextBind("that");
+                    actedOn.op.bind = bind;
+                    capture = { ref: bind };
+                } else {
+                    if (actedOn !== null)
+                        return unlowerable(
+                            '"it" may name the object an earlier sentence moved or the announced target (CR 608.2h)'
+                        );
+                    capture = { target: 0 };
+                }
+            }
+            const when =
+                sentence.timing === "next-end-step" ? "end" : "cleanup";
+            const where =
+                sentence.destination === "hand"
+                    ? "its owner's hand"
+                    : "the battlefield under its owner's control";
+            const what =
+                sentence.referent !== "it"
+                    ? sentence.referent
+                    : sentence.destination === "battlefield"
+                      ? "that card"
+                      : "it";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: sentence.timing,
+                    oracleText: `Return ${what} to ${where} at the beginning of the next ${when} step.`,
+                    capture: { $returned: capture },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$returned" },
+                            ...(sentence.destination === "battlefield"
+                                ? { from: "exile" as const }
+                                : {}),
+                            to: sentence.destination,
+                        },
                     ],
                 },
             ]);
