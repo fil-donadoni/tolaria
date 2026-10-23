@@ -9177,4 +9177,64 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2c + CR 615.12 + CR 614.9 + CR 603.7a — "that creature" / "the
+    // creature" after ONE announced creature target name that target: the
+    // regeneration lock, the recipient-bound damage lock and a delayed dies
+    // trigger whose body exiles the card from the graveyard. Exhibits
+    // `moveZone` of a captured departed object, a zone change the canned smoke
+    // scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "84050a10-e1f1-413e-aa21-5c1f47bb2a64",
+            name: "Whippoorwill",
+            manaCost: "{G}",
+            typeLine: "Creature — Bird",
+            oracleText:
+                "{G}{G}, {T}: Target creature can't be regenerated this turn. Damage that would be dealt to that creature this turn can't be prevented or dealt instead to another permanent or player. When the creature dies this turn, exile the creature.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Whippoorwill",
+            types: ["Creature"],
+            subtypes: ["Bird"],
+            manaCost: { G: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{G}{G}, {T}: Target creature can't be regenerated this turn. Damage that would be dealt to that creature this turn can't be prevented or dealt instead to another permanent or player. When the creature dies this turn, exile the creature.",
+            activatedAbilities: [
+                {
+                    id: "whippoorwill-ability",
+                    oracleText:
+                        "{G}{G}, {T}: Target creature can't be regenerated this turn. Damage that would be dealt to that creature this turn can't be prevented or dealt instead to another permanent or player. When the creature dies this turn, exile the creature.",
+                    cost: { mana: { G: 2 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        { op: "preventRegeneration", target: { target: 0 } },
+                        { op: "lockDamage", target: { target: 0 } },
+                        {
+                            op: "delayedTrigger",
+                            timing: "dies",
+                            oracleText:
+                                "When the creature dies this turn, exile the creature.",
+                            watch: { target: 0 },
+                            capture: { $captured: { target: 0 } },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$captured" },
+                                    from: "graveyard",
+                                    to: "exile",
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+            ],
+        },
+    },
 ]);

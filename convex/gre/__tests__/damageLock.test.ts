@@ -52,8 +52,8 @@ function castLavaBurst(
     resolveTopOfStack(state);
 }
 
-/** Resolves Whippoorwill's activated ability at `targetId`, arming all three of
- *  its turn-scoped flags on that creature. */
+/** Resolves Whippoorwill's activated ability at `targetId`, arming its two
+ *  turn-scoped flags on that creature and its delayed dies trigger. */
 function activateWhippoorwill(
     state: GameState,
     whipId: string,
@@ -436,11 +436,15 @@ function lockedBoard(extraP2: ReturnType<typeof makeInstance>[] = []) {
 }
 
 describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
-    it("arms the flag alongside exileOnDeath from the same activation", () => {
+    // CR 603.7a — the dies clause is a delayed trigger, not a CR 614.1a
+    // replacement: no `exileOnDeath` flag, one delayed trigger instead.
+    it("arms the flag alongside the regeneration lock and a delayed dies trigger", () => {
         const state = lockedBoard();
         const bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
         expect(bear.damageLockThisTurn).toBe(true);
-        expect(bear.exileOnDeath).toBe(true);
+        expect(bear.cantBeRegeneratedThisTurn).toBe(true);
+        expect(bear.exileOnDeath).toBeUndefined();
+        expect(state.delayedTriggers).toHaveLength(1);
     });
 
     it("beats a prevention shield on damage from an unrelated source", () => {

@@ -1281,7 +1281,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Wayfaring Giant",
     "Well-Laid Plans",
     "Wheel of Fortune",
-    "Whippoorwill",
     "Whirling Dervish",
     "White Mana Battery",
     "White Scarab",

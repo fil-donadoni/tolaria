@@ -681,22 +681,20 @@ export const venom = defineCard(() => ({
 // Whippoorwill — "{G}{G}, {T}: Target creature can't be regenerated this turn.
 // Damage that would be dealt to that creature this turn can't be prevented or
 // dealt instead to another permanent or player. When the creature dies this
-// turn, exile the creature." (CR 605 activated ability; CR 614.1a exile-instead-
-// of-death + regeneration suppression.)
+// turn, exile the creature." (CR 602 activated ability.)
 //
-// All three clauses are one activation. The exile-on-death + no-regeneration
-// pair rides `setExileOnDeath` (the Disintegrate primitive: marks the creature
-// so it is exiled rather than dying, and suppresses regeneration, cleared at
-// CLEANUP). The middle clause is `setDamageLockThisTurn` (issue #2231), its
-// sibling flag: TARGET-bound and turn-scoped, so damage from ANY source —
-// combat included, long after this ability has left the stack — can't be
-// prevented (CR 615.12, protection's damage leg included per CR 702.16e) and
-// can't be dealt instead to another permanent or player (CR 614.9). Also
-// cleared at CLEANUP (CR 514.2).
-//
-// protocol card: the ability arms three turn-scoped flags on one target from a
-// single Oracle sentence and predates the DSL. Both primitives it calls are exposed as Ops (`exileOnDeath`,
-// `lockDamage`) for cards authored after this one.
+// One target, three sentences, each naming it (CR 608.2c — "that creature" /
+// "the creature" is the creature announced in the first):
+//  - CR 701.19c — `preventRegeneration`: a regeneration shield can't replace
+//    its destruction this turn.
+//  - CR 615.12 + CR 614.9 — `lockDamage`: TARGET-bound and turn-scoped, so
+//    damage from ANY source, combat included, long after this ability has
+//    left the stack, can't be prevented (protection's damage leg included)
+//    and can't be dealt instead to another permanent or player.
+//  - CR 603.7a + CR 700.4 — a delayed `dies` trigger watching the target: the
+//    creature DIES (its own dies triggers fire), then the trigger exiles the
+//    card it became from the graveyard. Not a replacement — "If it would die,
+//    exile it instead" is a different card.
 export const whippoorwill = defineCard(() => ({
     id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
     rarity: "uncommon",
@@ -708,7 +706,6 @@ export const whippoorwill = defineCard(() => ({
     subtypes: ["Bird"],
     power: 1,
     toughness: 1,
-    staticAbilities: ["flying"],
     activatedAbilities: [
         {
             id: "whippoorwill-doom",
@@ -717,13 +714,26 @@ export const whippoorwill = defineCard(() => ({
             cost: { mana: { G: 2 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type !== "permanent") return;
-                ctx.setExileOnDeath(target);
-                // CR 615.12 / 614.9 — the middle clause (issue #2231).
-                ctx.setDamageLockThisTurn(target);
-            },
+            effects: [
+                { op: "preventRegeneration", target: { target: 0 } },
+                { op: "lockDamage", target: { target: 0 } },
+                {
+                    op: "delayedTrigger",
+                    timing: "dies",
+                    oracleText:
+                        "When the creature dies this turn, exile the creature.",
+                    watch: { target: 0 },
+                    capture: { $captured: { target: 0 } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$captured" },
+                            from: "graveyard",
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
         },
     ],
 }));

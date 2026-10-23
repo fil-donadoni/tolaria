@@ -1683,6 +1683,44 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
         expect(errors.some((e) => /field "from"/.test(e))).toBe(true);
     });
 
+    // CR 603.7a + CR 700.4 — the one non-reanimating departed-object move: a
+    // delayed dies trigger exiling the card the watched creature became.
+    it('accepts from: "graveyard" with to: "exile" on a snapshot ref', () => {
+        const effects: EffectOp[] = [
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                from: "graveyard",
+                to: "exile",
+            },
+        ];
+        expect(
+            validateAbilityEffectScript(host({ effects }), "Test Card")
+        ).toEqual([]);
+    });
+
+    it('rejects from: "exile" or "graveyard" with any other non-battlefield destination', () => {
+        for (const [from, to] of [
+            ["exile", "hand"],
+            ["graveyard", "hand"],
+        ] as const) {
+            const errors = validateAbilityEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            from,
+                            to,
+                        },
+                    ],
+                }),
+                "Test Card"
+            );
+            expect(errors.some((e) => /field "from"/.test(e))).toBe(true);
+        }
+    });
+
     it("rejects attacking outside the target shape into the battlefield", () => {
         const effects: EffectOp[] = [
             {
