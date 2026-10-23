@@ -2648,6 +2648,15 @@ export type PendingCast = {
          *  after CR 601.2f reductions). Built by `buildDelveExileChoice`
          *  (`gre/payWith.ts`). Undefined for every non-delve exile cost. */
         offsetGeneric?: { min: number; max: number };
+        /** CR 118.9 / 601.2h — a POSITIONAL exile cost with no payer pick: an
+         *  alternative cost's `CostLegs.graveyard` exile leg ("exile the top
+         *  three black cards of your graveyard"). When set, the cards paid are
+         *  the `count` TOPMOST graveyard cards matching this filter, RE-DERIVED
+         *  at payment (`commitCast`) — a mana ability activated while the cast
+         *  is parked can change the pile. `pickedCardIds` holds the
+         *  announcement-time pick, so every owed-payment seam reads the leg as
+         *  answered. Undefined for every player-picked exile cost. */
+        topMatching?: EffectCardFilter;
     };
     /** In-progress "exile / discard N cards from your HAND" ALTERNATIVE-cost
      *  picker (CR 118.9 — Force of Will's "exile a blue card", Foil's "discard

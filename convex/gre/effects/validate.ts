@@ -3093,8 +3093,9 @@ function isMayPayCost(value: unknown): boolean {
             if (!isPositiveInt(obj.energy)) return false;
         }
         if ("graveyard" in obj) {
-            // Graveyard leg (CR 118.3 / 118.12a): "return" only, a card filter
-            // object and a fixed positive count.
+            // Graveyard leg (CR 118.3 / 118.12a): "return" only (the
+            // positional "exile" action is alternative-cost-only), a card
+            // filter object and a fixed positive count.
             const g = obj.graveyard;
             if (typeof g !== "object" || g === null) return false;
             const leg = g as Record<string, unknown>;

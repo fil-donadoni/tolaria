@@ -603,12 +603,15 @@ function mayPayIsAffordable(
     }
     if (
         norm.graveyard &&
-        mayPayGraveyardCandidates(bot.graveyard, norm.graveyard).length <
-            norm.graveyard.count
+        (norm.graveyard.action !== "return" ||
+            mayPayGraveyardCandidates(bot.graveyard, norm.graveyard).length <
+                norm.graveyard.count)
     ) {
         // CR 118.3 — the graveyard leg needs `count` matching cards in the
         // bot's own (public, fully projected) graveyard; priced through the
-        // engine's candidate function, the call `canPayMayPayCost` makes.
+        // engine's candidate function, the call `canPayMayPayCost` makes. The
+        // positional `"exile"` action is alternative-cost-only and fails
+        // closed, as it does there.
         return false;
     }
     return true;

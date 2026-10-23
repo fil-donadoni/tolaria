@@ -32,6 +32,7 @@ import type {
     AdditionalCostLeg,
     AlternativeCost,
     CardDefinition,
+    CostLegs,
     EffectCardFilter,
     EffectPredicate,
     EmblemInstance,
@@ -3682,14 +3683,12 @@ export interface NormalizedMayPayCost {
      *  leg 1:1. */
     energy?: number;
     /** Graveyard leg (CR 118.3 / 118.12a): `count` cards matching `filter`
-     *  return from the payer's graveyard to hand. Mirrors the backend
-     *  `CostLegs.graveyard` leg 1:1 — the filter is carried so the Pay gate
-     *  prices the leg through the engine's own candidate function. */
-    graveyard?: {
-        action: "return";
-        filter: EffectCardFilter;
-        count: number;
-    };
+     *  leave the payer's graveyard. Mirrors the backend `CostLegs.graveyard`
+     *  leg 1:1 — the filter is carried so the Pay gate prices the leg through
+     *  the engine's own candidate function. A may-pay pays only the
+     *  `"return"` action; the positional `"exile"` one is
+     *  alternative-cost-only and reads as unaffordable here. */
+    graveyard?: CostLegs["graveyard"];
 }
 
 function isMayPayUnion(
@@ -3732,15 +3731,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
                   }
                 : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
-            ...(cost.graveyard
-                ? {
-                      graveyard: {
-                          action: cost.graveyard.action,
-                          filter: cost.graveyard.filter,
-                          count: cost.graveyard.count,
-                      },
-                  }
-                : {}),
+            ...(cost.graveyard ? { graveyard: { ...cost.graveyard } } : {}),
         };
     }
     return { mana: cost as ManaCost };
@@ -3817,8 +3808,9 @@ export function mayPayCanAfford(
     }
     if (
         norm.graveyard &&
-        mayPayGraveyardCandidates(graveyard ?? [], norm.graveyard).length <
-            norm.graveyard.count
+        (norm.graveyard.action !== "return" ||
+            mayPayGraveyardCandidates(graveyard ?? [], norm.graveyard).length <
+                norm.graveyard.count)
     ) {
         return false;
     }
