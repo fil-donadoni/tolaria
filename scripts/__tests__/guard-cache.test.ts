@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import {
     appendFileSync,
+    existsSync,
     mkdirSync,
     mkdtempSync,
+    readdirSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
@@ -12,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     decide,
+    defaultCacheDir,
     GUARD_CACHE_BYPASS_ENV,
     recordPass,
     type GuardInputs,
@@ -195,6 +198,17 @@ describe("enterGuardCache — the CLI seam records only a green exit (issue #364
     });
 });
 
+/** The decision line a guard printed: what it chose, and the short hash. */
+function decisionIn(out: string, guard: string) {
+    const label = guard.replace(":", "\\:");
+    const m = new RegExp(
+        `^(?:▶ ${label}: (ran)|✓ ${label}: (cached) PASS) \\(([0-9a-f]{12})\\)`,
+        "m"
+    ).exec(out);
+    expect(m, `no ${guard} decision line in:\n${out}`).not.toBeNull();
+    return { kind: m![1] ?? m![2], short: m![3] };
+}
+
 describe("each pure drift guard consults the cache (issue #3646)", () => {
     const GUARDS = [
         ["check:index", "scripts/check-card-index.ts"],
@@ -203,19 +217,35 @@ describe("each pure drift guard consults the cache (issue #3646)", () => {
         ["cr:lint", "scripts/check-cr-citations.ts"],
     ] as const;
 
+    // These run against the live checkout, which other test workers and
+    // processes write to: an input can change between the two runs (issue
+    // #6349). So every expectation is keyed on the hash each run PRINTS —
+    // a skip is owed exactly when the second run hashed what the first
+    // recorded green — never on the tree holding still.
     it.each(GUARDS)(
         "%s prints ran/cached with the hash, and skips only after a green run",
         (guard, script) => {
-            const first = runBun(script, REPO);
-            const label = guard.replace(":", "\\:");
-            expect(first.out).toMatch(
-                new RegExp(`▶ ${label}: ran \\([0-9a-f]{12}\\)`)
+            const records = join(
+                defaultCacheDir({ CLAUDE_PROJECT_DIR: join(cacheDir, "..") }),
+                guard.replace(/[^A-Za-z0-9_.-]/g, "_")
             );
-            const second = runBun(script, REPO);
-            expect(second.out).toMatch(
-                first.status === 0
-                    ? new RegExp(`✓ ${label}: cached PASS \\([0-9a-f]{12}\\)`)
-                    : new RegExp(`▶ ${label}: ran \\(`)
+            const recordedAs = (short: string) =>
+                existsSync(records)
+                    ? readdirSync(records).filter((h) => h.startsWith(short))
+                    : [];
+
+            const first = runBun(script, REPO);
+            const ran = decisionIn(first.out, guard);
+            expect(ran.kind).toBe("ran");
+            expect(recordedAs(ran.short)).toHaveLength(
+                first.status === 0 ? 1 : 0
+            );
+
+            const second = decisionIn(runBun(script, REPO).out, guard);
+            expect(second.kind).toBe(
+                first.status === 0 && second.short === ran.short
+                    ? "cached"
+                    : "ran"
             );
         },
         60_000
