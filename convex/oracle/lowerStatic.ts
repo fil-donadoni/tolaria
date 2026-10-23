@@ -502,6 +502,9 @@ export function lowerStaticClause(
                             kind: "block-restriction",
                             id: nextId("cant-block"),
                             oracleText: clause.sentence,
+                            ...(clause.unlessControlMoreCreatures === true
+                                ? { unlessControlMoreCreatures: true as const }
+                                : {}),
                         },
                     ],
                 },

@@ -13,7 +13,12 @@
 import { describe, expect, it } from "vitest";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
-import { makeInstance } from "../../cards/__tests__/setup.helper";
+import type { CardInstanceState } from "../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
 import { validateBlockerEligibility } from "../../gre/combat";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -156,5 +161,135 @@ describe("This creature can't block — the compiled definition at the real bloc
                     .eligible
             ).toBe(true);
         });
+    });
+});
+
+// ── "… unless you control more creatures than attacking player" ────────────
+// Goblin Goon, Mogg Toady (CR 509.1b). Each prints it beside a separate
+// attack sibling that stays its own gap, so the goldens are the real line.
+
+const MORE_CREATURES_LINE =
+    "This creature can't block unless you control more creatures than attacking player.";
+
+describe("This creature can't block unless you control more creatures than attacking player (CR 509.1b)", () => {
+    it("reads the real Goblin Goon / Mogg Toady line into the flagged clause", () => {
+        expect(clause(MORE_CREATURES_LINE)).toEqual({
+            kind: "self-block-restriction",
+            sentence: MORE_CREATURES_LINE,
+            unlessControlMoreCreatures: true,
+        });
+        const routed = routeLine(MORE_CREATURES_LINE, parseContext());
+        expect(routed.ok).toBe(true);
+        if (routed.ok) expect(routed.value.slot).toBe("static");
+    });
+
+    it("compiles to the whole definition with the flagged descriptor", () => {
+        const card = oracleCard({
+            oracleId: "e91bcf01-113b-4532-9f78-2a155b17be4f",
+            name: "Goblin Goon",
+            manaCost: "{3}{R}",
+            typeLine: "Creature — Goblin Mutant",
+            oracleText: MORE_CREATURES_LINE,
+            power: "6",
+            toughness: "6",
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Goblin Goon",
+                types: ["Creature"],
+                subtypes: ["Goblin", "Mutant"],
+                manaCost: { X: 3, R: 1 },
+                power: 6,
+                toughness: 6,
+                oracleText: MORE_CREATURES_LINE,
+                compiledStaticEffects: [
+                    {
+                        kind: "block-restriction",
+                        id: "goblin-goon-cant-block",
+                        oracleText: MORE_CREATURES_LINE,
+                        unlessControlMoreCreatures: true,
+                    },
+                ],
+            })
+        );
+    });
+
+    for (const line of [
+        "This creature can't block unless you control more creatures than defending player.",
+        "This creature can't block unless you control more creatures than attacking player and has flying.",
+        "This creature can't block unless you control a creature.",
+        "Target creature can't block unless you control more creatures than attacking player.",
+    ]) {
+        it(`REFUSES "${line}"`, () => {
+            expect(staticSlot.run(line, parseContext()).ok).toBe(false);
+        });
+    }
+
+    it("blocks only while its controller has strictly more creatures than the attacker's", () => {
+        const GOON_ID = "compiled-goon";
+        const BEAR_ID = "compiled-goon-bear";
+        const goon: CardDefinition = {
+            ...compiled(
+                oracleCard({
+                    name: "Goon",
+                    typeLine: "Creature — Goblin",
+                    oracleText: MORE_CREATURES_LINE,
+                    power: "2",
+                    toughness: "2",
+                })
+            ),
+            id: GOON_ID,
+            rarity: "common",
+        };
+        const bear: CardDefinition = {
+            ...compiled(
+                oracleCard({
+                    name: "Bear",
+                    typeLine: "Creature — Bear",
+                    oracleText: "",
+                    power: "2",
+                    toughness: "2",
+                })
+            ),
+            id: BEAR_ID,
+            rarity: "common",
+        };
+        withTemporaryDefinition(goon, () =>
+            withTemporaryDefinition(bear, () => {
+                const attacker = makeInstance(BEAR_ID, {
+                    id: "attacker",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const blocker = makeInstance(GOON_ID, {
+                    id: "goon",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                });
+                const extra = makeInstance(BEAR_ID, {
+                    id: "extra",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                });
+                const eligible = (p2: CardInstanceState[]) => {
+                    const state = makeState({
+                        players: [
+                            makePlayer("p1", { battlefield: [attacker] }),
+                            makePlayer("p2", { battlefield: p2 }),
+                        ],
+                    });
+                    return validateBlockerEligibility(
+                        attacker,
+                        blocker,
+                        p2,
+                        state
+                    ).eligible;
+                };
+                // 1 vs 1 — not strictly more.
+                expect(eligible([blocker])).toBe(false);
+                // 2 vs 1 — strictly more.
+                expect(eligible([blocker, extra])).toBe(true);
+            })
+        );
     });
 });
