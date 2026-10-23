@@ -57,10 +57,20 @@ vi.mock(
 );
 // The same for the hand-written half (issue #5615): `./setModules` is
 // aliased to the browser seam, so no Set is resident until it is installed.
-vi.mock(
-    "@convex/cards/setModules",
-    () => import("../catalogue/set-modules.browser")
-);
+//
+// WARMED AT IMPORT (issue #6350). The WHOLE hydration below installs every
+// Set through the seam's `import()`, the first load of ~146 Set modules in
+// this graph: a cold transform (~1 s solo, `TOLARIA_VITEST_FS_CACHE=0` as in
+// every gate) that grows with machine load, inside a test that crossed the
+// 30 s hang guard under health. Loading the server's static Set list here
+// pays it while the file is collected, outside any test's timeout — the order
+// `definitionShards.test.ts` gets from its static import. The seam's
+// `import()` then resolves the same module instances; residency is still the
+// seam's alone (importing a Set builds no definition, issue #4857).
+vi.mock("@convex/cards/setModules", async () => {
+    await vi.importActual("@convex/cards/setModules");
+    return import("../catalogue/set-modules.browser");
+});
 
 /**
  * The client's catalogue on the shared Definition Source (issue #4861, ADR
@@ -265,10 +275,12 @@ describe("hydrateCatalogue — every shard is resident, nothing is decoded", () 
             expect.objectContaining({ signal: expect.anything() })
         );
         // The names are the index's, so the deck builder and the name inputs
-        // know the whole catalogue…
-        expect(getAllCardNames()).toEqual(
-            expect.arrayContaining([...PACKED.names])
-        );
+        // know the whole catalogue… (a Set lookup, never
+        // `expect.arrayContaining`: that one is quadratic, ~3.5 s solo over
+        // the whole corpus — the bulk of the time that crossed the 30 s hang
+        // guard under health, issue #6350.)
+        const known = new Set(getAllCardNames());
+        expect(PACKED.names.filter((name) => !known.has(name))).toEqual([]);
         // …and not one block has been inflated, nor one compiled row made
         // resident: hydration is NOT a whole-corpus decode any more.
         expect(packedCorpusInflations()).toBe(0);
