@@ -38,7 +38,7 @@ import { expandShuffleFromAnywhere } from "./abilities/shuffleFromAnywhereReplac
 import { expandDamagePreventionCounterRemoval } from "./abilities/damagePreventionCounterRemoval";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
-import { modalBackTwinDefinition } from "./modalDfc";
+import { isModalDoubleFaced, modalBackTwinDefinition } from "./modalDfc";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
 import { parentIdOfTwin } from "./twinId";
 import { setCardManaCostLookup } from "./manaCostLookup";
@@ -1221,6 +1221,56 @@ export function getInstanceManaCost(instance: {
     if (embedded) return embedded;
     const id = (instance.card as { id?: string }).id;
     return id ? (tryGetDefinition(id)?.manaCost ?? undefined) : undefined;
+}
+
+/** True when `cardId` is the synthesized definition a NONMODAL back face
+ *  presents (CR 712.2) — the id half of `registerBackFaceDefinition`
+ *  (`gre/transform.ts`). Asks the Definition Index first, then scans the
+ *  printed definitions the map holds that the index does not cover (a test's
+ *  registration), mirroring {@link printedBackFaceTriggers}. */
+function isNonmodalBackFaceDefinitionId(cardId: string): boolean {
+    if (printedBackFaceOwner?.(cardId) !== undefined) return true;
+    for (const [id, def] of registry) {
+        const backFace = def.backFace;
+        if (id !== def.id || !backFace || backFace.kind === "modal") continue;
+        if (tokenDefinitionId(backFaceAsTokenSpec(backFace)) === cardId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** The mana cost a BATTLEFIELD permanent's MANA VALUE is computed from
+ *  (CR 202.3) — the single authority for every mana-value reader of a
+ *  permanent; {@link getInstanceManaCost} stays the reader for the cost
+ *  itself (cast, colour, pips).
+ *
+ *  Differs from it in the two nonmodal double-faced cases, where the engine's
+ *  synthetic back-face definition carries a one-pip-per-colour rendering
+ *  artefact instead of a cost:
+ *    - CR 712.8e: a transformed NONMODAL double-faced permanent has its mana
+ *      value calculated from the mana cost of its FRONT face
+ *      (`transformedFrom`). A modal back face keeps its own cost (CR 712.8f).
+ *    - CR 202.3b: a permanent copying the back face of a nonmodal
+ *      double-faced card has mana value 0 (no mana cost, CR 202.3a).
+ *  `manaCostOverride` still outranks both (CR 707.2 "except it has no mana
+ *  cost"). */
+export function getPermanentManaValueCost(instance: {
+    card: Record<string, unknown>;
+    manaCostOverride?: ManaCost;
+    transformed?: boolean;
+    transformedFrom?: string;
+    copiedFrom?: string;
+}): ManaCost | undefined {
+    if (instance.manaCostOverride) return instance.manaCostOverride;
+    if (instance.transformed && instance.transformedFrom) {
+        const front = tryGetDefinition(instance.transformedFrom);
+        if (front && !isModalDoubleFaced(front)) return front.manaCost;
+    } else if (instance.copiedFrom !== undefined) {
+        const id = (instance.card as { id?: string }).id;
+        if (id && isNonmodalBackFaceDefinitionId(id)) return {};
+    }
+    return getInstanceManaCost(instance);
 }
 
 /** Reads the AI valuation override off a `CardInstanceState`-shaped object
