@@ -807,7 +807,8 @@ export class TargetSlots {
      */
     allocate(
         requirement: TargetRequirement,
-        another: boolean = false
+        another: boolean = false,
+        sweptSet: boolean = false
     ): Lowered<number> {
         const slots = announcedSlots(requirement.count);
         // CR 601.2d — a divide group's op reads the announced split, not a
@@ -821,7 +822,15 @@ export class TargetSlots {
             return unlowerable(
                 "a divided group after another target group would share its budget (CR 601.2d)"
             );
-        if (slots === null && !divided)
+        // CR 601.2c — a swept group ("each of X targets") is read through
+        // `forEach { set: "targets" }`, which iterates whatever was announced,
+        // so like a divided group it needs no positional slot; it too must be
+        // the ONLY group, since the sweep spans the whole flat target list.
+        if (sweptSet && this.groups.length > 0)
+            return unlowerable(
+                "a swept target group after another target group would sweep both (CR 601.2c)"
+            );
+        if (slots === null && !divided && !sweptSet)
             return unlowerable(
                 "a variable target count has no positional slot (CR 601.2c)"
             );
@@ -2185,6 +2194,42 @@ function lowerSentenceBody(
                                 },
                             },
                             to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ]);
+        }
+        case "deal-damage-each-of-x-targets": {
+            // CR 120.1 / 608.2h — the same dealer rule as `deal-damage`.
+            if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
+                return unlowerable(
+                    '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
+                );
+            const amount = lowerAmount(sentence.amount, site);
+            if (!amount.ok) return amount;
+            // CR 601.2c — the group's width IS the announced X, so the site
+            // must announce one; the same gate the amount's "X" passes.
+            const width = lowerAmount({ kind: "x" }, site);
+            if (!width.ok) return width;
+            // The width is a fact about the cast: the group takes no
+            // positional slot and the damage reads the announced set.
+            const index = slots.allocate(
+                { type: "any", count: "X" },
+                false,
+                true
+            );
+            if (!index.ok) return index;
+            // CR 120.3 — each member of the announced set is dealt the whole
+            // amount, one `dealDamage` per member.
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: amount.value,
+                            to: { ref: "$each" },
                         },
                     ],
                 },

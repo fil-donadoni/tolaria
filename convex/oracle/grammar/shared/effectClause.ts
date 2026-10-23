@@ -111,6 +111,10 @@ const ANOTHER_HEAD = "another target ";
 
 /** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+/** CR 601.2c — the damage recipient "each of X targets", read as one exact
+ *  phrase: a descriptor after it ("each of X target creatures") is a different
+ *  announcement and is not read. */
+const EACH_OF_X_TARGETS = "each of X targets";
 /** CR 400.3 — the plural destination of a sweep bounce. */
 const THEIR_OWNERS_HANDS = "their owners' hands";
 /**
@@ -811,6 +815,20 @@ export type EffectSentenceIR =
           readonly kind: "delayed-remove-distributed-counters";
           readonly counter: string;
           readonly timing: "next-cleanup-step" | "next-end-step";
+      }
+    | {
+          /**
+           * CR 601.2c + CR 120.3 — "{self} deals N damage to each of X
+           * targets": ONE announced group of exactly X targets of any kind
+           * ("any target"), each dealt the full amount (unlike the divided
+           * form, nothing is split). The group's width is the cast's X, so
+           * the lowering reads it as a sweep over the announced set rather
+           * than a positional slot. `sourceIsPronoun` is the CR 608.2h marker
+           * `deal-damage` carries, refused on the same condition.
+           */
+          readonly kind: "deal-damage-each-of-x-targets";
+          readonly amount: AmountIR;
+          readonly sourceIsPronoun?: true;
       }
     | {
           /**
@@ -6662,6 +6680,14 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
+        // CR 601.2c — "to each of X targets": the announced group is X wide
+        // and every member takes the whole amount.
+        if (damage[3] === EACH_OF_X_TARGETS)
+            return ok({
+                kind: "deal-damage-each-of-x-targets" as const,
+                amount,
+                ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+            } satisfies EffectSentenceIR);
         // CR 120.3 + CR 702.9a — "to each creature", "to each creature without
         // flying", "to each creature target opponent controls": a creature
         // sweep as the damage recipient. Tried by its own rule so the general

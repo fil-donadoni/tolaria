@@ -2069,6 +2069,9 @@ function resolveObjectRef(
     if (ctx.getOwnerId(id) !== undefined) {
         return { type: "permanent", id };
     }
+    // CR 115.1 — a `forEach { set: "targets" }` member that is a PLAYER target
+    // binds its player id; a player never leaves the game mid-resolution here.
+    if (ctx.apNapOrder().includes(id)) return { type: "player", id };
     // CR 608.2h (issue #1101) — a `lookDistribute` `bind` snapshots the KEPT card
     // right after it moves library → hand: it never becomes a permanent, so
     // the battlefield check above always misses for it. Fall back to a
@@ -7557,8 +7560,10 @@ function selectForEachMembers(
     // generic (non-"players"/"graveyard") branch of `execForEach`'s per-member
     // loop below, exactly like the `permanents` set.
     if (select.set === "targets") {
+        // CR 115.1 — "any target" also announces players, who are members of
+        // the set like any other target (Meteor Blast's "each of X targets").
         return legalTargetSlots(ctx.targets)
-            .filter((t) => t.type === "permanent")
+            .filter((t) => t.type === "permanent" || t.type === "player")
             .map((t) => t.id);
     }
     // CR 607.2a — "all cards exiled with it": the pile stamped with the
@@ -7784,6 +7789,18 @@ function execForEach(
                         playerId: owner,
                     });
                 }
+            } else if (
+                op.select.set === "targets" &&
+                legalTargetSlots(ctx.targets).some(
+                    (t) => t.type === "player" && t.id === members[k]
+                )
+            ) {
+                // A player target of the announced set: snapshot it as a
+                // player so `{ ref: "$each" }` resolves to it (`resolveObjectRef`).
+                bindSnapshot(ctx, eachId, {
+                    type: "player",
+                    id: members[k],
+                });
             } else if (ctx.getOwnerId(members[k]) !== undefined) {
                 // Snapshot BEFORE the body acts on the member (CR 608.2h).
                 bindSnapshot(ctx, eachId, {
