@@ -241,6 +241,9 @@ const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
 const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "mana",
     "tapOtherFilter",
+    // CR 122.1 / 118.1 — `activateManaAbility` and the bot's `applyTapPlan`
+    // both place the counter (issue #6492).
+    "addCounter",
 ]);
 
 /** Cost legs a board-counted mana amount (`manaAmountSource`) may carry: the
@@ -419,7 +422,11 @@ export function lowerManaAbility(input: {
     const paidByTapRoute =
         cost.value.tap === true || cost.value.sacrifice === true;
     for (const rider of input.produces.riders ?? []) {
-        if (rider.kind !== "sacrifice-without-counters" && !paidByTapRoute)
+        if (
+            rider.kind !== "sacrifice-without-counters" &&
+            rider.kind !== "once-per-turn" &&
+            !paidByTapRoute
+        )
             return {
                 ok: false,
                 reason: `mana rider "${rider.kind}" needs a tap or sacrifice cost leg: only the tap-for-mana paths apply it`,
@@ -457,6 +464,11 @@ export function lowerManaAbility(input: {
                         target: { ref: "$source" },
                     },
                 ];
+                break;
+            // CR 602.5b — an activation gate, enforced wherever the ability is
+            // activated, so it needs no tap route.
+            case "once-per-turn":
+                ability.oncePerTurn = true;
                 break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a
