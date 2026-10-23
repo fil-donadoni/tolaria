@@ -1721,6 +1721,23 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 603.3d + CR 701.20a — "<Head player> chooses target player who
+           * controls more creatures than they do and is their opponent. The
+           * first player may reveal cards from the top of their library until
+           * they reveal a creature card. If the first player does, that player
+           * puts that card onto the battlefield and all other cards revealed
+           * this way into their graveyard." Three printed sentences, one
+           * effect, folded by `assembleSentences`: the head's player (an "each
+           * player's upkeep" head) digs and routes, the announced player only
+           * qualifies the trigger's target.
+           */
+          readonly kind: "first-player-may-reveal-until";
+          readonly filter: EffectCardFilter;
+          readonly match: UntilRouteDestination;
+          readonly rest: UntilRouteDestination;
+      }
+    | {
+          /**
            * CR 701.20a / CR 700.3 — a pile division of a revealed library
            * window: "Reveal the top N cards of your library. An opponent
            * separates those cards into two piles. Put one pile into your hand
@@ -2128,6 +2145,21 @@ export type SentenceIR =
           readonly rest: UntilRouteDestination;
       }
     /**
+     * CR 603.3d — the three sentences of `first-player-may-reveal-until` (see
+     * there): the head player's choice of an opposing player who controls
+     * more creatures, the optional reveal-until window, and its routing.
+     */
+    | { readonly role: "chooses-player-with-more-creatures" }
+    | {
+          readonly role: "first-player-may-reveal-until";
+          readonly filter: EffectCardFilter;
+      }
+    | {
+          readonly role: "first-player-reveal-route";
+          readonly match: UntilRouteDestination;
+          readonly rest: UntilRouteDestination;
+      }
+    /**
      * CR 700.3 — the pile-division sentences of `divide-library-piles`.
      * `pile-split` follows a revealed window ("An opponent separates those
      * cards into two piles"); `pile-split-window` is the window and the split
@@ -2323,6 +2355,12 @@ export function assembleSentences(
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
+    // CR 603.3d — the head player's choice waits for the optional reveal and
+    // its routing: "chosen" → "window" (holding the filter).
+    let firstPlayerReveal:
+        | { readonly stage: "chosen" }
+        | { readonly stage: "window"; readonly filter: EffectCardFilter }
+        | null = null;
     // CR 201.4 — a chosen card name must be read back by a later sentence of
     // the same ability ("that name"); `namedDig` waits for "Exile the rest."
     let namePending = false;
@@ -2354,6 +2392,58 @@ export function assembleSentences(
         readonly max: number | null;
     } | null = null;
     for (const sentence of sentences) {
+        if (firstPlayerReveal !== null) {
+            if (
+                firstPlayerReveal.stage === "chosen" &&
+                sentence.role === "first-player-may-reveal-until"
+            ) {
+                firstPlayerReveal = {
+                    stage: "window",
+                    filter: sentence.filter,
+                };
+                continue;
+            }
+            if (
+                firstPlayerReveal.stage === "window" &&
+                sentence.role === "first-player-reveal-route"
+            ) {
+                effects.push({
+                    kind: "first-player-may-reveal-until",
+                    filter: firstPlayerReveal.filter,
+                    match: sentence.match,
+                    rest: sentence.rest,
+                });
+                firstPlayerReveal = null;
+                continue;
+            }
+            return {
+                ok: false,
+                reason: "a player's choice of an opposing player is not followed by their optional reveal and its routing",
+            };
+        }
+        if (sentence.role === "chooses-player-with-more-creatures") {
+            if (
+                effects.length > 0 ||
+                restrictions.length > 0 ||
+                window !== null ||
+                revealUntil !== null ||
+                piles !== null
+            )
+                return {
+                    ok: false,
+                    reason: "a player's choice of an opposing player follows an earlier sentence",
+                };
+            firstPlayerReveal = { stage: "chosen" };
+            continue;
+        }
+        if (
+            sentence.role === "first-player-may-reveal-until" ||
+            sentence.role === "first-player-reveal-route"
+        )
+            return {
+                ok: false,
+                reason: '"The first player" follows no choice of an opposing player',
+            };
         if (drawTopdeck !== null) {
             if (drawTopdeck.max === null) {
                 if (sentence.role !== "choose-drawn-this-turn")
@@ -3148,6 +3238,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a library look is not followed by where its cards go",
+        };
+    if (firstPlayerReveal !== null)
+        return {
+            ok: false,
+            reason: "a player's choice of an opposing player is not followed by their optional reveal and its routing",
         };
     if (revealUntil !== null || piles !== null)
         return {
@@ -4317,6 +4412,15 @@ const REVEAL_UNTIL =
 /** CR 400.7 — the reveal-until routing: the first match, then every other card. */
 const REVEAL_UNTIL_ROUTE =
     /^Put that card (into your hand|onto the battlefield) and (?:(?:put )?(?:all other cards revealed this way|the rest) into your (graveyard)|(exile) all other cards revealed this way)$/;
+/** CR 603.3d — the head player's choice of an opposing player with more creatures. */
+const CHOOSES_PLAYER_MORE_CREATURES =
+    /^That player chooses target player who controls more creatures than they do and is their opponent$/;
+/** CR 701.20a — the head player's optional reveal-until window. */
+const FIRST_PLAYER_REVEAL_UNTIL =
+    /^The first player may reveal cards from the top of their library until they reveal (a creature card)$/;
+/** CR 400.7 — its routing, gated on the player having taken the option. */
+const FIRST_PLAYER_REVEAL_ROUTE =
+    /^If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard$/;
 /** CR 700.3 — a pile division of a revealed window. */
 const PILE_SPLIT = /^An opponent separates those cards into two piles$/;
 const PILE_SPLIT_WINDOW =
@@ -5497,6 +5601,22 @@ function libraryHalf(span: string) {
             filter: REVEAL_UNTIL_FILTERS.get(until[1]!)!,
         } satisfies SentenceIR);
     }
+    if (CHOOSES_PLAYER_MORE_CREATURES.test(span))
+        return ok({
+            role: "chooses-player-with-more-creatures" as const,
+        } satisfies SentenceIR);
+    const firstUntil = span.match(FIRST_PLAYER_REVEAL_UNTIL);
+    if (firstUntil !== null)
+        return ok({
+            role: "first-player-may-reveal-until" as const,
+            filter: REVEAL_UNTIL_FILTERS.get(firstUntil[1]!)!,
+        } satisfies SentenceIR);
+    if (FIRST_PLAYER_REVEAL_ROUTE.test(span))
+        return ok({
+            role: "first-player-reveal-route" as const,
+            match: "battlefield",
+            rest: "graveyard",
+        } satisfies SentenceIR);
     const untilRoute = span.match(REVEAL_UNTIL_ROUTE);
     if (untilRoute !== null) {
         return ok({
