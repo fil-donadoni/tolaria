@@ -813,6 +813,15 @@ export function classifyLane(
  *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
  *     landed with a stale index and the base went RED (PR #5868); with it
  *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
+ *   - `search-cost` (issue #6545) is the ISMCTS cost-counter pin
+ *     (`SEARCH_COST_TEST`), another `bot-node` file no scoped lane relates:
+ *     exact clone / sweep / walk counts over three blade positions, moved by
+ *     any engine, card or compiler change that alters what a search iteration
+ *     does. 4.4 s wall at load ~6–8, 12.7 s cold at load ~17 (2026-10-23).
+ *     Without it PR #6509
+ *     changed the rollout's land play, left the pins stale, and the base went
+ *     RED; so it is admitted by everything the search runs on —
+ *     `convex/{gre,cards,oracle}/**` — wide on purpose.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
@@ -824,6 +833,10 @@ export function classifyLane(
  * Order: after `check:oracle` wherever the lane runs it — lockfile DRIFT is
  * the error a reader must see first, not a census over a stale file.
  */
+/** The search cost-counter pin (issue #4458, gated by issue #5001), a lane
+ *  cheap guard since issue #6545. */
+export const SEARCH_COST_TEST = "convex/gre/__tests__/searchCost.bot.test.ts";
+
 export const CHEAP_GUARDS: readonly {
     id: string;
     /** A changed path that is one of the guard's inputs. */
@@ -856,6 +869,12 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/gre\/ai\/blade\/|data\/blade-(card-index|reproducers)\.json$|scripts\/lib\/blade-card-index\.ts$|scripts\/__tests__\/blade-card-index-drift\.bot\.test\.ts$)/,
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
+    },
+    {
+        id: "search-cost",
+        admits: /^convex\/(gre|cards|oracle)\//,
+        lacks: "no changed path under convex/{gre,cards,oracle}/** — nothing a search iteration runs on moved, so its cost counters cannot",
+        command: `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`,
     },
     {
         id: "check:baseline-shrink",

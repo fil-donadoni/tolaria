@@ -775,10 +775,19 @@ or the test itself, and runs with its own command
 (`docs/guides/github-pipeline.md` § pr-fixup). Without it, PR #5868 landed a
 blade entry with a stale index and the base went RED.
 
+A fifth, `search-cost` (issue #6545), is the same shape: the ISMCTS
+cost-counter pin (`searchCost.bot.test.ts`), exact clone / SBA-sweep /
+layer-7-walk counts that any change to what a search iteration runs moves.
+Admitted by `convex/{gre,cards,oracle}/**` — wide on purpose — with its own
+`bunx vitest run --project bot-node <file>` command; health covers it
+through `test:bot`. Without it, PR #6509 changed the rollout's land play,
+left the pins stale, and the base went RED.
+
 Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
 `check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
 most 8 s on a landing that admits all three, nothing on one that admits none.
 `blade-index`: 1.9 s at load ~2, 4.5–9.2 s wall at load 33–35 (2026-10-18).
+`search-cost`: 4.4 s wall at load ~6–8, 12.7 s wall cold at load ~17 (2026-10-23).
 
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or

@@ -18,6 +18,7 @@ import {
     hasLintStagedStash,
     stashListOf,
     CHEAP_GUARDS,
+    SEARCH_COST_TEST,
     WHOLE_PROJECT_AT,
     BOT_FAST_LANE,
     BOT_STEP,
@@ -627,6 +628,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:targets",
             "check:test-hygiene",
             "blade-index",
+            "search-cost",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
@@ -846,6 +848,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
+            // Nor anything a search iteration runs on (issue #6545).
+            "search-cost",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:duplicate-test-blocks",
@@ -938,6 +942,9 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         });
 
         it("no scoped lane runs a bot project; each names the health-only skips", () => {
+            // A cheap guard runs ONE bot-node file by admission (issue #5940,
+            // issue #6545), never the project.
+            const cheap = new Set(CHEAP_GUARDS.map((g) => g.id));
             for (const files of [
                 ["src/lib/ai/brain-client.ts"],
                 ["convex/gre/ai/search.ts"],
@@ -948,7 +955,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
                     plan.run.filter(
                         (c) =>
                             /bot-(dom|node)/.test(c.command) &&
-                            c.id !== "bot[cards]"
+                            c.id !== "bot[cards]" &&
+                            !cheap.has(c.id)
                     ),
                     files[0]
                 ).toEqual([]);
@@ -1014,6 +1022,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            // The search cost-counter pin (issue #6545).
+            "search-cost",
             "check:issue-log-comments",
         ]);
         expect(ids(engine.skip)).toEqual([
@@ -1049,6 +1059,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
+            "search-cost",
             "check:issue-log-comments",
         ]);
         expect(ids(cards.skip)).toEqual([
@@ -1078,6 +1089,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:targets",
             "check:test-hygiene",
             "blade-index",
+            "search-cost",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
@@ -2301,6 +2313,43 @@ describe("check-lane — the blade card index drift test runs where the index ca
 
     it("the full lane runs it with its own command, never `bun run blade-index`", () => {
         expect(guard(classifyLane(["package.json"]))?.command).toBe(command);
+    });
+});
+
+/**
+ * Issue #6545 — the search cost-counter pin is a `bot-node` file too: PR #6509
+ * changed the rollout's land play under `convex/gre/**`, its `engine` lane
+ * never ran the pin, and the base went RED. The guard is admitted by every
+ * tree a search iteration runs on — the engine, the cards, the compiler.
+ */
+describe("check-lane — the search cost pin runs wherever a search iteration can change (issue #6545)", () => {
+    const guard = (plan: LanePlan) =>
+        plan.run.find((c) => c.id === "search-cost");
+    const command = `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`;
+
+    it("an engine, card, compiler or pin edit plans it, in the bot-node project", () => {
+        for (const file of [
+            "convex/gre/search.ts",
+            "convex/gre/applyMove.ts",
+            "convex/cards/sets/lea/red.cards.ts",
+            "convex/oracle/lowerStatic.ts",
+            SEARCH_COST_TEST,
+        ]) {
+            expect(guard(classifyLane([file]))?.command, file).toBe(command);
+        }
+    });
+
+    it("a diff outside convex/{gre,cards,oracle}/** skips it, by name", () => {
+        for (const file of [
+            "src/components/board/Card.tsx",
+            "scripts/land.ts",
+            "convex/game.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(guard(plan), file).toBeUndefined();
+            const skipped = plan.skip.find((s) => s.id === "search-cost");
+            expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
+        }
     });
 });
 

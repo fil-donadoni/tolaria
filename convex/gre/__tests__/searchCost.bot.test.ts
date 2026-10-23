@@ -23,10 +23,13 @@ import * as manaAvailability from "../manaAvailability";
  * deterministic, hence the number of state clones, move enumerations,
  * evaluations and SBA sweeps it performs is an exact integer. A change that
  * makes an iteration do more work (an extra clone in the hot path) moves these
- * counters; a slower CPU does not. That makes this a correctness-tier test,
- * and it lives in the bot suite so `check:lane` runs it on every `engine`
- * landing: in the never-gated `perf` project it went stale twice unseen
- * (PR #4868 landed red, PR #4883 moved it). A legitimate evaluation change
+ * counters; a slower CPU does not. That makes this a correctness-tier test:
+ * in the never-gated `perf` project it went stale twice unseen (PR #4868
+ * landed red, PR #4883 moved it). The bot suite alone did not gate it either —
+ * ADR 0154 §3 sends that suite to health, so PR #6509 moved the counters and
+ * the base went RED — and `check:lane` now runs this file as the `search-cost`
+ * cheap guard on any `convex/{gre,cards,oracle}/**` diff (issue #6545,
+ * `CHEAP_GUARDS` in `scripts/check-lane.ts`). A legitimate evaluation change
  * that moves a counter re-records it in the PR that causes it, with the delta
  * in that PR's body. The wall-clock half (ms/iteration under the load it ran
  * at) stays in `search.perf.test.ts`, printed, never asserted.
