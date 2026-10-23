@@ -370,7 +370,10 @@ body edited, a push) labels it `land-failed` through `.mergify.yml`'s own
 are the bare job names `ui-receipt`, `scenario`, `retired-rows`,
 `robustness-baseline` and `repair-proof`; four read the PR body, so
 `pr-check` also runs on `edited`. The refusals judge the PR's merge ref at its last
-push or edit, never the queue's rebased draft: against a base that moved
+push or edit, never the queue's rebased draft — their job skips
+`mergify/merge-queue/**` heads as the lane job does, since on a draft it
+would judge Mergify's body and red falsely (issue #6404; the structure
+guard's `draft-body-read` row pins the skip). Against a base that moved
 since, `repair-proof` and `robustness-baseline` can be stale, which the
 migration accepts.
 

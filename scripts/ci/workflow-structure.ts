@@ -102,6 +102,9 @@
  *     header and the catalogue at the merge-base, so such a tree judged in
  *     the `base` role reds every PR touching a lockfile input on header
  *     drift (issue #6338).
+ *   - `draft-body-read` — a job reading `github.event.pull_request.body`
+ *     that runs on the queue's drafts: there the body is Mergify's batch
+ *     description, not the queued PR's, so a check judging it reds falsely.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
@@ -144,6 +147,7 @@ export type RuleId =
     | "queue-dequeue"
     | "queue-refusal-hold"
     | "derived-role"
+    | "draft-body-read"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
     | "queue-superseded"
@@ -937,8 +941,42 @@ export function checkStructure(input: StructureInput): Violation[] {
     if (input.mergify) {
         checkMergify(input.mergify, out);
         checkAdvisoryLaneSkipsDrafts(input.workflows, out);
+        checkBodyReadersSkipDrafts(input.workflows, out);
     }
     return out;
+}
+
+/** The expression a job reads the PR body through. */
+const PR_BODY_EXPR = /\bgithub\.event\.pull_request\.body\b/;
+
+/** On a queue draft the PR body is Mergify's batch description: a job judging
+ *  it there refuses a PR whose own body passes (issue #6404). So a job that
+ *  reads the body must skip the queue's drafts — the refusals already ran on
+ *  the PR at `land:ready` (issue #5956). */
+function checkBodyReadersSkipDrafts(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    for (const f of workflows) {
+        let doc: unknown;
+        try {
+            doc = parse(f.text);
+        } catch {
+            continue; // reported by checkWorkflow
+        }
+        const jobs = isObj(doc) && isObj(doc.jobs) ? doc.jobs : {};
+        for (const [id, job] of Object.entries(jobs)) {
+            if (!isObj(job) || !PR_BODY_EXPR.test(JSON.stringify(job)))
+                continue;
+            if (!SKIPS_QUEUE_DRAFTS.test(String(job.if ?? "")))
+                out.push({
+                    file: f.path,
+                    job: id,
+                    rule: "draft-body-read",
+                    message: `a job reading \`github.event.pull_request.body\` must skip the queue's drafts (an \`if:\` on \`${QUEUE_DRAFT_PREFIX}\`): there the body is Mergify's, not the queued PR's`,
+                });
+        }
+    }
 }
 
 /** The queue's entry reads the advisory lane, and Mergify re-reads entry
