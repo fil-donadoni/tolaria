@@ -1753,6 +1753,22 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23d + CR 701.20a — a searched pile another player picks
+           * from: "Search your library for three cards and reveal them.
+           * Target opponent chooses one. Put that card into your hand and the
+           * rest into your graveyard. Then shuffle." The search is for a bare
+           * QUANTITY, so the searcher must find that many (CR 701.23d); the
+           * reveal is what lets the chooser see the pile at all. The four
+           * printed sentences are one effect, folded by `assembleSentences`;
+           * none is an effect alone.
+           */
+          readonly kind: "search-reveal-pile-pick";
+          readonly count: number;
+          /** Who picks from the revealed pile. */
+          readonly chooser: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 401.4 — "Look at the top N cards of <player>'s library, then
            * put them back in any order." One sentence: no card leaves the
            * top of the library, the looker only re-arranges it.
@@ -2172,6 +2188,18 @@ export type SentenceIR =
     | { readonly role: "pile-opponent-picks" }
     | { readonly role: "pile-route"; readonly pronoun: "one" | "that" }
     /**
+     * CR 701.23d + CR 701.20a — the sentences of a `search-reveal-pile-pick`
+     * (see there): the searched and revealed pile (`search-reveal-pile`), the
+     * other player's pick from it (`search-pile-pick`), where the pick and
+     * the rest go (the `reveal-until-route` words "Put that card into your
+     * hand and the rest into your graveyard", read here against the pile),
+     * and the closing shuffle (`search-pile-shuffle`). Each names an
+     * antecedent only the next reads.
+     */
+    | { readonly role: "search-reveal-pile"; readonly count: number }
+    | { readonly role: "search-pile-pick"; readonly chooser: PlayerRefIR }
+    | { readonly role: "search-pile-shuffle" }
+    /**
      * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
      * replacement half of an `upgrade-if-controls`, folded onto the effect in
      * front of it by `assembleSentences`. `body` is the replacement clause
@@ -2373,6 +2401,16 @@ export function assembleSentences(
         readonly stage: "needs-picker" | "ready";
         readonly form: "separates" | "chooses";
     } | null = null;
+    // CR 701.23d — a searched, revealed pile waits for who picks from it,
+    // then for where the pick and the rest go, then for the shuffle.
+    let searchPile:
+        | { readonly stage: "needs-chooser"; readonly count: number }
+        | {
+              readonly stage: "needs-route" | "needs-shuffle";
+              readonly count: number;
+              readonly chooser: PlayerRefIR;
+          }
+        | null = null;
     // CR 701.20a — a revealed hand waits for the card chosen from it, and the
     // chosen card for where it goes.
     let handReveal: {
@@ -2506,6 +2544,57 @@ export function assembleSentences(
             optionalHandCost = null;
             continue;
         }
+        if (searchPile !== null) {
+            if (searchPile.stage === "needs-chooser") {
+                if (sentence.role !== "search-pile-pick")
+                    return {
+                        ok: false,
+                        reason: "a searched and revealed pile is not followed by who picks from it",
+                    };
+                searchPile = {
+                    stage: "needs-route",
+                    count: searchPile.count,
+                    chooser: sentence.chooser,
+                };
+                continue;
+            }
+            if (searchPile.stage === "needs-route") {
+                // "that card" is the pick, "the rest" the pile's other cards.
+                if (
+                    sentence.role !== "reveal-until-route" ||
+                    sentence.match !== "hand" ||
+                    sentence.rest !== "graveyard"
+                )
+                    return {
+                        ok: false,
+                        reason: "a pick from a searched pile is not followed by where its cards go",
+                    };
+                searchPile = { ...searchPile, stage: "needs-shuffle" };
+                continue;
+            }
+            // CR 701.24a — the search ends in a shuffle; a pile routed with no
+            // shuffle after it is a different card.
+            if (sentence.role !== "search-pile-shuffle")
+                return {
+                    ok: false,
+                    reason: "a searched pile is not followed by the shuffle that ends the search",
+                };
+            effects.push({
+                kind: "search-reveal-pile-pick",
+                count: searchPile.count,
+                chooser: searchPile.chooser,
+            });
+            searchPile = null;
+            continue;
+        }
+        if (
+            sentence.role === "search-pile-pick" ||
+            sentence.role === "search-pile-shuffle"
+        )
+            return {
+                ok: false,
+                reason: '"chooses one" / "Then shuffle" follows no searched and revealed pile',
+            };
         if (handReveal !== null) {
             if (handReveal.pick === undefined) {
                 if (sentence.role !== "hand-pick")
@@ -2990,6 +3079,10 @@ export function assembleSentences(
             handReveal = { player: sentence.player };
             continue;
         }
+        if (sentence.role === "search-reveal-pile") {
+            searchPile = { stage: "needs-chooser", count: sentence.count };
+            continue;
+        }
         if (sentence.role === "hand-reveal-pick") {
             handReveal = { player: sentence.player, pick: sentence.pick };
             continue;
@@ -3258,6 +3351,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a revealed hand is not followed by the card chosen from it and where it goes",
+        };
+    if (searchPile !== null)
+        return {
+            ok: false,
+            reason: "a searched and revealed pile is not followed by who picks from it, where its cards go and the shuffle",
         };
     if (optionalHandCost !== null)
         return {
@@ -4428,6 +4526,15 @@ const PILE_SPLIT_WINDOW =
 const PILE_OPPONENT_PICKS = /^An opponent chooses one of those piles$/;
 const PILE_ROUTE =
     /^Put (one|that) pile into your hand and the other into your graveyard$/;
+/** CR 701.23d + CR 701.20a — a searched pile: "Search your library for three
+ *  cards and reveal them". A bare QUANTITY only; a described search ("three
+ *  creature cards", "with different names") is not this window. */
+const SEARCH_REVEAL_PILE =
+    /^Search your library for (\S+) cards and reveal them$/;
+/** The other player's pick from the pile: "Target opponent chooses one". */
+const SEARCH_PILE_PICK = /^Target opponent chooses one$/;
+/** CR 701.24a — the shuffle that ends the search. */
+const SEARCH_PILE_SHUFFLE = /^Then shuffle$/;
 
 const REVEAL_UNTIL_FILTERS = new Map<string, EffectCardFilter>([
     ["a basic land card", { type: "Land", supertype: "Basic" }],
@@ -5638,6 +5745,23 @@ function libraryHalf(span: string) {
     }
     if (PILE_OPPONENT_PICKS.test(span))
         return ok({ role: "pile-opponent-picks" as const });
+    const searchPile = span.match(SEARCH_REVEAL_PILE);
+    if (searchPile !== null) {
+        const count = readNumberWord(searchPile[1]!);
+        if (count === null || count < 2)
+            return fail(`"${searchPile[1]}" is not a pile's count`, span);
+        return ok({
+            role: "search-reveal-pile" as const,
+            count,
+        } satisfies SentenceIR);
+    }
+    if (SEARCH_PILE_PICK.test(span))
+        return ok({
+            role: "search-pile-pick" as const,
+            chooser: { kind: "target", opponent: true },
+        } satisfies SentenceIR);
+    if (SEARCH_PILE_SHUFFLE.test(span))
+        return ok({ role: "search-pile-shuffle" as const });
     const pileRoute = span.match(PILE_ROUTE);
     if (pileRoute !== null)
         return ok({
