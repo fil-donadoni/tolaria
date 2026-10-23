@@ -38,7 +38,7 @@ const BURNER: CardDefinition = {
     id: SOURCE_ID,
     name: "Synthetic Library Burner",
     rarity: "rare",
-    manaCost: { generic: 1 },
+    manaCost: { X: 1 },
     types: ["Artifact"],
     activatedAbilities: [
         {

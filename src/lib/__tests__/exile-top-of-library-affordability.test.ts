@@ -29,7 +29,7 @@ const BURNER: CardDefinition = {
     id: SOURCE_ID,
     name: "Client Library Burner Probe",
     rarity: "rare",
-    manaCost: { generic: 1 },
+    manaCost: { X: 1 },
     types: ["Artifact"],
     activatedAbilities: [
         {
