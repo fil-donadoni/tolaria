@@ -42,6 +42,7 @@ export type LayerPlayersInput = ReadonlyArray<{
     id: string;
     battlefield: ReadonlyArray<CardInstance>;
     graveyard?: ReadonlyArray<CardInstance>;
+    exile?: ReadonlyArray<CardInstance>;
     hand: ReadonlyArray<unknown>;
 }>;
 
@@ -58,6 +59,16 @@ export function toLayerState(
             // `.types` is read; the projected client state carries it.
             graveyard: (p.graveyard ?? []).map((c) => ({
                 types: (c.types ?? []) as CardType[],
+            })),
+            // CR 607.2a — a CDA totalling the cards exiled with its source
+            // (Sutured Ghoul) reads the linked pile; dropping the zone here
+            // would show 0/0 on the client while the server counts the pile.
+            exile: (p.exile ?? []).map((c) => ({
+                id: c.id,
+                exiledBySourceId: c.exiledBySourceId,
+                card: c.card as Readonly<Record<string, unknown>>,
+                power: c.power,
+                toughness: c.toughness,
             })),
             // Hand-size-gated conditions (CR 611.2c, issue #1379 — Carnage
             // Interpreter's "as long as you have one or fewer cards in
