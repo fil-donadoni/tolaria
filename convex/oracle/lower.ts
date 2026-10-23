@@ -87,6 +87,8 @@ interface Accumulator {
     damagePreventionCounterRemoval: boolean;
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
+    /** CR 401.5 — a "play with the top card of your library revealed" line. */
+    revealsLibraryTop: boolean;
     /** CR 614.1a — the "you may discard a <type> card instead" lines read. */
     asEntersDiscards: { filter: { type: CardType } }[];
     /** CR 614.12a — the "as this enters, choose a creature type" lines read. */
@@ -570,6 +572,8 @@ function lowerLine(
                 acc.damagePreventionCounterRemoval = true;
             if (out.extraLandDrops !== undefined)
                 acc.extraLandDrops += out.extraLandDrops;
+            if (out.revealsLibraryTop !== undefined)
+                acc.revealsLibraryTop = true;
             if (out.asEntersDiscard !== undefined)
                 acc.asEntersDiscards.push(out.asEntersDiscard);
             if (out.asEntersCreatureType === true) {
@@ -832,6 +836,7 @@ export function lowerCard(
         castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
         extraLandDrops: 0,
+        revealsLibraryTop: false,
         asEntersDiscards: [],
         asEntersCreatureTypeLines: [],
         asEntersCardNameLines: [],
@@ -1050,6 +1055,8 @@ export function lowerCard(
         };
     // CR 305.2 — additional land plays are a count on the definition.
     if (acc.extraLandDrops > 0) definition.extraLandDrops = acc.extraLandDrops;
+    // CR 401.5 — the reveal scope is a flat field read live off the battlefield.
+    if (acc.revealsLibraryTop) definition.revealsLibraryTop = "controller";
     if (
         acc.entersWithCounters.length > 0 ||
         acc.asEntersCreatureTypeLines.length > 0 ||
