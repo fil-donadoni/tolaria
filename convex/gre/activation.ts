@@ -129,6 +129,7 @@ import {
     payManaCostForAbility,
     payManaCostForSpell,
     payRemoveCounterCost,
+    addCounterToCard,
     payReturnThisToHandCost,
     processPendingActionTriggers,
     removePermanentTo,
@@ -725,6 +726,9 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
+        ...(ability.cost.addCounter
+            ? { addCounterCost: { ...ability.cost.addCounter } }
+            : {}),
         ...(ability.cost.life !== undefined
             ? { lifeCost: ability.cost.life }
             : {}),
@@ -1008,6 +1012,16 @@ export function tryAutoCommitPendingActivation(
     }
     if (pa.removeCounterCost) {
         payRemoveCounterCost(state, card, pa.removeCounterCost);
+    }
+    // CR 122.1 / 118.1 — "Put a -1/-1 counter on this creature". Always
+    // payable, so nothing to re-check at commit.
+    if (pa.addCounterCost) {
+        addCounterToCard(
+            state,
+            card,
+            pa.addCounterCost.type,
+            pa.addCounterCost.count
+        );
     }
     if (pa.discardLastDrawnSource) {
         // CR 118.3 — re-check at commit: the recorded card may have left the
@@ -2755,6 +2769,17 @@ export function activateAbilityOnState(
         : undefined;
     if (ability.cost.removeCounter) {
         payRemoveCounterCost(state, card, ability.cost.removeCounter);
+    }
+    // CR 122.1 / 118.1 — counter-placement cost, paid as the ability is put on
+    // the stack; the counter may kill the source (SBA, CR 704.5f) without
+    // making the activation illegal.
+    if (ability.cost.addCounter) {
+        addCounterToCard(
+            state,
+            card,
+            ability.cost.addCounter.type,
+            ability.cost.addCounter.count
+        );
     }
     if (ability.cost.discardLastDrawn) {
         payDiscardLastDrawn(state, player);

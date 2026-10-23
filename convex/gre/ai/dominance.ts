@@ -1410,6 +1410,7 @@ export function isProbeEligibleMove(
             cost.discardAtRandom !== undefined ||
             cost.exileFromGraveyard ||
             cost.removeCounter ||
+            cost.addCounter ||
             cost.life !== undefined ||
             cost.loyalty !== undefined
         );

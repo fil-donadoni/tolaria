@@ -110,6 +110,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     exileFromGraveyardChoice: { count: 1 },
     tapOtherChoice: { filter: {}, count: 1, pickedIds: [] },
     removeCounterCost: { type: "charge", count: 1 },
+    addCounterCost: { type: "-1/-1", count: 1 },
     lifeCost: 0,
     discardLastDrawnSource: false,
     discardThisSource: false,
