@@ -2938,6 +2938,9 @@ export type PendingActivation = {
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
+    /** Counter-placement cost (CR 122.1 / 118.1 — "Put a -1/-1 counter on this
+     *  creature"). Applied at commit through `addCounterToCard`. */
+    addCounterCost?: { type: string; count: number };
     /** Life-payment cost (CR 119.4 — "Pay N life"). Validated up-front at
      *  announcement (activateAbility); the life is deducted at commit so a
      *  cancelled/dropped payment leaves the total untouched. */

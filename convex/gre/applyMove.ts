@@ -79,6 +79,7 @@ import {
     applyCostModifiers,
     getCostModifiers,
     payRemoveCounterCost,
+    addCounterToCard,
     payDiscardLastDrawn,
     payDiscardAtRandomCost,
     canPayRemoveCounterCost,
@@ -970,6 +971,16 @@ export function applyActivationCostsForSearch(
     // cannot throw.
     if (ability.cost.removeCounter) {
         payRemoveCounterCost(state, src, ability.cost.removeCounter);
+    }
+    // CR 122.1 / 118.1 — the counter-placement leg is always payable (no
+    // affordability guard above), through the mutation's own mutator.
+    if (ability.cost.addCounter) {
+        addCounterToCard(
+            state,
+            src,
+            ability.cost.addCounter.type,
+            ability.cost.addCounter.count
+        );
     }
     // CR 118.3 — "discard the last card you drew this turn" (Jandor's Ring).
     if (ability.cost.discardLastDrawn && payer) {
