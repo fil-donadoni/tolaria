@@ -300,6 +300,7 @@ import {
     getAlternativeCost,
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
+    withAlternativeCostGraveyardExile,
 } from "./gre/alternativeCost";
 import {
     isCastPermissionAltCostId,
@@ -5634,6 +5635,15 @@ export function finalizeTargetSelection(
         }
         castExileChoice = castExileBuild.choice;
     }
+    // CR 118.9 / 601.2h — the chosen alternative cost's GRAVEYARD exile leg
+    // ("exile the top three black cards of your graveyard"), pre-filled with
+    // its deterministic top-N pick, on the same picker slot.
+    castExileChoice = withAlternativeCostGraveyardExile(
+        player,
+        chosenAltCost,
+        cardInstanceId,
+        castExileChoice
+    );
     // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063). Same twin as the escape
     // block above: a TARGETED delve spell reaches its commit here, after target
     // selection, so build the graveyard picker here too and park on it before
@@ -7337,6 +7347,15 @@ export const announceCast = mutation({
                 // this leg was folded. Without it the half was free, and the
                 // Bot's own Move for the same cast already carried `payLife`.
                 (libraryTopPayment?.life ?? 0);
+            // CR 118.9 / 601.2h — the alternative cost's GRAVEYARD exile leg,
+            // pre-filled with its deterministic top-N pick: never a reason to
+            // park, paid by the same commit as every other leg.
+            const altGraveyardExile = withAlternativeCostGraveyardExile(
+                player,
+                chosenAltCost,
+                args.cardInstanceId,
+                undefined
+            );
             const parkPerm =
                 castSac !== undefined && !isSacrificeSelectionComplete(castSac);
             const parkHand =
@@ -7389,6 +7408,9 @@ export const announceCast = mutation({
                         : {}),
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
+                        : {}),
+                    ...(altGraveyardExile
+                        ? { exileFromGraveyardChoice: altGraveyardExile }
                         : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
@@ -7463,6 +7485,9 @@ export const announceCast = mutation({
                     sacrificeSelection: castSac,
                     ...(altHandChoice?.pickedCardIds
                         ? { alternativeCostHandChoice: altHandChoice }
+                        : {}),
+                    ...(altGraveyardExile
+                        ? { exileFromGraveyardChoice: altGraveyardExile }
                         : {}),
                 },
                 record: {
