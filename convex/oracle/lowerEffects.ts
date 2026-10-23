@@ -2759,8 +2759,8 @@ function lowerSentenceBody(
                 },
             ]);
         }
-        case "optional-hand-exile-then": {
-            // CR 608.2c + CR 701.13a — the hand exile is a `mayPay` HAND cost
+        case "optional-hand-cost-then": {
+            // CR 608.2c + CR 701.13a — the hand exile / discard is a `mayPay` HAND cost
             // leg (ADR 0079), so declining it, or an empty hand, leaves the
             // REQUIRED bind false and the gated effect undone.
             const inner = gatedSentence(sentence.effect, walk, site);
@@ -2772,7 +2772,7 @@ function lowerSentenceBody(
                     player: "controller",
                     cost: {
                         hand: {
-                            action: "exile",
+                            action: sentence.action,
                             requirements: [{ filter: {}, count: 1 }],
                         },
                     },
