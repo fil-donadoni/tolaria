@@ -53,12 +53,20 @@ export function isEligibleAttacker(
             }
         }
     }
+    const controllerBattlefield =
+        allPlayers.find((p) => p.id === card.controllerId)?.battlefield ?? [];
     for (const sourceId of restrictionSourceIds) {
         const def = getDefinition(sourceId);
         if (!def.staticEffects) continue;
         for (const eff of def.staticEffects) {
             if (eff.kind !== "attack-restriction") continue;
-            if (!eff.predicate(card as never, opponentBattlefield as never)) {
+            if (
+                !eff.predicate(
+                    card as never,
+                    opponentBattlefield as never,
+                    controllerBattlefield as never
+                )
+            ) {
                 return false;
             }
         }
