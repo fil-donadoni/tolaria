@@ -12291,6 +12291,14 @@ export interface TriggeredAbility {
      *  some of them is a static validation failure (`validate.ts`), never a
      *  runtime skip. */
     event: GameEventType | GameEventType[];
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal." Without it an ability whose every target went illegal is
+     *  removed from the stack and does nothing; with it the ability resolves
+     *  regardless, each illegal slot blanked exactly as in the partially-legal
+     *  case (so a script reading `{ target: 0 }` finds nothing there). Opt-in
+     *  per ability; the legality gate (`targetLegalityGate`) is the only
+     *  reader. */
+    resolvesIfTargetsIllegal?: boolean;
     /** Issue #4758 — is this an **ETB Ability** (GLOSSARY.md): "When [this
      *  object] enters, …" (CR 603.6a), fired by its OWN permanent entering and
      *  by nothing else? `true` means it is SPENT on entering: the Bot's value

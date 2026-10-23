@@ -147,6 +147,10 @@ export interface EnteredTriggerArgs {
      *  `CardInstanceState.triggersThisTurn`. Mirrors `attacksTrigger`'s own
      *  passthrough. */
     maxTriggersPerTurn?: number;
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal". Forwarded verbatim onto the built `TriggeredAbility`, where
+     *  the target-legality gate reads it. */
+    resolvesIfTargetsIllegal?: boolean;
     /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
      *  #1519) — never executed, only walked by `OP_VALUERS` so the value model
      *  can see what an imperative ETB trigger does. Passed straight through to
@@ -310,6 +314,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     }
     if (args.aiEffects !== undefined) {
         ability.aiEffects = args.aiEffects;
+    }
+    if (args.resolvesIfTargetsIllegal) {
+        ability.resolvesIfTargetsIllegal = true;
     }
     if (args.oncePerEventBatch) {
         ability.oncePerEventBatch = true;
