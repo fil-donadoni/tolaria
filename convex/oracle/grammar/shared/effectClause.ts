@@ -959,6 +959,18 @@ export type EffectSentenceIR =
           readonly mvMax: number;
       }
     | {
+          /**
+           * CR 115.7a — "change the target of target spell with a single
+           * target": the controller redirects an announced spell to another
+           * legal target. The subject is always the announced stack slot
+           * carrying `spellSingleTarget` (CR 115.7) — the one phrase this
+           * grammar reads; "change a target" / "choose new targets" (CR
+           * 115.7b–d) are different instructions and stay refused.
+           */
+          readonly kind: "retarget";
+          readonly subject: SubjectIR;
+      }
+    | {
           readonly kind: "tap-untap";
           readonly action: "tap" | "untap";
           readonly subject: SubjectIR;
@@ -4236,6 +4248,11 @@ const ROUTE_REST: ReadonlyMap<
  */
 const COUNTER_VERB = "counter ";
 
+/** CR 115.7a — the instruction's opening, sentence-initial casing. */
+const RETARGET_VERB = "Change the target of ";
+/** CR 115.7 — the one subject phrase the retarget rule reads. */
+const RETARGET_SPELL_PHRASE = "target spell with a single target";
+
 /** CR 122.1 — "If there are N or more <kind> counters on <self>, sacrifice it". */
 const SACRIFICE_AT_COUNTERS =
     /^If there are (\S+) or more (\S+) counters on (.+), sacrifice it$/;
@@ -6306,6 +6323,31 @@ function effectSentence(
             kind: "sacrifice-source-at-counters" as const,
             counter: tally[2]!,
             atLeast,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── change the target of a spell (CR 115.7a) ───────────────────────────
+    //
+    // Exact spelling, for the reason the narrowed stack phrases are: the
+    // "with a single target" restriction is a filter beside `type: "spell"`,
+    // not a descriptor an adjective could be dropped from.
+    if (span.startsWith(RETARGET_VERB)) {
+        const phrase = span.slice(RETARGET_VERB.length);
+        if (phrase !== RETARGET_SPELL_PHRASE)
+            return fail(
+                `"${phrase}" is not a retargetable phrase this grammar reads`,
+                span
+            );
+        return ok({
+            kind: "retarget" as const,
+            subject: {
+                kind: "target" as const,
+                requirement: {
+                    type: "spell",
+                    count: 1,
+                    spellSingleTarget: true,
+                } as TargetRequirement,
+            },
         } satisfies EffectSentenceIR);
     }
 

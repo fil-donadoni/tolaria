@@ -267,6 +267,10 @@
         "code": "card-paired-mechanism",
         "reason": "Op \"returnExiledForSource\" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests"
     },
+    "retarget": {
+        "code": "op-own-tests",
+        "reason": "Op \"retarget\" targets a spell on the stack — covered by the Op's interpreter tests"
+    },
     "returnToHandAtNextUntap": "runs",
     "reveal": {
         "code": "visibility-only",

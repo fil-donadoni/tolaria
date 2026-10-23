@@ -6168,6 +6168,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             destination: isSpellStackDestination,
         },
     },
+    // CR 115.7a — change the target of the target spell. No fields beyond the
+    // announced slot: the new target is picked at resolution against the
+    // spell's own requirement.
+    retarget: {
+        required: {
+            target: isTargetRef,
+        },
+    },
     // CR 117.3a / 118.4 (issue #806, #680) — optional "you may pay {cost}",
     // or a bare cost-free "you may …" decision when `cost` is omitted (issue
     // #680 — Squee, Goblin Nabob). `bind` is REQUIRED: a may-pay whose

@@ -3666,6 +3666,10 @@ export type PendingTarget = {
      *  TargetRequirement.spellSingleTargetingController. Used by Reflecting
      *  Mirror. Ignored for non-spell target types. */
     spellSingleTargetingController?: boolean;
+    /** Restricts legal SPELL targets to spells with exactly one target (CR
+     *  115.7). Propagated from TargetRequirement.spellSingleTarget. Ignored for
+     *  non-spell target types. */
+    spellSingleTarget?: boolean;
     /** Restricts legal SPELL targets to spells that would destroy a land the
      *  activating player controls (CR 114.1 + 701.7). Propagated from
      *  TargetRequirement.spellWouldDestroyLandYouControl. Used by Equinox's

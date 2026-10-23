@@ -1120,6 +1120,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     spellExcludeTypeFilter: true,
     spellCreaturePtFilter: true,
     spellSingleTargetingController: true,
+    spellSingleTarget: true,
     spellWouldDestroyLandYouControl: true,
     spellTargetsPermanentFilter: true,
     spellWasKicked: true,
@@ -10932,7 +10933,14 @@ function cloneSpellOntoStack(
  *  directly instead of hand-building the `PendingTarget` it would raise —
  *  every non-test caller still goes through `SpellContext.requestCopyRetarget`
  *  / `requestCastCopyRetarget` below. */
-export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
+export function requestCopyRetargetOn(
+    state: GameState,
+    copy: StackItem,
+    /** Overrides the producer's defaults — the prompt's `kind` and chooser —
+     *  for the in-place retarget of an ORIGINAL spell (CR 115.7a), which
+     *  reuses this requirement-to-PendingTarget translation. */
+    as?: { kind: "retarget"; playerId: string }
+): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     // A copy of a modal spell retargets within its chosen mode
@@ -11006,12 +11014,12 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     // Lightning it's the player who paid {R}{R} (the copy's controller),
     // so key the chooser off the copy itself, not the resolving item's caster.
     state.pendingTarget = {
-        playerId: copy.controllerId,
+        playerId: as?.playerId ?? copy.controllerId,
         cardInstanceId: copy.id,
         targetType: req.type,
         count,
         selected: [],
-        kind: "copy-retarget",
+        kind: as?.kind ?? "copy-retarget",
         ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
         ...(req.colorFilterAny ? { colorFilterAny: req.colorFilterAny } : {}),
         ...(req.zone ? { zone: req.zone } : {}),
@@ -11049,14 +11057,32 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
  *  shown. Otherwise defers to `requestCopyRetargetOn`, the exact machinery
  *  Fork/Chain Lightning/Onslaught already use. */
 function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
-    const cardId = (copy.card as { id?: string }).id;
+    offerRetargetUnlessForced(state, copy);
+}
+
+/** The spell's OWN announced requirement — its chosen mode's when modal (CR
+ *  700.2), else the card-level one. `undefined` = it targets nothing. */
+function ownTargetRequirement(spell: StackItem): TargetRequirement | undefined {
+    const cardId = (spell.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    const req =
-        (soleChosenModeId(copy.chosenModeIds) !== undefined
+    return (
+        (soleChosenModeId(spell.chosenModeIds) !== undefined
             ? def?.modes?.find(
-                  (m) => m.id === soleChosenModeId(copy.chosenModeIds)
+                  (m) => m.id === soleChosenModeId(spell.chosenModeIds)
               )?.targetRequirement
-            : undefined) ?? def?.targetRequirement;
+            : undefined) ?? def?.targetRequirement
+    );
+}
+
+/** Raises the retarget prompt over `copy`'s OWN requirement unless it has no
+ *  other legal target — then it keeps what it has and nothing is shown (CR
+ *  115.7a for a change; the Arena zero-branch convention for a "may"). */
+function offerRetargetUnlessForced(
+    state: GameState,
+    copy: StackItem,
+    as?: { kind: "retarget"; playerId: string }
+): void {
+    const req = ownTargetRequirement(copy);
     if (!req) return; // untargeted (Empty the Warrens) — nothing to offer
     const legal = getLegalTargets(
         state,
@@ -11073,7 +11099,7 @@ function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
         (t) => !currentKeys.has(`${t.type}:${t.id}`)
     );
     if (!hasAlternative) return; // zero-branch — keep the inherited target
-    requestCopyRetargetOn(state, copy);
+    requestCopyRetargetOn(state, copy, as);
 }
 
 /** Cast-copy trigger resolution (CR 702.40 Storm / CR 702.56 Replicate,
@@ -16293,6 +16319,25 @@ export function buildSpellContext(
             // spell, so finalization writes new targets onto it in place.
             const spell = state.stack.find((s) => s.id === spellStackItemId);
             if (!spell) return; // spell left the stack — nothing to retarget
+            if (requirement === undefined) {
+                // CR 115.7a — "change the target of target spell with a single
+                // target": the new target must be legal for the spell ITSELF,
+                // so the pick is offered over its own requirement. Only a
+                // spell (never an ability) with exactly one target qualifies,
+                // and one with no other legal target keeps its target.
+                // Re-picking the current target leaves it unchanged — the same
+                // outcome as that zero-branch.
+                if (
+                    !isSpellStackItem(spell) ||
+                    (spell.targets ?? []).length !== 1
+                )
+                    return;
+                offerRetargetUnlessForced(state, spell, {
+                    kind: "retarget",
+                    playerId: item.castById,
+                });
+                return;
+            }
             // Single shared resolver (issue #2365) — mirrors
             // `requestCopyRetargetOn`'s use of the same function just above;
             // this is a FIFTH independent count-resolution site the issue's

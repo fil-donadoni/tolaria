@@ -3122,6 +3122,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Effect Script Op for the non-counter stack departure (issue #1205 Subtlety, issue #2605 Reprieve) — moves the target SPELL off the stack into a zone of its OWNER\'s ("return target spell to its owner\'s hand", "put target spell on the top or bottom of its owner\'s library") without countering it. Deliberately NOT a `counter` destination: a counter is shut out by "can\'t be countered" (CR 113.6g) and this is not, and nothing watching for a countered spell sees it. `destination` is REQUIRED ("hand" / "library-top" / "library-bottom") — there is no zone a non-counter move silently belongs in, unlike CR 701.6a\'s graveyard default for a counter. An ability on the stack has no card and simply vanishes (CR 113.7a); a COPY of a spell ceases to exist rather than reaching a zone (CR 707.10a). Subtlety itself stays `resolve()`: its destination is an option pick raised to a FOREIGN player mid-resolution, which no literal `destination` can express.',
     },
     {
+        op: "retarget",
+        status: "implemented",
+        cr: "115.7a",
+        binding: "SpellContext.requestRetarget",
+        note: 'Effect Script Op for "change the target of target spell" (CR 115.7a). Routes through `SpellContext.requestRetarget` with NO requirement: the effect\'s controller is raised a `retarget` target selection over the target spell\'s OWN announced requirement (modal-aware), so only a target legal for that spell is offered, and the pick is written onto the ORIGINAL stack item in place. A spell with no other legal target keeps its original (CR 115.7a) and nothing is raised. Skipped when the target already left the stack (CR 608.2b), and for an ability or a spell without exactly one target. The printed "with a single target" restriction is also the announced slot\'s `spellSingleTarget` filter (CR 115.7). Not "choose new targets" (CR 115.7d), and no kind-narrowed new target ("must be a player" stays `resolve()`). Used by Deflection-class spells.',
+    },
+    {
         op: "mayPay",
         status: "implemented",
         cr: "117.3a",

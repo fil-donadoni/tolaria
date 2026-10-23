@@ -1630,6 +1630,14 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`,
     },
+    // `retarget` (CR 115.7a) targets a SPELL on the stack and raises a
+    // `retarget` selection for a player; the canned generator seeds no second
+    // spell and answers no pending target, so it is an explicit skip.
+    // Execution is proved by the Op's own interpreter tests.
+    retarget: {
+        code: "op-own-tests",
+        reason: `Op "retarget" targets a spell on the stack — covered by the Op's interpreter tests`,
+    },
     // The `if` construct branches on a runtime predicate (issue #806).
     // The taken branch — and thus the observable outcome — depends on
     // a live may-pay outcome or a runtime snapshot the generator does

@@ -1249,6 +1249,19 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 115.7 — "target spell with a single target": the chosen spell must have
+// EXACTLY ONE target, of any kind. An ability never qualifies (the printed
+// phrase says "spell"), exactly as in the controller-pinned sibling above.
+const spellSingleTargetDescriptor = defineFilter<boolean>({
+    lower: (req) => (req.spellSingleTarget ? true : undefined),
+    checks: {
+        spell: (item) =>
+            isSpellStackItem(item) && (item.targets ?? []).length === 1
+                ? null
+                : "Target must be a spell with a single target",
+    },
+});
+
 // CR 115.2 / 109.2 — a SPELL-PROPERTY filter (issue #1956, generalized to a
 // conjunction by issue #2708): the chosen stack object must itself target at
 // least one permanent matching EVERY clause AT ONCE — "Counter target spell
@@ -1423,6 +1436,7 @@ export const SPELL_ONLY_FILTER_KEYS = [
     "spellExcludeTypeFilter",
     "spellCreaturePtFilter",
     "spellSingleTargetingController",
+    "spellSingleTarget",
     "spellWouldDestroyLandYouControl",
     // Spell-PROPERTY filters (issue #1956) — the candidate's own chosen
     // targets / Kicker state rather than its characteristics.
@@ -1490,6 +1504,7 @@ export const REGISTRY = {
         spellCreaturePtFilterDescriptor as FilterDescriptor<unknown>,
     spellSingleTargetingController:
         spellSingleTargetingControllerDescriptor as FilterDescriptor<unknown>,
+    spellSingleTarget: spellSingleTargetDescriptor as FilterDescriptor<unknown>,
     spellWouldDestroyLandYouControl:
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
     spellTargetsPermanentFilter:
@@ -1648,6 +1663,7 @@ export const SPELL_FILTER_KEYS = [
     "spellExcludeTypeFilter",
     "spellCreaturePtFilter",
     "spellSingleTargetingController",
+    "spellSingleTarget",
     "spellWouldDestroyLandYouControl",
     "spellTargetsPermanentFilter",
     "spellWasKicked",
@@ -1670,6 +1686,7 @@ export type SpellFilterValues = Partial<{
     spellExcludeTypeFilter: CardType[];
     spellCreaturePtFilter: { maxPowerOrToughness: number };
     spellSingleTargetingController: boolean;
+    spellSingleTarget: boolean;
     spellWouldDestroyLandYouControl: boolean;
     spellTargetsPermanentFilter: {
         types?: CardType[];
