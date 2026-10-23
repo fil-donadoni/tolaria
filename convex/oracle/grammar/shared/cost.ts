@@ -381,7 +381,7 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
     }
 );
 
-const CARD_TYPE_ADJECTIVES: ReadonlyMap<string, CardType> = new Map<
+export const CARD_TYPE_ADJECTIVES: ReadonlyMap<string, CardType> = new Map<
     string,
     CardType
 >([

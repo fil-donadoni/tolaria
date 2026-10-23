@@ -3011,14 +3011,21 @@ function isSacrificeCount(value: unknown): boolean {
 
 /** A `mayPay` cost (CR 117.3a / 118.4 / 118.9 / 702.24 / 701.9 / 122.1): a bare
  *  `ManaCost`, or the shared `CostLegs` shape
- *  `{ mana?, life?, permanent?, hand?, energy? }` (ADR 0079). At least one leg
- *  must be present. */
+ *  `{ mana?, life?, permanent?, hand?, energy?, graveyard? }` (ADR 0079). At
+ *  least one leg must be present. */
 function isMayPayCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const obj = value as Record<string, unknown>;
-    const unionKeys = new Set(["mana", "life", "permanent", "hand", "energy"]);
+    const unionKeys = new Set([
+        "mana",
+        "life",
+        "permanent",
+        "hand",
+        "energy",
+        "graveyard",
+    ]);
     const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
     if (isUnion && Object.keys(obj).length > 0) {
         if ("mana" in obj && !isManaCost(obj.mana)) return false;
@@ -3084,6 +3091,27 @@ function isMayPayCost(value: unknown): boolean {
         if ("energy" in obj) {
             // Energy leg (CR 122.1, issue #1194): fixed positive count only.
             if (!isPositiveInt(obj.energy)) return false;
+        }
+        if ("graveyard" in obj) {
+            // Graveyard leg (CR 118.3 / 118.12a): "return" only, a card filter
+            // object and a fixed positive count.
+            const g = obj.graveyard;
+            if (typeof g !== "object" || g === null) return false;
+            const leg = g as Record<string, unknown>;
+            if (leg.action !== "return" || !isPositiveInt(leg.count)) {
+                return false;
+            }
+            if (
+                typeof leg.filter !== "object" ||
+                leg.filter === null ||
+                Array.isArray(leg.filter)
+            ) {
+                return false;
+            }
+            // A may-pay entry carries ONE picker (`requestMayPay`): a
+            // graveyard leg beside a permanent or hand leg could never be
+            // picked alongside them, so the accept would be unanswerable.
+            if ("permanent" in obj || "hand" in obj) return false;
         }
         return true;
     }

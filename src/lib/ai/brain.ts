@@ -313,6 +313,12 @@ export type OwedChoice = {
      *  pick is owed, or when the leg cannot be covered at all (in which case
      *  `affordable` is already false and the bot declines). */
     discardIds?: string[];
+    /** `may-pay` only (CR 118.3 / 118.12a): the CONCRETE graveyard cards to
+     *  return alongside an accepted graveyard leg, resolved by
+     *  `buildOwedChoice` (best-first — the cards come back to hand). The leg
+     *  never auto-picks, so an accept without them is refused server-side.
+     *  Undefined when no graveyard pick is owed. */
+    graveyardIds?: string[];
     /** `discard-hand` only: the controller's mana picture, so the discard
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
@@ -409,6 +415,7 @@ export type BotAction =
           accept: boolean;
           sacrificeIds?: string[];
           discardIds?: string[];
+          graveyardIds?: string[];
       }
     | { kind: "land-entry"; accept: boolean }
     | { kind: "draw-replacement"; accept: boolean }
@@ -1411,6 +1418,12 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // from the bot's mana pool, else decline (ADR 0016 minimal policy —
         // smart "should I pay?" is deferred). Both answers are legal.
         const accept = choice.affordable === true;
+        // CR 118.3 / 118.12a — a graveyard leg is always a pick; its ids ride
+        // every accept (no printed cost pairs it with another picked leg).
+        const graveyardPick =
+            accept && choice.graveyardIds && choice.graveyardIds.length > 0
+                ? { graveyardIds: choice.graveyardIds }
+                : {};
         // CR 701.21a — a sacrifice leg with a real victim choice needs a
         // legal pick supplied alongside the accept, or the submit throws and
         // the bot freezes. Pick `sacrificeCount` worst-first candidates (a
@@ -1455,9 +1468,10 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
                 kind: "may-pay",
                 accept,
                 discardIds: choice.discardIds,
+                ...graveyardPick,
             };
         }
-        return { kind: "may-pay", accept };
+        return { kind: "may-pay", accept, ...graveyardPick };
     }
     if (choice.kind === "land-entry-tapped") {
         // CR 614.12 / ADR 0051 — shock land: pay iff affordable (life ≥

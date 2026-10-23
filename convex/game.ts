@@ -12529,6 +12529,9 @@ export const submitMayPay = mutation({
         // when the may-pay's discard leg admits a real choice. Omitted for a
         // plain yes/no may-pay or an auto-resolving discard.
         discardIds: v.optional(v.array(v.string())),
+        // CR 118.3 / 118.12a — the payer's chosen graveyard card id(s) when
+        // the accepted cost carries a graveyard leg (always a real choice).
+        graveyardIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -12549,6 +12552,7 @@ export const submitMayPay = mutation({
             accept: args.accept,
             sacrificeIds: args.sacrificeIds,
             discardIds: args.discardIds,
+            graveyardIds: args.graveyardIds,
         });
 
         const nextSeq = gameState.seq + 1;

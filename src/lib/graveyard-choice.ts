@@ -1,7 +1,8 @@
 import type { PendingChoice } from "~/types/game";
 
-/** Whether a mid-resolution `choose-graveyard-card` choice (CR 608.2) is
- *  active for `viewer` and picks from `player`'s graveyard. Mirrors
+/** Whether a mid-resolution `choose-graveyard-card` choice (CR 608.2) — or a
+ *  `may-pay` graveyard-leg pick — is active for `viewer` and picks from
+ *  `player`'s graveyard. Mirrors
  *  {@link isSelectableHandChoiceCard} at the pile level: the graveyard is a
  *  public zone, so eligibility per card is the choice's `candidateIds`
  *  allow-list, checked at click time. Used by `PlayerGraveyard` to switch the
@@ -14,7 +15,11 @@ export function isGraveyardChoiceActive(
     viewerId: string
 ): boolean {
     if (!choice) return false;
-    if (choice.kind !== "choose-graveyard-card") return false;
+    // CR 118.3 / 118.12a — a `may-pay` whose GRAVEYARD leg is being paid
+    // ("sacrifice it unless you return a basic land card from your graveyard
+    // to your hand") picks from the same pile, so it shares the surface.
+    if (choice.kind !== "choose-graveyard-card" && choice.kind !== "may-pay")
+        return false;
     if (choice.playerId !== viewerId) return false;
     if (choice.zone !== "graveyard") return false;
     // The chooser picks from their OWN graveyard (zoneOwnerId defaults to the
