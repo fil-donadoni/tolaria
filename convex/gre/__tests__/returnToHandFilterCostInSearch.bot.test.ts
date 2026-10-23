@@ -24,6 +24,9 @@ import { applyMoveInSearch } from "../search";
 import { enumerateMoves } from "../moves";
 import type { Move } from "../moves";
 import { isProbeEligibleMove } from "../ai/dominance";
+import { spendsStandingPermanent } from "../ai/abilityTiming";
+import { isDeferrableAction } from "../ai/deferral";
+import { getDefinition } from "../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -158,5 +161,23 @@ describe("cost.returnToHandFilter — the dominance probe refuses it", () => {
         const [move] = symbioteMoves(state);
         expect(move).toBeDefined();
         expect(isProbeEligibleMove(state, BOT, move)).toBe(false);
+    });
+});
+
+describe("cost.returnToHandFilter — the timing rules read it as giving up a permanent", () => {
+    it("spendsStandingPermanent: bouncing ANOTHER permanent spends board presence, like its sacrifice twin", () => {
+        const state = botState([inst(ELF, "elf-1")]);
+        const source = state.players[0].battlefield.find(
+            (c) => c.id === "src"
+        )!;
+        const ability = getDefinition(SYMBIOTE_ID).activatedAbilities![0];
+        expect(spendsStandingPermanent(state, source, ability)).toBe(true);
+    });
+
+    it("isDeferrableAction: converting another permanent is never deferred as a free own-side action", () => {
+        const state = botState([inst(ELF, "elf-1")]);
+        const [move] = symbioteMoves(state);
+        expect(move).toBeDefined();
+        expect(isDeferrableAction(state, BOT, move)).toBe(false);
     });
 });
