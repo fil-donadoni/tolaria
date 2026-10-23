@@ -99,6 +99,8 @@ export interface AlternativeCostIR {
     readonly permanent?: NonNullable<AlternativeCost["permanent"]>;
     /** When the cost may be chosen at all; absent = always. */
     readonly condition?: AlternativeCost["condition"];
+    /** CR 701.20a — paying the cost reveals the payer's hand. */
+    readonly revealHand?: true;
 }
 
 /** What a mana ability adds (CR 605.1a). */

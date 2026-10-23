@@ -19847,6 +19847,13 @@ export type AlternativeCost = CostLegs & {
      *  `canPayAlternativeCost`, `alternativeCostConditionMet`) stay
      *  alternative-cost-only (ADR 0079). */
     condition?: AlternativeCostCondition;
+    /** CR 118.9 / 701.20a — paying this variant REVEALS the caster's hand ("you
+     *  may reveal your hand rather than pay this spell's mana cost", Land
+     *  Grant). Not a {@link CostLegs} leg: it moves no card and spends no
+     *  resource, so only an alternative cost (which replaces the mana cost and
+     *  so can consist of nothing but this) declares it. Applied at the Cast
+     *  Commit (CR 601.2h), when the hand becomes known to every player. */
+    revealHand?: true;
 };
 
 /** When an {@link AlternativeCost} variant is legal to choose (CR 118.9). */
@@ -19875,7 +19882,11 @@ export type AlternativeCostCondition =
      *  `PlayerState.spellsCastThisGame`, the lifetime sibling of
      *  `spellsCastThisTurn`. Checked pre-increment, like every other
      *  `AlternativeCostCondition`. */
-    | { kind: "first-spell-this-game" };
+    | { kind: "first-spell-this-game" }
+    /** Only while the caster's HAND holds no card matching `filter` (Land Grant
+     *  "If you have no land cards in hand"). The cast spell is on the stack
+     *  when the cost is paid, never in the hand it is tested against. */
+    | { kind: "no-hand-cards"; filter: EffectCardFilter };
 
 /** CR 601.3a — a card-level SELF cast condition: "Cast this spell only if
  *  <board predicate>" (Blizzard, ICE — "Cast this spell only if you control a

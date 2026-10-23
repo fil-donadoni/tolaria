@@ -30,13 +30,17 @@
  *
  *   - "If an opponent controls an Island and you control a Mountain, …"
  *
+ * and the REVEAL cost (CR 701.20a) on a hand-contents condition:
+ *
+ *   - "If you have no land cards in hand, you may reveal your hand rather
+ *     than pay this spell's mana cost"             (Land Grant)
+ *
  * ── What is refused, and why ───────────────────────────────────────────────
  *
  * Everything else, fail-closed. In particular the neighbours the engine has no
  * surface for: an exile leg over the GRAVEYARD ("exile the top three black
  * cards of your graveyard" — `CostLegs` has no graveyard leg), a REVEAL cost
- * with a hand-contents condition ("If you have no land cards in hand, you may
- * reveal your hand" — `AlternativeCostCondition` has no such member), a
+ * over a non-type hand condition ("If you have no red cards in hand"), a
  * life-plus-pitch cost and a turn-gated one (separate printed forms, separate
  * gaps), every other free-cast condition ("If you control a commander"), and
  * a permanent leg whose count, noun and pronoun disagree ("two Mountain",
@@ -49,6 +53,7 @@ import {
     permanentFilterFromDescriptor,
 } from "../shared/targetFilter";
 import { singularControlledFilter } from "../shared/condition";
+import { CARD_TYPE_ADJECTIVES } from "../shared/cost";
 import { readNumberWord } from "../shared/quantity";
 import {
     fail,
@@ -106,6 +111,31 @@ const RETURN_LEG =
     /^return (\S+) (.+) you control to (its|their) owner's hand$/;
 const FREE_CAST =
     /^If an opponent controls (.+?) and you control (.+), you may cast this spell without paying its mana cost\.$/;
+
+const REVEAL_HAND =
+    /^If you have no (\w+) cards in hand, you may reveal your hand rather than pay this spell's mana cost\.$/;
+
+/**
+ * CR 118.9 / 701.20a — "If you have no <type> cards in hand, you may reveal
+ * your hand rather than pay this spell's mana cost" (Land Grant): the cost
+ * is the reveal alone, gated on the hand holding no card of the named card
+ * type. A word that is not a card type ("If you have no red cards") is
+ * refused — a colour or subtype condition is a different printed form.
+ */
+function readRevealHand(
+    match: RegExpExecArray,
+    span: string
+): RuleResult<AlternativeCostIR> {
+    const type = CARD_TYPE_ADJECTIVES.get(match[1]!);
+    if (type === undefined)
+        return fail(`"${match[1]}" is not a card type (CR 205.2a)`, span);
+    return ok({
+        id: `reveal-hand-no-${match[1]}-cards`,
+        description: "Reveal your hand",
+        condition: { kind: "no-hand-cards", filter: { type } },
+        revealHand: true,
+    });
+}
 
 /**
  * CR 701.21a / 400.3 — the permanent leg: "sacrifice two Mountains", "return
@@ -184,6 +214,13 @@ function readFreeCast(
 export const alternativeCostSlot: Rule<SlotIR> = rule<SlotIR>(
     ALTERNATIVE_COST_SLOT,
     (span, ctx) => {
+        const reveal = REVEAL_HAND.exec(span);
+        if (reveal !== null) {
+            const cost = readRevealHand(reveal, span);
+            return cost.ok
+                ? ok({ kind: "alternative-cost" as const, cost: cost.value })
+                : cost;
+        }
         const free = FREE_CAST.exec(span);
         if (free !== null) {
             const cost = readFreeCast(free, span, ctx);
