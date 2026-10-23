@@ -1404,6 +1404,62 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 700.4 + CR 111.1 — "Create a 2/2 green Bear creature token for each
+    // nontoken creature put into your graveyard from the battlefield this
+    // turn": the count is the controller's per-turn tally, a runtime amount the
+    // canned smoke scenario cannot size (no death precedes the resolution).
+    {
+        rule: "create token",
+        card: {
+            oracleId: "ec79255f-4b4d-4a0a-89d8-c59ba640275b",
+            name: "Caller of the Claw",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Elf",
+            oracleText:
+                "Flash\nWhen this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Caller of the Claw",
+            types: ["Creature"],
+            subtypes: ["Elf"],
+            manaCost: { X: 2, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flash\nWhen this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+            staticAbilities: ["flash"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "caller-of-the-claw-trigger",
+                    oracleText:
+                        "When this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Bear",
+                                types: ["Creature"],
+                                subtypes: ["Bear"],
+                                power: 2,
+                                toughness: 2,
+                                colors: ["G"],
+                            },
+                            controller: "controller",
+                            count: {
+                                nontokenCreaturesToGraveyardThisTurn: {
+                                    of: "controller",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 603.4 + CR 608.2c — Ceta Sanctuary: exhibits the loot (draw, choose-hand-card, discard) and the red/green colour counts (issue #4126).
     {
         rule: "instead if you control",
