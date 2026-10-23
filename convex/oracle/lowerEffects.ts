@@ -63,6 +63,14 @@ import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
 
 /**
+ * CR 205.4a — "other than basic land cards": a card matches unless it is BOTH
+ * a land and basic, which an AND-of-fields filter cannot spell on its own.
+ */
+const NOT_A_BASIC_LAND = {
+    any: [{ excludeType: "Land" }, { excludeSupertype: "Basic" }],
+} as const;
+
+/**
  * A lowering step's outcome.
  *
  * Explicitly tagged rather than `T | string`: `playerRef` legitimately RESOLVES
@@ -3549,11 +3557,71 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "exile-same-name-library-copies":
+            return unlowerable(
+                '"For each card exiled this way, search … same name" follows no graveyard exile'
+            );
+        case "exile-graveyard-and-library-copies": {
+            // CR 608.2c + CR 608.2h + CR 400.7 + CR 701.23a — one `forEach`
+            // over the player's graveyard (member set frozen at entry), each
+            // member's graveyard copies and then its library copies leaving by
+            // the member's last-known name; one shuffle after the sweep.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: player.value,
+                        filter: NOT_A_BASIC_LAND,
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: player.value,
+                            fromZones: ["graveyard"],
+                            filter: {
+                                name: { ref: "$each.name" },
+                                ...NOT_A_BASIC_LAND,
+                            },
+                            to: "exile",
+                        },
+                        {
+                            op: "moveZone",
+                            player: player.value,
+                            fromZones: ["library"],
+                            filter: { name: { ref: "$each.name" } },
+                            to: "exile",
+                        },
+                    ],
+                },
+                ...(sentence.shuffle
+                    ? [
+                          {
+                              op: "libraryLook" as const,
+                              action: "shuffle" as const,
+                              player: player.value,
+                          },
+                      ]
+                    : []),
+            ]);
+        }
         case "exile-graveyard": {
             // CR 404.1 + CR 701.13a — the whole-zone `moveZone` shape: every
             // card in the announced player's graveyard goes to exile.
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
+            if (sentence.exceptBasicLands)
+                return lowered([
+                    {
+                        op: "moveZone",
+                        player: player.value,
+                        fromZones: ["graveyard"],
+                        filter: NOT_A_BASIC_LAND,
+                        to: "exile",
+                    },
+                ]);
             return lowered([
                 {
                     op: "moveZone",
