@@ -315,6 +315,12 @@ function readPainlandDamage(span: string): number | null {
 const DRAW_RIDER = "Draw a card";
 
 /**
+ * CR 602.5b — "Activate only once each turn." after a production (Wall of
+ * Roots): the ability's own `oncePerTurn` gate, checked at activation.
+ */
+const ONCE_PER_TURN_RIDER = "Activate only once each turn";
+
+/**
  * CR 122.1 / 701.21a — "If there are no depletion counters on this land,
  * sacrifice it", the Mercadian Masques depletion lands' second sentence
  * (`sacrificesSourceWhenNoCountersRemain`). The counter kind is read, not
@@ -347,6 +353,7 @@ function readManaRider(
 ): ManaProductionIR | null {
     const rider = ((): ManaRiderIR | null => {
         if (span === DRAW_RIDER) return { kind: "draw-card" };
+        if (span === ONCE_PER_TURN_RIDER) return { kind: "once-per-turn" };
         if (span === NEXT_UNTAP_RETURN_RIDER)
             return { kind: "return-source-at-next-untap" };
         const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);
