@@ -3839,8 +3839,12 @@ function finalizeSpellResolution(
         // held the battlefield before (bounced-then-recast), any exile link
         // its previous incarnation stamped is stale on THIS new object —
         // see `clearExileLinksToEnteringSource`'s doc. A first-ever cast is a
-        // no-op (no prior incarnation ever stamped this id).
-        clearExileLinksToEnteringSource(state, item.id);
+        // no-op (no prior incarnation ever stamped this id). A parked entry
+        // had it at park time (`stageAsEntersEntry`): clearing again would
+        // erase its own as-enters exile pile.
+        if (!entryOpts?.asEntersResolved) {
+            clearExileLinksToEnteringSource(state, item.id);
+        }
         dropDelayedCapturesOfEnteringObject(state, item.id, {
             resolvingItemPopped: true,
         });
@@ -9463,8 +9467,12 @@ function stageReanimatedOnBattlefield(
     // battlefield (the land-blocked and exile-redirect branches above return
     // before this point), so any exile link a PREVIOUS incarnation of this
     // same instance id stamped is now stale — drop it before anything can
-    // read it as this new object's own pile.
-    clearExileLinksToEnteringSource(state, card.id);
+    // read it as this new object's own pile. Skipped on the as-enters resume:
+    // `stageAsEntersEntry` cleared at park time, and the pile linked since is
+    // this object's own (CR 614.12a).
+    if (!entryOpts?.asEntersResolved) {
+        clearExileLinksToEnteringSource(state, card.id);
+    }
     dropDelayedCapturesOfEnteringObject(state, card.id, {
         resolvingItemPopped: false,
     });
@@ -9923,6 +9931,18 @@ export function stageAsEntersEntry(
         delete card.colorOverride;
         delete card.grantedTriggeredAbilities;
     }
+    // CR 400.7 / 607.2b — a previous incarnation's exile links are stale on
+    // the object about to enter. Dropped HERE, at park time, for every origin,
+    // rather than in the entry tail: an `exileFromGraveyard` answer links its
+    // pile to this id BEFORE the permanent enters (CR 614.12a), and the
+    // tail's own clear would erase it. Every entry funnel therefore skips its
+    // clear on the `asEntersResolved` resume — a parked entry has had it.
+    // The price: an entry its answer then ABORTS (a declined `discard`, an
+    // `aura-host` with no legal host) never enters, yet its previous
+    // incarnation's links are gone — an ability of that incarnation still on
+    // the stack reads an empty pile. No card pairs an abortable as-enters
+    // choice with a linked exile.
+    clearExileLinksToEnteringSource(state, card.id);
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
         card,
@@ -10136,6 +10156,28 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "exileFromGraveyard": {
+            // CR 614.1c / 607.2b — "exile any number of …": REUSES the shipped
+            // `choose-graveyard-card` shape (the graveyard grid + Done footer
+            // and the `chooseResolution` arm the bot already dispatches on).
+            // `min: 0` because zero is a legal number; `max` is every
+            // candidate. Read HERE, as the choice is offered, so a sibling's
+            // already-committed exile is gone from it.
+            const candidateIds = asEntersGraveyardExileCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            pending = {
+                ...base,
+                kind: "choose-graveyard-card",
+                zone: "graveyard",
+                candidateIds,
+                count: { min: 0, max: candidateIds.length },
+                prompt: `Choose any number of cards to exile from your graveyard as ${subject} enters.`,
+            };
+            break;
+        }
         case "pay": {
             // ADR 0100 D6 — the shipped `entersTappedUnlessPay` park (ADR 0051)
             // owns every CR 614.12 pay-to-enter card (shock lands); no card
@@ -10171,6 +10213,25 @@ function asEntersDiscardCandidates(
 ): string[] {
     return getPlayer(state, entry.controllerId)
         .hand.filter((c) => !filter || handCardMatchesFilter(c, filter))
+        .map((c) => c.id);
+}
+
+/** CR 614.1c / 607.2b — the cards in the chooser's OWN graveyard an as-enters
+ *  `exileFromGraveyard` may exile, read LIVE (the `asEntersDiscardCandidates`
+ *  reason: a sibling staged entry may already have exiled one). Read by the
+ *  offer, the zero-candidate auto-answer, the applier's fail-closed re-check
+ *  and the sibling re-narrow — one derivation, so they cannot disagree. */
+function asEntersGraveyardExileCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: EffectCardFilter | undefined
+): string[] {
+    return getPlayer(state, entry.controllerId)
+        .graveyard.filter(
+            // CR 113.6b — matched as a GRAVEYARD card, so an ability that
+            // functions from the graveyard applies.
+            (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
+        )
         .map((c) => c.id);
 }
 
@@ -10279,6 +10340,14 @@ function forcedAsEntersAnswer(
     if (choice?.kind === "payLife") {
         return asEntersPayLifeMax(state, entry, choice.cap) === 0
             ? ["0"]
+            : undefined;
+    }
+    if (choice?.kind === "exileFromGraveyard") {
+        // Nothing to exile: the only answer is "zero cards", and the
+        // permanent enters with an empty pile.
+        return asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            .length === 0
+            ? []
             : undefined;
     }
     if (choice?.kind !== "discard") return undefined;
@@ -10560,6 +10629,36 @@ function applyAsEntersAnswer(
             abortStagedEntryTo(state, entry, choice.ifDeclined);
             return { aborted: true };
         }
+        case "exileFromGraveyard": {
+            // CR 614.12a — exiled BEFORE the permanent enters, so the linked
+            // pile (CR 607.2b) is complete the moment it exists. Re-derived
+            // against the LIVE graveyard rather than trusted off the prompt:
+            // a card a sibling entry already exiled is skipped, never moved
+            // twice. An empty answer exiles nothing; the permanent still
+            // enters.
+            const legal = new Set(
+                asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            );
+            const player = getPlayer(state, entry.controllerId);
+            const exiled: Parameters<typeof emitCardsExiled>[1][number][] = [];
+            for (const id of selected) {
+                if (!legal.has(id)) continue;
+                if (!exileCardFromGraveyard(player, id)) continue;
+                const moved = player.exile.find((c) => c.id === id);
+                if (!moved) continue;
+                moved.exiledBySourceId = card.id;
+                exiled.push({
+                    cardInstanceId: moved.id,
+                    cardId: (moved.card as { id?: string }).id,
+                    fromZone: "graveyard",
+                    ownerId: player.id,
+                });
+            }
+            // CR 603.2c — one instruction is ONE event with several
+            // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
+            emitCardsExiled(state, exiled);
+            return {};
+        }
         case "pay":
             throw new Error(
                 "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
@@ -10817,9 +10916,10 @@ export function advanceStagedEntry(
  *  one site that parks several entries at once: their prompts are all queued
  *  BEFORE any of them is answered, so the second entry's candidate set has to be
  *  re-narrowed the moment the first commits, not merely computed once at park
- *  time. Only cost-bearing kinds have a set to narrow (today `payLife`; the
- *  #1980 pay-2-life joins it). Ships as an engine capability — no shipped card
- *  pairs a cost-bearing as-enters choice with a simultaneous entry. */
+ *  time. Only kinds that spend a shared resource have a set to narrow:
+ *  `payLife` (the #1980 pay-2-life joins it) and `exileFromGraveyard`, whose
+ *  siblings draw on one graveyard. Ships as an engine capability — no shipped
+ *  card pairs such an as-enters choice with a simultaneous entry. */
 function renarrowSiblingCostChoices(
     state: GameState,
     answered: StagedEntry
@@ -10827,6 +10927,28 @@ function renarrowSiblingCostChoices(
     const queued = state.pendingChoices;
     if (!queued || queued.length === 0) return;
     for (const pending of queued) {
+        // CR 614.1c — a sibling's queued graveyard-exile prompt was offered
+        // against a graveyard the answered entry may just have exiled from;
+        // shrink its allow-list (and its `max`) to what is still there.
+        if (pending.asEntersKind === "exileFromGraveyard") {
+            const sibling = findStagedEntry(state, pending.asEntersCardId);
+            const declared = sibling?.owed[0];
+            if (
+                !sibling ||
+                sibling === answered ||
+                declared?.kind !== "exileFromGraveyard"
+            ) {
+                continue;
+            }
+            const candidateIds = asEntersGraveyardExileCandidates(
+                state,
+                sibling,
+                declared.filter
+            );
+            pending.candidateIds = candidateIds;
+            pending.count = { min: 0, max: candidateIds.length };
+            continue;
+        }
         if (pending.asEntersKind !== "payLife") continue;
         if (pending.playerId !== answered.controllerId) continue;
         const sibling = findStagedEntry(state, pending.asEntersCardId);

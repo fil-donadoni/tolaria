@@ -731,8 +731,10 @@ function settleEnteredLand(
     // before and stamped an exile provenance link (a bounced-and-replayed
     // hideaway land, CR 702.75), that link belongs to a previous object —
     // drop it now, on THIS new object's entry, not at its departure. See
-    // `clearExileLinksToEnteringSource`'s doc in state.ts.
-    clearExileLinksToEnteringSource(state, card.id);
+    // `clearExileLinksToEnteringSource`'s doc in state.ts. A land carrying
+    // as-enters answers was parked, and `stageAsEntersEntry` cleared then:
+    // clearing again would erase its own as-enters exile pile (CR 614.12a).
+    if (!asEntersAnswers) clearExileLinksToEnteringSource(state, card.id);
     dropDelayedCapturesOfEnteringObject(state, card.id, {
         resolvingItemPopped: false,
     });
