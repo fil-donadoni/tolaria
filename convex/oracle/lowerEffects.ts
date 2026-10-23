@@ -1985,6 +1985,42 @@ function lowerSentenceBody(
                 walk.targets.requirements().length === 1
             )
                 walk.damagedTarget = true;
+            // CR 615.12 + CR 614.9 — "If {self} would deal damage to a creature,
+            // that damage can't be prevented or dealt instead to another
+            // permanent or player": the lock holds only when the target IS a
+            // creature (`objectMatchesFilter` reads the live target, false for
+            // a player or a creature that already left), else ordinary damage.
+            if (sentence.creatureDamageLock === true) {
+                if (damaged.target === undefined)
+                    return unlowerable(
+                        "a creature damage lock needs a target slot to test"
+                    );
+                return lowered([
+                    {
+                        op: "if",
+                        predicate: {
+                            objectMatchesFilter: { target: damaged.target },
+                            filter: { type: "Creature" },
+                        },
+                        then: [
+                            {
+                                op: "dealDamage",
+                                amount: amount.value,
+                                to: to.value,
+                                unpreventable: true,
+                                unredirectable: true,
+                            },
+                        ],
+                        else: [
+                            {
+                                op: "dealDamage",
+                                amount: amount.value,
+                                to: to.value,
+                            },
+                        ],
+                    },
+                ]);
+            }
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);

@@ -676,7 +676,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Laelia, the Blade Reforged",
     "Land Cap",
     "Lashknife Barrier",
-    "Lava Burst",
     "Lava Spike",
     "Lava Tubes",
     "Lavaspur Boots",
