@@ -47,7 +47,12 @@ import type {
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
 import { cardHasColor, getCardColors } from "../cards/colors";
-import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingCast,
+    PlayerState,
+} from "./state";
 import { getPlayer, manaCostForCardFilter } from "./state";
 import { manaCostsEqual } from "./constants";
 import { hasLegalBestowHost } from "./bestow";
@@ -417,11 +422,17 @@ export function canPayAlternativeCost(
     if (!alternativeCostConditionMet(state, playerId, altCost.condition)) {
         return false;
     }
-    // CR 118.9 — the GRAVEYARD leg (`CostLegs.graveyard`) is a may-pay-only
-    // shape: the cast pipeline has no picker for it, so an alternative cost
-    // carrying one fails CLOSED (never offered) rather than casting for free.
-    if (altCost.graveyard) return false;
     const player = getPlayer(state, playerId);
+    // CR 118.9 / 118.3 — the GRAVEYARD leg. Its `"return"` action is a
+    // may-pay-only shape (the cast pipeline has no picker for it), so it fails
+    // CLOSED (never offered) rather than casting for free; the `"exile"`
+    // action is affordable while enough matching cards sit in the graveyard.
+    if (
+        altCost.graveyard &&
+        !altCostGraveyardExileCards(player, altCost, castInstanceId ?? "")
+    ) {
+        return false;
+    }
     if (altCostHasPermanentLeg(altCost)) {
         const need = altCostPermanentCardinal(altCost);
         // CR 118 — a summed-power THRESHOLD leg has no fixed cardinal and the
@@ -445,6 +456,75 @@ export function canPayAlternativeCost(
         return false;
     }
     return true;
+}
+
+/** The graveyard cards an alternative cost's GRAVEYARD exile leg takes (CR
+ *  118.9 / 701.13): the `count` TOPMOST cards of the payer's graveyard matching
+ *  the leg's filter, read with their graveyard characteristics (CR 113.6c),
+ *  top first. CR 404.2 — the graveyard is an ordered pile whose top is the
+ *  LAST array element, so the scan runs from the end; a non-matching card
+ *  above a matching one is passed over ("the top three black cards" are the
+ *  three topmost black cards). Deterministic — the payer picks nothing.
+ *
+ *  `undefined` when the leg cannot be paid: fewer than `count` matching
+ *  cards, or a `"return"` leg (may-pay-only). `[]` when the cost has no
+ *  graveyard leg. The cast card (`castInstanceId`) is never one of them: CR
+ *  601.2a moves it to the stack before costs are paid (CR 601.2h). Typed on
+ *  the structural card shape the shared matcher reads, so the client's
+ *  projected graveyard (a public zone, CR 400.2) prices the leg through this
+ *  same function (ADR 0074). */
+export function altCostGraveyardExileCards<
+    T extends { id: string; card: { id?: string } },
+>(
+    player: { graveyard: readonly T[] },
+    altCost: CostLegs,
+    castInstanceId: string
+): T[] | undefined {
+    const leg = altCost.graveyard;
+    if (!leg) return [];
+    if (leg.action !== "exile") return undefined;
+    const picked: T[] = [];
+    for (let i = player.graveyard.length - 1; i >= 0; i--) {
+        if (picked.length === leg.count) break;
+        const card = player.graveyard[i];
+        if (card.id === castInstanceId) continue;
+        if (handCardMatchesFilter(card, leg.filter, "graveyard")) {
+            picked.push(card);
+        }
+    }
+    return picked.length === leg.count ? picked : undefined;
+}
+
+/** Fold an alternative cost's GRAVEYARD exile leg (CR 118.9 / 601.2h) into the
+ *  cast's graveyard-exile picker, PRE-FILLED with the deterministic top-N
+ *  selection (`altCostGraveyardExileCards`). It rides the
+ *  `exileFromGraveyardChoice` slot the flashback / escape / delve exile costs
+ *  use, so every commit path pays it through `commitCast`, and a pick that
+ *  left the graveyard before commit makes the commit stale. Returns
+ *  `existing` untouched when the cost has no graveyard leg. Throws when the
+ *  leg cannot be paid (affordability is gated upstream by
+ *  `canPayAlternativeCost`; this is defence in depth) or when the slot is
+ *  already taken — CR 118.9a forbids a second alternative cost on a
+ *  flashback / escape cast, and no shipped card pairs delve with this leg. */
+export function withAlternativeCostGraveyardExile(
+    player: PlayerState,
+    altCost: CostLegs | undefined,
+    castInstanceId: string,
+    existing: PendingCast["exileFromGraveyardChoice"]
+): PendingCast["exileFromGraveyardChoice"] {
+    if (!altCost?.graveyard) return existing;
+    const cards = altCostGraveyardExileCards(player, altCost, castInstanceId);
+    if (!cards) {
+        throw new Error(
+            "Not enough matching cards in your graveyard to pay the alternative cost"
+        );
+    }
+    if (existing) throw new Error("These costs cannot be paid together");
+    return {
+        count: cards.length,
+        excludeInstanceId: castInstanceId,
+        pickedCardIds: cards.map((c) => c.id),
+    };
 }
 
 /** Look up a card's alternative cost by id, or `undefined` if the card has no

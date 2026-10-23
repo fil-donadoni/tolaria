@@ -111,6 +111,7 @@ import {
 } from "./paymentPicks";
 import { payAlternativeCostHandChoice } from "./activation";
 import {
+    altCostGraveyardExileCards,
     buildAlternativeCostHandChoice,
     getAlternativeCost,
 } from "./alternativeCost";
@@ -392,6 +393,33 @@ export function applyAlternativeCostHandLegForSearch(
         ...choice,
         pickedCardIds: picks,
     });
+}
+
+/** CR 118.9 / 601.2h — pay the GRAVEYARD exile leg of the alternative cost a
+ *  `cast-spell` move announced ("exile the top three black cards of your
+ *  graveyard") on a search sandbox state, in place. The cards are the ones
+ *  the live commit exiles: the deterministic top-N pick
+ *  (`altCostGraveyardExileCards`) the server pre-fills into the cast's
+ *  `exileFromGraveyardChoice`, moved through the same `moveCard` zone-mover.
+ *  Returns `false` when the leg can no longer be paid — a STALE Move — so the
+ *  caller drops the cast rather than let it resolve for free. `true` for a
+ *  cast with no alternative cost or no graveyard leg. Runs while the cast card
+ *  is still in its zone: CR 601.2a excludes it. */
+export function applyAlternativeCostGraveyardLegForSearch(
+    state: GameState,
+    playerId: string,
+    spell: CardInstanceState,
+    alternativeCostId: string | undefined
+): boolean {
+    if (alternativeCostId === undefined) return true;
+    const def = tryGetDefinition((spell.card as { id?: string }).id ?? "");
+    const alt = getAlternativeCost(def ?? undefined, alternativeCostId);
+    if (!alt?.graveyard) return true;
+    const player = getPlayer(state, playerId);
+    const cards = altCostGraveyardExileCards(player, alt, spell.id);
+    if (!cards) return false;
+    for (const c of cards) moveCard(player, c.id, "graveyard", "exile");
+    return true;
 }
 
 /** CR 118.9 / 601.2h (issue #4935) — pay the PERMANENT leg of the alternative
@@ -1290,6 +1318,20 @@ export function commitCastInSearch(
     if (
         preCastSpell &&
         !applyAlternativeCostHandLegForSearch(
+            state,
+            playerId,
+            preCastSpell,
+            move.alternativeCostId
+        )
+    ) {
+        return null;
+    }
+    // CR 118.9 / 601.2h — the chosen alternative cost's GRAVEYARD exile leg,
+    // before the spell leaves its zone: uncharged, the search would see the
+    // cast as free.
+    if (
+        preCastSpell &&
+        !applyAlternativeCostGraveyardLegForSearch(
             state,
             playerId,
             preCastSpell,

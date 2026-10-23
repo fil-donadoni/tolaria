@@ -22975,10 +22975,14 @@ export function canPayMayPayCost(
     }
     if (
         norm.graveyard &&
-        mayPayGraveyardCandidates(player.graveyard, norm.graveyard).length <
-            norm.graveyard.count
+        (norm.graveyard.action !== "return" ||
+            mayPayGraveyardCandidates(player.graveyard, norm.graveyard).length <
+                norm.graveyard.count)
     ) {
         // CR 118.3 — the payer's graveyard must hold enough matching cards.
+        // The positional `"exile"` action is an alternative-cost-only shape
+        // (`CostLegs.graveyard`): the may-pay picker returns cards, so an
+        // exile leg here fails CLOSED rather than being paid as a return.
         return false;
     }
     return true;
