@@ -225,7 +225,6 @@
     "convex/limitedEvents.ts#cfe2904436",
     "convex/oracle/__tests__/gold.test.ts#0b150c0f4a",
     "convex/oracle/behavioural.ts#52a1e82286",
-    "convex/oracle/grammar/shared/staticClause.ts#6f2fef65c0",
     "convex/schema.ts#0b3768acda",
     "convex/schema.ts#288043d090",
     "scripts/__tests__/backlog-triage.test.ts#4ac1fe8583",
