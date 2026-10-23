@@ -2333,13 +2333,16 @@ describe("check-lane — the search cost pin runs wherever a search iteration ca
             "convex/gre/applyMove.ts",
             "convex/cards/sets/lea/red.cards.ts",
             "convex/oracle/lowerStatic.ts",
+            // The scenario builder that lays out the blade positions
+            // value-imports it.
+            "convex/debugScenarioSpec.ts",
             SEARCH_COST_TEST,
         ]) {
             expect(guard(classifyLane([file]))?.command, file).toBe(command);
         }
     });
 
-    it("a diff outside convex/{gre,cards,oracle}/** skips it, by name", () => {
+    it("a diff outside convex/{gre,cards,oracle}/** and debugScenarioSpec.ts skips it, by name", () => {
         for (const file of [
             "src/components/board/Card.tsx",
             "scripts/land.ts",

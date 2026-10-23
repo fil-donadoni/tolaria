@@ -563,8 +563,8 @@ export function classifyLane(
             // half is `botHalf`'s: the files the diff reaches, or whole.
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
-            // `blade-index` may repeat a file the bot run already ran — 2 s,
-            // cheaper than a second rule for one lane.
+            // `blade-index` and `search-cost` may repeat a file the bot run
+            // already ran — 2–4 s, cheaper than a second rule for one lane.
             run: [
                 { id: "check:pr:app", command: "bun run check:pr:app" },
                 ...bot.run,
@@ -786,7 +786,8 @@ export function classifyLane(
  * heavy tier belongs in the lane; `health`-only is for guards that cost more
  * (`HEALTH_ONLY_GUARDS` in `lib/health-step.ts`, each with its measured
  * cost). These stay in health too — a script guard in `HEALTH_SCRIPTS`, the
- * vitest-file one (`blade-index`) in its `test` step through `test:bot` —
+ * vitest-file ones (`blade-index`, `search-cost`) in its `test` step through
+ * `test:bot` —
  * health is the full gate; the lane is only no longer the place a violation
  * is first SEEN late.
  *
@@ -817,10 +818,13 @@ export function classifyLane(
  *     (`SEARCH_COST_TEST`), another `bot-node` file no scoped lane relates:
  *     exact clone / sweep / walk counts over three blade positions, moved by
  *     any engine, card or compiler change that alters what a search iteration
- *     does. 4.4 s wall at load ~6–8, 12.7 s cold at load ~17 (2026-10-23).
- *     Without it PR #6509 changed the rollout's land play, left the pins
- *     stale, and the base went RED; so it is admitted by everything the
- *     search runs on — `convex/{gre,cards,oracle}/**` — wide on purpose.
+ *     does. 4.4 s wall at load ~6–8 (2026-10-23) — the figure within the
+ *     budget; the first run in a fresh worktree, with vitest's transform
+ *     cache cold, took 12.7 s at load ~17. Without it PR #6509 changed the
+ *     rollout's land play, left the pins stale, and the base went RED; so it
+ *     is admitted by everything the search runs on — `convex/{gre,cards,
+ *     oracle}/**` and `convex/debugScenarioSpec.ts`, which the scenario
+ *     builder that lays out the blade positions imports — wide on purpose.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
@@ -871,8 +875,8 @@ export const CHEAP_GUARDS: readonly {
     },
     {
         id: "search-cost",
-        admits: /^convex\/(gre|cards|oracle)\//,
-        lacks: "no changed path under convex/{gre,cards,oracle}/** — nothing a search iteration runs on moved, so its cost counters cannot",
+        admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
+        lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing a search iteration runs on moved, so its cost counters cannot",
         command: `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`,
     },
     {
