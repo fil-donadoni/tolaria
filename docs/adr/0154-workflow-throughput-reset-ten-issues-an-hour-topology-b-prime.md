@@ -218,6 +218,24 @@ bot lane; this amendment narrows what it owes to what it can break, which is
 half skipped, landing after landing — the fix is a `CENSUS_TESTS` row or a
 wider force-whole predicate, never the whole lane back on every `full` diff.
 
+### 12. A single bot pin may ride `engine` as a cheap guard — amendment of issue #6545
+
+§3 sends the bot fast lane to health; it does not send every bot FILE there.
+A `bot-node` file that pins what an `engine` diff moves, and that only that
+diff can move, is admitted ONE file at a time as a `CHEAP_GUARDS` row with its
+own command: `blade-index` (issue #5940) and `search-cost`, the ISMCTS
+cost-counter pin. PR #6509 changed the rollout's land play under
+`convex/gre/**`, its `engine` lane never ran the pin, and the base went RED.
+The pin is not base-drift-prone in §3's sense: every `convex/{gre,cards,oracle}/**`
+landing runs it, so the base cannot drift under it unseen.
+
+Its cost is the owner's explicit exception to the ≤ 10 s budget (2026-10-23):
+4.4 s wall at load ~6–8 on the MacBook, ~22 s wall warm on the Huawei, where
+`blade-index` measured ~18 s against its recorded 1.9 s. What would change the
+answer: lane wall time on the Huawei that this row visibly lengthens across
+landings — then the fix is a cheaper pin (fewer positions, a smaller budget),
+never dropping it back to health alone.
+
 ## Consequences
 
 - **Overturned / amended records.** ADR 0104 carries a superseded-by note;
