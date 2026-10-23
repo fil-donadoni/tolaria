@@ -3917,6 +3917,57 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "search-reveal-pile-pick": {
+            // CR 701.23d — a search for a bare quantity must find that many
+            // (or as many as the library holds: the exact `count` clamps).
+            // CR 701.20a — the reveal makes the pile public, which is what
+            // lets the chooser pick from a hidden zone (`choose-library-card`
+            // is refused without it). The pick goes to hand; moving the whole
+            // pile to the graveyard after it moves only "the rest", since the
+            // pick has already left the library. CR 701.24a — then shuffle.
+            const chooser = playerRef(sentence.chooser, slots, site);
+            if (!chooser.ok) return chooser;
+            const found = walk.nextBind("found");
+            const picked = walk.nextBind("picked");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: sentence.count,
+                    prompt: `Search your library for ${countWord(sentence.count)} cards.`,
+                    bind: found,
+                },
+                { op: "reveal", player: "controller", cards: { ref: found } },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: chooser.value,
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: found }],
+                    count: 1,
+                    prompt: "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard.",
+                    bind: picked,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: picked },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: found },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ]);
+        }
         case "divide-library-piles": {
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
