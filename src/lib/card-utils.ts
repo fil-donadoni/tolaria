@@ -53,6 +53,7 @@ import { findTriggeredAbility } from "@convex/gre/copy";
 import type { UnblockedAttackerScope } from "@convex/gre/combat";
 import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
+import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
 // CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
 // STATE-ONLY clauses from it; the timing clause stays a documented narrowing
 // (this view has no stack length / priority holder), with the server the gate.
@@ -419,6 +420,20 @@ function clientManaAbilities(
     );
 }
 
+/** CR 602.5 / 605.1a — true when an `activation-restriction` static (Cursed
+ *  Totem) on the viewer-visible board prohibits this source's mana abilities:
+ *  the predicate the server's tap mutations read, so no mana affordance is
+ *  offered for a tap the server would refuse. No view → nothing to scan. */
+function isManaActivationRestricted(
+    card: CardInstance,
+    stateView?: TriggerStateView
+): boolean {
+    return (
+        stateView !== undefined &&
+        activationRestrictionViolation(stateView, card.id, true) !== null
+    );
+}
+
 /** Returns true if a card has a tap mana ability (basic land subtype or
  *  activated), consulting the activated ability's own `canActivate`
  *  precondition when present (CR 602.5b, issue #947) — an un-imprinted
@@ -451,6 +466,8 @@ export function hasManaAbility(
     stateView?: TriggerStateView,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): boolean {
+    // Intrinsic land mana (CR 305.6) is a mana ability too.
+    if (isManaActivationRestricted(card, stateView)) return false;
     if (hasIntrinsicLandMana(card)) return true;
     const ability = findClientManaAbility(card);
     if (!ability) return false;
@@ -489,6 +506,7 @@ export function getActivatedManaMenuEntry(
     card: CardInstance,
     stateView?: TriggerStateView
 ): { id: string; oracleText: string } | null {
+    if (isManaActivationRestricted(card, stateView)) return null;
     const ability = findClientManaAbility(card);
     if (!ability) return null;
     if (ability.canActivate) {
@@ -748,6 +766,7 @@ export function getManaCostMenuAbility(
     card: CardInstance,
     stateView?: TriggerStateView
 ): ActivatedAbility | null {
+    if (isManaActivationRestricted(card, stateView)) return null;
     return (
         getEffectiveClientAbilities(card).find(
             (a) =>
@@ -1896,6 +1915,14 @@ export function buildTriggerStateView(
                     // real persisted/wire field (`slimCard` only strips
                     // `card`/`knownTo`), so it is read straight off the instance.
                     castOffSorceryTiming: c.castOffSorceryTiming === true,
+                    // CR 602.5 — the definition reference and the CR 613.1f
+                    // suppression list an `activation-restriction` scan reads
+                    // to find a Cursed Totem on either battlefield
+                    // (`activationRestrictionViolation`). Both cross the wire
+                    // (`card` slimmed to `{ id }`); dropping them hides the
+                    // lock from every affordance built on this view.
+                    card: c.card,
+                    abilitiesSuppressedBy: c.abilitiesSuppressedBy,
                     // CR 400.7 / Keldon Twilight-style continuity filters. Only
                     // meaningful with `turnState` (mirrors `toMatchablePermanent`
                     // exactly); omitted, both stay undefined — fail-closed, same

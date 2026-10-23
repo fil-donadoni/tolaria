@@ -31,9 +31,7 @@ export interface RestrictionBoardView {
 
 /** CR 613.1f — a permanent that lost all abilities generates no static effect. */
 function abilitiesSuppressed(row: BattlefieldRow): boolean {
-    const by = (row as { abilitiesSuppressedBy?: ReadonlyArray<unknown> })
-        .abilitiesSuppressedBy;
-    return (by?.length ?? 0) > 0;
+    return (row.abilitiesSuppressedBy?.length ?? 0) > 0;
 }
 
 function findBattlefieldRow(
