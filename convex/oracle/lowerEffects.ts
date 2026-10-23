@@ -2736,7 +2736,11 @@ function lowerSentenceBody(
             return lowered([
                 {
                     op: "if",
-                    predicate: { objectMatchesFilter: source, filter: {} },
+                    predicate: {
+                        objectMatchesFilter: source,
+                        filter: {},
+                        controlledBy: "controller",
+                    },
                     then: [
                         {
                             op: "if",

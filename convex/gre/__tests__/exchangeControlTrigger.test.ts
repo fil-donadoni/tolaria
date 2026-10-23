@@ -122,6 +122,31 @@ describe("exchange control with a sacrifice fallback (CR 701.12a)", () => {
     });
 });
 
+describe("the Drake changed hands before the trigger resolved (CR 701.12a, CR 701.21a)", () => {
+    function stolenInResponse(targets: { type: "permanent"; id: string }[]) {
+        const state = drakeEnters(targets);
+        const p1 = getPlayer(state, "p1");
+        const drake = p1.battlefield.find((c) => c.id === "drake")!;
+        p1.battlefield = p1.battlefield.filter((c) => c.id !== "drake");
+        drake.controllerId = "p2";
+        getPlayer(state, "p2").battlefield.push(drake);
+        return state;
+    }
+
+    it("steals nothing: the exchange cannot be made", () => {
+        const state = stolenInResponse([{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "p2", "bear")).toBe(true);
+        expect(onBattlefield(state, "p1", "bear")).toBe(false);
+    });
+
+    it("does not sacrifice a Drake its ability's controller no longer controls", () => {
+        const state = stolenInResponse([]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "p2", "drake")).toBe(true);
+    });
+});
+
 describe("'This ability still resolves if its target becomes illegal' (CR 608.2b)", () => {
     it("sacrifices the Drake when the only target is gone — the ability does not fizzle", () => {
         const state = drakeEnters([{ type: "permanent", id: "bear" }]);

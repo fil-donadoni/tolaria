@@ -417,6 +417,7 @@ export function lowerTriggeredAbility(input: {
     // entered head's factory forwards it.
     const resolvesIfTargetsIllegal =
         input.head.kind === "enters" &&
+        input.head.scope === "self" &&
         input.effects.some(
             (e) => e.kind === "exchange-control" && e.resolvesIfTargetIllegal
         );

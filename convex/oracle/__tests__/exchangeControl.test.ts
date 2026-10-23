@@ -64,6 +64,7 @@ describe("exchange control of this creature and an optional target (CR 701.12a)"
                 predicate: {
                     objectMatchesFilter: { ref: "$source" },
                     filter: {},
+                    controlledBy: "controller",
                 },
                 then: [
                     {
@@ -134,6 +135,28 @@ describe("exchange control of this creature and an optional target (CR 701.12a)"
             refusedAt(
                 drake(
                     `${EXCHANGE} If you don't or can't make an exchange, sacrifice a creature.${RESOLVES}`
+                )
+            )
+        ).toBeTruthy();
+    });
+
+    it("refuses a target that is not an opponent's creature", () => {
+        for (const who of ["", " you control"])
+            expect(
+                refusedAt(
+                    drake(
+                        `exchange control of this creature and up to one target creature${who}.${FALLBACK}${RESOLVES}`
+                    )
+                )
+            ).toBeTruthy();
+    });
+
+    it("refuses the rider behind another permanent's enters head", () => {
+        expect(
+            refusedAt(
+                drake(
+                    `${EXCHANGE}${FALLBACK}${RESOLVES}`,
+                    "Whenever another creature enters, "
                 )
             )
         ).toBeTruthy();

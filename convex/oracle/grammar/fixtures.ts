@@ -9425,6 +9425,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                                     ref: "$source",
                                 },
                                 filter: {},
+                                controlledBy: "controller",
                             },
                             then: [
                                 {

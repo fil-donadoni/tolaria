@@ -6995,6 +6995,7 @@ function effectSentence(
             subject.value.kind !== "target" ||
             subject.value.requirement.zone !== undefined ||
             typeof subject.value.requirement.count !== "object" ||
+            subject.value.requirement.controller !== "opponent" ||
             !requirementTypes(subject.value.requirement).every((t) =>
                 (PERMANENT_TYPES as readonly string[]).includes(t)
             )
