@@ -179,7 +179,11 @@ function censusGrantedKeywords(
         // changing what it grants, so the census reads through it — a grant
         // behind "If this spell was kicked," is still a grant.
         let sentence = outer;
-        while (sentence.kind === "optional" || sentence.kind === "kicked")
+        while (
+            sentence.kind === "optional" ||
+            sentence.kind === "kicked" ||
+            sentence.kind === "controls-more"
+        )
             sentence = sentence.effect;
         // "Choose a color. … gain protection from the chosen color …" grants
         // the SAME base keyword ("protection") as the parameterised

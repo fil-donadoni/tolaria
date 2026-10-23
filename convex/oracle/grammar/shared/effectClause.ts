@@ -61,9 +61,11 @@ import { isSelfPhrase } from "./cost";
 import { SELF_MARKER } from "../../normalize";
 import type { ParseContext } from "../../types";
 import {
+    comparativeControlsRule,
     controlsRule,
     kickedConditionRule,
     kickedPermanentConditionRule,
+    type ComparativeControlsIR,
     type ConditionIR,
     type KickedRefIR,
 } from "./condition";
@@ -1636,6 +1638,18 @@ export type EffectSentenceIR =
            */
           readonly kind: "kicked";
           readonly kicked: KickedRefIR;
+          readonly effect: EffectSentenceIR;
+      }
+    | {
+          /**
+           * CR 608.2c + CR 109.5 — "If an opponent controls more lands than
+           * you, <effect>." A leading comparison the effect is gated on when the
+           * spell resolves. A WRAPPER like `kicked`, so every effect sentence
+           * the grammar reads can sit behind it and lowering sees the inner
+           * sentence through the same walk.
+           */
+          readonly kind: "controls-more";
+          readonly condition: ComparativeControlsIR;
           readonly effect: EffectSentenceIR;
       }
     | {
@@ -3629,6 +3643,45 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
             effect: {
                 kind: "kicked" as const,
                 kicked: condition.value,
+                effect: parsed.value.effect,
+            },
+        });
+    });
+}
+
+/**
+ * CR 608.2c — a spell sentence gated on a leading comparison: "If an opponent
+ * controls more lands than you, search …".
+ *
+ * Only the "an opponent … than you" form reads here: "that player" names a
+ * player only a trigger head introduces, and the other subjects have no spell
+ * that prints them. Fail-closed like `kickedSentenceRule`: a head that reads as
+ * the comparison with a tail the effect grammar cannot parse fails the span.
+ */
+export function comparativeSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(`comparative ${inner.label}`, (span, ctx) => {
+        const comma = span.indexOf(", ");
+        if (comma === -1 || !span.startsWith("If "))
+            return inner.run(span, ctx);
+        const head = span.slice("If ".length, comma);
+        if (!head.startsWith("an opponent controls more "))
+            return inner.run(span, ctx);
+        const condition = comparativeControlsRule.run(head, ctx);
+        if (!condition.ok) return condition;
+        const parsed = inner.run(capitalise(span.slice(comma + 2)), ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a comparison gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "controls-more" as const,
+                condition: condition.value,
                 effect: parsed.value.effect,
             },
         });
