@@ -3504,7 +3504,7 @@ export function optionalSentenceRule(
         // CR 608.2c — "you may exile a card from your hand" is the first half
         // of an `optional-hand-cost-then`: what it gates is the "If you do"
         // after it, not an effect of its own.
-        if (Object.hasOwn(OPTIONAL_HAND_COSTS, clause))
+        if (Object.prototype.hasOwnProperty.call(OPTIONAL_HAND_COSTS, clause))
             return ok({
                 role: "optional-hand-cost" as const,
                 text: capitalise(clause),
