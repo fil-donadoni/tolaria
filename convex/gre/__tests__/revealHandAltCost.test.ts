@@ -13,12 +13,25 @@ import {
     alternativeCostConditionMet,
     canPayAlternativeCost,
 } from "../alternativeCost";
+import type { AlternativeCost, CardDefinition } from "../../cards/types";
 import { commitCast } from "../castCommit";
 import { getAlternativeCost } from "../alternativeCost";
 
 const forest = getCardByName("Forest");
 const bolt = getCardByName("Lightning Bolt");
-const landGrant = getCardByName("Land Grant");
+// Land Grant's compiled alternative cost (the gold of the Oracle compiler's
+// golden fixture), spread onto an existing sorcery-speed spell so the test
+// does not depend on the catalogue snapshot.
+const REVEAL_COST: AlternativeCost = {
+    id: "reveal-hand-no-land-cards",
+    description: "Reveal your hand",
+    condition: { kind: "no-hand-cards", filter: { type: "Land" } },
+    revealHand: true,
+};
+const landGrant: CardDefinition = {
+    ...getDefinition(bolt.id),
+    alternativeCosts: [REVEAL_COST],
+};
 
 const NO_LANDS = {
     kind: "no-hand-cards",
@@ -62,10 +75,7 @@ describe("no-hand-cards condition (CR 118.9)", () => {
     });
 
     it("gates Land Grant's reveal cost", () => {
-        const alt = getAlternativeCost(
-            getDefinition(landGrant.id),
-            "reveal-hand-no-land-cards"
-        )!;
+        const alt = getAlternativeCost(landGrant, REVEAL_COST.id)!;
         expect(alt.revealHand).toBe(true);
         const castable = position([hand(landGrant.id, "lg")]);
         const blocked = position([
@@ -83,7 +93,7 @@ describe("reveal-hand leg at the Cast Commit (CR 701.20a)", () => {
         const item = commitCast(state, {
             casterId: "p1",
             cardInstanceId: "lg",
-            cardDef: getDefinition(landGrant.id),
+            cardDef: landGrant,
             manaCost: {},
             source: { zone: "hand" },
             legs: revealHand ? { revealHand: true } : {},
