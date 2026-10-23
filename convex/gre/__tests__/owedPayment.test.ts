@@ -75,6 +75,7 @@ const FULL_CAST: Required<PendingCast> = {
         excludeInstanceId: "spell",
     },
     evoked: false,
+    revealHand: true,
     dashed: false,
     warped: false,
     bestowed: false,

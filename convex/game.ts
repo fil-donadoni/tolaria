@@ -5698,6 +5698,8 @@ export function finalizeTargetSelection(
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
+            // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
+            ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             ...(isWarpCost ? { warped: true } : {}),
@@ -5784,6 +5786,8 @@ export function finalizeTargetSelection(
                 ...(altHandChoice?.pickedCardIds
                     ? { alternativeCostHandChoice: altHandChoice }
                     : {}),
+                // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
+                ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
             },
             record: {
                 targets,
@@ -5838,6 +5842,8 @@ export function finalizeTargetSelection(
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
+            // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
+            ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
             // CR 702.109a — a Dash cast whose mana isn't yet covered parks here
             // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
             // off `pendingCast.dashed` once `tapForPayment` covers it.
@@ -7390,6 +7396,8 @@ export const announceCast = mutation({
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
                         : {}),
+                    // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
+                    ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
                     ...(isWarpCost ? { warped: true } : {}),
@@ -7464,6 +7472,8 @@ export const announceCast = mutation({
                     ...(altHandChoice?.pickedCardIds
                         ? { alternativeCostHandChoice: altHandChoice }
                         : {}),
+                    // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
+                    ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
                 },
                 record: {
                     kickerPayments,
