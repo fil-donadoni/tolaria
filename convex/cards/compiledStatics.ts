@@ -572,7 +572,6 @@ function spellMatches(
     return true;
 }
 
-/** CR 118.7a — a generic-only cost delta, as the engine's `ManaCost`. */
 /** CR 509.1b — creatures the controller of `permanent` controls right now. */
 function countCreaturesControlledBy(
     state: StaticEffectStateView,
@@ -587,6 +586,7 @@ function countCreaturesControlledBy(
     );
 }
 
+/** CR 118.7a — a generic-only cost delta, as the engine's `ManaCost`. */
 function generic(amount: number): ManaCost {
     return { X: amount };
 }
