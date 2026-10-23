@@ -412,6 +412,14 @@ export function lowerTriggeredAbility(input: {
             : {}),
     };
     delete (laterAntecedents as { object?: unknown }).object;
+    // CR 608.2b — "This ability still resolves if its target becomes
+    // illegal" is the ability's, whichever sentence carries it. Only an
+    // entered head's factory forwards it.
+    const resolvesIfTargetsIllegal =
+        input.head.kind === "enters" &&
+        input.effects.some(
+            (e) => e.kind === "exchange-control" && e.resolvesIfTargetIllegal
+        );
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const [index, sentence] of input.effects.entries()) {
@@ -420,6 +428,9 @@ export function lowerTriggeredAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             functionsFromGraveyard: fromGraveyard,
+            ...(resolvesIfTargetsIllegal
+                ? { resolvesIfTargetsIllegal: true as const }
+                : {}),
             selfName: input.cardName,
             antecedents: index === 0 ? antecedents : laterAntecedents,
             ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
@@ -461,6 +472,9 @@ export function lowerTriggeredAbility(input: {
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
             ...(fromGraveyard ? { zone: "graveyard" as const } : {}),
+            ...(resolvesIfTargetsIllegal
+                ? { resolvesIfTargetsIllegal: true as const }
+                : {}),
             ...(declared.targetRequirement !== undefined
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),
