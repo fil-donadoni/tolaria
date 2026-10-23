@@ -2266,6 +2266,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › {…} becomes a N/N Ape creature",
+            "issue": 6434
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › sentence assembly › At the beginning of your upkeep, if this card is in your graveyard, you may discard a card. If you do, return this card to your hand",
             "issue": 5295
         },
