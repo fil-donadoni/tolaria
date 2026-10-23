@@ -172,7 +172,7 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         head.kind === "damage-dealt" && head.recipient === "player"
             ? { ref: "$event.damagedPlayer" }
             : null;
-    // CR 601.2 + CR 603.2 — "whenever a player / an opponent casts a spell"
+    // CR 603.2 — "whenever a player / an opponent casts a spell"
     // names the caster, by the head's own words; behind "you" the caster is
     // the controller and "that player" is never printed.
     const caster =

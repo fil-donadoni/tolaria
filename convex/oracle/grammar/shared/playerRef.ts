@@ -38,7 +38,7 @@ export type PlayerRefIR =
      */
     | { readonly kind: "that-opponent" }
     /**
-     * CR 102.1 — "each of that player's opponents": the opponents of the
+     * CR 102.2 — "each of that player's opponents": the opponents of the
      * player the head named. The words are read here; the lowering site names
      * the player, and a site that names none refuses the line.
      */

@@ -1566,7 +1566,7 @@ function playerRef(
                 ? lowered(named)
                 : unlowerable(`"${word}" names no player at this site`);
         }
-        // CR 102.1 — the opponents of the head's player; the two-player
+        // CR 102.2 — the opponents of the head's player; the two-player
         // engine (ADR 0010) has exactly one per player.
         case "opponents-of-that-player": {
             if (slots.requirements().some((r) => r.type === "player"))
