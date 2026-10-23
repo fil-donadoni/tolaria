@@ -174,6 +174,24 @@ describe("runPreQueue — derived state is rebuilt around the steps", () => {
         expect(calls.at(-1)).toBe("restore");
     });
 
+    it("a restore that throws does not replace the step verdict", () => {
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => {
+                throw new Error("boom");
+            },
+            exec: (command) => ({
+                ok: !command.includes("bun run check:ts"),
+                ms: 1,
+            }),
+        });
+        expect(r.failed).toBe("tsc[all]");
+    });
+
     it("a failed regenerate runs no step, reports it, and still restores", () => {
         const { calls, r } = drive({ regenOk: false });
         expect(r.failed).toBe(REGENERATE_STEP);

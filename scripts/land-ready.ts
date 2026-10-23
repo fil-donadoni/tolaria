@@ -184,7 +184,14 @@ export function runPreQueue(deps: PreQueueDeps): {
         const failed = result.outcomes.find((o) => o.status === "fail");
         return { failed: failed?.id ?? null, result };
     } finally {
-        deps.restore();
+        // A restore that throws must not replace the step's verdict.
+        try {
+            deps.restore();
+        } catch (err) {
+            deps.log(
+                `land:ready: restoring the derived paths failed (${(err as Error).message}) — \`git checkout HEAD -- ${DERIVED_PATHS.join(" ")}\` before re-running`
+            );
+        }
     }
 }
 
