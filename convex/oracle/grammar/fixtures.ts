@@ -7091,6 +7091,74 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             entersTapped: true,
         },
     },
+    // CR 113.1a + CR 613.1f — "This land becomes a 1/1 black Skeleton creature
+    // with "{B}: Regenerate this creature" until end of turn. It's still a
+    // land.": the source animates itself and gains an activated ability for the
+    // same duration. Exhibits `animate` on `$source` followed by `grantAbility`
+    // naming the `grantTemplates[]` entry the quote lowers to; the canned smoke
+    // scenario cannot drive either.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "f3bf22cf-0a6f-4fb6-ba82-63ce290308d6",
+            name: "Spawning Pool",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                'This land enters tapped.\n{T}: Add {B}.\n{1}{B}: This land becomes a 1/1 black Skeleton creature with "{B}: Regenerate this creature" until end of turn. It\'s still a land. (If it regenerates, the next time it would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)',
+            layout: "normal",
+        },
+        expected: {
+            name: "Spawning Pool",
+            types: ["Land"],
+            oracleText:
+                'This land enters tapped.\n{T}: Add {B}.\n{1}{B}: This land becomes a 1/1 black Skeleton creature with "{B}: Regenerate this creature" until end of turn. It\'s still a land. (If it regenerates, the next time it would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)',
+            activatedAbilities: [
+                {
+                    id: "spawning-pool-mana",
+                    oracleText: "{T}: Add {B}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { B: 1 },
+                },
+                {
+                    id: "spawning-pool-ability-2",
+                    oracleText:
+                        '{1}{B}: This land becomes a 1/1 black Skeleton creature with "{B}: Regenerate this creature" until end of turn. It\'s still a land.',
+                    cost: { mana: { X: 1, B: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 1,
+                            toughness: 1,
+                            subtype: "Skeleton",
+                            colors: ["B"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$source" },
+                            grantedActivatedId: "spawning-pool-grant",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    animatesSelf: true,
+                },
+            ],
+            entersTapped: true,
+            grantTemplates: [
+                {
+                    id: "spawning-pool-grant",
+                    oracleText: "{B}: Regenerate this creature.",
+                    cost: { mana: { B: 1 } },
+                    useStack: true,
+                    effects: [{ op: "regenerate", target: { ref: "$source" } }],
+                },
+            ],
+        },
+    },
     // The same self animation with another subtype, colour and keyword: the
     // smoke form keeps those literals, so each distinct clause needs its own
     // evidence (issue #4564).
