@@ -563,8 +563,8 @@ export function classifyLane(
             // half is `botHalf`'s: the files the diff reaches, or whole.
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
-            // `blade-index` may repeat a file the bot run already ran — 2 s,
-            // cheaper than a second rule for one lane.
+            // `blade-index` and `search-cost` may repeat a file the bot run
+            // already ran — 2–4 s, cheaper than a second rule for one lane.
             run: [
                 { id: "check:pr:app", command: "bun run check:pr:app" },
                 ...bot.run,
@@ -824,6 +824,10 @@ export function classifyLane(
  * Order: after `check:oracle` wherever the lane runs it — lockfile DRIFT is
  * the error a reader must see first, not a census over a stale file.
  */
+/** The search cost-counter pin, a `bot-node` file the lane admits as the
+ *  `search-cost` cheap guard (issue #6545). */
+export const SEARCH_COST_TEST = "convex/gre/__tests__/searchCost.bot.test.ts";
+
 export const CHEAP_GUARDS: readonly {
     id: string;
     /** A changed path that is one of the guard's inputs. */
@@ -856,6 +860,21 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/gre\/ai\/blade\/|data\/blade-(card-index|reproducers)\.json$|scripts\/lib\/blade-card-index\.ts$|scripts\/__tests__\/blade-card-index-drift\.bot\.test\.ts$)/,
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
+    },
+    // Issue #6545: the ISMCTS cost-counter pin, a `bot-node` file no scoped
+    // lane relates — exact clone / SBA-sweep / layer-7-walk counts any change
+    // to what a search iteration runs moves. PR #6509 changed the rollout's
+    // land play, left the pins stale, and the base went RED. Admitted by
+    // everything the search runs on: `convex/{gre,cards,oracle}/**` and
+    // `convex/debugScenarioSpec.ts`, which the scenario builder laying out
+    // the blade positions value-imports — wide on purpose. 4.4 s wall at load
+    // ~6–8 (2026-10-23); 12.7 s on a fresh worktree's cold transform cache at
+    // load ~17. Like `blade-index`, health runs it through `test:bot`.
+    {
+        id: "search-cost",
+        admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
+        lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing a search iteration runs on moved, so its cost counters cannot",
+        command: `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`,
     },
     {
         id: "check:baseline-shrink",
