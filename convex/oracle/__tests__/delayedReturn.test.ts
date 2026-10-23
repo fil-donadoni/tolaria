@@ -72,11 +72,11 @@ describe("delayed return — golden fixtures (CR 603.7a)", () => {
                 timing: "next-cleanup-step",
                 oracleText:
                     "Return this land to its owner's hand at the beginning of the next cleanup step.",
-                capture: { $returned: { ref: "$source" } },
+                capture: { $self: { ref: "$source" } },
                 effects: [
                     {
                         op: "moveZone",
-                        target: { ref: "$returned" },
+                        target: { ref: "$self" },
                         to: "hand",
                     },
                 ],
@@ -105,11 +105,11 @@ describe("delayed return — golden fixtures (CR 603.7a)", () => {
                         timing: "next-end-step",
                         oracleText:
                             "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
-                        capture: { $returned: { ref: "$that1" } },
+                        capture: { $c: { ref: "$that1" } },
                         effects: [
                             {
                                 op: "moveZone",
-                                target: { ref: "$returned" },
+                                target: { ref: "$c" },
                                 from: "exile",
                                 to: "battlefield",
                             },
@@ -145,6 +145,15 @@ describe("delayed return — refusals stay unparsed", () => {
             ...VOIDWALK,
             oracleText:
                 "Destroy target creature. Return it to the battlefield under its owner's control at the beginning of the next end step.",
+        });
+        expect(outcome(card).state).toBe("unparsed");
+    });
+
+    it('a "skip your next draw step" rider is not read (Ivory Gargoyle form)', () => {
+        const card = oracleCard({
+            ...VOIDWALK,
+            oracleText:
+                "Exile target creature. Return it to the battlefield under its owner's control at the beginning of the next end step and you skip your next draw step.",
         });
         expect(outcome(card).state).toBe("unparsed");
     });

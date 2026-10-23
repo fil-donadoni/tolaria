@@ -9898,11 +9898,11 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             timing: "next-end-step",
                             oracleText:
                                 "Return this artifact to its owner's hand at the beginning of the next end step.",
-                            capture: { $returned: { ref: "$source" } },
+                            capture: { $self: { ref: "$source" } },
                             effects: [
                                 {
                                     op: "moveZone",
-                                    target: { ref: "$returned" },
+                                    target: { ref: "$self" },
                                     to: "hand",
                                 },
                             ],
@@ -9937,11 +9937,11 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     timing: "next-end-step",
                     oracleText:
                         "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
-                    capture: { $returned: { ref: "$that1" } },
+                    capture: { $c: { ref: "$that1" } },
                     effects: [
                         {
                             op: "moveZone",
-                            target: { ref: "$returned" },
+                            target: { ref: "$c" },
                             from: "exile",
                             to: "battlefield",
                         },
@@ -9992,11 +9992,11 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             timing: "next-end-step",
                             oracleText:
                                 "Return it to its owner's hand at the beginning of the next end step.",
-                            capture: { $returned: { target: 0 } },
+                            capture: { $c: { target: 0 } },
                             effects: [
                                 {
                                     op: "moveZone",
-                                    target: { ref: "$returned" },
+                                    target: { ref: "$c" },
                                     to: "hand",
                                 },
                             ],

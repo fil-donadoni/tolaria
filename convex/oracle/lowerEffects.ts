@@ -3850,16 +3850,20 @@ function lowerSentenceBody(
                     : sentence.destination === "battlefield"
                       ? "that card"
                       : "it";
+            // The capture name follows the hand-written delayed-return
+            // convention: `$self` for the source, `$c` for a bound object.
+            const name =
+                "ref" in capture && capture.ref === "$source" ? "$self" : "$c";
             return lowered([
                 {
                     op: "delayedTrigger",
                     timing: sentence.timing,
                     oracleText: `Return ${what} to ${where} at the beginning of the next ${when} step.`,
-                    capture: { $returned: capture },
+                    capture: { [name]: capture },
                     effects: [
                         {
                             op: "moveZone",
-                            target: { ref: "$returned" },
+                            target: { ref: name },
                             ...(sentence.destination === "battlefield"
                                 ? { from: "exile" as const }
                                 : {}),
