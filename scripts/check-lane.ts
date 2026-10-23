@@ -786,8 +786,7 @@ export function classifyLane(
  * heavy tier belongs in the lane; `health`-only is for guards that cost more
  * (`HEALTH_ONLY_GUARDS` in `lib/health-step.ts`, each with its measured
  * cost). These stay in health too — a script guard in `HEALTH_SCRIPTS`, the
- * vitest-file ones (`blade-index`, `search-cost`) in its `test` step through
- * `test:bot` —
+ * vitest-file one (`blade-index`) in its `test` step through `test:bot` —
  * health is the full gate; the lane is only no longer the place a violation
  * is first SEEN late.
  *
@@ -814,17 +813,6 @@ export function classifyLane(
  *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
  *     landed with a stale index and the base went RED (PR #5868); with it
  *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
- *   - `search-cost` (issue #6545) is the ISMCTS cost-counter pin
- *     (`SEARCH_COST_TEST`), another `bot-node` file no scoped lane relates:
- *     exact clone / sweep / walk counts over three blade positions, moved by
- *     any engine, card or compiler change that alters what a search iteration
- *     does. 4.4 s wall at load ~6–8 (2026-10-23) — the figure within the
- *     budget; the first run in a fresh worktree, with vitest's transform
- *     cache cold, took 12.7 s at load ~17. Without it PR #6509 changed the
- *     rollout's land play, left the pins stale, and the base went RED; so it
- *     is admitted by everything the search runs on — `convex/{gre,cards,
- *     oracle}/**` and `convex/debugScenarioSpec.ts`, which the scenario
- *     builder that lays out the blade positions imports — wide on purpose.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
@@ -836,8 +824,8 @@ export function classifyLane(
  * Order: after `check:oracle` wherever the lane runs it — lockfile DRIFT is
  * the error a reader must see first, not a census over a stale file.
  */
-/** The search cost-counter pin (issue #4458, gated by issue #5001), a lane
- *  cheap guard since issue #6545. */
+/** The search cost-counter pin, a `bot-node` file the lane admits as the
+ *  `search-cost` cheap guard (issue #6545). */
 export const SEARCH_COST_TEST = "convex/gre/__tests__/searchCost.bot.test.ts";
 
 export const CHEAP_GUARDS: readonly {
@@ -873,6 +861,15 @@ export const CHEAP_GUARDS: readonly {
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
     },
+    // Issue #6545: the ISMCTS cost-counter pin, a `bot-node` file no scoped
+    // lane relates — exact clone / SBA-sweep / layer-7-walk counts any change
+    // to what a search iteration runs moves. PR #6509 changed the rollout's
+    // land play, left the pins stale, and the base went RED. Admitted by
+    // everything the search runs on: `convex/{gre,cards,oracle}/**` and
+    // `convex/debugScenarioSpec.ts`, which the scenario builder laying out
+    // the blade positions value-imports — wide on purpose. 4.4 s wall at load
+    // ~6–8 (2026-10-23); 12.7 s on a fresh worktree's cold transform cache at
+    // load ~17. Like `blade-index`, health runs it through `test:bot`.
     {
         id: "search-cost",
         admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
