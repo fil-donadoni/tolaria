@@ -4048,13 +4048,6 @@ export interface SpellContext {
      *  by Cursed Rack (chosen opponent's max hand size is four) and The Rack
      *  (damage at the chosen player's upkeep). */
     setChosenPlayer: (playerId: string) => void;
-    /** Records an ordered pair of basic land types chosen as the source
-     *  permanent enters, stored on the instance for the rest of the game
-     *  (CR 603.6b / 614.12 — Illusionary Terrain "as this enchantment enters,
-     *  choose two basic land types"). `[first, second]`. Read back by a
-     *  `subtype-set` static's `subtypesFor` callback (ADR 0050). The source is
-     *  the resolving permanent; no-op if it has left the battlefield. */
-    setChosenSubtypes: (pair: string[]) => void;
     /** Reads the mode chosen as the source permanent entered (CR 700.2c modal
      *  pick stored on the instance as `chosenModeId`). Undefined if no mode was
      *  chosen or the source has left the battlefield. Used by Psychic Allergy's
