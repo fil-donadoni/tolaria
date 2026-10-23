@@ -484,8 +484,13 @@ export function validateAttackerEligibility(
     }
     // CR 508.1c — card-level attack restrictions from staticEffects[].
     if (defenderBattlefield) {
+        const controllerBattlefield =
+            state?.players.find((p) => p.id === card.controllerId)
+                ?.battlefield ?? [];
         for (const r of collectAttackRestrictions(card, state)) {
-            if (!r.predicate(card, defenderBattlefield)) {
+            if (
+                !r.predicate(card, defenderBattlefield, controllerBattlefield)
+            ) {
                 return { eligible: false, reason: r.oracleText };
             }
         }
