@@ -5,7 +5,7 @@
 // snapshot independent of any live-instance overrides.
 import { describe, it, expect } from "vitest";
 import {
-    getAllCards,
+    getAllCatalogueCards,
     getCardByName,
     tokenDefinitionId,
     tryGetDefinition,
@@ -1010,7 +1010,8 @@ describe("buildPreviewBody — a token's edition art (ADR 0140 §4, issue #4120)
 // structured ability row's own `oracleText` is what the rules box renders
 // when the paragraph-coverage gate hides the printed text, so a row that
 // stops at the mana clause made the damage invisible. Traverses the whole
-// preview build for every catalogue card carrying either rider.
+// preview build for every catalogue card (hand-written and compiled)
+// carrying either rider.
 describe("buildPreviewBody — tap-for-mana self-damage rider is rendered", () => {
     function renderedRulesText(defId: string): string {
         const body = buildPreviewBody(defId);
@@ -1020,7 +1021,7 @@ describe("buildPreviewBody — tap-for-mana self-damage rider is rendered", () =
         ].join("\n");
     }
 
-    const riderCards = getAllCards().filter((def) =>
+    const riderCards = getAllCatalogueCards().filter((def) =>
         (def.activatedAbilities ?? []).some(
             (a) =>
                 a.dealsDamageToControllerOnTap !== undefined ||
@@ -1030,6 +1031,7 @@ describe("buildPreviewBody — tap-for-mana self-damage rider is rendered", () =
 
     it("finds the rider cards (Ancient Tomb among them)", () => {
         expect(riderCards.map((d) => d.name)).toContain("Ancient Tomb");
+        expect(riderCards.length).toBeGreaterThan(20);
     });
 
     it.each(riderCards.map((d) => [d.name, d.id] as const))(
