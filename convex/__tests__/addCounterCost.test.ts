@@ -18,6 +18,7 @@ import { preloadDefinitions } from "../cards";
 import type { CardDefinition } from "../cards/types";
 import {
     activateAbilityOnState,
+    applyManaAbilityRemoveCounterCost,
     activateManaAbility,
     buildPendingActivation,
     finalizeTargetSelection,
@@ -331,5 +332,20 @@ describe("cost.addCounter — the tap-less MANA ability (CR 605.1a / 605.3b)", (
         const first = await run(creatureBoard(WALL_ID));
         await expect(run(first)).rejects.toThrow();
         expect(counters(first)).toEqual({ "-0/-1": 1 });
+    });
+});
+
+describe("cost.addCounter — a {T} mana ability pays it on the tap path", () => {
+    it("places the counter when the source is tapped for mana (CR 605.1a / 122.1)", () => {
+        const state = creatureBoard(WALL_ID);
+        const src = getPlayer(state, "p1").battlefield[0];
+        applyManaAbilityRemoveCounterCost(
+            state,
+            {
+                cost: { tap: true, addCounter: { type: "-0/-1", count: 1 } },
+            } as never,
+            src
+        );
+        expect(counters(state)).toEqual({ "-0/-1": 1 });
     });
 });

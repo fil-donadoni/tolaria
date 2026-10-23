@@ -1066,6 +1066,11 @@ export function applyManaAbilityRemoveCounterCost(
     ability: ActivatedAbility | undefined | null,
     card: CardInstanceState
 ): void {
+    // CR 122.1 / 118.1 — a `{T}` + `addCounter` mana ability places its counter
+    // here too, so the tap paths never give the mana without the price. Not
+    // reversed by an untap refund: the counter is on the permanent for good.
+    const placed = ability?.cost.addCounter;
+    if (placed) addCounterToCard(state, card, placed.type, placed.count);
     const leg = ability?.cost.removeCounter;
     if (!leg || leg.count <= 0) return;
     payRemoveCounterCost(state, card, leg);
