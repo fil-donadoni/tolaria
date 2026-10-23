@@ -43,6 +43,7 @@ import {
     getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
     unrestrictedFloatingMana,
+    type TargetCountAnnouncement,
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
@@ -2426,12 +2427,42 @@ function isVariableCount(req: TargetRequirement | undefined): boolean {
 function announcedTargetsNeedConfirm(
     lastReq: TargetRequirement | undefined,
     lastGroupSize: number,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    announcement?: TargetCountAnnouncement
 ): boolean {
-    const count = announcedTargetCount(lastReq, chosenX);
+    const count = announcedTargetCount(lastReq, chosenX, { announcement });
     // No selection is opened at all — nothing to confirm.
     if (count === undefined) return false;
     return !pendingTargetCountMaxReached(count, lastGroupSize);
+}
+
+/** CR 601.2c — the announcement the Bot's enumerator reads a group's count
+ *  against: the announcing player, the announced card, the earlier groups'
+ *  picks. Mirrors the server's `advanceTargetGroupOrFinalize` reading. */
+function announcementOf(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    priorTargets: readonly TargetSelection[]
+): TargetCountAnnouncement {
+    return {
+        state,
+        controllerId: player.id,
+        sourceInstanceId: card.id,
+        priorTargets,
+    };
+}
+
+/** Whether a group's count is bounded by a text-defined quantity
+ *  (`TargetCountQuantity`) — the one count shape whose width depends on the
+ *  earlier groups' picks, so its tuples are enumerated per prefix. */
+function hasTextDefinedMax(req: TargetRequirement | undefined): boolean {
+    const count = req?.count;
+    return (
+        typeof count === "object" &&
+        typeof count.max === "object" &&
+        count.max !== null
+    );
 }
 
 // Exported for a direct unit test (issue #2365) — proof that the bot's
@@ -2441,7 +2472,8 @@ function announcedTargetsNeedConfirm(
 // silently drop every non-empty tuple instead of erroring.
 export function targetCount(
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    announcement?: TargetCountAnnouncement
 ): {
     min: number;
     max: number;
@@ -2450,7 +2482,9 @@ export function targetCount(
     // literal `"X"` case inline and fall through `req.count.max ?? min` for
     // the object form, which passed an unresolved `"X"` string straight
     // through for an `{ min, max: "X" }` "up to X" range.
-    const resolved = resolveTargetRequirementCount(req.count, chosenX);
+    const resolved = resolveTargetRequirementCount(req.count, chosenX, {
+        announcement,
+    });
     if (typeof resolved === "number") return { min: resolved, max: resolved };
     return { min: resolved.min, max: resolved.max ?? resolved.min };
 }
@@ -2532,9 +2566,14 @@ function enumerateTargetTuples(
     card: CardInstanceState,
     req: TargetRequirement | undefined,
     chosenX: number | undefined,
-    orderedSlots: boolean = false
+    orderedSlots: boolean = false,
+    priorTargets: readonly TargetSelection[] = []
 ): TargetSelection[][] {
     if (!req) return [[]];
+    // CR 601.2c — the announcement a text-defined count bound is read against:
+    // the server reads it when its walk reaches this group, over the picks
+    // the earlier groups made.
+    const announcement = announcementOf(state, player, card, priorTargets);
     // CR 612.6 — a color-targeted requirement follows the source's active
     // color-word changes (Sleight of Mind on a Circle of Protection retargets
     // its "<color> source of your choice" to the new color).
@@ -2565,8 +2604,10 @@ function enumerateTargetTuples(
     // `confirmTargets`, so it fired against no selection and threw — the same
     // freeze this issue is about, reached through the count rather than the
     // confirm.
-    if (announcedTargetCount(effReq, chosenX) === undefined) return [[]];
-    const { min, max } = targetCount(effReq, chosenX);
+    if (announcedTargetCount(effReq, chosenX, { announcement }) === undefined) {
+        return [[]];
+    }
+    const { min, max } = targetCount(effReq, chosenX, announcement);
     if (max === 0) return [[]];
 
     const tuples: TargetSelection[][] = [];
@@ -2653,11 +2694,15 @@ function enumerateTargetGroupTuples(
 ): {
     targets: TargetSelection[];
     lastGroupSize: number;
+    lastGroupPrior: readonly TargetSelection[];
     modeTargetCounts?: number[];
 }[] {
     type Tuple = {
         targets: TargetSelection[];
         lastGroupSize: number;
+        /** The earlier picks the LAST group's count was read over — its own
+         *  mode instance's, as the server's walk reads them (CR 601.2c). */
+        lastGroupPrior: readonly TargetSelection[];
         modeTargetCounts?: number[];
     };
     const groupInstances = modeInstances?.groupInstances;
@@ -2688,6 +2733,7 @@ function enumerateTargetGroupTuples(
         {
             targets: [],
             lastGroupSize: 0,
+            lastGroupPrior: [],
             ...(modeInstances
                 ? {
                       modeTargetCounts: new Array<number>(
@@ -2698,18 +2744,26 @@ function enumerateTargetGroupTuples(
         },
     ];
     for (const [g, req] of groups.entries()) {
-        const groupTuples = enumerateTargetTuples(
-            state,
-            player,
-            card,
-            req,
-            chosenX,
-            orderedGroups?.[g] ?? false
-        );
+        const tuplesAfter = (prior: readonly TargetSelection[]) =>
+            enumerateTargetTuples(
+                state,
+                player,
+                card,
+                req,
+                chosenX,
+                orderedGroups?.[g] ?? false,
+                prior
+            );
+        // CR 601.2c — a text-defined bound is read over the earlier groups'
+        // picks, so its tuples differ per prefix; every other group's are
+        // the same for all of them and are enumerated once.
+        const sharedTuples = hasTextDefinedMax(req)
+            ? undefined
+            : tuplesAfter([]);
         // CR 601.2c — a group with no legal way to be filled makes the whole
         // announcement illegal (`announceCast` throws "Not enough legal
         // targets"), so the cast is not a move at all.
-        if (groupTuples.length === 0) return [];
+        if (sharedTuples?.length === 0) return [];
         // CR 601.2c — this group's own share of the requirement: whether its
         // legal set can answer one at all ("if able"), how many of its slots
         // the chooser is FORCED to fill (the deferral window inside the
@@ -2739,7 +2793,7 @@ function enumerateTargetGroupTuples(
                               prefix.modeTargetCounts[instance]
                       )
                     : prefix.targets;
-            for (const tuple of groupTuples) {
+            for (const tuple of sharedTuples ?? tuplesAfter(priorPicks)) {
                 // CR 115.3 "another target" (issue #3236) — the group may not
                 // re-pick a permanent an earlier group chose; the engine lowers
                 // the same directive into `excludeInstanceIds` when the walk
@@ -2787,6 +2841,7 @@ function enumerateTargetGroupTuples(
                 next.push({
                     targets: [...prefix.targets, ...tuple],
                     lastGroupSize: tuple.length,
+                    lastGroupPrior: priorPicks,
                     ...(modeTargetCounts ? { modeTargetCounts } : {}),
                 });
                 if (next.length >= MAX_COMBINATIONS) break;
@@ -4018,6 +4073,7 @@ function enumerateCastMovesFromZone(
                 for (const {
                     targets,
                     lastGroupSize,
+                    lastGroupPrior,
                     modeTargetCounts,
                 } of enumerateTargetGroupTuples(
                     state,
@@ -4053,7 +4109,8 @@ function enumerateCastMovesFromZone(
                         confirmTargets: announcedTargetsNeedConfirm(
                             lastReq,
                             lastGroupSize,
-                            x
+                            x,
+                            announcementOf(state, player, card, lastGroupPrior)
                         ),
                         tapPlan,
                         ...(payLife > 0 ? { payLife } : {}),
@@ -5002,6 +5059,7 @@ function enumerateAbilityMoves(
             for (const {
                 targets,
                 lastGroupSize,
+                lastGroupPrior,
                 modeTargetCounts,
             } of enumerateTargetGroupTuples(
                 state,
@@ -5063,7 +5121,8 @@ function enumerateAbilityMoves(
                         confirmTargets: announcedTargetsNeedConfirm(
                             lastAbilityReq,
                             lastGroupSize,
-                            undefined
+                            undefined,
+                            announcementOf(state, player, perm, lastGroupPrior)
                         ),
                         tapPlan: tupleTapPlan,
                         ...(costPicks ? { costPicks } : {}),

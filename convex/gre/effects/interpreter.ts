@@ -79,6 +79,7 @@ import type {
     EffectLibraryPosition,
     EffectMode,
     EffectCountSpec,
+    TargetCountQuantity,
     EffectDifferenceTallyOperand,
     EffectExiledWithSourceSelector,
     EffectForEachSelector,
@@ -1651,6 +1652,19 @@ function resolvePileObjectSet(
         filter ? cards.filter((c) => matchesCardFilter(ctx, c, filter)) : cards
     ).map((c) => c.id);
     return { ids, zone: "graveyard", zoneOwnerId };
+}
+
+/** CR 601.2c / 107.3 — a {@link TargetCountQuantity} evaluated at
+ *  ANNOUNCEMENT, through the same `countSet` an Effect Script's `count` reads
+ *  at resolution, so a quantity bounding a target count and the same quantity
+ *  in an Op can never disagree. `ctx` is built over the announcement: its
+ *  `targets` are the earlier groups' picks. The one caller is
+ *  `resolveTargetRequirementCount` (`gre/state.ts`). */
+export function evaluateTargetCountQuantity(
+    ctx: SpellContext,
+    quantity: TargetCountQuantity
+): number {
+    return countSet(ctx, quantity.count);
 }
 
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
