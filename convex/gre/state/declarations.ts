@@ -2672,6 +2672,10 @@ export type PendingCast = {
      *  commit (`tryAutoCommitPendingCast`) can still tag the resulting stack
      *  item `evoked: true` once the picker resolves. */
     evoked?: boolean;
+    /** CR 118.9 / 701.20a — the alternative cost chosen for this cast reveals
+     *  the caster's hand (`AlternativeCost.revealHand`). Carried through a
+     *  parked payment so the deferred commit applies it. */
+    revealHand?: true;
     /** CR 702.109a — true iff the alternative cost chosen for this cast is the
      *  card's Dash cost (`chosenAltCost === cardDef.dash` at announcement).
      *  Carried through a parked cast (real mana payment, or a real non-mana

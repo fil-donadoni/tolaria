@@ -35,6 +35,16 @@ const VINE_DRYAD = oracleCard({
     toughness: "1",
 });
 
+const LAND_GRANT = oracleCard({
+    name: "Land Grant",
+    manaCost: "{1}{G}",
+    typeLine: "Sorcery",
+    oracleText:
+        "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost.\nSearch your library for a Forest card, reveal that card, put it into your hand, then shuffle.",
+    power: undefined,
+    toughness: undefined,
+});
+
 function definitionOf(card: ReturnType<typeof oracleCard>) {
     const outcome = compileCard(card);
     if (outcome.state === "unparsed")
@@ -96,6 +106,24 @@ describe("alternative cost — golden (CR 118.9)", () => {
         );
     });
 
+    it("Land Grant: reveal your hand, gated on no land cards in hand (CR 701.20a)", () => {
+        const def = definitionOf(LAND_GRANT);
+        expect(def).toMatchObject({
+            name: "Land Grant",
+            alternativeCosts: [
+                {
+                    id: "reveal-hand-no-land-cards",
+                    description: "Reveal your hand",
+                    condition: {
+                        kind: "no-hand-cards",
+                        filter: { type: "Land" },
+                    },
+                    revealHand: true,
+                },
+            ],
+        });
+    });
+
     it("a blue pitch line on a spell reads the same shape (Misdirection)", () => {
         const routed = routeLine(
             "You may exile a blue card from your hand rather than pay this spell's mana cost.",
@@ -124,8 +152,12 @@ describe("alternative cost — refusals (fail-closed)", () => {
             "You may exile the top three black cards of your graveyard rather than pay this spell's mana cost.",
         ],
         [
-            "reveal + hand-contents condition — Land Grant",
-            "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost.",
+            "reveal over a colour, not a card type",
+            "If you have no red cards in hand, you may reveal your hand rather than pay this spell's mana cost.",
+        ],
+        [
+            "reveal with no hand-contents condition",
+            "You may reveal your hand rather than pay this spell's mana cost.",
         ],
         [
             "life plus pitch — a different printed form",

@@ -1693,6 +1693,7 @@ export function tryAutoCommitPendingCast(
             ...(castExile ? { exileFromGraveyardChoice: castExile } : {}),
             ...(castConvoke ? { convokeCreatureChoice: castConvoke } : {}),
             ...(castAltHand ? { alternativeCostHandChoice: castAltHand } : {}),
+            ...(pending.revealHand ? { revealHand: true } : {}),
         },
         record: {
             targets: (pending as Record<string, unknown>).targets as
