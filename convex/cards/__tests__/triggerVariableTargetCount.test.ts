@@ -32,13 +32,17 @@ import { getAllCards } from "..";
 import { getAllEmblemDefinitions } from "../emblems";
 import type { TriggeredAbility } from "../types";
 
+// A text-defined bound (`TargetCountQuantity`, issue #6526) is just as
+// inert there: `triggerTargetMinMax` has no announcement to read it against
+// and collapses it to `min` the same way.
 function hasInertVariableMax(ability: TriggeredAbility): boolean {
     const count = ability.targetRequirement?.count;
     return (
         typeof count === "object" &&
         count !== null &&
         !Array.isArray(count) &&
-        count.max === "X"
+        count.max !== undefined &&
+        typeof count.max !== "number"
     );
 }
 

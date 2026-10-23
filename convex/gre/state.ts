@@ -1001,6 +1001,10 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *     to X" — Pest Infestation's future "destroy up to X target artifacts
  *     and/or enchantments"), which resolves to a live `{ min, max: chosenX }`
  *     range.
+ *   - `{ min, max: TargetCountQuantity }` — a bound DEFINED BY THE SPELL'S
+ *     TEXT (CR 601.2c, Reap), read off the board over `options.announcement`
+ *     (the earlier groups' picks); without one it stays open (`{ min }`),
+ *     see the branch below.
  *
  *  `requireX: true` throws when an X-bearing count reaches this with no
  *  `chosenX` (the cast/activated-ability paths in `game.ts`, where a missing
