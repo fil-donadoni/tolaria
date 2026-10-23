@@ -233,22 +233,15 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
-## Oracle lockfile — a bare compile is session-scoped; the base replays
+## Oracle lockfile — a bare compile never replays for your Bot
 
-Every Bot PR edits a Bot hash input (`isBotSourceFile`,
-`scripts/lib/oracle-bot-reach.ts`). A bare `bun run oracle:compile` in your
-worktree does NOT replay the catalogue for it (issue #6463): it carries every
-committed verdict whose definition is unchanged, plays only the definition
-misses (a card newly `ready`, one with no verdict — seconds), and keeps the
-committed Bot hash in the header. The whole replay under your Bot — every
-`ready` card, 20–47 min of CPU no gate needs (ADR 0105 § 7.2) — is
-`--replay-bot`, asked for by name, and the base runs it ONCE per Bot change
-after your PR merges: `derive:sync --replay-bot` (the `bot-replay` job of
-`post-merge.yml`) compares the header's Bot hash with the tree's, sweeps,
-and pushes the swept lockfile when no card left `ready`; a card your change
-froze is filed as a `bug` (`area:game-bot`) naming it and your commit range,
-never written into the lockfile silently. `land` and `derive:sync` refresh
-the lockfile with `--carry-bot` (never play).
+A bare `bun run oracle:compile` carries every committed verdict whose
+definition is unchanged and plays only the definition misses (issue #6463),
+header on the committed Bot hash. The whole replay under your Bot
+(`--replay-bot`, 20–47 min) runs ONCE on the base after your PR merges
+(`derive:sync --replay-bot`, the `bot-replay` job): no card left `ready` →
+swept lockfile pushed; a card your change froze → a `bug` (`area:game-bot`)
+naming it and your commit range, never a silent lockfile write.
 
 Need FRESH verdicts for a few cards (the ones a blade entry or a refit is
 about, or whose `frozen` status the change should flip)?
