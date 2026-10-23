@@ -3826,10 +3826,11 @@ export type AsEntersChoice =
      *  The MANDATORY sibling of `discard`: no "may", so a controller holding a
      *  matching permanent must name one — the prompt's `count` floor is 1 — and
      *  only a board with no legal victim sends the object to `ifDeclined`
-     *  (CR 614.1a: an "instead" that cannot be applied never replaces the
-     *  entry). The victim is chosen from the controller's battlefield as the
-     *  choice is OFFERED, so a sibling staged entry's already-committed
-     *  sacrifice is gone from it (CR 614.12b). */
+     *  (the card's own "If you don't" sentence, CR 614.1a). The victim is read
+     *  from the controller's battlefield as the choice is OFFERED, so a
+     *  sibling entry already answered is gone from it; prompts queued
+     *  together are NOT re-narrowed (CR 614.12b, `renarrowSiblingCostChoices`
+     *  covers `payLife` only) — no card enters two of these at once. */
     | { kind: "sacrifice"; filter: PermanentFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
