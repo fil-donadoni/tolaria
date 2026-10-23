@@ -55,6 +55,23 @@ function player(overrides: Partial<MatchablePlayer> = {}): MatchablePlayer {
 }
 
 describe("matchesPermanentFilter", () => {
+    it("excludeColors rejects a permanent of an excluded colour, passes the rest (CR 105.2)", () => {
+        const filter = { excludeColors: ["B" as const] };
+        expect(
+            matchesPermanentFilter(permanent({ colors: ["B"] }), filter)
+        ).toBe(false);
+        expect(
+            matchesPermanentFilter(permanent({ colors: ["B", "G"] }), filter)
+        ).toBe(false);
+        expect(
+            matchesPermanentFilter(permanent({ colors: ["G"] }), filter)
+        ).toBe(true);
+        // CR 105.2c — colourless has none of the excluded colours.
+        expect(matchesPermanentFilter(permanent({ colors: [] }), filter)).toBe(
+            true
+        );
+    });
+
     it("returns true for an empty filter", () => {
         expect(matchesPermanentFilter(permanent(), {})).toBe(true);
     });
