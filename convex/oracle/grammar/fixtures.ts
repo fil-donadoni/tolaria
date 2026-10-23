@@ -6470,6 +6470,45 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 400.3 — "Return all artifacts target player owns to their hand": a bounce sweep scoped to an announced player's battlefield, one `moveZone` to the hand per artifact. Exhibits the sweep `moveZone` of `$each` under a target-player controller the canned smoke scenario cannot model (issue #5701).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ed1e5d24-c8a8-48fe-a88f-1003ad432477",
+            name: "Hurkyl's Recall",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Return all artifacts target player owns to their hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hurkyl's Recall",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Return all artifacts target player owns to their hand.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Artifact" },
+                        controller: { target: 0 },
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
     // CR 202.3 + CR 122.1 — "Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact": an `if` over the iterated permanent's mana value against the source's live counter tally. Exhibits the mana-value-versus-counters comparison (issue #4557).
     {
         rule: "mass subject",
