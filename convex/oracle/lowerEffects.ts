@@ -1566,6 +1566,18 @@ function playerRef(
                 ? lowered(named)
                 : unlowerable(`"${word}" names no player at this site`);
         }
+        // CR 102.2 — the opponents of the head's player; the two-player
+        // engine (ADR 0010) has exactly one per player.
+        case "opponents-of-that-player": {
+            if (slots.requirements().some((r) => r.type === "player"))
+                return unlowerable(
+                    '"that player" may name the announced target, not the head\'s player'
+                );
+            const named = site.antecedents?.player;
+            return named !== undefined
+                ? lowered({ opponentOf: named })
+                : unlowerable('"that player" names no player at this site');
+        }
         case "defending-player":
             return site.antecedents?.defendingPlayer !== undefined
                 ? lowered(site.antecedents.defendingPlayer)
@@ -3517,6 +3529,29 @@ function lowerSentenceBody(
                     op: "if",
                     predicate: { not: { binding: bind } },
                     then: [{ op: "sacrifice", target: target.value }],
+                },
+            ]);
+        }
+        case "sacrifice-source": {
+            // CR 701.21a — the source is the permanent sacrificed. With an
+            // "If you do" behind it (CR 608.2c) the sacrifice binds what it
+            // moved; an empty bind (the source already gone) fails the gate.
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            if (sentence.then === undefined)
+                return lowered([{ op: "sacrifice", target: target.value }]);
+            const inner = gatedSentence(sentence.then, walk, site);
+            if (!inner.ok) return inner;
+            const bind = walk.nextBind("sacrificed");
+            return lowered([
+                { op: "sacrifice", target: target.value, bind },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: bind },
+                        filter: {},
+                    },
+                    then: inner.value,
                 },
             ]);
         }

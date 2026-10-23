@@ -172,6 +172,13 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         head.kind === "damage-dealt" && head.recipient === "player"
             ? { ref: "$event.damagedPlayer" }
             : null;
+    // CR 603.2 — "whenever a player / an opponent casts a spell"
+    // names the caster, by the head's own words; behind "you" the caster is
+    // the controller and "that player" is never printed.
+    const caster =
+        head.kind === "spell-cast" && head.scope !== "you"
+            ? { ref: "$event.caster" }
+            : null;
     return {
         // CR 506.2 + CR 508.5 — the source's own attack names the player it
         // attacks; this engine is two-player (ADR 0010), so that is the
@@ -189,6 +196,7 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { player: damagedOpponent, opponent: damagedOpponent }
             : {}),
         ...(damagedPlayer !== null ? { player: damagedPlayer } : {}),
+        ...(caster !== null ? { player: caster } : {}),
         // CR 120.3 — "that much" after a damage head is the damage dealt.
         ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
             ? { amount: { ref: "$event.amount" } }

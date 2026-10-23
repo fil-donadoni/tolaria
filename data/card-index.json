@@ -2586,6 +2586,16 @@
         "source": "compiled"
     },
     {
+        "name": "Arc Runner",
+        "scryfallId": "32014715-7faa-412a-b8b4-751102e6b8a3",
+        "oracleId": "9bbee1a5-2eb0-4fad-9524-4ad9cc5ca998",
+        "firstSet": "m11",
+        "firstPrintId": "32014715-7faa-412a-b8b4-751102e6b8a3",
+        "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Arcades Sabboth",
         "scryfallId": "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
         "oracleId": "8ead94c5-8447-4f20-87ec-efdccde689fc",
@@ -6367,6 +6377,16 @@
         "firstPrintId": "5720a5b2-60ca-49f9-83e8-b801471c92ea",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Blistering Firecat",
+        "scryfallId": "e0ddcf4a-1943-49dd-a02c-75804ce4bc3e",
+        "oracleId": "b3595359-0d40-495e-85da-6a56fbce7357",
+        "firstSet": "ons",
+        "firstPrintId": "e0ddcf4a-1943-49dd-a02c-75804ce4bc3e",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -23820,6 +23840,16 @@
         "source": "compiled"
     },
     {
+        "name": "Frostbite Pyromental",
+        "scryfallId": "7a44581f-8fc4-457d-888a-1e211090ee7e",
+        "oracleId": "9a104f73-597b-49e3-8088-13db31f61900",
+        "firstSet": "fra",
+        "firstPrintId": "7a44581f-8fc4-457d-888a-1e211090ee7e",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Frostbridge Guard",
         "scryfallId": "b9dec431-a20e-4c1c-9855-904779756509",
         "oracleId": "515c1604-59f0-45b4-91be-d2f20fdd3e1e",
@@ -25844,6 +25874,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Boom Keg",
+        "scryfallId": "14343e23-83fb-4d2e-a272-20d7787ef2ca",
+        "oracleId": "8e819d68-3a6e-449a-8392-e072724b80f1",
+        "firstSet": "frf",
+        "firstPrintId": "14343e23-83fb-4d2e-a272-20d7787ef2ca",
+        "firstPrintSet": "frf",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Bully",
         "scryfallId": "2094f2f6-8b38-47d6-973d-271986b5d982",
         "oracleId": "56c5afdc-6777-45c7-8e2c-3cadecb95c5a",
@@ -25870,6 +25910,16 @@
         "firstSet": "usg",
         "firstPrintId": "60081115-16bc-4924-b76d-7cfc0ad2287c",
         "firstPrintSet": "usg"
+    },
+    {
+        "name": "Goblin Cannon",
+        "scryfallId": "b023c0cd-7046-418b-ad31-5c91c6930d45",
+        "oracleId": "c939e74d-4206-4ad1-bdaa-84103db0ac41",
+        "firstSet": "5dn",
+        "firstPrintId": "b023c0cd-7046-418b-ad31-5c91c6930d45",
+        "firstPrintSet": "5dn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Goblin Cavaliers",
@@ -27721,6 +27771,16 @@
         "firstPrintId": "62333783-6a18-4461-88ce-1c37eaf64e2b",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Groundbreaker",
+        "scryfallId": "f467cdea-6166-4289-918b-18f5038c94ed",
+        "oracleId": "a14dc46f-b790-458e-8821-0c5646188680",
+        "firstSet": "plc",
+        "firstPrintId": "f467cdea-6166-4289-918b-18f5038c94ed",
+        "firstPrintSet": "plc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -30025,6 +30085,16 @@
         "firstPrintId": "ee7207f8-5daa-42af-aeea-7a489047110b",
         "firstPrintSet": "blb",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Hopeful Vigil",
+        "scryfallId": "d382fd32-b1f5-4ec7-9d42-fc2915ed3bc9",
+        "oracleId": "33fff722-5cc5-4d0e-b788-166b3edb1223",
+        "firstSet": "woe",
+        "firstPrintId": "d382fd32-b1f5-4ec7-9d42-fc2915ed3bc9",
+        "firstPrintSet": "woe",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -48126,6 +48196,16 @@
         "source": "compiled"
     },
     {
+        "name": "Putrefax",
+        "scryfallId": "b2b2c3f9-a831-4fd2-80e8-b67b0df3e98b",
+        "oracleId": "3a336b30-335a-49d0-b192-c20f3670452b",
+        "firstSet": "som",
+        "firstPrintId": "b2b2c3f9-a831-4fd2-80e8-b67b0df3e98b",
+        "firstPrintSet": "som",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Putrefy",
         "scryfallId": "0a16086c-5a74-45d0-8b38-e832cfbc80f7",
         "oracleId": "9b271430-f53d-42d6-a547-2f286dd9bcb6",
@@ -57594,6 +57674,36 @@
         "source": "compiled"
     },
     {
+        "name": "Skittering Horror",
+        "scryfallId": "80cd2771-9681-4b4a-8c2c-a2ffd7361c35",
+        "oracleId": "4344abeb-47ab-4638-b50f-dd502f14c1af",
+        "firstSet": "uds",
+        "firstPrintId": "80cd2771-9681-4b4a-8c2c-a2ffd7361c35",
+        "firstPrintSet": "uds",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Skittering Monstrosity",
+        "scryfallId": "d0d21e39-b1dd-476d-86dc-4317858e4f8e",
+        "oracleId": "c6cd6934-b661-455a-8de5-ceb920664bbe",
+        "firstSet": "tsp",
+        "firstPrintId": "d0d21e39-b1dd-476d-86dc-4317858e4f8e",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skittering Skirge",
+        "scryfallId": "93aba9d5-5f96-4aba-8248-74398b8bfe9d",
+        "oracleId": "fae1d5d9-a50e-423e-8692-3e41f39df081",
+        "firstSet": "usg",
+        "firstPrintId": "93aba9d5-5f96-4aba-8248-74398b8bfe9d",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Skittering Surveyor",
         "scryfallId": "90c7bea0-79c9-4856-8279-cef7cee82fc1",
         "oracleId": "85364398-923c-4ee9-8519-576fce1c26f7",
@@ -59398,6 +59508,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spark Elemental",
+        "scryfallId": "b9c8bcb2-8247-4d91-baf6-b08de1eb9cde",
+        "oracleId": "50608b7e-b6b2-40ca-91ec-db3e03dbb1af",
+        "firstSet": "5dn",
+        "firstPrintId": "b9c8bcb2-8247-4d91-baf6-b08de1eb9cde",
+        "firstPrintSet": "5dn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spark Jolt",
         "scryfallId": "6ee479c2-a115-450b-bc2e-b03d23b82f2d",
         "oracleId": "f24634f3-49aa-4362-8faa-93598b9324d9",
@@ -59415,6 +59535,16 @@
         "firstPrintId": "f60d8716-4297-484c-8e02-c30ce2773a65",
         "firstPrintSet": "scg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spark Trooper",
+        "scryfallId": "09eb69b5-b8e2-48c6-8c27-cb0108df8dad",
+        "oracleId": "3c82389c-7442-4599-89a0-fb2482e727a3",
+        "firstSet": "gtc",
+        "firstPrintId": "09eb69b5-b8e2-48c6-8c27-cb0108df8dad",
+        "firstPrintSet": "gtc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -61870,6 +62000,16 @@
         "firstSet": "ptk",
         "firstPrintId": "7727e7b5-39a3-46ba-935b-ee093c694c38",
         "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Straw Golem",
+        "scryfallId": "43d62479-92ac-43e2-a3d3-b41dfe0fbb20",
+        "oracleId": "6e48981b-8971-4b7c-ae05-29c7e4091a05",
+        "firstSet": "wth",
+        "firstPrintId": "43d62479-92ac-43e2-a3d3-b41dfe0fbb20",
+        "firstPrintSet": "wth",
         "rarity": "uncommon",
         "source": "compiled"
     },
