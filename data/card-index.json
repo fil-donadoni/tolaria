@@ -26118,6 +26118,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Goon",
+        "scryfallId": "6c77cac8-fe95-4925-a815-8c514cc41b22",
+        "oracleId": "e91bcf01-113b-4532-9f78-2a155b17be4f",
+        "firstSet": "lgn",
+        "firstPrintId": "6c77cac8-fe95-4925-a815-8c514cc41b22",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Grenade",
         "scryfallId": "8837eaba-9602-4f63-9897-85583fcdcf51",
         "oracleId": "20aecb7b-7e37-4efe-ac27-f9f9042203f4",
@@ -40694,6 +40704,16 @@
         "firstSet": "pls",
         "firstPrintId": "8536ec54-cebd-4d44-8e52-42344a3e6daa",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Mogg Toady",
+        "scryfallId": "ee8edaf6-d46e-4efb-8bc0-ec11e06eb499",
+        "oracleId": "77c7ba06-d247-421d-9e0c-54c3000c1b78",
+        "firstSet": "nem",
+        "firstPrintId": "ee8edaf6-d46e-4efb-8bc0-ec11e06eb499",
+        "firstPrintSet": "nem",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Mold Demon",

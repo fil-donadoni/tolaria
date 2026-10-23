@@ -509,6 +509,22 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 508.1c — the engine collects an attack restriction from the
+        // creature's own definition (`collectAttackRestrictions`).
+        case "self-attack-restriction":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "attack-restriction",
+                            id: nextId("cant-attack"),
+                            oracleText: clause.sentence,
+                            unless: clause.unless,
+                        },
+                    ],
+                },
+            };
         case "does-not-untap":
             return {
                 ok: true,

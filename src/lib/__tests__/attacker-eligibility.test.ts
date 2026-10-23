@@ -6,6 +6,27 @@ import type { CardInstance, Player } from "~/types/game";
 // the test drives the pure eligibility logic, not the catalogue.
 const DEFS: Record<string, { staticEffects?: unknown[] }> = {
     plain: { staticEffects: [] },
+    // CR 508.1c — the predicate compares the two boards, so it needs the
+    // attacker's controller's battlefield as its third argument.
+    "more-creatures-stub": {
+        staticEffects: [
+            {
+                kind: "attack-restriction",
+                id: "more-creatures-cant-attack",
+                predicate: (
+                    _self: unknown,
+                    defenders: { types: string[] }[],
+                    controllers: { types: string[] }[] = []
+                ) =>
+                    controllers.filter((c) => c.types.includes("Creature"))
+                        .length >
+                    defenders.filter((c) => c.types.includes("Creature"))
+                        .length,
+                oracleText:
+                    "This creature can't attack unless you control more creatures than defending player.",
+            },
+        ],
+    },
     "hobble-stub": {
         staticEffects: [
             {
@@ -145,6 +166,31 @@ describe("isEligibleAttacker (CR 508.1a)", () => {
         });
         const me = player("me", [target, aura]);
         expect(isEligibleAttacker(target, opp.battlefield, [me, opp])).toBe(
+            false
+        );
+    });
+
+    it("threads the controller's battlefield to a board-comparing attack restriction (CR 508.1c)", () => {
+        const goon = creature({
+            id: "goon",
+            card: { id: "more-creatures-stub" },
+        });
+        const bear = creature({ id: "bear" });
+        const oppBear = creature({ id: "oppBear", controllerId: "opp" });
+        const oppBear2 = creature({ id: "oppBear2", controllerId: "opp" });
+        const oneEach = [player("me", [goon]), player("opp", [oppBear])];
+        expect(isEligibleAttacker(goon, oneEach[1]!.battlefield, oneEach)).toBe(
+            false
+        );
+        const ahead = [player("me", [goon, bear]), player("opp", [oppBear])];
+        expect(isEligibleAttacker(goon, ahead[1]!.battlefield, ahead)).toBe(
+            true
+        );
+        const behind = [
+            player("me", [goon, bear]),
+            player("opp", [oppBear, oppBear2]),
+        ];
+        expect(isEligibleAttacker(goon, behind[1]!.battlefield, behind)).toBe(
             false
         );
     });
