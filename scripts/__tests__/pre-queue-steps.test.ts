@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { classifyLane, type RelatedTests } from "../check-lane";
-import { landRefusals, runPreQueue } from "../land-ready";
+import { landRefusals, REGENERATE_STEP, runPreQueue } from "../land-ready";
 import { ORIGIN_BASE } from "../lib/branches";
 import type { Lineage } from "../lib/health-verdict-store";
 import { SKIN_RECEIPT_REFUSAL } from "../land";
@@ -93,6 +93,8 @@ describe("runPreQueue — red refuses", () => {
             added: [],
             present: files,
             log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
             exec: (command) => ({
                 ok: failing === null || !command.includes(failing),
                 ms: 1,
@@ -110,6 +112,8 @@ describe("runPreQueue — red refuses", () => {
             added,
             present: added,
             log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
             exec: (command) => ({
                 ok: !command.includes("docs-lane.test.ts"),
                 ms: 1,
@@ -120,6 +124,78 @@ describe("runPreQueue — red refuses", () => {
 
     it("all green → null", () => {
         expect(run(null).failed).toBeNull();
+    });
+});
+
+// Issue #6491 — the pre-queue steps judge the tree the queue's draft would
+// (`check:lane --regenerate-derived`): rebuilt derived state, restored after.
+describe("runPreQueue — derived state is rebuilt around the steps", () => {
+    const files = ["convex/gre/foo.ts"];
+    const plan = classifyLane(files, files, related({}));
+    const drive = (opts: { regenOk?: boolean; failing?: string } = {}) => {
+        const calls: string[] = [];
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => {
+                calls.push("regenerate");
+                return opts.regenOk ?? true;
+            },
+            restore: () => {
+                calls.push("restore");
+            },
+            exec: (command) => {
+                calls.push("step");
+                return {
+                    ok: !opts.failing || !command.includes(opts.failing),
+                    ms: 1,
+                };
+            },
+        });
+        return { calls, r };
+    };
+
+    it("regenerates before the first step and restores after the last", () => {
+        const { calls } = drive();
+        expect(calls[0]).toBe("regenerate");
+        expect(calls.at(-1)).toBe("restore");
+        expect(calls.filter((c) => c === "step").length).toBeGreaterThan(0);
+        expect(calls.filter((c) => c !== "step")).toEqual([
+            "regenerate",
+            "restore",
+        ]);
+    });
+
+    it("restores even when a step is red", () => {
+        const { calls, r } = drive({ failing: "bun run check:ts" });
+        expect(r.failed).toBe("tsc[all]");
+        expect(calls.at(-1)).toBe("restore");
+    });
+
+    it("a restore that throws does not replace the step verdict", () => {
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => {
+                throw new Error("boom");
+            },
+            exec: (command) => ({
+                ok: !command.includes("bun run check:ts"),
+                ms: 1,
+            }),
+        });
+        expect(r.failed).toBe("tsc[all]");
+    });
+
+    it("a failed regenerate runs no step, reports it, and still restores", () => {
+        const { calls, r } = drive({ regenOk: false });
+        expect(r.failed).toBe(REGENERATE_STEP);
+        expect(calls).toEqual(["regenerate", "restore"]);
     });
 });
 
