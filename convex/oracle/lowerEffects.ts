@@ -2852,6 +2852,8 @@ function lowerSentenceBody(
         case "retarget": {
             const target = spellSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
+            if ("ref" in target.value)
+                return unlowerable("retarget names an announced spell");
             return lowered([{ op: "retarget", target: target.value }]);
         }
         case "counter-limit-instead":
