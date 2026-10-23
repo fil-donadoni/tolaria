@@ -9445,4 +9445,108 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.12a + CR 608.2b — "exchange control of this creature
+    // and up to one target creature an opponent controls. If you don't or can't
+    // make an exchange, sacrifice this creature. This ability still resolves if
+    // its target becomes illegal.": the three sentences are one ability. Exhibits
+    // `gainControl` and `sacrifice` of `$source`, which the canned smoke scenario
+    // does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7f06c098-6482-4bf3-a9a1-110d6d5b5703",
+            name: "Gilded Drake",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Drake",
+            oracleText:
+                "Flying\nWhen this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gilded Drake",
+            types: ["Creature"],
+            subtypes: ["Drake"],
+            manaCost: {
+                X: 1,
+                U: 1,
+            },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Flying\nWhen this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "gilded-drake-trigger",
+                    oracleText:
+                        "When this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+                    head: {
+                        kind: "entered",
+                        scope: "self",
+                    },
+                    resolvesIfTargetsIllegal: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: {
+                            min: 0,
+                            max: 1,
+                        },
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                objectMatchesFilter: {
+                                    ref: "$source",
+                                },
+                                filter: {},
+                                controlledBy: "controller",
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        targetIsAnother: {
+                                            target: 0,
+                                        },
+                                    },
+                                    then: [
+                                        {
+                                            op: "gainControl",
+                                            target: {
+                                                ref: "$source",
+                                            },
+                                            controller: {
+                                                controllerOf: {
+                                                    target: 0,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            op: "gainControl",
+                                            target: {
+                                                target: 0,
+                                            },
+                                            controller: "controller",
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "sacrifice",
+                                            target: {
+                                                ref: "$source",
+                                            },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

@@ -321,6 +321,10 @@ export interface CompiledTriggeredAbility {
     readonly zone?: "graveyard";
     /** CR 603.3d — announced as the trigger goes on the stack. */
     readonly targetRequirement?: TargetRequirement;
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal." Entered heads only (`resolveCompiledTrigger` refuses the
+     *  rest). */
+    readonly resolvesIfTargetsIllegal?: true;
     /** ADR 0045 — the resolution body. Required: there is no escape hatch. */
     readonly effects: readonly EffectOp[];
 }
@@ -532,6 +536,10 @@ export function resolveCompiledTrigger(
                       ? { condition: gate }
                       : { condition: gate, interveningIf: gate };
               })();
+    if (descriptor.resolvesIfTargetsIllegal && head.kind !== "entered")
+        throw new Error(
+            `compiled trigger ${descriptor.id}: resolvesIfTargetsIllegal needs an entered head`
+        );
     const common = {
         id: descriptor.id,
         oracleText: descriptor.oracleText,
@@ -543,6 +551,9 @@ export function resolveCompiledTrigger(
         case "entered":
             return enteredTrigger({
                 ...common,
+                ...(descriptor.resolvesIfTargetsIllegal
+                    ? { resolvesIfTargetsIllegal: true }
+                    : {}),
                 ...(onSelf !== undefined ? { conditionOnSelf: onSelf } : {}),
                 ...(descriptor.zone !== undefined
                     ? { zone: descriptor.zone }

@@ -167,6 +167,13 @@ export interface SiteOptions {
      * card, and the sentence is refused rather than lowered into a no-op.
      */
     readonly resolvingSpell?: true;
+    /**
+     * CR 608.2b — the site can carry "This ability still resolves if its
+     * target becomes illegal" (`TriggeredAbility.resolvesIfTargetsIllegal`).
+     * Absent = it cannot (a spell, an activated ability), and a sentence
+     * asking for it is refused rather than lowered into a fizzle.
+     */
+    readonly resolvesIfTargetsIllegal?: true;
 }
 
 /** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
@@ -2694,6 +2701,73 @@ function lowerSentenceBody(
                     ...(sentence.whileYouControlSource
                         ? { duration: "while-you-control-source" as const }
                         : {}),
+                },
+            ]);
+        }
+        // CR 701.12a — control of the source and of the announced permanent is
+        // exchanged, or neither moves: both `gainControl` Ops sit behind one
+        // gate that needs the source in play and the announced slot filled
+        // and legal (a blanked or never-filled slot reads false, CR 608.2b).
+        // CR 701.21a — otherwise the source is sacrificed. No new Op: the
+        // pair is the decomposition the Mechanics Registry's `exchange` row
+        // prescribes.
+        case "exchange-control": {
+            if (
+                sentence.sacrificeUnlessExchanged !== true ||
+                sentence.resolvesIfTargetIllegal !== true
+            )
+                return {
+                    ok: false,
+                    reason: "an exchange of control is read only with its sacrifice fallback and its resolves-if-illegal rider",
+                };
+            if (site.resolvesIfTargetsIllegal !== true)
+                return {
+                    ok: false,
+                    reason: "only a triggered ability can still resolve with an illegal target (CR 608.2b)",
+                };
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            if (!("target" in target.value))
+                return {
+                    ok: false,
+                    reason: "an exchange of control names an announced target slot",
+                };
+            const source = { ref: "$source" } as const;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: source,
+                        filter: {},
+                        controlledBy: "controller",
+                    },
+                    then: [
+                        {
+                            op: "if",
+                            predicate: {
+                                targetIsAnother: {
+                                    target: target.value.target,
+                                },
+                            },
+                            then: [
+                                {
+                                    op: "gainControl",
+                                    target: source,
+                                    controller: {
+                                        controllerOf: {
+                                            target: target.value.target,
+                                        },
+                                    },
+                                },
+                                {
+                                    op: "gainControl",
+                                    target: target.value,
+                                    controller: "controller",
+                                },
+                            ],
+                            else: [{ op: "sacrifice", target: source }],
+                        },
+                    ],
                 },
             ]);
         }

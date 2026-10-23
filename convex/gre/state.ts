@@ -2356,6 +2356,16 @@ function isTargetStillLegal(
     }
 }
 
+/** CR 608.2b — "This ability still resolves if its target becomes illegal":
+ *  the triggered ability opts out of the all-targets-illegal fizzle. */
+function resolvesDespiteIllegal(item: StackItem): boolean {
+    if (!item.triggeredAbilityId) return false;
+    return (
+        findTriggeredAbility(item, item.triggeredAbilityId)
+            ?.resolvesIfTargetsIllegal === true
+    );
+}
+
 /** Global target-legality gate run before any `resolve()` dispatch (CR
  *  608.2b). Returns one of:
  *   - `"fizzle"`  — the item has one or more targets and EVERY target is now
@@ -2395,7 +2405,8 @@ function targetLegalityGate(
     targets.forEach((t, i) => {
         if (!isTargetStillLegal(state, t, item)) illegal.push(i);
     });
-    if (illegal.length === targets.length) return "fizzle"; // CR 608.2b
+    if (illegal.length === targets.length && !resolvesDespiteIllegal(item))
+        return "fizzle"; // CR 608.2b
 
     // CR 608.2b — record the illegal slots; the list keeps its positions and
     // the spell does as much as possible.
