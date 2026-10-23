@@ -84,6 +84,11 @@ describe("creature damage lock rider", () => {
             "a rider behind damage to a narrower target",
             `Lava Burst deals X damage to target creature. ${RIDER}`,
         ],
+        ["a duplicated rider", `${DEAL} ${RIDER} ${RIDER}`],
+        [
+            "a rider behind an intervening effect",
+            `${DEAL} You gain 1 life. ${RIDER}`,
+        ],
         ["a rider with no damage sentence before it", RIDER],
     ])("refuses %s", (_form, text) => {
         expect(compileCard(sorcery(text)).state).toBe("unparsed");

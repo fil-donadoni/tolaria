@@ -2513,6 +2513,7 @@ export function assembleSentences(
                 previous.sourceIsActedOn !== undefined ||
                 previous.to.kind !== "target" ||
                 previous.to.requirement.type !== "any" ||
+                (previous.to.requirement.count ?? 1) !== 1 ||
                 window !== null ||
                 awaitingColorChoice ||
                 restrictions.length > 0 ||
