@@ -15752,7 +15752,7 @@
         {"id":"500.1","line":"* 500.1), mirroring `PlayerState.turnsTaken` — see the interface","sites":1,"status":"baseline"},
         {"id":"500.1","line":"* 500.1: \"at the beginning of each player's upkeep\" vs \"your upkeep\"),","sites":1,"status":"confirmed","ruleHash":"2a08085160c6d165"},
         {"id":"500.1","line":"* The turn's phases and steps in CR 500.1 order — a FREE marker, not a","sites":1,"status":"baseline"},
-        {"id":"500.1","line":"* `PHASE_ORDER` (CR 500.1). */","sites":1,"status":"confirmed","ruleHash":"2a08085160c6d165"},
+        {"id":"500.1","line":"* `PHASE_ORDER` (CR 500.1). Approximate past an additional combat phase,","sites":1,"status":"confirmed","ruleHash":"2a08085160c6d165"},
         {"id":"500.1","line":"* `drawnThisTurn`/`lastDrawnCardId`, and `turnsTaken` (CR 500.1), PLUS the","sites":1,"status":"baseline"},
         {"id":"500.1","line":"* each non-auto phase (CR 500.1). Used by \"at the beginning of ~\" triggers","sites":1,"status":"baseline"},
         {"id":"500.1","line":"* opponent's end step is a DIFFERENT turn (CR 500.1 / 513.1: one ending","sites":1,"status":"baseline"},
