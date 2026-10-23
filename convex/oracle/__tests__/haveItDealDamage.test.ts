@@ -1,6 +1,6 @@
 // "you may have it deal X damage to <target>, where X is …" — the optional
-// spelling of the source's own damage (CR 608.2h, CR 120.1), counted over the
-// whole battlefield (CR 109.2). The golden for Gempalm Incinerator is the
+// spelling of the source's own damage, counted over the
+// whole battlefield. The golden for Gempalm Incinerator is the
 // `GOLDEN_FIXTURES` row (`goldenFixtures.test.ts` compiles it whole); this
 // file pins the neighbours the rule must refuse.
 
@@ -22,7 +22,7 @@ function creatureWith(line: string) {
     );
 }
 
-describe("have it deal damage (CR 608.2h)", () => {
+describe("have it deal damage", () => {
     it("lowers to a whole-board count behind an optional gate", () => {
         const fixture = GOLDEN_FIXTURES.find(
             (f) => f.card.name === "Gempalm Incinerator"
