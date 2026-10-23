@@ -18,6 +18,7 @@ import type { GameState } from "./state";
 import {
     advanceStagedEntry,
     findStagedEntry,
+    isStacklessLandEntryPay,
     resolveTopOfStack,
 } from "./state";
 
@@ -83,7 +84,16 @@ function resumeAfterStagedEntry(
     parkedStackItemId: string | undefined
 ): void {
     if (state.gameOver) return;
-    if ((state.pendingChoices?.length ?? 0) > 0) {
+    // CR 614.12 — a stackless land-entry pay-choice the entry tail just raised
+    // (a tutored Multiversal Passage: its subtype is answered, its "you may
+    // pay 2 life" is next, issue #2672) does not hold the parked resolution:
+    // `resolutionSuspendedOnChoice` ignores it too, and it is answered in the
+    // priority window AFTER the resolution completes. Every other queued
+    // choice does hold it.
+    const blocking = (state.pendingChoices ?? []).some(
+        (c) => !isStacklessLandEntryPay(c)
+    );
+    if (blocking) {
         state.priorityPlayerId = state.pendingChoices![0].playerId;
         return;
     }
@@ -97,6 +107,10 @@ function resumeAfterStagedEntry(
             state.priorityPlayerId = state.pendingChoices![0].playerId;
             return;
         }
+    }
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+        return;
     }
     // Full resolution completed (or there was never anything to resume) —
     // priority returns to the active player (CR 117.3b — "the active player

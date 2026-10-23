@@ -21,3 +21,9 @@ Two orthogonal additions, each mirroring the existing `chosenPlayerId` precedent
 - Intrinsic basic-land mana follows for free: mana is derived from effective subtype at read time (CR 305.6), so swapping the subtype swaps the mana with no separate seam.
 - Reusable for the next chosen-value text/type-changing cards (Magical Hack, Sleight of Mind, chosen-subtype swaps) — the "computed static output from a stored choice" pattern is now named, so those cards extend the callback rather than re-litigating callback-vs-data.
 - `subtypesFor` reads _effective_ (post-earlier-timestamp) subtypes, so multiple such statics compose by CR 613 timestamp order.
+
+## Amendment (issue #2672) — the choice-storage half is superseded
+
+Decision 1's _how the value gets there_ no longer holds. An "As … enters, choose …" clause is a static replacement whose choice is made before the permanent enters, so it is declared through the ADR 0100 as-enters seam (`entersWith.asEnters: [{ kind: "subtypes", from, count }]`), never an ETB trigger with a `resolve()` body: Illusionary Terrain moved there in issue #2467, Multiversal Passage and Traveler's Cloak in issue #2672, and the `SpellContext.setChosenSubtypes` primitive was removed with its last caller. `CardInstanceState.chosenSubtypes` keeps its shape and meaning.
+
+Decision 2 — the computed `subtypesFor` output — is unchanged and current. A catalogue guard (`convex/cards/__tests__/asEntersNotTriggered.catalogue.test.ts`) keeps the next card off the trigger shape.
