@@ -823,52 +823,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Free damage: no possible blocker, no crackback in the position.",
     },
     {
-        // MUST (issue #3376). The risk-free attack, on a body whose counters
-        // ARE its toughness: a 2/2 Walking Ballista, four lands, the
-        // opponent's board empty. Nothing can block it and nothing in the
-        // position punishes the tap, so declining the attack throws away two
-        // damage. The vanilla twin of this position (Hill Giant / Grizzly
-        // Bears) attacked on every seed; the Ballista did not.
-        label: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
+        // MUST (issue #3376), the anchor of the risk-free-attack pair.
+        label: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "an untapped opposing Hill Giant that blocks and kills it",
-            },
-        },
-        spec: {
-            cards: [
-                {
-                    name: "Walking Ballista",
-                    owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
-                    counters: { "+1/+1": 2 },
-                },
-            ],
-            phase: "DECLARE_ATTACKERS",
-            turn: 5,
-            landCount: 4,
-            libraryCount: 20,
-            hiddenHand: { opp: 5 },
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            moves: [{ kind: "declare-attackers", card: "Walking Ballista" }],
-        },
-        note: "Issue #3376. MEASURED before the fix, 400 iterations: the attack on 2 of 12 seeds, every pick `material-tiebreak` inside `outcomeEps`, the declined attack ahead by up to 8 margin points. The root leaves of the two edges are identical (no damage is dealt at the declaration); the gap came from below. The rollout's ε draw and the tree's own children kept firing the shoot ability — one variant per player and creature against one `pass` — and each shot spends a +1/+1 counter, i.e. a slice of the body (`costShrinksSource`). A declared attack opens three more bot windows (blocks, damage, end of combat) than a declined one, so the attack edge's subtree lost the Ballista more often and its own two damage drowned in that. `isSourceBodyDamageConversion` drops those shots from both sites below the root; attack on 12 of 12 seeds at 1, 2 and 3 counters, 0 to 6 lands, with or without hands. Its discriminating twin is the Hill Giant entry directly below.",
-    },
-    {
-        label: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
-        pairOf: {
-            anchor: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
-            discriminant: {
-                kind: "card",
-                detail: "an untapped opposing Hill Giant that blocks and kills it",
+                detail: "the untapped opposing Hill Giant removed — an empty board",
             },
         },
         spec: {
@@ -902,7 +863,47 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "declare-attackers", card: "Walking Ballista" },
             ],
         },
-        note: "Issue #3376, the twin that proves the fix bought discrimination rather than a blanket bias toward attacking: the same 2/2 Ballista, plus one untapped 3/3 the opponent blocks with. The block kills the Ballista and survives it, so the attack is a loss and holding it back is right.",
+        note: 'Issue #3376, the anchor of the risk-free-attack pair: a 2/2 Walking Ballista facing one untapped 3/3 the opponent blocks with. The block kills the Ballista and survives it, so the attack is a loss and holding it back is right. Its right-hand half, "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board", removes the Hill Giant; the pair is what proves the #3376 fix bought discrimination rather than a blanket bias toward attacking (this half is green before and after the fix, before on `wasteful-attack`).',
+    },
+    {
+        // MUST (issue #3376). The risk-free attack, on a body whose counters
+        // ARE its toughness: a 2/2 Walking Ballista, four lands, the
+        // opponent's board empty. Nothing can block it and nothing in the
+        // position punishes the tap, so declining the attack throws away two
+        // damage. The vanilla twin of this position (Hill Giant / Grizzly
+        // Bears) attacked on every seed; the Ballista did not.
+        label: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
+        pairOf: {
+            anchor: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
+            discriminant: {
+                kind: "card",
+                detail: "the untapped opposing Hill Giant removed — an empty board",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 2 },
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+            hiddenHand: { opp: 5 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Walking Ballista" }],
+        },
+        note: "Issue #3376. MEASURED before the fix, 400 iterations: the attack on 2 of 12 seeds, every pick `material-tiebreak` inside `outcomeEps`, the declined attack ahead by up to 8 margin points. The root leaves of the two edges are identical (no damage is dealt at the declaration); the gap came from below. The rollout's ε draw and the tree's own children kept firing the shoot ability — one variant per player and creature against one `pass` — and each shot spends a +1/+1 counter, i.e. a slice of the body (`costShrinksSource`). A declared attack opens three more bot windows (blocks, damage, end of combat) than a declined one, so the attack edge's subtree lost the Ballista more often and its own two damage drowned in that. `isSourceBodyDamageConversion` drops those shots from both sites below the root; attack on 12 of 12 seeds at 1, 2 and 3 counters, 0 to 6 lands, with or without hands.",
     },
     {
         // CHARTER SCENARIO 1 (issue #1487, PRD #1423, charter gate #1434).

@@ -1315,7 +1315,10 @@ export function applyMoveInSearch(
 type Leaf = { reward: number; margin: number };
 
 /** A point on the game clock: the turn number and the step's index in
- *  `PHASE_ORDER` (CR 500.1). */
+ *  `PHASE_ORDER` (CR 500.1). Approximate past an additional combat phase,
+ *  which re-enters earlier steps of the same turn and so reads as less time
+ *  (clamped at zero by `stepsSince`) — a win there is charged as sooner than
+ *  it is, never as later. */
 type GameClock = { turn: number; step: number };
 
 function gameClockOf(state: GameState): GameClock {
@@ -1333,7 +1336,8 @@ function stepsSince(since: GameClock, state: GameState): number {
 
 /** Score a stable leaf from the bot's perspective — ONE evaluation yields both
  *  the value the reward band shapes and the material margin (issue #4459),
- *  byte-identical to `reward` + `materialMargin` at half the player scores.
+ *  byte-identical, without `since`, to `reward` + `materialMargin` at half the
+ *  player scores.
  *
  *  `since` — the search root's game clock — makes a WON leaf pay for the game
  *  time it took (issue #3376): a sooner win outranks a later one. A won game's
@@ -1343,14 +1347,19 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  a creature that can win NOW by spending itself scored below passing and
  *  winning a few steps later with the creature still on the board — inside
  *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
- *  see. The cost is two `materialFull` per turn's worth of steps — a win one
- *  turn later falls the whole width of the win band, the full material signal
- *  from +1 to −1 — so a win now and a win a combat later land more than
- *  `outcomeEps` apart. It comes off the REWARD only: the tie-break margin
- *  stays pure material (issue #138), like `evaluate`'s race and combat terms
- *  — charged there too, a win a turn away read below a line that never won.
- *  A win stays in the win band. Losses and open leaves are untouched; with no
- *  `since` the leaf is the plain evaluation. */
+ *  see.
+ *
+ *  The win's height ABOVE the band floor shrinks by `WIN_STEP_DECAY` per step
+ *  of game time. A factor, never a subtracted cost: a cost large enough to
+ *  separate a win now from a win a combat later pinned every win a turn or
+ *  more away to the band floor, and wins that all score the floor are wins
+ *  the material can no longer order (the saturation ADR 0102 measured) — a
+ *  sacrifice that threw a land away tied `pass` on a board both lines win by
+ *  decking. Scaled, two wins at the same step keep their material order
+ *  exactly, and a win never leaves the band. It touches the REWARD only: the
+ *  tie-break margin stays pure material (issue #138), like `evaluate`'s race
+ *  and combat terms. Losses and open leaves are untouched; with no `since`
+ *  the leaf is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
@@ -1358,14 +1367,22 @@ function scoreLeaf(
     since?: GameClock
 ): Leaf {
     const { value, margin } = evaluateWithMargin(state, botId, weights);
+    const reward = rewardFromValue(value, weights);
     if (since && value >= terminalMagnitude(weights)) {
-        const delay =
-            (stepsSince(since, state) * 2 * weights.materialFull) /
-            PHASE_ORDER.length;
-        return { reward: rewardFromValue(value - delay, weights), margin };
+        const floor = 1 - weights.terminalBand;
+        const decay = WIN_STEP_DECAY ** stepsSince(since, state);
+        return { reward: floor + (reward - floor) * decay, margin };
     }
-    return { reward: rewardFromValue(value, weights), margin };
+    return { reward, margin };
 }
+
+/** Per step of game time, the share of a win's height above the band floor
+ *  that survives (`scoreLeaf`, issue #3376). Measured against the case that
+ *  needs it: a win now against a win five steps later (main phase → combat
+ *  damage) must land more than `outcomeEps` apart for a typical material
+ *  gap, and 0.85⁵ ≈ 0.44 halves the later win's height; a whole turn later
+ *  keeps about a tenth. */
+const WIN_STEP_DECAY = 0.85;
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
  *  resolution can raise a second mandatory discard, and a cleanup discard can
@@ -2723,7 +2740,10 @@ export function isDenialExchangeSacrifice(
  *  the play (the creature is about to die anyway). Damage only: a shield paid
  *  in counters (`preventDamage`) creates its value inside a combat window, as
  *  `isSourceConfinedSacrificeConversion` already argues. The bot's own moves
- *  only and never at the root, like its siblings.
+ *  only and never at the root, like its siblings — a LETHAL shot included,
+ *  as their lethal drains and burns are: the root weighs it at every real
+ *  decision, and kept in the tree it handed `pass` a win one step later that
+ *  `hold-trick` read as outcome-equal to the shot now (measured, issue #3376).
  *
  *  Per-card-agnostic, never a card name (ADR 0102). */
 export function isSourceBodyDamageConversion(
