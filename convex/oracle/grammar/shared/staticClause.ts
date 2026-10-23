@@ -28,7 +28,6 @@
  *                                                   → CR 614.1a `shuffleFromAnywhere`
  *   "If damage would be dealt to <self>, prevent that damage. Remove a
  *    +1/+1 counter from <self>"                     → CR 615 `damagePreventionCounterRemoval`
- *   "Prevent all damage that would be dealt to you" → CR 615 `preventsDamageToController`
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
  *   "While an opponent is choosing targets as part of casting a spell they
