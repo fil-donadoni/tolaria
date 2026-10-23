@@ -162,6 +162,11 @@ export interface PermanentFilter {
      *  like Mana Vortex's "whenever a Land matching {color}" cycle and by
      *  protection-style filters. */
     colors?: Color | Color[];
+    /** Exclude permanents that have ANY of these colors (CR 105.2 — the negative
+     *  of `colors`, as `excludeTypes` is of `types`): "nonblack creatures" is
+     *  `excludeColors: ["B"]`. Read off the same DERIVED colour list as
+     *  `colors`; an absent list is colourless (CR 105.2c) and passes. */
+    excludeColors?: Color | Color[];
     /** Inclusive lower bound on HOW MANY colors the permanent has (CR 105.2b,
      *  issue #3837) — the battlefield-side counterpart of
      *  `EffectCardFilter.colorCountAtLeast`, propagated 1:1 by
@@ -507,6 +512,13 @@ export function matchesPermanentFilter(
         const wanted = asArray(filter.colors);
         const have = card.colors ?? [];
         if (!wanted.some((c) => have.includes(c))) return false;
+    }
+    // CR 105.2 — the negative of `colors`; a colourless permanent (CR 105.2c)
+    // has none of the excluded colours and passes.
+    if (filter.excludeColors !== undefined) {
+        const excluded = asArray(filter.excludeColors);
+        const have = card.colors ?? [];
+        if (excluded.some((c) => have.includes(c))) return false;
     }
     // CR 105.2b (issue #3837) — how MANY colors, not which. An absent colour
     // list counts as zero (CR 105.2c colourless), so the bound fails closed.
