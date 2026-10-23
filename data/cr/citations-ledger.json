@@ -6144,6 +6144,7 @@
         {"id":"118.3","line":"* creature:\" is a cost in the sense of CR 118.1 / 118.3, announced and paid by","sites":1,"status":"baseline"},
         {"id":"118.3","line":"* effect) and `payDiscardAtRandomCost` (an activation cost, CR 118.3).","sites":1,"status":"baseline"},
         {"id":"118.3","line":"* graveyard holds at least `count` matching cards (CR 118.3).","sites":1,"status":"confirmed","ruleHash":"61d0cf80a98d7f13"},
+        {"id":"118.3","line":"* leg, or with fewer candidates than the leg returns (CR 118.3 — no picker","sites":1,"status":"confirmed","ruleHash":"61d0cf80a98d7f13"},
         {"id":"118.3","line":"* never get back (CR 118.3 / 122.1, issue #3530).","sites":1,"status":"baseline"},
         {"id":"118.3","line":"* paid (CR 118.3 / 118.12a — \"sacrifice it unless you return a basic land","sites":1,"status":"confirmed","ruleHash":"61d0cf80a98d7f13"},
         {"id":"118.3","line":"* script offers a may-pay GRAVEYARD leg (CR 118.3 / 118.12a) — \"sacrifice it","sites":1,"status":"confirmed","ruleHash":"61d0cf80a98d7f13"},
