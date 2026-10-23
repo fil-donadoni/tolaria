@@ -139,4 +139,13 @@ describe("delayed return — refusals stay unparsed", () => {
         });
         expect(outcome(card).state).toBe("unparsed");
     });
+
+    it('"it" returned to the battlefield after a non-exile sentence names no exiled card', () => {
+        const card = oracleCard({
+            ...VOIDWALK,
+            oracleText:
+                "Destroy target creature. Return it to the battlefield under its owner's control at the beginning of the next end step.",
+        });
+        expect(outcome(card).state).toBe("unparsed");
+    });
 });
