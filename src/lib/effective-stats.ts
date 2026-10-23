@@ -65,7 +65,8 @@ export function toLayerState(
             // would show 0/0 on the client while the server counts the pile.
             exile: (p.exile ?? []).map((c) => ({
                 id: c.id,
-                exiledBySourceId: c.exiledBySourceId,
+                exiledBySourceId: (c as { exiledBySourceId?: string })
+                    .exiledBySourceId,
                 card: c.card as Readonly<Record<string, unknown>>,
                 power: c.power,
                 toughness: c.toughness,
