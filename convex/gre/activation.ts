@@ -93,6 +93,7 @@ import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
+    costVictimTypeFields,
     sacrificeSourceSnapshot,
     canAffordSacrifice,
     isSacrificeSelectionComplete,
@@ -1974,6 +1975,7 @@ export function exileCostSnapshot(
         ...(exiled.subtypes && exiled.subtypes.length > 0
             ? { subtypes: [...exiled.subtypes] }
             : {}),
+        ...costVictimTypeFields(exiled),
     };
 }
 

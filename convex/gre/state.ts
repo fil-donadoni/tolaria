@@ -14442,6 +14442,12 @@ export function buildSpellContext(
         getAdditionalSacrificeColors(): Color[] | undefined {
             return item.additionalSacrificeSnapshot?.colors;
         },
+        getAdditionalCostTypes(): string[] | undefined {
+            return item.additionalSacrificeSnapshot?.types;
+        },
+        getAdditionalCostSupertypes(): string[] | undefined {
+            return item.additionalSacrificeSnapshot?.supertypes;
+        },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);

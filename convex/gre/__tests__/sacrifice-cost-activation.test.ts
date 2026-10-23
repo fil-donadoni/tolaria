@@ -754,6 +754,8 @@ describe("sacrificeSnapshotFromResults — every result field survives the proje
         power: 2,
         toughness: 5,
         colors: ["G"],
+        types: ["Land"],
+        supertypes: ["Snow"],
     };
 
     it("forwards the id, the mana value and EVERY optional field", () => {
