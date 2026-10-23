@@ -6223,9 +6223,6 @@ export function isCombatDamageImmune(
  *  for a cast-and-resolved permanent, `stageReanimatedOnBattlefield` for
  *  reanimation / tutor-to-battlefield, `settleEnteredLand` for every play-a-
  *  land origin) — NOT from `removePermanentTo`'s departure path any more.
- *  An entry PARKED on an as-enters choice is cleared at park time instead
- *  (`stageAsEntersEntry`), and the funnel skips it on the resume: the
- *  `exileFromGraveyard` answer links its pile before the permanent enters.
  *  Moving the clear to entry is the fix for issue #2001: CR 113.7a ("Once
  *  activated or triggered, an ability exists on the stack independently of
  *  its source. Destruction or removal of the source after that time won't
