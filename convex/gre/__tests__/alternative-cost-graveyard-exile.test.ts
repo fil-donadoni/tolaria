@@ -148,6 +148,8 @@ describe("alternative cost — graveyard exile leg (CR 118.9 / 701.13)", () => {
             count: 3,
             excludeInstanceId: "probe",
             pickedCardIds: ["vampire", "terror", "ritual"],
+            // CR 601.2h — positional: re-derived at payment.
+            topMatching: { color: "B" },
         });
         // A cost with no graveyard leg leaves the slot as it was.
         const existing = { count: 1, excludeInstanceId: "probe" };
