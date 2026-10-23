@@ -100,12 +100,31 @@ What `install` does, per [runner](#g-runner), only where the machine differs:
 **Idempotent**: a second run on an unchanged machine changes nothing and
 prints `nothing to do — this machine already matches` (after any standing
 notes: [linger](#g-linger) off, a runner not declared). A changed unit
-template is rewritten and its service restarted — **which kills a job in
-flight on it**; check `bun run runner status` first. A [runner](#g-runner) installed but no
+template is rewritten and its service restarted — **only when the runner
+is idle** (issue #6467). Before planning, `install` reads GitHub's busy
+view (the one `runner status` prints); a runner busy at that moment gets a
+`.restart-pending` mark in its directory, its new unit written and a
+deferral line instead of the restart:
+
+```text
+defer  macbook-pass-1: busy — restart deferred, re-run install when idle (`--force-restart` restarts it now)
+```
+
+and `install` exits 1. Re-run it once the runner is idle: the mark makes
+it restart although the unit on disk already matches, then clears it (a
+[paused](#g-pause) runner's mark is dropped: `resume` starts the new unit).
+`install` fails closed: when GitHub cannot be read no running runner is
+restarted (`GitHub's busy view is unreadable`), nor one the view does not
+list (`absent from GitHub's busy view`); a stopped or new runner still
+starts. A job that starts in the seconds between the read and the restart
+is not covered. `--force-restart` restores the unconditional
+restart (it kills a job in flight). `--dry-run` shows the deferrals and
+exits 0. A [runner](#g-runner) installed but no
 longer declared (you lowered `--pass`) is reported, never removed silently:
 `bun run runner remove <name>` stops it, unregisters it from GitHub and
-deletes its directory. Changing a registered runner's
-[labels](#g-label) = `remove` it, then `install` again.
+deletes its directory — refused for a running runner GitHub reports busy
+(or cannot be asked about) unless `--force-restart`. Changing a registered
+runner's [labels](#g-label) = `remove` it, then `install` again.
 
 **Dead units** (issue #6019): an installed Tolaria unit
 (`~/.config/systemd/user/tolaria-*.{service,timer}`,

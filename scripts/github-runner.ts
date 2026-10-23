@@ -1,17 +1,19 @@
 // Self-hosted GitHub Actions runners on this machine (ADR 0156 §7 and its
 // Amendment I, issue #5634) — `bun run runner <verb>`:
 //
-//   install [--dry-run] [--host <name>] [--pass N] [--lane N] [--seed N] [--no-convex]
+//   install [--dry-run] [--host <name>] [--pass N] [--lane N] [--seed N] [--no-convex] [--force-restart]
 //   pause   [--dry-run]     stop this machine's runners, keep them registered
 //   resume  [--dry-run]     start them again
 //   status                  local service state + GitHub's online/busy view
-//   remove  <name> [--dry-run]   stop, unregister and delete one runner
+//   remove  <name> [--dry-run] [--force-restart]   stop, unregister and delete one runner
 //   prune   [--dry-run]     delete installed Tolaria units whose script is gone
 //
 // Observes the machine, asks scripts/lib/github-runner.ts for the plan, and
 // runs it — or prints it under `--dry-run`. `install` is idempotent: a second
-// run plans nothing. It prunes dead units too (issue #6019). Guide:
-// docs/guides/github-pipeline.md.
+// run plans nothing. It prunes dead units too (issue #6019). It never stops a
+// runner GitHub reports busy, nor any running one when GitHub cannot be read:
+// the restart is deferred and the verb exits 1, unless `--force-restart`.
+// Guide: docs/guides/github-pipeline.md.
 import { execFileSync, spawnSync } from "node:child_process";
 import {
     existsSync,
@@ -30,6 +32,7 @@ import {
     LAUNCHD_CONVEX_LABEL,
     launchdRunnerLabel,
     parseDeclaration,
+    parseBusyView,
     parseGithubSlug,
     PAUSED_MARKER,
     planInstall,
@@ -37,6 +40,7 @@ import {
     planToggle,
     REMOVE_TOKEN_PLACEHOLDER,
     renderRunnerPlist,
+    RESTART_PENDING_MARKER,
     renderRunnerSystemdTemplate,
     runnerAsset,
     runnerSpecs,
@@ -47,6 +51,7 @@ import {
     systemdRunnerUnit,
     TARBALL_PLACEHOLDER,
     TOKEN_PLACEHOLDER,
+    type BusyView,
     type ObservedMachine,
     type ObservedRunner,
     type RoleCounts,
@@ -113,10 +118,30 @@ function serviceRunning(
     return state === "active" || state === "activating";
 }
 
+/** GitHub's busy view, or null when `gh` cannot read it. */
+function readBusyView(slug: string): BusyView {
+    const r = sh([
+        "gh",
+        "api",
+        "--paginate",
+        `repos/${slug}/actions/runners`,
+        "--jq",
+        '.runners[] | "\\(.name)\\t\\(.busy)"',
+    ]);
+    if (r.status !== 0) {
+        console.error(
+            `runner: GitHub's busy view is unreadable: ${r.stderr.trim()}`
+        );
+        return null;
+    }
+    return parseBusyView(r.stdout);
+}
+
 function observe(
     platform: RunnerPlatform,
     uid: number,
-    names: string[]
+    names: string[],
+    busy: BusyView = null
 ): ObservedMachine {
     const installed = existsSync(RUNNER_ROOT)
         ? readdirSync(RUNNER_ROOT).filter((n) =>
@@ -135,6 +160,7 @@ function observe(
             registered: existsSync(join(dir, ".runner")),
             envText: readOrNull(join(dir, ".env")),
             paused: existsSync(join(dir, PAUSED_MARKER)),
+            restartPending: existsSync(join(dir, RESTART_PENDING_MARKER)),
             unitText:
                 platform === "darwin"
                     ? readOrNull(
@@ -162,6 +188,7 @@ function observe(
             sh(["launchctl", "print", `gui/${uid}/${LAUNCHD_CONVEX_LABEL}`])
                 .status === 0,
         machineText: readOrNull(MACHINE_FILE),
+        busy,
         linger:
             platform === "darwin" ||
             sh([
@@ -230,6 +257,7 @@ function execute(steps: Step[], platform: RunnerPlatform, slug: string): void {
         console.log(describeStep(s));
         switch (s.kind) {
             case "note":
+            case "defer":
                 break;
             case "mkdir":
                 mkdirSync(s.path, { recursive: true });
@@ -309,7 +337,9 @@ function parseFlags(args: string[]): {
         const a = args[i];
         if (!a.startsWith("--")) {
             positional.push(a);
-        } else if (["--dry-run", "--no-convex"].includes(a)) {
+        } else if (
+            ["--dry-run", "--no-convex", "--force-restart"].includes(a)
+        ) {
             flags.set(a.slice(2), "");
         } else {
             flags.set(a.slice(2), args[++i] ?? die(`${a} needs a value`));
@@ -339,10 +369,15 @@ function main(): void {
     const repo = primaryCheckout();
     const slug = repoSlug(repo);
     const dryRun = flags.has("dry-run");
+    const forceRestart = flags.has("force-restart");
     const run = (steps: Step[]) => {
-        if (steps.every((s) => s.kind === "note")) {
+        const deferred = steps.filter((s) => s.kind === "defer").length;
+        if (steps.every((s) => s.kind === "note" || s.kind === "defer")) {
             for (const s of steps) console.log(describeStep(s));
-            console.log("runner: nothing to do — this machine already matches");
+            if (deferred === 0)
+                console.log(
+                    "runner: nothing to do — this machine already matches"
+                );
         } else if (dryRun) {
             console.log(
                 `runner: --dry-run — ${steps.length} step(s), nothing executed:`
@@ -350,6 +385,13 @@ function main(): void {
             for (const s of steps) console.log(`  ${describeStep(s)}`);
         } else {
             execute(steps, platform, slug);
+        }
+        // A deferral is unfinished work: exit 1 so it is not missed. A
+        // dry run executes nothing, so it only shows it.
+        if (deferred > 0 && !dryRun) {
+            die(
+                `${deferred} runner(s) not stopped — busy, or GitHub unreadable; re-run when idle`
+            );
         }
     };
 
@@ -372,7 +414,8 @@ function main(): void {
             const seen = observe(
                 platform,
                 uid,
-                runners.map((r) => r.name)
+                runners.map((r) => r.name),
+                readBusyView(slug)
             );
             let plists: Record<string, string> = {};
             let convexPlist: string | null = null;
@@ -441,6 +484,7 @@ function main(): void {
                         content: serializeDeclaration({ host, counts }),
                     },
                     notifyCmd: process.env.TOLARIA_NOTIFY_CMD,
+                    forceRestart,
                 },
                 seen
             );
@@ -473,7 +517,8 @@ function main(): void {
                     uid,
                     LAUNCH_AGENTS,
                     RUNNER_ROOT,
-                    observe(platform, uid, [name])
+                    observe(platform, uid, [name], readBusyView(slug)),
+                    forceRestart
                 )
             );
             break;
