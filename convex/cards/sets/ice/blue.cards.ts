@@ -472,16 +472,9 @@ export const clairvoyance = defineCard(() => ({
     delayedTriggers: [nextUpkeepDrawTrigger()],
 }));
 // Deflection — "Change the target of target spell with a single target."
-// (CR 115.7 — change a spell's target.) Targets a spell on the stack; on
-// resolution it enters a `retarget` phase via `requestRetarget`, asking the
-// caster to pick a new legal target for that spell.
-//
-// SIMPLIFICATION (out of scope) (flagged, no engine change): TargetRequirement
-// has no "spell with a single target" filter, so Deflection may be cast at any spell
-// on the stack. The retarget then re-validates against "any target"; for a
-// multi-target spell only one target would be re-chosen, which is a minor
-// deviation from the printed "single target" restriction. Acceptable for the
-// current pool, where targeted spells are overwhelmingly single-target.
+// (CR 115.7a — change a spell's target.) The `spellSingleTarget` filter on the
+// announced slot is the printed "with a single target" restriction; the
+// `retarget` Op raises the caster's pick of a new legal target for that spell.
 export const deflection = defineCard(() => ({
     id: "1005a00a-6a0e-44cb-abea-37e2e53125e2",
     name: "Deflection",
@@ -489,18 +482,9 @@ export const deflection = defineCard(() => ({
     oracleText: "Change the target of target spell with a single target.",
     manaCost: { X: 3, U: 1 },
     types: ["Instant"],
-    targetRequirement: { type: "spell", count: 1 },
-    // NOT DSL-migratable (ADR 0045): no `retarget` Op exists — `requestRetarget`
-    // (CR 115.7, re-pick a new legal target for a spell already on the stack)
-    // has no declarative skin in EFFECT_OP_REGISTRY. Blocked on: a retarget Op.
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "spell") return;
-        // Re-pick a single new target for the spell against "any target" —
-        // the engine re-validates the new target against the spell's own
-        // requirement at selection time (CR 115.7).
-        ctx.requestRetarget(t.id, { type: "any", count: 1 });
-    },
+    targetRequirement: { type: "spell", count: 1, spellSingleTarget: true },
+    // CR 115.7a — Effect Script: the `retarget` Op raises the new-target pick.
+    effects: [{ op: "retarget", target: { target: 0 } }],
 }));
 // Dreams of the Dead — {3}{U} Enchantment with a {1}{U} reanimation ability:
 // "Return target white or black creature card from your graveyard to the

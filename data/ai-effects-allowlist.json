@@ -79,12 +79,6 @@
     },
     {
         "class": "card",
-        "cardId": "1005a00a-6a0e-44cb-abea-37e2e53125e2",
-        "name": "Deflection",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "8d727b9b-6114-414d-9172-16b6e1db41cc",
         "name": "Demonic Consultation",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
