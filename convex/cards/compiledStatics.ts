@@ -855,6 +855,8 @@ export function resolveCompiledStatic(
                 id: descriptor.id,
                 // CR 508.1c — directed at the source's controller: only
                 // attacks by another player's creatures are forbidden.
+                // `forbids` has no defender parameter: exact for two players
+                // (the engine's scope), wider than "you" with three or more.
                 forbids: (attacker, source, _state, ctx) =>
                     attacker.controllerId !== source.controllerId &&
                     filterMatches(attackers, attacker, source, ctx),
