@@ -1284,6 +1284,13 @@ const SCENARIO_SKIPS = {
         code: "target-slot-shape",
         reason: "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized",
     },
+    // CR 601.2d — the counters twin of the row above: the same announced
+    // multi-target split the scenario cannot populate. Covered by the Op's
+    // hand-written interpreter test.
+    distributeCountersAsChosen: {
+        code: "target-slot-shape",
+        reason: "distributeCountersAsChosen — announced multi-target division cannot be scenario-ized",
+    },
     // CR 500.7 (issue #686) — scheduling an extra turn mutates
     // `state.extraTurns`, a queue the turn-advance machinery (not the
     // stack-resolution scenario harness) later drains — not a

@@ -3053,6 +3053,31 @@ export const OP_EXECUTORS: {
         // object, read back by id inside the primitive).
         ctx.dealDamageDividedAsChosen(legalTargetSlots(ctx.targets), total);
     },
+    // CR 601.2d / 122.1 — put `total` counters distributed as chosen among the
+    // announced target group, the split read back off the stack item's
+    // `targetAmounts` inside the primitive. `bind` records one entry per
+    // counter actually put on a creature (its id repeated), the set "each
+    // counter you put on a creature this way" iterates.
+    distributeCountersAsChosen(ctx, op) {
+        const total =
+            op.total === "X"
+                ? ctx.getX()
+                : op.total === "X+1"
+                  ? ctx.getX() + 1
+                  : op.total;
+        // CR 608.2b — a slot the legality gate blanked gets no counters; the
+        // survivors keep the amounts announced against them.
+        const placed = ctx.distributeCountersAsChosen(
+            legalTargetSlots(ctx.targets),
+            total,
+            op.counter
+        );
+        if (op.bind === undefined) return;
+        const each = Object.entries(placed).flatMap(([id, n]) =>
+            Array.from({ length: n }, () => id)
+        );
+        if (each.length > 0) ctx.noteChoice(op.bind, each);
+    },
     // CR 121.1 — draw from the top of the library, one card at a time, through
     // the unified suspend-capable draw seam (ADR 0061). A DETERMINISTIC draw
     // replacement (Enduring Renewal) commits inline; an INTERACTIVE one (Zur's

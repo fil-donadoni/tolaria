@@ -951,8 +951,13 @@ export interface TargetRequirement {
      *  divide-as-chosen card deals damage except Pollen Remedy, which
      *  PREVENTS it (CR 615.1); the frontend's divide banner/buttons read this
      *  to say "Prevent damage" instead of the default "Deal damage" (QA — the
-     *  banner hard-coded "Deal damage" for every divide spell regardless). */
-    divideAsChosen?: { total: number | "X" | "X+1"; kind?: "deal" | "prevent" };
+     *  banner hard-coded "Deal damage" for every divide spell regardless).
+     *  `"counters"` — the budget is counters distributed by a
+     *  `distributeCountersAsChosen` Op (CR 601.2d). */
+    divideAsChosen?: {
+        total: number | "X" | "X+1";
+        kind?: "deal" | "prevent" | "counters";
+    };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
      *  destroy a land the activating player controls (CR 114.1 + 701.8). A
      *  spell qualifies when either:
@@ -5507,12 +5512,15 @@ export interface SpellContext {
      *  Same announcement-time split / fallback rules as
      *  `dealDamageDividedAsChosen`. Used by Spoils of War ("Distribute X +1/+1
      *  counters among any number of target creatures"). No-op for non-permanent
-     *  targets, empty `targets`, or `totalAmount <= 0`. */
+     *  targets, empty `targets`, or `totalAmount <= 0`. Returns, per permanent
+     *  instance id, the number of counters actually PUT on it — after any
+     *  CR 614 counter-placement replacement — so "each counter put on a
+     *  creature this way" can be read back; a target that got none is absent. */
     distributeCountersAsChosen: (
         targets: TargetSelection[],
         totalAmount: number,
         type: string
-    ) => void;
+    ) => Record<string, number>;
     /** Installs a prevent-the-next-N damage shield on each of the given
      *  targets, with `totalAmount` DIVIDED AS YOU CHOOSE among them — each
      *  chosen target getting at least 1 (CR 615.1 / 601.2d / 120.4). The third
@@ -15200,6 +15208,31 @@ export type EffectOp =
      *  `divideAsChosen.total` — the two are the announcement/resolution halves of
      *  the same value. No-op if there are no targets or the total is ≤0. */
     | { op: "dealDamageDividedAsChosen"; total: number | "X" | "X+1" }
+    /** CR 601.2d / 122.1 — put `total` counters of `counter` kind DISTRIBUTED
+     *  AS YOU CHOOSE among the spell/ability's announced targets ("Distribute
+     *  three +1/+1 counters among one, two, or three target creatures"). The
+     *  counters twin of `dealDamageDividedAsChosen`: the split is chosen at
+     *  ANNOUNCEMENT (`targetRequirement.divideAsChosen`, `kind: "counters"`,
+     *  each target ≥1) and snapshotted onto the stack item's `targetAmounts`;
+     *  this Op reads it back at resolution through the single
+     *  `SpellContext.distributeCountersAsChosen` primitive (ADR 0045). `total`
+     *  reuses — and must MIRROR — the card's `divideAsChosen.total`
+     *  vocabulary. A target that is not a permanent, or has left, gets none
+     *  (CR 608.2b); the rest keep the amounts announced against them.
+     *
+     *  `bind` declares a PICKS binding holding one entry per counter actually
+     *  put on a creature this way — a creature's id repeated as many times as
+     *  it received counters, after any CR 614 counter-placement replacement —
+     *  so "for each counter you put on a creature this way, … that creature"
+     *  is a `forEach` over it (a `delayedTrigger` freezes it with a
+     *  `{ select: { set: "bound", ref } }` list capture). Uncaptured when no
+     *  counter was placed. Does NOT itself schedule anything. */
+    | {
+          op: "distributeCountersAsChosen";
+          counter: string;
+          total: number | "X" | "X+1";
+          bind?: string;
+      }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3 — `player` gains `amount` life. */

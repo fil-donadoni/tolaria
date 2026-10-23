@@ -3981,6 +3981,13 @@ const OP_SCHEMAS: OpSchemaTable = {
     // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
     // card's `divideAsChosen.total`.
     dealDamageDividedAsChosen: { required: { total: isDivideTotal } },
+    // CR 601.2d / 122.1 — the counters twin: `total` mirrors the card's
+    // `divideAsChosen.total`; `bind` is a PICKS list, one entry per counter
+    // put on a creature this way.
+    distributeCountersAsChosen: {
+        required: { counter: isNonEmptyString, total: isDivideTotal },
+        optional: { bind: bindingDeclaration("picks") },
+    },
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     discardAtRandom: {
         required: { player: isPlayerRef, count: isEffectValue },
