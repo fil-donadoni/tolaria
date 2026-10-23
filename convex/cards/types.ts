@@ -11949,6 +11949,10 @@ export interface TriggerStateView {
              *  `manaCost` to derive color (CR 202.2). Populated from the raw
              *  `CardInstanceState` the engine passes through as the view. */
             card?: Record<string, unknown>;
+            /** CR 613.1f — the "loses all abilities" sources currently
+             *  suppressing this permanent; a suppressed permanent generates no
+             *  static effect (`activationRestrictionViolation`). */
+            abilitiesSuppressedBy?: ReadonlyArray<unknown>;
             /** Tap state (CR 701.26a). Exposed so a frontend affordability hint
              *  for a `tapOtherFilter` activation cost (Hand of Justice) can
              *  count untapped matching permanents the controller controls. */
