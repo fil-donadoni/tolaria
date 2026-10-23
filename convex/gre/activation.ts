@@ -51,11 +51,7 @@ import { commitCast } from "./castCommit";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { exileCastPermission } from "./castCost";
 import type { CastFromZone } from "./castCost";
-import {
-    isTapLockedBySummoningSickness,
-    manaValue,
-    stackManaValue,
-} from "./constants";
+import { isTapLockedBySummoningSickness, stackManaValue } from "./constants";
 import { findEscapeCastable } from "./escape";
 import { payExertActivationCost } from "./exert";
 import { assertExpectedInput } from "./expectedInput";
@@ -104,6 +100,8 @@ import {
     addRestrictedManaToPool,
     applyCostModifiers,
     canPayDiscardLastDrawn,
+    canPayExileTopOfLibrary,
+    costCardSnapshot,
     commitLandsForCost,
     discardToGraveyard,
     emitBecameTargetEvents,
@@ -124,6 +122,7 @@ import {
     moveCard,
     normalizeManaCost,
     payDiscardAtRandomCost,
+    payExileTopOfLibraryCost,
     payDiscardLastDrawn,
     payExileThisCost,
     payManaCostForAbility,
@@ -738,6 +737,10 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.discardAtRandom
             ? { discardAtRandomCount: ability.cost.discardAtRandom }
             : {}),
+        // CR 118.1 / 601.2h — "Exile the top card of your library". Deferred
+        // to commit like every other leg so a cancelled mana payment leaves
+        // the library untouched.
+        ...(ability.cost.exileTopOfLibrary ? { exileTopOfLibrary: true } : {}),
         // CR 702.49a — mark the selection above as a ninjutsu RETURN leg, so
         // the commit path knows to capture CR 702.49c's defender before the
         // bounce takes the returned creature out of combat.
@@ -944,6 +947,14 @@ export function tryAutoCommitPendingActivation(
         // Source vanished (e.g. removed by an opposing effect). Drop the
         // payment silently — lands stay tapped (same policy as cancelCast for
         // sacrificed sources).
+        state.pendingActivation = undefined;
+        return null;
+    }
+    // CR 118.3 / 601.2h — re-check at commit, BEFORE any leg (mana included)
+    // is paid: the library may have emptied while mana was being tapped. The
+    // leg itself is paid LAST (CR 601.2h, below), so its affordability is
+    // settled here, where dropping the activation spends nothing.
+    if (pa.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
         state.pendingActivation = undefined;
         return null;
     }
@@ -1190,6 +1201,21 @@ export function tryAutoCommitPendingActivation(
             tapPermanent(state, perm);
         }
     }
+    // CR 601.2h — a cost that moves an object from the LIBRARY to a public
+    // zone is paid after every other cost: "Exile the top card of your
+    // library" (Phyrexian Devourer). Its snapshot is the "exiled card" the
+    // ability reads back (CR 608.2h).
+    let activationLibraryExileSnapshot: StackItem["additionalSacrificeSnapshot"];
+    if (pa.exileTopOfLibrary) {
+        activationLibraryExileSnapshot = payExileTopOfLibraryCost(
+            state,
+            player
+        );
+        if (!activationLibraryExileSnapshot) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+    }
 
     // CR 605.3b (issue #3455) — a MANA ability does not use the stack. Every
     // cost leg above has now been paid exactly as it is for a stack ability;
@@ -1224,11 +1250,13 @@ export function tryAutoCommitPendingActivation(
         // (Priest of Yawgmoth, Freyalise Supplicant) reads back.
         ...((activationSacrificeSnapshot ??
         activationExileSnapshot ??
+        activationLibraryExileSnapshot ??
         selfSacrificeSnapshot)
             ? {
                   additionalSacrificeSnapshot:
                       activationSacrificeSnapshot ??
                       activationExileSnapshot ??
+                      activationLibraryExileSnapshot ??
                       selfSacrificeSnapshot,
               }
             : {}),
@@ -1965,16 +1993,7 @@ export function exileCostSnapshot(
 ): StackItem["additionalSacrificeSnapshot"] | undefined {
     if (pickedCardIds.length !== 1) return undefined;
     const exiled = owner.graveyard.find((c) => c.id === pickedCardIds[0]);
-    if (!exiled) return undefined;
-    const defId = (exiled.card as { id?: string }).id;
-    const def = defId ? tryGetDefinition(defId) : undefined;
-    return {
-        cardInstanceId: exiled.id,
-        mv: manaValue(def?.manaCost),
-        ...(exiled.subtypes && exiled.subtypes.length > 0
-            ? { subtypes: [...exiled.subtypes] }
-            : {}),
-    };
+    return exiled ? costCardSnapshot(exiled) : undefined;
 }
 
 /** CR 602.1 / 118.5 / 701.21a — assemble every filtered sacrifice an activation
@@ -2569,6 +2588,11 @@ export function activateAbilityOnState(
     if (ability.cost.discardAtRandom && player.hand.length === 0) {
         throw new Error("No card in hand to discard");
     }
+    // CR 118.3 — "Exile the top card of your library": illegal with an empty
+    // library. Validated up-front.
+    if (ability.cost.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
+        throw new Error("No card in library to exile");
+    }
     // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
     // (Survival of the Fittest): illegal unless at least `count` matching
     // cards are in the activating player's hand. Validated up-front so we
@@ -2860,6 +2884,16 @@ export function activateAbilityOnState(
         activationSac,
         state
     );
+    // CR 601.2h — the library-to-exile leg is paid LAST. Affordability was
+    // asserted at announcement; FAIL CLOSED all the same (CR 601.2h —
+    // "Unpayable costs can't be paid"), so the ability never reaches the stack
+    // with this leg silently unpaid.
+    const immediateLibraryExileSnapshot = ability.cost.exileTopOfLibrary
+        ? payExileTopOfLibraryCost(state, player)
+        : undefined;
+    if (ability.cost.exileTopOfLibrary && !immediateLibraryExileSnapshot) {
+        throw new Error("No card in library to exile");
+    }
 
     // Put ability on stack (clone card state as a virtual stack item)
     const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
@@ -2869,10 +2903,14 @@ export function activateAbilityOnState(
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-        ...((immediateSacSnapshot ?? selfSacrificeSnapshot)
+        ...((immediateSacSnapshot ??
+        immediateLibraryExileSnapshot ??
+        selfSacrificeSnapshot)
             ? {
                   additionalSacrificeSnapshot:
-                      immediateSacSnapshot ?? selfSacrificeSnapshot,
+                      immediateSacSnapshot ??
+                      immediateLibraryExileSnapshot ??
+                      selfSacrificeSnapshot,
               }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
