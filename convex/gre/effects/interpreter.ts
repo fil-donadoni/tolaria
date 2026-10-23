@@ -745,6 +745,27 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         if (!playerId) return false;
         return ctx.hasCityBlessing(playerId);
     }
+    // costVictimMatchesFilter (issue #6503, Storm Elemental) — CR 608.2h: the
+    // card an activation exiled or sacrificed as a cost is gone by resolution,
+    // so match the stack item's last-known snapshot (CR 205.2a types, 205.4a
+    // supertypes, subtypes, mana value, colours), never a zone. No snapshot
+    // (CR 608.2b), or one predating the types fields -> false.
+    if ("costVictimMatchesFilter" in pred) {
+        const types = ctx.getAdditionalCostTypes();
+        const mv = ctx.getAdditionalSacrificeMv();
+        if (types === undefined || mv === undefined) return false;
+        return matchesCardFilter(
+            ctx,
+            {
+                types,
+                subtypes: ctx.getAdditionalCostSubtypes() ?? [],
+                supertypes: ctx.getAdditionalCostSupertypes() ?? [],
+                colors: ctx.getAdditionalSacrificeColors(),
+                manaValue: mv,
+            },
+            pred.costVictimMatchesFilter
+        );
+    }
     const left = resolveValue(ctx, pred.left);
     const right = resolveValue(ctx, pred.right);
     if (left === undefined || right === undefined) return false;

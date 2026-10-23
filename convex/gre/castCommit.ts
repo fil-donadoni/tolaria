@@ -52,6 +52,7 @@ import { announcedModeFields } from "./modeSelection";
 import { drainAutoPasses } from "./phases";
 import { markGraveyardPlayPermissionUsed } from "./rules";
 import type { SacrificeSelection } from "./sacrificeChoice";
+import { costVictimTypeFields } from "./sacrificeChoice";
 import { castAsSplitHalf } from "./splitCast";
 import {
     NO_SPELL_MANA_RIDERS,
@@ -331,6 +332,7 @@ export function commitCast(
             ...(exiled.subtypes && exiled.subtypes.length > 0
                 ? { subtypes: [...exiled.subtypes] }
                 : {}),
+            ...costVictimTypeFields(exiled),
         };
         removePermanentTo(state, exiled.id, "exile");
     }

@@ -141,6 +141,7 @@ import {
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
+    costVictimTypeFields,
     sacrificeSourceSnapshot,
     isSacrificeSelectionComplete,
 } from "./sacrificeChoice";
@@ -636,6 +637,7 @@ export function applyCastCostPicksForSearch(
                 ...(exiled.subtypes && exiled.subtypes.length > 0
                     ? { subtypes: [...exiled.subtypes] }
                     : {}),
+                ...costVictimTypeFields(exiled),
             };
         }
         removePermanentTo(state, picks.additionalCostCardId, "exile");
@@ -1135,6 +1137,7 @@ export function applyActivationCostsForSearch(
                     ...(snap.subtypes && snap.subtypes.length > 0
                         ? { subtypes: [...snap.subtypes] }
                         : {}),
+                    ...costVictimTypeFields(snap),
                 };
             }
         }
