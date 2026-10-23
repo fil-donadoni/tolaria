@@ -258,6 +258,9 @@ const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
 const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "mana",
     "tapOtherFilter",
+    // CR 122.1 / 118.1 — `activateManaAbility` and the bot's `applyTapPlan`
+    // both place the counter (issue #6492).
+    "addCounter",
 ]);
 
 /** Cost legs a board-counted mana amount (`manaAmountSource`) may carry: the
@@ -333,7 +336,7 @@ export function lowerManaAbility(input: {
     //   B. no tap/sacrifice but a FILTERED give-up leg → the cost-pick window
     //      (`beginNonStackFilterCostActivation`), whose commit pays every leg;
     //   C. none of those → `activateManaAbility`, which pays exactly
-    //      `cost.tapOtherFilter` and `cost.mana` and NOTHING else.
+    //      `cost.tapOtherFilter`, `cost.mana` and `cost.addCounter`.
     //
     // Only route C is a hole, and it is the one this rule newly populates:
     // "{B}, Pay 1 life: Add one mana of any color" (Blood Celebrant) would be
@@ -343,7 +346,7 @@ export function lowerManaAbility(input: {
     // Pentad Prism declares `useStack: true` to avoid, tracked-by issue
     // #2785), and for the exile / random-discard legs the cost sub-grammar can
     // emit but no corpus card prints on this route today. So route C admits
-    // the two legs its mutation pays and refuses the rest — fail CLOSED, and
+    // the legs its mutation pays and refuses the rest — fail CLOSED, and
     // by construction, rather than one leg at a time.
     if (
         cost.value.tap !== true &&
@@ -356,7 +359,7 @@ export function lowerManaAbility(input: {
         if (unpayableHere.length > 0) {
             return {
                 ok: false,
-                reason: `mana ability cost leg "${unpayableHere[0]}" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana and tapOtherFilter`,
+                reason: `mana ability cost leg "${unpayableHere[0]}" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana, tapOtherFilter and addCounter`,
             };
         }
     }
@@ -436,7 +439,11 @@ export function lowerManaAbility(input: {
     const paidByTapRoute =
         cost.value.tap === true || cost.value.sacrifice === true;
     for (const rider of input.produces.riders ?? []) {
-        if (rider.kind !== "sacrifice-without-counters" && !paidByTapRoute)
+        if (
+            rider.kind !== "sacrifice-without-counters" &&
+            rider.kind !== "once-per-turn" &&
+            !paidByTapRoute
+        )
             return {
                 ok: false,
                 reason: `mana rider "${rider.kind}" needs a tap or sacrifice cost leg: only the tap-for-mana paths apply it`,
@@ -474,6 +481,18 @@ export function lowerManaAbility(input: {
                         target: { ref: "$source" },
                     },
                 ];
+                break;
+            // CR 602.5b — the gate is enforced and recorded by
+            // `activateManaAbility` (route C) only; the tap-for-mana and
+            // cost-pick routes never read `oncePerTurn`, so a cost that
+            // routes there would carry a silently unenforced restriction.
+            case "once-per-turn":
+                if (paidByTapRoute || hasFilteredGiveUpCost(cost.value))
+                    return {
+                        ok: false,
+                        reason: "a once-per-turn mana ability is enforced on the no-tap route only: this cost routes through the tap or cost-pick paths, which never record the activation",
+                    };
+                ability.oncePerTurn = true;
                 break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a

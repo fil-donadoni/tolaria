@@ -89,6 +89,12 @@ export type CostAtomIR =
           readonly counter: string;
           readonly count: number;
       }
+    /** CR 122.1 / 118.1 — "Put a -1/-1 counter on this creature" as a cost. */
+    | {
+          readonly kind: "add-counter";
+          readonly counter: string;
+          readonly count: number;
+      }
     /** CR 701.13a — exile: "Exile two cards from your graveyard" (CR 118.5). */
     | {
           readonly kind: "exile-from-graveyard";
@@ -148,6 +154,7 @@ const DISCARD_HAND = /^Discard your hand$/;
 const DISCARD_HAND_COUNT = 99;
 const DISCARD_RANDOM = /^Discard (\S+) cards? at random$/;
 const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
+const ADD_COUNTER = /^Put (\S+) (\S+) counters? on (.+)$/;
 const EXILE_GRAVEYARD =
     /^Exile (\S+) (?:(\S+) )?cards? from (your graveyard|a single graveyard)$/;
 
@@ -386,6 +393,28 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             });
         }
 
+        if (span.startsWith("Put ")) {
+            const match = span.match(ADD_COUNTER);
+            if (match === null)
+                return fail(
+                    "not a counter-placement cost this grammar knows",
+                    span
+                );
+            const count = readNumberWord(match[1]!);
+            if (count === null)
+                return fail(`"${match[1]}" is not a count`, span);
+            if (!isSelfPhrase(match[3]!))
+                return fail(
+                    "counters can only be put on the source in grammar v0",
+                    span
+                );
+            return ok({
+                kind: "add-counter" as const,
+                counter: match[2]!,
+                count,
+            });
+        }
+
         if (span.startsWith("Tap ")) return readTapOtherAtom(span, ctx);
 
         return fail("not a cost atom this grammar knows", span);
@@ -502,6 +531,9 @@ export function lowerActivationCost(
                     type: atom.counter,
                     count: atom.count,
                 };
+                break;
+            case "add-counter":
+                cost.addCounter = { type: atom.counter, count: atom.count };
                 break;
             case "exile-from-graveyard": {
                 const value: Record<string, unknown> = { count: atom.count };
