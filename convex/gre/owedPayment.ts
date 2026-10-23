@@ -100,6 +100,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     kickerPayments: "non-park",
     buybackPaid: "non-park",
     evoked: "non-park",
+    // CR 701.20a — an alternative cost's reveal-hand marker: a snapshot of the
+    // chosen cost, applied at commit, never a pick the caster still owes.
+    revealHand: "non-park",
     dashed: "non-park",
     // CR 702.185a — a warp cast-mode marker, like `evoked`/`dashed`: a snapshot
     // of a choice already made at announcement. The warp cost it implies is
