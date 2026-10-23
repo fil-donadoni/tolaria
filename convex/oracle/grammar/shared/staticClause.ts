@@ -335,6 +335,11 @@ export type StaticClauseIR =
     /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
+    /** CR 601.3 + CR 305.1 — "You may play lands and cast spells from the top
+     *  of your library": the controller's permission to play the top land and
+     *  cast the top spell of their own library. Lowered to the card-level
+     *  `playsLandsFromTopOfLibrary` + `castsSpellsFromTopOfLibrary`. */
+    | { readonly kind: "play-from-library-top" }
     /** CR 702.8a + CR 307.1 + CR 603.7a — "You may cast this spell as though
      *  it had flash. If you cast it any time a sorcery couldn't have been
      *  cast, the controller of the permanent it becomes sacrifices it at the
@@ -2246,6 +2251,29 @@ const playerShroudRule: Rule<StaticClauseIR> = pattern(
     (): RuleResult<StaticClauseIR> => ok({ kind: "player-shroud" as const })
 );
 
+// ── Frame: play lands and cast spells from the top of the library ──────────
+
+/**
+ * "You may play lands and cast spells from the top of your library."
+ * (Future Sight, Magus of the Future, Experimental Frenzy, One with the
+ * Multiverse.) CR 601.3: a player can begin to cast a spell only if an effect
+ * allows it, and this one allows it for the top card; CR 305.1: the same
+ * permission for a land play. The two halves are ONE sentence and one
+ * permission pair — the land-only wording ("play lands from the top", Courser
+ * of Kruphix) and the pay-life rider (Bolas's Citadel) differ from the
+ * anchored text and stay refused. Cards that print only this sentence carry
+ * no reveal: the reveal/look clauses are separate lines with their own rules.
+ */
+const PLAY_FROM_LIBRARY_TOP =
+    /^You may play lands and cast spells from the top of your library$/;
+
+const playFromLibraryTopRule: Rule<StaticClauseIR> = pattern(
+    "play from library top",
+    PLAY_FROM_LIBRARY_TOP,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "play-from-library-top" as const })
+);
+
 // ── Frame: flash permission with an off-timing sacrifice (CR 702.8a) ───────
 
 /**
@@ -2311,6 +2339,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         asEntersDiscardRule,
         asEntersSacrificeRule,
         playerShroudRule,
+        playFromLibraryTopRule,
         flashCastCleanupSacrificeRule,
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,

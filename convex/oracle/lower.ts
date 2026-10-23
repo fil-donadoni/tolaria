@@ -82,6 +82,8 @@ interface Accumulator {
     entersTapped: boolean;
     drawStepReplacement: boolean;
     shuffleFromAnywhere: boolean;
+    /** CR 305.1 + CR 601.3 — play lands and cast spells from the library top. */
+    playsFromLibraryTop: boolean;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
     castAsThoughFlash: boolean;
     damagePreventionCounterRemoval: boolean;
@@ -567,6 +569,8 @@ function lowerLine(
             if (out.shuffleFromAnywhere === true)
                 acc.shuffleFromAnywhere = true;
             if (out.castAsThoughFlash === true) acc.castAsThoughFlash = true;
+            if (out.playsFromLibraryTop === true)
+                acc.playsFromLibraryTop = true;
             acc.compiledTriggeredAbilities.push(
                 ...(out.triggeredAbilities ?? [])
             );
@@ -838,6 +842,7 @@ export function lowerCard(
         entersTapped: false,
         drawStepReplacement: false,
         shuffleFromAnywhere: false,
+        playsFromLibraryTop: false,
         castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
         preventsDamageToController: false,
@@ -983,6 +988,13 @@ export function lowerCard(
     // CR 614.1a — a replacement is a closure; the compiler emits the flag and
     // `expandDefinition` rebuilds the `replacementEffects[]` entry from it.
     if (acc.shuffleFromAnywhere) definition.shuffleFromAnywhere = true;
+    // CR 305.1 + CR 601.3 — the two card-level permissions `gre/rules.ts`
+    // reads live off the battlefield; no cost replacement (that is the
+    // Citadel's pay-life rider, a different clause).
+    if (acc.playsFromLibraryTop) {
+        definition.playsLandsFromTopOfLibrary = true;
+        definition.castsSpellsFromTopOfLibrary = {};
+    }
     // CR 702.8a — the card-level flash permission the timing authority reads
     // (`castTimingBaseLegal`, `gre/rules.ts`); not the keyword (CR 604.1).
     if (acc.castAsThoughFlash) definition.castAsThoughFlash = true;
