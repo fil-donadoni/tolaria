@@ -292,6 +292,8 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "a scratch log dir; it censuses no repo corpus",
     "scripts/__tests__/health-main-headroom.test.ts":
         "a mkdtemp dir; it censuses no repo corpus",
+    "scripts/__tests__/guard-cache.test.ts":
+        "`readdirSync` on the mkdtemp guard-cache record dir the spawned guards write; it censuses no repo corpus",
     "scripts/__tests__/identity-test-classifier.test.ts":
         "`readdirSync` inside an inline source-string fixture; it censuses no repo corpus",
     "scripts/__tests__/ladder-verdict.test.ts":
