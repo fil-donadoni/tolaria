@@ -389,6 +389,17 @@ export function alternativeCostConditionMet(
             const player = getPlayer(state, playerId);
             return (player.spellsCastThisGame ?? 0) === 0;
         }
+        // CR 118.9 — "If you have no land cards in hand": no hand card
+        // matches the filter. No cast-card exclusion: this predicate has no
+        // spell id, and a condition the spell itself satisfies is a misread.
+        case "no-hand-cards":
+            return (
+                matchingHandCardsForAltCost(
+                    getPlayer(state, playerId),
+                    condition.filter,
+                    ""
+                ).length === 0
+            );
     }
 }
 

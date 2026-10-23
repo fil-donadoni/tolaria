@@ -30576,6 +30576,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hunting Cheetah",
+        "scryfallId": "56a63628-17e6-4845-96b4-c82c3e7e8fb5",
+        "oracleId": "057e1cfc-d528-49e1-a386-9fb1edc1d135",
+        "firstSet": "ptk",
+        "firstPrintId": "56a63628-17e6-4845-96b4-c82c3e7e8fb5",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hunting Drake",
         "scryfallId": "5b0293a9-48fe-4018-bd25-3e02c227a3dd",
         "oracleId": "d5978943-52fc-4b57-9c1c-d802ade1b014",
@@ -35278,6 +35288,16 @@
         "firstSet": "ice",
         "firstPrintId": "c4806c02-7a4d-42e3-affd-0338084bd3ab",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Land Grant",
+        "scryfallId": "d6862005-32d1-473e-a28b-5dfc4b7782cd",
+        "oracleId": "e36f4649-934d-4e8a-bd5f-39f164ea6937",
+        "firstSet": "mmq",
+        "firstPrintId": "d6862005-32d1-473e-a28b-5dfc4b7782cd",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Land Leeches",

@@ -59,6 +59,7 @@ import {
     getCastManaSubstitutions,
     getOpponentId,
     getPlayer,
+    grantKnowledgeToAll,
     manaRiderStackStamps,
     moveCard,
     processPendingActionTriggers,
@@ -109,6 +110,8 @@ export type CastCommitLegs = {
     alternativeCostHandChoice?: NonNullable<
         PendingCast["alternativeCostHandChoice"]
     >;
+    /** CR 118.9 / 701.20a — the alternative cost reveals the caster's hand. */
+    revealHand?: true;
 };
 
 /** The announcement record stamped onto the stack item: what the caster chose
@@ -251,6 +254,16 @@ export function commitCast(
         ) {
             return null;
         }
+    }
+    // CR 118.9 / 701.20a — a cost that reveals the hand (Land Grant): every
+    // hand card becomes known to all players. Spends nothing, so it needs no
+    // vanished-card check and can run beside the other hand leg.
+    if (legs.revealHand) {
+        grantKnowledgeToAll(
+            state,
+            plan.casterId,
+            caster.hand.map((c) => c.id)
+        );
     }
     // CR 702.34a / 702.66b / 702.138 — the flashback / delve / escape exile cost (Flash
     // of Insight): each picked card leaves the caster's own graveyard

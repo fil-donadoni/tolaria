@@ -9098,4 +9098,83 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 701.20a (reveal) — Land Grant: "Search your
+    // library for a Forest card, reveal that card, put it into your hand, then
+    // shuffle", behind the reveal-hand alternative cost (CR 118.9). The
+    // tutor's `choice` filters on a SUBTYPE, a runtime-sized shape the
+    // basic-land fixture above does not exhibit, so the Forest tutor reaches
+    // no card without this row.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "e36f4649-934d-4e8a-bd5f-39f164ea6937",
+            name: "Land Grant",
+            manaCost: "{1}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost.\nSearch your library for a Forest card, reveal that card, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Land Grant",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 1,
+                G: 1,
+            },
+            oracleText:
+                "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost.\nSearch your library for a Forest card, reveal that card, put it into your hand, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        subtype: "Forest",
+                    },
+                    count: {
+                        min: 0,
+                        max: 1,
+                    },
+                    prompt: "Search your library for a Forest card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: {
+                        ref: "$found1",
+                    },
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+            alternativeCosts: [
+                {
+                    id: "reveal-hand-no-land-cards",
+                    description: "Reveal your hand",
+                    condition: {
+                        kind: "no-hand-cards",
+                        filter: {
+                            type: "Land",
+                        },
+                    },
+                    revealHand: true,
+                },
+            ],
+        },
+    },
 ]);
