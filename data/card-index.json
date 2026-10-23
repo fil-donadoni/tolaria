@@ -70364,6 +70364,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Verdurous Gearhulk",
+        "scryfallId": "0130b99e-5b2f-4482-b141-752e59b72c31",
+        "oracleId": "3765e8bb-e70d-4503-b8dc-1e684e434c18",
+        "firstSet": "kld",
+        "firstPrintId": "0130b99e-5b2f-4482-b141-752e59b72c31",
+        "firstPrintSet": "kld",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Vernadi Shieldmate",
         "scryfallId": "efddad21-553e-4947-80d2-833b42c45f77",
         "oracleId": "03e04034-48b5-4f1f-9859-2b46dedf4d8b",
