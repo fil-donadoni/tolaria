@@ -80,6 +80,10 @@ describe("creature damage lock rider", () => {
             "a rider whose subject is a different source",
             `${DEAL} If a red source would deal damage to a creature, that damage can't be prevented or dealt instead to another permanent or player.`,
         ],
+        [
+            "a rider behind damage to a narrower target",
+            `Lava Burst deals X damage to target creature. ${RIDER}`,
+        ],
         ["a rider with no damage sentence before it", RIDER],
     ])("refuses %s", (_form, text) => {
         expect(compileCard(sorcery(text)).state).toBe("unparsed");
