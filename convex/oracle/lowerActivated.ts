@@ -20,7 +20,12 @@ import type {
     RestrictionIR,
 } from "./grammar/shared/effectClause";
 import type { ManaProductionIR } from "./grammar/ir";
-import { declareTargets, lowerSentence, SentenceWalk } from "./lowerEffects";
+import {
+    declareTargets,
+    lowerSentence,
+    SentenceWalk,
+    type SiteOptions,
+} from "./lowerEffects";
 
 /** Re-exported: `compile.test.ts` reaches for it here, and the >1-target
  *  refusal it guards is stated in this file's contract (one target per
@@ -118,6 +123,8 @@ export function lowerActivatedAbility(input: {
     readonly cost: ActivationCostIR;
     readonly effects: readonly EffectSentenceIR[];
     readonly restrictions: readonly RestrictionIR[];
+    /** CR 113.1a — see `SiteOptions.grantQuotedAbility`. */
+    readonly grantQuotedAbility?: SiteOptions["grantQuotedAbility"];
 }): LowerAbilityResult {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
@@ -150,6 +157,9 @@ export function lowerActivatedAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: announcesX,
             selfName: input.cardName,
+            ...(input.grantQuotedAbility !== undefined
+                ? { grantQuotedAbility: input.grantQuotedAbility }
+                : {}),
             // CR 118.1 — a fixed "Sacrifice this <permanent>" leg took the
             // source off the battlefield at activation.
             ...(input.cost.atoms.some((a) => a.kind === "sacrifice-self")
@@ -171,12 +181,19 @@ export function lowerActivatedAbility(input: {
     };
     // An ability whose only effect animates its own source is marked so the
     // Bot never pays for it twice (`ActivatedAbility.animatesSelf`).
-    const [only] = ops;
+    // The animation may carry its own granted ability (`grantAbility` on the
+    // same source): still only the source's animation.
+    const [only, ...rest] = ops;
     if (
-        ops.length === 1 &&
         only!.op === "animate" &&
         "ref" in only!.target &&
-        only!.target.ref === "$source"
+        only!.target.ref === "$source" &&
+        rest.every(
+            (op) =>
+                op.op === "grantAbility" &&
+                "ref" in op.target &&
+                op.target.ref === "$source"
+        )
     )
         ability.animatesSelf = true;
     // CR 702.33g — the kicked SWAP is a card-level field on a spell
