@@ -127,6 +127,7 @@ import {
     payDiscardAtRandomCost,
     payDiscardLastDrawn,
     payExileThisCost,
+    exileThisSourceZone,
     payManaCostForAbility,
     payManaCostForSpell,
     payRemoveCounterCost,
@@ -1092,7 +1093,12 @@ export function tryAutoCommitPendingActivation(
     // tapped, mirroring the vanished-source policy above). Runs BEFORE the
     // stack-item clone below so the ability's source is captured while valid.
     if (pa.exileThisSource) {
-        if (!payExileThisCost(state, player, card.id, !!pa.fromGraveyard)) {
+        const from = pa.fromGraveyard
+            ? "graveyard"
+            : pa.fromHand
+              ? "hand"
+              : "battlefield";
+        if (!payExileThisCost(state, player, card.id, from)) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -2839,12 +2845,7 @@ export function activateAbilityOnState(
     // persists after the move, so the item keeps CR 608.2h last-known
     // information).
     if (ability.cost.exileThis) {
-        payExileThisCost(
-            state,
-            player,
-            card.id,
-            !!ability.activateFromGraveyard
-        );
+        payExileThisCost(state, player, card.id, exileThisSourceZone(ability));
     }
     // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
     // activation cost, paid as the ability commits (Attunement). Runs BEFORE

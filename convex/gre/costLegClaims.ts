@@ -229,7 +229,7 @@ export const COST_LEG_CLAIMS = {
             file: "convex/gre/applyMove.ts",
             symbol: "applyActivationCostsForSearch",
         },
-        why: "CR 118.1 / 601.2h — always payable, so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only HALF the Bot path: the graveyard leg delegates to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over.",
+        why: "CR 118.1 / 601.2h / 113.6m — always payable from the zone the ability declares (`exileThisSourceZone`), so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only PART of the Bot path: the graveyard and hand legs delegate to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over. The hand leg on a MANA ability (Elvish Spirit Guide) is outside this surface: `isAutoPayableManaAbilityCost` refuses `exileThis`, so the planner never spends the card for mana.",
         autoPayable: false,
     },
     exertThis: {

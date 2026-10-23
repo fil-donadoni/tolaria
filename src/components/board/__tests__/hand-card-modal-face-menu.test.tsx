@@ -58,6 +58,7 @@ vi.mock("@convex/_generated/api", () => ({
             playCard: { _name: "playCard" },
             announceCast: { _name: "announceCast" },
             activateAbility: { _name: "activateAbility" },
+            activateManaAbility: { _name: "activateManaAbility" },
         },
     },
 }));
