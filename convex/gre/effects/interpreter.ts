@@ -6517,13 +6517,12 @@ export const OP_EXECUTORS: {
             ctx.moveSpellFromStack(target, op.destination);
     },
     // CR 115.7a — change the target of the announced spell: raise the
-    // `retarget` selection for the effect's controller against "any target";
-    // the engine keeps only a pick that is legal for the spell itself. A
-    // silent no-op when the spell already left the stack (CR 608.2b).
+    // `retarget` selection for the effect's controller over the spell's OWN
+    // requirement, so only a target legal for it is offered. A silent no-op
+    // when the spell already left the stack (CR 608.2b).
     retarget(ctx, op) {
         const target = resolveTargetRef(ctx, op.target);
-        if (target && target.type === "spell")
-            ctx.requestRetarget(target.id, { type: "any", count: 1 });
+        if (target && target.type === "spell") ctx.requestRetarget(target.id);
     },
     // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
     // predefined predicate and runs the matching branch through `runOpList`,

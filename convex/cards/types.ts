@@ -6479,10 +6479,13 @@ export interface SpellContext {
      *  by Reflecting Mirror ("change the target of target spell … the new target
      *  must be a player"). No-op if the spell has left the stack. The new
      *  target's legality (e.g. "must be a player") is governed by `requirement`
-     *  and re-validated at selection. */
+     *  and re-validated at selection. OMITTING `requirement` (CR 115.7a — the
+     *  `retarget` Op) offers the spell's OWN announced requirement instead,
+     *  only for a spell with exactly one target, and raises nothing when it has
+     *  no other legal target. */
     requestRetarget: (
         spellStackItemId: string,
-        requirement: TargetRequirement
+        requirement?: TargetRequirement
     ) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
@@ -19028,15 +19031,13 @@ export type EffectOp =
      *  controller picks ANOTHER legal target for the announced spell, written
      *  onto the original stack item in place (not a copy). Routes through
      *  `SpellContext.requestRetarget` — the same `retarget` target-selection
-     *  phase Reflecting Mirror raises — against "any target"; the engine
-     *  re-validates the pick against the spell's OWN requirement at selection
-     *  time (CR 115.7a — only a legal target qualifies), and a spell with no
-     *  other legal target keeps its original (CR 115.7a). Skipped when the
-     *  target already left the stack (CR 608.2b).
-     *
-     *  The printed "with a single target" restriction is NOT this Op's: it is
-     *  the announced slot's `spellSingleTarget` filter (CR 115.7), so the
-     *  Op can never be handed a multi-target spell. What it deliberately does
+     *  phase Reflecting Mirror raises — over the spell's OWN requirement
+     *  (CR 115.7a — only a legal target qualifies), and a spell with no other
+     *  legal target keeps its original (CR 115.7a). Skipped when the target
+     *  already left the stack (CR 608.2b), and for an ability or a spell that
+     *  does not have exactly one target (the printed "with a single target"
+     *  restriction, also the announced slot's `spellSingleTarget` filter, CR
+     *  115.7). What it deliberately does
      *  NOT do: "choose new targets" (CR 115.7d, leaves targets unchanged),
      *  change an ability's target, or narrow the new target to a kind
      *  ("the new target must be a player" stays `resolve()`). */
