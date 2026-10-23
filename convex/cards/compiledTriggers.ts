@@ -89,6 +89,14 @@ export type CompiledControlsCondition = {
 };
 
 /**
+ * CR 603.4 — whose battlefield an `atMost` count reads: the ability's
+ * controller (CR 109.5 "you"), the controller's opponent (CR 506.2 — the
+ * defending player of a two-player game) or any one player (CR 102.1 —
+ * "a player controls no creatures" holds when some player does).
+ */
+export type ControlsSubject = "you" | "opponent" | "any-player";
+
+/**
  * The trigger-site conditions: `controls`, shared with the static slot's "as
  * long as you control …" (`compiledStatics.ts`), plus the members only an
  * intervening-if reads — they name the FIRING EVENT's player, and a static
@@ -96,6 +104,19 @@ export type CompiledControlsCondition = {
  */
 export type CompiledTriggerCondition =
     | CompiledControlsCondition
+    /**
+     * CR 603.4 — "if <player> control(s) no <descriptor>": the `controls`
+     * count read from the other end, `atMost` rather than `atLeast` (issue
+     * #5274). Trigger-site only because of the subject: "defending player"
+     * names the firing attack's player, which a static has no event to take
+     * from.
+     */
+    | {
+          readonly kind: "controls";
+          readonly player: ControlsSubject;
+          readonly filter: PermanentFilter;
+          readonly atMost: number;
+      }
     /**
      * CR 305.6 / 603.4 — "if there are four or more basic land types among
      * lands THAT PLAYER controls" (Mask of Intolerance, issue #4127). The
@@ -342,6 +363,27 @@ function conditionHolds(
         const playerId = row?.family === "player" ? row.resolve(event) : null;
         if (playerId === undefined || playerId === null) return false;
         return countDomain(state as never, playerId) >= condition.atLeast;
+    }
+    if ("atMost" in condition) {
+        // CR 603.4 — the subject's players; "some player" for `any-player`, and the
+        // one opponent of a two-player game for `opponent` (CR 506.2). An
+        // empty list (a state view missing the controller) fails CLOSED.
+        const players = state.players.filter((p) =>
+            condition.player === "any-player"
+                ? true
+                : condition.player === "you"
+                  ? p.id === self.controllerId
+                  : p.id !== self.controllerId
+        );
+        return players.some(
+            (p) =>
+                countMatching(
+                    p,
+                    condition.filter,
+                    self,
+                    condition.atMost + 1
+                ) <= condition.atMost
+        );
     }
     if (condition.kind === "controls-more")
         return controlsMore(condition, event, self, state);
