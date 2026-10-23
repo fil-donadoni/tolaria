@@ -11145,7 +11145,7 @@
         {"id":"205.4a","line":"// to each player; CR 122 counting; CR 205.4a supertypes.) Authored DSL-first","sites":1,"status":"baseline"},
         {"id":"205.4a","line":"// turn.\" The cost is a `tapOtherFilter` over snow lands (CR 118.8 / 205.4a),","sites":1,"status":"baseline"},
         {"id":"205.4a","line":"A supertype (CR 205.4a) marking a **Permanent** as snow. In the Ice Age block snow is referenced only _by type_ (\"a snow-covered land\", \"sacrifice a snow Mountain\"); the `{S}` snow-mana symbol is a later (Coldsnap) addition and is **not** used by these sets, so snow needs no mana-system support here — only the supertype on the five snow-covered basics and the few cards that filter on it.","sites":1,"status":"baseline"},
-        {"id":"205.4a","line":"`a \"${unevaluable}\" clause cannot be evaluated at trigger-check time (CR 205.4a)`,","sites":1,"status":"baseline"},
+        {"id":"205.4a","line":"`a \"${unevaluable}\" clause cannot be evaluated at trigger-check time (CR 205.4a)`,","sites":2,"status":"confirmed","ruleHash":"4ee944e45525aa6c"},
         {"id":"205.4a","line":"describe(\"Arcum's Sleigh (CR 205.4a defending-player snow gate)\", () => {","sites":1,"status":"baseline"},
         {"id":"205.4a","line":"describe(\"Arcum's Weathervane (CR 205.4a indefinite supertype mutation)\", () => {","sites":1,"status":"baseline"},
         {"id":"205.4a","line":"describe(\"Avalanche (CR 205.4a snow-land targets)\", () => {","sites":1,"status":"baseline"},
