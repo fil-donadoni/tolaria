@@ -309,7 +309,6 @@
     "scripts/pr-checks.ts#58c5a9054e",
     "scripts/pr-fixup.ts#5ef8447c7d",
     "scripts/pr-fixup.ts#7c832304de",
-    "scripts/pr-merge.ts#3955ff7403",
     "scripts/prints-sync.ts#3d53a7a5ae",
     "scripts/purge-identity-tests.ts#2498981475",
     "scripts/queue-plan.ts#fa98499ca5",

@@ -148,24 +148,16 @@ export function mergeArgs(pr: number, head?: string, admin = false): string[] {
 }
 
 /**
- * What a HAND-RUN `pr-merge` tells the reader when it succeeds (issue #4159,
- * reversed by issue #6473).
+ * What a HAND-RUN `pr-merge` tells the reader when it succeeds (issue #6473).
  *
- * This script is the raw primitive: it merges, and that is all it does. Before
- * the queue cut-over (issue #5643) the post-merge steps belonged to `land`, so
- * a hand merge was silent about work it had skipped and the notice sent the
- * session to `land` (issue #4159, observed on PR #4153). Since the cut-over
- * `post-merge.yml` fires on every push to the base, whoever merged: `sync`
- * fast-forwards the primary checkout, removes the merged PR's worktree and
- * ingests telemetry; `seed` seeds the PR's preset scenario; `housekeeping`
- * releases the claim and runs `gaps:sync` / `derive:sync`. Nothing is owed,
- * and `land` is refused to a session (`deny-guard.sh`, issue #5469) and frozen
- * (issue #5654), so the notice names the pipeline that owns the steps and
- * where its run is, and asks nothing of the reader.
+ * This script only merges. `post-merge.yml` fires on every push to the base,
+ * whoever merged, and owns the rest: primary-checkout fast-forward, worktree
+ * teardown, telemetry ingest, preset-scenario seed, claim release,
+ * `gaps:sync` / `derive:sync`. Nothing is owed by hand, and `land` is refused
+ * to a session, so the notice names that pipeline and where its run is.
  *
- * Empty when `land` is the caller (`--from-land`): it is the caller's own
- * tail, and a line telling the merge-train about the pipeline is the kind of
- * noise that trains a reader to skip the tail of a green landing (issue #2877).
+ * Empty when `land` is the caller (`--from-land`): a line about the pipeline
+ * in the tail of a green landing only trains a reader to skip it.
  */
 export function followUpNotice(pr: number, fromLand: boolean): string[] {
     if (fromLand) return [];

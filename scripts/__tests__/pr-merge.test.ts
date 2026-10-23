@@ -172,10 +172,9 @@ describe("pr-merge.ts — mergeArgs", () => {
     });
 });
 
-// Issue #6473. After the queue cut-over (issue #5643) `post-merge.yml` runs the
-// post-merge steps for every push to the base, whoever merged. The notice
-// issue #4159 added still said they "have NOT run" and sent a session to
-// `land`, which `deny-guard.sh` refuses it (issue #5469).
+// `post-merge.yml` runs the post-merge steps for every push to the base, so
+// the notice must not claim they were skipped or send a session to `land`
+// (issue #6473).
 describe("pr-merge.ts — followUpNotice", () => {
     it("names post-merge.yml as the owner of the post-merge steps and asks nothing of the reader", () => {
         const lines = followUpNotice(4153, false);
