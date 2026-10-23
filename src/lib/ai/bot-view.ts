@@ -35,7 +35,11 @@ import {
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
-import { mayPayUnitIsEligible, numberChoiceRange } from "@convex/gre/state";
+import {
+    mayPayGraveyardCandidates,
+    mayPayUnitIsEligible,
+    numberChoiceRange,
+} from "@convex/gre/state";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
@@ -597,6 +601,16 @@ function mayPayIsAffordable(
         // review round 2).
         return false;
     }
+    if (
+        norm.graveyard &&
+        mayPayGraveyardCandidates(bot.graveyard, norm.graveyard).length <
+            norm.graveyard.count
+    ) {
+        // CR 118.3 — the graveyard leg needs `count` matching cards in the
+        // bot's own (public, fully projected) graveyard; priced through the
+        // engine's candidate function, the call `canPayMayPayCost` makes.
+        return false;
+    }
     return true;
 }
 
@@ -690,6 +704,30 @@ function mayPayDiscardPick(
     };
 }
 
+/** Surfaces the may-pay GRAVEYARD-leg pick for the bot's OwedChoice (CR 118.3
+ *  / 118.12a): the concrete `graveyardIds` to submit. The leg never
+ *  auto-picks, so an accept without them is rejected server-side and the
+ *  driver would re-answer forever. The returned cards are GAINED, so the pick
+ *  is best-first — the highest-valued legal candidates (`candidates` is the
+ *  graveyard filtered to the server's `candidateIds`). Absent when the choice
+ *  carries no graveyard pick. */
+function mayPayGraveyardPick(
+    head: PendingChoice,
+    candidates: ChoiceCandidate[]
+): { graveyardIds?: string[] } {
+    if (head.kind !== "may-pay" || head.zone !== "graveyard" || !head.cost) {
+        return {};
+    }
+    const leg = normalizeMayPayCost(head.cost).graveyard;
+    if (!leg || candidates.length < leg.count) return {};
+    return {
+        graveyardIds: [...candidates]
+            .sort((a, b) => b.value - a.value)
+            .slice(0, leg.count)
+            .map((c) => c.id),
+    };
+}
+
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
  *  default policy reasons about. Skips `mulligan-bottom` (handled by the
  *  pre-game mulligan branch) and choices owed to another player. */
@@ -775,6 +813,10 @@ function buildOwedChoice(
         // (`discardCount`) AND the concrete, per-requirement-legal `discardIds`
         // the bot submits. Undefined for a plain yes/no or auto-resolving pay.
         ...mayPayDiscardPick(state, head, candidatesForChoice),
+        // CR 118.3 / 118.12a — a may-pay graveyard leg sets
+        // `zone: "graveyard"` and lists the matching cards in `candidateIds`;
+        // surfaces the concrete `graveyardIds` the bot submits on accept.
+        ...mayPayGraveyardPick(head, candidatesForChoice),
         // issue #1364 (Atraxa) / #1945 (Noxious Vapors, Planar Overlay) — a
         // CATEGORIZED pick constrains the keep beyond the count bounds (at
         // most one member per category, each claimable by only one), so the
@@ -1193,6 +1235,10 @@ export function botActionToMove(
                 // ("select cards to discard") and the driver loops forever
                 // re-answering the same choice.
                 ...(action.discardIds ? { discardIds: action.discardIds } : {}),
+                // CR 118.3 / 118.12a — a graveyard-leg pick, same reason.
+                ...(action.graveyardIds
+                    ? { graveyardIds: action.graveyardIds }
+                    : {}),
             };
         }
         case "land-entry": {

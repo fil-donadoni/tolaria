@@ -45,6 +45,7 @@ import type {
 import {
     canPayMayPayCost,
     getMayPayDiscardCandidateIds,
+    getMayPayGraveyardCandidateIds,
     getMayPaySacrificeCandidateIds,
     getPendingChoiceMax,
     getPendingChoiceMin,
@@ -287,10 +288,29 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         discardSet = instancesById(player.hand, chosenIds);
     }
 
+    // CR 118.3 / 118.12a — the graveyard leg is always a pick (never
+    // auto-resolved). The returned cards are GAINED, not given up, so the
+    // policy takes the MOST valuable matching cards — one candidate, the
+    // single best-first set; affordability above guarantees `count` exist.
+    let graveyardSet: CardInstanceState[] | undefined;
+    if (norm.graveyard) {
+        const cards = instancesById(
+            player.graveyard,
+            getMayPayGraveyardCandidateIds(state, playerId, cost)
+        );
+        const bestFirst = [...cards].sort(
+            (a, b) =>
+                prospectiveCardWorth(state, b) - prospectiveCardWorth(state, a)
+        );
+        if (bestFirst.length < norm.graveyard.count) return out;
+        graveyardSet = bestFirst.slice(0, norm.graveyard.count);
+    }
+    const graveyardIds = graveyardSet?.map((c) => c.id);
+
     const discardIds = discardSet?.map((c) => c.id);
-    const discardKey = discardSet
-        ? `|discard=${stableSetIdentity(discardSet)}`
-        : "";
+    const discardKey =
+        (discardSet ? `|discard=${stableSetIdentity(discardSet)}` : "") +
+        (graveyardSet ? `|graveyard=${stableSetIdentity(graveyardSet)}` : "");
     const discardWorth = (discardSet ?? []).reduce(
         (s, c) => s + prospectiveCardWorth(state, c),
         0
@@ -303,6 +323,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 kind: "may-pay",
                 accept: true,
                 ...(discardIds ? { discardIds } : {}),
+                ...(graveyardIds ? { graveyardIds } : {}),
             },
             hint: { materialGivenUp: discardWorth, lifePaid },
         });
@@ -321,6 +342,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 accept: true,
                 sacrificeIds: set.map((c) => c.id),
                 ...(discardIds ? { discardIds } : {}),
+                ...(graveyardIds ? { graveyardIds } : {}),
             },
             hint: {
                 materialGivenUp:

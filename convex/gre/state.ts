@@ -16490,6 +16490,22 @@ export function buildSpellContext(
                     routed.playerId,
                     req.cost
                 );
+            } else if (
+                // CR 118.3 / 118.12a — a GRAVEYARD leg ALWAYS prompts while
+                // any card can pay it (no auto-pick, see
+                // `mayPayGraveyardChoiceRequired`): light up the payer's own
+                // graveyard, the same `zone`/`candidateIds` machinery a
+                // mid-resolution graveyard pick uses. No candidate → no zone,
+                // the leg is unaffordable and only the decline is legal.
+                req.cost &&
+                mayPayGraveyardChoiceRequired(state, routed.playerId, req.cost)
+            ) {
+                entry.zone = "graveyard";
+                entry.candidateIds = getMayPayGraveyardCandidateIds(
+                    state,
+                    routed.playerId,
+                    req.cost
+                );
             }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
@@ -22295,14 +22311,16 @@ function formatManaCost(cost: ManaCost): string {
 
 /** Distinguishes the {@link CostLegs} shape from a bare `ManaCost`. The legs
  *  form is the ONLY value carrying a `mana` / `life` / `permanent` / `hand` /
- *  `energy` key; a bare `ManaCost` carries only mana symbol keys. */
+ *  `energy` / `graveyard` key; a bare `ManaCost` carries only mana symbol
+ *  keys. */
 function isMayPayUnion(cost: MayPayCost): cost is CostLegs {
     return (
         "mana" in cost ||
         "life" in cost ||
         "permanent" in cost ||
         "hand" in cost ||
-        "energy" in cost
+        "energy" in cost ||
+        "graveyard" in cost
     );
 }
 
@@ -22317,6 +22335,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
             ...(cost.permanent ? { permanent: cost.permanent } : {}),
             ...(cost.hand ? { hand: cost.hand } : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
+            ...(cost.graveyard ? { graveyard: cost.graveyard } : {}),
         };
     }
     return { mana: cost as CardManaCost };
@@ -22670,6 +22689,80 @@ export function mayPayDiscardChoiceRequired(
     return candidateCount > mayPayHandLegCount(cost);
 }
 
+/** The cards of `graveyard` that could pay a may-pay GRAVEYARD leg (CR 118.3 /
+ *  118.12a): every card matching the leg's filter, read with its graveyard
+ *  characteristics (CR 113.6c). Generic over {@link MayPayHandCard} — the
+ *  structural card shape the shared matcher reads — so the server, the client
+ *  Brain and the UI's Pay gate price the leg through ONE function against
+ *  their own (projected) graveyard. The graveyard is a public zone (CR 400.2),
+ *  so the projected pile is the whole pile. */
+export function mayPayGraveyardCandidates<T extends MayPayHandCard>(
+    graveyard: readonly T[],
+    leg: NonNullable<CostLegs["graveyard"]>
+): T[] {
+    return graveyard.filter((c) =>
+        handCardMatchesFilter(c, leg.filter, "graveyard")
+    );
+}
+
+/** Instance ids of `playerId`'s graveyard cards that could pay a `may-pay`
+ *  cost's GRAVEYARD leg (CR 118.3 — the payer chooses which return). `[]`
+ *  when the cost has no graveyard leg. Exported so the submit boundary and the
+ *  bot validate / pick against the SAME candidate set `requestMayPay`
+ *  computed. */
+export function getMayPayGraveyardCandidateIds(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): string[] {
+    const leg = normalizeMayPayCost(cost).graveyard;
+    if (!leg) return [];
+    return mayPayGraveyardCandidates(
+        getPlayer(state, playerId).graveyard,
+        leg
+    ).map((c) => c.id);
+}
+
+/** Whether a `may-pay` GRAVEYARD leg admits a card choice: ALWAYS while the
+ *  leg can be paid, even with exactly one legal card — the returned card is a
+ *  resource the payer keeps, so which one comes back is the payer's to see
+ *  and pick (the `"return"` permanent leg's doctrine,
+ *  {@link mayPaySacrificeChoiceRequired}). False for a cost with no graveyard
+ *  leg, or with fewer candidates than the leg returns (CR 118.3 — no picker
+ *  is opened for a pick that could never complete). */
+export function mayPayGraveyardChoiceRequired(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): boolean {
+    const leg = normalizeMayPayCost(cost).graveyard;
+    if (!leg) return false;
+    return (
+        getMayPayGraveyardCandidateIds(state, playerId, cost).length >=
+        leg.count
+    );
+}
+
+/** Whether `ids` is a LEGAL payment of a may-pay GRAVEYARD leg (CR 118.3):
+ *  exactly `count` distinct ids, each a currently-legal candidate. A cost with
+ *  no graveyard leg is paid only by an empty pick. The one validity authority
+ *  for the leg — the submit boundary and {@link payMayPayCost} both call it. */
+export function mayPayGraveyardSelectionLegal(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost,
+    ids: readonly string[]
+): boolean {
+    const leg = normalizeMayPayCost(cost).graveyard;
+    if (!leg) return ids.length === 0;
+    if (new Set(ids).size !== ids.length) return false;
+    if (ids.length !== leg.count) return false;
+    const legal = new Set(
+        getMayPayGraveyardCandidateIds(state, playerId, cost)
+    );
+    return ids.every((id) => legal.has(id));
+}
+
 /** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
  *  restricted mana whose restriction equals `restriction` (CR 106.6, ADR 0022 /
  *  0042). Returns a plain `manaPool` copy when no restriction is given (the
@@ -22835,6 +22928,14 @@ export function canPayMayPayCost(
     ) {
         return false;
     }
+    if (
+        norm.graveyard &&
+        mayPayGraveyardCandidates(player.graveyard, norm.graveyard).length <
+            norm.graveyard.count
+    ) {
+        // CR 118.3 — the payer's graveyard must hold enough matching cards.
+        return false;
+    }
     return true;
 }
 
@@ -22858,10 +22959,25 @@ export function payMayPayCost(
     cost: MayPayCost,
     manaRestriction?: ManaRestriction,
     sacrificeIds?: string[],
-    discardIds?: string[]
+    discardIds?: string[],
+    graveyardIds?: string[]
 ): void {
     const norm = normalizeMayPayCost(cost);
     const player = getPlayer(state, playerId);
+    if (
+        norm.graveyard &&
+        !mayPayGraveyardSelectionLegal(
+            state,
+            playerId,
+            cost,
+            graveyardIds ?? []
+        )
+    ) {
+        // The graveyard leg never auto-picks: the payer's validated pick is
+        // the payment. Checked BEFORE any other leg is paid, so a missing or
+        // illegal pick pays nothing at all rather than half the cost.
+        throw new Error("Choose the card(s) to return from your graveyard");
+    }
     if (norm.mana) {
         const normalized = normalizeManaCost(norm.mana);
         const subs = getManaSubstitutions(state, playerId);
@@ -23015,5 +23131,21 @@ export function payMayPayCost(
         // the existing all-or-nothing primitive. `canPayMayPayCost` already
         // confirmed affordability, so this never returns false here.
         player.energyCounters = (player.energyCounters ?? 0) - norm.energy;
+    }
+    if (norm.graveyard) {
+        // CR 118.12a — "unless you return a <card> from your graveyard to your
+        // hand": the chosen cards (validated above) move graveyard → hand
+        // through the general mover, which tallies the graveyard departure and
+        // keeps each card's identity known to every player (it left a public
+        // zone in plain view, ADR 0026).
+        for (const id of graveyardIds ?? []) {
+            moveCardWithGraveyardReplacement(
+                state,
+                player,
+                id,
+                "graveyard",
+                "hand"
+            );
+        }
     }
 }

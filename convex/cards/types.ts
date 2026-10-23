@@ -2708,6 +2708,22 @@ export interface CostLegs {
      *  the existing `SpellContext.payEnergy` primitive (#697's Energy resource,
      *  `PlayerState.energyCounters`). No printed alternative cost uses it. */
     energy?: number;
+    /** GRAVEYARD leg (CR 118.3 / 118.12a): cards matching `filter` in the
+     *  payer's OWN graveyard move to the payer's hand to pay the cost — the
+     *  "sacrifice it unless you return a basic land card from your graveyard
+     *  to your hand" punisher (Harvest Wurm). Payable only while the payer's
+     *  graveyard holds at least `count` matching cards (CR 118.3).
+     *
+     *  WHICH cards pay is ALWAYS the payer's choice, never an auto-pick — not
+     *  even with exactly one legal card, the same doctrine as the `permanent`
+     *  leg's `"return"` action: the returned card stays a resource the payer
+     *  keeps playing with. A may-pay-only shape: no printed alternative or
+     *  kicker cost uses it, and both of those paths refuse it. */
+    graveyard?: {
+        action: "return";
+        filter: EffectCardFilter;
+        count: number;
+    };
 }
 
 // --- Additional-cost legs (CR 601.2b / 601.2f / 118.8) ---

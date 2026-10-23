@@ -93,6 +93,7 @@ import { landTapPose } from "./botReachLandTap";
 import { nonbasicBurnPose } from "./botReachNonbasicBurn";
 import { graveyardExilePose } from "./botReachGraveyardExile";
 import { graveyardReturnPose } from "./botReachGraveyardReturn";
+import { mayPayGraveyardPose } from "./botReachMayPayGraveyard";
 import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { blinkPose } from "./botReachBlink";
 import { creatureSweepPose } from "./botReachCreatureSweep";
@@ -1030,6 +1031,7 @@ export function botReachSpec(
         ...nonbasicBurnPose(def),
         ...graveyardExilePose(def),
         ...graveyardReturnPose(def),
+        ...mayPayGraveyardPose(def),
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
