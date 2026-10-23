@@ -622,6 +622,28 @@ export interface EnchantRestriction {
     hostId?: string;
 }
 
+/** A target-count bound read off the game state AT ANNOUNCEMENT (CR 601.2c /
+ *  107.3) — the `count` construct of the Effect Script value grammar, reused
+ *  verbatim, never a new value member: "the number of black permanents target
+ *  opponent controls" is `{ count: { zone: "battlefield", controller:
+ *  { target: 0 }, filter: { color: "B" } } }`.
+ *
+ *  `{ target: N }` inside it names a target chosen by an EARLIER group of the
+ *  same announcement (CR 601.2c announces groups in order, so a later group's
+ *  count can depend on an earlier group's pick); the group carrying the
+ *  quantity is never itself in scope. The value is evaluated ONCE, when the
+ *  target walk reaches that group, and stored as a plain number on the
+ *  pending selection — CR 601.2c: "once the number of targets the spell has
+ *  is determined, that number doesn't change, even if the information used to
+ *  determine the number of targets does". It is never re-read at resolution.
+ *
+ *  Narrowed to `EffectCount` rather than the whole `EffectValue` on purpose:
+ *  every other member reads resolution state (bindings, kicker counts, the
+ *  resolving trigger) that does not exist yet at announcement, so it would
+ *  type-check and then read nothing. Widening it is a type-level change.
+ *  Resolved by `resolveTargetRequirementCount` (`gre/state.ts`). */
+export type TargetCountQuantity = EffectCount;
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -660,8 +682,18 @@ export interface TargetRequirement {
      *  string above. Resolved the same way, against `chosenX`, into a live
      *  `{ min, max }` range — `convex/gre/state.ts`'s
      *  `resolveTargetRequirementCount` is the single resolver every count
-     *  consumer calls (issue #2365). */
-    count: number | "X" | { min: number; max?: number | "X" };
+     *  consumer calls (issue #2365).
+     *
+     *  The object form's `max` may finally be a {@link TargetCountQuantity}:
+     *  an "up to X" whose X is DEFINED BY THE SPELL'S TEXT rather than
+     *  announced (CR 601.2c — "in some cases, the number of targets will be
+     *  defined by the spell's text"). Reap: "Return up to X target cards from
+     *  your graveyard to your hand, where X is the number of black permanents
+     *  target opponent controls as you cast this spell". */
+    count:
+        | number
+        | "X"
+        | { min: number; max?: number | "X" | TargetCountQuantity };
     /** If set, restricts legal targets to permanents and stack spells of the
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */

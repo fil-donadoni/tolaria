@@ -31,7 +31,12 @@
 // hand-written copy in the search would be the classic "the bot simulates a
 // different game than the server plays" bug.
 
-import type { GameState, PendingTarget, PendingTargetFilterKey } from "./state";
+import type {
+    GameState,
+    PendingTarget,
+    PendingTargetFilterKey,
+    TargetCountAnnouncement,
+} from "./state";
 import {
     PENDING_TARGET_FILTER_KEYS,
     emitBecameTargetEvents,
@@ -211,7 +216,10 @@ export function resolveDivideTotal(
 export function announcedTargetCount(
     req: TargetRequirement | undefined,
     chosenX: number | undefined,
-    options: { requireX?: boolean } = {}
+    options: {
+        requireX?: boolean;
+        announcement?: TargetCountAnnouncement;
+    } = {}
 ): number | { min: number; max?: number } | undefined {
     if (!req) return undefined;
     // CR 601.2d / 120.4 — the divide budget caps the target count (each target
