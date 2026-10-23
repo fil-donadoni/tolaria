@@ -26,11 +26,17 @@ precedes every PRD is versioned with the pipeline it feeds. The name is not
    already confirmed** (`feedback_autonomous_when_consistent`); say so in one
    line and move on. CR-compliance is never a question — pick the CR branch
    yourself (`feedback_cr_compliance_default`). Ask only on a real fork.
-4. **Stress-test with concrete scenarios.** Invent the edge case that forces a
+4. **Every alternative comes with a worked example** on a real artefact of
+   this repo — a corpus card and its Oracle line, the `kind` / regex / file
+   that reads it today, the issue, the PR that would change it. State each
+   fork AS that example ("Vampiric Tutor reads through kind X today; under A
+   it would…; under B…"), never in the abstract: an abstract fork costs one
+   extra turn every time (`feedback_grill_concrete_examples`, 2026-10-23).
+5. **Stress-test with concrete scenarios.** Invent the edge case that forces a
    boundary to be stated: a card, a board, a priority window.
-5. **Cross-check what the owner states against the code.** A contradiction is
+6. **Cross-check what the owner states against the code.** A contradiction is
    surfaced at once: "the code does X, you said Y — which is right?"
-6. **Do not act on the plan until the owner confirms shared understanding.**
+7. **Do not act on the plan until the owner confirms shared understanding.**
    No edits to code, no issue filed, no PRD written before that confirmation.
    The glossary and ADR writes below are the only exception: they record what
    was already decided.
