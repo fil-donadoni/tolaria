@@ -95,6 +95,10 @@
         "code": "randomness",
         "reason": "Op \"discardAtRandom\" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests"
     },
+    "distributeCountersAsChosen": {
+        "code": "target-slot-shape",
+        "reason": "distributeCountersAsChosen — announced multi-target division cannot be scenario-ized"
+    },
     "divideIntoPiles": {
         "code": "card-paired-mechanism",
         "reason": "Op \"divideIntoPiles\" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests"

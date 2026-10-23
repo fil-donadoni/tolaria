@@ -3823,8 +3823,9 @@ export type PendingTarget = {
      *  propagated from `TargetRequirement.divideAsChosen.kind`. `"prevent"`
      *  for Pollen Remedy's divided damage prevention; the frontend's divide
      *  banner reads this to label the finalize button correctly instead of
-     *  always saying "Deal damage". */
-    divideKind?: "deal" | "prevent";
+     *  always saying "Deal damage". `"counters"` for a distributed-counters
+     *  budget (CR 601.2d). */
+    divideKind?: "deal" | "prevent" | "counters";
     /** Per-target amounts assigned during divide-as-you-choose selection,
      *  keyed by `${type}:${id}` (parallels `selected`). Each entry is ≥ 1.
      *  Written to the stack item as `targetAmounts` at finalization. Undefined

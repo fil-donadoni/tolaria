@@ -1135,6 +1135,18 @@ export class SentenceWalk {
     } | null = null;
 
     /**
+     * CR 608.2c — the `distributeCountersAsChosen` Op the LAST sentence
+     * lowered to, with the counter kind it put on: the antecedent of "each
+     * counter you put on a creature this way". The Op is kept so the reader
+     * can give it the `bind` that records the counters actually placed; any
+     * other sentence in between forgets it (`lowerSentence`).
+     */
+    distributed: {
+        readonly op: { bind?: string };
+        readonly counter: string;
+    } | null = null;
+
+    /**
      * CR 608.2c — an earlier sentence dealt damage to the ONE announced target
      * (slot 0): the antecedent of "dealt damage this way". Set by the
      * `deal-damage` lowering only.
@@ -1665,6 +1677,7 @@ export function lowerSentence(
     const announced = walk.targets.requirements().length;
     const actedOn = walk.actedOn;
     const introduced = walk.introduced;
+    const distributed = walk.distributed;
     const out = lowerSentenceBody(
         sentence,
         walk,
@@ -1696,6 +1709,13 @@ export function lowerSentence(
             !readsIntroduced(sentence, introduced))
     )
         walk.introduced = null;
+    // CR 608.2c — "this way" names the distribution of the sentence right
+    // before; any other sentence in between makes the reference stale.
+    if (
+        walk.distributed === distributed &&
+        sentence.kind !== "delayed-remove-distributed-counters"
+    )
+        walk.distributed = null;
     return out;
 }
 
@@ -2188,6 +2208,78 @@ function lowerSentenceBody(
             });
             if (!index.ok) return index;
             return lowered([{ op: "dealDamageDividedAsChosen", total }]);
+        }
+        case "distribute-counters": {
+            // CR 601.2d — the counters twin of `deal-damage-divided`, the same
+            // single divided group. The budget is a printed number: every
+            // corpus "Distribute X …" defines X in a clause this sentence does
+            // not read ("where X is …", a cast-time count), so X is refused.
+            if (sentence.amount.kind !== "fixed")
+                return unlowerable(
+                    "a distributed budget is a printed number (CR 601.2d)"
+                );
+            const total = sentence.amount.value;
+            const index = slots.allocate({
+                ...sentence.among,
+                count: dividedCount(sentence.among.count, total),
+                divideAsChosen: { total, kind: "counters" },
+            });
+            if (!index.ok) return index;
+            const op: Extract<EffectOp, { op: "distributeCountersAsChosen" }> =
+                {
+                    op: "distributeCountersAsChosen",
+                    counter: sentence.counter,
+                    total,
+                };
+            walk.distributed = { op, counter: sentence.counter };
+            return lowered([op]);
+        }
+        case "delayed-remove-distributed-counters": {
+            // CR 603.7a — the delayed trigger is created now; "this way"
+            // (CR 608.2c) names the counters the sentence before put on, which
+            // its Op records one entry per counter placed. The list is frozen
+            // at scheduling and walked at fire time, one counter off each
+            // entry's creature; a creature gone by then is skipped (CR 603.7c).
+            const distributed = walk.distributed;
+            if (distributed === null)
+                return unlowerable(
+                    '"put on a creature this way" names no counters an earlier sentence distributed (CR 608.2c)'
+                );
+            if (distributed.counter !== sentence.counter)
+                return unlowerable(
+                    `"${sentence.counter}" counters were not the ones distributed this way (CR 608.2c)`
+                );
+            const bind = distributed.op.bind ?? walk.nextBind("placed");
+            distributed.op.bind = bind;
+            const step =
+                sentence.timing === "next-cleanup-step"
+                    ? "cleanup step"
+                    : "end step";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: sentence.timing,
+                    oracleText: `For each ${sentence.counter} counter you put on a creature this way, remove a ${sentence.counter} counter from that creature at the beginning of the next ${step}.`,
+                    capture: {
+                        $placed: { select: { set: "bound", ref: bind } },
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$placed" },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "remove",
+                                    counter: sentence.counter,
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ]);
         }
         // CR 615.12 — the game-scoped anti-prevention lock. No fields, no
         // target, no duration argument: the Op is turn-scoped by construction

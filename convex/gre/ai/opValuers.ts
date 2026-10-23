@@ -1586,6 +1586,34 @@ const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
     };
 };
 
+/** CR 601.2d / 122.1 — the counters twin of `dealDamageDividedAsChosen`:
+ *  `total` counters of one kind spread over the announced targets. Priced as
+ *  the `counters` add of the whole budget (a split changes who gets them, not
+ *  how many), with `total` read through the same X mapping. */
+const distributeCountersAsChosen: Valuer<"distributeCountersAsChosen"> = (
+    op,
+    ctx
+) => {
+    const { amount, scaling } =
+        typeof op.total === "number"
+            ? ctx.value(op.total)
+            : ctx.value({ X: true });
+    const total = op.total === "X+1" ? amount + 1 : amount;
+    const pt = parsePtCounter(op.counter);
+    if (pt) {
+        const net = pt.power + pt.toughness;
+        const feature: Feature = net >= 0 ? "pump" : "boardRemoval";
+        return {
+            points: priced(ctx, "pump", Math.abs(net) * total),
+            tags: [...tagScaling(scaling, feature), "targeted"],
+        };
+    }
+    return {
+        points: priced(ctx, "pump", total),
+        tags: [...tagScaling(scaling, "pump"), "targeted"],
+    };
+};
+
 const draw: Valuer<"draw"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     // "you draw" (self) is card advantage; "target player draws" as a downside
@@ -3175,6 +3203,7 @@ export const OP_VALUERS: {
     // Charter Ops (issue #1426).
     dealDamage,
     dealDamageDividedAsChosen,
+    distributeCountersAsChosen,
     draw,
     gainLife,
     loseLife,
@@ -3867,6 +3896,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
 export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "pump",
     "counters",
+    "distributeCountersAsChosen",
     "addPlayerCounter",
     "tapUntap",
     "scryReorder",
@@ -3927,6 +3957,15 @@ export function opBeneficence(
             if (sign === 0) return "neutral";
             const net = op.action === "add" ? sign : -sign;
             return net > 0 ? "beneficial" : "harmful";
+        }
+        case "distributeCountersAsChosen": {
+            // CR 122.1a — the same sign as a `counters` add of that kind: a
+            // +1/+1 share is a gift to the creature's controller, a −1/−1
+            // share an attack on them.
+            const pt = parsePtCounter(op.counter);
+            if (!pt) return "neutral";
+            const sign = pt.power + pt.toughness;
+            return sign > 0 ? "beneficial" : sign < 0 ? "harmful" : "neutral";
         }
         case "addPlayerCounter":
             // CR 122.1 — the SIGN is the counter KIND's, not the table's:
