@@ -61,6 +61,8 @@ import {
     addCounterToCard,
     applyKeywordCounterGrant,
     payDiscardAtRandomCost,
+    canPayExileTopOfLibrary,
+    payExileTopOfLibraryCost,
     commitLandsForCost,
     resolveTopOfStack,
     normalizeManaCost,
@@ -4965,6 +4967,14 @@ export function finalizeTargetSelection(
         if (ability.cost.discardAtRandom && player.hand.length === 0) {
             throw new Error("No card in hand to discard");
         }
+        // CR 118.3 — "Exile the top card of your library": illegal with an
+        // empty library. Validated up-front.
+        if (
+            ability.cost.exileTopOfLibrary &&
+            !canPayExileTopOfLibrary(player)
+        ) {
+            throw new Error("No card in library to exile");
+        }
         // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
         // (Survival of the Fittest): illegal unless at least `count` matching
         // cards are in the activating player's hand. Validated up-front so we
@@ -5217,6 +5227,15 @@ export function finalizeTargetSelection(
             activationSac,
             state
         );
+        // CR 601.2h — the library-to-exile leg is paid LAST, and FAILS CLOSED
+        // ("Unpayable costs can't be paid") so the ability never reaches the
+        // stack with it silently unpaid; the throw rolls the mutation back.
+        const targetedLibraryExileSnapshot = ability.cost.exileTopOfLibrary
+            ? payExileTopOfLibraryCost(state, player)
+            : undefined;
+        if (ability.cost.exileTopOfLibrary && !targetedLibraryExileSnapshot) {
+            throw new Error("No card in library to exile");
+        }
 
         const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
             castById: playerId,
@@ -5231,10 +5250,14 @@ export function finalizeTargetSelection(
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-            ...((targetedSacSnapshot ?? selfSacrificeSnapshot)
+            ...((targetedSacSnapshot ??
+            targetedLibraryExileSnapshot ??
+            selfSacrificeSnapshot)
                 ? {
                       additionalSacrificeSnapshot:
-                          targetedSacSnapshot ?? selfSacrificeSnapshot,
+                          targetedSacSnapshot ??
+                          targetedLibraryExileSnapshot ??
+                          selfSacrificeSnapshot,
                   }
                 : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
