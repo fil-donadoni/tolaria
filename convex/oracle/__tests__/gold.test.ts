@@ -306,7 +306,13 @@ describe("gold round-trip — precision", () => {
         // projection cannot compare, while "sacrifice it" is now compiled —
         // the same move as the entries above. The compiled definition is
         // proven by `sacrificeSource.test.ts` instead.
-        expect(REPORT.incomparable.length).toBeLessThan(75);
+        //
+        // Raised 75 -> 76 with the graveyard shuffle rule: Gaea's Blessing's
+        // hand-written milled-self trigger carries a `matches` closure the
+        // projection cannot compare, while its line is now compiled — the same
+        // move as the entries above. The compiled definition is proven by
+        // `shuffleGraveyardIntoLibrary.test.ts` and its golden fixture instead.
+        expect(REPORT.incomparable.length).toBeLessThan(76);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

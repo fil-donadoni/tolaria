@@ -2830,6 +2830,18 @@ function lowerSentenceBody(
                 { op: "draw", player: "controller", count: { ref: bind } },
             ]);
         }
+        case "shuffle-own-graveyard-into-library":
+            // CR 701.24a + CR 404.1 — the whole graveyard moves to the
+            // library, then the library is shuffled (Feldon's Cane's shape).
+            return lowered([
+                {
+                    op: "moveZone",
+                    player: "controller",
+                    from: "graveyard",
+                    to: "library",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ]);
         case "search-library-to-hand": {
             // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — look through the library
             // for a card the description matches, show it to every player,
