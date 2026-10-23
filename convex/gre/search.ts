@@ -1360,7 +1360,7 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  draw read barely above a burn spell that did not. Scaled, two wins at the
  *  same step keep their material order
  *  exactly, and a win never leaves the band. It touches the REWARD only: the
- *  tie-break margin stays pure material (issue #138), like `evaluate`'s race
+ *  tie-break margin stays pure material, like `evaluate`'s race
  *  and combat terms. Losses and open leaves are untouched; with no `since`
  *  the leaf is the plain evaluation. */
 function scoreLeaf(
