@@ -5,6 +5,7 @@
 // snapshot independent of any live-instance overrides.
 import { describe, it, expect } from "vitest";
 import {
+    getAllCatalogueCards,
     getCardByName,
     tokenDefinitionId,
     tryGetDefinition,
@@ -1002,4 +1003,41 @@ describe("buildPreviewBody — a token's edition art (ADR 0140 §4, issue #4120)
     it("without the Game's rows the face is the placeholder (no art)", () => {
         expect(buildPreviewBody(DEF_ID, token).imageSrc).toBeNull();
     });
+});
+
+// Issue #5443 — a tap-for-mana self-damage rider (CR 605.1a: Ancient Tomb,
+// the painlands, Barbarian Ring) is a real cost the preview must print. The
+// structured ability row's own `oracleText` is what the rules box renders
+// when the paragraph-coverage gate hides the printed text, so a row that
+// stops at the mana clause made the damage invisible. Traverses the whole
+// preview build for every catalogue card (hand-written and compiled)
+// carrying either rider.
+describe("buildPreviewBody — tap-for-mana self-damage rider is rendered", () => {
+    function renderedRulesText(defId: string): string {
+        const body = buildPreviewBody(defId);
+        return [
+            ...(body.oracleParagraphs ?? []),
+            ...body.bodyAbilities.activated.map((a) => a.oracleText),
+        ].join("\n");
+    }
+
+    const riderCards = getAllCatalogueCards().filter((def) =>
+        (def.activatedAbilities ?? []).some(
+            (a) =>
+                a.dealsDamageToControllerOnTap !== undefined ||
+                a.dealsDamageToControllerOnColoredTap !== undefined
+        )
+    );
+
+    it("finds the rider cards (Ancient Tomb among them)", () => {
+        expect(riderCards.map((d) => d.name)).toContain("Ancient Tomb");
+        expect(riderCards.length).toBeGreaterThan(20);
+    });
+
+    it.each(riderCards.map((d) => [d.name, d.id] as const))(
+        "%s prints its damage sentence",
+        (_name, id) => {
+            expect(renderedRulesText(id)).toMatch(/deals \d+ damage to you\./);
+        }
+    );
 });

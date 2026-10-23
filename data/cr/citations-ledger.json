@@ -27264,6 +27264,7 @@
         {"id":"605.1a","line":"// Fyndhorn Elves — \"{T}: Add {G}.\" The Llanowar Elves twin (CR 605.1a).","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Gaea's Cradle — \"{T}: Add {G} for each creature you control.\" (CR 605.1a","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Grammar v0: keyword lines (CR 702.1), mana abilities (CR 605.1a), activated","sites":1,"status":"baseline"},
+        {"id":"605.1a","line":"// Issue #5443 — a tap-for-mana self-damage rider (CR 605.1a: Ancient Tomb,","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"605.1a","line":"// Mana Confluence — \"{T}, Pay 1 life: Add one mana of any color.\" (CR 605.1a","sites":2,"status":"baseline"},
         {"id":"605.1a","line":"// Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Mana ability riders and entry counters (CR 605.1a / 121.1 / 122.1 / 614.1c,","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
