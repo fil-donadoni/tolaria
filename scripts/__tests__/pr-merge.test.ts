@@ -172,35 +172,23 @@ describe("pr-merge.ts — mergeArgs", () => {
     });
 });
 
-// Issue #4159. `pr-merge` is the raw primitive: it merges, and `land` wraps it
-// in a post-merge step list. CLAUDE.md § Merging sends a session here when only
-// the MERGE failed, precisely so the lane gate is not re-paid — and the cost of
-// that advice was silence: the PR landed and every housekeeping step was
-// skipped with nothing said, which is issue #3253's loss (an unseeded scenario
-// disappears without a word) reintroduced through the back door. Observed on
-// PR #4153, 2026-09-19.
+// Issue #6473. After the queue cut-over (issue #5643) `post-merge.yml` runs the
+// post-merge steps for every push to the base, whoever merged. The notice
+// issue #4159 added still said they "have NOT run" and sent a session to
+// `land`, which `deny-guard.sh` refuses it (issue #5469).
 describe("pr-merge.ts — followUpNotice", () => {
-    it("names what a hand-run merge still owes, and the one command that runs it", () => {
+    it("names post-merge.yml as the owner of the post-merge steps and asks nothing of the reader", () => {
         const lines = followUpNotice(4153, false);
         expect(lines.length).toBeGreaterThan(0);
         const text = lines.join("\n");
-        // The four steps whose silent absence is the bug, by the names a
-        // reader can grep for.
-        expect(text).toMatch(/preset-scenario seed/);
-        expect(text).toMatch(/health detach/);
-        // gaps:sync left land for the hourly housekeeping cron (issue #5457).
-        expect(text).not.toMatch(/gaps:sync/);
-        expect(text).toMatch(/fast-forward/);
-        expect(text).toMatch(/landing record/);
-        // The follow-up is `land` itself — which, on an already-MERGED PR,
-        // runs the housekeeping and nothing else.
-        expect(text).toContain("bun run gate:run land 4153");
-        // Keyed on the run key `land` is always invoked with, so the
-        // re-attach documented in /next-ticket §5 works from anywhere.
-        expect(text).toContain("TOLARIA_GATE_RUN_KEY=land-4153");
+        expect(text).toContain("post-merge.yml");
+        expect(text).toMatch(/nothing is left to run by hand/);
+        expect(text).not.toMatch(/NOT run/);
+        expect(text).not.toMatch(/gate:run/);
+        expect(text).not.toMatch(/\bland\b/);
     });
 
-    it("says nothing when `land` is the caller — it is about to run those very steps", () => {
+    it("says nothing when `land` is the caller", () => {
         expect(followUpNotice(4153, true)).toEqual([]);
     });
 });
@@ -223,9 +211,8 @@ describe("pr-merge.ts — parseArgs", () => {
     });
 });
 
-// Proof-of-failure: made `followUpNotice` return `[]` unconditionally (the
-// pre-#4159 silence) — "names what a hand-run merge still owes" went red.
-// Reverted.
+// Proof-of-failure: restored the pre-#6473 three-line `land` notice —
+// "names post-merge.yml as the owner" went red. Reverted.
 //
 // Proof-of-failure: made `parseArgs` read `argv[argv.length - 1]` instead of
 // the first positional — both `parseArgs` cases went red, because `land`
