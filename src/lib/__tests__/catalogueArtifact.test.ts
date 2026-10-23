@@ -58,7 +58,7 @@ vi.mock(
 // The same for the hand-written half (issue #5615): `./setModules` is
 // aliased to the browser seam, so no Set is resident until it is installed.
 //
-// WARMED AT IMPORT (issue #6350). The WHOLE hydration below installs every
+// WARMED AT IMPORT. The WHOLE hydration below installs every
 // Set through the seam's `import()`, the first load of ~146 Set modules in
 // this graph: a cold transform (~1 s solo, `TOLARIA_VITEST_FS_CACHE=0` as in
 // every gate) that grows with machine load, inside a test that crossed the
@@ -66,7 +66,8 @@ vi.mock(
 // pays it while the file is collected, outside any test's timeout — the order
 // `definitionShards.test.ts` gets from its static import. The seam's
 // `import()` then resolves the same module instances; residency is still the
-// seam's alone (importing a Set builds no definition, issue #4857).
+// seam's alone (importing a Set evaluates `defineCard` factories, which
+// build no definition).
 vi.mock("@convex/cards/setModules", async () => {
     await vi.importActual("@convex/cards/setModules");
     return import("../catalogue/set-modules.browser");
