@@ -110,8 +110,30 @@ export type SacrificeResult = {
      *  characteristic — and an EMPTY array is a real answer (CR 105.2c
      *  colourless), kept distinct from an absent field. */
     colors?: Color[];
+    /** CR 205.2a / 608.2h — card types of the victim (`costVictimTypeFields`). */
+    types?: string[];
+    /** CR 205.4a / 608.2h — live supertypes of the victim. */
+    supertypes?: string[];
     snapshot: boolean;
 };
+
+/** CR 205.2a / 205.4a / 608.2h — the card TYPES and live SUPERTYPES a
+ *  cost-victim snapshot carries, so a resolving ability can read "if the
+ *  exiled card is a snow land". The ONE projection every snapshot writer
+ *  spreads (sacrifice, the three exile legs, the self-sacrifice), because
+ *  each hand-written copy is a chance to forget a field. Supertypes go through
+ *  `liveSupertypesOf` — the authority the cost filters match with — and are
+ *  omitted when empty. */
+export function costVictimTypeFields(card: CardInstanceState): {
+    types: string[];
+    supertypes?: string[];
+} {
+    const supertypes = liveSupertypesOf(card);
+    return {
+        types: [...card.types],
+        ...(supertypes.length > 0 ? { supertypes: [...supertypes] } : {}),
+    };
+}
 
 /** CR 118.8 / 608.2h — the stack item's cost-victim snapshot, built from a
  *  completed `applySacrificeSelection` run. The ONE place the projection is
@@ -141,6 +163,10 @@ export function sacrificeSnapshotFromResults(
         ...(snap.power !== undefined ? { power: snap.power } : {}),
         ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
         ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
+        ...(snap.types !== undefined ? { types: snap.types } : {}),
+        ...(snap.supertypes !== undefined
+            ? { supertypes: snap.supertypes }
+            : {}),
     };
 }
 
@@ -404,6 +430,7 @@ function victimCharacteristics(
         ...(power !== undefined ? { power } : {}),
         ...(toughness !== undefined ? { toughness } : {}),
         colors,
+        ...costVictimTypeFields(victim),
     };
 }
 

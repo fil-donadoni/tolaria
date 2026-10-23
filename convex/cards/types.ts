@@ -5392,6 +5392,17 @@ export interface SpellContext {
      *  `{ sacrificed: { read: "colors" } }` form (Mind Extraction — "discards
      *  all cards of each of the sacrificed creature's colors"). */
     getAdditionalSacrificeColors: () => Color[] | undefined;
+    /** Card TYPES snapshotted alongside `getAdditionalSacrificeMv` (CR 205.2a,
+     *  CR 608.2h last-known information). `undefined` when no cost victim was
+     *  snapshotted or the snapshot predates the field. Read by
+     *  `costVictimMatchesFilter` ("if the exiled card is a land"). */
+    getAdditionalCostTypes: () => string[] | undefined;
+    /** SUPERTYPES of the cost victim (CR 205.4a, CR 608.2h), through
+     *  `liveSupertypesOf`. `undefined` when no victim was snapshotted, the
+     *  snapshot predates the field, or the victim had none. Storm Elemental's
+     *  "if the exiled card is a snow land" reads it through
+     *  `costVictimMatchesFilter`. */
+    getAdditionalCostSupertypes: () => string[] | undefined;
     /** Domain (CR 702 preamble — an italic ability word, no independent rules
      *  meaning of its own): the number of basic land types among lands
      *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
@@ -19569,7 +19580,21 @@ export type EffectPredicate =
     | EffectSameColorsPredicate
     | EffectSharesMostCommonColorPredicate
     | EffectHasCityBlessingPredicate
-    | EffectTargetMatchesGraveyardFilterPredicate;
+    | EffectTargetMatchesGraveyardFilterPredicate
+    | EffectCostVictimMatchesFilterPredicate;
+
+/** Cost-victim-matches-filter predicate (Storm Elemental — "If the exiled card
+ *  is a snow land, …"; issue #6503): true iff the card an activation or
+ *  additional cost sacrificed or exiled (`StackItem.additionalSacrificeSnapshot`)
+ *  matches the filter against its CR 608.2h last-known characteristics —
+ *  types, subtypes, supertypes (CR 205.2a / 205.3 / 205.4a), mana value and
+ *  colours. The zone-free twin of `boundMatchesFilter` for a cost victim,
+ *  which has no `bind` to name. Reads `false` when nothing was snapshotted
+ *  (CR 608.2b) and for a snapshot predating the types fields. A filter field
+ *  the snapshot does not carry (`name`, `hasCounter`) never matches. */
+export interface EffectCostVictimMatchesFilterPredicate {
+    costVictimMatchesFilter: EffectCardFilter;
+}
 
 /** Shares-a-colour predicate (issue #1955, CR 105.2 / 202.2): true iff the two
  *  referenced objects have at least one colour in common. Both sides are

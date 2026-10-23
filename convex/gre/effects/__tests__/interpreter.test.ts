@@ -37126,3 +37126,61 @@ describe("Effect Script Op: retarget (CR 115.7a, issue #5259)", () => {
         expect(host([{ op: "retarget" }]).length).toBeGreaterThan(0);
     });
 });
+
+// ---------------------------------------------------------------------------
+// `costVictimMatchesFilter` — the cost-victim snapshot's types/supertypes
+// (CR 205.2a / 205.4a / 608.2h, issue #6503)
+// ---------------------------------------------------------------------------
+describe("EffectPredicate `costVictimMatchesFilter` (CR 608.2h, issue #6503)", () => {
+    const SNOW_LAND_GAIN = registerScript("test-cost-victim-snow-land", [
+        {
+            op: "if",
+            predicate: {
+                costVictimMatchesFilter: { type: "Land", supertype: "Snow" },
+            },
+            then: [{ op: "gainLife", player: "controller", amount: 7 }],
+        },
+    ]);
+
+    function resolveWith(
+        snapshot?: NonNullable<StackItem["additionalSacrificeSnapshot"]>
+    ) {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, SNOW_LAND_GAIN, "p1");
+        if (snapshot) item.additionalSacrificeSnapshot = snapshot;
+        resolveTopOfStack(state);
+        return state.players[0].life;
+    }
+
+    it("is true for a snow land victim", () => {
+        expect(
+            resolveWith({
+                cardInstanceId: "v",
+                mv: 0,
+                types: ["Land"],
+                supertypes: ["Snow"],
+            })
+        ).toBe(27);
+    });
+
+    it.each([
+        { what: "a non-snow land", types: ["Land"], supertypes: undefined },
+        { what: "a snow non-land", types: ["Artifact"], supertypes: ["Snow"] },
+    ])("is false for $what", ({ types, supertypes }) => {
+        expect(
+            resolveWith({
+                cardInstanceId: "v",
+                mv: 0,
+                types,
+                ...(supertypes ? { supertypes } : {}),
+            })
+        ).toBe(20);
+    });
+
+    it("is false with no snapshot, and with one predating the types fields (CR 608.2b)", () => {
+        expect(resolveWith()).toBe(20);
+        expect(resolveWith({ cardInstanceId: "v", mv: 0 })).toBe(20);
+    });
+});

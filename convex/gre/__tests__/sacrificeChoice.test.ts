@@ -137,6 +137,10 @@ describe("sacrificeChoice (CR 701.21a)", () => {
                 mv: 0,
                 subtypes: ["Island"],
                 colors: [],
+                // CR 205.2a / 205.4a (issue #6503) — card types and
+                // supertypes ride the snapshot too.
+                types: ["Land"],
+                supertypes: ["Basic"],
                 snapshot: true,
             },
         ]);
