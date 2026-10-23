@@ -119,8 +119,14 @@ describe("attack prohibition — behaviour through the engine (CR 508.1c)", () =
                             }),
                             makePlayer("p2", {
                                 battlefield: [
-                                    makeInstance(black.id, { id: "opp-b" }),
-                                    makeInstance(green.id, { id: "opp-g" }),
+                                    makeInstance(black.id, {
+                                        id: "opp-b",
+                                        controllerId: "p2",
+                                    }),
+                                    makeInstance(green.id, {
+                                        id: "opp-g",
+                                        controllerId: "p2",
+                                    }),
                                 ],
                             }),
                         ],
