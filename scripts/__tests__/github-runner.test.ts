@@ -4,6 +4,7 @@ import {
     defaultCounts,
     type InstallInput,
     type ObservedMachine,
+    parseBusyView,
     parseDeclaration,
     parseGithubSlug,
     planInstall,
@@ -102,6 +103,7 @@ const fresh: ObservedMachine = {
     convexRunning: false,
     linger: true,
     machineText: null,
+    busy: {},
 };
 
 /** The machine as a completed `install` of `inp` leaves it. */
@@ -128,8 +130,32 @@ function installed(inp: InstallInput, paused: string[] = []): ObservedMachine {
         convexRunning: inp.convexPlist !== null,
         linger: true,
         machineText: inp.machineFile.content,
+        busy: Object.fromEntries(inp.runners.map((r) => [r.name, false])),
     };
 }
+
+/** `seen` with every runner's service definition stale. */
+function changed(inp: InstallInput, seen: ObservedMachine): ObservedMachine {
+    for (const name of Object.keys(seen.runners))
+        seen.runners[name].unitText = "old";
+    if (inp.platform === "linux") seen.systemdTemplateText = "old";
+    return seen;
+}
+
+/** The commands that stop, start or restart runner `name`'s service. */
+const stops = (steps: Step[], name: string) =>
+    argvs(steps).filter(
+        (a) =>
+            / (bootout|bootstrap|restart|enable --now) /.test(a) &&
+            (a.includes(`gh-runner.${name}.plist`) ||
+                a.endsWith(`gh-runner.${name}`) ||
+                a.endsWith(`gh-runner@${name}.service`))
+    );
+
+const paths = (steps: Step[]) =>
+    steps.flatMap((s) =>
+        s.kind === "write" || s.kind === "remove" ? [s.path] : []
+    );
 
 const argvs = (steps: Step[]) =>
     steps.flatMap((s) => (s.kind === "run" ? [s.argv.join(" ")] : []));
@@ -415,6 +441,139 @@ describe("install plan", () => {
     });
 });
 
+describe("install never stops a busy runner (issue #6467)", () => {
+    it("reads GitHub's busy view from `<name>\\t<busy>` lines", () => {
+        expect(parseBusyView("a-pass-1\ttrue\na-lane-1\tfalse\n")).toEqual({
+            "a-pass-1": true,
+            "a-lane-1": false,
+        });
+        expect(parseBusyView("")).toEqual({});
+        // A malformed line is left out: its runner reads unknown, not idle.
+        expect(parseBusyView("a-pass-1\nb-pass-1\tnull\n")).toEqual({});
+    });
+
+    for (const platform of ["darwin", "linux"] as const) {
+        it(`${platform}: a busy runner with a changed definition is written, not restarted, and deferred`, () => {
+            const inp = input(platform);
+            const [busy, idle] = inp.runners.map((r) => r.name);
+            const seen = changed(inp, installed(inp));
+            seen.busy = { ...seen.busy, [busy]: true };
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, busy)).toEqual([]);
+            expect(stops(steps, idle)).not.toEqual([]);
+            expect(steps).toContainEqual({
+                kind: "defer",
+                why: `${busy}: busy — restart deferred, re-run install when idle (\`--force-restart\` restarts it now)`,
+            });
+            expect(steps).toContainEqual(
+                expect.objectContaining({
+                    kind: "write",
+                    path: `${ROOT}/${busy}/.restart-pending`,
+                })
+            );
+            // The new definition is still put in place — after the mark, so
+            // a run cut short between the two still owes the restart.
+            const unit =
+                platform === "darwin"
+                    ? `/h/Library/LaunchAgents/com.tolaria.gh-runner.${busy}.plist`
+                    : "/h/.config/systemd/user/tolaria-gh-runner@.service";
+            const written = paths(steps);
+            expect(written).toContain(unit);
+            expect(written.indexOf(`${ROOT}/${busy}/.restart-pending`)).toBe(
+                written.indexOf(unit) - 1
+            );
+        });
+
+        it(`${platform}: a running runner GitHub's view does not list is not restarted`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const seen = changed(inp, installed(inp));
+            delete seen.busy![name];
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, name)).toEqual([]);
+            expect(steps).toContainEqual(
+                expect.objectContaining({
+                    kind: "defer",
+                    why: expect.stringContaining(
+                        `${name}: absent from GitHub's busy view`
+                    ),
+                })
+            );
+        });
+
+        it(`${platform}: a paused runner's pending mark is cleared — resume starts the new definition`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const marker = `${ROOT}/${name}/.restart-pending`;
+            const seen = installed(inp, [name]);
+            seen.runners[name].restartPending = true;
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, name)).toEqual([]);
+            expect(steps).toContainEqual(
+                expect.objectContaining({ kind: "remove", path: marker })
+            );
+            const resumed = planToggle(
+                "resume",
+                platform,
+                501,
+                "/h/Library/LaunchAgents",
+                ROOT,
+                seen
+            );
+            expect(paths(resumed)).toContain(marker);
+        });
+
+        it(`${platform}: an unreadable busy view restarts no running runner; --force-restart does`, () => {
+            const inp = input(platform);
+            const seen = changed(inp, installed(inp));
+            seen.busy = null;
+            const steps = planInstall(inp, seen);
+            for (const r of inp.runners) {
+                expect(stops(steps, r.name)).toEqual([]);
+                expect(steps).toContainEqual({
+                    kind: "defer",
+                    why: `${r.name}: GitHub's busy view is unreadable — restart deferred, re-run install when idle (\`--force-restart\` restarts it now)`,
+                });
+            }
+            const forced = planInstall({ ...inp, forceRestart: true }, seen);
+            expect(forced.some((s) => s.kind === "defer")).toBe(false);
+            for (const r of inp.runners)
+                expect(stops(forced, r.name)).not.toEqual([]);
+        });
+
+        it(`${platform}: an unreadable busy view still starts a stopped runner`, () => {
+            const inp = input(platform);
+            const steps = planInstall(inp, { ...fresh, busy: null });
+            expect(steps.some((s) => s.kind === "defer")).toBe(false);
+            for (const r of inp.runners)
+                expect(stops(steps, r.name)).not.toEqual([]);
+        });
+
+        it(`${platform}: a pending restart runs once the runner is idle, and clears its mark`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const seen = installed(inp);
+            seen.runners[name].restartPending = true;
+            seen.busy = { ...seen.busy, [name]: true };
+            // Still busy: deferred again, the mark is not rewritten.
+            const held = planInstall(inp, seen);
+            expect(stops(held, name)).toEqual([]);
+            expect(held.filter((s) => s.kind === "write")).toEqual([]);
+            expect(held.filter((s) => s.kind === "defer")).toHaveLength(1);
+            // Idle: restarted although its definition already matches.
+            seen.busy = { ...seen.busy, [name]: false };
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, name)).not.toEqual([]);
+            expect(steps).toContainEqual(
+                expect.objectContaining({
+                    kind: "remove",
+                    path: `${ROOT}/${name}/.restart-pending`,
+                })
+            );
+        });
+    }
+});
+
 describe("pause / resume / remove", () => {
     for (const platform of ["darwin", "linux"] as const) {
         it(`${platform}: pause stops every runner and never unregisters one`, () => {
@@ -504,4 +663,35 @@ describe("pause / resume / remove", () => {
             expect.objectContaining({ kind: "remove", path: `${ROOT}/${name}` })
         );
     });
+
+    for (const platform of ["darwin", "linux"] as const) {
+        it(`${platform}: remove refuses a busy or unknown running runner unless forced (issue #6467)`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const remove = (seen: ObservedMachine, force?: boolean) =>
+                planRemove(
+                    name,
+                    platform,
+                    501,
+                    "/h/Library/LaunchAgents",
+                    ROOT,
+                    seen,
+                    force
+                );
+            for (const busy of [{ [name]: true }, null]) {
+                const seen = { ...installed(inp), busy };
+                const steps = remove(seen);
+                expect(steps).toHaveLength(1);
+                expect(steps[0]).toMatchObject({ kind: "defer" });
+                expect(argvs(remove(seen, true))).toContain(
+                    `./config.sh remove --token ${REMOVE_TOKEN_PLACEHOLDER}`
+                );
+            }
+            // A stopped runner runs no job: removed even with GitHub unread.
+            const stopped = installed(inp, [name]);
+            expect(argvs(remove({ ...stopped, busy: null }))).toContain(
+                `./config.sh remove --token ${REMOVE_TOKEN_PLACEHOLDER}`
+            );
+        });
+    }
 });
