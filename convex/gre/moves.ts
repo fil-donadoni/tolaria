@@ -159,6 +159,7 @@ import {
     normalizedHybridPips,
     declaresAsEntersMode,
     isPlaneswalker,
+    canPayPermanentGiveUpCostLegs,
     isTapLockedBySummoningSickness,
     finiteManaCounterLeg,
     finiteManaUsesRemaining,
@@ -4745,27 +4746,35 @@ function enumerateAbilityMoves(
         // permanents", Bolas's Citadel), defaulting to 1. Counted, not merely
         // existence-checked, so the bot never enumerates an activation the
         // server would reject for want of victims.
+        // CR 602.1a — `returnToHandFilter` ("Return an Elf you control to its
+        // owner's hand") is gated by the same count, through the one leg list
+        // `permanentGiveUpCostLegs`.
         if (
-            ability.cost.sacrificeFilter &&
-            player.battlefield.filter((c) =>
-                matchesPermanentFilter(
-                    effectivePermanentView(state, c),
-                    ability.cost.sacrificeFilter!,
-                    {
-                        selfControllerId: player.id,
-                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
-                        // (Legion Extruder): the source can't pay its own cost
-                        // with itself. Without this id an `excludeSource`
-                        // filter matches nothing here (fail-closed) and the bot
-                        // simply never enumerates the activation.
-                        selfInstanceId: perm.id,
-                        // "Sacrifice enchanted creature": the
-                        // `hostOfSource` filter fails closed without the host.
-                        selfAttachedToId: perm.attachedTo,
-                        supertypesOf: liveSupertypesOf,
-                    }
-                )
-            ).length < (ability.cost.sacrificeFilterCount ?? 1)
+            !canPayPermanentGiveUpCostLegs(
+                ability.cost,
+                (filter) =>
+                    player.battlefield.filter((c) =>
+                        matchesPermanentFilter(
+                            effectivePermanentView(state, c),
+                            filter,
+                            {
+                                selfControllerId: player.id,
+                                // CR 109.2 (issue #2367) — "Sacrifice ANOTHER
+                                // artifact" (Legion Extruder): the source
+                                // can't pay its own cost with itself. Without
+                                // this id an `excludeSource` filter matches
+                                // nothing here (fail-closed) and the bot
+                                // simply never enumerates the activation.
+                                selfInstanceId: perm.id,
+                                // "Sacrifice enchanted creature": the
+                                // `hostOfSource` filter fails closed without
+                                // the host.
+                                selfAttachedToId: perm.attachedTo,
+                                supertypesOf: liveSupertypesOf,
+                            }
+                        )
+                    ).length
+            )
         ) {
             continue;
         }

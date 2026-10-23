@@ -41,6 +41,7 @@
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { payRemoveCounterCost } from "../state";
+import { permanentGiveUpCostLegs } from "../constants";
 import { cloneGameState } from "../clone";
 import { checkStateBasedActions } from "../sba";
 import {
@@ -295,7 +296,10 @@ export function spendsStandingPermanent(
 ): boolean {
     const givesUpAPermanent =
         ability.cost.sacrifice === true ||
-        ability.cost.sacrificeFilter !== undefined ||
+        // CR 602.1a — a filtered give-up leg (`sacrificeFilter`, or the
+        // bounce twin `returnToHandFilter`) spends ANOTHER permanent's board
+        // presence either way.
+        permanentGiveUpCostLegs(ability.cost).length > 0 ||
         costDestroysSource(state, source, ability);
     return givesUpAPermanent && !producesMana(ability);
 }
