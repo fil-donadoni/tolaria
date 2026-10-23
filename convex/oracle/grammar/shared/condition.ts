@@ -34,7 +34,11 @@ import { readManaCost } from "../../manaCost";
 import { SELF_MARKER } from "../../normalize";
 import { isSelfPhrase } from "./cost";
 import { readNumberWord } from "./quantity";
-import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
+import {
+    type DescriptorIR,
+    descriptorRule,
+    permanentFilterFromDescriptor,
+} from "./targetFilter";
 import type { PermanentFilter } from "../../../cards/filters";
 import type { ManaCost } from "../../../cards/types";
 
@@ -55,6 +59,27 @@ export type ConditionIR = {
 };
 
 /**
+ * CR 603.4 — whose permanents a trigger-site "controls no" count reads:
+ * `you` (CR 109.5, the ability's controller), `defending-player` (CR 506.2,
+ * the attack trigger's defending player — lowering refuses it behind any other
+ * head) and `a-player` (any one player in the game, CR 102.1).
+ */
+export type ControlsSubjectIR = "you" | "defending-player" | "a-player";
+
+/**
+ * CR 603.4 — "if <player> control(s) no <descriptor>": the `controls` count
+ * read from the other end. The count is the same field as
+ * {@link ConditionIR}'s; `atMost` rather than `atLeast` is the comparison, so
+ * "none" is `atMost: 0` and never a boolean beside the count.
+ */
+export type ControlsAtMostIR = {
+    readonly kind: "controls";
+    readonly player: ControlsSubjectIR;
+    readonly filter: PermanentFilter;
+    readonly atMost: number;
+};
+
+/**
  * The conditions an intervening "if" reads (CR 603.4): `controls`, shared with
  * the resolution-time and static sites, plus the members that only make sense
  * on a trigger because they name the TRIGGERING player ("that player") — a
@@ -62,6 +87,7 @@ export type ConditionIR = {
  */
 export type TriggerConditionIR =
     | ConditionIR
+    | ControlsAtMostIR
     /**
      * CR 113.6b — "if this card is in your graveyard": the ability
      * functions only from the graveyard. Not a board predicate: lowering reads
@@ -167,6 +193,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         if (COMPARATIVE_CONTROLS.test(clause))
             return comparativeControlsRule.run(clause, ctx);
+        const none = clause.match(CONTROLS_NONE);
+        if (none !== null) return readControlsNone(none, span, ctx);
         return controlsRule.run(clause, ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
@@ -234,6 +262,51 @@ const SELF_HAS_TYPE = /^(.+) is an enchantment$/;
 /** CR 305.6 — the domain count, over the triggering player's lands. */
 const BASIC_LAND_TYPES =
     /^there are (\S+) or more basic land types among lands that player controls$/;
+
+/**
+ * CR 603.4 — "you control no Goblins", "defending player controls no Walls",
+ * "a player controls no creatures": the subject, its verb (which must agree
+ * with it), then a plural descriptor.
+ */
+const CONTROLS_NONE =
+    /^(you|defending player|a player) (control|controls) no (.+)$/;
+
+const CONTROLS_NONE_SUBJECTS: ReadonlyMap<
+    string,
+    { readonly subject: ControlsSubjectIR; readonly verb: string }
+> = new Map([
+    ["you", { subject: "you", verb: "control" }],
+    ["defending player", { subject: "defending-player", verb: "controls" }],
+    ["a player", { subject: "a-player", verb: "controls" }],
+]);
+
+/**
+ * CR 603.4 — the zero count. "no" takes a plural noun ("no Goblins"); a
+ * singular one is not how the corpus prints the clause, so it is a phrase we
+ * have misread. The descriptor is read exactly as the "a Goblin" form reads
+ * its own ({@link controlledFilter}), so the two never disagree.
+ */
+function readControlsNone(
+    match: RegExpMatchArray,
+    span: string,
+    ctx: RuleContext
+): RuleResult<TriggerConditionIR> {
+    const subject = CONTROLS_NONE_SUBJECTS.get(match[1]!)!;
+    if (match[2] !== subject.verb)
+        return fail(`"${match[1]} ${match[2]}" does not agree`, span);
+    const descriptor = descriptorRule.run(match[3]!, ctx);
+    if (!descriptor.ok) return descriptor;
+    if (descriptor.value.plural !== true)
+        return fail('"no" introduces a plural descriptor', span);
+    const filter = controlledFilter(descriptor.value, span);
+    if (!filter.ok) return filter;
+    return ok({
+        kind: "controls" as const,
+        player: subject.subject,
+        filter: filter.value,
+        atMost: 0,
+    });
+}
 
 /**
  * CR 305.6 — five basic land types exist, so a threshold is a number word from
@@ -393,7 +466,19 @@ export function singularControlledFilter(
     if (!descriptor.ok) return descriptor;
     if (descriptor.value.plural === true)
         return fail('"a" introduces a singular descriptor', span);
-    const filter = permanentFilterFromDescriptor(descriptor.value, {
+    return controlledFilter(descriptor.value, span, allow);
+}
+
+/**
+ * The descriptor of a controls clause as the `PermanentFilter` its count
+ * reads — whatever article or quantifier introduced it.
+ */
+function controlledFilter(
+    descriptor: DescriptorIR,
+    span: string,
+    allow: { readonly supertypes?: true } = {}
+): RuleResult<PermanentFilter> {
+    const filter = permanentFilterFromDescriptor(descriptor, {
         colors: true,
     });
     if (!filter.ok) return filter;
