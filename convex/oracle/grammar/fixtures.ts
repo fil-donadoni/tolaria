@@ -6866,7 +6866,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                                     count: 1,
                                 },
                             },
-                            prompt: "Return a card from your graveyard to your hand, or sacrifice Harvest Wurm?",
+                            prompt: "Return a basic land card from your graveyard to your hand, or sacrifice Harvest Wurm?",
                             bind: "$may1",
                         },
                         {

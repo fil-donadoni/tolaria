@@ -197,7 +197,7 @@ describe("sacrifice it unless you … (CR 118.12a)", () => {
                         count: 1,
                     },
                 },
-                "Return a card from your graveyard to your hand, or sacrifice Harvest Wurm?"
+                "Return a basic land card from your graveyard to your hand, or sacrifice Harvest Wurm?"
             ),
         });
     });
@@ -255,6 +255,19 @@ describe("sacrifice it unless you … — refused neighbours", () => {
             )
         ).toBe(
             "effect clause: Sacrifice it unless you return a Goblin card from your graveyard to your hand"
+        );
+    });
+
+    it('refuses "basic" with no card type after it', () => {
+        expect(
+            refusedAt(
+                creature(
+                    "Test Bear",
+                    `${ENTERS}sacrifice it unless you return a basic card from your graveyard to your hand.`
+                )
+            )
+        ).toBe(
+            "effect clause: Sacrifice it unless you return a basic card from your graveyard to your hand"
         );
     });
 

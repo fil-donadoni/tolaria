@@ -4345,13 +4345,29 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
     }
     if (norm.graveyard) {
         const n = norm.graveyard.count;
+        const noun = graveyardLegNoun(norm.graveyard.filter);
+        const article = /^[aeiou]/.test(noun) ? "an" : "a";
         parts.push(
             n === 1
-                ? "return a card from your graveyard"
-                : `return ${n} cards from your graveyard`
+                ? `return ${article} ${noun} from your graveyard`
+                : `return ${n} ${noun}s from your graveyard`
         );
     }
     return parts.join(" and ");
+}
+
+/** "basic land card" — the object a may-pay graveyard leg's filter names, read
+ *  from the two fields the grammar emits (supertype, card type). The picker
+ *  dims non-matching cards; the label is what tells the payer WHICH qualify. */
+function graveyardLegNoun(filter: EffectCardFilter): string {
+    const type = Array.isArray(filter.type) ? filter.type[0] : filter.type;
+    return [
+        filter.supertype?.toLowerCase(),
+        typeof type === "string" ? type.toLowerCase() : undefined,
+        "card",
+    ]
+        .filter((w): w is string => !!w)
+        .join(" ");
 }
 
 export function groupByName(cards: CardInstance[]): CardInstance[][] {

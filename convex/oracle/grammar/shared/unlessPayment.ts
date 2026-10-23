@@ -55,6 +55,8 @@ export type UnlessPaymentIR =
     | {
           readonly kind: "return-from-graveyard";
           readonly filter: EffectCardFilter;
+          /** The printed object, "a basic land card" — the prompt names it. */
+          readonly object: string;
       };
 
 const PAY = /^pay (\{.+\})$/;
@@ -63,7 +65,7 @@ const SACRIFICE_TOTAL_POWER =
 const SACRIFICE_ONE = /^sacrifice an? (.+)$/;
 const RETURN_ONE = /^return an? (.+) to its owner's hand$/;
 const RETURN_FROM_GRAVEYARD =
-    /^return an? (basic )?(?:(\S+) )?card from your graveyard to your hand$/;
+    /^return (an? (?:(basic) (\S+)|(\S+))? ?card) from your graveyard to your hand$/;
 
 /** Descriptor text → the cost filter, refusing a plural/singular mismatch. */
 function filterOf(
@@ -128,15 +130,23 @@ export function readUnlessPayment(
         // "a [basic] [<type>] card": a card-type adjective and the Basic
         // supertype (CR 205.4a) are the only qualifiers read; anything else
         // fails the type lookup and is refused.
+        // "basic" always qualifies a card type ("a basic land card"), never
+        // stands alone.
+        const [, object, basic, basicType, plainType] = fromGraveyard;
+        const typeWord = basicType ?? plainType;
         const filter: EffectCardFilter = {};
-        if (fromGraveyard[2] !== undefined) {
-            const type = CARD_TYPE_ADJECTIVES.get(fromGraveyard[2]);
+        if (typeWord !== undefined) {
+            const type = CARD_TYPE_ADJECTIVES.get(typeWord);
             if (type === undefined)
-                return fail(`"${fromGraveyard[2]}" is not a card type`, span);
+                return fail(`"${typeWord}" is not a card type`, span);
             filter.type = type;
         }
-        if (fromGraveyard[1] !== undefined) filter.supertype = "Basic";
-        return ok({ kind: "return-from-graveyard" as const, filter });
+        if (basic !== undefined) filter.supertype = "Basic";
+        return ok({
+            kind: "return-from-graveyard" as const,
+            filter,
+            object: object!,
+        });
     }
 
     const back = span.match(RETURN_ONE);
@@ -224,7 +234,7 @@ export function unlessPaymentPrompt(
             case "return":
                 return "Return a permanent you control to its owner's hand";
             case "return-from-graveyard":
-                return "Return a card from your graveyard to your hand";
+                return `Return ${payment.object} from your graveyard to your hand`;
         }
     })();
     return `${ask}, or sacrifice ${selfName}?`;

@@ -6,7 +6,7 @@
 // compiled card with no hand-written definition, so the GRE, wire, frontend
 // and bot layers all drive THIS definition and cannot drift.
 
-import type { CardDefinition, MayPayCost } from "../../../cards/types";
+import type { CardDefinition, CostLegs } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
 import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
@@ -26,7 +26,7 @@ const ORACLE =
     "When this creature enters, sacrifice it unless you return a basic land card from your graveyard to your hand.";
 
 /** The leg under test, exactly as the grammar lowers Harvest Wurm's payment. */
-export const RETURN_A_BASIC_LAND_CARD: MayPayCost = {
+export const RETURN_A_BASIC_LAND_CARD: CostLegs = {
     graveyard: {
         action: "return",
         filter: { type: "Land", supertype: "Basic" },
@@ -54,7 +54,7 @@ export const graveyardLegProbe: CardDefinition = {
                     op: "mayPay",
                     player: "controller",
                     cost: RETURN_A_BASIC_LAND_CARD,
-                    prompt: "Return a card from your graveyard to your hand, or sacrifice Graveyard-Leg Probe?",
+                    prompt: "Return a basic land card from your graveyard to your hand, or sacrifice Graveyard-Leg Probe?",
                     bind: "$may1",
                 },
                 {

@@ -22723,17 +22723,24 @@ export function getMayPayGraveyardCandidateIds(
     ).map((c) => c.id);
 }
 
-/** Whether a `may-pay` GRAVEYARD leg admits a card choice: ALWAYS while any
- *  candidate exists, even exactly one — the returned card is a resource the
- *  payer keeps, so which one comes back is the payer's to see and pick (the
- *  `"return"` permanent leg's doctrine, {@link mayPaySacrificeChoiceRequired}).
- *  False for a cost with no graveyard leg. */
+/** Whether a `may-pay` GRAVEYARD leg admits a card choice: ALWAYS while the
+ *  leg can be paid, even with exactly one legal card — the returned card is a
+ *  resource the payer keeps, so which one comes back is the payer's to see
+ *  and pick (the `"return"` permanent leg's doctrine,
+ *  {@link mayPaySacrificeChoiceRequired}). False for a cost with no graveyard
+ *  leg, or with fewer candidates than the leg returns (CR 118.3 — no picker
+ *  is opened for a pick that could never complete). */
 export function mayPayGraveyardChoiceRequired(
     state: GameState,
     playerId: string,
     cost: MayPayCost
 ): boolean {
-    return getMayPayGraveyardCandidateIds(state, playerId, cost).length > 0;
+    const leg = normalizeMayPayCost(cost).graveyard;
+    if (!leg) return false;
+    return (
+        getMayPayGraveyardCandidateIds(state, playerId, cost).length >=
+        leg.count
+    );
 }
 
 /** Whether `ids` is a LEGAL payment of a may-pay GRAVEYARD leg (CR 118.3):

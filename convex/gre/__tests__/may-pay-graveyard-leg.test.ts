@@ -112,6 +112,17 @@ describe("CostLegs.graveyard — legality (CR 118.3)", () => {
             mayPayGraveyardChoiceRequired(state, "p1", RETURN_A_BASIC_LAND_CARD)
         ).toBe(true);
     });
+
+    it("opens no picker when fewer cards match than the leg returns", () => {
+        const { state } = stateWith([forest("f1")]);
+        const returnTwo = {
+            graveyard: { ...RETURN_A_BASIC_LAND_CARD.graveyard!, count: 2 },
+        };
+        expect(canPayMayPayCost(state, "p1", returnTwo)).toBe(false);
+        expect(mayPayGraveyardChoiceRequired(state, "p1", returnTwo)).toBe(
+            false
+        );
+    });
 });
 
 describe("payMayPayCost — the graveyard leg never auto-picks", () => {
@@ -272,6 +283,19 @@ describe("may-pay graveyard leg — authoring and other cost surfaces", () => {
             { graveyard: { action: "exile", filter: {}, count: 1 } },
             { graveyard: { action: "return", filter: {}, count: 0 } },
             { graveyard: { action: "return", count: 1 } },
+            // One picker per may-pay entry: a second picked leg beside the
+            // graveyard one could never be answered.
+            {
+                ...RETURN_A_BASIC_LAND_CARD,
+                permanent: { action: "sacrifice", filter: {}, count: 1 },
+            },
+            {
+                ...RETURN_A_BASIC_LAND_CARD,
+                hand: {
+                    action: "discard",
+                    requirements: [{ filter: {}, count: 1 }],
+                },
+            },
         ]) {
             expect(validateEffectScript(host(bad))).not.toEqual([]);
         }

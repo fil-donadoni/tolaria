@@ -96,7 +96,7 @@ describe("may-pay graveyard leg — GRE → wire → client → game.ts (CR 118.
         expect(isGraveyardChoiceActive(choice, me, "p2")).toBe(false);
         expect(mayPayRequiredGraveyardReturns(choice.cost)).toBe(1);
         expect(mayPayCostLabel(choice.cost)).toBe(
-            "return a card from your graveyard"
+            "return a basic land card from your graveyard"
         );
 
         // Pay is affordable from the projected graveyard; the pick gate takes

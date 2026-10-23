@@ -186,7 +186,7 @@ describe("PlayerGraveyard — may-pay graveyard leg", () => {
                 count: 1,
             },
         },
-        prompt: "Return a card from your graveyard to your hand, or sacrifice Harvest Wurm?",
+        prompt: "Return a basic land card from your graveyard to your hand, or sacrifice Harvest Wurm?",
     } as unknown as NonNullable<GameContextValue["pendingChoices"]>[number];
 
     it("opens the picker over the candidates with the may-pay footer", () => {

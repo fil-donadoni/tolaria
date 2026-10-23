@@ -3108,6 +3108,10 @@ function isMayPayCost(value: unknown): boolean {
             ) {
                 return false;
             }
+            // A may-pay entry carries ONE picker (`requestMayPay`): a
+            // graveyard leg beside a permanent or hand leg could never be
+            // picked alongside them, so the accept would be unanswerable.
+            if ("permanent" in obj || "hand" in obj) return false;
         }
         return true;
     }
