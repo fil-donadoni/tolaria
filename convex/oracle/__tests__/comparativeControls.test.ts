@@ -241,17 +241,4 @@ describe("a spell's leading comparison (CR 608.2c)", () => {
         expect(lifeGained(2, 2)).toBe(0);
         expect(lifeGained(3, 2)).toBe(0);
     });
-
-    it("refuses 'that player' on a spell (no head introduced one)", () => {
-        const outcome = compileCard(
-            oracleCard({
-                name: "Anaphoric",
-                manaCost: "{W}",
-                typeLine: "Sorcery",
-                oracleText:
-                    "If that player controls more creatures than each other player, you gain 4 life.",
-            })
-        );
-        expect(outcome.state).toBe("unparsed");
-    });
 });

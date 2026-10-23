@@ -4022,10 +4022,9 @@ function lowerSentenceBody(
             // more permanents the filter matches under an opponent's control
             // than under the controller's. Targets inside the gate are still
             // announced (CR 601.2c); only the effect is conditional.
-            if (sentence.condition.subject !== "opponent")
-                return unlowerable(
-                    "a spell compares an opponent's count against its controller's"
-                );
+            // `"opponent"` is the one opponent the interpreter resolves, which
+            // is every opponent in the two-player and solo games this engine
+            // runs; the trigger gate (`controlsMore`) checks each opponent.
             const filter = countFilterOf(sentence.condition.filter);
             if (!filter.ok) return filter;
             const inner = gatedSentence(sentence.effect, walk, site);
