@@ -1063,8 +1063,9 @@ export type CardInstanceState = {
     /** An ordered pair of basic land types chosen as this permanent enters and
      *  stored for the rest of the game (CR 603.6b / 614.12 — Illusionary
      *  Terrain "as this enchantment enters, choose two basic land types").
-     *  `[first, second]`. Set via `SpellContext.setChosenSubtypes` from an ETB
-     *  trigger; read by a `subtype-set` static's `subtypesFor` callback to
+     *  `[first, second]`. Written BEFORE the permanent enters by the as-enters
+     *  replacement (`entersWith.asEnters: { kind: "subtypes" }`, CR 614.12a,
+     *  ADR 0100); read by a `subtype-set` static's `subtypesFor` callback to
      *  drive a computed layer-4 subtype swap (ADR 0050). Cleared when the
      *  permanent leaves the battlefield (a new object, CR 400.7). */
     chosenSubtypes?: string[];
@@ -5503,8 +5504,13 @@ export interface StagedEntry {
     controllerId: string;
     /** Which census row is resuming it — selects WHICH entry tail the finalize
      *  runs (ADR 0100 D2). It deliberately does NOT decide whether a suspended
-     *  resolution resumes; that is `parkedStackItemId`'s job (D5). */
-    origin: "spell" | "effect" | "token";
+     *  resolution resumes; that is `parkedStackItemId`'s job (D5).
+     *
+     *  `play` is a LAND being played (CR 305.1, a special action — never cast):
+     *  lifted out of the zone it is played from and parked until its "as it
+     *  enters" choices are answered, then put back and replayed through the
+     *  same `applyPlayLandFrom*` transition (issue #2672). */
+    origin: "spell" | "effect" | "token" | "play";
     /** The stack item whose resolution parked this entry, if there was one.
      *  This — never `origin` — is what the as-enters finalize branches on: still
      *  on the stack ⇒ `resolveTopOfStack` resumes it in the same mutation;
@@ -5528,6 +5534,18 @@ export interface StagedEntry {
         entryCounters?: Record<string, number>;
         entersTapped?: boolean;
         entersAttacking?: boolean;
+    };
+    /** `origin: "play"` only (issue #2672) — where the played land was lifted
+     *  from, so the entry tail can put it back and replay the play from that
+     *  zone. `sourcePlayerId` names the player whose zone held it: the player
+     *  playing it, except for a cross-player exile grant (CR 400.7 /
+     *  305.1-analog, issue #1156 — Dauthi Voidwalker). `face` is the CR
+     *  712.12 face the play chose; absent means `"front"`. JSON-pure so the
+     *  staged entry survives the DB round-trip. */
+    playEntry?: {
+        sourceZone: PlayLandSourceZone;
+        sourcePlayerId: string;
+        face?: PlayLandFace;
     };
     /** CR 603.6a — carried across an as-enters park so the deferred entry tail
      *  (`runStagedEntryTail`) can still mark the eventual PERMANENT_ENTERED as

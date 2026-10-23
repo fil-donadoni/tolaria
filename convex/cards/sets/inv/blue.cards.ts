@@ -536,11 +536,11 @@ export const zanamDjinn = defineCard(() => ({
 
 // Traveler's Cloak — {2}{U} Enchantment — Aura, enchant creature. "As this
 // Aura enters, choose a land type. When this Aura enters, draw a card.
-// Enchanted creature has landwalk of the chosen type." (CR 603.6b on-entry
-// choice + CR 603.6a ETB draw + CR 702.14 landwalk continuous grant.) The
-// land-type pick reuses the SAME sanctioned choice-storage protocol as
-// Phantasmal Terrain (lea/blue.cards.ts) / Illusionary Terrain (`setChosenSubtypes`,
-// ADR 0050); the
+// Enchanted creature has landwalk of the chosen type." (CR 702.14 landwalk
+// continuous grant.) The land-type pick is a static ability whose choice is
+// made before the Aura enters — CR 603.6d / CR 614.1c / CR 614.12a — declared
+// as the ADR 0100 as-enters `subtypes` choice (issue #2672), so the chosen
+// type is on the instance and the grant live from the moment it enters; the
 // draw is a plain DSL `enteredTrigger`; the landwalk grant is FIVE
 // `keyword-grant` statics (one per basic land type), each gated on both
 // `AURA_AFFECTS_HOST` and the stored chosen type — since `keyword-grant`'s
@@ -574,29 +574,12 @@ export const travelersCloak = defineCard(() => ({
             source.chosenSubtypes?.[0] === landType,
         keyword: LANDWALK_KEYWORD_BY_BASIC_TYPE[landType],
     })),
+    entersWith: {
+        asEnters: [
+            { kind: "subtypes", from: [...BASIC_LAND_SUBTYPES], count: 1 },
+        ],
+    },
     triggeredAbilities: [
-        enteredTrigger({
-            id: "travelers-cloak-choose-type",
-            oracleText: "As this Aura enters, choose a land type.",
-            scope: "self",
-            // protocol: on-entry choice storage (CR 603.6b), same sanctioned
-            // class as Illusionary Terrain (ice/blue.cards.ts) / Phantasmal Terrain
-            // (lea/blue.cards.ts).
-            resolve: (ctx) => {
-                const options = BASIC_LAND_SUBTYPES.map((s) => ({
-                    id: s,
-                    label: s,
-                }));
-                const chosen = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "travelers-cloak-type",
-                    options,
-                    prompt: "Choose a land type.",
-                });
-                if (chosen === undefined) return;
-                ctx.setChosenSubtypes([chosen]);
-            },
-        }),
         enteredTrigger({
             id: "travelers-cloak-draw",
             oracleText: "When this Aura enters, draw a card.",

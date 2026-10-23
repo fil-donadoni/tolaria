@@ -24,6 +24,7 @@ import type {
     LandEntrySourceZone,
     PlayLandSourceZone,
     PlayerState,
+    StagedEntry,
 } from "./state";
 import {
     moveCard,
@@ -40,6 +41,9 @@ import {
     resetBattlefieldTransientState,
     clearExileLinksToEnteringSource,
     dropDelayedCapturesOfEnteringObject,
+    stageAsEntersEntry,
+    stagedEntryAnswers,
+    restoreStagedEntryAnswers,
 } from "./state";
 import { clearZoneCharacteristics } from "./zoneCharacteristics";
 import { checkStateBasedActions } from "./sba";
@@ -160,13 +164,29 @@ export function applyPlayLand(
     /** CR 712.12 — the face chosen before the card is put onto the
      *  battlefield. Defaults to `"front"`, the only face an ordinary land
      *  has. */
-    face: PlayLandFace = "front"
+    face: PlayLandFace = "front",
+    /** CR 614.12a — set only by `resumePlayedLandEntry`, replaying the play
+     *  once the land's "as it enters" choices are answered, so it does not
+     *  park a second time. */
+    asEntersResolved = false
 ): CardInstanceState | null {
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board (the
     // card is still in hand here), so a board-conditional predicate counting
     // "other lands" (fast lands) doesn't double-count the entering land
     // against itself once `moveCard` below pushes it onto the battlefield.
     const handCard = player.hand.find((c) => c.id === cardInstanceId);
+
+    // CR 614.1c / 614.12a — "as this land enters, choose …" is answered
+    // BEFORE anything else about the entry, the pay-choice below included
+    // (Multiversal Passage: "choose a basic land type. Then you may pay 2
+    // life", issue #2672).
+    if (
+        handCard &&
+        !asEntersResolved &&
+        parkPlayedLandOnAsEnters(state, player, handCard, "hand", face)
+    ) {
+        return null;
+    }
 
     // CR 614.12 / ADR 0051 — a land carrying a land-entry pay-choice (shock
     // lands) suspends BEFORE the zone move on a stackless `land-entry-tapped`
@@ -275,7 +295,9 @@ export function applyPlayLandFromExile(
     player: PlayerState,
     cardInstanceId: string,
     /** CR 712.12 — see {@link applyPlayLand}. */
-    face: PlayLandFace = "front"
+    face: PlayLandFace = "front",
+    /** CR 614.12a — see {@link applyPlayLand}. */
+    asEntersResolved = false
 ): CardInstanceState | null {
     // CR 305.1-analog / 400.7 (issue #1156) — the card may sit in a DIFFERENT
     // player's exile than the one playing it (a cross-player grant — Dauthi
@@ -290,6 +312,21 @@ export function applyPlayLandFromExile(
         ) ?? player;
     const exileCard = exileOwner.exile.find((c) => c.id === cardInstanceId);
     if (!exileCard) return null;
+
+    // CR 614.12a — the as-enters choices come first (see `applyPlayLand`).
+    if (
+        !asEntersResolved &&
+        parkPlayedLandOnAsEnters(
+            state,
+            player,
+            exileCard,
+            "exile",
+            face,
+            exileOwner
+        )
+    ) {
+        return null;
+    }
 
     // CR 614.12 / ADR 0051 (issue #1980) — a land carrying the pay-choice
     // suspends BEFORE the zone move, exactly like the hand and library-top
@@ -405,10 +442,26 @@ export function applyPlayLandFromGraveyard(
     player: PlayerState,
     cardInstanceId: string,
     /** CR 712.12 — see {@link applyPlayLand}. */
-    face: PlayLandFace = "front"
+    face: PlayLandFace = "front",
+    /** CR 614.12a — see {@link applyPlayLand}. */
+    asEntersResolved = false
 ): CardInstanceState | null {
     const graveyardCard = player.graveyard.find((c) => c.id === cardInstanceId);
     if (!graveyardCard) return null;
+
+    // CR 614.12a — the as-enters choices come first (see `applyPlayLand`).
+    if (
+        !asEntersResolved &&
+        parkPlayedLandOnAsEnters(
+            state,
+            player,
+            graveyardCard,
+            "graveyard",
+            face
+        )
+    ) {
+        return null;
+    }
 
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand, library-top and exile paths; the land stays in
@@ -464,10 +517,20 @@ export function applyPlayLandFromLibraryTop(
     player: PlayerState,
     cardInstanceId: string,
     /** CR 712.12 — see {@link applyPlayLand}. */
-    face: PlayLandFace = "front"
+    face: PlayLandFace = "front",
+    /** CR 614.12a — see {@link applyPlayLand}. */
+    asEntersResolved = false
 ): CardInstanceState | null {
     const top = player.library[0];
     if (!top || top.id !== cardInstanceId) return null;
+
+    // CR 614.12a — the as-enters choices come first (see `applyPlayLand`).
+    if (
+        !asEntersResolved &&
+        parkPlayedLandOnAsEnters(state, player, top, "library-top", face)
+    ) {
+        return null;
+    }
 
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand path; the land stays on top for the window.
@@ -622,7 +685,19 @@ function settleEnteredLand(
     // settlement, rather than per-source. A from-hand play is a no-op (the card
     // has no battlefield history). Runs FIRST: `markEnteredThisTurn` and the
     // `willEnterTapped` write below must not be undone by the reset.
+    //
+    // CR 614.1c vs CR 400.7 (issue #2672) — except for the land's own "as it
+    // enters" ANSWERS, which are part of how THIS object enters: a land
+    // declaring `entersWith.asEnters` reaches this settlement only through
+    // `parkPlayedLandOnAsEnters`, whose park cleared those slots of anything a
+    // previous existence left, so whatever they hold now was written by this
+    // entry's answers — carried across the reset, ahead of the static passes
+    // that read them (Multiversal Passage's `subtype-set`).
+    const answers = declaresAsEnters(card)
+        ? stagedEntryAnswers(card)
+        : undefined;
     resetBattlefieldTransientState(card, state);
+    if (answers) restoreStagedEntryAnswers(card, answers);
     // CR 400.7 / 608.2h (issue #2001) — this is a genuine battlefield entry
     // (every `applyPlayLandFrom*` origin funnels here with the card already
     // moved to the battlefield). If this instance id held the battlefield
@@ -692,6 +767,123 @@ function settleEnteredLand(
     checkStateBasedActions(state);
 
     return card;
+}
+
+/** CR 614.1c — does the entering land's presented definition declare "as it
+ *  enters" choices? Read off the instance as it is settled, so a CR 712.12
+ *  back face already stamped answers for the face that is entering. */
+function declaresAsEnters(card: CardInstanceState): boolean {
+    const defId = (card.card as { id?: string } | undefined)?.id;
+    const owed = defId ? tryGetDefinition(defId)?.entersWith?.asEnters : [];
+    return (owed?.length ?? 0) > 0;
+}
+
+/** The zone array a play-land source zone names. */
+function playSourceArray(
+    holder: PlayerState,
+    zone: PlayLandSourceZone
+): CardInstanceState[] {
+    switch (zone) {
+        case "hand":
+            return holder.hand;
+        case "library-top":
+            return holder.library;
+        case "graveyard":
+            return holder.graveyard;
+        case "exile":
+            return holder.exile;
+    }
+}
+
+/** CR 614.1c / 614.12a (ADR 0100, issue #2672) — a land being PLAYED whose
+ *  chosen face declares "as this land enters, choose …" makes those choices
+ *  BEFORE it enters, and before anything else about the entry — its CR 614.12
+ *  pay-choice included (Multiversal Passage: "choose a basic land type. Then
+ *  you may pay 2 life"). Lifts the card out of the zone it is played from and
+ *  parks it on the shared as-enters seam (`stageAsEntersEntry`, origin
+ *  `"play"`); `resumePlayedLandEntry` replays the play once every choice is
+ *  answered. Returns false, touching nothing, for a land that declares none.
+ *
+ *  The parking stack item is the top of the stack, exactly as for an effect
+ *  park: empty for a land played at priority (CR 305.1 needs an empty stack,
+ *  so the finalize hands priority back itself), the resolving item for a land
+ *  played mid-resolution (`playLandForPlayer` — Word of Command, hideaway),
+ *  which the finalize resumes (ADR 0100 D5). */
+function parkPlayedLandOnAsEnters(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    sourceZone: PlayLandSourceZone,
+    face: PlayLandFace,
+    /** The player whose zone holds the card — differs from `player` only for
+     *  a cross-player exile grant (issue #1156). */
+    holder: PlayerState = player
+): boolean {
+    const owed = playLandFaceDefinition(card, face)?.entersWith?.asEnters;
+    if (!owed || owed.length === 0) return false;
+    const zone = playSourceArray(holder, sourceZone);
+    const index = zone.findIndex((c) => c.id === card.id);
+    if (index === -1) return false;
+    zone.splice(index, 1);
+    stageAsEntersEntry(
+        state,
+        card,
+        player.id,
+        "play",
+        owed,
+        state.stack[state.stack.length - 1]?.id,
+        {
+            playEntry: {
+                sourceZone,
+                sourcePlayerId: holder.id,
+                ...(face === "front" ? {} : { face }),
+            },
+        }
+    );
+    return true;
+}
+
+/** The `"play"` entry tail (issue #2672): every "as it enters" choice of a
+ *  parked played land is answered. Puts the card back where it was played from
+ *  — the top of the library for a play-from-top, the zone's end otherwise —
+ *  and replays the SAME `applyPlayLandFrom*` transition with
+ *  `asEntersResolved`, so the land then raises its CR 614.12 pay-choice (the
+ *  card back in its source zone, exactly where that park expects it) or
+ *  settles. The permission was already checked and spent when the play began,
+ *  so the replay dispatches on the recorded zone, never through
+ *  `resolvePlayLandSourceZone`. */
+export function resumePlayedLandEntry(
+    state: GameState,
+    entry: StagedEntry
+): void {
+    const play = entry.playEntry;
+    if (!play) throw new Error("play-origin staged entry has no playEntry");
+    const player = getPlayer(state, entry.controllerId);
+    const holder = getPlayer(state, play.sourcePlayerId);
+    const card = entry.card;
+    const face = play.face ?? "front";
+    switch (play.sourceZone) {
+        case "hand":
+            card.zone = "hand";
+            holder.hand.push(card);
+            applyPlayLand(state, player, card.id, face, true);
+            return;
+        case "library-top":
+            card.zone = "library";
+            holder.library.unshift(card);
+            applyPlayLandFromLibraryTop(state, player, card.id, face, true);
+            return;
+        case "graveyard":
+            card.zone = "graveyard";
+            holder.graveyard.push(card);
+            applyPlayLandFromGraveyard(state, player, card.id, face, true);
+            return;
+        case "exile":
+            card.zone = "exile";
+            holder.exile.push(card);
+            applyPlayLandFromExile(state, player, card.id, face, true);
+            return;
+    }
 }
 
 /** Human-readable label for a land-entry pay-choice cost (CR 614.12). Kept

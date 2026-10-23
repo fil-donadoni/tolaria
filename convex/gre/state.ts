@@ -136,6 +136,7 @@ import {
     applyPlayLandFromExile,
     applyPlayLandFromGraveyard,
     enqueueLandEntryChoice,
+    resumePlayedLandEntry,
 } from "./playLand";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
@@ -2334,7 +2335,7 @@ function targetLegalityGate(
  *  answered in the active player's priority window AFTER the resolution
  *  completes, exactly like the play-land-at-priority path, so it never
  *  suspends a resolution of ANY shape. */
-function isStacklessLandEntryPay(c: PendingChoice): boolean {
+export function isStacklessLandEntryPay(c: PendingChoice): boolean {
     return c.kind === "land-entry-tapped" && c.stackItemId === "";
 }
 
@@ -9268,6 +9269,10 @@ function stageReanimatedOnBattlefield(
          *  beside the card's own entry counters, through the same applier, so
          *  counter-placed replacements and COUNTER_ADDED see them. */
         entryCounters?: Readonly<Record<string, number>>;
+        /** CR 614.1c vs CR 400.7 — what the permanent's as-enters ANSWERS wrote
+         *  (`runStagedEntryTail`), re-applied right after this entry's own
+         *  reset below. Absent for every entry that was never parked. */
+        asEntersAnswers?: StagedEntryAnswers;
     }
 ): boolean {
     // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
@@ -9396,6 +9401,17 @@ function stageReanimatedOnBattlefield(
     applyEntryTypeLine(state, card);
     card.controllerId = controllerId;
     card.attachedTo = undefined;
+    // CR 614.1c vs CR 400.7 — the as-enters answers are part of HOW this
+    // permanent enters, so they go back on the far side of the reset above and
+    // AHEAD of every reader below: the entry counters, the Kismet tap check,
+    // the CR 611.2 grant passes — and the `entersTappedUnlessPay` branch, which
+    // applies the permanent's own statics and parks on the pay-choice without
+    // returning `true`. Re-applying only after a `true` return (the pre-#2672
+    // shape) left a tutored Multiversal Passage typeless: its `subtype-set`
+    // static materialised with no chosen subtype and the answer was dropped.
+    if (entryOpts?.asEntersAnswers) {
+        restoreStagedEntryAnswers(card, entryOpts.asEntersAnswers);
+    }
     // CR 302.6 — start the control-continuity clock for every reanimated /
     // put-onto-battlefield permanent (see `markEnteredThisTurn`).
     markEnteredThisTurn(card, state.turn);
@@ -9765,9 +9781,10 @@ export function stageAsEntersEntry(
     extra?: {
         tokenEntry?: StagedEntry["tokenEntry"];
         enteredFromGraveyard?: boolean;
+        playEntry?: StagedEntry["playEntry"];
     }
 ): void {
-    if (origin === "effect") {
+    if (origin === "effect" || origin === "play") {
         // CR 400.7 — "an object that moves from one zone to another becomes a
         // new object with no memory of, or relation to, its previous
         // existence." The UNPARKED leg of this same path clears these three
@@ -9784,7 +9801,12 @@ export function stageAsEntersEntry(
         // an UNRELATED kind — `payLife`, `mode`, `aura-host` — would carry the
         // stale answer back onto the battlefield.
         //
-        // `effect` origin ONLY, and deliberately so. A `spell` origin's object
+        // `play` (issue #2672) is the same case one origin over: a land
+        // played from a graveyard or from exile still carries whatever its
+        // previous battlefield existence left there, and its settlement
+        // (`settleEnteredLand`) carries the answers across its own reset.
+        //
+        // `effect` and `play` origins ONLY, and deliberately so. A `spell` origin's object
         // is a stack item that may legitimately carry `chosenName` before this
         // park, and a `token` origin's object was minted
         // moments ago and has no previous existence to forget.
@@ -9823,6 +9845,7 @@ export function stageAsEntersEntry(
         owed: [...owed],
         ...(presented ? { consultedDefIds: [presented] } : {}),
         ...(extra?.tokenEntry ? { tokenEntry: extra.tokenEntry } : {}),
+        ...(extra?.playEntry ? { playEntry: extra.playEntry } : {}),
         ...(extra?.enteredFromGraveyard
             ? { enteredFromGraveyard: extra.enteredFromGraveyard }
             : {}),
@@ -10474,6 +10497,8 @@ function applyAsEntersAnswer(
  *   - `effect` — a put-onto-the-battlefield effect lifted the card out of a
  *     graveyard / hand / library / exile and it never arrived; it goes to its
  *     owner's graveyard (the shipped CR 303.4g Aura-host shape).
+ *   - `play` — a played land lifted out of its source zone (issue #2672):
+ *     the same off-zone card as `effect`, so the same graveyard push.
  *   - `token` — CR 111.7: a token that never enters simply ceases to exist,
  *     and it was never in a zone array, so there is nothing to move. */
 function abortStagedEntryTo(
@@ -10570,6 +10595,59 @@ function restoreCopyAnswer(
     }
 }
 
+/** What a parked entry's as-enters answers wrote that the entry-side CR 400.7
+ *  reset clears: `attachedTo` (`aura-host`), `chosenName` (`name`, deleted by
+ *  `resetBattlefieldTransientState` per CR 614.12 / issue #1953),
+ *  `chosenSubtypes` (`subtypes`, CR 614.12a) and the `copy` leg's own carry.
+ *  `mode` → `chosenModeId`, `body`/`anchor` → the printed characteristics and
+ *  `payLife` → the player's life are untouched by the reset.
+ *
+ *  Reading the values straight off the instance is sound ONLY because
+ *  `stageAsEntersEntry` cleared these same slots when it parked the entry (the
+ *  CR 400.7 clean applied early — see there): a value present now was
+ *  necessarily written by an answer THIS entry received, never carried over
+ *  from a previous existence. Carry only what we wrote — never trust what
+ *  happens to be there. */
+export type StagedEntryAnswers = {
+    attachedTo?: string;
+    chosenName?: CardInstanceState["chosenName"];
+    chosenSubtypes?: string[];
+    copy: ReturnType<typeof copyAnswerCarry>;
+};
+
+/** Snapshots {@link StagedEntryAnswers} off a parked permanent, before the
+ *  entry tail resets it. */
+export function stagedEntryAnswers(
+    card: CardInstanceState
+): StagedEntryAnswers {
+    return {
+        ...(card.attachedTo !== undefined
+            ? { attachedTo: card.attachedTo }
+            : {}),
+        ...(card.chosenName !== undefined
+            ? { chosenName: card.chosenName }
+            : {}),
+        ...(card.chosenSubtypes !== undefined
+            ? { chosenSubtypes: [...card.chosenSubtypes] }
+            : {}),
+        copy: copyAnswerCarry(card),
+    };
+}
+
+/** Re-applies a {@link stagedEntryAnswers} snapshot on the far side of the
+ *  entry reset, before anything reads the entering permanent. */
+export function restoreStagedEntryAnswers(
+    card: CardInstanceState,
+    answers: StagedEntryAnswers
+): void {
+    if (answers.attachedTo !== undefined) card.attachedTo = answers.attachedTo;
+    if (answers.chosenName !== undefined) card.chosenName = answers.chosenName;
+    if (answers.chosenSubtypes !== undefined) {
+        card.chosenSubtypes = [...answers.chosenSubtypes];
+    }
+    restoreCopyAnswer(card, answers.copy);
+}
+
 /** Runs the deferred entry tail for a staged permanent whose owed list is
  *  finally empty. `origin` selects WHICH tail (ADR 0100 D2): each entry site is
  *  RE-ENTERED with `asEntersResolved`, so the few lines that ran before the
@@ -10587,34 +10665,12 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
             // `stageReanimatedOnBattlefield` clears the previous object's
             // battlefield state. An as-enters ANSWER is part of HOW the
             // permanent enters, not state carried over from a previous
-            // existence, so every answered field is re-applied on the far side
-            // of that reset — the same ordering the pre-ADR-0100 Aura-host finalize
-            // used (attach AFTER staging, never before), and before the ETB
-            // announcement, so a trigger reads the answer the rules say the
-            // permanent entered with.
-            //
-            // These are exactly the fields `applyAsEntersAnswer` writes that
-            // the entry-side reset clears: `attachedTo` (`aura-host`),
-            // `chosenName` (`name`, deleted by
-            // `resetBattlefieldTransientState` per CR 614.12 / issue #1953) and
-            // `chosenSubtypes` (`subtypes`, CR 603.6b). `mode` →
-            // `chosenModeId`, `body`/`anchor` → the printed characteristics and
-            // `payLife` → the player's life are untouched by the reset; `copy`
-            // needs its OWN carry (`copyAnswerCarry`) because two of the fields
-            // `applyCopy` writes ARE cleared there.
-            //
-            // Reading the value straight off the instance is sound ONLY because
-            // `stageAsEntersEntry` cleared these same three slots when it parked
-            // this entry (the CR 400.7 clean applied early — see there): a value
-            // present now was necessarily written by an answer THIS entry
-            // received, never carried over from a previous existence. Carry only
-            // what we wrote — never trust what happens to be there.
-            const answered = {
-                attachedTo: entry.card.attachedTo,
-                chosenName: entry.card.chosenName,
-                chosenSubtypes: entry.card.chosenSubtypes,
-            };
-            const copied = copyAnswerCarry(entry.card);
+            // existence, so every answered field is handed to that function,
+            // which re-applies it on the far side of its own reset — before
+            // the ETB announcement, so a trigger reads the answer the rules
+            // say the permanent entered with, and before the
+            // `entersTappedUnlessPay` park, which never returns `true` here
+            // (issue #2672).
             if (
                 stageReanimatedOnBattlefield(
                     state,
@@ -10623,19 +10679,10 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     {
                         asEntersResolved: true,
                         enteredFromGraveyard: entry.enteredFromGraveyard,
+                        asEntersAnswers: stagedEntryAnswers(entry.card),
                     }
                 )
             ) {
-                if (answered.attachedTo !== undefined) {
-                    entry.card.attachedTo = answered.attachedTo;
-                }
-                if (answered.chosenName !== undefined) {
-                    entry.card.chosenName = answered.chosenName;
-                }
-                if (answered.chosenSubtypes !== undefined) {
-                    entry.card.chosenSubtypes = [...answered.chosenSubtypes];
-                }
-                restoreCopyAnswer(entry.card, copied);
                 // CR 613.1b — an Aura additionally applies its control-changing
                 // static effect once its host is set (Control Magic).
                 if (isAura(entry.card)) finishAuraEntry(state, entry.card);
@@ -10648,6 +10695,13 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
             }
             return;
         }
+        case "play":
+            // CR 305.1 / 614.12a (issue #2672) — a played land whose "as it
+            // enters" choices are now answered: put it back where it was
+            // played from and replay the play, which runs the land-entry
+            // pay-choice next if the land declares one and settles otherwise.
+            resumePlayedLandEntry(state, entry);
+            return;
         case "token":
             finishTokenEntry(
                 state,
@@ -11396,30 +11450,6 @@ export function buildSpellContext(
                 item.triggerSourceId ?? item.id
             );
             if (src) src.card.chosenPlayerId = playerId;
-        },
-
-        setChosenSubtypes(pair: string[]): void {
-            // CR 603.6b / 614.12 — record an ordered pair of basic land types
-            // chosen as this permanent enters (Illusionary Terrain), stored on
-            // the source instance for the rest of the game and read by a
-            // `subtype-set` static's `subtypesFor` callback (ADR 0050). The
-            // source is the resolving permanent: an ETB trigger's
-            // `triggerSourceId` points at the permanent that just entered.
-            // No-op if it is no longer on the battlefield.
-            const src = findOnBattlefield(
-                state,
-                item.triggerSourceId ?? item.id
-            );
-            if (!src) return;
-            src.card.chosenSubtypes = [...pair];
-            // CR 611.2c — the enchantment's continuous subtype-set static is
-            // materialised (ADR 0050), not read at query time, so it was already
-            // applied when the permanent entered — with no pair chosen yet, a
-            // no-op. Now that the pair exists, re-materialise so basic lands of
-            // the first type swap on the live board. Idempotent: the ETB pass
-            // recorded no grant (subtypesFor returned null), so this is the
-            // first and only materialisation for this source.
-            beginApplyingStaticEffects(state, src.card);
         },
 
         // CR 607.2d (issue #3809) — the creature type chosen as the source
