@@ -1157,7 +1157,7 @@ export interface TargetRequirement {
      *  player/spell targets and a `count: 1` requirement (nothing to compare).
      *
      *  On a `zone: "graveyard"` requirement the relation is the graveyard's
-     *  OWNER instead (CR 404.1 — a card in a graveyard has no controller):
+     *  OWNER instead (CR 108.4a — a card in a graveyard has no controller):
      *  every pick shares the first pick's graveyard, "up to three target
      *  cards from a single graveyard". */
     sameController?: boolean;

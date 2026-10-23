@@ -966,7 +966,7 @@ const sameControllerDescriptor = defineFilter<boolean>({
                 ? null
                 : "Must target a creature controlled by the same player as the other chosen target";
         },
-        // CR 404.1 + CR 108.3 — a card in a graveyard has no controller; the
+        // CR 108.4a + CR 404.1 — a card in a graveyard has no controller; the
         // pile it sits in belongs to its OWNER. "Cards from a single
         // graveyard" is therefore the same cross-slot relation read on
         // `ownerId`: every pick shares the first pick's graveyard.
