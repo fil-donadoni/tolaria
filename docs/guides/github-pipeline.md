@@ -1565,7 +1565,9 @@ releasing the claim, seeding the preset scenario — it does not do for a
 shadow PR: GitHub closes the issue through the closing ref `land:ready`
 ensured, and [`post-merge`](#post-merge) does the rest for every merge,
 whoever merged (`housekeeping` releases the claim, `seed` seeds the preset
-scenario).
+scenario). So `merge:manual` / a hand `pr-merge` leaves the owner nothing to
+run: its last lines name `post-merge.yml` as the owner of those steps and
+never send the merge to `land` (issue #6473).
 
 The [structure guard](#the-structure-guard) pins the entry, merge,
 parallel-check, batch and dequeue rows (`queue-entry`, `queue-merge`,
