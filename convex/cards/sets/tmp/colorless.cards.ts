@@ -27,7 +27,7 @@ export const ancientTomb = defineCard(() => ({
         {
             ...makeTapForMana({
                 id: "ancient-tomb-mana",
-                oracleText: "{T}: Add {C}{C}.",
+                oracleText: "{T}: Add {C}{C}. This land deals 2 damage to you.",
                 produces: { C: 2 },
             }),
             dealsDamageToControllerOnTap: 2,
