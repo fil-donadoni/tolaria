@@ -275,6 +275,35 @@ const UPHEAVAL_DEFINITION: CompiledDefinition = {
     ],
 };
 
+const HURKYLS_RECALL: OracleCard = {
+    oracleId: "ed1e5d24-c8a8-48fe-a88f-1003ad432477",
+    name: "Hurkyl's Recall",
+    manaCost: "{1}{U}",
+    typeLine: "Instant",
+    oracleText: "Return all artifacts target player owns to their hand.",
+    layout: "normal",
+};
+
+const HURKYLS_RECALL_DEFINITION: CompiledDefinition = {
+    name: "Hurkyl's Recall",
+    types: ["Instant"],
+    manaCost: { X: 1, U: 1 },
+    oracleText: "Return all artifacts target player owns to their hand.",
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Artifact" },
+            },
+            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        },
+    ],
+    targetRequirement: { type: "player", count: 1 },
+};
+
 const POWDER_KEG: OracleCard = {
     oracleId: "ca1144c2-49a3-49b4-9085-3094141769ea",
     name: "Powder Keg",
@@ -539,6 +568,12 @@ describe("mass subjects (issue #4557) — goldens", () => {
         );
     });
 
+    it("Hurkyl's Recall: bounce every artifact an announced player owns", () => {
+        expect(sortKeys(compiled(HURKYLS_RECALL))).toEqual(
+            sortKeys(HURKYLS_RECALL_DEFINITION)
+        );
+    });
+
     it("Powder Keg: destroy by mana value equal to the fuse counters on this artifact", () => {
         expect(sortKeys(compiled(POWDER_KEG))).toEqual(
             sortKeys(POWDER_KEG_DEFINITION)
@@ -616,6 +651,18 @@ describe("mass subjects — refusals stay fail-closed", () => {
         [
             "the plural destination behind a single object",
             "Return target creature to their owners' hands.",
+        ],
+        [
+            "an owned sweep bounced to a hand that is not 'their hand'",
+            "Return all artifacts target player owns to your hand.",
+        ],
+        [
+            "an owned sweep with a second controller clause",
+            "Return all artifacts you control target player owns to their hand.",
+        ],
+        [
+            "an owned sweep behind a single object",
+            "Return target artifact target player owns to their hand.",
         ],
         [
             "a sweep bounced to a hand that is not its owners'",
