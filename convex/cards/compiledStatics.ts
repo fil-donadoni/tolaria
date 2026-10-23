@@ -69,6 +69,11 @@ import type { CompiledControlsCondition } from "./compiledTriggers";
  * `StaticEffectContext`; `requireAbility` / `excludeAbility` are the notable
  * absentees, since the view carries no `staticAbilities` at all.
  */
+/** Creatures among a set of permanents (CR 302.1). */
+function countCreatures(permanents: readonly PermanentView[]): number {
+    return permanents.filter((c) => c.types.includes("Creature")).length;
+}
+
 export const STATIC_FILTER_FIELDS: ReadonlySet<string> = new Set([
     "types",
     "excludeTypes",
@@ -314,6 +319,13 @@ export type CompiledStaticEffect =
           readonly kind: "attack-restriction" | "block-restriction";
           readonly id: string;
           readonly oracleText: string;
+          /**
+           * CR 508.1c — "can't attack unless <condition>": the attack is legal
+           * only while the condition holds. Absent = unconditional.
+           * `more-creatures-than-defender`: its controller controls more
+           * creatures than the defending player. Attack side only.
+           */
+          readonly unless?: "more-creatures-than-defender";
       }
     /**
      * CR 601.3a / 201.2a — "Spells with the chosen name can't be cast": the
@@ -690,7 +702,12 @@ export function resolveCompiledStatic(
             return {
                 kind: "attack-restriction",
                 id: descriptor.id,
-                predicate: () => false,
+                predicate:
+                    descriptor.unless === "more-creatures-than-defender"
+                        ? (_self, defenderBattlefield, controllerBattlefield) =>
+                              countCreatures(controllerBattlefield ?? []) >
+                              countCreatures(defenderBattlefield)
+                        : () => false,
                 oracleText: descriptor.oracleText,
             };
         case "block-restriction":

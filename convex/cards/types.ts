@@ -8955,10 +8955,14 @@ export interface StaticAttackRestriction {
     id: string;
     /** Returns `true` when the attack is LEGAL, `false` to reject.
      *  `self` = the creature attempting to attack.
-     *  `defenderBattlefield` = the defending player's permanents. */
+     *  `defenderBattlefield` = the defending player's permanents.
+     *  `controllerBattlefield` = the attacking creature's controller's
+     *  permanents, for a comparison between the two boards ("can't attack
+     *  unless you control more creatures than defending player"). */
     predicate: (
         self: PermanentView,
-        defenderBattlefield: readonly PermanentView[]
+        defenderBattlefield: readonly PermanentView[],
+        controllerBattlefield?: readonly PermanentView[]
     ) => boolean;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
