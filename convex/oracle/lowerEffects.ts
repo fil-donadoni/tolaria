@@ -2374,6 +2374,12 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 115.7a — change the target of the announced spell.
+        case "retarget": {
+            const target = spellSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            return lowered([{ op: "retarget", target: target.value }]);
+        }
         case "counter-limit-instead":
             return unlowerable(
                 'a counter limit "instead" is a kicker gate\'s replacement (CR 702.33g)'

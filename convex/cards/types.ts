@@ -881,6 +881,13 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells that have
+     *  EXACTLY ONE target, whatever it is (CR 115.7 — "target spell with a
+     *  single target", Deflection's and Misdirection's printed restriction; an
+     *  ability never qualifies). The unrestricted sibling of
+     *  `spellSingleTargetingController`, which additionally pins that target to
+     *  the chooser. Ignored for non-spell target types. */
+    spellSingleTarget?: boolean;
     /** Restricts a stack-object target (`type: "spell"`) to objects that
      *  THEMSELVES target at least one PERMANENT matching EVERY clause below
      *  (CR 115.2 — Confound's "Counter target spell that targets a creature";
@@ -6488,10 +6495,13 @@ export interface SpellContext {
      *  by Reflecting Mirror ("change the target of target spell … the new target
      *  must be a player"). No-op if the spell has left the stack. The new
      *  target's legality (e.g. "must be a player") is governed by `requirement`
-     *  and re-validated at selection. */
+     *  and re-validated at selection. OMITTING `requirement` (CR 115.7a — the
+     *  `retarget` Op) offers the spell's OWN announced requirement instead,
+     *  only for a spell with exactly one target, and raises nothing when it has
+     *  no other legal target. */
     requestRetarget: (
         spellStackItemId: string,
-        requirement: TargetRequirement
+        requirement?: TargetRequirement
     ) => void;
 
     // --- Mid-resolution choices (CR 608.2, 101.4) ---
@@ -19032,6 +19042,24 @@ export type EffectOp =
           op: "moveSpellFromStack";
           target: EffectTargetRef;
           destination: SpellStackDestination;
+      }
+    /** CR 115.7a — "change the target of target spell": the effect's
+     *  controller picks ANOTHER legal target for the announced spell, written
+     *  onto the original stack item in place (not a copy). Routes through
+     *  `SpellContext.requestRetarget` — the same `retarget` target-selection
+     *  phase Reflecting Mirror raises — over the spell's OWN requirement
+     *  (CR 115.7a — only a legal target qualifies), and a spell with no other
+     *  legal target keeps its original (CR 115.7a). Skipped when the target
+     *  already left the stack (CR 608.2b), and for an ability or a spell that
+     *  does not have exactly one target (the printed "with a single target"
+     *  restriction, also the announced slot's `spellSingleTarget` filter, CR
+     *  115.7). What it deliberately does
+     *  NOT do: "choose new targets" (CR 115.7d, leaves targets unchanged),
+     *  change an ability's target, or narrow the new target to a kind
+     *  ("the new target must be a player" stays `resolve()`). */
+    | {
+          op: "retarget";
+          target: EffectTargetRef;
       }
     /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
      *  an Op verb: it branches the script on a PREDEFINED predicate form (never

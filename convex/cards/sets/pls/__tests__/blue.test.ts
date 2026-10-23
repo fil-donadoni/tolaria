@@ -1749,6 +1749,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
                 spellExcludeTypeFilter: "Creature",
                 spellCreaturePtFilter: { maxPowerOrToughness: 2 },
                 spellSingleTargetingController: true,
+                spellSingleTarget: true,
                 spellWouldDestroyLandYouControl: true,
                 spellTargetsPermanentFilter: { types: ["Creature"] },
                 spellWasKicked: true,

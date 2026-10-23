@@ -37032,3 +37032,97 @@ describe("returnToHandAtNextUntap (CR 502.3, issue #5509)", () => {
         expect(slim.returnToHandAtUntapOf).toBe("p1");
     });
 });
+
+describe("Effect Script Op: retarget (CR 115.7a, issue #5259)", () => {
+    /** A victim spell on the stack under p2, then a `retarget` script of p1's
+     *  aimed at it on top. The victim's own requirement is a creature
+     *  ("target creature you don't control"-free: plain creature) so the
+     *  offered set is visibly narrower than "any target". */
+    function withVictim(
+        scriptId: string,
+        victimTargets: TargetSelection[],
+        battlefield: ReturnType<typeof makeInstance>[]
+    ) {
+        const victimDef = registerScript(
+            `${scriptId}-victim`,
+            [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const id = registerScript(scriptId, [
+            { op: "retarget", target: { target: 0 } },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { battlefield })],
+        });
+        const victim = pushSpell(state, victimDef, "p2", victimTargets);
+        pushSpell(state, id, "p1", [{ type: "spell", id: victim.id }]);
+        return { state, victim };
+    }
+    const bear = (id: string) =>
+        makeInstance(BEAR_ID, { controllerId: "p2", id });
+
+    it("raises a `retarget` selection for the retargeting player over the spell's OWN requirement, and the wire keeps it", () => {
+        const { state, victim } = withVictim(
+            "test-op-retarget",
+            [{ type: "permanent", id: "bear1" }],
+            [bear("bear1"), bear("bear2")]
+        );
+        resolveTopOfStack(state);
+
+        // The victim stays on the stack: retargeting neither counters nor
+        // copies it (CR 115.7a — the same object gets a new target).
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(true);
+        // The offered kind is the victim's (Creature), never "any target".
+        expect(state.pendingTarget).toMatchObject({
+            kind: "retarget",
+            playerId: "p1",
+            cardInstanceId: victim.id,
+            targetType: "Creature",
+        });
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingTarget).toMatchObject({
+            kind: "retarget",
+            cardInstanceId: victim.id,
+        });
+    });
+
+    it("keeps the target and raises nothing when the spell has no other legal target (CR 115.7a)", () => {
+        const { state, victim } = withVictim(
+            "test-op-retarget-forced",
+            [{ type: "permanent", id: "bear1" }],
+            [bear("bear1")]
+        );
+        resolveTopOfStack(state);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.stack.find((s) => s.id === victim.id)?.targets).toEqual([
+            { type: "permanent", id: "bear1" },
+        ]);
+    });
+
+    it("does nothing for a spell without exactly one target", () => {
+        const { state } = withVictim(
+            "test-op-retarget-multi",
+            [
+                { type: "permanent", id: "bear1" },
+                { type: "permanent", id: "bear2" },
+            ],
+            [bear("bear1"), bear("bear2"), bear("bear3")]
+        );
+        resolveTopOfStack(state);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("validates a Deflection-class script and refuses a missing target", () => {
+        const host = (effects: unknown[]) =>
+            validateEffectScript({
+                id: "retarget-probe",
+                name: "Retarget Probe",
+                types: ["Instant"],
+                targetRequirement: { type: "spell", count: 1 },
+                effects,
+            } as never);
+        expect(host([{ op: "retarget", target: { target: 0 } }])).toEqual([]);
+        expect(host([{ op: "retarget" }]).length).toBeGreaterThan(0);
+    });
+});

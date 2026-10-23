@@ -339,7 +339,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Deep Forest Hermit",
     "Deep Spawn",
     "Deep Water",
-    "Deflection",
     "Delif's Cone",
     "Delif's Cube",
     "Delighted Halfling",

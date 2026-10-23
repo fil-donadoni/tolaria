@@ -40256,6 +40256,16 @@
         "source": "compiled"
     },
     {
+        "name": "Misdirection",
+        "scryfallId": "581ad59c-29e9-4498-a6fd-33bf21e8e7c4",
+        "oracleId": "c39e5fb0-6de3-4105-ad3c-0ecb8951a1d5",
+        "firstSet": "mmq",
+        "firstPrintId": "581ad59c-29e9-4498-a6fd-33bf21e8e7c4",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Misery Charm",
         "scryfallId": "2be66eaf-222b-4c40-a9fa-aad56b9218e0",
         "oracleId": "46aa8dca-2a7d-4bff-9323-5f6933ca95f2",
@@ -56750,6 +56760,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shunt",
+        "scryfallId": "44ee290e-c22b-4fad-bf99-0630a2b89d68",
+        "oracleId": "e714bcfb-b451-4b7b-ab60-4cb845c75647",
+        "firstSet": "dst",
+        "firstPrintId": "44ee290e-c22b-4fad-bf99-0630a2b89d68",
+        "firstPrintSet": "dst",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shuttle Crew",
         "scryfallId": "f5174a37-fbc7-4dbd-a5c2-e2f256ea7a6c",
         "oracleId": "25855177-a416-4083-a6e4-8c9e00361d41",
@@ -63221,6 +63241,16 @@
         "firstPrintId": "f11cd406-c6ae-4018-ae45-4e5577aa82ae",
         "firstPrintSet": "akh",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Swerve",
+        "scryfallId": "10affb59-7c57-4b72-892b-d813f385f4a9",
+        "oracleId": "c68627b1-025c-48c9-9646-98eb2d268e71",
+        "firstSet": "ala",
+        "firstPrintId": "10affb59-7c57-4b72-892b-d813f385f4a9",
+        "firstPrintSet": "ala",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
