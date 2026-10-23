@@ -1756,8 +1756,8 @@ export type EffectSentenceIR =
            * CR 701.23d (search) + CR 701.20a (reveal) — a searched pile another
            * player picks from: "Search your library for three cards and reveal
            * them. Target opponent chooses one. Put that card into your hand
-           * and the rest into your graveyard. Then shuffle." The search is for a bare
-           * QUANTITY, so the searcher must find that many (CR 701.23d); the
+           * and the rest into your graveyard. Then shuffle." The search is for
+           * a bare QUANTITY, so the searcher must find that many (CR 701.23d); the
            * reveal is what lets the chooser see the pile at all. The four
            * printed sentences are one effect, folded by `assembleSentences`;
            * none is an effect alone.
