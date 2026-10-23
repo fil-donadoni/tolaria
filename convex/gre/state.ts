@@ -11062,7 +11062,7 @@ export function requestCopyRetargetOn(
     // the single shared resolver. `requireX` stays false (the default): a
     // copy's `chosenX` is read defensively off already-resolved state, so a
     // missing X here folds to 0 instead of throwing mid-resolve.
-    // CR 707.10c — a copy announces no targets of its own; its primary
+    // CR 707.10c — the copy's controller may choose new targets; the primary
     // group's text-defined bound has no earlier picks, as at the cast.
     const count = resolveTargetRequirementCount(req.count, copy.chosenX, {
         announcement: {
