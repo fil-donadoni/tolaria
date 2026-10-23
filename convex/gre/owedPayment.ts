@@ -233,6 +233,9 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         /** CR 118.3 — discarded AT RANDOM (Coral Helm): the PRNG picks, not the
          *  payer. A park would never clear. */
         discardAtRandomCount: "non-park",
+        /** CR 118.1 / 701.13a — the TOP card of the payer's library is fixed by
+         *  the library's order, not picked. Nothing to submit. */
+        exileTopOfLibrary: "non-park",
 
         // ── PARKS (CR 602.1 / 118) ─────────────────────────────────────────────
         /** CR 701.21 / 118.5 / 601.2f — filtered sacrifice (own leg + static tax).

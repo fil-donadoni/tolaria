@@ -36,6 +36,7 @@ import {
     pendingCastHasImprovise,
     displayCardId,
 } from "~/lib/card-utils";
+import { libraryCount } from "~/lib/library-knowledge";
 import {
     pendingChoiceRoutesToBattlefield,
     pendingChoiceSpansAllBattlefields,
@@ -938,7 +939,10 @@ export function useBattlefieldInteraction(player: Player) {
             // viewer IS the controller here, so this is the real (non-nulled)
             // hand.
             viewer.hand.filter((c): c is CardInstance => c !== null),
-            playerId
+            playerId,
+            // CR 118.3 — the `exileTopOfLibrary` cost is paid from the
+            // controller's (the viewer's) own library.
+            libraryCount(viewer.library)
         );
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as
