@@ -6,8 +6,8 @@
 // part of the body (a spore counter) is not a shrink.
 //
 // `rollout(…, since)`: a WON leaf pays for the game time it took, so a sooner
-// win outranks a later one (reward only — the margin stays material). CR
-// 500.1 (the turn's steps), CR 704.5a (a player at 0 life loses).
+// win outranks a later one (reward only — the margin stays material).
+// CR 500.1 (the turn's steps), CR 704.5a (a player at 0 life loses).
 
 import { describe, expect, it } from "vitest";
 import type { Move } from "../../moves";
