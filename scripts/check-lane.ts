@@ -818,10 +818,9 @@ export function classifyLane(
  *     exact clone / sweep / walk counts over three blade positions, moved by
  *     any engine, card or compiler change that alters what a search iteration
  *     does. 4.4 s wall at load ~6–8, 12.7 s cold at load ~17 (2026-10-23).
- *     Without it PR #6509
- *     changed the rollout's land play, left the pins stale, and the base went
- *     RED; so it is admitted by everything the search runs on —
- *     `convex/{gre,cards,oracle}/**` — wide on purpose.
+ *     Without it PR #6509 changed the rollout's land play, left the pins
+ *     stale, and the base went RED; so it is admitted by everything the
+ *     search runs on — `convex/{gre,cards,oracle}/**` — wide on purpose.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
