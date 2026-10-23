@@ -22460,6 +22460,16 @@
         "source": "compiled"
     },
     {
+        "name": "Firestorm",
+        "scryfallId": "e674aa8a-668a-4345-95ee-73a0b87bbcb1",
+        "oracleId": "157813c8-af83-41b5-9ffb-4abd167c1bfc",
+        "firstSet": "wth",
+        "firstPrintId": "e674aa8a-668a-4345-95ee-73a0b87bbcb1",
+        "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Firestorm Hellkite",
         "scryfallId": "def23574-4a41-4323-84d9-49f58b2ca322",
         "oracleId": "533e41cc-7cae-47f2-886b-8a3ffb82bf81",
@@ -40025,6 +40035,16 @@
         "firstPrintId": "6676a0f7-8213-4547-b2ac-b904cd418073",
         "firstPrintSet": "inv",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Meteor Blast",
+        "scryfallId": "b68d4f2a-77e7-42c4-9aed-07d33d717c9c",
+        "oracleId": "0ba1837b-67a1-40d1-b617-8c94834d02ba",
+        "firstSet": "c15",
+        "firstPrintId": "b68d4f2a-77e7-42c4-9aed-07d33d717c9c",
+        "firstPrintSet": "c15",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
