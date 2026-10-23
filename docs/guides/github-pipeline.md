@@ -101,20 +101,23 @@ What `install` does, per [runner](#g-runner), only where the machine differs:
 prints `nothing to do — this machine already matches` (after any standing
 notes: [linger](#g-linger) off, a runner not declared). A changed unit
 template is rewritten and its service restarted — **only when the runner
-is idle** (issue #6467). Before any restart `install` reads GitHub's busy
-view (the one `runner status` prints); a busy runner gets its new unit
-written, a `.restart-pending` mark in its directory and a deferral line
-instead of the restart:
+is idle** (issue #6467). Before planning, `install` reads GitHub's busy
+view (the one `runner status` prints); a runner busy at that moment gets a
+`.restart-pending` mark in its directory, its new unit written and a
+deferral line instead of the restart:
 
 ```text
 defer  macbook-pass-1: busy — restart deferred, re-run install when idle (`--force-restart` restarts it now)
 ```
 
 and `install` exits 1. Re-run it once the runner is idle: the mark makes
-it restart although the unit on disk already matches, then clears it. When
-GitHub cannot be read, `install` fails closed — no running runner is
-restarted, each deferred with `GitHub's busy view is unreadable`; a stopped
-or new runner still starts. `--force-restart` restores the unconditional
+it restart although the unit on disk already matches, then clears it (a
+[paused](#g-pause) runner's mark is dropped: `resume` starts the new unit).
+`install` fails closed: when GitHub cannot be read no running runner is
+restarted (`GitHub's busy view is unreadable`), nor one the view does not
+list (`absent from GitHub's busy view`); a stopped or new runner still
+starts. A job that starts in the seconds between the read and the restart
+is not covered. `--force-restart` restores the unconditional
 restart (it kills a job in flight). `--dry-run` shows the deferrals and
 exits 0. A [runner](#g-runner) installed but no
 longer declared (you lowered `--pass`) is reported, never removed silently:

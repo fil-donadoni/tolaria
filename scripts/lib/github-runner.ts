@@ -235,24 +235,26 @@ export const PAUSED_MARKER = ".paused";
 export const RESTART_PENDING_MARKER = ".restart-pending";
 
 /** GitHub's busy view (`gh api repos/<slug>/actions/runners`): runner name →
- *  running a job right now; null when it could not be read. A runner absent
- *  from it is registered nowhere, so it runs no job. */
+ *  running a job right now; null when it could not be read. */
 export type BusyView = Record<string, boolean> | null;
 
-/** The busy view from `<name>\t<busy>` lines. Pure. */
+/** The busy view from `<name>\t<busy>` lines; a malformed line is left out,
+ *  so its runner reads as absent — unknown, never idle. Pure. */
 export function parseBusyView(text: string): Record<string, boolean> {
     const view: Record<string, boolean> = {};
     for (const line of text.split("\n")) {
         const [name, busy] = line.trim().split("\t");
-        if (name) view[name] = busy === "true";
+        if (name && (busy === "true" || busy === "false"))
+            view[name] = busy === "true";
     }
     return view;
 }
 
-/** Why runner `name` must not be stopped now, or null when it may be
- *  (issue #6467): stopping a busy runner kills its job, and an `afk-pass`
- *  killed that way leaves no pass record. Fails closed: an unreadable view
- *  blocks too. `force` (`--force-restart`) overrides both. */
+/** Why running runner `name` must not be stopped now, or null when it may
+ *  be (issue #6467): stopping a busy runner kills its job, and an
+ *  `afk-pass` killed that way leaves no pass record. Fails closed: an
+ *  unreadable view, or one that does not list the runner, blocks too.
+ *  `force` (`--force-restart`) overrides all three. */
 export function restartBlock(
     name: string,
     busy: BusyView,
@@ -260,6 +262,7 @@ export function restartBlock(
 ): string | null {
     if (force) return null;
     if (busy === null) return "GitHub's busy view is unreadable";
+    if (!(name in busy)) return "absent from GitHub's busy view";
     return busy[name] ? "busy" : null;
 }
 
@@ -368,28 +371,31 @@ const EMPTY_RUNNER: ObservedRunner = {
     running: false,
 };
 
-/** A restart withheld: the marker that makes the next `install` retry it,
- *  and the deferral line. */
-function deferRestart(
-    name: string,
-    block: string,
-    marker: string,
-    pending: boolean
-): Step[] {
-    const steps: Step[] = [];
-    if (!pending) {
-        steps.push({
-            kind: "write",
-            why: `${name}: mark its restart pending`,
-            path: marker,
-            content: "",
-        });
-    }
-    steps.push({
+/** The marker that makes the next `install` retry a withheld restart. It
+ *  goes BEFORE the new definition is written: a run cut short between the
+ *  two must not leave a matching definition with no restart owed. */
+function markRestartPending(name: string, marker: string): Step {
+    return {
+        kind: "write",
+        why: `${name}: mark its restart pending`,
+        path: marker,
+        content: "",
+    };
+}
+
+function deferRestart(name: string, block: string): Step {
+    return {
         kind: "defer",
         why: `${name}: ${block} — restart deferred, re-run install when idle (\`--force-restart\` restarts it now)`,
-    });
-    return steps;
+    };
+}
+
+function clearRestartPending(name: string, marker: string): Step {
+    return {
+        kind: "remove",
+        why: `${name}: clear the pending-restart mark`,
+        path: marker,
+    };
 }
 
 /** A runner's restart guard: why it may not be stopped now (null = it may),
@@ -420,6 +426,9 @@ function launchdLoad(
     const changed = observed.text !== content;
     const pending = observed.restartPending ?? false;
     const reload = observed.running && (changed || pending);
+    const block = reload && !observed.paused ? (guard?.block ?? null) : null;
+    if (block && guard && !pending)
+        steps.push(markRestartPending(what, guard.marker));
     if (changed) {
         steps.push({
             kind: "write",
@@ -433,10 +442,13 @@ function launchdLoad(
             kind: "note",
             why: `${what} is paused — left stopped (\`bun run runner resume\` starts it)`,
         });
+        // `resume` boots the plist now on disk: no restart owed.
+        if (pending && guard)
+            steps.push(clearRestartPending(what, guard.marker));
         return steps;
     }
-    if (reload && guard?.block) {
-        steps.push(...deferRestart(what, guard.block, guard.marker, pending));
+    if (block) {
+        steps.push(deferRestart(what, block));
         return steps;
     }
     if (reload) {
@@ -455,13 +467,7 @@ function launchdLoad(
             retry: observed.running,
         });
     }
-    if (pending && guard) {
-        steps.push({
-            kind: "remove",
-            why: `${what}: clear the pending-restart mark`,
-            path: guard.marker,
-        });
-    }
+    if (pending && guard) steps.push(clearRestartPending(what, guard.marker));
     return steps;
 }
 
@@ -606,6 +612,23 @@ export function planInstall(
     } else {
         const templateChanged =
             seen.systemdTemplateText !== input.systemdTemplate;
+        // The runners whose restart is withheld, marked before the shared
+        // template is rewritten (see `markRestartPending`).
+        const blocked = new Map<string, string>();
+        for (const r of input.runners) {
+            const s = runnerState(r.name);
+            const block = guard(r).block;
+            if (
+                s.running &&
+                !s.paused &&
+                (templateChanged || (s.restartPending ?? false)) &&
+                block
+            ) {
+                blocked.set(r.name, block);
+                if (!s.restartPending)
+                    steps.push(markRestartPending(r.name, guard(r).marker));
+            }
+        }
         if (templateChanged && input.systemdTemplate !== null) {
             steps.push({
                 kind: "write",
@@ -623,12 +646,19 @@ export function planInstall(
             const s = runnerState(r.name);
             const unit = systemdRunnerUnit(r.name);
             const pending = s.restartPending ?? false;
-            const g = guard(r);
+            const marker = guard(r).marker;
+            const block = blocked.get(r.name);
             if (s.paused) {
                 steps.push({
                     kind: "note",
                     why: `${r.name} is paused — left stopped (\`bun run runner resume\` starts it)`,
                 });
+                // `resume` starts the template now on disk: no restart owed.
+                if (pending) steps.push(clearRestartPending(r.name, marker));
+                continue;
+            }
+            if (block) {
+                steps.push(deferRestart(r.name, block));
                 continue;
             }
             if (!s.running) {
@@ -638,25 +668,13 @@ export function planInstall(
                     argv: ["systemctl", "--user", "enable", "--now", unit],
                 });
             } else if (templateChanged || pending) {
-                if (g.block) {
-                    steps.push(
-                        ...deferRestart(r.name, g.block, g.marker, pending)
-                    );
-                    continue;
-                }
                 steps.push({
                     kind: "run",
                     why: `${r.name}: restart on the changed template`,
                     argv: ["systemctl", "--user", "restart", unit],
                 });
             }
-            if (pending) {
-                steps.push({
-                    kind: "remove",
-                    why: `${r.name}: clear the pending-restart mark`,
-                    path: g.marker,
-                });
-            }
+            if (pending) steps.push(clearRestartPending(r.name, marker));
         }
         if (!seen.linger) {
             steps.push({
@@ -764,6 +782,15 @@ export function planToggle(
                 why: `${name}: clear the paused mark`,
                 path: marker,
             });
+        }
+        // A resumed runner starts on the definition now on disk.
+        if (verb === "resume" && !s.running && s.restartPending) {
+            steps.push(
+                clearRestartPending(
+                    name,
+                    join(runnerRoot, name, RESTART_PENDING_MARKER)
+                )
+            );
         }
     }
     if (seen.installed.length === 0) {

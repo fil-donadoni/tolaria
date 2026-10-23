@@ -130,7 +130,7 @@ function installed(inp: InstallInput, paused: string[] = []): ObservedMachine {
         convexRunning: inp.convexPlist !== null,
         linger: true,
         machineText: inp.machineFile.content,
-        busy: {},
+        busy: Object.fromEntries(inp.runners.map((r) => [r.name, false])),
     };
 }
 
@@ -146,8 +146,15 @@ function changed(inp: InstallInput, seen: ObservedMachine): ObservedMachine {
 const stops = (steps: Step[], name: string) =>
     argvs(steps).filter(
         (a) =>
-            a.includes(name) &&
-            / (bootout|bootstrap|restart|enable --now) /.test(a)
+            / (bootout|bootstrap|restart|enable --now) /.test(a) &&
+            (a.includes(`gh-runner.${name}.plist`) ||
+                a.endsWith(`gh-runner.${name}`) ||
+                a.endsWith(`gh-runner@${name}.service`))
+    );
+
+const paths = (steps: Step[]) =>
+    steps.flatMap((s) =>
+        s.kind === "write" || s.kind === "remove" ? [s.path] : []
     );
 
 const argvs = (steps: Step[]) =>
@@ -441,6 +448,8 @@ describe("install never stops a busy runner (issue #6467)", () => {
             "a-lane-1": false,
         });
         expect(parseBusyView("")).toEqual({});
+        // A malformed line is left out: its runner reads unknown, not idle.
+        expect(parseBusyView("a-pass-1\nb-pass-1\tnull\n")).toEqual({});
     });
 
     for (const platform of ["darwin", "linux"] as const) {
@@ -448,7 +457,7 @@ describe("install never stops a busy runner (issue #6467)", () => {
             const inp = input(platform);
             const [busy, idle] = inp.runners.map((r) => r.name);
             const seen = changed(inp, installed(inp));
-            seen.busy = { [busy]: true, [idle]: false };
+            seen.busy = { ...seen.busy, [busy]: true };
             const steps = planInstall(inp, seen);
             expect(stops(steps, busy)).toEqual([]);
             expect(stops(steps, idle)).not.toEqual([]);
@@ -462,16 +471,56 @@ describe("install never stops a busy runner (issue #6467)", () => {
                     path: `${ROOT}/${busy}/.restart-pending`,
                 })
             );
-            // The new definition is still put in place.
+            // The new definition is still put in place — after the mark, so
+            // a run cut short between the two still owes the restart.
+            const unit =
+                platform === "darwin"
+                    ? `/h/Library/LaunchAgents/com.tolaria.gh-runner.${busy}.plist`
+                    : "/h/.config/systemd/user/tolaria-gh-runner@.service";
+            const written = paths(steps);
+            expect(written).toContain(unit);
+            expect(written.indexOf(`${ROOT}/${busy}/.restart-pending`)).toBe(
+                written.indexOf(unit) - 1
+            );
+        });
+
+        it(`${platform}: a running runner GitHub's view does not list is not restarted`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const seen = changed(inp, installed(inp));
+            delete seen.busy![name];
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, name)).toEqual([]);
             expect(steps).toContainEqual(
                 expect.objectContaining({
-                    kind: "write",
-                    path:
-                        platform === "darwin"
-                            ? `/h/Library/LaunchAgents/com.tolaria.gh-runner.${busy}.plist`
-                            : "/h/.config/systemd/user/tolaria-gh-runner@.service",
+                    kind: "defer",
+                    why: expect.stringContaining(
+                        `${name}: absent from GitHub's busy view`
+                    ),
                 })
             );
+        });
+
+        it(`${platform}: a paused runner's pending mark is cleared — resume starts the new definition`, () => {
+            const inp = input(platform);
+            const name = inp.runners[0].name;
+            const marker = `${ROOT}/${name}/.restart-pending`;
+            const seen = installed(inp, [name]);
+            seen.runners[name].restartPending = true;
+            const steps = planInstall(inp, seen);
+            expect(stops(steps, name)).toEqual([]);
+            expect(steps).toContainEqual(
+                expect.objectContaining({ kind: "remove", path: marker })
+            );
+            const resumed = planToggle(
+                "resume",
+                platform,
+                501,
+                "/h/Library/LaunchAgents",
+                ROOT,
+                seen
+            );
+            expect(paths(resumed)).toContain(marker);
         });
 
         it(`${platform}: an unreadable busy view restarts no running runner; --force-restart does`, () => {
@@ -505,14 +554,14 @@ describe("install never stops a busy runner (issue #6467)", () => {
             const name = inp.runners[0].name;
             const seen = installed(inp);
             seen.runners[name].restartPending = true;
-            seen.busy = { [name]: true };
+            seen.busy = { ...seen.busy, [name]: true };
             // Still busy: deferred again, the mark is not rewritten.
             const held = planInstall(inp, seen);
             expect(stops(held, name)).toEqual([]);
             expect(held.filter((s) => s.kind === "write")).toEqual([]);
             expect(held.filter((s) => s.kind === "defer")).toHaveLength(1);
             // Idle: restarted although its definition already matches.
-            seen.busy = {};
+            seen.busy = { ...seen.busy, [name]: false };
             const steps = planInstall(inp, seen);
             expect(stops(steps, name)).not.toEqual([]);
             expect(steps).toContainEqual(
