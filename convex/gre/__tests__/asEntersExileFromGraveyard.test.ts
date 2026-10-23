@@ -30,6 +30,7 @@ import {
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { compactState, expandState } from "../serialize";
 import { getCardsExiledWith } from "../exileLinks";
+import { applyPlayLand } from "../playLand";
 import { projectPublicState } from "../../gameProjections";
 import type { GameEvent } from "../../cards/types";
 import { withTemporaryDefinition } from "../../cards/registry";
@@ -311,6 +312,52 @@ describe("as-enters exileFromGraveyard — put onto the battlefield (CR 400.7, i
             answer(state, ["angel"]);
             expect(pileOf(state, "ghoul-a")).toEqual(["bears"]);
             expect(pileOf(state, "ghoul-b")).toEqual(["angel"]);
+        });
+    });
+});
+
+// --- Played land (the third entry funnel) ------------------------------------
+
+/** A land declaring the same clause unfiltered: the play-a-land funnel
+ *  (`settleEnteredLand`) is the third that drops exile links on entry. */
+const LAND_ID = "test-6528-exile-land";
+const exileLand: CardDefinition = {
+    id: LAND_ID,
+    rarity: "common",
+    name: "Test 6528 Exile Land",
+    oracleText:
+        "As this land enters, exile any number of cards from your graveyard.",
+    manaCost: {},
+    types: ["Land"],
+    entersWith: { asEnters: [{ kind: "exileFromGraveyard" }] },
+};
+
+describe("as-enters exileFromGraveyard — played land (CR 305.1 / 614.12a, issue #6528)", () => {
+    it("a replayed land keeps this entry's pile and drops its previous one", () => {
+        withTemporaryDefinition(exileLand, () => {
+            const state = board({
+                exile: [exiled(grizzlyBears().id, "old", "land")],
+            });
+            const land = makeInstance(LAND_ID, {
+                id: "land",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            state.players[0].hand.push(land);
+
+            applyPlayLand(state, state.players[0], "land");
+            expect(head(state).asEntersKind).toBe("exileFromGraveyard");
+            // Unfiltered: the land card is as good a pick as a creature card.
+            expect(head(state).candidateIds).toEqual([
+                "bears",
+                "forest",
+                "angel",
+            ]);
+            answer(state, ["forest"]);
+
+            expect(onBattlefield(state, "land")).toBe(true);
+            expect(pileOf(state, "land")).toEqual(["forest"]);
         });
     });
 });
