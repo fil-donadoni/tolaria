@@ -2532,6 +2532,16 @@
         "source": "compiled"
     },
     {
+        "name": "Arashin Sunshield",
+        "scryfallId": "dd7102d8-90b3-45a1-b66d-dcca469b1fb6",
+        "oracleId": "1175d482-d8a2-467f-bc50-2f4b241966bb",
+        "firstSet": "tdm",
+        "firstPrintId": "dd7102d8-90b3-45a1-b66d-dcca469b1fb6",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Arbor Armament",
         "scryfallId": "bceb365c-5de6-47ae-b42d-7fbce7781f8e",
         "oracleId": "504f21e8-82ac-4433-b5e9-640989480f58",
@@ -9340,6 +9350,16 @@
         "source": "compiled"
     },
     {
+        "name": "Carrion Beetles",
+        "scryfallId": "46d4f4d7-a35b-45ea-ba51-ee65b3ff98d4",
+        "oracleId": "d64a51be-2dd1-485f-98fa-c93d4c296e68",
+        "firstSet": "usg",
+        "firstPrintId": "46d4f4d7-a35b-45ea-ba51-ee65b3ff98d4",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Carrion Call",
         "scryfallId": "bc3c1a8e-3bdb-42cf-9442-5de7e4670d66",
         "oracleId": "8f1e8f25-ee23-40a6-a3f2-369bb960267f",
@@ -14846,6 +14866,16 @@
         "source": "compiled"
     },
     {
+        "name": "Decompose",
+        "scryfallId": "916fb8a8-f402-4ef6-8a6b-8fc591e04367",
+        "oracleId": "12c2b6bb-05f8-4291-b9a5-c4ddb7a69b9e",
+        "firstSet": "ody",
+        "firstPrintId": "916fb8a8-f402-4ef6-8a6b-8fc591e04367",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Deconstruct",
         "scryfallId": "53face79-d2bf-43dd-aa4e-d724c2b68c49",
         "oracleId": "36a8ceb1-148b-41e0-a7bf-ceb879bf08e7",
@@ -18414,6 +18444,16 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Ebony Charm",
+        "scryfallId": "937c8016-43c8-418b-9057-b5d6715f71f7",
+        "oracleId": "2f3237fe-9e07-4aad-8bc8-7ef4b510dd36",
+        "firstSet": "mir",
+        "firstPrintId": "937c8016-43c8-418b-9057-b5d6715f71f7",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ebony Horse",
         "scryfallId": "9ae81ec7-2b7d-4301-8114-032be5e6b663",
         "oracleId": "4eb67ba3-35e3-47c3-820f-62814cf202a7",
@@ -21032,6 +21072,16 @@
         "source": "compiled"
     },
     {
+        "name": "Famished Ghoul",
+        "scryfallId": "e413b65a-700d-44eb-a880-5a0118d2ebac",
+        "oracleId": "22c74e4b-b1fe-4a35-acd8-fa4840af3c06",
+        "firstSet": "ody",
+        "firstPrintId": "e413b65a-700d-44eb-a880-5a0118d2ebac",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fan Bearer",
         "scryfallId": "f6cec477-f86f-4ccf-aa57-b6b7ade46eed",
         "oracleId": "d2e7198a-0eb5-4d30-973f-4b2d9617436f",
@@ -21500,6 +21550,16 @@
         "firstSet": "dom",
         "firstPrintId": "3292e262-4409-4f31-9de2-a232817a0734",
         "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Feral Deathgorger // Dusk Sight",
+        "scryfallId": "a147b94f-dfcf-44ce-8a73-b2fe6c4efc0e",
+        "oracleId": "1722f814-2d4e-4d59-9b74-10ef8e89def9",
+        "firstSet": "tdm",
+        "firstPrintId": "a147b94f-dfcf-44ce-8a73-b2fe6c4efc0e",
+        "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -23247,6 +23307,16 @@
         "oracleId": "4aeaf1cd-7346-4492-847d-1c4dad14fafd",
         "firstSet": "jou",
         "firstPrintId": "25de3481-9b0d-4747-a97b-171b6aa41073",
+        "firstPrintSet": "jou",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Font of Return",
+        "scryfallId": "c13eacff-0fd1-4e2e-8213-5bf5fff973c8",
+        "oracleId": "b8805aa6-fa5f-4c70-ad90-8502611bef5a",
+        "firstSet": "jou",
+        "firstPrintId": "c13eacff-0fd1-4e2e-8213-5bf5fff973c8",
         "firstPrintSet": "jou",
         "rarity": "common",
         "source": "compiled"
@@ -27808,6 +27878,16 @@
         "firstSet": "m10",
         "firstPrintId": "6784b663-b117-45a2-bde4-72e080058ea7",
         "firstPrintSet": "m10",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Griffnaut Tracker",
+        "scryfallId": "95f5d048-226f-49a4-a2ce-a6fa99aa9e8a",
+        "oracleId": "6eff5e17-946b-4433-9f48-88f103844c42",
+        "firstSet": "mkm",
+        "firstPrintId": "95f5d048-226f-49a4-a2ce-a6fa99aa9e8a",
+        "firstPrintSet": "mkm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -49258,6 +49338,16 @@
         "firstPrintSet": "snc"
     },
     {
+        "name": "Rag Dealer",
+        "scryfallId": "18ef007a-fcf4-4293-933e-4f9f7f602002",
+        "oracleId": "493acba2-92b0-43a4-9f4b-d49a91ca77f5",
+        "firstSet": "chk",
+        "firstPrintId": "18ef007a-fcf4-4293-933e-4f9f7f602002",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rag Man",
         "scryfallId": "f4c133b8-8383-433f-be96-c47a937287b7",
         "oracleId": "8132c521-44e2-4fc0-b3de-e5b92d04463a",
@@ -49775,6 +49865,16 @@
         "firstPrintId": "b547513d-8b69-41cd-84c9-4b08b6426f1d",
         "firstPrintSet": "mh1",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rapid Decay",
+        "scryfallId": "1678d911-1456-4631-a2f4-d7de4906644b",
+        "oracleId": "2c769dfc-79be-4fcb-840c-b72cafdd0a23",
+        "firstSet": "uds",
+        "firstPrintId": "1678d911-1456-4631-a2f4-d7de4906644b",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -54406,6 +54506,16 @@
         "firstSet": "shm",
         "firstPrintId": "b34e3f7c-468a-456c-8ed0-0cb88f6d86fc",
         "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scarab Feast",
+        "scryfallId": "7540895c-cbbc-46ac-ba96-882628358865",
+        "oracleId": "8b9043d3-a1c6-4f49-9c49-ef78bbfbd4ac",
+        "firstSet": "akh",
+        "firstPrintId": "7540895c-cbbc-46ac-ba96-882628358865",
+        "firstPrintSet": "akh",
         "rarity": "common",
         "source": "compiled"
     },
