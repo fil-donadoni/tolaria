@@ -1476,13 +1476,15 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 608.2c + CR 701.13a — "You may exile a card from your hand.
-           * If you do, <effect>.": an optional move of one of the
-           * controller's own hand cards that gates the effect after it.
-           * Folded by `assembleSentences` from the `optional-hand-exile` and
+           * CR 608.2c + CR 701.13a / CR 701.9a — "You may exile / discard a
+           * card from your hand. If you do, <effect>.": an optional move of
+           * one of the controller's own hand cards that gates the effect
+           * after it.
+           * Folded by `assembleSentences` from the `optional-hand-cost` and
            * `if-you-do` roles; either alone is refused.
            */
-          readonly kind: "optional-hand-exile-then";
+          readonly kind: "optional-hand-cost-then";
+          readonly action: "exile" | "discard";
           readonly clause: string;
           readonly effect: EffectSentenceIR;
       }
@@ -2158,9 +2160,13 @@ export type SentenceIR =
     | { readonly role: "hand-pick-route"; readonly route: HandPickRoute }
     /**
      * CR 608.2c — "You may exile a card from your hand.", the first half of
-     * an `optional-hand-exile-then`; the `if-you-do` after it is the second.
+     * an `optional-hand-cost-then`; the `if-you-do` after it is the second.
      */
-    | { readonly role: "optional-hand-exile"; readonly text: string }
+    | {
+          readonly role: "optional-hand-cost";
+          readonly text: string;
+          readonly action: "exile" | "discard";
+      }
     /**
      * CR 121.1 + CR 603.5 — "You may draw N additional cards.", the first
      * sentence of a `draw-then-ranged-topdeck`; the `choose-drawn-this-turn`
@@ -2286,9 +2292,9 @@ export function assembleSentences(
         readonly pick?: HandPickIR;
     } | null = null;
     // CR 608.2c — an optional hand exile waits for the "If you do" it gates.
-    let optionalHandExile: Extract<
+    let optionalHandCost: Extract<
         SentenceIR,
-        { role: "optional-hand-exile" }
+        { role: "optional-hand-cost" }
     > | null = null;
     // CR 121.1 — "You may draw N additional cards" waits for the pick among
     // the cards drawn this turn, then for the price of each card not kept.
@@ -2345,18 +2351,19 @@ export function assembleSentences(
                 ok: false,
                 reason: '"cards drawn this turn" follows no "You may draw additional cards"',
             };
-        if (optionalHandExile !== null) {
+        if (optionalHandCost !== null) {
             if (sentence.role !== "if-you-do")
                 return {
                     ok: false,
-                    reason: '"You may exile a card from your hand" is not followed by "If you do, …"',
+                    reason: '"You may exile / discard a card from your hand" is not followed by "If you do, …"',
                 };
             effects.push({
-                kind: "optional-hand-exile-then",
-                clause: optionalHandExile.text,
+                kind: "optional-hand-cost-then",
+                action: optionalHandCost.action,
+                clause: optionalHandCost.text,
                 effect: sentence.effect,
             });
-            optionalHandExile = null;
+            optionalHandCost = null;
             continue;
         }
         if (handReveal !== null) {
@@ -2847,8 +2854,8 @@ export function assembleSentences(
             handReveal = { player: sentence.player, pick: sentence.pick };
             continue;
         }
-        if (sentence.role === "optional-hand-exile") {
-            optionalHandExile = sentence;
+        if (sentence.role === "optional-hand-cost") {
+            optionalHandCost = sentence;
             continue;
         }
         if (sentence.role === "optional-draw-additional") {
@@ -3107,7 +3114,7 @@ export function assembleSentences(
             ok: false,
             reason: "a revealed hand is not followed by the card chosen from it and where it goes",
         };
-    if (optionalHandExile !== null)
+    if (optionalHandCost !== null)
         return {
             ok: false,
             reason: '"You may exile a card from your hand" is the last sentence and gates no effect',
@@ -3440,7 +3447,11 @@ export function capitalise(span: string): string {
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
 /** CR 701.13a — the optional move of one of the controller's hand cards. */
-const OPTIONAL_HAND_EXILE = "exile a card from your hand";
+const OPTIONAL_HAND_COSTS = {
+    "exile a card from your hand": "exile",
+    // CR 701.9a — "discard a card" (Gigapede): the hand discard of the cost leg.
+    "discard a card": "discard",
+} as const;
 
 /**
  * Wrap a sentence rule so it also reads CR 603.2's "you may <effect>".
@@ -3491,12 +3502,15 @@ export function optionalSentenceRule(
         if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
-        // of an `optional-hand-exile-then`: what it gates is the "If you do"
+        // of an `optional-hand-cost-then`: what it gates is the "If you do"
         // after it, not an effect of its own.
-        if (clause === OPTIONAL_HAND_EXILE)
+        if (Object.hasOwn(OPTIONAL_HAND_COSTS, clause))
             return ok({
-                role: "optional-hand-exile" as const,
+                role: "optional-hand-cost" as const,
                 text: capitalise(clause),
+                action: OPTIONAL_HAND_COSTS[
+                    clause as keyof typeof OPTIONAL_HAND_COSTS
+                ],
             });
         // CR 121.1 + CR 603.5 — "you may draw N additional cards" is the
         // first of the three sentences of a `draw-then-ranged-topdeck`.
@@ -4019,7 +4033,7 @@ const RETURN_ALL_FROM_GRAVEYARD =
     /^Return all (\w+) cards from your graveyard to the battlefield$/;
 /** CR 113.6b — "return this card from your graveyard to your hand". */
 const RETURN_SELF_FROM_GRAVEYARD =
-    /^Return this card from your graveyard to your hand$/;
+    /^Return this card (?:from your graveyard )?to your hand$/;
 /** CR 303.4f — "return this card from your graveyard to the battlefield attached to that creature". */
 const RETURN_SELF_FROM_GRAVEYARD_ATTACHED =
     /^Return this card from your graveyard to the battlefield attached to that creature$/;
