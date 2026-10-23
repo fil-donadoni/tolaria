@@ -13674,6 +13674,7 @@
         {"id":"400.3","line":"// CR 400.3 / 601.2 — the rebuild writes the CASTER into both, because the","sites":1,"status":"baseline"},
         {"id":"400.3","line":"// CR 400.3 — \"Put target creature you control on top of its","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — \"Put target creature you control on top of its owner's","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
+        {"id":"400.3","line":"// CR 400.3 — \"Return all artifacts target player owns to their hand\": a bounce sweep scoped to an announced player's battlefield, one `moveZone` to the hand per artifact. Exhibits the sweep `moveZone` of `$each` under a target-player controller the canned smoke scenario cannot model (issue #5701).","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — \"put target creature you control on top of its owner's","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — \"return a blue or black creature you control to its owner's","sites":1,"status":"confirmed","ruleHash":"16c56515612de5e8"},
         {"id":"400.3","line":"// CR 400.3 — a batch of cards put into a library, each with its origin","sites":1,"status":"baseline"},
