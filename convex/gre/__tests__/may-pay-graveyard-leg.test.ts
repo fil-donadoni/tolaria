@@ -12,6 +12,7 @@ import {
     getMayPayGraveyardCandidateIds,
     mayPayGraveyardChoiceRequired,
     normalizeMayPayCost,
+    payMayPayCost,
     type CardInstanceState,
     type GameState,
 } from "../state";
@@ -110,6 +111,34 @@ describe("CostLegs.graveyard — legality (CR 118.3)", () => {
         expect(
             mayPayGraveyardChoiceRequired(state, "p1", RETURN_A_BASIC_LAND_CARD)
         ).toBe(true);
+    });
+});
+
+describe("payMayPayCost — the graveyard leg never auto-picks", () => {
+    it("throws without a legal pick and pays NO leg, not even the mana", () => {
+        const { state } = stateWith([forest("f1")]);
+        state.players[0]!.manaPool = { G: 1 };
+        const cost = { ...RETURN_A_BASIC_LAND_CARD, mana: { G: 1 } };
+        expect(() => payMayPayCost(state, "p1", cost)).toThrow(
+            /Choose the card\(s\) to return from your graveyard/
+        );
+        expect(state.players[0]!.manaPool.G).toBe(1);
+        expect(ids(state.players[0]!.graveyard)).toEqual(["f1"]);
+    });
+
+    it("moves the named card when given a legal pick", () => {
+        const { state } = stateWith([forest("f1"), island("i1")]);
+        payMayPayCost(
+            state,
+            "p1",
+            RETURN_A_BASIC_LAND_CARD,
+            undefined,
+            undefined,
+            undefined,
+            ["f1"]
+        );
+        expect(ids(state.players[0]!.hand)).toEqual(["f1"]);
+        expect(ids(state.players[0]!.graveyard)).toEqual(["i1"]);
     });
 });
 
