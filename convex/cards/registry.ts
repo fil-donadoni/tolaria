@@ -1232,6 +1232,8 @@ export function getInstanceManaCost(instance: {
  *  printed definitions the map holds that the index does not cover (a test's
  *  registration), mirroring {@link printedBackFaceTriggers}. */
 function isNonmodalBackFaceDefinitionId(cardId: string): boolean {
+    // Every synthesized back-face id is a token id (the content-derived codec).
+    if (!cardId.startsWith("token:")) return false;
     if (printedBackFaceOwner?.(cardId) !== undefined) return true;
     for (const [id, def] of registry) {
         const backFace = def.backFace;
@@ -1266,12 +1268,15 @@ export function getPermanentManaValueCost(instance: {
     copiedFrom?: string;
 }): ManaCost | undefined {
     if (instance.manaCostOverride) return instance.manaCostOverride;
-    if (instance.transformed && instance.transformedFrom) {
-        const front = tryGetDefinition(instance.transformedFrom);
-        if (front && !isModalDoubleFaced(front)) return front.manaCost;
-    } else if (instance.copiedFrom !== undefined) {
+    // A copy effect is layer 1 (CR 613.1a) and replaces the transformed
+    // face's copiable values, so it is asked BEFORE the transform marker,
+    // which `applyCopy` leaves standing (CR 202.3b's Insectile Aberration).
+    if (instance.copiedFrom !== undefined) {
         const id = (instance.card as { id?: string }).id;
         if (id && isNonmodalBackFaceDefinitionId(id)) return {};
+    } else if (instance.transformed && instance.transformedFrom) {
+        const front = tryGetDefinition(instance.transformedFrom);
+        if (front && !isModalDoubleFaced(front)) return front.manaCost;
     }
     return getInstanceManaCost(instance);
 }

@@ -368,6 +368,21 @@ describe("permanentManaValue of a double-faced permanent (CR 712.8e / 202.3b)", 
         expect(permanentManaValue(recipient!)).toBe(0);
     });
 
+    it("values a TRANSFORMED permanent that becomes a copy of a back face at 0 (CR 202.3b)", () => {
+        const state = board({
+            battlefield: [NONMODAL_FRONT_ID, NONMODAL_FRONT_ID, FIVE_DROP_ID],
+        });
+        const [src, aberration, bear] = getPlayer(state, "p1").battlefield;
+        transformPermanent(state, src!);
+        transformPermanent(state, aberration!);
+        applyCopy(state, aberration!, src!);
+        expect(aberration!.transformed).toBe(true);
+        expect(permanentManaValue(aberration!)).toBe(0);
+        // ...and of an ordinary card it reads that card's cost, not its front's.
+        applyCopy(state, aberration!, bear!);
+        expect(permanentManaValue(aberration!)).toBe(5);
+    });
+
     it("keeps a MODAL back face's own cost (CR 712.8f)", () => {
         const state = board({ battlefield: [modalFront.id] });
         const [card] = getPlayer(state, "p1").battlefield;

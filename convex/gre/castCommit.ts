@@ -27,7 +27,7 @@
 // answered makes the commit STALE (`null`, nothing reaches the stack), which is
 // the caller's vanished-card policy to act on.
 
-import { tryGetDefinition } from "../cards";
+import { getPermanentManaValueCost } from "../cards";
 import type {
     CardDefinition,
     LiveGraveyardPlayPermission,
@@ -324,11 +324,9 @@ export function commitCast(
             (c) => c.id === exileCost.pickedId
         );
         if (!exiled) return null;
-        const exCardId = (exiled.card as { id?: string }).id;
-        const exDef = exCardId ? tryGetDefinition(exCardId) : undefined;
         additionalSacrificeSnapshot = {
             cardInstanceId: exiled.id,
-            mv: manaValue(exDef?.manaCost),
+            mv: manaValue(getPermanentManaValueCost(exiled)),
             ...(exiled.subtypes && exiled.subtypes.length > 0
                 ? { subtypes: [...exiled.subtypes] }
                 : {}),
