@@ -77,6 +77,28 @@ describe("optional hand discard then (issue #5295)", () => {
         );
     });
 
+    it("also reads the same frame on a battlefield trigger: Keldon Raider", () => {
+        const out = compileCard(
+            oracleCard({
+                oracleId: "00000000-0000-0000-0000-0000000052ff",
+                name: "Keldon Raider",
+                manaCost: "{2}{R}",
+                typeLine: "Creature — Human Warrior",
+                oracleText:
+                    "When this creature enters, you may discard a card. If you do, draw a card.",
+                power: "4",
+                toughness: "3",
+            })
+        );
+        expect(out.state).toBe("ready");
+        if (out.state !== "ready") return;
+        const effects = JSON.stringify(
+            out.definition.compiledTriggeredAbilities?.[0]?.effects
+        );
+        expect(effects).toContain('"action":"discard"');
+        expect(effects).toContain('"op":"draw"');
+    });
+
     it("refuses a discard with no 'If you do' behind it", () => {
         const out = compileCard(
             gigapede(
