@@ -94,4 +94,13 @@ describe("neighbours stay refused (fail-closed)", () => {
         });
         expect(outcome.state).toBe("unparsed");
     });
+
+    it("refuses a plural noun after 'an untapped'", () => {
+        const outcome = compileCard({
+            ...TANGLE_WIRE,
+            oracleText:
+                "At the beginning of each player's upkeep, that player taps an untapped creatures they control for each fade counter on this artifact.",
+        });
+        expect(outcome.state).toBe("unparsed");
+    });
 });

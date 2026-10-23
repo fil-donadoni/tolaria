@@ -8188,6 +8188,9 @@ function effectSentence(
             return fail(`"this ${tapPer[4]}" is not the source`, span);
         const descriptor = descriptorRule.run(tapPer[2]!, ctx);
         if (!descriptor.ok) return descriptor;
+        // "an untapped creatures" disagrees in number: one permanent per counter.
+        if (descriptor.value.plural === true)
+            return fail(`"${tapPer[2]}" disagrees in number`, tapPer[2]!);
         const filter = sacrificeFilterFromDescriptor(
             descriptor.value,
             COLOR_ALTERNATIVES.test(tapPer[2]!)
