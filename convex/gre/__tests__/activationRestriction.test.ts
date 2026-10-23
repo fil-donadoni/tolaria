@@ -5,7 +5,8 @@
 // Driven through the real entry points — `activateAbilityOnState` (the stack
 // ability mutation's body), `tapSourceIntoPayment` (the tap primitive the mana
 // mutations share), the mana funnels the auto-tap planner and the castability
-// census read, and the Bot's `enumerateMoves` — never a hand-built verdict.
+// census read — never a hand-built verdict. The Bot's `enumerateMoves` side
+// lives in `activationRestriction.bot.test.ts` (bot suite).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -19,7 +20,6 @@ import { activateAbilityOnState } from "../activation";
 import { activationPreconditionViolation } from "../activationPrecondition";
 import { activationRestrictionViolation } from "../activationRestrictions";
 import { getManaTapOptionsDetailed, hasManaAbility } from "../constants";
-import { enumerateMoves } from "../moves";
 import { collectManaConverterLegs } from "../manaConverters";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
@@ -138,26 +138,6 @@ describe("activation-restriction: non-mana activated abilities (CR 602.5)", () =
         expect(
             activationRestrictionViolation(state, "dragon", false)
         ).toBeNull();
-    });
-
-    it("the Bot never enumerates the locked activation", () => {
-        const locked = board({
-            mine: [["Shivan Dragon", "dragon"]],
-            pool: { R: 1 },
-        }).state;
-        const free = board({
-            mine: [["Shivan Dragon", "dragon"]],
-            pool: { R: 1 },
-            totem: false,
-        }).state;
-        const pumps = (s: GameState) =>
-            enumerateMoves(s, "p1").filter(
-                (m) =>
-                    m.kind === "activate-ability" &&
-                    m.abilityId === "shivan-dragon-pump"
-            );
-        expect(pumps(free).length).toBeGreaterThan(0);
-        expect(pumps(locked)).toHaveLength(0);
     });
 });
 
