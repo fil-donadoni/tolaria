@@ -751,9 +751,9 @@ export function tapOtherCostCandidates(
         }));
 }
 
-/** CR 601.2f / 605.3c (issue #1179) — a mana ability that must NOT be a silent
- *  left-click tap-for-mana: its cost includes mana, or it has no {T}/sacrifice
- *  component to tap through at all. */
+/** CR 602.2b (issue #1179) — a mana ability whose activation cost must be paid
+ *  deliberately, so it must NOT be a silent left-click tap-for-mana: its cost
+ *  includes mana, or it has no {T}/sacrifice component to tap through at all. */
 function needsExplicitManaMenuEntry(a: ActivatedAbility): boolean {
     return !!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice);
 }
