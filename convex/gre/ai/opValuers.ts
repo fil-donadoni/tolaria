@@ -1647,6 +1647,20 @@ const draw: Valuer<"draw"> = (op, ctx) => {
     return { points, tags: tagScaling(scaling, "cardAdvantage") };
 };
 
+// CR 400.11b — a Wish puts one card its player owns from outside the game
+// into their hand: one card of advantage, like `draw` 1 (the pick is the
+// best matching card, so never worse than a blind draw). The pool is hidden
+// at scoring time, so whether it holds a match is unknowable here — the
+// Op is priced at its yield when it finds one.
+const bringFromOutsideGame: Valuer<"bringFromOutsideGame"> = (op, ctx) => ({
+    points: priced(
+        ctx,
+        "cardAdvantage",
+        ctx.isSelf(op.player, "self") ? 1 : -1
+    ),
+    tags: ["cardAdvantage"],
+});
+
 const gainLife: Valuer<"gainLife"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.amount);
     const self = ctx.isSelf(op.player, "self");
@@ -3237,6 +3251,7 @@ export const OP_VALUERS: {
     dealDamageToEach,
     distributeCountersAsChosen,
     draw,
+    bringFromOutsideGame,
     gainLife,
     loseLife,
     destroy,
@@ -3511,6 +3526,8 @@ export type Beneficence = "beneficial" | "harmful" | "neutral";
 export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // ── Gifts to the recipient ────────────────────────────────────────────
     draw: "beneficial",
+    // CR 400.11b — a card into its player's hand.
+    bringFromOutsideGame: "beneficial",
     gainLife: "beneficial",
     addMana: "beneficial",
     createToken: "beneficial",

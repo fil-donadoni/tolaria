@@ -259,7 +259,13 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // graveyard" prompt. Unregistered, a probe of the cast stopped at the
         // suspended prompt and scored the mana spent for a body still staged.
         expect(hasChoiceCandidateGenerator("choose-graveyard-card")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(20);
+        // CR 400.11b (issue #6523) — the Wish pick. An optional pick whose
+        // minimal-legal answer is the empty one: unregistered, the bot paid
+        // for the wish and brought nothing in.
+        expect(hasChoiceCandidateGenerator("choose-outside-game-card")).toBe(
+            true
+        );
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(21);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

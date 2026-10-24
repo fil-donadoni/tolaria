@@ -19,6 +19,10 @@
         "code": "op-own-tests",
         "reason": "Op \"becomeMonarch\" sets the global monarch designation — covered by the Op's interpreter tests"
     },
+    "bringFromOutsideGame": {
+        "code": "suspends-for-input",
+        "reason": "Op \"bringFromOutsideGame\" suspends for a pick from outside the game — covered by hand-written tests"
+    },
     "captureBinding": {
         "code": "card-paired-mechanism",
         "reason": "Op \"captureBinding\" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests"

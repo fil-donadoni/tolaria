@@ -191,6 +191,11 @@ export function determinize(
             determinizeObserver(player, rng, pinned);
             continue;
         }
+        // CR 400.11a — another seat's sideboard is hidden and is no zone a
+        // re-deal could sample: the observer knows nothing of it, so the
+        // world holds none (a full-information search state must not let the
+        // bot simulate the opponent's Wish with perfect knowledge).
+        delete player.outsideGame;
         // The ladder's information-removal knob wins over everything below
         // (issue #2791): a blinded seat holds nothing the observer has not
         // been shown, so neither its real contents nor a decklist may leak in.
