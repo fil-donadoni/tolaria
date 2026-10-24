@@ -382,11 +382,7 @@ describe("prevent the next N damage — refusals stay fail-closed", () => {
         );
     });
 
-    it("Rakalite's delayed return is another gap: the whole card stays unparsed", () => {
-        // The refusal sits on the RIDER, not on the shield sentence the rule
-        // now reads — the span names which sentence stopped the card.
-        expect(refusedSpan(RAKALITE)).toBe(
-            "its owner's hand at the beginning of the next end step"
-        );
+    it("Rakalite's delayed return is read since issue #5255: the whole card compiles", () => {
+        expect(compileCard(RAKALITE).state).toBe("ready");
     });
 });
