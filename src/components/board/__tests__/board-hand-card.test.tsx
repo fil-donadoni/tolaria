@@ -37,13 +37,16 @@ const noopBuffer: PendingChoiceBuffer = {
 const playCard = vi.fn();
 const announceCast = vi.fn();
 const activateAbility = vi.fn().mockResolvedValue(undefined);
+const activateManaAbility = vi.fn().mockResolvedValue(undefined);
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) =>
         ref._name === "playCard"
             ? playCard
             : ref._name === "activateAbility"
               ? activateAbility
-              : announceCast,
+              : ref._name === "activateManaAbility"
+                ? activateManaAbility
+                : announceCast,
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {
@@ -51,6 +54,7 @@ vi.mock("@convex/_generated/api", () => ({
             playCard: { _name: "playCard" },
             announceCast: { _name: "announceCast" },
             activateAbility: { _name: "activateAbility" },
+            activateManaAbility: { _name: "activateManaAbility" },
         },
     },
 }));
@@ -208,6 +212,7 @@ beforeEach(() => {
     playCard.mockClear();
     announceCast.mockClear();
     activateAbility.mockClear();
+    activateManaAbility.mockClear();
     cardDef = { name: "Test Card" };
     cleanup();
     resetPendingGameIntents();
@@ -572,6 +577,95 @@ describe("BoardHandCard Cycling affordance (CR 702.29a, #689)", () => {
         fireEvent.click(el());
         expect(announceCast).toHaveBeenCalledTimes(1);
         expect(activateAbility).not.toHaveBeenCalled();
+    });
+});
+
+// CR 113.6m / 605.3a — a MANA ability activated from the hand ("Exile this
+// card from your hand: Add {G}.", Elvish Spirit Guide, issue #5326). It
+// dispatches `activateManaAbility`, never `activateAbility`, and — being a mana
+// ability — stays offered while the viewer pays for ANOTHER spell, but never
+// while its own cast is being paid (CR 601.2a).
+describe("BoardHandCard hand mana ability (CR 113.6m / 605.3a, #5326)", () => {
+    const guideMana = {
+        id: "elvish-spirit-guide-mana",
+        oracleText: "Exile this card from your hand: Add {G}.",
+        cost: { exileThis: true },
+        activateFromHand: true,
+        useStack: false,
+        manaProduced: { G: 1 },
+    };
+    const paying = (cardInstanceId: string) => ({
+        pendingCast: {
+            playerId: "me",
+            cardInstanceId,
+            manaCost: { G: 1 },
+            tappedLandIds: [],
+        },
+    });
+
+    it("with priority and no legal cast, a click activates the mana ability", () => {
+        cardDef = {
+            name: "Elvish Spirit Guide",
+            activatedAbilities: [guideMana],
+        };
+        renderCard(makeCard("guide", []));
+        fireEvent.click(el());
+        expect(activateManaAbility).toHaveBeenCalledTimes(1);
+        expect(activateManaAbility.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "guide",
+            abilityId: "elvish-spirit-guide-mana",
+        });
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("while paying for another spell, a click still activates it", () => {
+        cardDef = {
+            name: "Elvish Spirit Guide",
+            activatedAbilities: [guideMana],
+        };
+        renderCard(makeCard("guide", ["cast"]), paying("elves"));
+        fireEvent.click(el());
+        expect(activateManaAbility).toHaveBeenCalledTimes(1);
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("while paying, a pending NON-mana choice freezes it (the server refuses)", () => {
+        cardDef = {
+            name: "Elvish Spirit Guide",
+            activatedAbilities: [guideMana],
+        };
+        renderCard(makeCard("guide", ["cast"]), {
+            ...paying("elves"),
+            pendingChoices: [
+                { kind: "option-pick", playerId: "me", choiceId: "c1" },
+            ],
+        });
+        fireEvent.click(el());
+        expect(activateManaAbility).not.toHaveBeenCalled();
+    });
+
+    it("inside a may-pay window (CR 608.2g), a click activates it", () => {
+        cardDef = {
+            name: "Elvish Spirit Guide",
+            activatedAbilities: [guideMana],
+        };
+        renderCard(makeCard("guide", []), {
+            pendingChoices: [
+                { kind: "may-pay", playerId: "me", choiceId: "c1" },
+            ],
+        });
+        fireEvent.click(el());
+        expect(activateManaAbility).toHaveBeenCalledTimes(1);
+    });
+
+    it("while its OWN cast is being paid, it is inert", () => {
+        cardDef = {
+            name: "Elvish Spirit Guide",
+            activatedAbilities: [guideMana],
+        };
+        renderCard(makeCard("guide", ["cast"]), paying("guide"));
+        fireEvent.click(el());
+        expect(activateManaAbility).not.toHaveBeenCalled();
     });
 });
 

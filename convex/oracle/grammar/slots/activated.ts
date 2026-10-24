@@ -137,6 +137,7 @@ function namesSource(atom: CostAtomIR): boolean {
     switch (atom.kind) {
         case "sacrifice-self":
         case "exile-self":
+        case "exile-self-from-hand":
         case "return-self":
         case "remove-counter":
             return true;

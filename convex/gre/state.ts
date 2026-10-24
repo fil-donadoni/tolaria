@@ -19735,12 +19735,14 @@ export function exileCardFromGraveyard(
  *  action; CR 601.2h via CR 602.2b — the cost is paid at ACTIVATION, while the
  *  ability is being put on the stack, never at resolution).
  *
- *  Two source zones, one flag, dispatched on the ability's OWN declared source
- *  zone (`activateFromGraveyard`) rather than on where the card happens to be
- *  found — a declared discriminator cannot fail open the way "look for it
- *  somewhere" would:
+ *  Three source zones, one flag, dispatched on the ability's OWN declared
+ *  source zone ({@link exileThisSourceZone}) rather than on where the card
+ *  happens to be found — a declared discriminator cannot fail open the way
+ *  "look for it somewhere" would:
  *   - graveyard source (Eternalize CR 702.129a / Embalm CR 702.128a) → the
  *     plain graveyard → exile move;
+ *   - hand source (Elvish Spirit Guide's "Exile this card from your hand") →
+ *     the plain hand → exile move;
  *   - battlefield source (Feldon's Cane) → `removePermanentTo(…, "exile")`,
  *     the same leave-the-battlefield funnel `cost.sacrifice` uses, so aura
  *     cleanup, PERMANENT_LEFT and a CR 614 leave-replacement all apply.
@@ -19752,10 +19754,34 @@ export function payExileThisCost(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string,
-    fromGraveyard: boolean
+    from: ExileThisSourceZone
 ): boolean {
-    if (fromGraveyard) return exileCardFromGraveyard(player, cardInstanceId);
+    if (from === "graveyard")
+        return exileCardFromGraveyard(player, cardInstanceId);
+    if (from === "hand") {
+        if (!player.hand.some((c) => c.id === cardInstanceId)) return false;
+        moveCard(player, cardInstanceId, "hand", "exile");
+        return true;
+    }
     return removePermanentTo(state, cardInstanceId, "exile") !== null;
+}
+
+/** The zone an "Exile this card" cost moves its source OUT of. */
+export type ExileThisSourceZone = "battlefield" | "graveyard" | "hand";
+
+/** CR 113.6m — an ability whose cost moves the object it is on out of a zone
+ *  functions only in that zone, so the zone is the one the ability DECLARES it
+ *  is activated from (`activateFromGraveyard` / `activateFromHand`), and the
+ *  battlefield otherwise. */
+export function exileThisSourceZone(
+    ability: Pick<
+        ActivatedAbility,
+        "activateFromGraveyard" | "activateFromHand"
+    >
+): ExileThisSourceZone {
+    if (ability.activateFromGraveyard) return "graveyard";
+    if (ability.activateFromHand) return "hand";
+    return "battlefield";
 }
 
 /** SINGLE AUTHORITY for the `cost.returnThisToHand` activation cost — "Return
