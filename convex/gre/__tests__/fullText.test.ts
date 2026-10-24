@@ -366,6 +366,25 @@ describe("full-text effect — not copiable (CR 707.2)", () => {
         });
     });
 
+    it("becoming a copy replaces layer 1 and ends the full text with it (CR 613.1a)", () => {
+        withShapeshifter(() => {
+            const state = board(
+                [inGraveyard(CRAW_WURM, "wurm")],
+                [makeInstance(LIONS, { id: "lions" })]
+            );
+            const shifter = find(state, "shifter");
+            expect(presentedDefId(shifter)).toBe(CRAW_WURM);
+            applyCopy(state, shifter, find(state, "lions"));
+            recomputeContinuousEffects(state);
+            // The copy's printed anchor is the Shapeshifter, never the Wurm it
+            // was showing, and a Savannah Lions has no shapeshifting text.
+            expect(shifter.copiedFrom).toBe(SHAPESHIFTER);
+            expect(presentedDefId(shifter)).toBe(LIONS);
+            expect(shifter.fullTextAnchor).toBeUndefined();
+            expect(pt(state, "shifter")).toEqual([2, 1]);
+        });
+    });
+
     it("the departure LKI records the copiable identity, the shown one beside it", () => {
         withShapeshifter(() => {
             const state = board([inGraveyard(CRAW_WURM, "wurm")]);

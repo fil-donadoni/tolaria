@@ -545,6 +545,23 @@ describe("Definition Manifest — what a state contributes (issue #5614)", () =>
         expect(stateDefinitionIds(state, "p2")).toEqual([]);
     });
 
+    it("names the card under a full-text effect (CR 612.6)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(SIREN, {
+                            fullTextAnchor: { underlyingDefId: BORROWER },
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        expect(stateDefinitionIds(state, "p2")).toEqual([SIREN, BORROWER]);
+    });
+
     it("leaves out an id the Definition Index does not hold — no shard serves it", () => {
         expect(manifestEntries(["not-a-card", MOUNTAIN])).toEqual([
             { definitionId: MOUNTAIN, setCode: "lea" },
