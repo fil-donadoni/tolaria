@@ -3831,6 +3831,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"delayedTrigger\" acts on $source — covered by the card's own per-card test",
+            "issue": 6598
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
             "issue": 4172
         },
