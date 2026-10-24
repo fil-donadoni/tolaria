@@ -30,7 +30,7 @@
  *
  * ── What v0 deliberately refuses ───────────────────────────────────────────
  *
- * "Add three mana of any one color" and "Add {G} for each Forest you control"
+ * "Add three mana of any color" and "Add {G} for each Forest you control"
  * need a mana DESCRIPTOR the engine models with `manaColorSource` /
  * `getManaChoices` rather than with a fixed `ManaCost`, so the shared quantity
  * sub-grammar landing in #2697 is necessary but not sufficient for them. They
@@ -74,7 +74,7 @@ import {
     type Rule,
 } from "../../rule";
 import type { ParseContext } from "../../types";
-import { MANA_COLORS } from "../../../gre/manaColors";
+import { COLORED_MANA_COLORS, MANA_COLORS } from "../../../gre/manaColors";
 import { activationCostRule } from "../shared/cost";
 import { forEachRule, readNumberWord } from "../shared/quantity";
 import {
@@ -165,6 +165,29 @@ const anyColorProduction: Rule<ManaProductionIR> = rule(
         span === ANY_COLOR_SPAN
             ? ok({ kind: "choice" as const, options: anyColorOptions() })
             : fail(`production is not "${ANY_COLOR_SPAN}"`, span)
+);
+
+/**
+ * CR 106.1a / 605.1a — "Add three mana of any one color" (Lion's Eye Diamond,
+ * Diamond Lion): the activator picks ONE of the five colours and all three
+ * mana are that colour, i.e. a CHOICE production whose options are the five
+ * triples `{W:3} … {G:3}` — exactly the `manaChoices` list the hand-written
+ * twin ships. "three mana of any color" (each mana picked separately) and
+ * other counts are different mana descriptors and stay refused.
+ */
+const ANY_ONE_COLOR_TRIPLE_SPAN = "three mana of any one color";
+
+const anyOneColorTripleProduction: Rule<ManaProductionIR> = rule(
+    "mana three of any one color",
+    (span) =>
+        span === ANY_ONE_COLOR_TRIPLE_SPAN
+            ? ok({
+                  kind: "choice" as const,
+                  options: COLORED_MANA_COLORS.map(
+                      (c) => ({ [c]: 3 }) as ManaCost
+                  ),
+              })
+            : fail(`production is not "${ANY_ONE_COLOR_TRIPLE_SPAN}"`, span)
 );
 
 /**
@@ -272,6 +295,7 @@ const production: Rule<ManaProductionIR> = subGrammar(
         fixedProduction,
         choiceProduction,
         anyColorProduction,
+        anyOneColorTripleProduction,
         forEachProduction,
         boardChoiceProduction,
     ])
@@ -321,6 +345,14 @@ const DRAW_RIDER = "Draw a card";
 const ONCE_PER_TURN_RIDER = "Activate only once each turn";
 
 /**
+ * CR 605.3a — "Activate only as an instant." (Lion's Eye Diamond): a mana
+ * ability is activatable any time its controller has priority or is paying a
+ * cost, so the restriction is already the engine's behaviour and lowers to no
+ * field. Read, not skipped, so the sentence is accounted for.
+ */
+const INSTANT_ONLY_RIDER = "Activate only as an instant";
+
+/**
  * CR 122.1 / 701.21a — "If there are no depletion counters on this land,
  * sacrifice it", the Mercadian Masques depletion lands' second sentence
  * (`sacrificesSourceWhenNoCountersRemain`). The counter kind is read, not
@@ -354,6 +386,7 @@ function readManaRider(
     const rider = ((): ManaRiderIR | null => {
         if (span === DRAW_RIDER) return { kind: "draw-card" };
         if (span === ONCE_PER_TURN_RIDER) return { kind: "once-per-turn" };
+        if (span === INSTANT_ONLY_RIDER) return { kind: "instant-only" };
         if (span === NEXT_UNTAP_RETURN_RIDER)
             return { kind: "return-source-at-next-untap" };
         const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);

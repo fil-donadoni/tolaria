@@ -15996,6 +15996,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Diamond Lion",
+        "scryfallId": "317a8ed5-1ec2-4a5d-a606-8c6ba781c8a3",
+        "oracleId": "7ea9bb3b-76e9-4150-9e4f-1cd3abfe8ad7",
+        "firstSet": "mh2",
+        "firstPrintId": "317a8ed5-1ec2-4a5d-a606-8c6ba781c8a3",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Diamond Valley",
         "scryfallId": "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
         "oracleId": "84cef34a-c3e1-4059-b4cd-c481938a53a5",
@@ -25608,6 +25618,16 @@
         "firstSet": "usg",
         "firstPrintId": "8de3fdae-cc2c-4a14-b15b-4fe1a983dfbf",
         "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Gilded Lotus",
+        "scryfallId": "a1d5e4c8-dfd0-45bc-8000-ebfaccfefec3",
+        "oracleId": "9a02a9a7-39d9-4763-85d3-747a0540b60b",
+        "firstSet": "mrd",
+        "firstPrintId": "a1d5e4c8-dfd0-45bc-8000-ebfaccfefec3",
+        "firstPrintSet": "mrd",
         "rarity": "rare",
         "source": "compiled"
     },
