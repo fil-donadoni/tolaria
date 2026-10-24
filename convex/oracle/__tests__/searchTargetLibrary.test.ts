@@ -109,11 +109,51 @@ describe("Search a target library — accepted forms (CR 701.23a, CR 701.24a)", 
     });
 });
 
+describe("Search a target library — a stated quality (CR 701.23b)", () => {
+    // Quiet Speculation's Oracle row, whole: the find is the optional
+    // "up to three" range narrowed to cards that carry a flashback cost.
+    it("up to N cards with flashback → graveyard, then shuffle", () => {
+        const def = compiled(
+            "Search target player's library for up to three cards with flashback and put them into that player's graveyard. Then the player shuffles."
+        );
+        expect(def.targetRequirement).toEqual({ type: "player", count: 1 });
+        expect(def.effects).toEqual([
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                zoneOwnerId: { target: 0 },
+                filter: { hasFlashback: true },
+                count: { min: 0, max: 3 },
+                prompt: "Search that player's library for up to three cards with flashback.",
+                bind: "$found1",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$found1" },
+                player: { target: 0 },
+                from: "library",
+                to: "graveyard",
+            },
+            { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+        ]);
+    });
+});
+
 describe("Search a target library — refusals (CR 701.23b)", () => {
     it.each([
         [
-            "a stated quality",
-            "Search target player's library for up to three cards with flashback and put them into that player's graveyard.",
+            "a stated quality outside the vocabulary",
+            "Search target player's library for up to three cards with flying and put them into that player's graveyard.",
+        ],
+        [
+            "a quality behind a plain count",
+            "Search target player's library for three cards with flashback and put them into that player's graveyard.",
+        ],
+        [
+            "a quality with the exile route",
+            "Search target player's library for up to three cards with madness and exile them.",
         ],
         [
             "an X count",
@@ -134,6 +174,10 @@ describe("Search a target library — refusals (CR 701.23b)", () => {
         [
             "a shuffle with no search before it",
             "Draw a card. Then that player shuffles.",
+        ],
+        [
+            "the printed anaphor with no search before it",
+            "Draw a card. Then the player shuffles.",
         ],
     ])("refuses %s", (_label, text) => {
         expect(refused(text)).toBe(true);
