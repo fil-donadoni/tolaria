@@ -80,9 +80,10 @@ describe("monocolour hybrid — representation (CR 202.3f / 105.2)", () => {
         });
     });
 
-    it("normalizeManaCost leaves the pip for the cast path to resolve", () => {
+    it("normalizeManaCost charges an unfolded pip at its generic leg, never free", () => {
         expect(normalizeManaCost({ R: 1, hybridGeneric: [PIP] })).toEqual({
             R: 1,
+            X: 2,
         });
     });
 

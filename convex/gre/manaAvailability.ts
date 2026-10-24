@@ -609,12 +609,6 @@ function pricedCost(
             }
         }
     }
-    // CR 107.4e — a `{2/W}` pip is charged as ONE generic mana: the cheaper of
-    // its legs (a colour or N generic) can never cost less than one mana, and
-    // the real leg choice is `solveHybridGenericLegs`'s, on the cast path.
-    if (cost.hybridGeneric) {
-        normalized.X = (normalized.X ?? 0) + cost.hybridGeneric.length;
-    }
     return { normalized, hybrid: normalizedHybridPips(normalized) };
 }
 

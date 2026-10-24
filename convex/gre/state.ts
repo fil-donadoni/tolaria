@@ -21822,12 +21822,20 @@ export function normalizeManaCost(
         if (
             key === "xFactor" ||
             key === "xSpendColors" ||
-            key === "xSpendDistinctColors" ||
-            // CR 107.4e — the leg of a `{2/W}` pip is resolved at cast time
-            // (`solveHybridGenericLegs`), like Phyrexian pips.
-            key === "hybridGeneric"
+            key === "xSpendDistinctColors"
         )
             continue;
+        // CR 107.4e — a `{2/W}` pip left unfolded is owed at its GENERIC leg:
+        // the cast path folds the cheaper affordable leg first
+        // (`solveHybridGenericLegs`), so any other reader (an activation, a
+        // kicker, a "pay its mana cost") charges the pip instead of reading it
+        // as free.
+        if (key === "hybridGeneric" && Array.isArray(val)) {
+            for (const pip of val as { generic: number }[]) {
+                extraGeneric += pip.generic;
+            }
+            continue;
+        }
         // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
         // (Soul Burn `{X}{2}{B}`). Folded into the generic total, never a key
         // of its own in the normalized record.
