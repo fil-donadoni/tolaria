@@ -79,6 +79,18 @@ instead. With neither, `backlog:triage`
 computes the coarse label default (ADR 0143 § The write rule and the default)
 and the issue is residue until a human rules it.
 
+**A blocker never sits in a lower band than what it blocks** (owner rule,
+2026-10-24; `queue:plan` already competes a blocker in the band of what it
+blocks, issue #4752 — this makes the board say the same). Wiring a
+`blocked-by` edge, by hand or at abort, includes reading the blocker's board
+`Priority`: when it is lower than the blocked issue's, the blocker takes the
+blocked issue's band. A blocker under a lower-band parent is first detached
+from it (the parent's band governs a child, so the field cannot be written
+while the parent stands), then `bun run issue:inherit-band <blocked> <blocker>`
+copies the band. A blocker that blocks issues of several bands takes the
+strongest. The lift in `queue:plan` stays as the fallback for an edge wired
+without this step; it is not a reason to leave the board lower.
+
 The stamp is two `--label` flags and, for a standalone, one body section:
 
 ```sh
