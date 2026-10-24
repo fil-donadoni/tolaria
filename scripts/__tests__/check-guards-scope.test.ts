@@ -329,6 +329,12 @@ describe("the cards lane runs a FIXED partition of node and bot-node (ADR 0136 Â
     // A card borrowed by another set's test file is proven either way, and
     // the price is measured (425 node files in 18s, 16 bot files in 8s).
     const PARTITION = ["convex/cards/"];
+    // The gold harness pins the incomparable set a card PR can move (issue
+    // #6648): the node half runs it beside the partition.
+    const NODE_PARTITION = [
+        ...PARTITION,
+        "convex/oracle/__tests__/gold.test.ts",
+    ];
     const plan = (files: string[]) => classifyLane(files);
     const command = (files: string[], id: string) => {
         const check = plan(files).run.find((c) => c.id === id);
@@ -343,10 +349,10 @@ describe("the cards lane runs a FIXED partition of node and bot-node (ADR 0136 Â
         expect(plan(WAR).lane).toBe("cards");
     });
 
-    it("node[cards] selects the node project over convex/cards/ and nothing else", () => {
+    it("node[cards] selects the node project over convex/cards/ and the gold harness, nothing else", () => {
         const cmd = command(LEA, "node[cards]");
         expect(cmd).toMatch(/--project\s+node\b/);
-        expect(positionalFilters(cmd)).toEqual(PARTITION);
+        expect(positionalFilters(cmd)).toEqual(NODE_PARTITION);
     });
 
     it("bot[cards] selects the bot-node project over convex/cards/ and nothing else", () => {

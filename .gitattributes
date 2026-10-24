@@ -39,6 +39,19 @@ data/cr/citations-ledger.json merge=cr-ledger
 # without disagreeing; the `key-set` driver merges it as a set.
 data/issue-log-comments-baseline.json merge=key-set
 
+# Keyed sets every family PR edits (issue #6648): the card index, one row per
+# card keyed by `name`, which card PRs insert into; the gold harness's
+# incomparable names, which Grammar PRs add to. Merged by the same `key-set`
+# driver, row by row.
+data/card-index.json merge=key-set
+data/gold-incomparable.json merge=key-set
+
+# Guard C's shrink-only round-trip baseline (issue #6648): every Grammar PR
+# deletes the rows it graduates, so two PRs deleting adjacent names conflict as
+# text. The `append-only` driver also resolves a hunk where both sides only
+# deleted, keeping the rows both kept.
+convex/cards/__tests__/compilerRoundTrip.baseline.ts merge=append-only
+
 # Hand-written append-only lists (issue #5942): two branches appending an entry
 # at the same end conflict without disagreeing. The `append-only` driver merges
 # in diff3 style and concatenates only the hunks where both sides purely

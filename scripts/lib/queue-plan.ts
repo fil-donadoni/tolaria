@@ -39,6 +39,7 @@ import {
     type Finding,
 } from "./queue-lint";
 import { classifyPath, laneFor, type Lane } from "../check-lane";
+import { MERGE_ABSORBED_PATHS } from "./generated-artifacts";
 import {
     parentIsAbandoned,
     type IssueState,
@@ -622,12 +623,21 @@ export function planFilename(session: string, nowIso: string): string {
 // Defaults
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Registration points every ticket appends to. Kept short and explicit: an
- *  over-broad list would hide a genuine semantic collision. */
-export const DEFAULT_APPEND_ONLY_PATHS = [
+/** Hand-written registration points every ticket appends to. Kept short and
+ *  explicit: an over-broad list would hide a genuine semantic collision. */
+export const REGISTRATION_POINTS = [
     "convex/cards/index.ts",
     "convex/gre/serialize.ts",
-    "data/card-index.json",
+];
+
+/** The shared files that are not an edge: the registration points above, and
+ *  every path a merge driver absorbs — read from the artefact registry, so the
+ *  planner, `.gitattributes` and the registry classify each artefact ONE way
+ *  (issue #6648; `data/card-index.json` was append-only here, immune-by-shape
+ *  there, and driverless in `.gitattributes`). */
+export const DEFAULT_APPEND_ONLY_PATHS = [
+    ...REGISTRATION_POINTS,
+    ...MERGE_ABSORBED_PATHS,
 ];
 
 /** Implement tiers, weakest to strongest. An issue carrying several `model:*`

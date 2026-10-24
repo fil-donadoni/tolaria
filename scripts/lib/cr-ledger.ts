@@ -88,7 +88,9 @@
  */
 import { printedRule, ruleHash, type Rule } from "./cr-rules.ts";
 
-export const LEDGER_PATH = "data/cr/citations-ledger.json";
+import { LEDGER_PATH } from "./cr-ledger-path.ts";
+
+export { LEDGER_PATH };
 export const LEDGER_GENERATOR = "bun run cr:ledger";
 
 /**

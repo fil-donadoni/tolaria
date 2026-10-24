@@ -9,7 +9,8 @@
  *
  * It runs `git merge-file --diff3` and resolves only the hunks where both sides
  * inserted lines at the same point and neither touched an existing line
- * ({@link resolveAppendOnly}): ours, then theirs, each whole. Any other hunk
+ * ({@link resolveAppendOnly}): ours, then theirs, each whole — or where both
+ * sides only deleted distinct lines (issue #6648): what both kept. Any other hunk
  * stays a conflict and the driver exits 1, so a real disagreement still
  * reaches a human. The lane's `tsc` and tests judge every merged result.
  *

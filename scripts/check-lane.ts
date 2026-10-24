@@ -699,10 +699,14 @@ export function classifyLane(
             // walk would call half the suite related to any card. The
             // `convex/cards/` partition is the catalogue guards plus EVERY
             // set's tests — 425 files, 18s at load 25 — and a card borrowed
-            // by another set's test is still proven.
+            // by another set's test is still proven. Plus the gold harness
+            // (issue #6648): it pins the set of incomparable cards, so a card
+            // PR that retires a closure to `effects[]` moves that set, and
+            // only this lane sees it before the base does.
             {
                 id: "node[cards]",
-                command: "bunx vitest run --project node-engine convex/cards/",
+                command:
+                    "bunx vitest run --project node-engine convex/cards/ convex/oracle/__tests__/gold.test.ts",
             },
             // The three bot censuses (aiEffectsGuard, opValuerCoverage,
             // opBeneficenceCensus) plus the sets' own bot files: 16 files, 8s.
