@@ -12090,6 +12090,16 @@
         "source": "compiled"
     },
     {
+        "name": "Consuming Corruption",
+        "scryfallId": "9068b3a4-9130-42d8-a26b-52010b7daa8b",
+        "oracleId": "3bc0bd36-70be-4180-9fb3-b10ce054107b",
+        "firstSet": "mh3",
+        "firstPrintId": "9068b3a4-9130-42d8-a26b-52010b7daa8b",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Consuming Fervor",
         "scryfallId": "d529d230-89b0-453b-987b-a47e15bc3830",
         "oracleId": "16dddf03-449c-4df0-9902-f8901f05656e",
@@ -14879,6 +14889,16 @@
         "firstPrintId": "d1f95b64-858b-4344-84a2-3afa5c7b9ee9",
         "firstPrintSet": "ody",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deem Worthy",
+        "scryfallId": "99a2ed5f-62b8-4308-a656-f273f62f6ab8",
+        "oracleId": "008c92bc-3022-4d34-aa04-584576ff8f8e",
+        "firstSet": "akh",
+        "firstPrintId": "99a2ed5f-62b8-4308-a656-f273f62f6ab8",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -22312,6 +22332,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Firefist Adept",
+        "scryfallId": "0569365d-9e50-436f-a8f3-90820ef06381",
+        "oracleId": "0f513242-b175-4b4d-a05f-78b1b457a020",
+        "firstSet": "dom",
+        "firstPrintId": "0569365d-9e50-436f-a8f3-90820ef06381",
+        "firstPrintSet": "dom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Firefly",
         "scryfallId": "a312f0cf-225a-4f3d-b9a7-c47dd03b25c3",
         "oracleId": "6b151418-092f-4a43-8b21-3de64ea80cab",
@@ -24840,6 +24870,16 @@
         "source": "compiled"
     },
     {
+        "name": "Geistcatcher's Rig",
+        "scryfallId": "cfb8ecf0-8c12-4a14-9a75-4cc5bf9e47f1",
+        "oracleId": "1bfdbb96-cc18-4609-ba17-d169967df8d0",
+        "firstSet": "isd",
+        "firstPrintId": "cfb8ecf0-8c12-4a14-9a75-4cc5bf9e47f1",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Geistflame",
         "scryfallId": "1b856f31-ac80-4338-95a5-3f8acda74cfe",
         "oracleId": "2f01c3d9-e0fc-4cdf-b4db-daeb8bb24bc3",
@@ -26041,6 +26081,16 @@
         "firstPrintId": "081ec377-30f4-4eb3-8801-78426045d100",
         "firstPrintSet": "mb2",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Arsonist",
+        "scryfallId": "707d396d-950b-4ab8-9db2-f40c8f7db062",
+        "oracleId": "c1177f22-a1cf-4da3-a68d-ff954e878403",
+        "firstSet": "roe",
+        "firstPrintId": "707d396d-950b-4ab8-9db2-f40c8f7db062",
+        "firstPrintSet": "roe",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -28845,6 +28895,16 @@
         "firstPrintId": "fe68b484-cc8d-4a0b-94c2-1fec9090dfcd",
         "firstPrintSet": "kld",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Harsh Sustenance",
+        "scryfallId": "770d60a0-23fc-4224-873c-2e5549b3a816",
+        "oracleId": "f5cf471f-032c-4ebb-823c-8841de209216",
+        "firstSet": "frf",
+        "firstPrintId": "770d60a0-23fc-4224-873c-2e5549b3a816",
+        "firstPrintSet": "frf",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -45142,6 +45202,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ossuary Rats",
+        "scryfallId": "c93dc52c-6f62-45cc-a5e2-95f794e04b94",
+        "oracleId": "a1380d07-f582-46dd-a63a-9806123ebcd3",
+        "firstSet": "j22",
+        "firstPrintId": "c93dc52c-6f62-45cc-a5e2-95f794e04b94",
+        "firstPrintSet": "j22",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ostiary Thrull",
         "scryfallId": "26407330-d7a1-4915-b7c6-e08e166cf638",
         "oracleId": "1c99c9d9-3ea8-43bc-96d7-4dea12770b5c",
@@ -58848,6 +58918,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Slice and Dice",
+        "scryfallId": "59262684-86e3-4485-9e35-202771c3eaa6",
+        "oracleId": "463fc961-d34e-4f40-b383-5b78a0fcb5c8",
+        "firstSet": "ons",
+        "firstPrintId": "59262684-86e3-4485-9e35-202771c3eaa6",
+        "firstPrintSet": "ons",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Slice in Twain",
         "scryfallId": "de9c572a-6dc0-432f-92e9-c52fb0efddb5",
         "oracleId": "a96d0065-b8c1-4843-8752-dce60bf83545",
@@ -59446,6 +59526,16 @@
         "firstSet": "leg",
         "firstPrintId": "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Solar Blast",
+        "scryfallId": "b36fc40c-6a68-4192-91d9-2031c7d32e05",
+        "oracleId": "ece3e379-c586-48bd-8742-472b5deccc35",
+        "firstSet": "ons",
+        "firstPrintId": "b36fc40c-6a68-4192-91d9-2031c7d32e05",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Soldevi Golem",
@@ -65062,6 +65152,16 @@
         "firstSet": "scg",
         "firstPrintId": "0559352e-95c1-403b-bd8f-d0679717cfa2",
         "firstPrintSet": "scg"
+    },
+    {
+        "name": "Tendrils of Corruption",
+        "scryfallId": "7f61db9e-ef88-4dc8-b90c-1f8b2d7e9bb9",
+        "oracleId": "84ee0da2-d886-4603-9aaa-bc5326a424d7",
+        "firstSet": "tsp",
+        "firstPrintId": "7f61db9e-ef88-4dc8-b90c-1f8b2d7e9bb9",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tendrils of Despair",

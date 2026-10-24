@@ -9755,4 +9755,106 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2h + CR 702.29c — "When you cycle this card, you may have it deal
+    // X damage to target creature, where X is the number of Goblins on the
+    // battlefield": "have it deal" is "it deals" behind a head whose "it" is
+    // the source, and the count carries no controller (CR 109.2). Exhibits a
+    // `count` over every player's battlefield, a set the canned smoke scenario
+    // cannot size (issue #5709).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "467ea3e3-7767-405a-9d1a-8fa5de696376",
+            name: "Gempalm Incinerator",
+            manaCost: "{2}{R}",
+            typeLine: "Creature — Goblin",
+            oracleText:
+                "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)\nWhen you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gempalm Incinerator",
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            manaCost: {
+                X: 2,
+                R: 1,
+            },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)\nWhen you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+            activatedAbilities: [
+                {
+                    id: "cycling",
+                    oracleText:
+                        "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)",
+                    cost: {
+                        mana: {
+                            generic: 1,
+                            R: 1,
+                        },
+                        discardThis: true,
+                        cyclingCost: true,
+                    },
+                    activateFromHand: true,
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "gempalm-incinerator-trigger",
+                    oracleText:
+                        "When you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+                    head: {
+                        kind: "cycled",
+                    },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Have it deal X damage to target creature, where X is the number of Goblins on the battlefield?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                binding: "$may1",
+                            },
+                            then: [
+                                {
+                                    op: "dealDamage",
+                                    amount: {
+                                        count: {
+                                            zone: "battlefield",
+                                            acrossAllPlayers: true,
+                                            filter: {
+                                                subtype: "Goblin",
+                                            },
+                                        },
+                                    },
+                                    to: {
+                                        target: 0,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

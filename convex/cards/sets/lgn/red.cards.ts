@@ -26,8 +26,6 @@ import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 // ability resolves (CR 608.2h). No `dealDamage.source` override: the damage
 // comes from the cycled card itself, which is exactly the resolving ability's
 // own source object — the Op's default.
-//
-// compiler-gap: When you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield. (#2693)
 export const gempalmIncinerator = defineCard(() => ({
     id: "2687c311-fd0c-4fe0-bce8-e3f412216796", // LGN 94
     rarity: "uncommon",

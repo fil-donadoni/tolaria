@@ -374,7 +374,9 @@ function lowerCountedSet(
     const inGraveyard = descriptor.zone === "graveyard";
     if (inGraveyard && descriptor.zoneOwner !== "you")
         return unlowerable('a counted graveyard must be "your graveyard"');
-    if (!inGraveyard && descriptor.controller !== "you")
+    // CR 109.2 — the whole-board scope carries no controller clause.
+    const wholeBoard = set.wholeBoard === true;
+    if (!inGraveyard && !wholeBoard && descriptor.controller !== "you")
         return unlowerable('a counted set must be permanents "you control"');
     const filter: EffectCardFilter = {};
     for (const [key, value] of Object.entries(descriptor)) {
@@ -409,6 +411,12 @@ function lowerCountedSet(
                 `a "${key}" clause has no resolution-time count here`
             );
     }
+    if (wholeBoard)
+        return lowered({
+            zone: "battlefield",
+            acrossAllPlayers: true,
+            filter,
+        });
     return lowered({
         zone: inGraveyard ? "graveyard" : "battlefield",
         controller: "controller",
