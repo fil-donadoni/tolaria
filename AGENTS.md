@@ -295,7 +295,7 @@ targeted tests. Red landing: `/next-ticket`'s `land-failures.md`.
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
 base tip.** `land` proves the lane, batch health the rest, `release` re-proves
 the exact tip. Failure leaves durable `RED` marker (`bun run health:status`):
-revert FIRST, fix-forward as the reopened issue's pass (ADR 0158; `bun run health:fix` only if the revert conflicts or no culprit);
+revert FIRST, fix-forward as the reopened issue's pass (ADR 0158);
 never stack work on a red tip, never silence a test; "not my test" is no
 exemption.
 
