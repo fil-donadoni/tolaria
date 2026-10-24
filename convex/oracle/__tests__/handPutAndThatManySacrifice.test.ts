@@ -83,7 +83,19 @@ describe("hand put and that-many sacrifice — goldens (issue #5203)", () => {
                     kind: "sacrifice-permanents",
                     player: "controller",
                     zone: "battlefield",
-                    filter: {},
+                    // "permanents" is the whole permanent-type list, as the
+                    // shared descriptor reads it (the `sacrifice` frame's
+                    // one spelling; the retired kind wrote `{}`).
+                    filter: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                    },
                     count: { ref: "$event.amount" },
                     prompt: "Sacrifice that many permanents.",
                     bind: "$sacrifice1",
@@ -105,8 +117,19 @@ describe("hand put and that-many sacrifice — refusals (issue #5203)", () => {
         expect(refused(LACKEY.replace("you may put", "put"))).toBe(true);
     });
 
-    it("refuses 'that many' of a narrower noun", () => {
-        expect(refused(NEGATOR.replace("permanents", "creatures"))).toBe(true);
+    it("'that many' of a narrower noun is the same quantity on another descriptor (the `sacrifice` frame composes them)", () => {
+        expect(refused(NEGATOR.replace("permanents", "creatures"))).toBe(false);
+        expect(
+            effectsOf(
+                NEGATOR.replace("permanents", "creatures"),
+                "Creature — Phyrexian Horror"
+            )?.[0]
+        ).toMatchObject({
+            op: "choice",
+            filter: { type: "Creature" },
+            count: { ref: "$event.amount" },
+            prompt: "Sacrifice that many creatures.",
+        });
     });
 
     it("refuses 'that many' behind a head that carries no amount", () => {

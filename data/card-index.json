@@ -332,6 +332,16 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Accursed Centaur",
+        "scryfallId": "894556d8-6d5c-431b-a45d-26cd37c5f456",
+        "oracleId": "b1e6921e-e460-4e58-82b0-d98ee31c279d",
+        "firstSet": "ons",
+        "firstPrintId": "894556d8-6d5c-431b-a45d-26cd37c5f456",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Accursed Duneyard",
         "scryfallId": "bd9e6ba8-1c5e-4416-8bff-90db3b3b1f41",
         "oracleId": "48edc348-93f6-4dce-9cc4-7244d76b6f4a",
@@ -8160,6 +8170,16 @@
         "source": "compiled"
     },
     {
+        "name": "Brawl-Bash Ogre",
+        "scryfallId": "38b9f9d7-a00d-4a90-9d7a-88ece10af328",
+        "oracleId": "0156bfbc-26bc-4699-a7ff-437f7c043716",
+        "firstSet": "m19",
+        "firstPrintId": "38b9f9d7-a00d-4a90-9d7a-88ece10af328",
+        "firstPrintSet": "m19",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Brazen Borrower",
         "scryfallId": "c2089ec9-0665-448f-bfe9-d181de127814",
         "oracleId": "c7b044c3-3cfa-407e-bf20-2875e8e04b7b",
@@ -12036,6 +12056,16 @@
         "source": "compiled"
     },
     {
+        "name": "Comet Crawler",
+        "scryfallId": "becca990-ab2e-4aa4-be7d-293ec727cb08",
+        "oracleId": "0c1b6305-8863-43e0-b50d-ae1c5e31be55",
+        "firstSet": "eoe",
+        "firstPrintId": "becca990-ab2e-4aa4-be7d-293ec727cb08",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Command Decision",
         "scryfallId": "9f1f789b-5c08-4a4d-b3a3-4d51ad9f1a4d",
         "oracleId": "1c4afb0d-6d6e-4d21-9fe0-5621cd2fd27c",
@@ -12062,6 +12092,16 @@
         "firstSet": "jud",
         "firstPrintId": "3607f6a9-b8d2-4119-9f70-95dcedc0662d",
         "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Commander Greven il-Vec",
+        "scryfallId": "ab0ce69f-a259-4801-9ac3-f6754040434c",
+        "oracleId": "08fa1bee-cedf-4a29-9b02-cbdcc0926f8f",
+        "firstSet": "tmp",
+        "firstPrintId": "ab0ce69f-a259-4801-9ac3-f6754040434c",
+        "firstPrintSet": "tmp",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -15856,6 +15896,16 @@
         "source": "compiled"
     },
     {
+        "name": "Demonic Appetite",
+        "scryfallId": "ca51786a-d58c-455f-910d-01efa5ef8470",
+        "oracleId": "52d34007-38c0-4858-8ec8-c622da916277",
+        "firstSet": "roe",
+        "firstPrintId": "ca51786a-d58c-455f-910d-01efa5ef8470",
+        "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Demonic Consultation",
         "scryfallId": "8d727b9b-6114-414d-9172-16b6e1db41cc",
         "oracleId": "9a1412db-45ad-46ea-8f12-a85d203113d8",
@@ -15880,6 +15930,16 @@
         "firstSet": "lea",
         "firstPrintId": "6c9bb8b1-fb79-4b99-ba09-c6e6c860de50",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Demonic Taskmaster",
+        "scryfallId": "fb5d6266-30a7-4360-84bc-22b52fb782b3",
+        "oracleId": "162e45f5-edb8-4a13-acdc-8980ce5ba8ac",
+        "firstSet": "avr",
+        "firstPrintId": "fb5d6266-30a7-4360-84bc-22b52fb782b3",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Demonic Tutor",
@@ -15976,6 +16036,16 @@
         "firstSet": "fem",
         "firstPrintId": "9eb2b79f-f09a-49dc-8e0f-7d711ba78981",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Desecration Elemental",
+        "scryfallId": "73c14a7a-cce3-45a8-9092-834e71447f62",
+        "oracleId": "38ff7aa1-e2cb-450d-a18f-45841f9f9337",
+        "firstSet": "5dn",
+        "firstPrintId": "73c14a7a-cce3-45a8-9092-834e71447f62",
+        "firstPrintSet": "5dn",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Desecration Plague",
@@ -24556,6 +24626,16 @@
         "source": "compiled"
     },
     {
+        "name": "Foul Spirit",
+        "scryfallId": "64b63e5f-b2cf-42c2-8111-1ebb9ed5ca33",
+        "oracleId": "d8177d08-a603-42e9-9350-890eac05e184",
+        "firstSet": "p02",
+        "firstPrintId": "64b63e5f-b2cf-42c2-8111-1ebb9ed5ca33",
+        "firstPrintSet": "p02",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Foulmire Knight // Profane Insight",
         "scryfallId": "c5f6c745-e46a-42eb-8eca-b7b74ab1245e",
         "oracleId": "10c0f814-e302-49ff-aded-1b8d8424fd60",
@@ -25208,6 +25288,16 @@
         "firstSet": "tsr",
         "firstPrintId": "a8a64329-09fc-4e0d-b7d1-378635f2801a",
         "firstPrintSet": "tsr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Furyblade Vampire",
+        "scryfallId": "56a957d6-fc14-453a-a250-63fc130e330d",
+        "oracleId": "f8dbfc60-33e9-4068-a0dd-0d0ed5b9b42c",
+        "firstSet": "emn",
+        "firstPrintId": "56a957d6-fc14-453a-a250-63fc130e330d",
+        "firstPrintSet": "emn",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -27264,6 +27354,16 @@
         "firstSet": "bro",
         "firstPrintId": "0ba00d0f-0ea5-417c-a792-06b3b9d1c8f1",
         "firstPrintSet": "bro",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Firebug",
+        "scryfallId": "2370d319-d1d2-4bca-9275-ff72fb400709",
+        "oracleId": "ee337677-d898-40a5-9453-405d07ec12b1",
+        "firstSet": "lgn",
+        "firstPrintId": "2370d319-d1d2-4bca-9275-ff72fb400709",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -32960,6 +33060,16 @@
         "source": "compiled"
     },
     {
+        "name": "Inevitable End",
+        "scryfallId": "a6522f01-ae7a-467e-9a05-530a5ccd304d",
+        "oracleId": "e1a5c389-6a56-4da7-b7c4-e26fdec224e5",
+        "firstSet": "thb",
+        "firstPrintId": "a6522f01-ae7a-467e-9a05-530a5ccd304d",
+        "firstPrintSet": "thb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Infantry Veteran",
         "scryfallId": "0350470b-feea-4e15-bdf0-850b71dbeea6",
         "oracleId": "42798e2b-9a5c-4f93-8f77-b7bb7a916d07",
@@ -38620,6 +38730,16 @@
         "firstSet": "rtr",
         "firstPrintId": "3b628197-f26c-457a-b9a4-c1f1d3e02f3d",
         "firstPrintSet": "rtr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Lotus Field",
+        "scryfallId": "0e013033-3995-4ba8-b0c3-0614c79aaaab",
+        "oracleId": "134d5b82-7940-4b33-a922-7f9d1f403e50",
+        "firstSet": "m20",
+        "firstPrintId": "0e013033-3995-4ba8-b0c3-0614c79aaaab",
+        "firstPrintSet": "m20",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -47606,6 +47726,16 @@
         "source": "compiled"
     },
     {
+        "name": "Perilous Research",
+        "scryfallId": "0669285c-5560-4f49-8d0a-44b8c33e23d0",
+        "oracleId": "9243b539-5f9e-4bb3-9973-3d48366aa7cc",
+        "firstSet": "csp",
+        "firstPrintId": "0669285c-5560-4f49-8d0a-44b8c33e23d0",
+        "firstPrintSet": "csp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Perilous Shadow",
         "scryfallId": "2c101171-a988-4c1d-9954-634e2f1c6f01",
         "oracleId": "3ba3405d-8c9a-4a80-811d-529cd3cb657f",
@@ -54772,6 +54902,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ruinous Minotaur",
+        "scryfallId": "e800a3fe-bb1a-45f1-8c81-5ec88ff8647b",
+        "oracleId": "ece9d3e5-79e5-4c56-9e8d-8abcd819c041",
+        "firstSet": "zen",
+        "firstPrintId": "e800a3fe-bb1a-45f1-8c81-5ec88ff8647b",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ruins of Trokair",
         "scryfallId": "4ce2e734-8cff-4bfe-85f8-17b3e1903f18",
         "oracleId": "ad7b610c-e276-4c71-9b53-1ccb6d2dafd2",
@@ -58014,6 +58154,16 @@
         "firstSet": "m13",
         "firstPrintId": "e00a2b22-a473-44ae-919f-29bc8be05543",
         "firstPrintSet": "m13",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Servant of Volrath",
+        "scryfallId": "691afabb-f266-45fd-b5a3-577be4f10f86",
+        "oracleId": "4e389b61-7b31-42ba-a19b-2502f63fd34a",
+        "firstSet": "tmp",
+        "firstPrintId": "691afabb-f266-45fd-b5a3-577be4f10f86",
+        "firstPrintSet": "tmp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -62798,6 +62948,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spined Fluke",
+        "scryfallId": "8a14524b-e690-4f77-b43e-416d5ec3cbb9",
+        "oracleId": "3c880ac2-0b22-4f7e-a55a-381de235e971",
+        "firstSet": "usg",
+        "firstPrintId": "8a14524b-e690-4f77-b43e-416d5ec3cbb9",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spined Karok",
         "scryfallId": "c37ae6b5-225a-410e-ab22-13e923bdfb65",
         "oracleId": "7341a04a-b6d6-4106-b1c3-3483f9d37663",
@@ -64273,6 +64433,16 @@
         "firstPrintId": "0cb84193-9648-46e5-a34d-c12cc3f1d7f2",
         "firstPrintSet": "akh",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Stitcher's Apprentice",
+        "scryfallId": "7e0fcc53-cd0b-4b4c-b6de-5d301232106a",
+        "oracleId": "14bf3049-faa3-4c1f-a613-603e977a50a4",
+        "firstSet": "isd",
+        "firstPrintId": "7e0fcc53-cd0b-4b4c-b6de-5d301232106a",
+        "firstPrintSet": "isd",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -66924,6 +67094,16 @@
         "firstSet": "dmu",
         "firstPrintId": "629aa907-9533-4681-9bf2-9e56450a4cc2",
         "firstPrintSet": "dmu"
+    },
+    {
+        "name": "Tectonic Break",
+        "scryfallId": "9de0ee5d-10f6-4152-8416-1f2b749b439d",
+        "oracleId": "4a3c6d0e-6d77-4434-95f4-737879de026f",
+        "firstSet": "mmq",
+        "firstPrintId": "9de0ee5d-10f6-4152-8416-1f2b749b439d",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Tectonic Instability",

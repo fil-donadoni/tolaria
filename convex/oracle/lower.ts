@@ -189,6 +189,9 @@ function censusGrantedKeywords(
         // sentence of its own, censused on its own.
         if (sentence.kind === "optional" && sentence.then !== undefined)
             censusGrantedKeywords([sentence.then], acc);
+        // So is one behind a frame chain's sacrifice (`FrameChainIR.then`).
+        if (sentence.kind === undefined && sentence.then !== undefined)
+            censusGrantedKeywords([sentence.then], acc);
         while (
             sentence.kind === "optional" ||
             sentence.kind === "kicked" ||

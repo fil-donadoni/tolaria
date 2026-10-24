@@ -228,7 +228,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
             toughness: undefined,
         });
         expect(refusedAt(card)).toBe(
-            "effect clause: Sacrifice this enchantment unless you pay 2 life"
+            "effect clause > verb frame: Sacrifice this enchantment unless you pay 2 life"
         );
     });
 
@@ -241,7 +241,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                 )
             )
         ).toBe(
-            "effect clause: Sacrifice it unless you return a land to its owner's hand"
+            "effect clause > verb frame: Sacrifice it unless you return a land to its owner's hand"
         );
     });
 
@@ -254,7 +254,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                 )
             )
         ).toBe(
-            "effect clause: Sacrifice it unless you return a Goblin card from your graveyard to your hand"
+            "effect clause > verb frame: Sacrifice it unless you return a Goblin card from your graveyard to your hand"
         );
     });
 
@@ -267,7 +267,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                 )
             )
         ).toBe(
-            "effect clause: Sacrifice it unless you return a basic card from your graveyard to your hand"
+            "effect clause > verb frame: Sacrifice it unless you return a basic card from your graveyard to your hand"
         );
     });
 
@@ -279,7 +279,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                     `${ENTERS}sacrifice it unless you sacrifice a Forests.`
                 )
             )
-        ).toContain("effect clause");
+        ).toContain("effect clause > verb frame");
     });
 });
 
@@ -292,7 +292,9 @@ describe("sacrifice it unless you … — payments the engine cannot price", () 
                     `${UPKEEP}sacrifice this creature unless you pay {X}.`
                 )
             )
-        ).toBe("effect clause: Sacrifice this creature unless you pay {X}");
+        ).toBe(
+            "effect clause > verb frame: Sacrifice this creature unless you pay {X}"
+        );
     });
 
     it("refuses a total-power threshold over non-creatures or of zero", () => {
@@ -307,7 +309,7 @@ describe("sacrifice it unless you … — payments the engine cannot price", () 
                         `${ENTERS}sacrifice it unless you sacrifice ${rider}.`
                     )
                 )
-            ).toContain("effect clause");
+            ).toContain("effect clause > verb frame");
     });
 });
 
@@ -320,6 +322,6 @@ describe("sacrifice it unless you … — the subject", () => {
                     `${ENTERS}sacrifice target creature unless you discard a card.`
                 )
             )
-        ).toContain("effect clause");
+        ).toContain("effect clause > verb frame");
     });
 });
