@@ -213,10 +213,16 @@ describe("mana cost (CR 107.4)", () => {
         });
     });
 
+    it("reads monocolour hybrid (CR 107.4e) as hybridGeneric", () => {
+        expect(readManaCost("{2/W}")).toEqual({
+            ok: true,
+            cost: { hybridGeneric: [{ generic: 2, color: "W" }] },
+        });
+    });
+
     it("FAILS on a symbol ManaCost cannot represent instead of approximating it", () => {
-        // {2/W} monocolour hybrid and {S} snow have no encoding; a lenient
-        // reader would call them "generic 2" and "generic 1" and be wrong.
-        expect(readManaCost("{2/W}").ok).toBe(false);
+        // {S} snow has no encoding; a lenient reader would call it
+        // "generic 1" and be wrong.
         expect(readManaCost("{S}").ok).toBe(false);
     });
 
