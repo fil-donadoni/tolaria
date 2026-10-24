@@ -6,6 +6,7 @@
         "animate",
         "assigns-no-combat-damage",
         "attach",
+        "become-creature",
         "choose-color-grant-protection",
         "choose-creature-type",
         "choose-land-types",
@@ -120,6 +121,7 @@
         "shuffle-own-graveyard-into-library",
         "shuffle-self-into-library",
         "suppress-damage-prevention",
+        "tap-chosen-per-counter",
         "tap-untap",
         "untap-chosen-permanents",
         "upgrade-if-controls"

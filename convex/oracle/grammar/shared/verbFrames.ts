@@ -157,7 +157,8 @@ const SEARCH_UP_TO = /^up to (\S+) (.+)$/;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const PUT = new RegExp(`^put ${PRONOUN} (into|onto|on) (.+?)( tapped)?$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
-const THAT_PLAYER_SHUFFLES = /^(?:that|the) player shuffles(?: their library)?$/;
+const THAT_PLAYER_SHUFFLES =
+    /^(?:that|the) player shuffles(?: their library)?$/;
 
 /**
  * CR 400.1 — the destinations a `moveZone` frame reads, by preposition. The
