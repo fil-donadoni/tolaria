@@ -21,6 +21,7 @@
 // advisory and names the one-line fix. See the per-rule notes.
 
 import { CARDS_HEADING, fencedLines } from "./declared-section";
+import { priorityRank, type BoardPriority } from "./queue-plan";
 
 export interface LintableIssue {
     number: number;
@@ -241,6 +242,22 @@ const PARENT = /^#{1,6}\s+parent/i;
 const HUMAN_JUDGMENT =
     /\b(browser|visually|visual|looks right|screenshot|by hand|manually|manual|design review|judgement|judgment|decide|chrome)\b/i;
 
+/** One native blocker of the issue, with the board facts `blocker-band` needs. */
+export interface BlockerBand {
+    number: number;
+    /** A CLOSED blocker blocks nothing, so it is never compared. */
+    open: boolean;
+    /** The blocker's effective band (`effectivePriority`), null when unprioritised. */
+    band: BoardPriority | null;
+}
+
+/** The board facts behind the `blocker-band` rule, read by the caller. */
+export interface BandContext {
+    /** The linted issue's effective band, null when unprioritised. */
+    band: BoardPriority | null;
+    blockers: readonly BlockerBand[];
+}
+
 /** What the lint knows beyond the issue itself. Optional, so a caller that
  *  only wants the blocking rules (the planner) pays nothing for it. */
 export interface LintContext {
@@ -254,6 +271,12 @@ export interface LintContext {
      * rule fails closed, and clears only on positive evidence of `workflow`.
      */
     readTokenScopes?: () => readonly string[] | null;
+    /**
+     * Board bands of the issue and its native blockers (issue #6709). Absent →
+     * `blocker-band` is not run: the board read is a GraphQL call a caller
+     * that only wants the blocking rules (the planner) does not pay.
+     */
+    bands?: BandContext;
 }
 
 /** An inline or image Markdown link, title included: the linked form is the
@@ -472,6 +495,36 @@ export function lintIssue(
                         "; "
                     )}. The board reads the edges and the planner reads the body, so whichever side is missing fails silently (a ref to a PR cannot carry a native edge — reword it if that is what this is)`,
                 fix: fixes.join("   AND   "),
+            });
+        }
+    }
+
+    // A blocker never sits in a lower board band than what it blocks (owner
+    // rule 2026-10-24, triage-labels.md). `queue:plan` already competes a
+    // blocker in the band of what it blocks (issue #4752), so the pick order
+    // is right either way — this makes the board say the same. An unprioritised
+    // blocker ranks below every named band (`priorityRank`), so it is weaker
+    // too; an issue with no band of its own has nothing to be weaker than.
+    if (context.bands && context.bands.band !== null) {
+        const own = context.bands.band;
+        const weaker = context.bands.blockers.filter(
+            (b) => b.open && priorityRank(b.band) > priorityRank(own)
+        );
+        if (weaker.length > 0) {
+            findings.push({
+                rule: "blocker-band",
+                severity: "advisory",
+                message: `a blocker sits in a lower board band than the issue it blocks (this issue: ${own}) — ${weaker
+                    .map((b) => `#${b.number} is ${b.band ?? "unprioritised"}`)
+                    .join(
+                        ", "
+                    )}. queue:plan lifts it at pick time, but the board should say the same (docs/agents/triage-labels.md § A blocker never sits in a lower band than what it blocks)`,
+                fix: weaker
+                    .map(
+                        (b) =>
+                            `detach #${b.number} from its lower-band parent (if any), then: bun run issue:inherit-band ${issue.number} ${b.number}`
+                    )
+                    .join("   AND   "),
             });
         }
     }
