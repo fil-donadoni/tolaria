@@ -547,7 +547,7 @@ export const migrateDefinitionIds = internalMutation({
  * OPPOSITE contract: it exists to seed a fresh table without ever clobbering
  * an Admin's curation, so it skips a slug that is already present. This one is
  * invoked by hand, naming one slug, to make the row MATCH the canonical list
- * in `data/premodern-tier1-decks.json` — a re-seed after a card slice lands
+ * in `data/premodern-metagame-decks.json` — a re-seed after a card slice lands
  * that has no effect is a re-seed that silently did nothing. The two live side
  * by side deliberately; neither is the other's generalization.
  *
@@ -557,11 +557,11 @@ export const migrateDefinitionIds = internalMutation({
  *
  * Since issue #3499 this overwrite is also the PRODUCTION contract, on every
  * deploy: `bun run seed:preset:deploy` is chained after `convex deploy` in the
- * hosting build command, so the canonical file wins on the canonical Tier 1
+ * hosting build command, so the canonical file wins on the canonical metagame
  * slugs each time the site ships. Deliberate, and it has a price stated rather
  * than discovered — an Admin edit to one of THOSE slugs does not survive the
  * next deploy, and curating such a list means editing
- * `data/premodern-tier1-decks.json`. A slug the canonical file does not name is
+ * `data/premodern-metagame-decks.json`. A slug the canonical file does not name is
  * never touched, so Admin-authored presets are unaffected.
  */
 export function presetSeedDecision(

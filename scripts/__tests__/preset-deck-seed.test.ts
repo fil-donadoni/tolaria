@@ -12,6 +12,7 @@ import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
 import { parseArgs, seedOne } from "../seed-preset-deck";
+import { readMetagameDecks } from "../premodern-metagame-import";
 
 const resolve = (name: string) => tryGetCardByName(name);
 const SUPPLIED = "2026-08-23";
@@ -232,5 +233,35 @@ describe("seed:preset --all classification (issue #3254)", () => {
                     !/unknown card name\(s\)/.test(r.problems?.join("\n") ?? "")
             );
         expect(silent).toEqual([]);
+    });
+});
+
+describe("seed:preset --all over the metagame lists (issue #6675)", () => {
+    // The release ships these 25 lists as production Preset Decks, so the
+    // sweep's guarantee is pinned here: every one builds a payload.
+    const file = readMetagameDecks(ROOT);
+
+    it("reads the 25 metagame lists, stiflenought under its own slug", () => {
+        expect(file.decks).toHaveLength(25);
+        const slugs = file.decks.map((d) => d.slug);
+        expect(slugs).toContain("stiflenought");
+        expect(slugs).not.toContain("deck-1");
+    });
+
+    it("every list resolves through the registry and is legal Premodern", () => {
+        for (const deck of file.decks) {
+            const { payload, problems } = buildPresetPayload(
+                deck,
+                "premodern",
+                "mtgtop8.com",
+                resolve
+            );
+            expect({ slug: deck.slug, problems }).toEqual({
+                slug: deck.slug,
+                problems: [],
+            });
+            expect(payload!.cards).toHaveLength(60);
+            expect(payload!.sideboard).toHaveLength(15);
+        }
     });
 });
