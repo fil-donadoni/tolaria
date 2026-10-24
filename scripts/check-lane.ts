@@ -828,6 +828,13 @@ export function classifyLane(
  *  `search-cost` cheap guard (issue #6545). */
 export const SEARCH_COST_TEST = "convex/gre/__tests__/searchCost.bot.test.ts";
 
+/** The Weight Fit's reproducibility guard, a `bot-node` file the lane admits
+ *  as the `eval-weights-fit` cheap guard (issue #6559) — its one test, by
+ *  name: the file's contract half is no fit input. */
+export const EVAL_WEIGHTS_FIT_TEST =
+    "convex/gre/ai/__tests__/weightFit.bot.test.ts";
+export const EVAL_WEIGHTS_FIT_FILTER = "reproduces DEFAULT_EVAL_WEIGHTS";
+
 export const CHEAP_GUARDS: readonly {
     id: string;
     /** A changed path that is one of the guard's inputs. */
@@ -875,6 +882,23 @@ export const CHEAP_GUARDS: readonly {
         admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
         lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing a search iteration runs on moved, so its cost counters cannot",
         command: `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`,
+    },
+    // Issue #6559 (ADR 0154 §12 follow-up): the Weight Fit's reproducibility
+    // guard — the committed DEFAULT_EVAL_WEIGHTS must be the fit of the blade
+    // registry plus the Verdict Lock. PR #6509 moved the verdict features
+    // under `convex/gre/**`; no `engine` lane ran this `bot-node` pin and the
+    // hosted advisory run skips it (`CORPUS_EXCLUDED`), so it surfaced as a
+    // second RED (issue #6558). Admitted by every fit input: what the
+    // positions are rebuilt on (`search-cost`'s trees), the Verdict Lock, and
+    // the store + pack cache that load the locked verdicts. Only the
+    // reproducibility test runs (`-t`): 9.8 s wall on the MacBook at load
+    // ~11 (2026-10-24; the fit itself 4.1 s), the whole file 12.4–16.2 s.
+    // Health still runs the whole file through `test:bot`.
+    {
+        id: "eval-weights-fit",
+        admits: /^(convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$|verdictStore[^/]*\.ts$)|data\/verdicts\.lock\.json$|scripts\/lib\/verdict-pack-cache\.ts$)/,
+        lacks: "no changed path under convex/{gre,cards,oracle}/**, convex/debugScenarioSpec.ts, convex/verdictStore*.ts, data/verdicts.lock.json nor the verdict pack cache — no input of the Weight Fit moved",
+        command: `bunx vitest run --project bot-node ${EVAL_WEIGHTS_FIT_TEST} -t '${EVAL_WEIGHTS_FIT_FILTER}'`,
     },
     {
         id: "check:baseline-shrink",

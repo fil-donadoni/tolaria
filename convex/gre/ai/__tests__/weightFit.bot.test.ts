@@ -18,8 +18,9 @@
 //
 // It lives in the BOT suite rather than the blade suite because it is a gate:
 // the blade suite's must tier is the search's metric, this is the weights'.
-// The whole pipeline is arithmetic over rebuilt positions — 96 verdicts, 175
-// pairs, well under a second — so it costs the suite nothing. The locked
+// The whole pipeline rebuilds the positions and evaluates them — ~4 s on the
+// MacBook (2026-10-24) — and `check:lane` runs it alone as the
+// `eval-weights-fit` cheap guard (issue #6559). The locked
 // verdicts come from the machine pack cache, fetched once per lock on a miss
 // (ADR 0128 §10, `scripts/lib/verdict-pack-cache.ts`).
 import {

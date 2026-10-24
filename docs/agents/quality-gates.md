@@ -785,6 +785,19 @@ on purpose — with its own
 through `test:bot`. Without it, PR #6509 changed the rollout's land play,
 left the pins stale, and the base went RED.
 
+A sixth, `eval-weights-fit` (issue #6559), is the Weight Fit's
+reproducibility guard (`weightFit.bot.test.ts`): the committed
+`DEFAULT_EVAL_WEIGHTS` must be the fit of the blade registry plus the
+Verdict Lock. Admitted by every fit input — `search-cost`'s trees,
+`convex/verdictStore*.ts`, `data/verdicts.lock.json` and
+`scripts/lib/verdict-pack-cache.ts` — it runs that ONE test by name
+(`-t 'reproduces DEFAULT_EVAL_WEIGHTS'`), not the file's contract half.
+It reads the locked corpus through the machine pack cache, so it holds only
+on the self-hosted lane; the hosted advisory run skips it
+(`CORPUS_EXCLUDED`). Without it, PR #6509 moved the verdict features, the
+weights stopped being their fit, and it surfaced as a second RED
+(issue #6558).
+
 Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
 `check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
 most 8 s on a landing that admits all three, nothing on one that admits none.
@@ -792,7 +805,8 @@ most 8 s on a landing that admits all three, nothing on one that admits none.
 `search-cost`: 4.4 s wall at load ~6–8 on the MacBook (2026-10-23; 12.7 s on a
 fresh worktree's cold transform cache at load ~17), ~22 s wall warm on the
 Huawei — over the budget there by the owner's explicit exception (ADR 0154
-§12).
+§12). `eval-weights-fit`: 9.8 s wall at load ~11 on the MacBook (2026-10-24;
+the fit 4.1 s, the whole file 12.4–16.2 s); Huawei not yet measured.
 
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or

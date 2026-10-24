@@ -236,6 +236,23 @@ answer: lane wall time on the Huawei that this row visibly lengthens across
 landings — then the fix is a cheaper pin (fewer positions, a smaller budget),
 never dropping it back to health alone.
 
+**Follow-up, issue #6559 (owner, 2026-10-24): the Weight Fit guard rides too,
+as one test.** The same PR #6509 moved the verdict features, so the committed
+`DEFAULT_EVAL_WEIGHTS` stopped being the fit of the registry plus the Verdict
+Lock; that `bot-node` guard ran nowhere before health, and the hosted
+advisory run skips it (`CORPUS_EXCLUDED`), so it surfaced as a second RED
+(issue #6558). Of the two placements — a `CHEAP_GUARDS` row, or health-only
+with `health-early` running it — the owner chose the row: `eval-weights-fit`,
+admitted by every fit input (`search-cost`'s trees, `convex/verdictStore*.ts`,
+`data/verdicts.lock.json`, `scripts/lib/verdict-pack-cache.ts`), running ONLY
+the reproducibility test by `-t` filter, never the file's contract half. Cost:
+9.8 s wall at load ~11 on the MacBook (the fit itself 4.1 s; the whole file
+12.4–16.2 s), at the ≤ 10 s budget's edge; the Huawei figure is owed. It is
+self-hosted only by nature — the pack cache lives on the gating machines.
+What would change the answer: the same as `search-cost`'s, and a refit
+(`verdicts:promote` or by hand) still owes the whole bot suite, since other
+pins snapshot evaluation values this guard does not see (issue #6564).
+
 ## Consequences
 
 - **Overturned / amended records.** ADR 0104 carries a superseded-by note;
