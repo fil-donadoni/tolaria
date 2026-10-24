@@ -231,13 +231,8 @@ No pre-PR lane gate (ADR 0136 §1). In order:
   after issue #6149) and **`bun run test:blade`** — no `land` runs blade, an
   `engine`-lane one no bot test (ADR 0154 §3).
 - **A blade `moves` entry or a weight change runs `bun run bot:refit` in the
-  same PR** (issue #6690, ADR 0158 §3): it re-fits `DEFAULT_EVAL_WEIGHTS`, then
-  re-records every derived-figure pin (search-cost counters, forced-pass root
-  digests, leaf-score and mana-census snapshots) — commit what it rewrote.
-  `bun run bot:refit --check` is read-only and names every guard that lags.
-  A new pin that stores a figure the engine computes is a fixture the refit
-  records (`RECORD_BOT_PINS=1`, `botPinRecorder.fixture.ts`), never a literal
-  in a test; one that encodes a preference is an ordering or a band.
+  same PR** (issue #6690): re-fits, re-records every derived pin; `--check`
+  names laggards.
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
