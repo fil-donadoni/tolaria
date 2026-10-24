@@ -30,7 +30,7 @@
  *
  * ── What v0 deliberately refuses ───────────────────────────────────────────
  *
- * "Add three mana of any one color" and "Add {G} for each Forest you control"
+ * "Add three mana of any color" and "Add {G} for each Forest you control"
  * need a mana DESCRIPTOR the engine models with `manaColorSource` /
  * `getManaChoices` rather than with a fixed `ManaCost`, so the shared quantity
  * sub-grammar landing in #2697 is necessary but not sufficient for them. They
