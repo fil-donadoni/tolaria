@@ -148,6 +148,7 @@ import {
     clearZoneCharacteristics,
     resolveZoneCharacteristics,
 } from "./zoneCharacteristics";
+import { bringIntoHandFromOutsideGame, outsideGamePool } from "./outsideGame";
 import {
     ASCEND_KEYWORD,
     checkAscendCityBlessing,
@@ -17155,6 +17156,48 @@ export function buildSpellContext(
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
+        requestOutsideGameCard(req): string[] | undefined {
+            // CR 400.11b — the `requestChoice` suspend/replay contract over a
+            // pool that is no zone: the entry carries the allow-list and no
+            // `zone`, and the submit validator checks the pick against
+            // `outsideGamePool` itself (`pendingChoiceSubmitHandlers.ts`).
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored;
+            // ADR 0037 — a controlled cast's resolution routes the pick to
+            // the acting player; the pool stays the OWNER's (`zoneOwnerId`).
+            const routed = routeActingPlayer(req.playerId);
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: routed.playerId,
+                kind: "choose-outside-game-card",
+                count: { min: 0, max: 1 },
+                prompt: req.prompt,
+                candidateIds: req.candidateIds,
+            };
+            if (routed.playerId !== req.playerId) {
+                entry.zoneOwnerId = req.playerId;
+            }
+            if (
+                routed.actingPlayerId &&
+                routed.actingPlayerId !== entry.playerId
+            ) {
+                entry.actingPlayerId = routed.actingPlayerId;
+            }
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        bringFromOutsideGameToHand(playerId, instanceId): boolean {
+            return (
+                bringIntoHandFromOutsideGame(
+                    getPlayer(state, playerId),
+                    instanceId
+                ) !== undefined
+            );
+        },
         readOrderedSecond(choiceId): string[] {
             const step = item.resolutionStep ?? 0;
             return item.collectedChoices?.[`${step}:${choiceId}:second`] ?? [];
@@ -18427,6 +18470,36 @@ export function buildSpellContext(
                     cost: manaCostForCardFilter(def),
                     // CR 702.34a — printed or granted flashback, for
                     // `EffectCardFilter.hasFlashback`.
+                    flashback: hasFlashback(c),
+                };
+            });
+        },
+        // CR 400.11 / 400.11a — the outside-the-game pool's characteristics,
+        // read exactly as a hidden library card's are (the card is in no
+        // zone, so the instance carries nothing a layer could have changed).
+        getOutsideGameCards(playerId: string): Array<{
+            id: string;
+            name: string;
+            types: CardType[];
+            subtypes: string[];
+            supertypes: CardSupertype[];
+            colors: Color[];
+            manaValue: number;
+            cost: CardManaCost | undefined;
+            flashback: boolean;
+        }> {
+            return outsideGamePool(getPlayer(state, playerId)).map((c) => {
+                const cardId = (c.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return {
+                    id: c.id,
+                    name: def?.name ?? "",
+                    types: def?.types ?? c.types,
+                    subtypes: def?.subtypes ?? c.subtypes,
+                    supertypes: def?.supertypes ?? [],
+                    colors: getColorsFromCost(def?.manaCost),
+                    manaValue: manaValue(def?.manaCost),
+                    cost: manaCostForCardFilter(def),
                     flashback: hasFlashback(c),
                 };
             });

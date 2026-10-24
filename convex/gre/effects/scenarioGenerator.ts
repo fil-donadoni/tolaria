@@ -1425,6 +1425,14 @@ const SCENARIO_SKIPS = {
         code: "card-paired-mechanism",
         reason: `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`,
     },
+    // CR 400.11b — `bringFromOutsideGame` suspends for the "you may" pick
+    // over the hidden outside-the-game pool, which a canned scenario cannot
+    // submit (and its scenario state carries no sideboard). Execution
+    // coverage is the Op's own interpreter + wire-format tests.
+    bringFromOutsideGame: {
+        code: "suspends-for-input",
+        reason: `Op "bringFromOutsideGame" suspends for a pick from outside the game — covered by hand-written tests`,
+    },
     // A `choice` Op suspends resolution for a live player decision
     // (issue #805) — a canned scenario cannot submit picks, so the
     // script is reported as an explicit skip and execution coverage

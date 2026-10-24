@@ -802,6 +802,65 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
 // `priorFor` provider (`choicePriors.ts`, issue #1433), so the two never
 // drift apart.
 
+/** `choose-outside-game-card` (CR 400.11b — the Wish cards): the player MAY
+ *  bring one card they own from outside the game into their hand. A real
+ *  decision node so the settle can descend past the suspended pick and score
+ *  the card the wish fetches. The pool is the engine's own eligibility
+ *  (`eligibleZonePickCards` — the outside-the-game pool ∩ `candidateIds`),
+ *  collapsed to distinct identities ranked by the same hand-destination
+ *  `libraryTargetWorth` a tutor-to-hand uses, at most `CHOICE_TOP_K` of them,
+ *  keyed by stable identity; the decline ("you may") is always offered. */
+const outsideGamePickCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const submit = (ids: string[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: ids,
+    });
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        {
+            key: "choose-outside-game-card:none",
+            move: submit([]),
+            hint: { materialGained: 0 },
+        },
+    ];
+    if (getPendingChoiceMax(choice.count) <= 0) return out;
+    // A controlled cast (ADR 0037): the chooser picks from ANOTHER player's
+    // pool, and the card goes to that player's hand — never worth taking.
+    if ((choice.zoneOwnerId ?? choice.playerId) !== choice.playerId) return out;
+    const pricing = { destination: "hand" as const, handNeed: true };
+    const ranked = eligibleZonePickCards(state, choice)
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: libraryTargetWorth(
+                state,
+                choice.playerId,
+                card,
+                undefined,
+                pricing
+            ),
+        }))
+        .sort(
+            (a, b) =>
+                b.worth - a.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+    const seen = new Set<string>();
+    for (const { card, identity, worth } of ranked) {
+        if (out.length >= CHOICE_TOP_K) break;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        out.push({
+            key: `choose-outside-game-card:${identity}`,
+            move: submit([card.id]),
+            hint: { materialGained: worth },
+        });
+    }
+    return out;
+};
+
 /** `search-library` (CR 701.23 — fetchlands, tutors): the hardest tranche-1
  *  kind, and the reason the contract's three properties exist at all.
  *
@@ -2477,6 +2536,8 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // generator serves it.
     "trigger-mode": optionPickCandidates,
     "search-library": searchLibraryCandidates,
+    // CR 400.11b — see `outsideGamePickCandidates`.
+    "choose-outside-game-card": outsideGamePickCandidates,
     "random-reveal": randomRevealAckCandidates,
     "choose-hand-card": handPickCandidates,
     // CR 702.35a / 702.88a (issue #2983) — the two reflexive CAST WINDOWS.

@@ -4978,6 +4978,10 @@ function lowerSentenceBody(
  *  - `shuffle` (CR 701.24a): the controller's library. "That player
  *    shuffles" is legal only folded onto the `search-target-library` kind by
  *    sentence assembly; reaching it here means the fold did not happen.
+ *  - `bringFromOutsideGame` (CR 400.11b + CR 701.20a): the Op owns the whole
+ *    member — the optional pick over the hidden outside-the-game pool, the
+ *    reveal and the move to hand (outside the game is not a zone, so no
+ *    `choice`/`moveZone` pair can name it).
  */
 function lowerFrameChain(
     sentence: FrameChainIR,
@@ -5052,6 +5056,14 @@ function lowerFrameChain(
                     op: "libraryLook",
                     action: "shuffle",
                     player: "controller",
+                });
+                break;
+            case "bringFromOutsideGame":
+                ops.push({
+                    op: "bringFromOutsideGame",
+                    player: "controller",
+                    filter: frame.filter,
+                    prompt: `Reveal ${frame.phrase} you own from outside the game.`,
                 });
                 break;
         }

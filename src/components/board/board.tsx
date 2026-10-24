@@ -75,6 +75,7 @@ import PendingChoicePrompt from "./pending-choice-prompt";
 import PileDivisionPicker from "./pile-division/pile-division-picker";
 import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
+import OutsideGameCardPick from "./outside-game-card-pick";
 import RevealHandView from "./reveal-hand-view";
 import RevealNotificationOverlay from "./reveal-notification-overlay";
 import PutBackPicker from "./put-back-picker";
@@ -770,6 +771,7 @@ export default function Board({
                                                     />
                                                 )}
                                             <HandCardPick />
+                                            <OutsideGameCardPick />
                                             <RevealHandView />
                                             <RevealNotificationOverlay />
                                             <PutBackPicker />

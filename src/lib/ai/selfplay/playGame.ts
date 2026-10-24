@@ -151,6 +151,12 @@ export function listCandidates(
 ): CardInstanceState[] {
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? head.playerId);
 
+    // CR 400.11b — a Wish pick names no zone (outside the game is not one):
+    // the engine's own eligibility is the pool.
+    if (head.kind === "choose-outside-game-card") {
+        return eligibleZonePickCards(state, head);
+    }
+
     // `hand` / `library` / `graveyard` / `exile` (`PendingChoice.zone`,
     // gre/state.ts) are all simple owner-zone picks with the SAME
     // resolver contract (`pendingChoiceSubmit.ts`): the pool is the owner's

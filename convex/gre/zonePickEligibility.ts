@@ -14,6 +14,7 @@ import { getPlayer, matchesPermanentFilter } from "./state";
 import { computeHardSkipFilters } from "./phases";
 import { effectivePermanentView } from "./permanentView";
 import { damageSourceChoicePool } from "./damageSourceChoice";
+import { outsideGamePool } from "./outsideGame";
 
 /** Whether a battlefield pick draws from EVERY player's battlefield rather
  *  than `zoneOwnerId ?? playerId`'s. `allControllers` says so explicitly; a
@@ -39,6 +40,13 @@ export function eligibleZonePickCards(
     head: PendingChoice
 ): CardInstanceState[] {
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? head.playerId);
+    // CR 400.11 — outside the game is no zone; the pick carries none, and its
+    // allow-list is mandatory (`submitOutsideGamePick` fails closed without).
+    if (head.kind === "choose-outside-game-card") {
+        return outsideGamePool(zoneOwner).filter(
+            (c) => head.candidateIds?.includes(c.id) ?? false
+        );
+    }
     let pool: CardInstanceState[];
     switch (head.zone) {
         case "battlefield":
