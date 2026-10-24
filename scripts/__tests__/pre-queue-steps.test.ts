@@ -4,11 +4,21 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { classifyLane, type RelatedTests } from "../check-lane";
-import { landRefusals, REGENERATE_STEP, runPreQueue } from "../land-ready";
+import {
+    isTransientPushFailure,
+    landRefusals,
+    pushWithRetry,
+    REGENERATE_STEP,
+    runPreQueue,
+} from "../land-ready";
 import { ORIGIN_BASE } from "../lib/branches";
 import type { Lineage } from "../lib/health-verdict-store";
 import { SKIN_RECEIPT_REFUSAL } from "../land";
-import { EXCLUDED_FROM_PRE_QUEUE, preQueueSteps } from "../lib/pre-queue-steps";
+import {
+    EXCLUDED_FROM_PRE_QUEUE,
+    isCheapStep,
+    preQueueSteps,
+} from "../lib/pre-queue-steps";
 
 const none: RelatedTests = {
     "node-engine": [],
@@ -30,7 +40,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         const kept = plan.run
             .filter((c) => !(c.id in EXCLUDED_FROM_PRE_QUEUE))
             .map((c) => c.id);
-        expect(run.map((c) => c.id)).toEqual(kept);
+        expect([...run.map((c) => c.id)].sort()).toEqual([...kept].sort());
         expect(run.map((c) => c.id)).toContain("tsc[all]");
         expect(run.map((c) => c.id)).toContain("cr:lint");
     });
@@ -192,10 +202,136 @@ describe("runPreQueue — derived state is rebuilt around the steps", () => {
         expect(r.failed).toBe("tsc[all]");
     });
 
-    it("a failed regenerate runs no step, reports it, and still restores", () => {
+    it("a failed regenerate is the first red, runs only the cheap tier, still restores", () => {
         const { calls, r } = drive({ regenOk: false });
         expect(r.failed).toBe(REGENERATE_STEP);
-        expect(calls).toEqual(["regenerate", "restore"]);
+        expect(calls[0]).toBe("regenerate");
+        expect(calls.at(-1)).toBe("restore");
+        const ran = r.result.outcomes.filter((o) => o.status !== "not-run");
+        expect(ran.slice(1).every((o) => o.id !== "tsc[all]")).toBe(true);
+    });
+});
+
+// Issue #6620 — cheap refusals first, every red at once.
+describe("runPreQueue — cheap tier first, all reds at once (issue #6620)", () => {
+    const files = ["convex/gre/foo.ts", "scripts/__tests__/brand-new.test.ts"];
+    const plan = classifyLane(files, files, related({}));
+    const drive = (failing: string[], regenOk = true) => {
+        const ran: string[] = [];
+        const r = runPreQueue({
+            plan,
+            added: ["scripts/__tests__/brand-new.test.ts"],
+            present: files,
+            log: () => undefined,
+            regenerate: () => regenOk,
+            restore: () => undefined,
+            exec: (command) => {
+                ran.push(command);
+                return { ok: !failing.some((f) => command.includes(f)), ms: 1 };
+            },
+        });
+        return { ran, r };
+    };
+
+    it("orders every cheap step before any step that runs tests or tsc", () => {
+        const { run } = preQueueSteps(plan, [], files);
+        const firstCostly = run.findIndex((c) => !isCheapStep(c));
+        expect(firstCostly).toBeGreaterThan(0);
+        expect(run.slice(firstCostly).some(isCheapStep)).toBe(false);
+        expect(run.slice(0, firstCostly).map((c) => c.id)).toContain(
+            "check:issue-log-comments"
+        );
+    });
+
+    it("names every red of the cheap tier in one run and starts no test", () => {
+        const { ran, r } = drive(
+            ["check:gaps", "check:issue-log-comments", "cr:lint"],
+            false
+        );
+        expect(r.failedAll).toEqual([
+            REGENERATE_STEP,
+            "cr:lint",
+            "check:gaps",
+            "check:issue-log-comments",
+        ]);
+        expect(ran.some((c) => c.includes("vitest"))).toBe(false);
+        expect(ran.some((c) => c.includes("check:ts"))).toBe(false);
+    });
+
+    it("a standing refusal skips the costly tier even when the cheap tier is green", () => {
+        const ran: string[] = [];
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
+            skipCostly: true,
+            exec: (command) => {
+                ran.push(command);
+                return { ok: true, ms: 1 };
+            },
+        });
+        expect(r.failedAll).toEqual([]);
+        expect(ran.some((c) => c.includes("check:ts"))).toBe(false);
+    });
+
+    it("a green cheap tier runs the costly tier, fail-fast", () => {
+        const { ran, r } = drive(["check:ts"]);
+        expect(r.failedAll).toEqual(["tsc[all]"]);
+        expect(ran.some((c) => c.includes("vitest"))).toBe(false);
+    });
+});
+
+describe("pushWithRetry — the hand-off push (issue #6620)", () => {
+    const rejected = {
+        status: 1,
+        stderr: "! [remote rejected] HEAD -> feat/x (failure)\nerror: failed to push some refs",
+    };
+    const nonFf = {
+        status: 1,
+        stderr: "! [rejected] HEAD -> feat/x (non-fast-forward)\nerror: failed to push some refs",
+    };
+    const ok = { status: 0, stderr: "" };
+    const drive = (replies: { status: number; stderr: string }[]) => {
+        let n = 0;
+        const sleeps: number[] = [];
+        const r = pushWithRetry(
+            () => replies[Math.min(n++, replies.length - 1)],
+            (ms) => void sleeps.push(ms),
+            () => undefined
+        );
+        return { r, attempts: n, sleeps };
+    };
+
+    it("retries a transient rejection and returns the success", () => {
+        const { r, attempts, sleeps } = drive([rejected, rejected, ok]);
+        expect(r.status).toBe(0);
+        expect(attempts).toBe(3);
+        expect(sleeps).toEqual([2000, 5000]);
+    });
+
+    it("gives up after 3 attempts", () => {
+        const { r, attempts } = drive([rejected]);
+        expect(r.status).toBe(1);
+        expect(attempts).toBe(3);
+    });
+
+    it("a non-fast-forward is not retried", () => {
+        const { r, attempts } = drive([nonFf, ok]);
+        expect(r.status).toBe(1);
+        expect(attempts).toBe(1);
+        expect(isTransientPushFailure(nonFf.stderr)).toBe(false);
+    });
+
+    it("a remote that moved (fetch first) is not retried", () => {
+        const fetchFirst = {
+            status: 1,
+            stderr: "! [rejected] HEAD -> feat/x (fetch first)\nerror: failed to push some refs",
+        };
+        const { attempts } = drive([fetchFirst, ok]);
+        expect(attempts).toBe(1);
     });
 });
 
