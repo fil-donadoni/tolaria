@@ -19,6 +19,8 @@ import {
     stashListOf,
     CHEAP_GUARDS,
     SEARCH_COST_TEST,
+    EVAL_WEIGHTS_FIT_TEST,
+    EVAL_WEIGHTS_FIT_FILTER,
     WHOLE_PROJECT_AT,
     BOT_FAST_LANE,
     BOT_STEP,
@@ -629,6 +631,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "check:test-hygiene",
             "blade-index",
             "search-cost",
+            "eval-weights-fit",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
@@ -850,6 +853,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "blade-index",
             // Nor anything a search iteration runs on (issue #6545).
             "search-cost",
+            "eval-weights-fit",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:duplicate-test-blocks",
@@ -1024,6 +1028,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             // The search cost-counter pin (issue #6545).
             "search-cost",
+            "eval-weights-fit",
             "check:issue-log-comments",
         ]);
         expect(ids(engine.skip)).toEqual([
@@ -1060,6 +1065,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:targets",
             "check:test-hygiene",
             "search-cost",
+            "eval-weights-fit",
             "check:issue-log-comments",
         ]);
         expect(ids(cards.skip)).toEqual([
@@ -1090,6 +1096,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             "blade-index",
             "search-cost",
+            "eval-weights-fit",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
@@ -2268,7 +2275,11 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
                 expect(HEALTH_SCRIPTS, guard.id).toContain(guard.id);
                 continue;
             }
-            const file = guard.command.split(/\s+/).at(-1)!;
+            // The file is the command's one test path; a `-t` filter may
+            // follow it (issue #6559).
+            const file = guard.command
+                .split(/\s+/)
+                .find((w) => /\.test\.tsx?$/.test(w))!;
             expect(existsSync(resolve(ROOT, file)), file).toBe(true);
             expect(selectedBy(botNode!, file), file).toBe(true);
         }
@@ -2353,6 +2364,63 @@ describe("check-lane — the search cost pin runs wherever a search iteration ca
             const skipped = plan.skip.find((s) => s.id === "search-cost");
             expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
         }
+    });
+});
+
+/**
+ * Issue #6559 — the Weight Fit's reproducibility guard is a `bot-node` file:
+ * PR #6509 moved the verdict features under `convex/gre/**`, no `engine` lane
+ * ran the guard, and it surfaced as a second base RED (issue #6558). The
+ * guard is admitted by every input of the fit — the trees the positions are
+ * rebuilt on, the Verdict Lock, the store and pack cache that load it — and
+ * runs that one test, by name.
+ */
+describe("check-lane — the Weight Fit guard runs wherever a fit input can change (issue #6559)", () => {
+    const guard = (plan: LanePlan) =>
+        plan.run.find((c) => c.id === "eval-weights-fit");
+    const command = `bunx vitest run --project bot-node ${EVAL_WEIGHTS_FIT_TEST} -t '${EVAL_WEIGHTS_FIT_FILTER}'`;
+
+    it("an engine, card, compiler, weights, lock or corpus-loader edit plans it, in the bot-node project", () => {
+        for (const file of [
+            "convex/gre/search.ts",
+            "convex/gre/ai/evalWeights.ts",
+            "convex/gre/ai/blade/registry.ts",
+            "convex/cards/sets/lea/red.cards.ts",
+            "convex/oracle/lowerStatic.ts",
+            "convex/debugScenarioSpec.ts",
+            "convex/verdictStore.ts",
+            "convex/verdictStoreMemory.ts",
+            "data/verdicts.lock.json",
+            "scripts/lib/verdict-pack-cache.ts",
+            "scripts/lib/verdict-store.ts",
+            // It decides the corpus describe's skip.
+            "scripts/lib/corpus-exclusion.ts",
+            EVAL_WEIGHTS_FIT_TEST,
+        ]) {
+            expect(guard(classifyLane([file]))?.command, file).toBe(command);
+        }
+    });
+
+    it("a diff that moves no fit input skips it, by name", () => {
+        for (const file of [
+            "src/components/board/Card.tsx",
+            "scripts/land.ts",
+            "convex/game.ts",
+            "data/verdicts.streaks.json",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(guard(plan), file).toBeUndefined();
+            const skipped = plan.skip.find((s) => s.id === "eval-weights-fit");
+            expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
+        }
+    });
+
+    it("its filter names a test the guard file still carries", () => {
+        const source = readFileSync(
+            resolve(__dirname, "../..", EVAL_WEIGHTS_FIT_TEST),
+            "utf8"
+        );
+        expect(source).toContain(`${EVAL_WEIGHTS_FIT_FILTER}"`);
     });
 });
 
