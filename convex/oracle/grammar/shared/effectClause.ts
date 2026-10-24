@@ -81,6 +81,7 @@ import {
 import {
     COLOR_WORDS,
     TYPE_NOUNS,
+    type DescriptorIR,
     descriptorRule,
     dividedTargetsRule,
     narrowedStackRequirement,

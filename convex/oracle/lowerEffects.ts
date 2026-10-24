@@ -881,6 +881,17 @@ export class TargetSlots {
         // A "narrowed" sweep (`forEach { set: "targets", zone }`) reads only
         // its own group's picks, so an earlier group (the opponent whose board
         // bounds it) does not enter the set.
+        // The sweep reads EVERY graveyard card the spell announced, so an
+        // earlier group that can name one would be swept with it.
+        if (
+            sweptSet === "narrowed" &&
+            this.groups.some(
+                (g) => g.zone !== undefined && g.zone !== "battlefield"
+            )
+        )
+            return unlowerable(
+                "a swept graveyard group after another graveyard group would sweep both (CR 601.2c)"
+            );
         if (sweptSet === true && this.groups.length > 0)
             return unlowerable(
                 "a swept target group after another target group would sweep both (CR 601.2c)"
@@ -2284,6 +2295,12 @@ function lowerSentenceBody(
             ]);
         }
         case "return-up-to-x-bounded-targets": {
+            // CR 601.2c — "as you cast this spell" is the moment the count is
+            // fixed; an ability has no cast to read it at.
+            if (site.resolvingSpell !== true)
+                return unlowerable(
+                    '"as you cast this spell" names no spell at this site (CR 601.2c)'
+                );
             // CR 107.3 — the count the "where X is" tail defines, over the
             // permanents the announced opponent controls.
             const filter = boundCountFilter(sentence.counted);

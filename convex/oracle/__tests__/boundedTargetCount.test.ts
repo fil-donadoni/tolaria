@@ -134,6 +134,33 @@ describe("text-defined target count — refused neighbours (fail-closed)", () =>
         ).toBe("unparsed");
     });
 
+    it("refuses a graveyard group announced before the bounded one", () => {
+        // The sweep reads every announced graveyard card, so an earlier group
+        // naming one would be swept with Reap's picks.
+        expect(
+            compileCard(
+                instant(
+                    `Return target creature card from your graveyard to your hand. ${REAP_TEXT}`
+                )
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("refuses the bound outside a spell (no cast to fix the count at)", () => {
+        expect(
+            compileCard(
+                oracleCard({
+                    name: "Probe",
+                    manaCost: "{1}{G}",
+                    typeLine: "Creature — Elf",
+                    oracleText: `{T}: ${REAP_TEXT}`,
+                    power: "1",
+                    toughness: "1",
+                })
+            ).state
+        ).toBe("unparsed");
+    });
+
     it("reads the opponent's slot, not slot 0, behind a fixed-width group", () => {
         const definition = compiled(
             instant(`Destroy target creature. ${REAP_TEXT}`)
