@@ -150,6 +150,54 @@ describe("Player verbs — golden fixtures (CR 121.1, CR 119.3, CR 608.2c)", () 
         );
     });
 
+    it("the second subject elided, upkeep head: Phyrexian Arena", () => {
+        const text =
+            "At the beginning of your upkeep, you draw a card and lose 1 life.";
+        expectDefinition(
+            oracleCard({
+                name: "Phyrexian Arena",
+                manaCost: "{1}{B}{B}",
+                typeLine: "Enchantment",
+                oracleText: text,
+                power: undefined,
+                toughness: undefined,
+            }),
+            {
+                name: "Phyrexian Arena",
+                types: ["Enchantment"],
+                manaCost: { X: 1, B: 2 },
+                oracleText: text,
+                compiledTriggeredAbilities: [
+                    {
+                        id: "phyrexian-arena-trigger",
+                        oracleText: text,
+                        head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                            { op: "loseLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            }
+        );
+    });
+
+    it("the elided form refuses a neighbour verb: draw and discard", () => {
+        expect(
+            refused(
+                oracleCard({
+                    name: "Test Arena",
+                    manaCost: "{1}{B}{B}",
+                    typeLine: "Enchantment",
+                    oracleText:
+                        "At the beginning of your upkeep, you draw a card and discard a card.",
+                    power: undefined,
+                    toughness: undefined,
+                })
+            )
+        ).toBe("unparsed");
+    });
+
     it("target player discards two cards, the player's choice: Mind Rot", () => {
         expectDefinition(
             sorcery("Mind Rot", "{2}{B}", "Target player discards two cards."),
