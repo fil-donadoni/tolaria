@@ -108,6 +108,7 @@ import {
     maxAffordableXOverCost,
     maxAffordableDistinctColorX,
     buildManaSourceUnits,
+    solveHybridGenericLegs,
     solvePhyrexianSplit,
     genericManaShortfall,
     targetingSourceFromCard,
@@ -3427,12 +3428,23 @@ function enumerateCastMovesFromZone(
             ? flashbackLifeCost(state, card, castFromZone)
             : 0;
     if (flashbackLife > 0 && player.life < flashbackLife) return [];
-    const rawCost =
+    const printedCost =
         chosenAltCost !== undefined
             ? (chosenAltCost.mana ?? {})
             : lifeInsteadOfMana !== undefined
               ? {}
               : (castRawManaCost(state, card, castFromZone) ?? {});
+    // CR 107.4e — a `{2/W}` pip is paid with its cheapest AFFORDABLE leg; the
+    // Bot enumerates the cast with those legs folded into ordinary pips, and
+    // none affordable means no cast, exactly as the castability gate decides.
+    const rawCost = solveHybridGenericLegs(
+        player,
+        card,
+        printedCost,
+        undefined,
+        state
+    );
+    if (rawCost === null) return [];
 
     // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
     // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no

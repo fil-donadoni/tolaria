@@ -219,6 +219,7 @@ import {
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
+    solveHybridGenericLegs,
     solvePhyrexianSplit,
     siblingControllerIdFor,
     isAlreadySelectedTarget,
@@ -257,6 +258,10 @@ import {
     pendingTargetCountMaxReached,
     resolveDivideTotal,
 } from "./gre/pendingTargetOrigin";
+import {
+    foldHybridGenericLegs,
+    hybridGenericPipCount,
+} from "./gre/hybridGeneric";
 import {
     PHYREXIAN_LIFE_PER_PIP,
     phyrexianManaAdditions,
@@ -4815,6 +4820,39 @@ function resolvePhyrexianCastPayment(
     return { manaAdditions, payLife };
 }
 
+/** CR 107.4e / 601.2b — the mana a cast's monocolour hybrid pips (`{2/W}`) add
+ *  to its fixed cost, as `normalizeManaCost` keys (a colour, or `X` for the
+ *  generic leg). Each pip takes the cheapest affordable leg
+ *  (`solveHybridGenericLegs`); when none is affordable (the castability gate
+ *  should have blocked the cast) every pip falls to its generic leg, so the
+ *  payment fails closed rather than the pips costing nothing. `normalizeManaCost`
+ *  ignores `hybridGeneric`, so the additions are the difference between the
+ *  folded and the printed cost. A cost with no such pip is a `{}` no-op. */
+function resolveHybridGenericCastAdditions(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost | undefined,
+    chosenX: number | undefined,
+    state: GameState
+): Record<string, number> {
+    if (!rawCost || hybridGenericPipCount(rawCost) === 0) return {};
+    const folded =
+        solveHybridGenericLegs(player, card, rawCost, chosenX, state) ??
+        foldHybridGenericLegs(
+            rawCost,
+            (rawCost.hybridGeneric ?? []).map(() => false)
+        );
+    const before = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
+    const additions: Record<string, number> = {};
+    for (const [key, n] of Object.entries(
+        normalizeManaCost(folded, { chosenX: chosenX ?? 0 })
+    )) {
+        const extra = n - (before[key] ?? 0);
+        if (extra > 0) additions[key] = extra;
+    }
+    return additions;
+}
+
 export function finalizeTargetSelection(
     state: GameState,
     pt: PendingTarget,
@@ -5518,6 +5556,21 @@ export function finalizeTargetSelection(
           );
     for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
         if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
+    }
+    // CR 107.4e — fold the legs chosen for `{2/W}` pips (none under an
+    // alternative cost, which replaces the printed mana).
+    for (const [c, n] of Object.entries(
+        chosenAltCost
+            ? {}
+            : resolveHybridGenericCastAdditions(
+                  player,
+                  cardInHand,
+                  rawCost,
+                  chosenX,
+                  state
+              )
+    )) {
+        manaCost[c] = (manaCost[c] ?? 0) + n;
     }
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
     // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
@@ -7659,6 +7712,18 @@ export const announceCast = mutation({
         );
         for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
             if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
+        }
+        // CR 107.4e — fold the legs chosen for `{2/W}` pips.
+        for (const [c, n] of Object.entries(
+            resolveHybridGenericCastAdditions(
+                player,
+                cardInHand,
+                rawCost,
+                chosenX,
+                state
+            )
+        )) {
+            manaCost[c] = (manaCost[c] ?? 0) + n;
         }
         // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker joins the
         // Phyrexian life on this cast's single life payment (ADR 0079).

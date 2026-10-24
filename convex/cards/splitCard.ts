@@ -161,6 +161,11 @@ export function combineSplitManaCosts(
     }
     const hybrid = [...(a.hybrid ?? []), ...(b.hybrid ?? [])];
     if (hybrid.length > 0) combined.hybrid = hybrid;
+    const hybridGeneric = [
+        ...(a.hybridGeneric ?? []),
+        ...(b.hybridGeneric ?? []),
+    ];
+    if (hybridGeneric.length > 0) combined.hybridGeneric = hybridGeneric;
     return combined;
 }
 

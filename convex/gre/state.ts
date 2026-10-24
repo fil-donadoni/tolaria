@@ -21822,7 +21822,10 @@ export function normalizeManaCost(
         if (
             key === "xFactor" ||
             key === "xSpendColors" ||
-            key === "xSpendDistinctColors"
+            key === "xSpendDistinctColors" ||
+            // CR 107.4e — the leg of a `{2/W}` pip is resolved at cast time
+            // (`solveHybridGenericLegs`), like Phyrexian pips.
+            key === "hybridGeneric"
         )
             continue;
         // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
