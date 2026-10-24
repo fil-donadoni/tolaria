@@ -273,7 +273,7 @@ export function ladderRung(facts: LadderFacts): Rung {
     if (landed !== undefined)
         return {
             kind: "wait",
-            why: `a repair${landed.pr ? ` (PR #${landed.pr})` : ""} landed against ${short(red)} — health confirms on its tip`,
+            why: `a repair${landed.pr ? ` (PR #${landed.pr})` : ""} landed against ${short(red)}${landed.classGuard ? ` (its class guard is the owner's: issue #${landed.classGuard})` : ""} — health confirms on its tip`,
         };
     if (facts.secondRed)
         return revertOrStop(facts, "a second RED follows a proved repair");

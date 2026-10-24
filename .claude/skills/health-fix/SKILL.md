@@ -28,7 +28,10 @@ closes the class of the failure**, and a verdict file saying which.
 2. **Never invoke `bun run release`.** The loop belongs to the caller. A fixer
    that re-entered release would escape the bound on rounds.
 3. **Grill on ambiguity, one question per turn** (headless: `stuck`). Not
-   being able to formulate the class guard is itself such an ambiguity.
+   being able to formulate the class guard is itself such an ambiguity —
+   except headless with a CERTAIN instance fix, where "no class guard I can
+   defend" is an owner decision and ends `landed-partial`, not `stuck`
+   (`headless.md`, issue #6552). "No understood fix" stays `stuck`.
 4. **A green suite is not the deliverable.** The fix plus the class guard is.
    A red you made disappear without understanding is a `stuck`.
 
@@ -235,13 +238,17 @@ jq -n --arg sha "$1" --argjson pr <PR#> --arg note '<one line>' \
   > <primary>/.claude/telemetry/health/fix-verdict.json
 ```
 
-`outcome` is `landed` or `stuck`, and nothing else — `parseVerdict` in
+`outcome` is `landed`, `landed-partial` (headless only, below) or `stuck`, and nothing else — `parseVerdict` in
 `scripts/health-fix.ts` is fail-closed: an absent file, unparsable JSON, an
 unknown outcome or another sha all read as `stuck`.
 
 - **`landed`** — the PR is genuinely merged into the base branch. Verify it,
   do not assume it: `gh pr view <PR#> --json state --jq .state` must print
   `MERGED`. Only then.
+- **`landed-partial`** — headless only (`headless.md`): the instance fix is
+  merged and verified as for `landed`, the class guard is filed as a
+  `ready-for-human` issue. Write `classGuardIssue` (the issue's number) beside
+  `pr`; `parseVerdict` reads a partial verdict without one as `stuck`.
 - **`stuck`** — anything else: no reproduction, no class guard you believe in,
   a repair you would not defend, a grill the maintainer ended. Put the analysis
   in the issue (or print it if none was opened) and a one-line summary in

@@ -173,6 +173,45 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
             )
         ).toMatchObject({ kind: "wait", why: expect.stringContaining("5800") });
     });
+
+    it("a partial landing (class guard filed for the owner) waits for health — no fix, no revert (issue #6552)", () => {
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        outcome: "landed",
+                        pr: 5800,
+                        classGuard: 6548,
+                    }),
+                })
+            )
+        ).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("issue #6548"),
+        });
+    });
+
+    it("a second RED after a partial landing follows the existing second-RED rule", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprit: null },
+            ...withAttempt(
+                { outcome: "landed", pr: 5800, classGuard: 6548 },
+                OLD_RED
+            ),
+        ];
+        expect(ladderRung(facts({ episode }))).toMatchObject({
+            kind: "revert",
+            why: expect.stringContaining("second RED"),
+        });
+    });
+
+    it("a stuck attempt (instance fix not defensible) still reaches the revert rung", () => {
+        expect(
+            ladderRung(
+                facts({ episode: withAttempt({ attempt: MAX_FIX_ATTEMPTS }) })
+            )
+        ).toMatchObject({ kind: "revert", culprit: CULPRIT });
+    });
 });
 
 describe("ladderRung — rung 5, revert as the last resort", () => {
@@ -452,6 +491,31 @@ describe("the ladder's facts and texts", () => {
             decodeFixStatus({
                 sha: RED,
                 state: "failure",
+                description,
+                createdAt: null,
+            })
+        ).toEqual(a);
+    });
+
+    it("a partial landing's class-guard issue round-trips through the commit status", () => {
+        const a: FixAttempt = {
+            sha: RED,
+            outcome: "landed",
+            rung: "fix",
+            attempt: 1,
+            machine: "macbook",
+            pr: 6600,
+            classGuard: 6548,
+            note: "re-recorded",
+        };
+        const description = encodeFixDescription(a);
+        expect(description).toBe(
+            "LANDED · macbook · fix 1 · PR #6600 · guard #6548 · re-recorded"
+        );
+        expect(
+            decodeFixStatus({
+                sha: RED,
+                state: "success",
                 description,
                 createdAt: null,
             })
