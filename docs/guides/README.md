@@ -21,6 +21,7 @@ an agent's context automatically — these are read on demand.
 | [Catalogue cloud latency](catalogue-cloud-latency.md) | Measure what a request pays for the packed catalogue on Convex cloud: create a throwaway deployment, sweep block sizes, read the verdict, delete the project                                                  |
 | [Bot reachability](bot-reachability.md)               | Prove a new card/mechanic is one the Bot can actually PLAY: the three seams, what the existing guards are blind to, what to declare in the PR                                                                 |
 | [Runner machines](huawei-runner.md)                   | Set up the Huawei for the batch gates (logind, Playwright, GNU time), its Convex unit, the MacBook land-runner agent and the crons                                                                            |
+| [Oracle compiler](oracle-compiler.md)                 | Read the grammar backlog: `oracle:report --frames`, the one class-keyed table of what unlocks how many cards, its `--delta` and dated snapshot                                                                |
 | [GitHub pipeline](github-pipeline.md)                 | The GitHub-native AFK stack (ADR 0156, PRD #5620): self-hosted runners and their labels, `bun run runner install` / `pause` / `resume`, the repository settings checklist — updated by every slice of the PRD |
 
 ## The rest of the map
