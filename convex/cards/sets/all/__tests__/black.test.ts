@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { CardInstanceState, GameState } from "../../../../gre/types";
+import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
     makeInstance,
     makePlayer,
