@@ -21,7 +21,11 @@ reverts the culprit.
   class guard as its own issue labelled `ready-for-human` (`area:*` + type;
   options weighed, each with its measured cost) and write the verdict
   `{sha, outcome:"landed-partial", pr, classGuardIssue, note}`. The ladder
-  reads it as `landed`: it waits for health on the new tip, no revert rung.
+  (write it with `jq -n --arg sha "$1" --argjson pr <PR#> --argjson guard
+<ISSUE#> --arg note '<one line>'
+'{sha:$sha,outcome:"landed-partial",pr:$pr,classGuardIssue:$guard,note:$note}'`
+  into the same `fix-verdict.json` as SKILL.md § verdict; `parseVerdict` reads
+  a partial without the number as `stuck`). The ladder reads it as `landed`: it waits for health on the new tip, no revert rung.
   **No reproduction, two plausible causes, or a fix that trades a correctness
   invariant is still `stuck`** — the revert answers "we do not know how to
   fix this". A guard you simply did not try to write is not an owner
