@@ -1532,7 +1532,7 @@ export const phyrexianInfiltrator = defineCard(() => ({
 // Exotic Curse — {2}{B} Enchantment — Aura. "Enchant creature. Domain —
 // Enchanted creature gets -1/-1 for each basic land type among lands you
 // control." (CR 303.4 aura, CR 604.3 CDA, CR 702 preamble Domain ability
-// word, issue #1066.) Mirrors Strength of Unity's `pt-cda` shape exactly
+// word, issue #1066.) Mirrors Strength of Unity's `pt-buff` shape exactly
 // (`inv/white.cards.ts`) with a NEGATED delta — the shared `countDomain` helper
 // read against the Aura's OWN controller (`source.controllerId`).
 export const exoticCurse = defineCard(() => ({
@@ -1547,9 +1547,9 @@ export const exoticCurse = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (source, state) => {
+            computeFor: (source, state) => {
                 const domain = countDomain(state, source.controllerId);
                 return { power: -domain, toughness: -domain };
             },

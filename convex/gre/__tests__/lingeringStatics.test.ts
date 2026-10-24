@@ -197,14 +197,13 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         }
         expect(stored.map((e) => e.layer).sort()).toEqual([4, 6, 7]);
         // The snapshot preserves the effect's SLOT and its CR 604.3 flag: a
-        // `pt-cda` derives at sublayer 7a (CR 613.4a) with
-        // `characteristicDefining` set, and it still does after the conversion,
-        // with its value computed once (Sol Ring's mana value is 1). Whether
-        // Titania's Song's P/T clause should be a `pt-cda` at all is a separate,
-        // pre-existing question — see `docs/findings/`.
+        // `pt-set` derives at sublayer 7b (CR 613.4b) and is not
+        // characteristic-defining (Titania's Song's ability is not printed on
+        // the artifacts it affects, CR 604.3a), and it still does after the
+        // conversion, with its value computed once (Sol Ring's mana value is 1).
         const pt = stored.find((e) => e.layer === 7)!;
-        expect(pt.sublayer).toBe("7a");
-        expect(pt.characteristicDefining).toBe(true);
+        expect(pt.sublayer).toBe("7b");
+        expect(pt.characteristicDefining).toBe(false);
         expect(pt.payload).toEqual({ kind: "pt-set", power: 1, toughness: 1 });
     });
 

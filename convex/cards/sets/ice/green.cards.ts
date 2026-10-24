@@ -1186,13 +1186,13 @@ export const scaledWurm = defineCard(() => ({
     power: 7,
     toughness: 6,
 }));
-// Snowblind — Aura: enchanted creature gets -X/-Y (CR 613 layer 7c, a `pt-cda`
-// since X/Y are characteristic-defined by board state — CR 604.3). X = number
+// Snowblind — Aura: enchanted creature gets -X/-Y (CR 613 layer 7c, a `pt-buff`
+// `computeFor` since X/Y are derived from board state). X = number
 // of snow lands the DEFENDING player controls if the host is attacking,
 // otherwise the snow lands its CONTROLLER controls (CR 205.4a). Y = min(X,
 // toughness − 1), so the toughness reduction never reduces the host below 1
 // toughness on its own. The host's toughness read in `compute` is its toughness
-// WITHOUT this effect (the CDA delta is added on top), giving the intended cap.
+// WITHOUT this effect (the modification is added on top), giving the intended cap.
 //
 // SIMPLIFICATION (tracked-by: #2785) (flagged): the "defending player" while the host attacks is
 // resolved as the host's opponent (the non-controller in 2-player). Multiplayer
@@ -1209,9 +1209,9 @@ export const snowblind = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (_source, state, ctx, target) => {
+            computeFor: (_source, state, ctx, target) => {
                 // CR 205.4a — count snow lands controlled by the relevant
                 // player. Attacking → the defending player (the host's
                 // opponent); otherwise → the host's controller. The view's
