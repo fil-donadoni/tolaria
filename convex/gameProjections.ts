@@ -744,6 +744,18 @@ function buildExileAssociation(state: GameState): Map<string, string> {
     return map;
 }
 
+/** The optional `CardInstanceState` fields a non-knower of a face-down exiled
+ *  card may see (CR 406.3). Everything not named here, or set above, is hidden. */
+const FACE_DOWN_EXILE_PUBLIC_KEYS = [
+    "faceDownBy",
+    "castableFromExileBy",
+    "castableFromExileIncludesLand",
+    "castableFromExileUntilTurn",
+    "castableFromExileUntilOwnTurn",
+    "castableFromExileUntilOwnUpkeep",
+    "castableFromExileFromTurn",
+] as const satisfies readonly (keyof CardInstanceState)[];
+
 function projectExileCard(
     card: CardInstanceState,
     viewerId: string,
@@ -806,28 +818,35 @@ function projectExileCard(
     }
     // Everyone else sees a face-down card with the identity hidden — but still
     // pinned to its permanent (the association is public; the identity is not).
-    // issue #2092 — characteristics live on the INSTANCE, not the definition
-    // (`convex/gre/state.ts`), so masking only `card.id` is half the job: a
-    // face-down exile card deliberately keeps its real `types`/`subtypes`/
-    // `power`/`toughness`/`staticAbilities` in state (the knower must see the
-    // real card), unlike a face-down PERMANENT whose 2/2 colourless body is
-    // already overwritten in state by `turnFaceDown` (CR 708.2). CR 406.3 — a
-    // face-down card in exile is "a card" with no characteristics to show.
-    const slimmed = slimCard({
-        ...card,
+    // Built from an ALLOW-LIST, never spread-then-subtract: characteristics
+    // live on the INSTANCE (`convex/gre/state.ts`), and a face-down exile card
+    // keeps its real ones in state (the knower must see the real card, unlike a
+    // face-down PERMANENT whose 2/2 body `turnFaceDown` already wrote, CR 708.2).
+    // CR 406.3 — a face-down card in exile is "a card" with no characteristics
+    // to show, so a field added to `CardInstanceState` later is hidden by
+    // default instead of exposed.
+    const slimmed: SlimExileCard = {
+        id: card.id,
         card: { id: FACE_DOWN_CARD_ID },
+        controllerId: card.controllerId,
+        ownerId: card.ownerId,
+        zone: card.zone,
+        isTapped: card.isTapped,
         types: [],
         subtypes: [],
         staticAbilities: [],
-    });
-    hideFaceDownIdentity(slimmed);
-    delete (slimmed as { power?: number }).power;
-    delete (slimmed as { toughness?: number }).toughness;
-    // issue #2904 — the same explicit marker the entitled leg gets, so ONE
-    // client predicate covers both viewers. `faceDownBy` (which mechanic hid
-    // it) rides through `slimCard` for both: it names the MECHANIC, never the
-    // card, so it leaks nothing an opponent watching the exile did not see.
-    slimmed.faceDown = true;
+        // issue #2904 — the same explicit marker the entitled leg gets, so ONE
+        // client predicate covers both viewers.
+        faceDown: true,
+    };
+    // `faceDownBy` names the MECHANIC, never the card, so it leaks nothing an
+    // opponent watching the exile did not see. The cast-from-exile grant is the
+    // viewer-independent window the client's Cast button gates on.
+    for (const key of FACE_DOWN_EXILE_PUBLIC_KEYS) {
+        if (card[key] !== undefined) {
+            (slimmed as Record<string, unknown>)[key] = card[key];
+        }
+    }
     return opts?.exiledByPermanentId !== undefined
         ? { ...slimmed, exiledByPermanentId: opts.exiledByPermanentId }
         : slimmed;
