@@ -813,7 +813,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Nettlecyst",
     "Nettling Imp",
     "Nicol Bolas",
-    "Night's Whisper",
     "Nightmare",
     "Nightscape Battlemage",
     "Nightscape Familiar",

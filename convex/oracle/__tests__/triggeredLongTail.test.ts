@@ -408,7 +408,7 @@ const GOLDENS: readonly {
             manaCost: "{2}{B}{B}",
             typeLine: "Creature — Zombie Spirit",
             oracleText:
-                "At the beginning of your upkeep, you draw X cards and you lose X life, where X is the number of Zombies you control.",
+                "At the beginning of your upkeep, you draw X cards and lose X life, where X is the number of Zombies you control.",
             power: "3",
             toughness: "3",
             oracleId: "d2a65ff4-ab82-42f7-9d90-feb29132121e",
@@ -425,12 +425,12 @@ const GOLDENS: readonly {
             power: 3,
             toughness: 3,
             oracleText:
-                "At the beginning of your upkeep, you draw X cards and you lose X life, where X is the number of Zombies you control.",
+                "At the beginning of your upkeep, you draw X cards and lose X life, where X is the number of Zombies you control.",
             compiledTriggeredAbilities: [
                 {
                     id: "graveborn-muse-trigger",
                     oracleText:
-                        "At the beginning of your upkeep, you draw X cards and you lose X life, where X is the number of Zombies you control.",
+                        "At the beginning of your upkeep, you draw X cards and lose X life, where X is the number of Zombies you control.",
                     head: {
                         kind: "phase",
                         phase: "UPKEEP",
@@ -611,6 +611,19 @@ describe("triggered long tail — refusals (fail-closed)", () => {
         expect(
             unparsed(
                 "At the beginning of your upkeep, you gain X life, where X is the number of cards in your graveyard minus 4."
+            )
+        ).toBe(true);
+    });
+
+    it("refuses an elided-subject draw conjunction past the draw-and-lose-life pair (CR 608.2c)", () => {
+        expect(
+            unparsed(
+                "At the beginning of your upkeep, you draw a card and discard a card."
+            )
+        ).toBe(true);
+        expect(
+            unparsed(
+                "At the beginning of your upkeep, you draw a card and gain 1 life."
             )
         ).toBe(true);
     });
