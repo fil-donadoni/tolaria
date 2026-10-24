@@ -18,10 +18,14 @@
 // pre-DSL `resolve()` / `effect`-shorthand cards the migration hasn't reached
 // (e.g. Black Lotus's mana ability, an `effect:` shorthand).
 
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { getOpponentId, getPlayer } from "../state";
 import { getEffectivePT } from "../layers";
-import { tryGetDefinition } from "../../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../../cards";
+import { getProducibleColorsOnBoard } from "../constants";
+import { sourceQuality } from "./sourceQuality";
+import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
+import { coversCostColors, manaUnitsFor } from "../manaAvailability";
 import {
     carriesSpellOrAbilityScript,
     dslLatentAbilityScriptOpValue,
@@ -36,6 +40,7 @@ import {
 import type { SearchFindDestination } from "./searchDestination";
 import type { OpValue, ValueTag } from "./featureBasis";
 import type {
+    Color,
     EffectCardFilter,
     EffectCountSpec,
     EffectDifferenceTallyOperand,
@@ -205,6 +210,24 @@ const LAND_SEARCH_BASE = 70;
 const LAND_SEARCH_STEP = 10;
 const LAND_SEARCH_FLOODED = 20;
 
+/** Worth of the best card in the searcher's hand that a fetched land must be
+ *  the decisive colour source for, before the land is priced as filling that
+ *  need — a trivial card does not make a land decisive. */
+const LAND_NEED_MIN_SPELL_WORTH = 25;
+
+/** Bonus for a land supplying a coloured requirement the board cannot produce
+ *  for a valuable card in hand. Strictly above any {@link sourceQuality} a
+ *  land can carry (a five-colour dual-purpose source is 108 once scaled), so need dominates quality. */
+const LAND_NEED_BONUS = 120;
+
+/** Rescales {@link sourceQuality} (auto-tap's tie-break currency, deliberately
+ *  tiny) onto the fetch curve's scale, so a better source separates from a
+ *  basic by more than rollout noise. */
+const LAND_QUALITY_SCALE = 3;
+
+/** Colours a cost can demand and a land can supply (colourless excluded). */
+const NEEDABLE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G", "C"];
+
 /** Worth of a land HELD in hand at zero lands in play (issue #4932): the same
  *  land-count shape as the fetch curve, but landing on the land's own flat
  *  worth (`flat`, what it priced at before the curve) at
@@ -361,6 +384,11 @@ export type SearchPricing = {
      *  when the ids match and recomputes otherwise, so the optimisation can
      *  never change an answer. */
     recursionAccess?: { playerId: string; hasAccess: boolean };
+    /** The caller is the searcher choosing from its own library
+     *  (`search-library`), so its hand may be read for coloured need. Absent
+     *  for look-at-top / fateseal callers, whose "searcher" can be the
+     *  opponent, whose hand is never read (CR 402.3). */
+    handNeed?: boolean;
 };
 
 /** Rough latent worth of a card a library search could find (CR 701.23), used
@@ -399,12 +427,102 @@ export function libraryTargetWorth(
         return graveyardFindWorth(state, card, pricing.recursionAccess);
     if (!card.types.includes("Land"))
         return prospectiveCardWorth(state, card, ctx);
-    const lands = getPlayer(state, searcherId).battlefield.filter((c) =>
+    const searcher = getPlayer(state, searcherId);
+    const lands = searcher.battlefield.filter((c) =>
         c.types.includes("Land")
     ).length;
-    return lands >= LAND_SEARCH_SATURATION
-        ? LAND_SEARCH_FLOODED
-        : LAND_SEARCH_BASE - LAND_SEARCH_STEP * lands;
+    // The flooded floor is flat: past saturation no land outranks a real spell.
+    if (lands >= LAND_SEARCH_SATURATION) return LAND_SEARCH_FLOODED;
+    const curve = LAND_SEARCH_BASE - LAND_SEARCH_STEP * lands;
+    // The differentiation fades with the same linear shape as the curve, so it
+    // reaches zero exactly where the curve meets the floor and can never push a
+    // land above a real spell at a saturated board.
+    const fade = (LAND_SEARCH_SATURATION - lands) / LAND_SEARCH_SATURATION;
+    return (
+        curve +
+        fade *
+            (landSourceQuality(state, searcher, card) +
+                (pricing?.handNeed
+                    ? landHandNeed(state, searcher, card, ctx)
+                    : 0))
+    );
+}
+
+/** Absolute quality of a fetched land as a mana source: colour breadth and a
+ *  non-mana activated ability, through `sourceQuality` — the derivation smart
+ *  auto-tap already ranks sources by. A land with no mana ability reads 0, so
+ *  it keeps the plain fetch-curve worth. */
+function landSourceQuality(
+    state: GameState,
+    searcher: PlayerState,
+    card: CardInstanceState
+): number {
+    return (
+        LAND_QUALITY_SCALE *
+        sourceQuality(
+            card,
+            searcher.battlefield,
+            state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            })),
+            DEFAULT_EVAL_WEIGHTS
+        )
+    );
+}
+
+/** Bonus for a land that supplies a colour the searcher's board cannot produce
+ *  and the highest-worth card in the SEARCHER's own hand needs. Dominates
+ *  {@link landSourceQuality}: a basic that is the decisive source outranks a
+ *  dual adding only covered colours. Reads only `searcher.hand` (CR 402.3: the
+ *  opponent's hand is never consulted). */
+function landHandNeed(
+    state: GameState,
+    searcher: PlayerState,
+    card: CardInstanceState,
+    ctx?: GroundingContext
+): number {
+    const board = manaUnitsFor(state, searcher, { ignoreTapState: true });
+    const boardColors = new Set<Color>();
+    for (const unit of board) for (const c of unit) boardColors.add(c);
+    const offered = getProducibleColorsOnBoard(
+        card,
+        state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }))
+    );
+    const spare = [...offered].some((c) => !boardColors.has(c));
+    if (!spare) return 0;
+    let best = 0;
+    for (const spell of searcher.hand) {
+        if (spell.types.includes("Land")) continue;
+        const cost = getInstanceManaCost(spell);
+        if (coversCostColors(board, cost, { life: searcher.life })) continue;
+        // A colour the cost demands that the board lacks: the cost stops being
+        // blocked once every OTHER colour is present and only this one is not.
+        const supplied = [...offered].some(
+            (c) =>
+                c !== "C" &&
+                !boardColors.has(c) &&
+                !coversCostColors(
+                    [
+                        ...board,
+                        ...NEEDABLE_COLORS.filter((o) => o !== c).map(
+                            (o) => new Set<Color>([o])
+                        ),
+                    ],
+                    cost,
+                    { life: searcher.life }
+                )
+        );
+        if (!supplied) continue;
+        best = Math.max(best, prospectiveCardWorth(state, spell, ctx));
+    }
+    // Never worth more than the spell it unlocks.
+    return best >= LAND_NEED_MIN_SPELL_WORTH
+        ? Math.min(LAND_NEED_BONUS, best)
+        : 0;
 }
 
 // --- Context-aware grounding for a live choice node (issue #1433 review) ---

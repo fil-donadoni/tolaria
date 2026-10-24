@@ -891,6 +891,7 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // destination — the pricing never asks.
     const pricing = {
         destination,
+        handNeed: true,
         ...(destination === "graveyard"
             ? // CR 400.7 — the find lands in its OWNER's graveyard, which for
               // every shipped search is the searcher's own.

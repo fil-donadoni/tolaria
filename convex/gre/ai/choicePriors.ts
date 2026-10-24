@@ -560,6 +560,7 @@ function dslSearchLibraryPrior(
     const destination = searchFindDestination(state, choice);
     const pricing = {
         destination,
+        handNeed: true,
         ...(destination === "graveyard"
             ? {
                   recursionAccess: graveyardRecursionAccessFor(
