@@ -309,7 +309,7 @@ describe("useBattlefieldInteraction — granted mana abilities reach the CLICK h
             expect(entries.map((a) => a.id).sort()).toEqual(
                 [FIXED_ID, COSTED_ID].sort()
             );
-            // CR 601.2f / 605.3c — the costed entry stays explicit.
+            // CR 602.2b — the costed entry stays explicit.
             expect(entries.map((a) => a.id)).toContain(COSTED_ID);
 
             // Two {T} mana options make `getManaChoices` open the picker (one
