@@ -1,36 +1,44 @@
 /**
  * The shrink-only census of `EffectSentenceIR` kinds (issue #6557, the
- * compositional grammar pilot).
+ * compositional grammar pilot; issue #6714, a relation between two trees).
  *
  * The effect-clause grammar has two layers: a TABLE of whole-sentence kinds,
  * each an anchored shape with its own lowering case, and the Verb Frame layer
  * (`convex/oracle/grammar/shared/verbFrames.ts`), where a sentence is read as
  * Op-shaped frames joined by Composition Rules. The pilot's direction is that
  * the table only SHRINKS: a kind may leave — absorbed by frames — and never
- * enter. `data/effect-sentence-kinds.json` is the committed list of the kinds
- * that remain, and this module is the census over it:
+ * enter.
  *
- *   - the list must equal the kinds the SOURCE declares (`EffectSentenceIR`'s
- *     union, read off `effectClause.ts` — the kinds are types, so there is
- *     nothing at runtime to census; the source text is the authority);
- *   - the list may not have GROWN against its baseline: on a branch the list
- *     at the merge-base with the base branch, on the base tip its previous
- *     revision in history (`baselineSentenceKinds`).
+ * There is NO committed list. The kinds are types, so there is nothing at
+ * runtime to census: the source text of `effectClause.ts` is the authority,
+ * and the census is a relation between two revisions of it —
  *
- * A kind that leaves is removed from both the source and the list in the same
- * commit; a kind someone adds reds the census twice — once as a source kind
- * the list does not carry, once as a grown list if they add the row too.
+ *   - on a branch: the kinds at HEAD must be a subset of the kinds at the
+ *     merge-base with the base branch (the whole branch is one change);
+ *   - on the base tip (merge-base = HEAD): the kinds at HEAD must be a
+ *     subset of the kinds at `HEAD^` — the per-commit contract.
+ *
+ * A committed list was the first cut (PR #6562): every kind the base gained
+ * while the PR sat in the queue was a red lane plus a repair round, because
+ * a `human-input` list never regenerates and a baseline you refresh beside
+ * the thing it guards guards nothing (issue #6648). Read off two trees, a
+ * branch that retires one kind rebases onto a base that retired another
+ * with neither a conflict nor a red — `sentence-kinds.test.ts` proves it on
+ * a real `git rebase`.
+ *
+ * The baseline tree is read through `lib/base-artifact.ts`, so its three
+ * outcomes apply: `text` is checked, `unavailable` (no base ref, a root
+ * commit) is a declared skip, `broken` (git failed) is a red.
  */
-import { spawnSync } from "node:child_process";
-import { ORIGIN_BASE } from "./branches";
+import {
+    baseArtifact,
+    gitRunner,
+    type BaseArtifactOutcome,
+    type GitRunner,
+} from "./base-artifact";
 
-export const SENTENCE_KINDS_PATH = "data/effect-sentence-kinds.json";
 export const EFFECT_CLAUSE_PATH =
     "convex/oracle/grammar/shared/effectClause.ts";
-
-export interface SentenceKindsFile {
-    readonly kinds: readonly string[];
-}
 
 /**
  * The kinds `EffectSentenceIR` declares, read off the grammar's source: every
@@ -58,133 +66,117 @@ export function effectSentenceKinds(source: string): string[] {
     return kinds;
 }
 
-export type KindViolation =
-    | { readonly kind: "undeclared"; readonly name: string }
-    | { readonly kind: "retired"; readonly name: string }
-    | { readonly kind: "grown"; readonly name: string }
-    | { readonly kind: "duplicate"; readonly name: string }
-    | { readonly kind: "unsorted" };
+/** The only violation left: a kind at HEAD the baseline tree does not declare. */
+export type KindViolation = { readonly kind: "grown"; readonly name: string };
+
+/**
+ * The tree HEAD's kinds may not exceed: its kinds and the `<rev>:<path>`
+ * they were read from, or the reason there is none (a declared skip).
+ */
+export type KindBaseline =
+    | {
+          readonly kind: "tree";
+          readonly kinds: readonly string[];
+          readonly at: string;
+      }
+    | { readonly kind: "none"; readonly why: string };
 
 export interface KindCensusResult {
     readonly violations: readonly KindViolation[];
-    readonly sourceCount: number;
-    readonly committedCount: number;
-    readonly baselineChecked: boolean;
+    readonly headCount: number;
+    readonly baseline: KindBaseline;
 }
 
-/**
- * The census, pure over its three inputs: the kinds the source declares, the
- * committed list, and the list's previous revision (`null` when there is
- * none — the commit that introduces the file).
- */
+/** The census, pure over its two inputs: the kinds at HEAD and the baseline. */
 export function auditSentenceKinds(input: {
-    readonly source: readonly string[];
-    readonly committed: SentenceKindsFile;
-    readonly baseline: SentenceKindsFile | null;
+    readonly head: readonly string[];
+    readonly baseline: KindBaseline;
 }): KindCensusResult {
     const violations: KindViolation[] = [];
-    const committed = input.committed.kinds;
-    const seen = new Set<string>();
-    for (const name of committed) {
-        if (seen.has(name)) violations.push({ kind: "duplicate", name });
-        seen.add(name);
-    }
-    const sorted = [...seen].sort();
-    if (
-        committed.length === seen.size &&
-        committed.join("\n") !== sorted.join("\n")
-    )
-        violations.push({ kind: "unsorted" });
-    const inSource = new Set(input.source);
-    for (const name of [...inSource].sort())
-        if (!seen.has(name)) violations.push({ kind: "undeclared", name });
-    for (const name of sorted)
-        if (!inSource.has(name)) violations.push({ kind: "retired", name });
-    if (input.baseline !== null) {
+    const head = new Set(input.head);
+    if (input.baseline.kind === "tree") {
         const before = new Set(input.baseline.kinds);
-        for (const name of sorted)
+        for (const name of [...head].sort())
             if (!before.has(name)) violations.push({ kind: "grown", name });
     }
-    return {
-        violations,
-        sourceCount: inSource.size,
-        committedCount: committed.length,
-        baselineChecked: input.baseline !== null,
-    };
-}
-
-export function parseSentenceKinds(text: string): SentenceKindsFile {
-    const parsed = JSON.parse(text) as SentenceKindsFile;
-    if (!Array.isArray(parsed.kinds))
-        throw new Error(`${SENTENCE_KINDS_PATH}: no \`kinds\` array`);
-    return parsed;
+    return { violations, headCount: head.size, baseline: input.baseline };
 }
 
 /**
- * The revision the list must not have grown against.
- *
- * On a branch: the list at the MERGE-BASE with the base branch — the whole
- * branch is one change, so a kind added in one commit and the list touched
- * again in the next cannot pass at `land` (review of PR #6562). On the base
- * tip itself, or in a detached worktree at it, the merge-base IS `HEAD` and
- * would compare the file with itself — the vacuity `baselineAllowlist`'s doc
- * records — so there the list's previous revision in history is the
- * baseline, the per-commit contract the Op allowlist keeps. `null` when
- * there is none: the commit that introduces the file.
+ * The source of `effectClause.ts` at the baseline tree: the merge-base with
+ * the base branch, or — when that merge-base IS `HEAD` (the base tip, or a
+ * detached worktree at it), where `baseArtifact` would compare the file with
+ * itself — the parent commit `HEAD^`. Pure given its runner, so every
+ * branch has a fixture.
  */
-export function baselineSentenceKinds(root: string): SentenceKindsFile | null {
-    const git = (args: string[]) =>
-        spawnSync("git", args, { cwd: root, encoding: "utf8" });
-    const show = (at: string): SentenceKindsFile | null => {
-        const out = git(["show", `${at}:${SENTENCE_KINDS_PATH}`]);
-        return out.status === 0 ? parseSentenceKinds(out.stdout) : null;
-    };
-    const head = git(["rev-parse", "HEAD"]).stdout.trim();
-    const mergeBase = git(["merge-base", "HEAD", ORIGIN_BASE]);
-    if (mergeBase.status === 0) {
-        const at = mergeBase.stdout.trim();
-        if (at !== "" && at !== head) return show(at);
-    }
-    const prev = git([
-        "log",
-        "--format=%H",
-        "--skip=1",
-        "-1",
-        "HEAD",
-        "--",
-        SENTENCE_KINDS_PATH,
-    ]);
-    if (prev.status !== 0) return null;
-    const at = prev.stdout.trim();
-    if (at === "") return null;
-    return show(at);
+export function baselineKindsSource(git: GitRunner): BaseArtifactOutcome {
+    const base = baseArtifact(git, EFFECT_CLAUSE_PATH);
+    if (base.kind !== "text") return base;
+    const head = git(["rev-parse", "HEAD"]);
+    if (!head.ok)
+        return {
+            kind: "broken",
+            detail: `git rev-parse HEAD failed: ${head.error}`,
+        };
+    const mergeBase = base.at.slice(0, base.at.indexOf(":"));
+    if (mergeBase !== head.out.trim()) return base;
+    const at = `HEAD^:${EFFECT_CLAUSE_PATH}`;
+    if (!git(["cat-file", "-e", at]).ok)
+        return {
+            kind: "unavailable",
+            why: `HEAD is the base tip and its parent does not carry ${EFFECT_CLAUSE_PATH} (a root commit, or the file's first revision)`,
+        };
+    const show = git(["show", at]);
+    if (!show.ok)
+        return {
+            kind: "broken",
+            detail: `git show ${at} failed: ${show.error}`,
+        };
+    return { kind: "text", text: show.out, at };
 }
 
-const EXITS: Record<KindViolation["kind"], string> = {
-    undeclared:
-        "the source declares a kind the list does not carry — the table only shrinks (issue #6557): read the sentence as Verb Frames instead, or retire a kind for it",
-    retired:
-        "the list carries a kind the source no longer declares — delete the row",
-    grown: "the list grew against its previous revision — a kind never enters",
-    duplicate: "listed twice",
-    unsorted: "the list is kept sorted",
-};
+/**
+ * The baseline for `auditSentenceKinds`, from the real repository at `root`.
+ * `broken` is thrown, never skipped: a guard that cannot read its baseline is
+ * a guard that is not there (`lib/base-artifact.ts`).
+ */
+export function baselineSentenceKinds(root: string): KindBaseline {
+    return baselineFromOutcome(baselineKindsSource(gitRunner(root)));
+}
+
+export function baselineFromOutcome(
+    outcome: BaseArtifactOutcome
+): KindBaseline {
+    if (outcome.kind === "broken")
+        throw new Error(
+            `the baseline ${EFFECT_CLAUSE_PATH} could not be read — ${outcome.detail}\n` +
+                `    This is NOT a skip: a guard that cannot read its baseline is a guard that is not there.`
+        );
+    if (outcome.kind === "unavailable")
+        return { kind: "none", why: outcome.why };
+    return {
+        kind: "tree",
+        kinds: effectSentenceKinds(outcome.text),
+        at: outcome.at,
+    };
+}
 
 export function renderSentenceKinds(result: KindCensusResult): string {
-    const baseline = result.baselineChecked
-        ? "shrink verified against the list's baseline revision"
-        : "no baseline revision of the list — shrink check SKIPPED";
+    const baseline =
+        result.baseline.kind === "tree"
+            ? `shrink verified against ${result.baseline.at} (${result.baseline.kinds.length} kinds)`
+            : `no baseline tree — ${result.baseline.why} — shrink check SKIPPED`;
     if (result.violations.length === 0)
-        return `✓ kinds: ${result.committedCount} effect-sentence kinds, source and list agree; ${baseline}`;
+        return `✓ kinds: ${result.headCount} effect-sentence kinds at HEAD; ${baseline}`;
     const lines = [
         `✗ kinds: ${result.violations.length} violation(s) of the shrink-only sentence-kind census:\n`,
     ];
     for (const v of result.violations)
         lines.push(
-            `  - ${"name" in v ? v.name : SENTENCE_KINDS_PATH}: ${EXITS[v.kind]}`
+            `  - ${v.name}: a kind the baseline tree does not declare — the table only shrinks (issue #6557): read the sentence as Verb Frames instead, or retire a kind for it`
         );
     lines.push(
-        `\n  The kinds are read off ${EFFECT_CLAUSE_PATH}; the list is ${SENTENCE_KINDS_PATH}; ${baseline}.`
+        `\n  The kinds are read off ${EFFECT_CLAUSE_PATH} at HEAD and at the baseline tree; ${baseline}.`
     );
     return lines.join("\n");
 }

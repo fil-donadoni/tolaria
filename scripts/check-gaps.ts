@@ -70,9 +70,7 @@ import {
     baselineSentenceKinds,
     EFFECT_CLAUSE_PATH,
     effectSentenceKinds,
-    parseSentenceKinds,
     renderSentenceKinds,
-    SENTENCE_KINDS_PATH,
 } from "./lib/sentence-kinds";
 import {
     handTailClaimMismatches,
@@ -734,16 +732,14 @@ async function main(): Promise<void> {
         )
     );
     const botCensus = readBotGapCensus(root);
-    // The shrink-only census of effect-sentence kinds (issue #6557,
-    // `lib/sentence-kinds.ts`): the table of whole-sentence kinds may only
-    // lose rows to the Verb Frame layer, proven against the list at the
-    // merge-base with the base branch (its previous revision on the tip).
+    // The shrink-only census of effect-sentence kinds (issue #6557, issue
+    // #6714, `lib/sentence-kinds.ts`): the table of whole-sentence kinds may
+    // only lose rows to the Verb Frame layer — the kinds read off the source
+    // at HEAD are a subset of those at the merge-base with the base branch
+    // (at `HEAD^` on the base tip). No committed list.
     const kinds = auditSentenceKinds({
-        source: effectSentenceKinds(
+        head: effectSentenceKinds(
             readFileSync(join(root, EFFECT_CLAUSE_PATH), "utf8")
-        ),
-        committed: parseSentenceKinds(
-            readFileSync(join(root, SENTENCE_KINDS_PATH), "utf8")
         ),
         baseline: baselineSentenceKinds(root),
     });
