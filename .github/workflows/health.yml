@@ -96,7 +96,10 @@ jobs:
     ladder:
         name: RED ladder (${{ inputs.sha }})
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'ladder' }}
-        runs-on: [self-hosted, lane]
+        # A `pass` runner, as health-fix's: the merge queue's drafts saturate
+        # the two `lane` runners, and a published RED waited 35-43 min for
+        # one (issue #6553). `health:fix host` names this runner's machine.
+        runs-on: [self-hosted, pass]
         timeout-minutes: 180
         steps:
             - name: Job worktree
