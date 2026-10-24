@@ -341,7 +341,7 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         [forceOfNature().id]: 0.645,
         // Priced on the land fetch curve plus the dual's colour-breadth bonus
         // (issue #3282), not the bare curve.
-        [breedingPool().id]: 0.431,
+        [breedingPool().id]: 0.4325,
     };
 
     it("prices a hand tutor's finds at the pre-fix priors", () => {
@@ -402,8 +402,8 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         }
         // Force of Nature's 8/8 body (p² + t² + 10) and Breeding Pool on the
         // land fetch curve at two lands in play (70 - 2 × 10) plus the dual's
-        // breadth bonus (issue #3282): 4 × (5 - 2) / 5.
+        // breadth bonus (issue #3282): 3 × 4 × (5 - 2) / 5.
         expect(hints.get(forceOfNature().id)).toBe(138);
-        expect(hints.get(breedingPool().id)).toBeCloseTo(52.4, 6);
+        expect(hints.get(breedingPool().id)).toBeCloseTo(57.2, 6);
     });
 });

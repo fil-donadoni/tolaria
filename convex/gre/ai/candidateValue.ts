@@ -217,9 +217,13 @@ const LAND_NEED_MIN_SPELL_WORTH = 25;
 
 /** Bonus for a land supplying a coloured requirement the board cannot produce
  *  for a valuable card in hand. Strictly above any {@link sourceQuality} a
- *  land can carry (a five-colour dual-purpose source is 36 at the default
- *  weights), so need dominates quality. */
-const LAND_NEED_BONUS = 50;
+ *  land can carry (a five-colour dual-purpose source is 108 once scaled), so need dominates quality. */
+const LAND_NEED_BONUS = 120;
+
+/** Rescales {@link sourceQuality} (auto-tap's tie-break currency, deliberately
+ *  tiny) onto the fetch curve's scale, so a better source separates from a
+ *  basic by more than rollout noise. */
+const LAND_QUALITY_SCALE = 3;
 
 /** Colours a cost can demand and a land can supply (colourless excluded). */
 const NEEDABLE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
@@ -446,14 +450,17 @@ function landSourceQuality(
     searcher: PlayerState,
     card: CardInstanceState
 ): number {
-    return sourceQuality(
-        card,
-        searcher.battlefield,
-        state.players.map((p) => ({
-            playerId: p.id,
-            battlefield: p.battlefield,
-        })),
-        DEFAULT_EVAL_WEIGHTS
+    return (
+        LAND_QUALITY_SCALE *
+        sourceQuality(
+            card,
+            searcher.battlefield,
+            state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            })),
+            DEFAULT_EVAL_WEIGHTS
+        )
     );
 }
 
