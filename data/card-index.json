@@ -60502,6 +60502,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spectral Bears",
+        "scryfallId": "7e13875f-f745-4afd-a830-33df9576dce8",
+        "oracleId": "539899f3-f3f2-4f7a-a6f6-e80d4a39f753",
+        "firstSet": "hml",
+        "firstPrintId": "7e13875f-f745-4afd-a830-33df9576dce8",
+        "firstPrintSet": "hml",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spectral Cloak",
         "scryfallId": "7524fd0d-a675-41d6-bc99-bd3ba336893b",
         "oracleId": "fadfa9f9-d096-4083-8630-1c18928133ff",
@@ -60517,6 +60527,16 @@
         "firstPrintId": "f7149f2a-6917-4ad7-8035-c7a1babd4d4b",
         "firstPrintSet": "isd",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spectral Force",
+        "scryfallId": "d7dff1c4-6297-46f6-9c70-544c67319dd0",
+        "oracleId": "271bfde0-6a6f-4bc8-ac0e-d2eff6784463",
+        "firstSet": "tsp",
+        "firstPrintId": "d7dff1c4-6297-46f6-9c70-544c67319dd0",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
