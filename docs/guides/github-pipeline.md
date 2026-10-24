@@ -907,12 +907,14 @@ are the repository variable `HEALTH_FIX_CLAUDE_ARGS` (default
 recorded on the pivot (`health:fix repair-issue --issue=<N>`), so its PR is the one
 PR [`base-health`](#g-base-health) admits, and `repair-proof` proves it.
 
-**The revert** (owner's decision 2026-10-14, the amendment of CLAUDE.md's
-"fix-forward FIRST": fix-forward stays first) reads the culprit off the
+**The revert** (owner's decision 2026-10-14; first rung since ADR 0158 § 3:
+once the bisect names a culprit the ladder reverts it before any fixer, and
+fix-forward is the reopened issue's ordinary pass; the fixer above runs only
+when the revert conflicts or no culprit is named) reads the culprit off the
 RED's `- **culprit:**` evidence line. In order: the `revert` rung is
 recorded `attempting`; `git revert` of the culprit off
 the base tip, in a throwaway detached worktree — a conflict (a later PR depends on
-the culprit) records it `stuck` and exits 3, and the next run stops; a
+the culprit) records it `stuck` and exits 3, and the next run hands the RED to the fixer (a second RED after it stops); a
 repair issue is filed and recorded on the pivot; the branch `fix/issue-<repair issue>` is pushed (a
 `land-failed` revert is then a repair pick, issue #6071), the PR opened
 (`Closes #<repair issue>`, `## Preset scenario` none owed, the

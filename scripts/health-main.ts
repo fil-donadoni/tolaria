@@ -17,8 +17,8 @@
  *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.
  *                    `land` warns when it exists; `bun run health:status`
- *                    prints the details. Fix-forward, then the next green run
- *                    removes it.
+ *                    prints the details. The ladder reverts the named culprit
+ *                    first (ADR 0158 § 3); the next green run removes it.
  *
  * A step that failed while the machine was asleep (`lib/health-verdict.ts`,
  * issue #4938) is `infra`: recorded, exit 1, but no `RED` marker written and
