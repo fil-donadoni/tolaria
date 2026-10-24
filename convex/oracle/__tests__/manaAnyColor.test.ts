@@ -163,10 +163,7 @@ describe("refusals — every neighbour that restricts or counts the offered set"
             "a commander's colour identity",
             "{T}: Add one mana of any color in your commander's color identity.",
         ],
-        [
-            "a COUNT of one chosen colour",
-            "{T}: Add three mana of any one color.",
-        ],
+        ["a COUNT of one chosen colour", "{T}: Add two mana of any one color."],
         [
             "one mana of any one color with a spend restriction",
             "{T}: Add one mana of any one color. Spend this mana only to cast a creature spell.",
