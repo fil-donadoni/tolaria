@@ -72,6 +72,215 @@ export function derivePlan(
     return paths.length === 0 ? { kind: "no-op" } : { kind: "commit", paths };
 }
 
+// ── The drift sweep on the base (ADR 0158 § 2b, issue #6687) ──────────────
+//
+// A merge can leave `ready` rows whose Bot-play verdict was not played on the
+// definition the tip compiles: two PRs that each moved one input of a card,
+// a draft regenerated with `--carry-bot`, and — once a session carries drift
+// verdicts (issue #6688) — every grammar PR. Those rows are the tip's MISSES
+// (`probingBotReach`); the write path plays exactly them and commits the rows
+// in its one derive commit.
+
+/** The card index — `oracle:index` adds a row for a card that became `ready`
+ *  on the base (the drift sweep's or the replay's), so their commits may
+ *  carry it. Pinned equal to `POOL_PROJECTION_SOURCE` by test. */
+export const CARD_INDEX_PATH = "data/card-index.json";
+
+/** What the derive commit may touch: the derived paths, plus the card index
+ *  when the drift sweep turned a card `ready` (issue #6687). `land` and
+ *  `post-merge` tell the commit from a foreign push by its subject and these
+ *  files. */
+export const DERIVE_SYNC_PATHS: readonly string[] = [
+    ...DERIVED_PATHS,
+    CARD_INDEX_PATH,
+];
+
+/** What one drift sweep did, for the log and the job summary. */
+export interface DriftSweep {
+    readonly sha: string;
+    /** The tip's misses before the play. */
+    readonly misses: number;
+    /** The misses whose row carries a verdict after it. */
+    readonly played: number;
+    readonly wallMs: number;
+    /** Cards the sweep took out of `ready` — committed, the Bot Gap is
+     *  `gaps:sync`'s to file (ADR 0158 § Consequences). */
+    readonly lost: readonly LostCard[];
+    /** Cards that became `ready` — `oracle:index` owes them a row. */
+    readonly gained: readonly string[];
+}
+
+/** The ids among `misses` whose row in `after` carries a verdict: what the
+ *  sweep actually played, read off the file it wrote. */
+export function playedMisses(
+    misses: ReadonlySet<string>,
+    after: readonly ReplayRow[]
+): number {
+    let played = 0;
+    for (const row of after)
+        if (misses.has(row.oracleId) && row.botReach !== undefined) played += 1;
+    return played;
+}
+
+/** The drift sweep as one line for the log and a Markdown block for
+ *  `$GITHUB_STEP_SUMMARY`. */
+export function renderDriftSweep(sweep: DriftSweep): {
+    readonly line: string;
+    readonly summary: string;
+} {
+    const wall = `${Math.round(sweep.wallMs / 1000)}s`;
+    const line = `${sweep.sha.slice(0, 10)}: drift sweep — ${sweep.misses} miss(es), ${sweep.played} played, ${wall}${sweep.lost.length > 0 ? `; ${sweep.lost.length} left \`ready\`: ${sweep.lost.map((c) => c.name).join(", ")}` : ""}${sweep.gained.length > 0 ? `; ${sweep.gained.length} newly \`ready\`` : ""}`;
+    const summary = [
+        `### derive:sync — drift sweep on \`${sweep.sha.slice(0, 10)}\``,
+        "",
+        "| misses | played | wall | left `ready` | newly `ready` |",
+        "| -----: | -----: | ---: | -----------: | ------------: |",
+        `| ${sweep.misses} | ${sweep.played} | ${wall} | ${sweep.lost.length} | ${sweep.gained.length} |`,
+        "",
+        ...(sweep.lost.length > 0
+            ? [
+                  "Left `ready` (the Bot Gap is `gaps:sync`'s to file):",
+                  "",
+                  ...sweep.lost.map(
+                      (c) => `- **${c.name}** → \`${c.to}\`: ${c.verdict}`
+                  ),
+                  "",
+              ]
+            : []),
+    ].join("\n");
+    return { line, summary };
+}
+
+/** The drift sweep's I/O, injected: the script wires the generators and the
+ *  lockfile on disk, a test a fixture. */
+export interface DriftSweepIo {
+    readonly head: string;
+    /** The lockfile on disk — the tip's before the play, the sweep's after. */
+    readonly readRows: () => readonly ReplayRow[];
+    /** The tip's misses (`staleVerdicts`), read before anything is written. */
+    readonly misses: () => ReadonlySet<string>;
+    /** `oracle:compile --carry-bot`: writes, never plays. */
+    readonly carry: () => boolean;
+    /** Bare `oracle:compile`: plays exactly the misses. */
+    readonly play: () => boolean;
+    /** `oracle:index`: a row for every card newly `ready`. */
+    readonly index: () => boolean;
+    readonly acknowledged: ReadonlySet<string>;
+    readonly now: () => number;
+    readonly report: (rendered: {
+        readonly line: string;
+        readonly summary: string;
+    }) => void;
+    /** A failure the run survives, said once. */
+    readonly warn: (line: string) => void;
+}
+
+/** What step 1 left: `ok` false only when not even the carry wrote the
+ *  lockfile; `indexed` when `oracle:index` ran, so the commit may carry the
+ *  card index — and only then. */
+export interface DriftSweepResult {
+    readonly ok: boolean;
+    readonly indexed: boolean;
+}
+
+/**
+ * Step 1 of the write path (ADR 0158 § 2b, issue #6687): zero misses carry,
+ * as the write path always did — seconds, nothing played; any miss is played
+ * by the bare compile and a card it brought into `ready` indexed. Reported
+ * either way. A play or an index that fails (a wall, machine admission's
+ * exit 77, Scryfall) falls back to the carry: the header and catalogue
+ * commit must still land — a stale verdict never holds the deployment (ADR
+ * 0158 § 2b) — and the misses stay stale, which health waits on through
+ * `--settled` and reds past the grace. `lost` is read over the misses only:
+ * a card that left `ready` for a compiler or registry reason is not the
+ * sweep's.
+ */
+export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
+    const misses = io.misses();
+    const carried = (why: string | null): DriftSweepResult => {
+        if (why !== null)
+            io.warn(
+                `${why} — carrying the verdicts instead: the header and catalogue still land, the ${misses.size} miss(es) stay stale for the next run (health waits on them, ADR 0158 § 2b)`
+            );
+        return { ok: io.carry(), indexed: false };
+    };
+    if (misses.size === 0) {
+        const result = carried(null);
+        if (result.ok)
+            io.report(
+                renderDriftSweep({
+                    sha: io.head,
+                    misses: 0,
+                    played: 0,
+                    wallMs: 0,
+                    lost: [],
+                    gained: [],
+                })
+            );
+        return result;
+    }
+    const before = io.readRows();
+    const started = io.now();
+    if (!io.play()) return carried("the drift sweep's compile failed");
+    const after = io.readRows();
+    const outcome = botReplayOutcome(before, after, io.acknowledged);
+    io.report(
+        renderDriftSweep({
+            sha: io.head,
+            misses: misses.size,
+            played: playedMisses(misses, after),
+            wallMs: io.now() - started,
+            lost: outcome.lost.filter((c) => misses.has(c.oracleId)),
+            gained: outcome.gained,
+        })
+    );
+    if (outcome.gained.length === 0) return { ok: true, indexed: false };
+    if (io.index()) return { ok: true, indexed: true };
+    return carried("`oracle:index` failed for the newly `ready` card(s)");
+}
+
+/**
+ * Health's question beside {@link derivedFreshness} (ADR 0158 § 2b): are the
+ * tip's Bot-play verdicts CURRENT? Stale when a `ready` row carries no
+ * verdict for the definition the tip compiles (`stale`, card names: the
+ * drift sweep's to play) or when the header's Bot hash is not the tree's
+ * (`--replay-bot`'s to replay) — unless this Bot's regression issue is open:
+ * the replay already ran and refused to commit, and waiting on it is waiting
+ * on a Bot fix, not on the writer. The deployment never asks this
+ * (`derive:sync --fresh`): a stale verdict breaks no game.
+ */
+export function verdictCurrency(input: {
+    readonly stale: readonly string[];
+    readonly headerBotHash: string;
+    readonly treeBotHash: string;
+    readonly openRegression: number | null;
+}): Freshness {
+    if (input.stale.length > 0) {
+        const shown = input.stale.slice(0, 5).join(", ");
+        const more =
+            input.stale.length > 5 ? `, … ${input.stale.length - 5} more` : "";
+        return {
+            fresh: false,
+            why: `${input.stale.length} \`ready\` row(s) carry no Bot verdict for the definition the tip compiles (${shown}${more}) — derive:sync's drift sweep plays them`,
+        };
+    }
+    if (
+        input.headerBotHash !== input.treeBotHash &&
+        input.openRegression === null
+    )
+        return {
+            fresh: false,
+            why: `the lockfile header's Bot hash ${input.headerBotHash.slice(0, 19)} is not the tree's ${input.treeBotHash.slice(0, 19)} — derive:sync --replay-bot replays the catalogue`,
+        };
+    return { fresh: true };
+}
+
+/** The line `--fresh` / `--settled` print on a stale tree — the one
+ *  `derivePredicateAnswer` (`lib/health-step.ts`) reads the reason from. */
+export function derivedStaleLine(why: string): string {
+    return `derive:sync: this tree is derived-stale — ${why}`;
+}
+
 // ── The Bot-play replay on the base (issue #6463) ─────────────────────────
 //
 // A session's bare `oracle:compile` carries the committed Bot-play verdicts
@@ -82,16 +291,8 @@ export function derivePlan(
 // card once on that tip. The decisions are below; the sweep, git and `gh`
 // are the script's.
 
-/** The card index — `oracle:index` adds a row for a card the replay unfroze
- *  into `ready`, so the replay commit may carry it (and nothing else beyond
- *  the derived paths). Pinned equal to `POOL_PROJECTION_SOURCE` by test. */
-export const CARD_INDEX_PATH = "data/card-index.json";
-
 /** What a replay commit may touch: the derived paths plus the card index. */
-export const BOT_REPLAY_PATHS: readonly string[] = [
-    ...DERIVED_PATHS,
-    CARD_INDEX_PATH,
-];
+export const BOT_REPLAY_PATHS: readonly string[] = DERIVE_SYNC_PATHS;
 
 /** The subject of the one commit the replay pushes to the base — `land`
  *  tells it from a foreign push by it and by its files, like the derive

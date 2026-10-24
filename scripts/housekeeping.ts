@@ -351,11 +351,17 @@ export const PRUNE_REGRESSIONS_STEP: Step = {
     timeoutMs: GAPS_SYNC_TIMEOUT_MS,
 };
 
-/** `derive:sync`'s ceiling: its generators are seconds with the corpus cache
+/** `derive:sync`'s ceiling. Its generators are seconds with the corpus cache
  *  (`oracle:compile --check` 3.7 s, `catalogue:check` 1.0 s measured), a
  *  cold worktree pays its module graph once, and the push has its own
- *  deadline (`GIT_NET_TIMEOUT_MS`). */
-export const DERIVE_SYNC_TIMEOUT_MS = 10 * 60_000;
+ *  deadline (`GIT_NET_TIMEOUT_MS`) — the common run. A tip with Bot-verdict
+ *  misses plays them first (the drift sweep, ADR 0158 § 2b, issue #6687):
+ *  `derive:sync` gives the compile the replay's 120-min sweep wall and
+ *  `oracle:index` 30, and kills its own children by SIGTERM so the heavy gate
+ *  reaps a sweep — this SIGKILL must never reach it first, so the ceiling
+ *  sits above both walls. A sweep is minutes on a tip a PR played (a few
+ *  misses, the merge's own), a whole-catalogue one only after a re-pin. */
+export const DERIVE_SYNC_TIMEOUT_MS = 160 * 60_000;
 
 /** Step 2c (ADR 0157 § Option 1b, issue #6247): the base writes its derived
  *  whole-file state — the lockfile header hashes and `data/catalogue/*` —

@@ -4,7 +4,8 @@
 # `seed` machine, seed the PR's preset scenario (and every preset list when a
 # card set changed); on ANY one lane runner, `housekeeping` (gaps:sync with its
 # direct push, derive:sync — the base regenerates its lockfile header hashes and
-# data/catalogue/* on the tip and pushes once, ADR 0157 / issue #6247 — grammar
+# data/catalogue/* on the tip and pushes once, ADR 0157 / issue #6247, after
+# playing the tip's Bot-verdict misses, ADR 0158 § 2b / issue #6687 — grammar
 # residue, claim release, umbrella detach). Two schedules cover what no push
 # triggers: housekeeping's hourly retry (and derive:sync's backstop for a push
 # the base outran) and `health:nightly`. `sync` fast-forwards the primary only
@@ -143,7 +144,15 @@ jobs:
         concurrency:
             group: post-merge-housekeeping
             cancel-in-progress: false
-        timeout-minutes: 50
+        # Cost: seconds plus the workspace on the common run. derive:sync's
+        # drift sweep (issue #6687) plays the tip's Bot-verdict misses first —
+        # a few cards in place on a tip a PR played, the heavy mutex past
+        # `LOCK_FREE_MISSES` (the MacBook's `land` waits behind it, as behind
+        # the replay); the wall is the steps' ceilings — gaps:sync (30),
+        # prune (30), `DERIVE_SYNC_TIMEOUT_MS` (160) — plus the workspace, so
+        # the runner's cancel never lands mid-sweep. The miss count, played
+        # count and wall land in this job's summary.
+        timeout-minutes: 240
         steps:
             - name: Job worktree
               shell: bash

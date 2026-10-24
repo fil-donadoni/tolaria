@@ -256,7 +256,7 @@ export type DerivePredicateAnswer =
     | { kind: "broken"; why: string };
 
 /**
- * What `bun run derive:sync --fresh` answered, pure. Exit 0 is fresh; exit 1
+ * What `bun run derive:sync --settled` (or `--fresh`) answered, pure. Exit 0 is fresh; exit 1
  * WITH its own `derived-stale` line is stale, the reason after the dash;
  * anything else — a crash on import, a timeout's signal, `bun run` finding
  * no script — is `broken`: a predicate that gave no verdict must not read as
@@ -300,7 +300,7 @@ export type DerivedTipVerdict =
  * not prove; stale at or past the grace is `red`.
  */
 export function derivedTipVerdict(input: {
-    /** `derive:sync --fresh`'s answer on the tip: null = fresh, else why not. */
+    /** `derive:sync --settled`'s answer on the tip: null = fresh, else why not. */
     stale: string | null;
     /** The tip's committer time, ms since the epoch. */
     committedAtMs: number;
