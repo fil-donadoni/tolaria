@@ -20,7 +20,8 @@ it and aborts again (issue #4752, issue #5564).
    never sits in a lower band than what it blocks): read both, and if #M is
    lower, detach it from the lower-band parent and run
    `bun run issue:inherit-band N M`. `queue:plan` lifts a blocker at pick time
-   too, but that is the fallback; the board is the record.
+   too, but that is the fallback; the board is the record. `queue:lint`'s
+   `blocker-band` rule flags a lower blocker.
 2. **Owner work — handed back as `ready-for-human`.** When no agent can land
    the issue at all — a machine-local persistent install the classifier
    denies, a host this machine cannot reach, a product decision only the
