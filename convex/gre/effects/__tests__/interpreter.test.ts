@@ -4219,6 +4219,114 @@ describe("Effect Script Op: addMana (CR 106.1, issue #850)", () => {
     });
 });
 
+describe("Effect Script Op: addMana — computed per-colour amount (CR 106.1)", () => {
+    const ISLAND_ID = "test-addmana-island";
+    registerTokenDefinition({
+        id: ISLAND_ID,
+        name: ISLAND_ID,
+        rarity: "common",
+        types: ["Land"],
+        subtypes: ["Island"],
+    });
+    const islandsOf = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(ISLAND_ID, {
+                id: `am-island-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+            })
+        );
+    const perOpponentIsland: EffectOp[] = [
+        {
+            op: "addMana",
+            mana: {
+                U: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "opponent",
+                        filter: { subtype: "Island" },
+                    },
+                },
+            },
+        },
+    ];
+
+    it("adds one {U} per Island the opponent controls, ignoring its own", () => {
+        const id = registerScript("test-op-addmana-count", perOpponentIsland);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: islandsOf("p1", 2) }),
+                makePlayer("p2", { battlefield: islandsOf("p2", 3) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.U).toBe(3);
+        expect(state.players[1].manaPool.U ?? 0).toBe(0);
+    });
+
+    it("a count of 0 adds nothing (CR 106.1)", () => {
+        const id = registerScript(
+            "test-op-addmana-count-zero",
+            perOpponentIsland
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: islandsOf("p1", 2) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.U ?? 0).toBe(0);
+        expect(state.players[0].restrictedMana ?? []).toEqual([]);
+    });
+
+    it("mixes a fixed pip and a computed amount in one Op", () => {
+        const id = registerScript("test-op-addmana-count-mixed", [
+            {
+                op: "addMana",
+                mana: {
+                    B: 2,
+                    U: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "opponent",
+                            filter: { subtype: "Island" },
+                        },
+                    },
+                },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: islandsOf("p2", 1) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool).toMatchObject({ B: 2, U: 1 });
+    });
+
+    it("the computed mana survives projection (wire format)", () => {
+        const id = registerScript(
+            "test-op-addmana-count-wire",
+            perOpponentIsland
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: islandsOf("p2", 2) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.U).toBe(2);
+    });
+});
+
 describe("Effect Script Op: coinFlip (CR 705, issue #851)", () => {
     // The first flip drawn from the seeded PRNG (rng.ts): seed 1 lands WIN
     // (heads — the flipping player wins), seed 7 lands LOSE (tails). Probed from
