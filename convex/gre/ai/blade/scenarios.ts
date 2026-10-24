@@ -14877,4 +14877,84 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill.",
     },
+    {
+        // CR 614.12a / 607.2b — Sutured Ghoul's "As this creature enters, exile
+        // any number of creature cards from your graveyard" parks the
+        // permanent until the exile is answered. The graveyard holds the two
+        // Bears that size it (a 4/4 trampler); the opponent has a lone Hill
+        // Giant, so the body is worth the seven mana.
+        label: "choose-graveyard-card: casts Sutured Ghoul over a graveyard of creatures",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Sutured Ghoul", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 7 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A `predicate`, not `moves`: a registry `moves` entry is a fitted
+        // VERDICT and obliges a refit (`weightFit.bot.test.ts`); the entry
+        // still blocks at `must` without voting on the weights.
+        expect: {
+            predicate: (move, state) =>
+                move?.kind === "cast-spell" &&
+                instanceIdsForName(state, "Sutured Ghoul").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Sutured Ghoul",
+        },
+        note: "Issue #6671. `choose-graveyard-card` had no candidate generator, so a probe of the cast stopped at the suspended as-enters prompt and scored seven mana spent for a body still parked in `stagedEntries`: the Bot-play sweep read the card `never-chosen`. Proof-of-failure: unregistering `choose-graveyard-card` from `CHOICE_CANDIDATE_GENERATORS` reds this entry.",
+    },
+    {
+        // The answer itself: the node is reached by really casting the Ghoul
+        // and resolving it, and the pile is the whole card.
+        label: "choose-graveyard-card: Sutured Ghoul exiles both creature cards from its graveyard",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Sutured Ghoul", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 7 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Sutured Ghoul", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "resolution-choice" &&
+                move.cardInstanceIds.length === 2,
+            describe: "exiles both Grizzly Bears, never declines",
+        },
+        note: "Issue #6671. The size of the exiled pile is the Ghoul's power and toughness, so declining leaves a 0/0 that dies to state-based actions (CR 704.5f). Proof-of-failure: the same unregistering reds this entry.",
+    },
 ];

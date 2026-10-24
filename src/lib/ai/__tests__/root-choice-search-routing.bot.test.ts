@@ -448,6 +448,30 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ),
             }
         ),
+    // CR 614.12a — the as-enters "exile any number of creature cards from your
+    // graveyard" prompt (issue #6671): optional, over two of the bot's own
+    // graveyard creatures.
+    "choose-graveyard-card": () =>
+        stateWithBotChoice(
+            {
+                kind: "choose-graveyard-card",
+                zone: "graveyard",
+                asEntersKind: "exileFromGraveyard",
+                candidateIds: ["gy-bears-1", "gy-bears-2"],
+                count: { min: 0, max: 2 },
+                prompt: "Choose any number of cards to exile from your graveyard.",
+            },
+            {
+                graveyard: ["gy-bears-1", "gy-bears-2"].map((id) =>
+                    makeInstance(getCardByName("Grizzly Bears").id, {
+                        id,
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "graveyard",
+                    })
+                ),
+            }
+        ),
     // CR 107.1b / 107.3f (issue #1701) — a PAYING numeric nomination with a
     // real range: three mana floating, so the answer space is 0..3 and the
     // decision is a genuine one rather than a forced zero. Without a fixture
