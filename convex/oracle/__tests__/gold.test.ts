@@ -325,7 +325,7 @@ describe("gold round-trip — precision", () => {
         // compiled — the same move as the entries above. The compiled
         // definition is proven by `controllerDamagePrevention.test.ts`.
         //
-        // Raised 78 -> 79 with the nonblack attack tax (issue #5293): Elephant
+        // Raised 78 -> 79 with the nonblack attack tax: Elephant
         // Grass's hand-written attack-cost closure is one the projection cannot
         // compare, while its line now compiles to `excludeColors` — the same
         // move as the entries above. The compiled definition is proven by
