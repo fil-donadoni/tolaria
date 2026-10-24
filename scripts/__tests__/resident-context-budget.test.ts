@@ -129,7 +129,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 33_135,
-    "next-ticket": 11_900, // +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +520 B: the base-drift preflight cue (issue #6647)
+    "next-ticket": 11_921, // +285 B: the `job.md` pointer and its one-line cue (issue #5641); +80 B: the undecided-scope cue (issue #6144); +541 B: the base-drift preflight cue (issue #6647)
     prototype: 2_931,
     retro: 4_760,
     "to-prd": 6_076,

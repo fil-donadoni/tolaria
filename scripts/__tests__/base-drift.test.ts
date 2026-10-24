@@ -20,6 +20,7 @@ import {
     preflightLandReady,
     queueState,
     regenerationCommands,
+    restLogin,
     renderReport,
     type DriftMeasure,
     type OpenPr,
@@ -90,6 +91,17 @@ describe("base-drift — answer 4: queued PRs sharing files", () => {
             "ready-to-land"
         );
         expect(queueState(pr())).toBeNull();
+    });
+
+    it("reads `gh`'s `app/mergify` login as the REST `mergify[bot]`, and never a fork's lookalike", () => {
+        expect(restLogin("app/mergify")).toBe("mergify[bot]");
+        expect(restLogin("someone")).toBe("someone");
+        const draft = pr({
+            author: { login: "app/mergify" },
+            headRefName: "mergify/merge-queue/abc",
+        });
+        expect(queueState(draft)).toBe("draft");
+        expect(queueState({ ...draft, isCrossRepository: true })).toBeNull();
     });
 
     it("lists only queue-state PRs whose files meet the branch's, never the branch's own PR", () => {
@@ -188,18 +200,24 @@ describe("base-drift — the verdict", () => {
 });
 
 describe("base-drift — land:ready's step 0 (issue #6647)", () => {
-    const deps = (m: DriftMeasure, rebaseOk = true) => {
+    const deps = (m: DriftMeasure, rebaseOk = true, pushFails = false) => {
         const calls: string[] = [];
         return {
             calls,
             deps: {
                 measure: () => m,
                 openPrs: () => [],
-                rebase: () => {
-                    calls.push("rebase");
-                    return rebaseOk;
+                rebase: () =>
+                    (calls.push("rebase"), rebaseOk)
+                        ? ({ ok: true } as const)
+                        : ({
+                              ok: false,
+                              why: "CONFLICT (content): a.txt",
+                          } as const),
+                push: (expected: string) => {
+                    calls.push(`push:${expected}`);
+                    if (pushFails) throw new Error("! [rejected] stale info");
                 },
-                push: (expected: string) => calls.push(`push:${expected}`),
                 head: () => "4444444444444444444444444444444444444444",
                 log: () => undefined,
             },
@@ -236,8 +254,16 @@ describe("base-drift — land:ready's step 0 (issue #6647)", () => {
 
     it("a conflicting automatic rebase is aborted and refused — never pushed", () => {
         const d = deps(measure({ behind: 1, baseChanged: ["x.ts"] }), false);
-        expect(() => preflightLandReady(7, d.deps)).toThrow(/conflict/);
+        expect(() => preflightLandReady(7, d.deps)).toThrow(/CONFLICT.*a\.txt/);
         expect(d.calls).toEqual(["rebase"]);
+    });
+
+    it("a rejected push after the rebase names the local-only head and the push to make — never a bare 'HEAD is not the pushed head'", () => {
+        const m = measure({ behind: 1, baseChanged: ["x.ts"] });
+        const d = deps(m, true, true);
+        expect(() => preflightLandReady(7, d.deps)).toThrow(
+            /rebased onto origin\/main as 4444444444[\s\S]*stale info[\s\S]*git push --force-with-lease origin HEAD:feat\/issue-1/
+        );
     });
 });
 
@@ -291,6 +317,21 @@ describe("base-drift — measureDrift against a real repository", () => {
             "a.txt",
             "convex/cards/sets/ice.ts",
         ]);
+    });
+
+    it("a base-side rename of a file this branch edits is an overlap under its old name (--no-renames)", () => {
+        git("switch", "-q", "main");
+        git("mv", "a.txt", "renamed.txt");
+        git("commit", "-q", "-m", "base rename");
+        git("update-ref", "refs/remotes/origin/main", "HEAD");
+        git("switch", "-q", "feat/issue-1");
+        const r = buildReport(
+            measureDrift({ run: (a) => git(...a) }, "origin/main"),
+            [],
+            null
+        );
+        expect(r.behind).toBe(1);
+        expect(r.overlap).toEqual(["a.txt"]);
     });
 
     it("base moved twice: counts both commits, names the shared file and the coupled lockfile", () => {

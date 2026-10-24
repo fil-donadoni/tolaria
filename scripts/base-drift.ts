@@ -52,7 +52,7 @@ export function readOpenPrs(): OpenPr[] {
                 "--limit",
                 "100",
                 "--json",
-                "number,title,labels,files,headRefName,author",
+                "number,title,labels,files,headRefName,author,isCrossRepository",
             ])
         ) as OpenPr[];
     } catch (err) {
@@ -69,10 +69,14 @@ function main(): void {
     const doRebase = argv.includes("--rebase");
     const noPrs = argv.includes("--no-prs");
     const prIdx = argv.indexOf("--pr");
-    const ownPr =
-        prIdx >= 0 && argv[prIdx + 1] !== undefined
-            ? Number(argv[prIdx + 1]!.replace(/^#/, ""))
-            : null;
+    const prArg = prIdx >= 0 ? argv[prIdx + 1] : undefined;
+    if (prIdx >= 0 && !/^#?\d+$/.test(prArg ?? "")) {
+        console.error(
+            "usage: bun run base:drift [--rebase] [--pr <PR#>] [--no-prs] [--json]"
+        );
+        process.exit(2);
+    }
+    const ownPr = prArg === undefined ? null : Number(prArg.replace(/^#/, ""));
     if (git(["status", "--porcelain"]).trim() !== "" && doRebase) {
         console.error(
             "base:drift: working tree is dirty — commit first; a rebase needs a clean tree"
@@ -91,10 +95,21 @@ function main(): void {
             encoding: "utf8",
         });
         if (r.status !== 0) {
-            spawnSync("git", ["rebase", "--abort"]);
+            const why = r.stderr.trim().split("\n")[0] || "git rebase failed";
+            const abort = spawnSync("git", ["rebase", "--abort"], {
+                encoding: "utf8",
+            });
+            if (abort.status !== 0)
+                throw new Error(
+                    `the rebase onto ${ORIGIN_BASE} failed (${why}) AND \`git rebase --abort\` failed (${abort.stderr.trim().split("\n")[0]}) — the worktree is mid-rebase; finish or abort it by hand`
+                );
             console.error(
-                `base:drift: the rebase onto ${ORIGIN_BASE} conflicted and was aborted — the branch is where it was; rebase by hand`
+                `base:drift: the rebase onto ${ORIGIN_BASE} failed and was aborted (${why}) — the branch is where it was; rebase by hand`
             );
+            verdict = {
+                kind: "refuse",
+                reasons: [`the rebase failed: ${why}`],
+            };
             exit = 4;
         } else {
             report = buildReport(
@@ -110,7 +125,7 @@ function main(): void {
         }
     }
     const receipt = buildReceipt(report, verdict, new Date());
-    const gitDir = git(["rev-parse", "--git-dir"]).trim();
+    const gitDir = git(["rev-parse", "--absolute-git-dir"]).trim();
     writeFileSync(join(gitDir, RECEIPT_FILE), JSON.stringify(receipt, null, 2));
     if (json) console.log(JSON.stringify({ ...report, verdict }, null, 2));
     else console.log(renderReport(report, verdict));

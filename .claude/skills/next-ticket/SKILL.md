@@ -166,10 +166,10 @@ The short path is keyed on the LANE, never on how simple the card reads.
   your row in its Seams table.
 - **Rebase first, verify after** (issue #6647): targeted tests green →
   commit → `bun run base:drift --rebase` BEFORE the §4 review,
-  `oracle:compile` or `check:ui`. Exit 0: current or rebased (push
-  `--force-with-lease`); exit 4: overlap — rebase by hand, run the
-  regenerators it names, re-run the touched tests. Queued PRs it names
-  sharing files: say so in the PR, prefer waiting for them.
+  `oracle:compile` or `check:ui`. Exit 0: current or rebased (a pushed
+  branch: `git push --force-with-lease`); exit 4: overlap — rebase by
+  hand, run the regenerators it names, re-run the touched tests. Queued PRs
+  it names sharing files: say so in the PR, prefer waiting for them.
 - **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure = break → run →
   revert against a committed baseline; `git checkout <file>` on uncommitted
   work discards the implementation. **Assert the patch applied** (`grep -c`

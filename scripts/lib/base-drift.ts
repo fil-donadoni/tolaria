@@ -135,9 +135,13 @@ export function measureDrift(git: DriftGit, base: string): DriftMeasure {
         baseSha,
         mergeBase,
         behind,
-        baseChanged: lines(git.run(["diff", "--name-only", mergeBase, base])),
+        // `--no-renames`: a rename on one side must show its OLD path too,
+        // or a branch editing that path reads as "nothing shared".
+        baseChanged: lines(
+            git.run(["diff", "--name-only", "--no-renames", mergeBase, base])
+        ),
         branchChanged: lines(
-            git.run(["diff", "--name-only", mergeBase, "HEAD"])
+            git.run(["diff", "--name-only", "--no-renames", mergeBase, "HEAD"])
         ),
     };
 }
@@ -150,6 +154,18 @@ export interface OpenPr {
     files: { path: string }[];
     headRefName: string;
     author: { login: string };
+    /** A fork's PR: never a merge-queue draft (`isMergifyQueuePr`). */
+    isCrossRepository?: boolean;
+}
+
+/**
+ * `gh pr list --json author` spells a GitHub App's login `app/mergify` (REST
+ * says `mergify[bot]`, `MERGIFY_LOGIN`); normalised to the REST form so the
+ * one predicate (`isMergifyQueuePr`) decides.
+ */
+export function restLogin(login: string): string {
+    const m = /^app\/(.+)$/i.exec(login);
+    return m === null ? login : `${m[1]}[bot]`;
 }
 
 /** Where an open PR stands relative to the merge queue. */
@@ -166,10 +182,10 @@ export function queueState(pr: OpenPr): QueueState | null {
     if (labels.includes(MERGIFY_QUEUED_LABEL)) return "queued";
     if (
         isMergifyQueuePr({
-            author: pr.author.login,
+            author: restLogin(pr.author.login),
             headRef: pr.headRefName,
-            headRepo: "x",
-            baseRepo: "x",
+            headRepo: pr.isCrossRepository === true ? "fork" : "this",
+            baseRepo: "this",
         })
     )
         return "draft";
@@ -428,9 +444,11 @@ export interface LandReadyPreflightDeps {
     measure: () => DriftMeasure;
     /** The open PRs, for answer 4; [] when they could not be read. */
     openPrs: () => OpenPr[];
-    /** `git rebase <base>`: true when clean; false aborts it (conflict). */
-    rebase: () => boolean;
-    /** Push the rebased HEAD over `expected` on the PR's branch (lease). */
+    /** `git rebase <base>`: `ok` when clean; else aborted, `why` = git's
+     *  first error line. Throws when the abort itself failed (mid-rebase). */
+    rebase: () => { ok: true } | { ok: false; why: string };
+    /** Push the rebased HEAD over `expected` on the PR's branch (lease);
+     *  throws with git's stderr when the push is rejected. */
     push: (expected: string) => void;
     /** HEAD after the rebase. */
     head: () => string;
@@ -470,12 +488,19 @@ export function preflightLandReady(
     deps.log(
         `land:ready: ${report.behind} commit(s) behind ${report.base}, nothing shared — rebasing before the pre-queue check`
     );
-    if (!deps.rebase())
+    const rebased = deps.rebase();
+    if (!rebased.ok)
         throw new Error(
-            `the automatic rebase onto ${report.base} hit a conflict and was aborted (the branch is back at ${short(measure.branchHead)}) — \`git fetch origin && git rebase ${report.base}\` by hand, resolve, push, re-run`
+            `the automatic rebase onto ${report.base} failed and was aborted (${rebased.why}; the branch is back at ${short(measure.branchHead)}) — \`git fetch origin && git rebase ${report.base}\` by hand, resolve, push, re-run`
         );
-    deps.push(measure.branchHead);
     const head = deps.head();
+    try {
+        deps.push(measure.branchHead);
+    } catch (err) {
+        throw new Error(
+            `rebased onto ${report.base} as ${short(head)} but the push was rejected (${(err as Error).message.split("\n")[0]}) — the rebased head is local only: \`git push --force-with-lease origin HEAD:${measure.branch}\`, then re-run land:ready`
+        );
+    }
     deps.log(
         `land:ready: rebased onto ${report.base} @ ${short(report.baseSha)} and pushed ${short(head)} — the pre-queue check judges this tree`
     );

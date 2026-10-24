@@ -462,7 +462,10 @@ function restoreAndPush(
     // Step 0 — the base-drift preflight (issue #6647): behind with nothing
     // shared → rebase and push now, so every step below judges the rebased
     // tree; behind with an overlap or a coupled artefact → refuse with the
-    // list. Current → nothing. The receipt goes under the worktree's git dir.
+    // list. Current → nothing. It runs AFTER the stale-tooling refusal above
+    // on purpose: a base that moved the land tooling is rebased by hand and
+    // re-run, so the NEW script judges the tree — this one never auto-rebases
+    // there. The receipt goes under the worktree's git dir.
     const drift = preflightLandReady(pr, {
         measure: () => measureDrift({ run: git }, ORIGIN_BASE),
         openPrs: readOpenPrs,
@@ -470,29 +473,61 @@ function restoreAndPush(
             const r = spawnSync("git", ["rebase", "-q", ORIGIN_BASE], {
                 encoding: "utf8",
             });
-            if (r.status !== 0) spawnSync("git", ["rebase", "--abort"]);
-            return r.status === 0;
+            if (r.status === 0) return { ok: true };
+            const why = r.stderr.trim().split("\n")[0] || "git rebase failed";
+            const abort = spawnSync("git", ["rebase", "--abort"], {
+                encoding: "utf8",
+            });
+            if (abort.status !== 0)
+                throw new Error(
+                    `the automatic rebase onto ${ORIGIN_BASE} failed (${why}) AND \`git rebase --abort\` failed (${abort.stderr.trim().split("\n")[0]}) — the worktree is mid-rebase; finish or abort it by hand, then re-run`
+                );
+            return { ok: false, why };
         },
-        push: (expected) =>
-            void git([
-                "push",
-                "-q",
-                `--force-with-lease=refs/heads/${branch}:${expected}`,
-                "origin",
-                `HEAD:refs/heads/${branch}`,
-            ]),
+        push: (expected) => {
+            const r = spawnSync(
+                "git",
+                [
+                    "push",
+                    "-q",
+                    `--force-with-lease=refs/heads/${branch}:${expected}`,
+                    "origin",
+                    `HEAD:refs/heads/${branch}`,
+                ],
+                { encoding: "utf8" }
+            );
+            if (r.status !== 0)
+                throw new Error(
+                    r.stderr
+                        .trim()
+                        .split("\n")
+                        .find(
+                            (l) => l.startsWith("!") || l.startsWith("error")
+                        ) ?? "git printed no error"
+                );
+        },
         head: () => git(["rev-parse", "HEAD"]).trim(),
         log: console.log,
     });
     headOid = drift.head;
-    writeFileSync(
-        resolve(git(["rev-parse", "--git-dir"]).trim(), RECEIPT_FILE),
-        JSON.stringify(
-            buildReceipt(drift.report, drift.verdict, new Date()),
-            null,
-            2
-        )
-    );
+    // The receipt never decides the hand-off: a failed write is a NOTE.
+    try {
+        writeFileSync(
+            resolve(
+                git(["rev-parse", "--absolute-git-dir"]).trim(),
+                RECEIPT_FILE
+            ),
+            JSON.stringify(
+                buildReceipt(drift.report, drift.verdict, new Date()),
+                null,
+                2
+            )
+        );
+    } catch (err) {
+        console.log(
+            `land:ready: NOTE — the base-drift receipt was not written (${(err as Error).message})`
+        );
+    }
     let carried: DerivedCarried;
     try {
         carried = restoreDerivedState(

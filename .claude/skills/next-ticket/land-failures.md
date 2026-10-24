@@ -45,7 +45,8 @@ base moved under the verify. After the verification and BEFORE `git push`:
 `bun run base:drift --pr <PR#>`.
 
 - Exit 0 (base unmoved): push.
-- Exit 3 (moved, nothing shared): `bun run base:drift --rebase`, then
+- Exit 3 (moved, nothing shared): `bun run base:drift --rebase` (a dirty
+  tree exits 2: commit first), re-run the touched tests, then
   `git push --force-with-lease`. Re-verifying only what the base changed is
   a separate issue.
 - Exit 4 (moved, an overlap or a coupled artefact): start the repair round
