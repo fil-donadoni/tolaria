@@ -5,7 +5,7 @@
  *
  * A Verb Frame is ONE Effect Script Op spelled as Oracle text, its arguments
  * filled by the leaf sub-grammars (object descriptor, quantity, zone
- * reference) rather than by a table of whole printed sentences. Three frames
+ * reference) rather than by a table of whole printed sentences. Four frames
  * ship here, one per Op:
  *
  *  - `search`   — the `choice` Op over the controller's library:

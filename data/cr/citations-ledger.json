@@ -39740,7 +39740,7 @@
         {"id":"701.21a","line":"* - \"sacrifice two Mountains\" (Fireblast, CR 701.21a)","sites":1,"status":"confirmed","ruleHash":"9c1c1c256c5f768a"},
         {"id":"701.21a","line":"* - `\"sacrifice\"` ↔ `zone: \"battlefield\"` (CR 701.21a, issue","sites":1,"status":"confirmed","ruleHash":"9c1c1c256c5f768a"},
         {"id":"701.21a","line":"* - `action: \"sacrifice\"` (CR 701.21a) — a choice is owed when the payer","sites":1,"status":"baseline"},
-        {"id":"701.21a","line":"* - `sacrifice` — the `sacrifice` Op (CR 701.21a; issue #6630, pilot 2):","sites":1,"status":"confirmed","ruleHash":"9c1c1c256c5f768a"},
+        {"id":"701.21a","line":"* - `sacrifice` — the `sacrifice` Op (CR 701.21a):","sites":1,"status":"confirmed","ruleHash":"9c1c1c256c5f768a"},
         {"id":"701.21a","line":"* 701.21a) or returns to hand (CR 400.7 / 118.9, ADR 0079) the permanents the","sites":1,"status":"baseline"},
         {"id":"701.21a","line":"* 701.21a): the ability's own \"sacrifice a permanent matching <filter>\"","sites":1,"status":"baseline"},
         {"id":"701.21a","line":"* <descriptor>\" (CR 701.21a), the chooser being the sacrificing player.","sites":1,"status":"confirmed","ruleHash":"9c1c1c256c5f768a"},
