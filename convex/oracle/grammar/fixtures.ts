@@ -7482,6 +7482,61 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 205.1a + CR 613.1d — "it becomes a 4/4 Ape creature." behind
+    // "if this permanent is an enchantment": the source's card types and subtype
+    // line are replaced for good. Exhibits `setCardTypes` / `setSubtype` /
+    // `setBasePT` acting on `$source`, which the canned smoke scenario cannot
+    // drive (the source is the permanent the trigger is printed on).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2315b044-bfd2-40dd-a73e-4cf064b36999",
+            name: "Hidden Gibbons",
+            manaCost: "{1}{G}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "When an opponent casts an instant spell, if this permanent is an enchantment, it becomes a 4/4 Ape creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hidden Gibbons",
+            types: ["Enchantment"],
+            manaCost: { X: 1, G: 2 },
+            oracleText:
+                "When an opponent casts an instant spell, if this permanent is an enchantment, it becomes a 4/4 Ape creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "hidden-gibbons-trigger",
+                    oracleText:
+                        "When an opponent casts an instant spell, if this permanent is an enchantment, it becomes a 4/4 Ape creature.",
+                    head: {
+                        kind: "spell-cast",
+                        scope: "opponent",
+                        filter: { types: ["Instant"] },
+                    },
+                    condition: { kind: "self-has-type", type: "Enchantment" },
+                    effects: [
+                        {
+                            op: "setCardTypes",
+                            target: { ref: "$source" },
+                            types: ["Creature"],
+                        },
+                        {
+                            op: "setSubtype",
+                            target: { ref: "$source" },
+                            subtypes: ["Ape"],
+                        },
+                        {
+                            op: "setBasePT",
+                            target: { ref: "$source" },
+                            power: 4,
+                            toughness: 4,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 205.1b + CR 613.1d — "This land becomes a 3/3 green Ape creature with
     // trample until end of turn. It's still a land.": the source animates
     // itself. Exhibits the `animate` Op acting on `$source`, which the canned

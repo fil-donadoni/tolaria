@@ -633,6 +633,21 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 205.1a + CR 613.1d — "<source> becomes a N/N [color] <Subtype>
+           * creature.": the source's card types and subtype line are REPLACED
+           * (no "still a …" rider keeps them), its base P/T is set, with no
+           * duration (indefinite). Self only: the lowering emits the three
+           * source-targeted Ops the hand-written Oko encodes.
+           */
+          readonly kind: "become-creature";
+          readonly subject: SubjectIR;
+          readonly power: number;
+          readonly toughness: number;
+          readonly subtype: string;
+          readonly colors: readonly Color[];
+      }
+    | {
+          /**
            * CR 613.1f — a keyword granted until end of turn.
            *
            * Carries the whole Mechanics Registry row rather than just the
@@ -4254,6 +4269,12 @@ const STILL_TYPE_SELF = /^It(?:'|’)s still a (land)$/;
  */
 const ANIMATE_SELF =
     /^This (land) becomes a (\d+)\/(\d+) (.+?) creature(?: with (.+?))? (until .+)$/;
+/**
+ * CR 205.1a + CR 613.1d — "<source> becomes a N/N [color] <Subtype> creature":
+ * a permanent type-line replacement with no duration. The middle is read word
+ * by word by `readBecomeCreature` (one colour at most, ONE creature subtype).
+ */
+const BECOME_CREATURE = /^(\S+) becomes a (\d+)\/(\d+) (.+) creature$/;
 /** CR 113.1a — the `with` tail of an animation that is ONE quoted ability. */
 const QUOTED_GRANT_TAIL = /^"([^"]+)"$/;
 const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
@@ -5791,6 +5812,43 @@ function readSelfAnimation(
     } satisfies EffectSentenceIR);
 }
 
+/**
+ * CR 205.1a + CR 613.1d — "{self} becomes a N/N [color] <Subtype> creature".
+ * Subject is the source only; words are read in printed order (colour, then ONE
+ * creature subtype) so a colour list, a second subtype or an unknown word
+ * refuses the line (ADR 0105 § 2).
+ */
+function readBecomeCreature(
+    m: RegExpMatchArray,
+    span: string,
+    ctx: unknown
+): RuleResult<EffectSentenceIR> {
+    const subject = subjectRule.run(m[1]!, ctx);
+    if (!subject.ok) return subject;
+    if (subject.value.kind !== "self")
+        return fail("a type-line replacement is read on the source only", span);
+    const colors: Color[] = [];
+    let subtype: string | undefined;
+    for (const word of m[4]!.split(" ")) {
+        const color = COLOR_WORDS.get(word);
+        if (color !== undefined && subtype === undefined && colors.length === 0)
+            colors.push(color);
+        else if (subtype === undefined && CREATURE_SUBTYPES.has(word))
+            subtype = word;
+        else return fail(`"${word}" is not read in a replaced type line`, span);
+    }
+    if (subtype === undefined)
+        return fail("a replaced type line names its creature subtype", span);
+    return ok({
+        kind: "become-creature" as const,
+        subject: subject.value,
+        power: signedModifier(m[2]!),
+        toughness: signedModifier(m[3]!),
+        subtype,
+        colors,
+    } satisfies EffectSentenceIR);
+}
+
 /** A printed signed modifier as a number. "-0" ("gets -3/-0") is zero: the
  *  `+ 0` folds IEEE negative zero, which JSON would print as `0` anyway and
  *  which a structural comparison would otherwise tell apart from it. */
@@ -6408,6 +6466,11 @@ function effectSentence(
     // ── animate the source itself (CR 205.1b, layers 4, 5, 6 and 7b) ───────
     const animateSelf = span.match(ANIMATE_SELF);
     if (animateSelf !== null) return readSelfAnimation(animateSelf, span, ctx);
+
+    // ── the source's permanent type-line replacement (CR 205.1a) ──────────
+    const becomeCreature = span.match(BECOME_CREATURE);
+    if (becomeCreature !== null)
+        return readBecomeCreature(becomeCreature, span, ctx);
 
     // ── grant a keyword (CR 613.1f, layer 6) ───────────────────────────────
     const gainsAt = span.indexOf(" gains ");

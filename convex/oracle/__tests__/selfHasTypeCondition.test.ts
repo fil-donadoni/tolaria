@@ -2,8 +2,8 @@
 // Hidden cycles (CR 603.4).
 //
 //  1. GRAMMAR — `conditionRule` reads the source named by its current type.
-//  2. CONSUMPTION — a real corpus line gets past the condition: its gap moves
-//     to the effect clause ("becomes a N/N … creature"), a separate family.
+//  2. CONSUMPTION — a real corpus line gets past the condition and its effect
+//     clause ("becomes a N/N … creature", `becomeCreature.test.ts`).
 //  3. REFUSALS — neighbours the rule must NOT read.
 //  4. ENGINE — the compiled gate opens on an enchantment and shuts on a
 //     permanent that already became a creature.
@@ -36,7 +36,7 @@ describe("self-has-type condition (CR 603.4)", () => {
         });
     });
 
-    it("Hidden Gibbons: the line gets past the condition to the effect clause", () => {
+    it("Hidden Gibbons: the line compiles through the effect clause", () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Hidden Gibbons",
@@ -48,9 +48,7 @@ describe("self-has-type condition (CR 603.4)", () => {
                 toughness: undefined,
             })
         );
-        if (outcome.state !== "unparsed")
-            throw new Error("the effect clause has no reading yet");
-        expect(outcome.gaps[0]!.attribution?.path).toEqual(["effect clause"]);
+        expect(outcome.state).not.toBe("unparsed");
     });
 
     it("refuses the neighbours: another type, another noun, a negation", () => {
