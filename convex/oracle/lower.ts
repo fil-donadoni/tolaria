@@ -726,6 +726,18 @@ function lowerLine(
             const flashback = lowerFlashback(ir.cost);
             if (!flashback.ok) return flashback.reason;
             acc.flashback = flashback.value;
+            // CR 702.34a / 107.3a — "Exile X <colour> cards from your
+            // graveyard" rides `additionalCosts.flashbackExileFromGraveyard`:
+            // X is the card's own {X} (it drives the exile count AND the
+            // effect), so a card with no {X} pip has no X to announce.
+            const exile = ir.cost.exileXFromGraveyard;
+            if (exile !== undefined) {
+                if (!hasVariableX(card.manaCost))
+                    return "a flashback exile-X cost on a card with no {X} to announce (CR 107.3a)";
+                if (acc.additionalCosts !== undefined)
+                    return "a card declares an additional cost twice (CR 601.2f)";
+                acc.additionalCosts = { flashbackExileFromGraveyard: exile };
+            }
             return null;
         }
         case "cycling": {
