@@ -7669,8 +7669,15 @@ function selectForEachMembers(
     if (select.set === "targets") {
         // CR 115.4 — "any target" also announces players, who are members of
         // the set like any other target (Meteor Blast's "each of X targets").
+        // CR 601.2c + CR 400.7 — `zone: "graveyard"` reads the announced
+        // graveyard cards alone (Reap: the opponent picked first is a target
+        // of the spell, not a card to return).
         return legalTargetSlots(ctx.targets)
-            .filter((t) => t.type === "permanent" || t.type === "player")
+            .filter((t) =>
+                select.zone === "graveyard"
+                    ? t.type === "graveyard-card"
+                    : t.type === "permanent" || t.type === "player"
+            )
             .map((t) => t.id);
     }
     // CR 607.2a — "all cards exiled with it": the pile stamped with the
@@ -7888,6 +7895,20 @@ function execForEach(
                 // — so a later ref reads last-known information across the zone
                 // change). A member that already left the graveyard resolves to
                 // no owner → leave `$each` uncaptured (CR 608.2b, the body skips).
+                const owner = ctx.getGraveyardCardOwner(members[k]);
+                if (owner !== undefined) {
+                    bindSnapshot(ctx, eachId, {
+                        type: "graveyard-card",
+                        id: members[k],
+                        playerId: owner,
+                    });
+                }
+            } else if (
+                op.select.set === "targets" &&
+                op.select.zone === "graveyard"
+            ) {
+                // CR 608.2h — a graveyard-card target: snapshot it in its
+                // owner's graveyard before the body moves it.
                 const owner = ctx.getGraveyardCardOwner(members[k]);
                 if (owner !== undefined) {
                     bindSnapshot(ctx, eachId, {
