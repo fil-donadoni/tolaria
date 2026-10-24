@@ -9,7 +9,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { mergeKeySets, serializeKeys } from "../lib/key-set-merge";
+import {
+    mergeKeySetFile,
+    mergeKeySets,
+    serializeKeys,
+    serializeRows,
+} from "../lib/key-set-merge";
 import { KEY_SET_MERGE_DRIVER_NAME } from "../lib/generated-artifacts";
 import { BASE_BRANCH } from "../lib/branches";
 
@@ -67,6 +72,66 @@ describe("mergeKeySets (pure)", () => {
     it("a non-array or non-string payload is an error", () => {
         expect(mergeKeySets("[]", '{"a":1}', "[]").ok).toBe(false);
         expect(mergeKeySets("[]", "[1]", "[]").ok).toBe(false);
+    });
+});
+
+describe("mergeKeySetFile — rows keyed by `name` (issue #6648)", () => {
+    const row = (name: string, extra: Record<string, unknown> = {}) => ({
+        name,
+        id: `id-${name}`,
+        ...extra,
+    });
+    const rows = (...r: ReturnType<typeof row>[]) => serializeRows(r);
+
+    it("unions rows both sides inserted, in localeCompare order", () => {
+        expect(
+            mergeKeySetFile(
+                rows(row("a"), row("z")),
+                rows(row("a"), row("b"), row("z")),
+                rows(row("a"), row("B2"), row("z"))
+            )
+        ).toEqual({
+            ok: true,
+            text: rows(row("a"), row("b"), row("B2"), row("z")),
+        });
+    });
+
+    it("takes the one side that changed a row, and applies a deletion", () => {
+        expect(
+            mergeKeySetFile(
+                rows(row("a"), row("b")),
+                rows(row("a", { rarity: "rare" }), row("b")),
+                rows(row("a"))
+            )
+        ).toEqual({ ok: true, text: rows(row("a", { rarity: "rare" })) });
+    });
+
+    it("a row both sides changed differently is an error", () => {
+        const r = mergeKeySetFile(
+            rows(row("a")),
+            rows(row("a", { rarity: "rare" })),
+            rows(row("a", { rarity: "common" }))
+        );
+        expect(r.ok).toBe(false);
+    });
+
+    it("a side naming a row twice is an error", () => {
+        expect(
+            mergeKeySetFile(
+                rows(row("a")),
+                rows(row("a")),
+                rows(row("a"), row("a"))
+            ).ok
+        ).toBe(false);
+    });
+
+    it("a plain key file still merges as a set of strings", () => {
+        expect(
+            mergeKeySetFile(text("b"), text("b", "z"), text("a", "b"))
+        ).toEqual({
+            ok: true,
+            text: text("a", "b", "z"),
+        });
     });
 });
 

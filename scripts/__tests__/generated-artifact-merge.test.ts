@@ -26,6 +26,7 @@ import {
     UNREGENERATED_DATA,
 } from "../lib/generated-artifacts";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "../lib/derive-sync";
+import { serializeRows, type KeyedRow } from "../lib/key-set-merge";
 import { headerHashes, restoreHeaderHashes } from "../lib/derived-in-pr";
 import { CORPUS_PATH } from "../oracle-corpus";
 import {
@@ -285,13 +286,23 @@ describe("generated-artifact class — wiring", () => {
 });
 
 describe("generated-artifact class — what is NOT in it (issue #3069 asks for this explicitly)", () => {
-    it("the card index is immune by shape: per-row, sorted by name, no whole-file state", () => {
+    it("the card index is a keyed set: per-row, sorted by name, no whole-file state, in the key-set driver's form", () => {
         expect(REGENERATED_ARTIFACTS.map((a) => a.path)).not.toContain(
             "data/card-index.json"
         );
-        const index = JSON.parse(
-            readFileSync(join(REPO_ROOT, "data", "card-index.json"), "utf8")
-        ) as Array<Record<string, unknown>>;
+        // Issue #6648: rows keyed by `name`, merged by `key-set` — which writes
+        // the file back in its canonical form, so that form must be the one
+        // the writers commit, or every merge would reformat the file.
+        expect(
+            OTHER_MERGE_DRIVERS.find((a) => a.path === "data/card-index.json")
+                ?.driver
+        ).toBe(KEY_SET_MERGE_DRIVER_NAME);
+        const text = readFileSync(
+            join(REPO_ROOT, "data", "card-index.json"),
+            "utf8"
+        );
+        const index = JSON.parse(text) as KeyedRow[];
+        expect(serializeRows(index)).toBe(text);
         // A bare array — no header object to hold a hash or a tally.
         expect(Array.isArray(index)).toBe(true);
         // `backfill-card-index.ts` sorts with `localeCompare` — the point is
