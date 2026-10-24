@@ -21,7 +21,7 @@
  * A committed list was the first cut (PR #6562): every kind the base gained
  * while the PR sat in the queue was a red lane plus a repair round, because
  * a `human-input` list never regenerates and a baseline you refresh beside
- * the thing it guards guards nothing (issue #6648). Read off two trees, a
+ * the thing it guards guards nothing. Read off two trees, a
  * branch that retires one kind rebases onto a base that retired another
  * with neither a conflict nor a red — `sentence-kinds.test.ts` proves it on
  * a real `git rebase`.
