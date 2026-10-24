@@ -128,6 +128,17 @@ export function altCostPermanentCardinal(
     return leg.count;
 }
 
+/** Printed mana value of a registry definition (CR 202.3): the sum of its cost
+ *  symbols, 0 for a card with no mana cost. */
+function printedManaValue(def: { manaCost?: object }): number {
+    return def.manaCost
+        ? Object.values(def.manaCost).reduce<number>(
+              (acc, v) => acc + (typeof v === "number" ? v : 0),
+              0
+          )
+        : 0;
+}
+
 /** Match a HAND card against an `EffectCardFilter` (CR 118.9 hand leg). Reads
  *  the card's registry characteristics (types / subtypes / colours / name /
  *  mana value); every present filter field is ANDed, array fields OR within
@@ -256,14 +267,34 @@ export function handCardMatchesFilter(
     // here; a dynamic value imposes no ceiling (fail-open, matching "field
     // absent" rather than mis-comparing against a non-numeric value).
     if (typeof filter.manaValueAtMost === "number") {
-        const mv = def.manaCost
-            ? Object.values(def.manaCost).reduce<number>(
-                  (acc, v) => acc + (typeof v === "number" ? v : 0),
-                  0
-              )
-            : 0;
-        if (mv > filter.manaValueAtMost) return false;
+        if (printedManaValue(def) > filter.manaValueAtMost) return false;
     }
+    // CR 202.3 — exact mana value, on the same printed-cost sum as the ceiling
+    // above. A dynamic `{ X: true }` has no resolving spell here to read X
+    // from, so it never equals a number and the card is refused rather than
+    // skipped (skipping falls through to `return true`, the whole hand).
+    if (
+        filter.manaValueEquals !== undefined &&
+        printedManaValue(def) !== filter.manaValueEquals
+    ) {
+        return false;
+    }
+    // CR 205.4 — the negative of `supertype`: a card with ANY listed supertype
+    // is refused ("nonbasic").
+    const excludeSupertypes = asArray(filter.excludeSupertype);
+    if (
+        excludeSupertypes !== undefined &&
+        excludeSupertypes.some((t) => (def.supertypes ?? []).includes(t))
+    )
+        return false;
+    // CR 105.2 — the negative of `color`; a colourless card (CR 105.2c) has
+    // none of the excluded colours and passes.
+    const excludeColors = asArray(filter.excludeColor);
+    if (
+        excludeColors !== undefined &&
+        excludeColors.some((c) => cardHasColor(def, c))
+    )
+        return false;
     // issue #1881 / #1898 finding 2 (PR #1898 second fixup round) — exact
     // structural MANA-COST match (CR 202), the hand-leg sibling of
     // `matchesCardFilter`'s own `manaCostEquals` branch

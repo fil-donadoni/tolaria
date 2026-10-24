@@ -20040,7 +20040,7 @@ export interface EffectBoundMatchesFilterPredicate {
  *  it would match every permanent rather than none — a genuine fail-open
  *  (issue #1898 finding 3). Unlike the three above, the validator (`gre/
  *  effects/validate.ts`) REJECTS `manaCostEquals` on this predicate's `filter`
- *  outright (`rejectManaCostEquals`) rather than accepting the silent gap. */
+ *  outright (`rejectHiddenZoneFields`) rather than accepting the silent gap. */
 export interface EffectObjectMatchesFilterPredicate {
     objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;
