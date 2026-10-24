@@ -551,6 +551,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery [storm] › choice+libraryLook+moveZone",
+            "issue": 6784
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Creature › pump",
             "issue": 4270
         },
