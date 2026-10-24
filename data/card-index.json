@@ -5244,6 +5244,16 @@
         "source": "compiled"
     },
     {
+        "name": "Battlefield Scrounger",
+        "scryfallId": "f5ac74bc-1198-4a9a-bcde-668cca08b274",
+        "oracleId": "92ac7531-10bb-47a2-9dd0-378d547b4ed6",
+        "firstSet": "jud",
+        "firstPrintId": "f5ac74bc-1198-4a9a-bcde-668cca08b274",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Battlefly Swarm",
         "scryfallId": "3c6b4a2d-0bc0-4a54-9c78-712b48ad6be1",
         "oracleId": "1396e7f1-ac91-4778-9f71-493c7a44bd51",
@@ -8656,6 +8666,16 @@
         "firstSet": "mh2",
         "firstPrintId": "b279a03f-85ab-43f2-b5ca-1bc10563e5ad",
         "firstPrintSet": "mh2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cabal Inquisitor",
+        "scryfallId": "c0530e09-5206-460e-abd2-e928eca294a5",
+        "oracleId": "5bebf38e-bff6-470b-a2b8-cb0a87a7372f",
+        "firstSet": "ody",
+        "firstPrintId": "c0530e09-5206-460e-abd2-e928eca294a5",
+        "firstPrintSet": "ody",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16816,6 +16836,16 @@
         "firstSet": "sok",
         "firstPrintId": "b525f824-fcce-48cc-887d-98d4058b1d31",
         "firstPrintSet": "sok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "DOT-7 Repair Squad",
+        "scryfallId": "fca1528c-84cc-42d2-99ae-9f10f0e28743",
+        "oracleId": "b860f64c-e830-49ea-a478-5dc87e8a3be1",
+        "firstSet": "trk",
+        "firstPrintId": "fca1528c-84cc-42d2-99ae-9f10f0e28743",
+        "firstPrintSet": "trk",
         "rarity": "common",
         "source": "compiled"
     },
@@ -66876,6 +66906,16 @@
         "firstSet": "mmq",
         "firstPrintId": "b3f8c5ee-2179-4c05-adc9-0b66d02b59ad",
         "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thunderhead Gunner",
+        "scryfallId": "ef537868-b2cb-4bbd-a935-b7f73f19bd06",
+        "oracleId": "d9b6656d-d71f-4359-bf6f-b76089741e29",
+        "firstSet": "dft",
+        "firstPrintId": "ef537868-b2cb-4bbd-a935-b7f73f19bd06",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },

@@ -22,7 +22,12 @@ export default function ExileCostDialog({
     gameId,
     playerId,
 }: {
-    choice: { count: number; cardType?: string; owner?: "you" };
+    choice: {
+        count: number;
+        cardType?: string;
+        owner?: "you";
+        destination?: "library-bottom";
+    };
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
@@ -32,6 +37,8 @@ export default function ExileCostDialog({
     const [isPending, setIsPending] = useState(false);
     const [chosenOwnerId, setChosenOwnerId] = useState<string | null>(null);
     const [selected, setSelected] = useState<string[]>([]);
+
+    const toBottom = choice.destination === "library-bottom";
 
     const matches = (card: CardInstance): boolean =>
         choice.cardType === undefined ||
@@ -102,11 +109,15 @@ export default function ExileCostDialog({
             onOpenChange={(open) => {
                 if (!open) void handleCancel();
             }}
-            title="Exile from a graveyard"
+            title={
+                toBottom
+                    ? "Put cards from your graveyard on the bottom of your library"
+                    : "Exile from a graveyard"
+            }
             subtitle={
                 needsOwnerChoice
                     ? "Choose a graveyard"
-                    : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to exile`
+                    : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to ${toBottom ? "put on the bottom of your library" : "exile"}`
             }
             size="wide"
             dismissable={!isPending}
@@ -157,7 +168,8 @@ export default function ExileCostDialog({
                             }
                             onClick={() => void handleConfirm()}
                         >
-                            Exile {selected.length}/{choice.count}
+                            {toBottom ? "Put" : "Exile"} {selected.length}/
+                            {choice.count}
                         </Button>
                     </div>
                 </>

@@ -19817,6 +19817,31 @@ export function exileCardFromGraveyard(
     return true;
 }
 
+/** CR 401.4 / 118.3 — pays the card-moving half of a `cost.exileFromGraveyard`
+ *  leg: each picked card leaves `owner`'s graveyard for exile, or (destination
+ *  `"library-bottom"`) for the bottom of that player's library, in picked order
+ *  (the library's end is its bottom). One library-entry event for the whole
+ *  group (CR 603.2c). The single authority the mutation commit and the Bot's
+ *  search slice both call, so they cannot disagree on where a cost's cards go. */
+export function payGraveyardCostCards(
+    state: GameState,
+    owner: PlayerState,
+    cardInstanceIds: readonly string[],
+    destination: "library-bottom" | undefined
+): void {
+    if (destination === undefined) {
+        for (const id of cardInstanceIds) exileCardFromGraveyard(owner, id);
+        return;
+    }
+    const moved: LibraryEntry[] = [];
+    for (const id of cardInstanceIds) {
+        if (!owner.graveyard.some((c) => c.id === id)) continue;
+        const card = moveCard(owner, id, "graveyard", "library");
+        moved.push(libraryEntry(card, "graveyard"));
+    }
+    emitCardsPutIntoLibrary(state, moved);
+}
+
 /** SINGLE AUTHORITY for the `cost.exileThis` activation cost — "Exile this
  *  card/permanent" (CR 118.1 — a cost is an action necessary to take another
  *  action; CR 601.2h via CR 602.2b — the cost is paid at ACTIVATION, while the

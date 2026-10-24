@@ -1852,6 +1852,13 @@ export interface ActivatedAbility {
             count: number;
             cardType?: CardType;
             owner?: "you";
+            /** Where the picked cards go. Absent = exile. `"library-bottom"` =
+             *  "Put three cards from your graveyard on the bottom of your
+             *  library" (CR 401.4 — the owner arranges them; they land in the
+             *  order picked). Same picker, same affordability, same
+             *  single-graveyard rule as the exile cost: only the commit
+             *  destination differs. */
+            destination?: "library-bottom";
         };
         /** "Exile the top card of your library" as an activation cost (CR 118.1
          *  — a cost is an action necessary to take another action; CR 701.13a —

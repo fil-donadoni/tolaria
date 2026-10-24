@@ -129,6 +129,7 @@ import {
     payExileTopOfLibraryCost,
     payDiscardLastDrawn,
     payExileThisCost,
+    payGraveyardCostCards,
     exileThisSourceZone,
     payManaCostForAbility,
     payManaCostForSpell,
@@ -782,6 +783,13 @@ export function buildPendingActivation(opts: {
                       ...(ability.cost.exileFromGraveyard.owner !== undefined
                           ? { owner: ability.cost.exileFromGraveyard.owner }
                           : {}),
+                      ...(ability.cost.exileFromGraveyard.destination !==
+                      undefined
+                          ? {
+                                destination:
+                                    ability.cost.exileFromGraveyard.destination,
+                            }
+                          : {}),
                   },
               }
             : {}),
@@ -1202,9 +1210,12 @@ export function tryAutoCommitPendingActivation(
             owner,
             pa.exileFromGraveyardChoice.pickedCardIds
         );
-        for (const id of pa.exileFromGraveyardChoice.pickedCardIds) {
-            moveCard(owner, id, "graveyard", "exile");
-        }
+        payGraveyardCostCards(
+            state,
+            owner,
+            pa.exileFromGraveyardChoice.pickedCardIds,
+            pa.exileFromGraveyardChoice.destination
+        );
     }
     // CR 602.1 / 118.8 — tap the chosen "other" permanents (Hand of Justice).
     // Re-validate each at commit: a pick may have left play or been tapped

@@ -85,7 +85,7 @@ describe("Threshold activation condition — golden fixtures (CR 602.1b)", () =>
         );
         expect(parsed.ok && parsed.value).toEqual({
             role: "restriction",
-            restriction: { kind: "own-graveyard-at-least", count: 7 },
+            restrictions: [{ kind: "own-graveyard-at-least", count: 7 }],
         });
     });
 });

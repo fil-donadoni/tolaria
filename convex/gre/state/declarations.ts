@@ -2930,6 +2930,8 @@ export type PendingActivation = {
          *  eligible source (CR 118.5 — Grim Lavamancer "your graveyard").
          *  Absent = any player's graveyard is eligible (Night Soil). */
         owner?: "you";
+        /** Mirrors `cost.exileFromGraveyard.destination`; absent = exile. */
+        destination?: "library-bottom";
         pickedGraveyardOwnerId?: string;
         pickedCardIds?: string[];
     };
