@@ -7443,6 +7443,37 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
     {
+        // Issue #6761 — a "may search" tutor whose find is a strict gain. CR
+        // 701.23b lets the searcher fail to find, so Tinker's choice admits an
+        // empty pick (`count: { min: 0, max: 1 }`, PR #6562). ISMCTS backs the
+        // MEAN of the choice node up to the cast, so the visits the empty branch
+        // takes (an Ornithopter sacrificed for nothing) pulled the cast below
+        // `pass`, and the bot never cast Tinker at all.
+        label: "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Tinker", owner: "me", zone: "hand" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Juggernaut", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Tinker" }] },
+        note: "Issue #6761 (RED @ b77aa85e). The find goes from the searcher's own library onto its battlefield, the script only moves it, and the library stays above the decking horizon, so `failToFindIsDominated` (`gre/ai/choiceCandidates.ts`) drops the `search-library:none` branch from the tree. The empty submission stays legal. Proof-of-failure: disabling that prune makes the bot pass on every seed at this budget (it casts again from about 200 iterations, once the visits concentrate on the find).",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3282).
         // Hand-bound land search: the land leg of `libraryTargetWorth` prices a
         // fetched land by its source quality and by whether it supplies a
