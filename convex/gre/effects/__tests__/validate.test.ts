@@ -1702,7 +1702,7 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
     it('rejects from: "exile" or "graveyard" with any other non-battlefield destination', () => {
         for (const [from, to] of [
             ["exile", "hand"],
-            ["graveyard", "hand"],
+            ["graveyard", "library"],
         ] as const) {
             const errors = validateAbilityEffectScript(
                 host({
