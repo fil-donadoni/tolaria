@@ -14,6 +14,9 @@
  *                                            → layer 4 `type-add` + `pt-cda`
  *   "<self>'s power and toughness are each equal to the number of land cards
  *    in all graveyards"                      → CR 604.3 `pt-cda`, self scope
+ *   "<self>'s power is equal to the total power of the exiled cards and its
+ *    toughness is equal to their total toughness"
+ *                                            → CR 604.3 `pt-cda`, exiled pile
  *
  * Every filter is read MATERIALISED: `type-add` and `ability-loss` are applied
  * imperatively when a permanent enters (`compiledStatics.ts`), so a clause
@@ -63,7 +66,10 @@ export type CharacteristicStaticIR =
     | {
           readonly kind: "self-pt-cda-graveyards";
           readonly cardTypes: readonly CardType[];
-      };
+      }
+    /** CR 604.3 / 607.2a — "<self>'s power is equal to the total power of the
+     *  exiled cards and its toughness is equal to their total toughness". */
+    | { readonly kind: "self-pt-cda-exiled-totals" };
 
 /** CR 205.2a — the card-type words a graveyard count may name. */
 const CARD_TYPE_WORDS: ReadonlyMap<string, CardType> = new Map<
@@ -207,5 +213,36 @@ export const selfPtCdaGraveyardsRule: Rule<CharacteristicStaticIR> = rule(
             kind: "self-pt-cda-graveyards" as const,
             cardTypes: [cardType],
         });
+    }
+);
+
+const SELF_CDA_EXILED_TOTALS =
+    /^(.+)'s power is equal to the total power of the exiled cards and its toughness is equal to their total toughness$/;
+
+/**
+ * Sutured Ghoul. A characteristic-defining ability (CR 604.3) whose power and
+ * toughness are DIFFERENT sums, each over "the exiled cards": the pile a linked
+ * ability exiled (CR 607.2a), which the lowering reads as the cards exiled with
+ * the source. The line only means that when the card also prints the exiling
+ * ability; this per-line rule cannot see it, so a card printing the clause
+ * alone is left to read a pile that is always empty. The whole sentence is the
+ * frame — "power and toughness each equal to …" is another form and refuses.
+ */
+export const selfPtCdaExiledTotalsRule: Rule<CharacteristicStaticIR> = rule(
+    "self P/T equal to exiled cards totals",
+    (span, ctx): RuleResult<CharacteristicStaticIR> => {
+        const match = span.match(SELF_CDA_EXILED_TOTALS);
+        if (match === null)
+            return fail(
+                'not "<self>\'s power is equal to the total power of the exiled cards …"',
+                span
+            );
+        const subject = match[1]!;
+        if (
+            !isSelfPhrase(subject) &&
+            subject !== (ctx as Partial<ParseContext> | undefined)?.card?.name
+        )
+            return fail(`"${subject}" is not the permanent itself`, subject);
+        return ok({ kind: "self-pt-cda-exiled-totals" as const });
     }
 );

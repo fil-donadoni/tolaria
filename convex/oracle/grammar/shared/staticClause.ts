@@ -81,6 +81,7 @@ import {
     animateManaValueRule,
     chosenTypePumpRule,
     selfPtCdaGraveyardsRule,
+    selfPtCdaExiledTotalsRule,
     type CharacteristicStaticIR,
 } from "./characteristicStatic";
 import {
@@ -2255,6 +2256,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         chosenTypePumpRule,
         animateManaValueRule,
         selfPtCdaGraveyardsRule,
+        selfPtCdaExiledTotalsRule,
         enchantedHostRule,
         youControlHostRule,
     ])
