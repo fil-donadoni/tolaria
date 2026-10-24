@@ -59,16 +59,17 @@ const KIND_ARRAY_OPEN = "export const EFFECT_SENTENCE_KINDS = [";
 export function readKindArray(source: string): string[] | null {
     const start = source.indexOf(KIND_ARRAY_OPEN);
     if (start === -1) return null;
-    const rest = source.slice(start + KIND_ARRAY_OPEN.length);
+    // Comments go first, in ONE pass (a `// … /*` line comment must not open
+    // a block, a `// … ] as const` one must not close the array).
+    const rest = source
+        .slice(start + KIND_ARRAY_OPEN.length)
+        .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
     const end = rest.indexOf("] as const");
     if (end === -1)
         throw new Error(
             `${EFFECT_CLAUSE_PATH}: \`EFFECT_SENTENCE_KINDS\` is not closed by \`] as const\``
         );
-    const body = rest
-        .slice(0, end)
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
+    const body = rest.slice(0, end);
     const kinds = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
     if (body.replace(/"[^"]+"/g, "").replace(/[\s,]/g, "") !== "")
         throw new Error(
