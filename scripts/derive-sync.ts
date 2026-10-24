@@ -414,6 +414,33 @@ function driftSweep(head: string): DriftSweepResult {
 /** Regenerate on HEAD, commit what changed, push once. Exit code. */
 function write(dryRun: boolean): number {
     const head = git(["rev-parse", "HEAD"]).stdout.trim();
+    // Issue #6765 — the write path is the BASE's: it commits on HEAD and
+    // pushes to the base, so on any other HEAD it would land that HEAD's own
+    // commits too. Refused before the generators run; the dry run stays open
+    // to a branch (it pushes nothing). The pusher's compare-and-swap is the
+    // backstop for a base that moves after this check.
+    if (!dryRun) {
+        const tip = fetchedBaseTip();
+        if (tip === null) return 1;
+        if (
+            tip !== head &&
+            git(["merge-base", "--is-ancestor", head, tip]).status === 0
+        ) {
+            // The base moved past this tree since it was checked out: the
+            // newer tip's own run derives (ADR 0157 coalescing), as a refused
+            // push would have concluded after the whole regeneration.
+            say(
+                `${head.slice(0, 10)} is behind ${BASE_BRANCH} ${tip.slice(0, 10)} — coalesced: the newer tip's run derives (ADR 0157)`
+            );
+            return 0;
+        }
+        if (tip !== head) {
+            complain(
+                `refusing to write: HEAD ${head.slice(0, 10)} (${currentBranch()}) is not the ${BASE_BRANCH} tip ${tip.slice(0, 10)}. derive:sync commits on HEAD and pushes it to ${BASE_BRANCH}, so on a branch it would land the branch outside the queue (issue #6765). The base's post-merge run derives it; \`derive:sync --dry-run\` shows what is stale here.`
+            );
+            return 1;
+        }
+    }
     if (!ensureCorpus()) return 1;
     const swept = driftSweep(head);
     if (
@@ -446,7 +473,10 @@ function commitAndPush(
     head: string,
     paths: readonly string[],
     subject: string
-): { code: number; outcome: "landed" | "coalesced" | "failed" | "error" } {
+): {
+    code: number;
+    outcome: "landed" | "coalesced" | "failed" | "off-base" | "error";
+} {
     const files: { path: string; blob: string }[] = [];
     for (const path of paths) {
         const blob = git(["hash-object", "-w", join(ROOT, path)]);
@@ -488,6 +518,11 @@ function commitAndPush(
         case "failed":
             complain(
                 `push refused (${why}) with ${BASE_BRANCH} still at ${head.slice(0, 10)} — the next housekeeping run retries`
+            );
+            return { code: 1, outcome };
+        case "off-base":
+            complain(
+                `push refused: ${head.slice(0, 10)} is AHEAD of ${BASE_BRANCH} (${pushed.remoteTip.slice(0, 10)}) — a branch's HEAD, not the base tip; pushing would land the branch outside the queue (issue #6765). Nothing pushed.`
             );
             return { code: 1, outcome };
     }
@@ -630,6 +665,12 @@ function detachAt(tip: string): boolean {
         generate("worktree:init", ["scripts/bootstrap-worktree.ts"]) &&
         ensureCorpus()
     );
+}
+
+/** The checked-out branch name, or `detached`. */
+function currentBranch(): string {
+    const r = git(["symbolic-ref", "--short", "-q", "HEAD"]);
+    return r.status === 0 ? r.stdout.trim() : "detached";
 }
 
 /** The base's tip, fetched — null when the fetch failed. */
