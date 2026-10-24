@@ -19,7 +19,10 @@ import {
 import { registerTokenDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import { matchesPermanentFilter } from "../../cards/filters";
-import { effectivePermanentView } from "../permanentView";
+import { effectivePermanentView, permanentManaValue } from "../permanentView";
+import { applyCopy } from "../copy";
+import { transformPermanent } from "../transform";
+import { modalBackTwinDefinition } from "../../cards/modalDfc";
 import { projectPublicState } from "../../gameProjections";
 import {
     makeInstance,
@@ -289,5 +292,102 @@ describe("effectivePermanentView supplies the battlefield mana value", () => {
         expect(
             matchesPermanentFilter(effectivePermanentView(state, five!), filter)
         ).toBe(false);
+    });
+});
+
+describe("permanentManaValue of a double-faced permanent (CR 712.8e / 202.3b)", () => {
+    const NONMODAL_FRONT_ID = "test-6396-nonmodal-front";
+    registerTokenDefinition({
+        id: NONMODAL_FRONT_ID,
+        name: "Test Nonmodal Front",
+        rarity: "common",
+        manaCost: { generic: 2, G: 2 },
+        types: ["Creature"],
+        subtypes: ["Human"],
+        power: 2,
+        toughness: 2,
+        backFace: {
+            name: "Test Nonmodal Back",
+            types: ["Creature"],
+            subtypes: ["Werewolf"],
+            power: 4,
+            toughness: 4,
+            colors: ["G"],
+        },
+    });
+    const modalFront: CardDefinition = {
+        id: "test-6396-modal-front",
+        name: "Test Modal Front",
+        rarity: "common",
+        manaCost: { generic: 1, U: 1 },
+        types: ["Creature"],
+        subtypes: ["Human"],
+        power: 1,
+        toughness: 1,
+        backFace: {
+            kind: "modal",
+            name: "Test Modal Back",
+            types: ["Creature"],
+            subtypes: ["Elemental"],
+            power: 3,
+            toughness: 3,
+        },
+    };
+    registerTokenDefinition(modalFront);
+    // The twin carries no cost of its own today (modal back faces are lands);
+    // a costed one is given here to pin that its OWN cost is read.
+    registerTokenDefinition({
+        ...modalBackTwinDefinition(modalFront)!,
+        manaCost: { generic: 3, R: 1 },
+    });
+
+    it("reads the FRONT face's cost once transformed, not the colour-count artefact", () => {
+        const state = board({ battlefield: [NONMODAL_FRONT_ID] });
+        const [card] = getPlayer(state, "p1").battlefield;
+        expect(permanentManaValue(card!)).toBe(4);
+        transformPermanent(state, card!);
+        expect(card!.transformed).toBe(true);
+        expect(permanentManaValue(card!)).toBe(4);
+        const view = effectivePermanentView(state, card!);
+        expect(matchesPermanentFilter(view, { manaValueAtLeast: 4 })).toBe(
+            true
+        );
+        expect(matchesPermanentFilter(view, { manaValueAtLeast: 5 })).toBe(
+            false
+        );
+    });
+
+    it("values a copy of the nonmodal back face at 0 (CR 202.3b)", () => {
+        const state = board({
+            battlefield: [NONMODAL_FRONT_ID, FIVE_DROP_ID],
+        });
+        const [dfc, recipient] = getPlayer(state, "p1").battlefield;
+        transformPermanent(state, dfc!);
+        applyCopy(state, recipient!, dfc!);
+        expect(recipient!.copiedFrom).toBe(FIVE_DROP_ID);
+        expect(permanentManaValue(recipient!)).toBe(0);
+    });
+
+    it("values a TRANSFORMED permanent that becomes a copy of a back face at 0 (CR 202.3b)", () => {
+        const state = board({
+            battlefield: [NONMODAL_FRONT_ID, NONMODAL_FRONT_ID, FIVE_DROP_ID],
+        });
+        const [src, aberration, bear] = getPlayer(state, "p1").battlefield;
+        transformPermanent(state, src!);
+        transformPermanent(state, aberration!);
+        applyCopy(state, aberration!, src!);
+        expect(aberration!.transformed).toBe(true);
+        expect(permanentManaValue(aberration!)).toBe(0);
+        // ...and of an ordinary card it reads that card's cost, not its front's.
+        applyCopy(state, aberration!, bear!);
+        expect(permanentManaValue(aberration!)).toBe(5);
+    });
+
+    it("keeps a MODAL back face's own cost (CR 712.8f)", () => {
+        const state = board({ battlefield: [modalFront.id] });
+        const [card] = getPlayer(state, "p1").battlefield;
+        transformPermanent(state, card!);
+        expect(card!.transformed).toBe(true);
+        expect(permanentManaValue(card!)).toBe(4);
     });
 });
