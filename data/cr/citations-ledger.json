@@ -36141,6 +36141,7 @@
         {"id":"614.12a","line":"// CR 614.12a (issue #2019) — it did NOT enter because it owes its","sites":1,"status":"baseline"},
         {"id":"614.12a","line":"// CR 614.12a (issue #2019) — no mode is announced; the colour pick is","sites":1,"status":"baseline"},
         {"id":"614.12a","line":"// CR 614.12a (issue #2019) — the Aura's OWN \"as it enters\" clauses are owed","sites":1,"status":"baseline"},
+        {"id":"614.12a","line":"// CR 614.12a (issue #6671) — the as-enters \"exile a card from a","sites":1,"status":"confirmed","ruleHash":"ee3dc0335cbf9edc"},
         {"id":"614.12a","line":"// CR 614.12a / 201.4a — \"nonland card name\", enforced exactly by","sites":1,"status":"confirmed","ruleHash":"ee3dc0335cbf9edc"},
         {"id":"614.12a","line":"// CR 614.12a / 205.3m — the whole creature-type list, the shape","sites":1,"status":"confirmed","ruleHash":"ee3dc0335cbf9edc"},
         {"id":"614.12a","line":"// CR 614.12a / 605.1a — the actual output is the ETB-stored colour","sites":1,"status":"baseline"},
