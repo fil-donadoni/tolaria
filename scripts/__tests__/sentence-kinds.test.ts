@@ -75,6 +75,16 @@ describe("effectSentenceKinds reads EFFECT_SENTENCE_KINDS off the source — str
         );
     });
 
+    it("a comment naming the array's closer or a block opener inside the array neither closes it nor swallows kinds", () => {
+        const tricky = SOURCE.replace(
+            '"pump",',
+            '// closes ] as const? no\n    // opens /* here\n    "pump",'
+        );
+        expect(effectSentenceKinds(tricky)).toEqual(
+            effectSentenceKinds(SOURCE)
+        );
+    });
+
     it("throws on an element that is not a string literal — a kind cannot enter behind a spread or a name", () => {
         expect(() =>
             effectSentenceKinds(SOURCE.replace('"pump",', '...MORE, "pump",'))
