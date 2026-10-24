@@ -47,7 +47,6 @@ import {
 } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
-import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import {
     hasPendingGameIntent,
     trackGameIntent,
@@ -69,7 +68,6 @@ import {
     modePickerConstraint,
     viewerModeSelectionFacts,
 } from "~/lib/mode-picker-constraint";
-import ErrorToast from "~/components/board/error-toast";
 
 /** Battlefield interaction controller for one player's battlefield (PRD #249,
  *  slice #272). Mirrors how {@link useBattlefieldVisualState} (#256) was
@@ -237,9 +235,6 @@ export function useBattlefieldInteraction(player: Player) {
         nonTapAbilityId?: string;
     } | null>(null);
 
-    const [validationError, setValidationError] =
-        useState<MutationError | null>(null);
-
     // CR 601.2b — X in an activated ability's mana cost is chosen before the
     // ability goes on the stack. Parked here while the in-game cost dialog
     // collects the value (replacing the old native `window.prompt`); the
@@ -274,7 +269,7 @@ export function useBattlefieldInteraction(player: Player) {
         // banner / prompt actually rendering — that reflex keystroke used to
         // advance the phase instead (see `pending-intent-store.ts`).
         trackGameIntent(promise).catch((err) => {
-            setValidationError(extractMutationError(err));
+            bufferCtx.reportError(err);
         });
     }
 
@@ -662,7 +657,7 @@ export function useBattlefieldInteraction(player: Player) {
             if (alreadySelected && card.mustAttack) {
                 const name = getDefinition(displayCardId(card)).name;
                 const msg = `${name} must attack this combat if able`;
-                setValidationError({ title: msg, detail: msg });
+                bufferCtx.reportError(new Error(msg));
                 return;
             }
             guardMutation(
@@ -1319,11 +1314,6 @@ export function useBattlefieldInteraction(player: Player) {
                     onCancel={() => setAbilityXChoiceState(null)}
                 />
             )}
-            <ErrorToast
-                error={validationError}
-                gameId={gameId}
-                onDismiss={() => setValidationError(null)}
-            />
         </>
     );
 
