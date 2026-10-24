@@ -55,6 +55,9 @@ export interface FlashbackCostIR {
     readonly sacrifice?: PermanentFilter;
     /** CR 119.4 — the "Pay N life" leg, e.g. Deep Analysis's "Pay 3 life". */
     readonly life?: number;
+    /** CR 702.34a / 107.3a — "Exile X blue cards from your graveyard": the
+     *  caster-announced X; `color` filters the eligible cards (CR 105.2). */
+    readonly exileXFromGraveyard?: { readonly color?: Color };
 }
 
 /**

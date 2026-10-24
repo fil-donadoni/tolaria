@@ -477,11 +477,56 @@ describe("spell slot — flashback (CR 702.34a)", () => {
         expect(def.flashback).toEqual({ mana: { X: 1, U: 1 }, life: 3 });
     });
 
-    it("REFUSES a flashback component `FlashbackCost` cannot encode", () => {
-        // "Exile X blue cards from your graveyard" (Flash of Insight) has no
-        // atom in the shared cost grammar.
+    it('reads "Exile X blue cards from your graveyard" (Flash of Insight, CR 107.3a)', () => {
+        const def = compiled(
+            spellCard({
+                manaCost: "{X}{1}{U}",
+                oracleText:
+                    "Look at the top X cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.\nFlashback—{1}{U}, Exile X blue cards from your graveyard.",
+            })
+        );
+        expect(def.flashback).toEqual({ X: 1, U: 1 });
+        expect(def.additionalCosts).toEqual({
+            flashbackExileFromGraveyard: { color: "U" },
+        });
+    });
+
+    it('an uncoloured "Exile X cards from your graveyard" filters nothing', () => {
+        const def = compiled(
+            spellCard({
+                manaCost: "{X}{1}{U}",
+                oracleText:
+                    "Look at the top X cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.\nFlashback—{3}{U}{R}, Exile X cards from your graveyard.",
+            })
+        );
+        expect(def.additionalCosts).toEqual({
+            flashbackExileFromGraveyard: {},
+        });
+    });
+
+    it("REFUSES an exile-X flashback cost on a card with no {X} to announce", () => {
+        const outcome = compileCard(
+            spellCard({
+                manaCost: "{1}{U}",
+                oracleText:
+                    "Draw a card.\nFlashback—{1}{U}, Exile X blue cards from your graveyard.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("REFUSES an exile-X cost off the caster's own graveyard", () => {
         const r = spellSlot.run(
-            "Flashback—{1}{U}, Exile X blue cards from your graveyard.",
+            "Flashback—{1}{U}, Exile X blue cards from a single graveyard.",
+            sorcery
+        );
+        expect(r.ok).toBe(false);
+    });
+
+    it("REFUSES a flashback component `FlashbackCost` cannot encode", () => {
+        // "Behold three Elementals" (Kindle the Inner Flame) has no atom.
+        const r = spellSlot.run(
+            "Flashback—{1}{R}, Behold three Elementals.",
             sorcery
         );
         expect(r.ok).toBe(false);
