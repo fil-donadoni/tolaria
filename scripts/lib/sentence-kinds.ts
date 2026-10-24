@@ -10,7 +10,7 @@
  * enter.
  *
  * There is NO committed list. The authority is the `EFFECT_SENTENCE_KINDS`
- * array in `effectClause.ts` (issue #6621), which a type-level assertion
+ * array in `effectClause.ts`, which a type-level assertion
  * there ties to the union both ways; the census is a relation between two
  * revisions of its source text —
  *
@@ -30,8 +30,8 @@
  * The baseline tree is read through `lib/base-artifact.ts`, so its three
  * outcomes apply: `text` is checked, `unavailable` (no base ref, a root
  * commit) is a declared skip, `broken` (git failed) is a red. A baseline
- * that predates the array is a declared skip too (once: the landing of
- * issue #6621 itself).
+ * that predates the array is a declared skip too (once: the landing of the
+ * array itself).
  */
 import {
     baseArtifact,
