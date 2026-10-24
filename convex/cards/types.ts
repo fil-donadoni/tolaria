@@ -13953,10 +13953,14 @@ export interface EffectCardFilter {
      *  an announced slot, a `bind` snapshot, `$each`, or a `$event.<field>`
      *  object / graveyard-card field.
      *
-     *  The referent's types are its LAST-KNOWN information when it has left
-     *  the battlefield (CR 608.2h): a snapshot binding is read straight out of
-     *  its `SNAP_SUBTYPES` slot, zone-free; any other selector falls back to
-     *  `SpellContext.getCharacteristics`. Only CREATURE types count — a shared
+     *  An object still on the battlefield answers with its current types
+     *  (CR 608.2h). Once it has left, ONLY a `bind` snapshot taken before it
+     *  moved carries its last-known types (read from `SNAP_SUBTYPES`,
+     *  zone-free, token-safe). A `$event.<graveyard-card>` or `{ target }`
+     *  selector on a departed object falls back to the card's printed
+     *  characteristics in its graveyard, and to nothing for a token or an
+     *  object no longer found — so bind a snapshot first where that matters.
+     *  Only CREATURE types count — a shared
      *  non-creature subtype (an Aura both carry) is no match.
      *
      *  Fails CLOSED at every unresolvable edge — an uncaptured binding, a

@@ -1459,18 +1459,21 @@ function resolveSharedCreatureTypes(
     ctx: SpellContext,
     selector: EffectObjectSelector
 ): string[] {
+    // CR 608.2h — an object still on the battlefield answers with its CURRENT
+    // characteristics; only once it has left does the snapshot (last-known
+    // information) stand in.
     let subtypes: readonly string[] | undefined;
-    if ("ref" in selector && !isEventRef(selector.ref)) {
+    const target = resolveCharacteristicsTarget(ctx, selector);
+    if (target?.type === "permanent") {
+        subtypes = ctx.getCharacteristics(target)?.subtypes;
+    } else if ("ref" in selector && !isEventRef(selector.ref)) {
         const snapSubtypes = readBinding(ctx, selector.ref)?.[SNAP_SUBTYPES];
         if (snapSubtypes !== undefined) {
             subtypes = snapSubtypes.split(SNAP_LIST_SEP);
         }
     }
-    if (subtypes === undefined) {
-        const target = resolveCharacteristicsTarget(ctx, selector);
-        subtypes = target
-            ? ctx.getCharacteristics(target)?.subtypes
-            : undefined;
+    if (subtypes === undefined && target !== undefined) {
+        subtypes = ctx.getCharacteristics(target)?.subtypes;
     }
     return (subtypes ?? []).filter((s) => CREATURE_SUBTYPES.has(s));
 }

@@ -7475,7 +7475,7 @@ function checkEventRef(
     if (row.family === "graveyard-card") {
         if (positionFamily !== "object" || use.graveyardCardPosition !== true)
             errors.push(
-                `${at}: "$event" ref "${use.ref}" is a graveyard-card field — it is legal only as moveZone's target, the one Op that acts on a card in a graveyard (CR 400.7e)`
+                `${at}: "$event" ref "${use.ref}" is a graveyard-card field — it is legal only as moveZone's target or an EffectCardFilter.sharesCreatureTypeWith referent, the positions that read a card in a graveyard (CR 400.7e)`
             );
         return;
     }
