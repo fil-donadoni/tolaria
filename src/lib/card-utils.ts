@@ -4119,6 +4119,10 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // trigger's `PERMANENT_ENTERED` event snapshot (`event.manaValue`); no
     // client permanent shape carries a mana value, so neither path supports it.
     manaValueAtLeast: "intentionally-absent",
+    // CR 202.3 — upper bound and exact value of the same mana-value read;
+    // the same absence applies, so neither path supports them.
+    manaValueAtMost: "intentionally-absent",
+    manaValueEquals: "intentionally-absent",
     // Was "intentionally-absent" until `toMatchablePermanent` gained its
     // optional `turnState` parameter (the `currentTurn` parameter that note
     // asked for, added alongside `controlledSinceTurnStart` below since both
@@ -4221,6 +4225,10 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     // CR 202.3 (issue #6317) — only the entry-trigger event snapshot carries a
     // mana value; no cost-gate caller filters on it.
     manaValueAtLeast: "intentionally-absent",
+    // CR 202.3 — siblings of the floor above; no cost-gate caller filters on
+    // either.
+    manaValueAtMost: "intentionally-absent",
+    manaValueEquals: "intentionally-absent",
 };
 
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's
