@@ -11,7 +11,7 @@
 //     `sortKeys` equality against the WHOLE Compiled Definition.
 //  2. REFUSALS — the neighbours the rules must NOT read: a graveyard that is
 //     not named, a non-permanent type, another player's control, a count above
-//     one, "from a single graveyard" (no engine surface) and an X-sized count.
+//     one, and an X-sized count.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -378,8 +378,6 @@ describe("graveyard retrieval — refused neighbours (fail-closed)", () => {
         "Return the middle creature card of your graveyard to the battlefield.",
         // CR 400.7 — a sweep of ANOTHER graveyard.
         "Return all enchantment cards from a graveyard to the battlefield.",
-        // CR 115.1 — no engine surface for one-graveyard target groups.
-        "Exile up to three target cards from a single graveyard.",
         // CR 107.3 — a count read off a runtime quantity.
         "Return up to X target cards from your graveyard to your hand, where X is the number of black permanents target opponent controls as you cast this spell.",
     ])("refuses %s", (line) => {

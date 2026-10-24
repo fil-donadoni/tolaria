@@ -3222,6 +3222,7 @@ export function getLegalTargets(
             chooserId: casterId,
             activePlayerId: state.activePlayerId,
             sourceIsSpell,
+            siblingControllerId,
         };
         for (const player of state.players) {
             for (const card of player.graveyard) {

@@ -3,6 +3,7 @@ import type { CardInstanceState, GameState } from "@convex/gre/state";
 import {
     checkCardTargetFilters,
     pickCardFilterValues,
+    siblingControllerIdFor,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
 
@@ -119,6 +120,15 @@ export function matchesGraveyardTarget(
         sourceSubtypes: [],
         chooserId: viewerId,
         activePlayerId,
+        // CR 601.2c + CR 404.1 — "from a single graveyard": the first pick's
+        // owner (a selection carries it as `playerId`) pins the rest.
+        siblingControllerId: pendingTarget.sameController
+            ? siblingControllerIdFor(
+                  { players: [] } as unknown as GameState,
+                  true,
+                  pendingTarget.selected
+              )
+            : undefined,
     };
 
     return (

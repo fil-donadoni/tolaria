@@ -135,6 +135,9 @@ export interface DescriptorIR {
     readonly zone?: "graveyard";
     /** Whose graveyard, when `zone` is set (CR 115.2 "from your graveyard"). */
     readonly zoneOwner?: "you" | "any";
+    /** CR 404.1 — "from a single graveyard": every described card comes from
+     *  ONE graveyard (one owner), whichever it is. Needs a plural count. */
+    readonly singleZone?: true;
     /** True when the noun was "card" — an object in a non-battlefield zone. */
     readonly card?: true;
     /** Plural noun ("creatures"); the caller decides whether that is legal. */
@@ -240,6 +243,7 @@ export interface DescriptorState {
     mvFilter?: { min?: number; max?: number | "X"; equals?: "X" };
     zone?: "graveyard";
     zoneOwner?: "you" | "any";
+    singleZone?: true;
     card?: true;
     plural?: true;
 }
@@ -479,6 +483,15 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
     [" from a graveyard", (into) => setGraveyard(into, "any")],
     [" in your graveyard", (into) => setGraveyard(into, "you")],
     [" in a graveyard", (into) => setGraveyard(into, "any")],
+    [
+        " from a single graveyard",
+        (into) => {
+            const refused = setGraveyard(into, "any");
+            if (refused !== null) return refused;
+            into.singleZone = true;
+            return null;
+        },
+    ],
 ];
 
 function setChosenType(into: DescriptorState): string | null {
@@ -1005,6 +1018,7 @@ function finish(
     if (state.mvFilter !== undefined) out.mvFilter = state.mvFilter;
     if (state.zone !== undefined) out.zone = state.zone;
     if (state.zoneOwner !== undefined) out.zoneOwner = state.zoneOwner;
+    if (state.singleZone === true) out.singleZone = true;
     if (state.card === true) out.card = true;
     if (state.plural === true) out.plural = true;
     return ok(out as DescriptorIR);
@@ -1170,8 +1184,25 @@ export function targetRequirementFromDescriptor(
         requirement.toughnessFilter = descriptor.toughnessFilter;
     if (descriptor.mvFilter) requirement.mvFilter = descriptor.mvFilter;
     if (descriptor.zone !== undefined) {
+        // CR 404.1 — the graveyard's owner is named by `zoneOwner` alone; a
+        // trailing "you control" would be dropped here, so it is refused.
+        if (descriptor.controller !== undefined)
+            return fail(
+                "a controller clause beside a graveyard is not expressible",
+                "controller"
+            );
         requirement.zone = descriptor.zone;
         requirement.controller = descriptor.zoneOwner === "you" ? "you" : "any";
+        // CR 404.1 + CR 601.2c — every pick shares the first pick's graveyard
+        // (`TargetRequirement.sameController`, read on the owner here).
+        if (descriptor.singleZone === true) {
+            if (descriptor.plural !== true)
+                return fail(
+                    'a single graveyard constrains a group, not one "target card"',
+                    "zone"
+                );
+            requirement.sameController = true;
+        }
     } else if (descriptor.controller !== undefined) {
         requirement.controller = descriptor.controller;
     }
@@ -1570,6 +1601,7 @@ const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
     new Map<string, TargetRequirement["count"]>([
         ["up to one target ", { min: 0, max: 1 }],
         ["up to two target ", { min: 0, max: 2 }],
+        ["up to three target ", { min: 0, max: 3 }],
     ]);
 
 /**
