@@ -114,7 +114,7 @@ describe("Search a target library — a stated quality (CR 702.34a, CR 701.23b)"
     // "up to three" range narrowed to cards that carry a flashback cost.
     it("up to N cards with flashback → graveyard, then shuffle", () => {
         const def = compiled(
-            "Search target player's library for up to three cards with flashback and put them into that player's graveyard. Then that player shuffles."
+            "Search target player's library for up to three cards with flashback and put them into that player's graveyard. Then the player shuffles."
         );
         expect(def.targetRequirement).toEqual({ type: "player", count: 1 });
         expect(def.effects).toEqual([
@@ -174,6 +174,10 @@ describe("Search a target library — refusals (CR 701.23b)", () => {
         [
             "a shuffle with no search before it",
             "Draw a card. Then that player shuffles.",
+        ],
+        [
+            "the printed anaphor with no search before it",
+            "Draw a card. Then the player shuffles.",
         ],
     ])("refuses %s", (_label, text) => {
         expect(refused(text)).toBe(true);

@@ -4728,7 +4728,7 @@ const SEARCH_TARGET_LIBRARY =
     /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)( with flashback)?(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
 /** CR 701.24a — the sentence that shuffles the library a search just looked at. */
 const THEN_THAT_PLAYER_SHUFFLES =
-    /^Then that player shuffles(?: their library)?$/;
+    /^Then (?:that|the) player shuffles(?: their library)?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
