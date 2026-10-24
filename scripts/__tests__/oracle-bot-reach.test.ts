@@ -728,7 +728,20 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
         expect(driver).not.toMatch(
             /^import (?!type)[^;]*from "\.\.\/convex\/gre\/ai\/(?!botReachForm)/m
         );
-        expect(driver).toContain('await import("../convex/gre/ai/botReach")');
+        // The dynamic import lives in the player module the driver and the
+        // sweep's workers share (issue #6686); the driver reaches it only
+        // through `createBotPlayer`.
+        const player = readFileSync(
+            join(ROOT, "scripts", "lib", "bot-reach-player.ts"),
+            "utf8"
+        );
+        expect(player).toContain(
+            'await import("../../convex/gre/ai/botReach")'
+        );
+        expect(player).not.toMatch(
+            /^import (?!type)[^;]*from "\.\.\/\.\.\/convex\/gre\/ai\//m
+        );
+        expect(driver).toContain("createBotPlayer");
         const form = readFileSync(
             join(ROOT, "convex", "gre", "ai", "botReachForm.ts"),
             "utf8"
