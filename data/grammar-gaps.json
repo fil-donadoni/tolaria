@@ -3926,6 +3926,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set spans all players' zones — not faithfully sizable in a canned scenario",
+            "issue": 6586
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › numeric ref \"$event.amount\" — amount depends on a runtime snapshot",
             "issue": 5216
         },
@@ -3933,6 +3938,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › numeric ref \"$that1.toughness\" — amount depends on a runtime snapshot",
             "issue": 5716
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › object ref \"$each\" — recipient depends on a forEach iteration",
+            "issue": 6587
         },
         {
             "kind": "scenario",
