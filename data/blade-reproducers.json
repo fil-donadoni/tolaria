@@ -1744,6 +1744,8 @@
     },
     "known top: digs with a cantrip because it knows the Bolt is there": null,
     "known top: plays the creature instead when the known top is a blank": null,
+    "land search: fetches the basic that is the only source of the hand's colour": null,
+    "land search: fetches the utility land when the hand's colours are covered": null,
     "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
         "cards": [
             {
