@@ -659,6 +659,8 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
         if (plan.kind !== "skip") return;
         const codes = plan.skips.map((s) => s.code);
         expect(codes).toContain("later-outcome");
+        // the payload walk still reports the body's own card-dependent clause
+        expect(codes).toContain("unmodelled-object-or-zone");
         expect(codes).not.toContain("source-or-each-subject");
         expect(codes).not.toContain("runtime-amount");
     });
