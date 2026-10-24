@@ -90,7 +90,7 @@ describe("the three subjects (CR 603.4, CR 109.5, CR 506.2, CR 102.1)", () => {
             "if a player control no creatures",
         ],
         ["a singular noun after no", "if you control no Goblin"],
-        ["a descriptor the reader cannot parse", "if you control no Clues"],
+        ["a descriptor the reader cannot parse", "if you control no Auras"],
         [
             "a supertype the gate cannot evaluate (CR 205.4a)",
             "if you control no legendary creatures",
