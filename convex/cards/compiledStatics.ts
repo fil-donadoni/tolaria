@@ -253,11 +253,21 @@ export type CompiledStaticEffect =
            *  (`CompiledControlsCondition`), read here off the layer view. */
           readonly condition?: CompiledStaticCondition;
       } & CompiledStaticScope)
-    /** CR 613.4b sublayer 7b — "<filter> have base power and toughness N/N". */
+    /** CR 613.4b sublayer 7b — "<filter> have base power and toughness N/N",
+     *  or each equal to the AFFECTED permanent's mana value (`count`, CR
+     *  202.3): Opalescence's "base power and base toughness each equal to its
+     *  mana value". */
     | ({
           readonly kind: "pt-set";
           readonly power: number;
           readonly toughness: number;
+          readonly count?: undefined;
+      } & CompiledStaticScope)
+    | ({
+          readonly kind: "pt-set";
+          readonly count: { readonly kind: "mana-value" };
+          readonly power?: undefined;
+          readonly toughness?: undefined;
       } & CompiledStaticScope)
     /** CR 604.3 / 613.4a layer 7a — a characteristic-defining P/T equal to
      *  `count` ("Terravore's power and toughness are each equal to …"). */
@@ -682,12 +692,21 @@ export function resolveCompiledStatic(
             };
         }
         case "pt-set":
-            return {
-                kind: "pt-set",
-                applies: scopePredicate(descriptor),
-                power: descriptor.power,
-                toughness: descriptor.toughness,
-            };
+            return descriptor.count
+                ? {
+                      kind: "pt-set",
+                      applies: scopePredicate(descriptor),
+                      computeFor: (_source, _state, ctx, target) => {
+                          const mv = ctx.getManaValue(target);
+                          return { power: mv, toughness: mv };
+                      },
+                  }
+                : {
+                      kind: "pt-set",
+                      applies: scopePredicate(descriptor),
+                      power: descriptor.power,
+                      toughness: descriptor.toughness,
+                  };
         case "pt-cda": {
             const count = descriptor.count;
             return {

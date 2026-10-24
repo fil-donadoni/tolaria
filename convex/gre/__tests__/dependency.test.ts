@@ -421,13 +421,12 @@ describe("CR 613.8a/b — the dependency cases", () => {
         });
     }
 
-    // CR 613.8a clause (c) — "neither effect is from a characteristic-defining
-    // ability or both effects are". Opalescence's base P/T is a CDA (sublayer
-    // 7a); Humility's is not (sublayer 7b). They are in different sublayers, so
-    // clause (a) already separates them, and clause (c) would separate them
-    // again: neither can ever be made to wait for the other.
+    // CR 613.4b / 613.7 — Opalescence's base P/T is a 7b SET (its ability is not
+    // printed on the enchantments it affects, so it is no CDA, CR 604.3a), and
+    // so is Humility's. Same sublayer, same kind: the later timestamp wins, and
+    // neither waits for the other.
     for (const humilityFirst of [true, false]) {
-        it(`Humility and Opalescence are never grouped — different sublayers and opposite CDA status (Humility ${humilityFirst ? "first" : "second"})`, () => {
+        it(`Humility and Opalescence order their 7b sets by timestamp (Humility ${humilityFirst ? "first" : "second"})`, () => {
             const hum = makeInstance(humility().id, {
                 id: "humility",
                 controllerId: "p1",
@@ -442,11 +441,13 @@ describe("CR 613.8a/b — the dependency cases", () => {
                 [hum, opal],
                 humilityFirst ? [hum, opal] : [opal, hum]
             );
-            // CR 613.4a then 613.4b: Opalescence's CDA sets Humility's P/T to
-            // its mana value, and Humility's 7b set then overrides it to 1/1 —
-            // the sublayer order, unaffected by either timestamp.
-            expect(getEffectivePower(view(state), asView(hum))).toBe(1);
-            expect(getEffectiveToughness(view(state), asView(hum))).toBe(1);
+            // Opalescence's set (Humility's mana value, 4) beats Humility's
+            // own 1/1 only when it is the later one.
+            const expected = humilityFirst ? 4 : 1;
+            expect(getEffectivePower(view(state), asView(hum))).toBe(expected);
+            expect(getEffectiveToughness(view(state), asView(hum))).toBe(
+                expected
+            );
         });
     }
 });

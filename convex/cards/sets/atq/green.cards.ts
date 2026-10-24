@@ -364,11 +364,11 @@ export const titaniasSong = defineCard(() => ({
             types: ["Creature"],
             lingersAfterSourceLeaves: { phase: "end-of-turn" },
         },
-        // CR 604.3 / 613.4a — power and toughness each equal to mana value.
+        // CR 613.4b — base power and toughness each equal to mana value.
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: IS_NONCREATURE_ARTIFACT,
-            compute: (_source, _state, ctx, target) => {
+            computeFor: (_source, _state, ctx, target) => {
                 const mv = ctx.getManaValue(target);
                 return { power: mv, toughness: mv };
             },

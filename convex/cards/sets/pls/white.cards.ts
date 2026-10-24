@@ -147,13 +147,12 @@ export const lashknifeBarrier = defineCard(() => ({
 // empty array is false, so the bonus applies — exactly the "no coloured
 // permanents ⇒ bonus applies" acceptance criterion, for free.
 //
-// Modeled as a `pt-cda` (CR 613.4a/7a), not a `pt-buff` + `condition`: a
-// `pt-buff`'s `condition` is evaluated per-SOURCE only (`source, state, ctx`
-// — no `target` parameter, `cards/types.ts` `StaticPTBuff.condition`), so it
-// cannot read the enchanted creature's OWN colour to compare against the
-// census. `pt-cda`'s `compute` receives `target` as its 4th argument
-// (`StaticPTCDA.compute`), which is exactly what "unless IT shares a colour"
-// needs. Same shape as Exotic Curse / Goham Djinn (`sets/inv/black.cards.ts`).
+// Modeled as a `pt-buff` (CR 613.4c, layer 7c) with a `computeFor`: the
+// magnitude (+3/+3 or +0/+0) depends on the enchanted creature's OWN colour
+// against a board-wide census, so it is computed per target at every read
+// (`StaticPTBuff.computeFor` receives `target`). Being a modification, it sums
+// with whatever base P/T the host has — a CDA creature's own 7a value, a 7b
+// set — instead of replacing it.
 //
 // No CR 613.8 dependency-loop risk: the census reads `ctx.getColors` (layer
 // 5, colour — already resolved by the time this layer-7 P/T read runs) to
@@ -162,16 +161,6 @@ export const lashknifeBarrier = defineCard(() => ({
 // the EFFECTIVE colour (CR 613.1d `colorOverride`, granted colours), so a
 // colour-changing effect elsewhere on the board shifts the census on its own
 // — no extra wiring needed here.
-//
-// DIVERGENCE (tracked-by: #2785): `getCDAContribution` (`gre/layers.ts`) overwrites rather than
-// sums layer-7a `pt-cda` contributions across sources, which is correct for
-// a true CR 613.4b "set" CDA but wrong for this card's CR 613.4c-shaped
-// *modification* — enchanting a creature that carries its OWN `pt-cda`
-// (e.g. Nightmare) makes one effect silently clobber the other, in the
-// worst case producing a 0/0 that dies to SBA. `pt-buff` (layer 7c) can't
-// express this card instead: its `applies` gets no `state` (can't read the
-// board-wide census) and its `condition` gets no `target` (can't compare the
-// enchanted creature's own colour). Bug-class tracked-by: #1992.
 export const heroicDefiance = defineCard(() => ({
     id: "0dc1aa36-5d3b-4d25-9d54-937cdabf72a4", // PLS 6
     rarity: "common",
@@ -184,9 +173,9 @@ export const heroicDefiance = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (_source, state, ctx, target) => {
+            computeFor: (_source, state, ctx, target) => {
                 const mostCommon = mostCommonColors(state, ctx);
                 const sharesColor = ctx
                     .getColors(target)

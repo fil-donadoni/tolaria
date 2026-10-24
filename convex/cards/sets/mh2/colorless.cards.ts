@@ -313,8 +313,8 @@ export const kaldraCompleat = defineCard(() => ({
 }));
 
 // Nettlecyst (issue #1340, parent PRD #620) — Living weapon with a
-// board-scaling buff. The buff is a characteristic-defining `pt-cda`
-// (CR 604.3) rather than a flat `pt-buff`: "+1/+1 for each artifact and/or
+// board-scaling buff. The buff is a `pt-buff` `computeFor`
+// (CR 613.4c) rather than a flat pair: "+1/+1 for each artifact and/or
 // enchantment YOU control" is re-read at stat-read time, and "you" is the
 // EQUIPMENT's controller (CR 109.5), not the equipped creature's — the two
 // differ once a control-change effect steals the host (the Equipment stays
@@ -332,9 +332,9 @@ export const nettlecyst = defineCard(() => ({
     subtypes: ["Equipment"],
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (source, state) => {
+            computeFor: (source, state) => {
                 const n = state.players
                     .flatMap((pl) => pl.battlefield)
                     .filter(

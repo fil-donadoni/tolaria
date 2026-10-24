@@ -53,7 +53,11 @@ import type {
 } from "./continuousEffects";
 import type { Duration } from "./state/declarations";
 import type { LayerStateView } from "./layers";
-import { STATIC_EFFECT_CTX, LAYER_7_STATIC_EFFECT_KINDS } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    LAYER_7_STATIC_EFFECT_KINDS,
+    resolvePTAmount,
+} from "./layers";
 import { LAYER_2_5_STATIC_EFFECT_KINDS } from "./layers2to5";
 import { LAYER_6_STATIC_EFFECT_KINDS } from "./layer6";
 import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
@@ -323,16 +327,14 @@ function inlinePayloadFor(
             return effect.applies(target, source, STATIC_EFFECT_CTX)
                 ? {
                       kind: "pt-set",
-                      power: effect.power,
-                      toughness: effect.toughness,
+                      ...resolvePTAmount(effect, source, state, target),
                   }
                 : undefined;
         case "pt-buff":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
                 ? {
                       kind: "pt-modify",
-                      power: effect.power,
-                      toughness: effect.toughness,
+                      ...resolvePTAmount(effect, source, state, target),
                   }
                 : undefined;
         default:

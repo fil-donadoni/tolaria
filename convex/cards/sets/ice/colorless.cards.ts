@@ -833,9 +833,9 @@ export const iceCauldron = defineCard(() => ({
 // Infinite Hourglass — upkeep time-counter accrual + a counter-scaled anthem +
 // an any-player {3} counter-removal restricted to upkeep steps (CR 603.6a phase
 // trigger via `phaseTrigger`; CR 122 counters via `addCounter`/`removeCounter`;
-// CR 613 layer 7c anthem via a `pt-cda` that reads `source.counters.time`;
+// CR 613 layer 7c anthem via a `pt-buff` `computeFor` that reads `source.counters.time`;
 // CR 602.1 `activatableByAnyPlayer` + CR 602.5 `activationPhaseRestriction:
-// ["UPKEEP"]`). The anthem is `pt-cda` (not `pt-buff`) because its magnitude is
+// ["UPKEEP"]`). The anthem is a `computeFor` (not a literal pair) because its magnitude is
 // game-state-dependent (the live time-counter count), recomputed every stat read.
 export const infiniteHourglass = defineCard(() => ({
     id: "f9a42152-32c0-47ff-aaac-8deaf01873ca",
@@ -847,9 +847,9 @@ export const infiniteHourglass = defineCard(() => ({
     types: ["Artifact"],
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: (target, _source, ctx) => ctx.isCreature(target),
-            compute: (source) => ({
+            computeFor: (source) => ({
                 power: source.counters?.time ?? 0,
                 toughness: 0,
             }),

@@ -58,7 +58,7 @@ export const ancestralRecall = defineCard(() => ({
 // Animate Artifact — "Enchant artifact. As long as enchanted artifact
 // isn't a creature, it's an artifact creature with power and toughness
 // each equal to its mana value." (CR 303.4 aura, CR 205 type-add via
-// layer-4 surrogate `type-add`, CR 604.3 / 613 layer 7b CDA P/T derived
+// layer-4 surrogate `type-add`, CR 613.4b layer 7b base P/T derived
 // from the host's printed mana value.) Predicate gates on the host not
 // already being a Creature at apply-time (CR 205 layer-4 — close enough
 // for LEA scope; full layer-1-through-7 recompute is out of scope).
@@ -81,10 +81,10 @@ export const animateArtifact = defineCard(() => ({
             types: ["Creature"],
         },
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: (target, source, ctx) =>
                 AURA_AFFECTS_HOST(target, source, ctx),
-            compute: (_source, _state, ctx, target) => {
+            computeFor: (_source, _state, ctx, target) => {
                 const mv = ctx.getManaValue(target);
                 return { power: mv, toughness: mv };
             },

@@ -201,6 +201,9 @@ function auraAttachmentSign(def: CardDefinition): Beneficence {
     for (const effect of def.staticEffects ?? []) {
         switch (effect.kind) {
             case "pt-buff": {
+                // A `computeFor` magnitude has no static sign (it reads the
+                // board); it stays neutral, as the `pt-cda` it replaced did.
+                if (effect.computeFor) break;
                 const net = effect.power + effect.toughness;
                 if (net !== 0)
                     sign = mergeSign(sign, net > 0 ? "beneficial" : "harmful");

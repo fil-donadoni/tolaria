@@ -33,6 +33,7 @@ import type {
     StaticEffect,
     StaticEffectContext,
     StaticEffectStateView,
+    PTAmount,
 } from "../cards/types";
 
 export type PTBuff = { power: number; toughness: number };
@@ -805,7 +806,7 @@ function resolveLayer7Payload(
                 return undefined;
             }
         }
-        return { power: effect.power, toughness: effect.toughness };
+        return resolvePTAmount(effect, source, state, target);
     }
     if (effect?.kind === "pt-cda") {
         if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
@@ -813,16 +814,31 @@ function resolveLayer7Payload(
         }
         return effect.compute(source, state, STATIC_EFFECT_CTX, target);
     }
-    // CR 613.4b — the base-P/T set. Both halves are always present (the kind
-    // declares them as required numbers), so the entry sets power AND
-    // toughness, never one of the two the way a `pt-set` PAYLOAD may.
+    // CR 613.4b — the base-P/T set. Both halves are always present (a literal
+    // pair or a `computeFor` result), so the entry sets power AND toughness,
+    // never one of the two the way a `pt-set` PAYLOAD may.
     if (effect?.kind === "pt-set") {
         if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
             return undefined;
         }
-        return { power: effect.power, toughness: effect.toughness };
+        return resolvePTAmount(effect, source, state, target);
     }
     return undefined;
+}
+
+/** The `{ power, toughness }` a `pt-buff` / `pt-set` static effect carries
+ *  for `target`: its literal pair, or the `computeFor` closure's answer read
+ *  against the live board (CR 613.4b/c — the magnitude of a modification or a
+ *  base-P/T set that depends on game state). */
+export function resolvePTAmount(
+    effect: PTAmount,
+    source: PermanentView,
+    state: StaticEffectStateView,
+    target: PermanentView
+): { power: number; toughness: number } {
+    return effect.computeFor
+        ? effect.computeFor(source, state, STATIC_EFFECT_CTX, target)
+        : { power: effect.power, toughness: effect.toughness };
 }
 
 /** CR 613.4 — the `StaticEffect` kinds layer 7 owns, each mapped to the
