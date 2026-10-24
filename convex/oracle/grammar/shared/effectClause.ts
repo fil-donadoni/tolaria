@@ -2248,7 +2248,10 @@ export type ModifierIR =
 
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
-    | { readonly role: "restriction"; readonly restriction: RestrictionIR }
+    | {
+          readonly role: "restriction";
+          readonly restrictions: readonly RestrictionIR[];
+      }
     | { readonly role: "modifier"; readonly modifier: ModifierIR }
     /**
      * CR 105.1 — "Choose a color.": a marker establishing the pick a LATER
@@ -3253,7 +3256,7 @@ export function assembleSentences(
         if (sentence.role === "restriction") {
             if (opts.rejectRestrictions !== undefined)
                 return { ok: false, reason: opts.rejectRestrictions };
-            restrictions.push(sentence.restriction);
+            restrictions.push(...sentence.restrictions);
             continue;
         }
         if (restrictions.length > 0)
@@ -5188,6 +5191,29 @@ function readOwnGraveyardAtLeast(span: string): RestrictionIR | undefined {
     return undefined;
 }
 
+function readRestriction(span: string): RestrictionIR | undefined {
+    return RESTRICTIONS.get(span) ?? readOwnGraveyardAtLeast(span);
+}
+
+/**
+ * CR 602.5 — one restriction sentence, or two of them joined by "and only"
+ * ("Activate only once each turn and only if there are seven or more cards in
+ * your graveyard."): both halves must read on their own (the second regains
+ * its "activate" head) and be different kinds, since a repeated kind is a
+ * line we have misread, not a restriction to merge.
+ */
+function readRestrictions(span: string): RestrictionIR[] | undefined {
+    const single = readRestriction(span);
+    if (single !== undefined) return [single];
+    const parts = span.split(" and only ");
+    if (parts.length !== 2) return undefined;
+    const first = readRestriction(parts[0]!);
+    const second = readRestriction(`activate only ${parts[1]}`);
+    if (first === undefined || second === undefined) return undefined;
+    if (first.kind === second.kind) return undefined;
+    return [first, second];
+}
+
 /**
  * CR 613.1f — "<mass subject> gain protection from the chosen color until
  * <duration>", the plural-verb reader for `choose-color-grant-protection`
@@ -5299,11 +5325,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // the list is a closed CR census, so a per-card subset would be a
         // catalogue of card names wearing a grammar's clothes.
         const span = withoutAbilityWord(printed);
-        const restriction =
-            RESTRICTIONS.get(span.toLowerCase()) ??
-            readOwnGraveyardAtLeast(span.toLowerCase());
-        if (restriction !== undefined)
-            return ok({ role: "restriction" as const, restriction });
+        const restrictions = readRestrictions(span.toLowerCase());
+        if (restrictions !== undefined)
+            return ok({ role: "restriction" as const, restrictions });
         if (ADD_MANA_INSTEAD_IF_COUNT.test(span))
             return addManaInsteadIfRule.run(span, ctx);
         if (span === "It can't be regenerated")
