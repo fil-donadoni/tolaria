@@ -473,6 +473,7 @@ export function lowerManaAbility(input: {
         if (
             rider.kind !== "sacrifice-without-counters" &&
             rider.kind !== "once-per-turn" &&
+            rider.kind !== "instant-only" &&
             !paidByTapRoute
         )
             return {
@@ -524,6 +525,9 @@ export function lowerManaAbility(input: {
                         reason: "a once-per-turn mana ability is enforced on the no-tap route only: this cost routes through the tap or cost-pick paths, which never record the activation",
                     };
                 ability.oncePerTurn = true;
+                break;
+            // CR 605.3b — instant speed is a mana ability's only speed.
+            case "instant-only":
                 break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a
