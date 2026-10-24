@@ -1698,6 +1698,7 @@
         {"id":"106.6","line":"// what \"affordable\" means (substitutions, CR 106.6 restricted mana).","sites":1,"status":"baseline"},
         {"id":"106.6","line":"// {R} paid in, {R}{R} added out. CR 106.6 (issue #3354) — the output","sites":1,"status":"baseline"},
         {"id":"106.6","line":"// … and not for one carrying none (CR 106.6 — exact match, ADR 0022).","sites":1,"status":"baseline"},
+        {"id":"106.6","line":": // CR 106.6 — an activation plan's mana may pay an","sites":1,"status":"confirmed","ruleHash":"02766bfce30bc2c6"},
         {"id":"106.6","line":"`${label}: ${instanceKeyed} restricted mana unit(s) whose spend permission names a card INSTANCE (Ice Cauldron — CR 106.6) — every rebuild reassigns instance ids, so the permission would name an object the rebuilt board doesn't contain; not lowered`","sites":1,"status":"baseline"},
         {"id":"106.6","line":"describe(\"Adarkar Unicorn ({T}: Add {U} or {C}{U}, CU-restricted, CR 106.6 / 605.1a)\", () => {","sites":1,"status":"baseline"},
         {"id":"106.6","line":"describe(\"Arena of Glory's haste rider — payment (CR 106.6, issue #3354)\", () => {","sites":1,"status":"baseline"},
