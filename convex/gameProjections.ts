@@ -748,6 +748,7 @@ function buildExileAssociation(state: GameState): Map<string, string> {
  *  card may see (CR 406.3). Everything not named here, or set above, is hidden. */
 const FACE_DOWN_EXILE_PUBLIC_KEYS = [
     "faceDownBy",
+    "exiledBySourceId",
     "castableFromExileBy",
     "castableFromExileIncludesLand",
     "castableFromExileUntilTurn",

@@ -1140,6 +1140,8 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
                 grantedFlashback: { mana: { R: 1 } },
                 damageMarked: 3,
                 isToken: true,
+                exiledBySourceId: "src-1",
+                castableFromExileBy: "p1",
             } as never),
         ];
         exileFaceDownCard(
@@ -1176,6 +1178,10 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
         expect(p2Card.faceDown).toBe(true);
         expect((p2Card.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
         expect(p2Card.ownerId).toBe("p1");
+        // The allow-listed optional fields still cross the wire.
+        expect(p2Card.faceDownBy).toBe("face-down-exile");
+        expect(p2Card.exiledBySourceId).toBe("src-1");
+        expect(p2Card.castableFromExileBy).toBe("p1");
     });
 
     it("does NOT mask characteristics from the knower/controller (issue #2092)", () => {
