@@ -2542,6 +2542,7 @@
         {"id":"107.4e","line":"// CR 107.4e (issue #4934) — a guild-hybrid pip is mana owed too: left out,","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
         {"id":"107.4e","line":"// CR 107.4e / 601.2f (issue #4934) — guild-hybrid pips, after the single","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
         {"id":"107.4e","line":"// CR 107.4e — \"A hybrid mana symbol is also a colored mana symbol, even","sites":1,"status":"baseline"},
+        {"id":"107.4e","line":"// CR 107.4e — `hybridGeneric` monocolour hybrid pips, ignored by","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
         {"id":"107.4e","line":"// CR 107.4e — a `{2/W}` pip is castable whenever SOME leg combination is","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
         {"id":"107.4e","line":"// CR 107.4e — a `{2/W}` pip is paid with its cheapest AFFORDABLE leg; the","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
         {"id":"107.4e","line":"// CR 107.4e — a `{2/W}` pip left unfolded is owed at its GENERIC leg:","sites":1,"status":"confirmed","ruleHash":"98551a9c7d1f858c"},
