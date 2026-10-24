@@ -10,7 +10,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // {1}, Sacrifice a creature: This creature deals 1 damage to any target."
 //
 //   * End-step recursion — a `zone: "graveyard"` `phaseTrigger`, `scope: "each"`
-//     (every end step, CR 603.6a), the Pyre Zombie shape (`inv/multicolor`):
+//     (every end step, CR 513.1a), the Pyre Zombie shape (`inv/multicolor`):
 //     the ability functions from the graveyard because it moves the card out
 //     of that zone (CR 113.6m). "If this card is in your graveyard with a
 //     creature card directly above it" is an intervening-if (CR 603.4),
