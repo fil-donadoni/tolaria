@@ -246,6 +246,10 @@ export function countDevotion(
             for (const pip of cost.hybrid ?? []) {
                 if (pip.includes(color)) total += 1;
             }
+            // CR 700.5 — a `{2/W}` pip is one white mana symbol.
+            for (const pip of cost.hybridGeneric ?? []) {
+                if (pip.color === color) total += 1;
+            }
         }
     }
     return total;

@@ -107,8 +107,9 @@ function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
     if (!cost) return false;
     const norm = normalizeMayPayCost(cost);
     if (!norm.mana) return false;
-    const { hybrid, phyrexian, ...pips } = norm.mana;
+    const { hybrid, hybridGeneric, phyrexian, ...pips } = norm.mana;
     if (hybrid && hybrid.length > 0) return true;
+    if (hybridGeneric && hybridGeneric.length > 0) return true;
     if (phyrexian && Object.values(phyrexian).some((n) => (n ?? 0) > 0)) {
         return true;
     }

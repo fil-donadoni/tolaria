@@ -8024,6 +8024,16 @@
         "source": "compiled"
     },
     {
+        "name": "Braids, Cabal Minion",
+        "scryfallId": "4dcdcad5-e4fb-480e-984f-1ac5cdc986b9",
+        "oracleId": "d85aa59b-c6aa-4b2f-885c-59d6e5e6e8b9",
+        "firstSet": "ody",
+        "firstPrintId": "4dcdcad5-e4fb-480e-984f-1ac5cdc986b9",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Braidwood Cup",
         "scryfallId": "c2e783b7-9bd1-4f82-bf20-5d201413f5e8",
         "oracleId": "d52b72ff-a82d-430e-94c7-675c83b43e50",
@@ -15804,6 +15814,16 @@
         "source": "compiled"
     },
     {
+        "name": "Defibrillating Current",
+        "scryfallId": "bf3a18cf-03db-4eb0-8d53-0c1a71e184da",
+        "oracleId": "5a96b93b-bae6-48fb-87f5-05f3ffcf7ba9",
+        "firstSet": "tdm",
+        "firstPrintId": "bf3a18cf-03db-4eb0-8d53-0c1a71e184da",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Deflection",
         "scryfallId": "1005a00a-6a0e-44cb-abea-37e2e53125e2",
         "oracleId": "ec7ae9ed-dc5b-47ed-a4ad-086f3c7c377c",
@@ -19001,6 +19021,16 @@
         "firstPrintId": "2a25a472-495e-4062-b66f-c37f148b494f",
         "firstPrintSet": "uds",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dystopia",
+        "scryfallId": "5f8bb451-706d-44ff-bbad-9ddc6f9f786a",
+        "oracleId": "d0e6203b-cef2-470f-8c79-7b139290e2d5",
+        "firstSet": "all",
+        "firstPrintId": "5f8bb451-706d-44ff-bbad-9ddc6f9f786a",
+        "firstPrintSet": "all",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -23523,6 +23553,16 @@
         "firstPrintId": "06c2b6b2-485e-41e6-b106-4f6f402e0ec3",
         "firstPrintSet": "eve",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Flame Javelin",
+        "scryfallId": "a567b570-81e4-4068-929c-9ce406fe7474",
+        "oracleId": "58363090-bf89-4174-bbb2-636afc1c7a06",
+        "firstSet": "shm",
+        "firstPrintId": "a567b570-81e4-4068-929c-9ce406fe7474",
+        "firstPrintSet": "shm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -35896,6 +35936,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kin-Tree Severance",
+        "scryfallId": "b577e246-3377-42aa-856e-b9fa89f3603a",
+        "oracleId": "211d1c59-0111-48dd-9ff6-d03e7ff2ad5c",
+        "firstSet": "tdm",
+        "firstPrintId": "b577e246-3377-42aa-856e-b9fa89f3603a",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Kin-Tree Warden",
         "scryfallId": "dfddafbc-590b-4610-894a-b91335a60528",
         "oracleId": "1ea9517a-c2ed-4aec-8fd3-e603b0e7dec9",
@@ -42658,6 +42708,16 @@
         "source": "compiled"
     },
     {
+        "name": "Molder Slug",
+        "scryfallId": "ee355d1b-5d64-4328-94d6-7a58889b99bc",
+        "oracleId": "d7c8b636-b7ff-446d-aa51-516e2cfe2730",
+        "firstSet": "mrd",
+        "firstPrintId": "ee355d1b-5d64-4328-94d6-7a58889b99bc",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Moldering Karok",
         "scryfallId": "70c2ef30-0db5-4ef5-999c-7ffa48769421",
         "oracleId": "5d95db27-53bb-4a20-9fb8-24998b03e767",
@@ -44347,6 +44407,16 @@
         "firstPrintId": "4f707119-ede9-4697-b723-d6cea96e6f2b",
         "firstPrintSet": "som",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Necrogen Mists",
+        "scryfallId": "18291514-9ffb-4032-9c77-cec0200bf1b6",
+        "oracleId": "db25d48e-e5eb-4364-9d7a-f9757ee4ccbe",
+        "firstSet": "mrd",
+        "firstPrintId": "18291514-9ffb-4032-9c77-cec0200bf1b6",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -51699,6 +51769,16 @@
         "firstPrintId": "ab4e0b33-dad1-4443-a7c7-a7bab067d04a",
         "firstPrintSet": "ktk",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Rakshasa's Bargain",
+        "scryfallId": "5c409f4f-3b2c-4c33-b850-55b2a46f51ca",
+        "oracleId": "d87be8c6-7a1f-4db8-ada1-b1a030f03877",
+        "firstSet": "tdm",
+        "firstPrintId": "5c409f4f-3b2c-4c33-b850-55b2a46f51ca",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -62876,6 +62956,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spectral Procession",
+        "scryfallId": "5e26bd0c-5ec7-4653-8e63-747157c20af1",
+        "oracleId": "376271a6-80f0-47a6-990a-5ec5517aae42",
+        "firstSet": "shm",
+        "firstPrintId": "5e26bd0c-5ec7-4653-8e63-747157c20af1",
+        "firstPrintSet": "shm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spectral Reserves",
         "scryfallId": "7618aa2d-d5b3-41e6-978f-2c8292f7f896",
         "oracleId": "628e5c1d-c7f9-4a98-98fb-13d7d5f81f64",
@@ -67807,6 +67897,16 @@
         "oracleId": "e444f072-ce24-4fd1-99eb-d20d12bc119a",
         "firstSet": "tdm",
         "firstPrintId": "a2ef698e-5466-43bd-985d-020f2e5d8205",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Temur Tawnyback",
+        "scryfallId": "3cdb383f-bc04-46d1-aa3a-7459d57f1fec",
+        "oracleId": "889d26d6-9e6c-4cc0-8e8e-dd932f705a20",
+        "firstSet": "tdm",
+        "firstPrintId": "3cdb383f-bc04-46d1-aa3a-7459d57f1fec",
         "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"

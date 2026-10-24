@@ -5,8 +5,7 @@
  * a tokeniser, not a grammar — but it is held to the same rule as the grammar:
  * the symbol sequence is consumed WHOLE or the read fails. An unrecognised
  * symbol never degrades to "generic 1"; it fails the card. That matters because
- * the shapes `ManaCost` cannot represent (monocolour hybrid `{2/W}`, snow
- * `{S}`) are exactly the ones a lenient reader would silently approximate.
+ * the shapes `ManaCost` cannot represent (snow `{S}`, three-way hybrid) are exactly the ones a lenient reader would silently approximate.
  */
 
 import type { Color, ManaCost } from "../cards/types";
@@ -59,7 +58,8 @@ export function tokenizeManaSymbols(
  *    present and has taken the `X` slot.
  *  - CR 107.3 — repeated `{X}` pips become `xFactor` (Recall's `{X}{X}{U}`).
  *  - CR 107.4f — Phyrexian pips are declared, not folded into the requirement.
- *  - CR 107.4e — guild hybrid pips become `hybrid` pairs.
+ *  - CR 107.4e — guild hybrid pips become `hybrid` pairs; monocolour hybrid
+ *    (`{2/W}`) becomes `hybridGeneric`.
  */
 export function readManaCost(printed: string): ManaReadResult {
     const trimmed = printed.trim();
@@ -72,6 +72,7 @@ export function readManaCost(printed: string): ManaReadResult {
     const colored: Partial<Record<Color, number>> = {};
     const phyrexian: Partial<Record<Color, number>> = {};
     const hybrid: [Color, Color][] = [];
+    const hybridGeneric: { generic: number; color: Color }[] = [];
 
     for (const sym of tokens.symbols) {
         if (/^\d+$/.test(sym)) {
@@ -86,8 +87,11 @@ export function readManaCost(printed: string): ManaReadResult {
             phyrexian[c] = (phyrexian[c] ?? 0) + 1;
         } else if (/^[WUBRG]\/[WUBRG]$/.test(sym)) {
             hybrid.push([sym[0] as Color, sym[2] as Color]);
+        } else if (/^\d+\/[WUBRG]$/.test(sym)) {
+            const [n, c] = sym.split("/");
+            hybridGeneric.push({ generic: Number(n), color: c as Color });
         } else {
-            // {2/W} monocolour hybrid, {S} snow, {W/U/P}, … — representable
+            // {S} snow, {W/U/P}, … — representable
             // nowhere in `ManaCost`, so the card fails rather than being
             // approximated.
             return {
@@ -111,5 +115,6 @@ export function readManaCost(printed: string): ManaReadResult {
     }
     if (Object.keys(phyrexian).length > 0) cost.phyrexian = phyrexian;
     if (hybrid.length > 0) cost.hybrid = hybrid;
+    if (hybridGeneric.length > 0) cost.hybridGeneric = hybridGeneric;
     return { ok: true, cost };
 }
