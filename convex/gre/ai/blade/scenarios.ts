@@ -14963,7 +14963,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // "Return up to X target cards from your graveyard to your hand, where
         // X is the number of black permanents target opponent controls as you
         // cast this spell." The opponent controls two black permanents and the
-        // bot's graveyard holds two cards, so the bound is 2: the cast must be
+        // bot's graveyard holds three cards, so the bound (2) is the limit: the cast must be
         // offered with the opponent announced first and up to two cards, and
         // never with a third.
         //
@@ -14980,7 +14980,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     name: "Grizzly Bears",
                     owner: "me",
                     zone: "graveyard",
-                    count: 2,
+                    count: 3,
                 },
                 {
                     name: "Black Knight",
