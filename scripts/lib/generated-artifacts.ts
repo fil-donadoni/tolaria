@@ -295,6 +295,32 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
             "delete rows of files they never touched and adjacent deletions conflict as text " +
             "(issue #6276) — merged as base minus removals plus additions",
     },
+    {
+        path: "data/card-index.json",
+        driver: KEY_SET_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-key-set.ts",
+        why:
+            "one row per card sorted by name, regenerated only with Scryfall; every card PR " +
+            "inserts its rows, and two PRs adding adjacent names conflict as text (issue #6648) " +
+            "— merged row by row keyed by `name`, a row both sides changed differently stays a conflict",
+    },
+    {
+        path: "data/gold-incomparable.json",
+        driver: KEY_SET_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-key-set.ts",
+        why:
+            "the gold harness's incomparable cards, a sorted name set `gold.test.ts` pins equal " +
+            "to the harness (issue #6648): Grammar PRs each add a name — merged as a set",
+    },
+    {
+        path: "convex/cards/__tests__/compilerRoundTrip.baseline.ts",
+        driver: APPEND_ONLY_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-append-only.ts",
+        why:
+            "Guard C's shrink-only baseline, one quoted name per line: every Grammar PR deletes " +
+            "the rows it graduates, and two deleting adjacent names conflict as text (issue #6648) " +
+            "— the driver keeps the rows both sides kept",
+    },
     // Hand-written, append-only lists (issue #5942): two branches appending at
     // the same end conflict without disagreeing. The driver concatenates only
     // pure-insertion hunks and leaves every other conflict to a human.
@@ -310,6 +336,18 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
             "both sides only inserted is concatenated, anything else stays a conflict",
     })),
 ] as const;
+
+/**
+ * Every committed path whose rebase conflicts a merge driver absorbs — the
+ * regenerated class and every other driven path. The queue planner reads
+ * this, never its own copy, to decide which shared files are NOT an edge
+ * between two issues (issue #6648): a path git merges without a human cannot
+ * serialise two batches, and a path it cannot merge must not be waved through.
+ */
+export const MERGE_ABSORBED_PATHS: readonly string[] = [
+    ...REGENERATED_ARTIFACTS.map((a) => a.path),
+    ...OTHER_MERGE_DRIVERS.map((a) => a.path),
+];
 
 /** Why a tracked `data/` file is neither regenerated nor driven. */
 export type UnregeneratedKind =
@@ -342,11 +380,6 @@ export interface UnregeneratedData {
  * PR that adds it — never left to the default text merge by omission.
  */
 export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
-    {
-        pattern: "data/card-index.json",
-        kind: "immune-by-shape",
-        why: "one row per card sorted by name, a PR adds its card once; regenerating needs Scryfall",
-    },
     {
         pattern: "data/ai-effects-allowlist.json",
         kind: "immune-by-shape",

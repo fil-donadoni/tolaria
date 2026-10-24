@@ -9,6 +9,7 @@
 // that accepts nothing has 100% precision, and would sail through a grammar
 // that had been accidentally disabled.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { getAllCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
@@ -21,6 +22,10 @@ import {
 } from "../gold";
 import type { CardDefinition } from "../../cards/types";
 import { readManaCost } from "../manaCost";
+
+/** The committed set of incomparable card names (issue #6648), kept sorted
+ *  and merged by the `key-set` driver (`scripts/lib/generated-artifacts.ts`). */
+const GOLD_INCOMPARABLE_PATH = "data/gold-incomparable.json";
 
 const CARDS = getAllCards();
 const REPORT = runGoldHarness(CARDS);
@@ -117,220 +122,36 @@ describe("gold round-trip — precision", () => {
     it("reports the accepted cards the projection CANNOT compare", () => {
         // A hand-written `resolve()` closure and a compiled Effect Script are
         // not comparable in either direction — see `GoldIncomparable`. Counted
-        // separately and bounded so the hole cannot grow unnoticed.
+        // separately and pinned so the hole cannot grow unnoticed.
         //
-        // 4 (#2697) -> 9 (#2699) -> 1 (#2703). The behavioural gold harness
-        // (`bun run oracle:behavioural`) is what drains this bucket: it proves
-        // a closure card's twin by running the card's own tests against it,
-        // which is the evidence the structural comparison cannot produce, and
-        // a card so proven has its closure retired to the `effects[]` the
-        // compiler emitted. Eight of the nine went that way here (Disenchant,
-        // Fissure, Goblin Grenade, Ice Storm, Royal Assassin, Shatter,
-        // Sinkhole, Stone Rain — the five `effect: "destroy-target"` shorthand
-        // spells plus three `resolve()` closures), and they now round-trip as
-        // `equal`. Desert Twister stayed a MISMATCH until issue #3073 gave it
-        // the six permanent types the compiler reads and retired its shorthand
-        // to the same `destroy` script. Onulet is the survivor.
+        // The behavioural gold harness (`bun run oracle:behavioural`) is what
+        // drains this bucket: it proves a closure card's twin by running the
+        // card's own tests against it, and a card so proven has its closure
+        // retired to the `effects[]` the compiler emitted. Grammar work fills
+        // it: a rule that compiles a line whose hand-written twin is a closure
+        // moves that card here, and proves the compiled definition by its own
+        // test instead.
         //
-        // The bound is still a bound and not a ratio — growth has to be
-        // explained. So does emptiness: the `toContain` below is the vacuity
-        // guard, and if Onulet is ever retired too it must be replaced by the
-        // next survivor, not deleted.
+        // Pinned as the SET of names in `data/gold-incomparable.json`, not as
+        // a bound (issue #6648). The bound was a number every such Grammar PR
+        // raised on one line, with one changelog paragraph appended under it
+        // — 13 edits in two weeks and 5 of 20 `pr-refresh` conflicts; its
+        // history is this file's `git log` before #6648. A name per row is
+        // still the growth made explicit — the diff names each card that
+        // joins or leaves — and the `key-set` merge driver merges two PRs
+        // that each add one, so neither waits on the other's rebase.
         //
-        // 15 -> 16 by issue #4134 ("Add one mana of any color"): Multani's
-        // Harmony's granted ability ('Enchanted land has "{T}: Add one mana of
-        // any color."') is now compiled, and its hand-written side is a
-        // closure — so the card moves from "the compiler refuses it" into this
-        // bucket rather than into `equal`. That is the bucket's stated
-        // meaning, and `bun run oracle:behavioural` is what drains it.
-        //
-        // 16 -> 17 by issue #4137 (colour change): Sisay's Ingenuity grants a
-        // quoted activated ability ('Enchanted creature has "{2}{U}: Target
-        // creature becomes the color of your choice until end of turn."'),
-        // which the compiler now reads whole while the hand-written side is a
-        // closure — the same move Multani's Harmony made one line above, out
-        // of "the compiler refuses it" and into this bucket rather than into
-        // `equal`.
-        //
-        // 17 -> 18 by issue #4300 (prevention shield): Hot Springs grants a
-        // quoted activated ability ('Enchanted land has "{T}: Prevent the next
-        // 1 damage that would be dealt to any target this turn."') which the
-        // compiler now reads whole while the hand-written side's body is a
-        // closure — the same move Multani's Harmony and Sisay's Ingenuity made
-        // above, out of "the compiler refuses it" and into this bucket.
-        //
-        // 18 -> 19 by issue #4299 (reanimation): Reya Dawnbringer's upkeep
-        // trigger ("you may return target creature card from your graveyard to
-        // the battlefield") is now compiled, and its hand-written side is a
-        // `phaseTrigger` whose `matches` is a closure — the same move as the
-        // two above, out of "the compiler refuses it" and into this bucket.
-        // The two encodings of "you may" differ on purpose (an up-to-one target
-        // there, a `mayPay` gate here), which is why a structural comparison
-        // cannot call them equal either way.
-        //
-        // 18 -> 24 by issue #4303 ("Enchanted creature" on an Aura's own
-        // activated ability): six hand-written Aura pumps (Armor of Faith,
-        // Blessing, Crown of Flames, Firebreathing, Holy Armor, Stonehands)
-        // now compile to a `$host` pump while their hand-written side is a
-        // `resolve()` closure reading `getAttachedTo` — the same move the
-        // entries above made, out of "the compiler refuses it" and into this
-        // bucket. Their closures are the migration `docs/findings/1701-*`
-        // describes (`{ ref: "$host" }` is already a legal selector), and
-        // `bun run oracle:behavioural` is what retires them.
-        //
-        // 24 -> 26 by issue #4528 (look at a hand): Gitaxian Probe and Glasses
-        // of Urza are now compiled to `lookHand` while their hand-written side
-        // is a `resolve()` closure (Gitaxian Probe's second half, the draw,
-        // rides the same closure) — the same move as the entries above, out of
-        // "the compiler refuses it" and into this bucket.
-        //
-        // 26 -> 27 by issue #4529 (mana and cost sentences): Su-Chi's "When
-        // this creature dies, add {C}{C}{C}{C}." is now compiled (`addMana`)
-        // while its hand-written side is a `diedTrigger` `resolve` closure —
-        // the same move as the entries above.
-        //
-        // 27 -> 29 by issue #4539 (cost-parameter keyword lines): Blastoderm
-        // ("Fading 3" beside a shroud `permanent-guard` whose `applies` is a
-        // closure) and Exalted Angel ("Morph {2}{W}{W}" beside a
-        // `damageDealtTrigger` whose `resolve` is a closure) are now compiled
-        // — the same move as the entries above, out of "the compiler refuses
-        // it" and into this bucket.
-        //
-        // 29 -> 30 by issue #4526 ("If that creature would die this turn,
-        // exile it instead"): Suplex's first mode now compiles to `dealDamage`
-        // + `exileOnDeath`, while both hand-written modes are `resolve()`
-        // closures — the same move as the entries above, out of "the compiler
-        // refuses it" and into this bucket.
-        //
-        // 30 -> 33 by issue #4544 (combat and damage trigger heads): Abyssal
-        // Specter ("deals damage to a player"), Fungusaur and Jackal Pup ("is
-        // dealt damage") are now compiled while their hand-written sides are
-        // `damageDealtTrigger` / `damageTakenTrigger` `resolve()` closures — the
-        // same move as the entries above, out of "the compiler refuses it" and
-        // into this bucket.
-        //
-        // 33 -> 36 by issue #4545 (phase and step trigger heads): Essence
-        // Flare, Unstable Mutation and Wanderlust ("…the upkeep of enchanted
-        // creature's controller…") are now compiled while their hand-written
-        // sides are `phaseTrigger` `resolve()` closures — the same move as the
-        // entries above, out of "the compiler refuses it" and into this bucket.
-        //
-        // 36 -> 37 by issue #4546 (zone-change trigger heads): Sacred Ground's
-        // "whenever a spell or ability an opponent controls causes a land to be
-        // put into your graveyard from the battlefield" is now compiled while
-        // its hand-written side is a `leftTrigger` whose `resolve` is a closure
-        // — the same move as the entries above, out of "the compiler refuses
-        // it" and into this bucket.
-        //
-        // 37 -> 38 by issue #4550 (card naming): Cursed Scroll's "Choose a card
-        // name, then reveal a card at random from your hand" is now compiled
-        // while its hand-written side is a `resolve()` closure — the same move
-        // as the entries above, out of "the compiler refuses it" and into this
-        // bucket.
-        //
-        // 38 -> 39 by issue #4552 (library search onto the battlefield):
-        // Quirion Trailblazer's "you may search your library for a basic land
-        // card, put that card onto the battlefield tapped, then shuffle" is now
-        // compiled while its hand-written side carries a `[closure]` the
-        // projection cannot compare — the same move as the entries above, out
-        // of "the compiler refuses it" and into this bucket.
-        //
-        // 39 -> 42 by issue #4557 (mass subjects): Earthquake's "each creature
-        // without flying and each player", Powder Keg's mana-value-versus-
-        // counters sweep and Damnation's "They can't be regenerated." are now
-        // compiled while their hand-written sides are `resolve()` closures
-        // the projection cannot compare — the same move as the entries above,
-        // out of "the compiler refuses it" and into this bucket.
-        //
-        // 42 -> 45 by issue #4561 (untap locks): Curse of Marit Lage's
-        // hand-written side is a `resolve()` closure (the mass tap), Tsabo's
-        // Web's carries the `dynamicMatch` closure of its untap lock, and
-        // Winter Orb's the `condition` closure of its "as long as this
-        // artifact is untapped" gate — all now compiled, the same move as the
-        // entries above, out of "the compiler refuses it" and into this bucket.
-        //
-        // 45 -> 49 by issue #4548 ("sacrifice it unless you <payment>"):
-        // Phantasmal Forces, Stasis, Sunken City and Vaevictis Asmadi now compile to
-        // `mayPay` + `if not` while their hand-written upkeep triggers are
-        // `resolve()` closures — the same move as the entries above, out of
-        // "the compiler refuses it" and into this bucket.
-        //
-        // 49 -> 50 by issue #4567 (shuffle clauses): Natural Selection's "You
-        // may have that player shuffle" is now compiled while its hand-written
-        // side is a `resolveSteps` closure the projection cannot compare — the
-        // same move as the entries above, out of "the compiler refuses it" and
-        // into this bucket.
-        //
-        // 50 -> 51 by issue #4565 (characteristic-setting statics): Water
-        // Wurm's "as long as an opponent controls an Island" is now compiled
-        // while its hand-written side carries the `condition` closure — the
-        // same move as the entries above, out of "the compiler refuses it" and
-        // into this bucket.
-        //
-        // 51 -> 53 by issue #5407 ("This creature can't block"): Foul
-        // Familiar's and Kavu Aggressor's hand-written `block-restriction`
-        // carries a `predicate` closure the projection cannot compare, while
-        // the line is now compiled — the same move as the entries above, out of
-        // "the compiler refuses it" and into this bucket.
-        //
-        // 53 -> 54 by issue #4570 (shroud statics): Sterling Grove's
-        // hand-written `permanent-guard` carries an `applies` closure the
-        // projection cannot compare, while "Other enchantments you control
-        // have shroud" is now compiled — the same move as the entries above,
-        // out of "the compiler refuses it" and into this bucket.
-        //
-        // 54 -> 56 by issue #4571 (triggered long tail): Ivory Tower's "where X
-        // is the number of cards in your hand minus 4" is now compiled while
-        // its hand-written phase trigger carries `matches`/`resolve` closures,
-        // and Thunderscape Battlemage's per-kicker ETB gate is now compiled
-        // while its hand-written side carries the `gate.onSelf` closure
-        // (`additionalCostPaidCondition`) — the same move as the entries
-        // above, out of "the compiler refuses it" and into this bucket.
-        //
-        // 56 -> 57 by issue #4569 (delayed draw): Krovikan Fetish's hand-written
-        // trigger body is a closure while the line is now compiled — the same
-        // move as the entries above.
-
-        // Raised 69 -> 73 with the Echo / Cumulative upkeep rules (issue #5505): four
-        // cards (Illusions of Grandeur, Maddening Wind, Mesmeric Trance, Mystic
-        // Might) keep other hand-written closures beside their now-compiled line.
-        //
-        // Raised 73 -> 74 with the optional draw-skip rule (issue #6327):
-        // Island Sanctuary's hand-written DRAW trigger is a `phaseTrigger`
-        // closure the projection cannot compare, while its line is now
-        // compiled — the same move as the entries above. The compiled
-        // definition is proven by `optionalDrawSkip.test.ts` instead.
-        //
-        // Raised 74 -> 75 with the source sacrifice rule: Ball
-        // Lightning's hand-written end-step sacrifice is a closure the
-        // projection cannot compare, while "sacrifice it" is now compiled —
-        // the same move as the entries above. The compiled definition is
-        // proven by `sacrificeSource.test.ts` instead.
-        //
-        // Raised 75 -> 76 with the graveyard shuffle rule: Gaea's Blessing's
-        // hand-written milled-self trigger carries a `matches` closure the
-        // projection cannot compare, while its line is now compiled — the same
-        // move as the entries above. The compiled definition is proven by
-        // `shuffleGraveyardIntoLibrary.test.ts` and its golden fixture instead.
-        //
-        // Raised 76 -> 77 with the "have it deal" rule: Gempalm Incinerator's
-        // hand-written cycle trigger is the `cycledTrigger` closure template
-        // the projection cannot compare, while its line is now compiled — the
-        // same move as the entries above. The compiled definition is proven
-        // by `haveItDealDamage.test.ts` and its golden fixture instead.
-        //
-        // Raised 77 -> 78 with the controller damage prevention rule:
-        // Solitary Confinement's hand-written upkeep trigger is a closure the
-        // projection cannot compare, while its prevention line is now
-        // compiled — the same move as the entries above. The compiled
-        // definition is proven by `controllerDamagePrevention.test.ts`.
-        //
-        // Raised 78 -> 79 with the nonblack attack tax: Elephant
-        // Grass's hand-written attack-cost closure is one the projection cannot
-        // compare, while its line now compiles to `excludeColors` — the same
-        // move as the entries above. The compiled definition is proven by
-        // `costTaxes.test.ts` instead.
-        expect(REPORT.incomparable.length).toBeLessThan(79);
+        // Emptiness has to be explained too: the `toContain` below is the
+        // vacuity guard, and if Onulet is ever retired it must be replaced by
+        // the next survivor, not deleted.
+        const committed = JSON.parse(
+            readFileSync(GOLD_INCOMPARABLE_PATH, "utf8")
+        ) as string[];
+        const names = [...new Set(REPORT.incomparable.map((i) => i.name))];
+        expect(
+            names.sort(),
+            `${GOLD_INCOMPARABLE_PATH} must list exactly the incomparable cards — add each new one, delete each drained one`
+        ).toEqual(committed);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

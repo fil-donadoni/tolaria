@@ -68,6 +68,51 @@ describe("resolveAppendOnly — pure insertions concatenate, edits conflict", ()
         });
     });
 
+    const hunk = (ours: string[], base: string[], theirs: string[]) => [
+        `${m("<")} ours`,
+        ...ours,
+        `${m("|")} base`,
+        ...base,
+        m("="),
+        ...theirs,
+        `${m(">")} theirs`,
+    ];
+
+    it("keeps what both sides kept when both only deleted distinct lines (issue #6648)", () => {
+        const diff3 = hunk(
+            ['    "b",'],
+            ['    "b",', '    "c",'],
+            ['    "c",']
+        );
+        expect(resolveAppendOnly(["head", ...diff3].join("\n"))).toEqual({
+            text: "head",
+            unresolved: 0,
+        });
+        const kept = hunk(
+            ['    "a",', '    "c",'],
+            ['    "a",', '    "b",', '    "c",'],
+            ['    "a",', '    "b",']
+        );
+        expect(resolveAppendOnly(kept.join("\n"))).toEqual({
+            text: '    "a",',
+            unresolved: 0,
+        });
+    });
+
+    it("leaves a deletion hunk whose base repeats a line as a conflict", () => {
+        const diff3 = hunk(["},"], ["},", "},"], ["},"]);
+        expect(resolveAppendOnly(diff3.join("\n")).unresolved).toBe(1);
+    });
+
+    it("leaves a hunk where one side deleted and the other edited as a conflict", () => {
+        const diff3 = hunk(
+            ['    "b",'],
+            ['    "b",', '    "c",'],
+            ['    "C",']
+        );
+        expect(resolveAppendOnly(diff3.join("\n")).unresolved).toBe(1);
+    });
+
     it("never reads a short marker run in file content as a marker", () => {
         const text = [
             "<<<<<<< not a marker",
