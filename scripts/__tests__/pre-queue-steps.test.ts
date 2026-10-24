@@ -305,6 +305,15 @@ describe("pushWithRetry — the hand-off push (issue #6620)", () => {
         expect(attempts).toBe(1);
         expect(isTransientPushFailure(nonFf.stderr)).toBe(false);
     });
+
+    it("a remote that moved (fetch first) is not retried", () => {
+        const fetchFirst = {
+            status: 1,
+            stderr: "! [rejected] HEAD -> feat/x (fetch first)\nerror: failed to push some refs",
+        };
+        const { attempts } = drive([fetchFirst, ok]);
+        expect(attempts).toBe(1);
+    });
 });
 
 // Issue #5956 — `land:ready` refuses what `land` would refuse, through the
