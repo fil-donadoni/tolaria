@@ -339,7 +339,9 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
      *  into a non-graveyard destination moves them and reds. */
     const HAND_DESTINATION_PRIORS: Record<string, number> = {
         [forceOfNature().id]: 0.645,
-        [breedingPool().id]: 0.425,
+        // Priced on the land fetch curve plus the dual's colour-breadth bonus
+        // (issue #3282), not the bare curve.
+        [breedingPool().id]: 0.431,
     };
 
     it("prices a hand tutor's finds at the pre-fix priors", () => {
@@ -399,8 +401,9 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
             if (defId) hints.set(defId, candidate.hint?.materialGained ?? 0);
         }
         // Force of Nature's 8/8 body (p² + t² + 10) and Breeding Pool on the
-        // land fetch curve at two lands in play (70 - 2 × 10).
+        // land fetch curve at two lands in play (70 - 2 × 10) plus the dual's
+        // breadth bonus (issue #3282): 4 × (5 - 2) / 5.
         expect(hints.get(forceOfNature().id)).toBe(138);
-        expect(hints.get(breedingPool().id)).toBe(50);
+        expect(hints.get(breedingPool().id)).toBeCloseTo(52.4, 6);
     });
 });
