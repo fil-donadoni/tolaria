@@ -9,14 +9,21 @@ import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import { useTapStageConfirm } from "~/hooks/useTapStageConfirm";
 import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
-import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
+import {
+    buildTriggerStateView,
+    getHandManaAbilities,
+    getHandStackAbilities,
+} from "~/lib/card-utils";
 import {
     landPlayFaces,
     playLandFaceDefinition,
 } from "@convex/gre/modalLandPlay";
 import { isModalDoubleFaced } from "@convex/cards/modalDfc";
 import { tryGetDefinition } from "@convex/cards";
-import type { CardInstanceState } from "@convex/gre/state";
+import {
+    isManaPaymentChoiceWindow,
+    type CardInstanceState,
+} from "@convex/gre/state";
 import type { PlayLandFace } from "@convex/cards/modalDfc";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import {
@@ -114,6 +121,7 @@ export default function GreHandCard({
         continuousEffects,
     } = game;
     const activateAbility = useMutation(api.game.activateAbility);
+    const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -182,25 +190,49 @@ export default function GreHandCard({
         actionWindowOpen &&
         !intentInFlight;
 
-    const handAbilities =
-        actionWindowOpen && !isHandChoice
+    // CR 605.3a — a mana ability ("Exile this card from your hand: Add {G}.")
+    // is activatable with priority, while this player pays a cost, and inside
+    // a may-pay window, so its window is wider than the stack abilities'. Any
+    // OTHER pending choice freezes it, exactly as `activateManaAbility`'s
+    // `assertNoPendingChoices` does. Never on the card whose own cast is being
+    // paid (CR 601.2a — it is on the stack).
+    const mayPayWindow = isManaPaymentChoiceWindow(activeChoice, playerId);
+    const payingCost =
+        !pendingTarget &&
+        (!activeChoice || mayPayWindow) &&
+        ((pendingCast?.playerId === playerId &&
+            pendingCast.cardInstanceId !== card.id) ||
+            pendingActivation?.playerId === playerId);
+    const manaWindowOpen =
+        !isHandChoice && (actionWindowOpen || payingCost || mayPayWindow);
+    const stateView =
+        (actionWindowOpen || manaWindowOpen) && !isHandChoice
+            ? buildTriggerStateView(
+                  allPlayers,
+                  activePlayerId,
+                  cannotActivateAbilitiesThisTurn,
+                  undefined,
+                  undefined,
+                  continuousEffects
+              )
+            : null;
+    const stackAbilities =
+        actionWindowOpen && stateView
             ? getHandStackAbilities(
                   card,
                   phase,
-                  buildTriggerStateView(
-                      allPlayers,
-                      activePlayerId,
-                      cannotActivateAbilitiesThisTurn,
-                      undefined,
-                      undefined,
-                      continuousEffects
-                  ),
+                  stateView,
                   // CR 702.49a — combat, so a ninjutsu ability is offered only
                   // while its return leg is payable (`getHandStackAbilities`
                   // fails closed without it).
                   { combat, players: allPlayers }
               )
             : [];
+    const manaAbilities =
+        manaWindowOpen && stateView
+            ? getHandManaAbilities(card, phase, stateView)
+            : [];
+    const handAbilities = [...stackAbilities, ...manaAbilities];
 
     const {
         onPlayClick,
@@ -238,15 +270,25 @@ export default function GreHandCard({
         // Same in-flight drop as the cast/play commit: a double tap inside the
         // round trip would hit "Another ability is already being activated".
         if (hasPendingGameIntent()) return;
-        void trackGameIntent(
-            activateAbility({
-                gameId,
-                playerId,
-                cardInstanceId: card.id,
-                abilityId,
-                ...(keepPriority ? { keepPriority: true } : {}),
-            })
-        ).catch((err) => console.error(extractMutationErrorMessage(err)));
+        // CR 605.3b — a mana ability resolves at once through its own
+        // mutation; it never holds priority.
+        const dispatch = manaAbilities.some((a) => a.id === abilityId)
+            ? activateManaAbility({
+                  gameId,
+                  playerId,
+                  cardInstanceId: card.id,
+                  abilityId,
+              })
+            : activateAbility({
+                  gameId,
+                  playerId,
+                  cardInstanceId: card.id,
+                  abilityId,
+                  ...(keepPriority ? { keepPriority: true } : {}),
+              });
+        void trackGameIntent(dispatch).catch((err) =>
+            console.error(extractMutationErrorMessage(err))
+        );
     };
     // CR 712.12 / 712.11c (ADR 0122 §2) — a card in hand can offer MORE THAN
     // ONE primary action. A modal double-faced card offers a cast of its front
