@@ -30,6 +30,16 @@ export const limDulsVault = defineCard(() => ({
         "Look at the top five cards of your library. As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library. Then shuffle and put the last cards you looked at this way on top in any order.",
     manaCost: { U: 1, B: 1 },
     types: ["Instant"],
+    // AI shadow (never executed): the look-and-arrange of the top five; the
+    // pay-life repeat has no Op and is not priced.
+    aiEffects: [
+        {
+            op: "scryReorder",
+            player: "controller",
+            count: 5,
+            destination: "none",
+        },
+    ],
     resolve: (ctx) => {
         const me = ctx.controller;
         for (let i = 0; ; i++) {
