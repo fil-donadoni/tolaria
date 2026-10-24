@@ -104,6 +104,9 @@ export type CostAtomIR =
       }
     /** CR 701.13a — exile: "Exile this artifact" as a cost (CR 118.1). */
     | { readonly kind: "exile-self" }
+    /** CR 118.1 / 701.13a — "Exile the top card of your library" as a cost:
+     *  the card is fixed by the library's order, so no count and no filter. */
+    | { readonly kind: "exile-top-of-library" }
     /** CR 113.6m — "Exile this card from your hand" (Elvish Spirit Guide): the
      *  cost moves the card out of the HAND, so the ability functions only
      *  there. Lowers to `cost.exileThis` + `activateFromHand`, which only the
@@ -308,6 +311,8 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
         if (span.startsWith("Exile ")) {
             if (isSelfPhrase(span.slice("Exile ".length)))
                 return ok({ kind: "exile-self" as const });
+            if (span === "Exile the top card of your library")
+                return ok({ kind: "exile-top-of-library" as const });
             const fromHand = " from your hand";
             if (
                 span.endsWith(fromHand) &&
@@ -604,6 +609,9 @@ export function lowerActivationCost(
             case "exile-self":
             case "exile-self-from-hand":
                 cost.exileThis = true;
+                break;
+            case "exile-top-of-library":
+                cost.exileTopOfLibrary = true;
                 break;
             case "return-self":
                 cost.returnThisToHand = true;

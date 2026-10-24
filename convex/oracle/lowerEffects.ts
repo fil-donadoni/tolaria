@@ -170,6 +170,14 @@ export interface SiteOptions {
      */
     readonly sourceSacrificed?: true;
     /**
+     * CR 118.1 + CR 608.2h — the site's activation cost exiled the top card of
+     * the controller's library, so the stack item carries that card's last
+     * known characteristics (the additional-cost victim snapshot) and "the
+     * exiled card's mana value" is readable as
+     * `{ sacrificed: { read: "manaValue" } }`. Absent = no such leg: refused.
+     */
+    readonly costExiledTopCard?: true;
+    /**
      * CR 608.2n — the site is a spell's own text (an instant or sorcery
      * resolving), so "shuffle this spell into its owner's library" has a card
      * on the stack to move. Absent = an ability's text: its stack item is no
@@ -314,6 +322,12 @@ function lowerAmount(
             ? lowered({ sacrificed: { read: amount.characteristic } })
             : unlowerable(
                   '"its power" names a source its own cost did not sacrifice (CR 608.2h)'
+              );
+    if (amount.kind === "cost-exiled-card-characteristic")
+        return site.costExiledTopCard === true
+            ? lowered({ sacrificed: { read: amount.characteristic } })
+            : unlowerable(
+                  '"the exiled card" names a card this ability\'s cost did not exile (CR 608.2h)'
               );
     if (
         amount.kind === "counted" ||
