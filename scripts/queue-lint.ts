@@ -22,6 +22,9 @@ import {
     type LintableIssue,
 } from "./lib/queue-lint";
 import { loadCardIndexNames } from "./lib/card-link";
+import { fetchBoardPriority } from "./lib/board-priority";
+import { effectivePriority } from "./lib/queue-plan";
+import type { BandContext } from "./lib/queue-lint";
 
 const argv = process.argv.slice(2);
 const asJson = argv.includes("--json");
@@ -52,6 +55,69 @@ const numbers = all
       ).map((i) => i.number)
     : explicit;
 
+const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
+const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
+const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
+
+// The board is read once for the whole run (issue #6709). A degraded read
+// skips `blocker-band` with one warning: the rule is advisory, and the other
+// rules do not need the board.
+let board: ReturnType<typeof fetchBoardPriority> | null = null;
+try {
+    board = fetchBoardPriority({
+        owner: PROJECT_OWNER,
+        projectNumber: PROJECT_NUMBER,
+        repo: PROJECT_REPO,
+        onError: (message) => {
+            throw new Error(message.split("\n")[0]);
+        },
+    });
+} catch (err) {
+    console.error(
+        `queue:lint: board unreadable, blocker-band skipped (${(err as Error).message})`
+    );
+}
+
+interface IssueEdges {
+    state: string;
+    parent: { number: number; state: string } | null;
+}
+
+const readEdges = (n: number): IssueEdges =>
+    JSON.parse(gh(["issue", "view", String(n), "--json", "state,parent"]));
+
+const bandedParent = (parent: IssueEdges["parent"]) =>
+    parent
+        ? {
+              number: parent.number,
+              state:
+                  parent.state === "CLOSED"
+                      ? ("CLOSED" as const)
+                      : ("OPEN" as const),
+          }
+        : null;
+
+function bandContext(
+    n: number,
+    parent: IssueEdges["parent"],
+    blockedBy: number[]
+): BandContext | undefined {
+    if (board === null) return undefined;
+    const bandOf = (num: number, p: IssueEdges["parent"]) =>
+        effectivePriority({ number: num, parent: bandedParent(p) }, board!);
+    return {
+        band: bandOf(n, parent),
+        blockers: blockedBy.map((b) => {
+            const edges = readEdges(b);
+            return {
+                number: b,
+                open: edges.state === "OPEN",
+                band: bandOf(b, edges.parent),
+            };
+        }),
+    };
+}
+
 const results: { issue: LintableIssue; findings: Finding[] }[] = [];
 const cardNames = loadCardIndexNames();
 
@@ -68,7 +134,7 @@ for (const n of numbers) {
         number: number;
         title: string;
         labels: { name: string }[];
-        parent: { number: number } | null;
+        parent: { number: number; state: string } | null;
         body: string;
     };
     const issue: LintableIssue = {
@@ -88,6 +154,7 @@ for (const n of numbers) {
         findings: lintIssue(issue, {
             cardNames,
             readTokenScopes: ghTokenScopes,
+            bands: bandContext(n, raw.parent, issue.blockedByNative ?? []),
         }),
     });
 }
