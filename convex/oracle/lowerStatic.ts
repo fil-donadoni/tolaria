@@ -102,6 +102,9 @@ export interface LoweredStatic {
     readonly revealsLibraryTop?: "controller";
     /** CR 614.1a — "you may discard a <type> card instead" as it enters. */
     readonly asEntersDiscard?: { readonly filter: { readonly type: CardType } };
+    /** CR 305.1 + CR 601.3 — "You may play lands and cast spells from the top
+     *  of your library": land plays and casts off the top card. */
+    readonly playsFromLibraryTop?: true;
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
@@ -695,6 +698,8 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "play-from-library-top":
+            return { ok: true, lowered: { playsFromLibraryTop: true } };
         case "shuffle-from-anywhere":
             return { ok: true, lowered: { shuffleFromAnywhere: true } };
         case "flash-cast-cleanup-sacrifice":
