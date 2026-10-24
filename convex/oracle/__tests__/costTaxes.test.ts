@@ -7,9 +7,9 @@
 //    its controller's turn"                               CR 601.2f / 601.2a
 //   "Activated abilities of <permanents> cost {N} more
 //    to activate"                                         CR 602.2b
-//   "Creatures can't attack you unless their controller
-//    pays {N} for each creature they control that's
-//    attacking you"                                       CR 508.1d / 508.1h
+//   "<Creatures | Nonblack creatures> can't attack you
+//    unless their controller pays {N} for each creature
+//    they control that's attacking you"                   CR 508.1d / 508.1h
 //
 // Goldens compile REAL corpus Oracle rows and pin the WHOLE definition; the
 // refusals pin the printed neighbours the rules must not read; the behaviour
@@ -185,6 +185,40 @@ describe("cost taxes — goldens", () => {
         });
     });
 
+    it("a negated-colour attack tax (CR 508.1d / 508.1h, CR 105.2)", () => {
+        // Elephant Grass's third line, alone: its cumulative upkeep and
+        // "Black creatures can't attack you" lines are other gaps.
+        const oracleText =
+            "Nonblack creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.";
+        golden(
+            {
+                oracleId: "f4c1f5a7-0d28-43ab-9b66-937e963f42cd",
+                name: "Elephant Grass",
+                manaCost: "{G}",
+                typeLine: "Enchantment",
+                oracleText,
+            },
+            {
+                name: "Elephant Grass",
+                types: ["Enchantment"],
+                manaCost: { G: 1 },
+                oracleText,
+                compiledStaticEffects: [
+                    {
+                        kind: "attack-mana-tax",
+                        id: "elephant-grass-attack-tax",
+                        oracleText,
+                        attackers: {
+                            types: ["Creature"],
+                            excludeColors: ["B"],
+                        },
+                        perAttacker: 2,
+                    },
+                ],
+            }
+        );
+    });
+
     it("the per-attacker attack tax (CR 508.1d / 508.1h)", () => {
         golden(GHOSTLY_PRISON, {
             name: "Ghostly Prison",
@@ -215,10 +249,10 @@ describe("cost taxes — refused neighbours", () => {
         oracleText,
     });
 
-    it("REFUSES a negated colour on an attack tax — PermanentFilter has no excludeColors (Elephant Grass)", () => {
+    it("REFUSES a negated colour other than the printed one (fail-closed, CR 105.2)", () => {
         refused(
             line(
-                "Nonblack creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you."
+                "Nonwhite creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you."
             )
         );
     });

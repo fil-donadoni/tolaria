@@ -399,7 +399,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Elder Druid",
     "Electric Eel",
     "Elegant Parlor",
-    "Elephant Grass",
     "Elfhame Sanctuary",
     "Elite Spellbinder",
     "Elkin Bottle",

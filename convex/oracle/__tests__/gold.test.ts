@@ -324,7 +324,13 @@ describe("gold round-trip — precision", () => {
         // projection cannot compare, while its prevention line is now
         // compiled — the same move as the entries above. The compiled
         // definition is proven by `controllerDamagePrevention.test.ts`.
-        expect(REPORT.incomparable.length).toBeLessThan(78);
+        //
+        // Raised 78 -> 79 with the nonblack attack tax: Elephant
+        // Grass's hand-written attack-cost closure is one the projection cannot
+        // compare, while its line now compiles to `excludeColors` — the same
+        // move as the entries above. The compiled definition is proven by
+        // `costTaxes.test.ts` instead.
+        expect(REPORT.incomparable.length).toBeLessThan(79);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

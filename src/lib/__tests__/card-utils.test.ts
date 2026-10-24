@@ -4177,6 +4177,27 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         // mono-coloured case is the one that matters: a bound dropped by the
         // adapter would match it, which is Dragon Arch putting a mono-coloured
         // creature onto the battlefield.
+        // CR 105.2 — the negative of `colors` over the adapter's derived
+        // colour set: a bound dropped by the adapter would let the excluded
+        // colour through.
+        excludeColors: [
+            {
+                card: makeCardInstance({ card: { id: FLYING_MEN_ID } }),
+                filter: { excludeColors: "U" },
+                expected: false,
+            },
+            {
+                // Multicoloured: ANY excluded colour rejects it.
+                card: makeCardInstance({ card: { id: GALINAS_KNIGHT_ID } }),
+                filter: { excludeColors: "U" },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ card: { id: GRIZZLY_BEARS_ID } }),
+                filter: { excludeColors: "U" },
+                expected: true,
+            },
+        ],
         colorCountAtLeast: [
             {
                 card: makeCardInstance({ card: { id: GALINAS_KNIGHT_ID } }),
