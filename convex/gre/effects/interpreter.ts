@@ -1274,9 +1274,27 @@ function toPermanentFilter(
         }
         subtypes = shared;
     }
+    // CR 202.3 — a dynamic `{ X: true }` bound has to be resolved HERE, since
+    // `PermanentFilter` carries numbers only. An unresolvable one is the
+    // UNMATCHABLE_FILTER sentinel (CR 608.2b), never an absent constraint.
+    let manaValueAtMost: number | undefined;
+    if (filter.manaValueAtMost !== undefined) {
+        manaValueAtMost = resolveValue(ctx, filter.manaValueAtMost);
+        if (manaValueAtMost === undefined) return UNMATCHABLE_FILTER;
+    }
+    let manaValueEquals: number | undefined;
+    if (filter.manaValueEquals !== undefined) {
+        manaValueEquals = resolveValue(ctx, filter.manaValueEquals);
+        if (manaValueEquals === undefined) return UNMATCHABLE_FILTER;
+    }
     return {
         types: filter.type,
         excludeTypes: filter.excludeType,
+        // CR 105.2 — "nonwhite": dropping it would be fail-OPEN, the sweep
+        // would hit every permanent.
+        excludeColors: filter.excludeColor,
+        manaValueAtMost,
+        manaValueEquals,
         // CR 205.3 (issue #4557) — "non-Aura": dropping it here would be
         // fail-OPEN, the sweep would hit every enchantment.
         excludeSubtypes: filter.excludeSubtype,
