@@ -46,3 +46,9 @@ describe("artifact subtype nouns (CR 205.3g)", () => {
         expect(descriptorRule.run("Spellbook", parseContext()).ok).toBe(false);
     });
 });
+
+describe("an or-list of artifact types (CR 205.3g)", () => {
+    it("reads Treasure or Clue as two subtypes", () => {
+        expect(read("Treasure or Clue").subtypes).toEqual(["Treasure", "Clue"]);
+    });
+});
