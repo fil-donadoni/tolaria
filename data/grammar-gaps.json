@@ -3871,6 +3871,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"setSubtype\" acts on $source — covered by the card's own per-card test",
+            "issue": 6668
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"tapUntap\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4024
         },
