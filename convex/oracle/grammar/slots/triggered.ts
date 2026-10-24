@@ -176,6 +176,10 @@ const selfTypeConditionalTail: Rule<TailIR> = rule(
             return fail("the effect does not open on a pronoun", span);
         if (parsed.value.condition.kind !== "self-has-type")
             return fail("not a self-type condition", span);
+        // Only the one verb with a fixture reads the source here.
+        const first = parsed.value.tail.value[0];
+        if (first?.role !== "effect" || first.effect.kind !== "become-creature")
+            return fail("only a type-line replacement is read here", span);
         return ok<TailIR>({
             condition: parsed.value.condition,
             sentences: parsed.value.tail.value,

@@ -63,6 +63,7 @@ describe("become-creature (CR 205.1a, CR 613.1d)", () => {
             "it becomes a 4/4 Gibbon creature.",
             "it becomes a 4/4 artifact Ape creature.",
             "it becomes a creature.",
+            "it deals 2 damage to target player.",
             "that creature becomes a 4/4 Ape creature.",
         ])
             expect(gibbons(tail).state, tail).toBe("unparsed");
