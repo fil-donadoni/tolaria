@@ -354,6 +354,21 @@ describe("`If you do,` — the optional action is a cost, paid or not (CR 118.12
         ]);
     });
 
+    it("the LAST cost of the chain is the evidence or nothing is: a pick of two behind the source's sacrifice leaves `If you do` ungated (CR 118.12)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Probe",
+                manaCost: "{B}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Sacrifice this creature, then sacrifice two lands. If you do, draw a card.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state === "unparsed")
+            expect(outcome.gaps[0]?.reason).toMatch(/leaves no evidence/);
+    });
+
     it("the gated effect runs only on the EVIDENCE the action was paid (CR 118.3), never on the answer alone", () => {
         const def = compiledDefinition(
             creature(

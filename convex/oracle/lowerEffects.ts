@@ -4963,8 +4963,7 @@ function lowerFrameChain(
 /**
  * CR 701.21a — the `sacrifice` frame, one of two shapes:
  *
- *  - a NAMED permanent (the source, the pronoun for it, the enchanted
- *    permanent): one `sacrifice` Op on the object selector; with the CR
+ *  - a NAMED permanent (the source, the pronoun for it): one `sacrifice` Op on the object selector; with the CR
  *    118.12a rider, the `mayPay` + `if not` pair verbatim ("sacrifice it
  *    unless you <payment>" MEANS "you may pay; if you don't, sacrifice it" —
  *    Phyrexian Dreadnought), the payment one `CostLegs` leg;
@@ -5249,7 +5248,9 @@ function paidEvidence(
                     candidate.op === "choice" &&
                     (candidate as { bind?: string }).bind === ref
             ) as { count?: unknown } | undefined;
-            if (pick?.count !== 1) continue;
+            // …and no earlier sacrifice stands in for it: the LAST cost is
+            // the one "If you do" asks about (CR 118.12), or nothing is.
+            if (pick?.count !== 1) return null;
         } else if (!("target" in op) && !("cards" in op)) continue;
         const existing = (op as { bind?: string }).bind;
         const bind = existing ?? walk.nextBind(prefix);

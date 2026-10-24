@@ -1183,7 +1183,23 @@ function readMember(
         };
     const sacrifice = readSacrificeMember(lower, ctx);
     if (sacrifice !== null) {
+        // The refusal names the WHOLE member, whatever sub-grammar refused
+        // inside it: the gap keys the retired kinds' backlog issues claim
+        // stay where the refusal tables pin them (`playerEdict.test.ts`).
         if (!sacrifice.ok) return { refused: sacrifice.reason };
+        // CR 608.2c — behind a find, "it" is the card the chain found (the
+        // nearest antecedent), which this frame does not read: the source's
+        // pronoun is the only "it" it sacrifices, so the member is refused
+        // rather than read as the source.
+        if (
+            referent !== null &&
+            sacrifice.value.frame === "sacrifice" &&
+            sacrifice.value.object.kind === "named" &&
+            sacrifice.value.object.subject.kind === "pronoun"
+        )
+            return {
+                refused: `"${member}" — "it" names the card an earlier frame found; the sacrifice frame reads only the source's pronoun`,
+            };
         // A sacrifice produces no referent a later frame could name: the
         // pronoun rule binds the LAST find, and this is not one.
         return { frames: [sacrifice.value], referent };
@@ -1195,7 +1211,8 @@ function readMember(
 
 /**
  * Read a whole sentence as a frame chain. `null` when its first member opens
- * no frame (the sentence is the table's to read); a refusal when it opens one
+ * no frame (the sentence is the table's to read), or when a sacrifice-only
+ * chain meets a tail that is no frame (the `, then` rule's); a refusal when it opens one
  * and a member fails — attributed to THAT member, with the chain's progress
  * (how many members before it were read) so the deepest failure wins.
  */
@@ -1240,8 +1257,9 @@ export function readFrameChain(
             // sacrifice frames alone binds no pronoun a split could lose, so
             // the sentence is handed back to the `, then` Composition Rule,
             // which reads the head as this chain and the tail as the table's.
-            // A chain holding a library frame keeps its connectors (the
-            // pronoun rule crosses the comma), and refuses whole.
+            // The parse is the same either way (`sentenceRule` falls back to
+            // the `, then` read); what the hand-back changes is the gap's
+            // attribution — the table's for the tail, not this frame's.
             if (i > 0 && frames.every((frame) => frame.frame === "sacrifice"))
                 return null;
             return refuse(

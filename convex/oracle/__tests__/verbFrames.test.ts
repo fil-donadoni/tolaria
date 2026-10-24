@@ -1225,7 +1225,7 @@ describe("moveZone frame — object classes beyond the found card (issue #6631)"
 // ── the `sacrifice` frame (issue #6630, pilot 2) ─────────────────────────────
 //
 // One golden per ARGUMENT CLASS: the object (a named permanent — the source,
-// "it", "enchanted creature" — or "<quantity> <descriptor>"), the quantity
+// "it" — or "<quantity> <descriptor>"; "enchanted creature" is refused), the quantity
 // (a count, "X", "that many", "any number of"), the player (the imperative's
 // controller, "target player", "each player", "each opponent") and the CR
 // 118.12a rider. The classes the retired kinds read keep their own fixtures,
@@ -1515,6 +1515,20 @@ describe("sacrifice frame — the rider and the chain (CR 118.12a, CR 608.2c)", 
                     { ref: "$event.activePlayerId" }
                 )
             );
+    });
+
+    it("'it' behind a find is the card the chain found, not the source — the member is refused rather than read as the source (CR 608.2c)", () => {
+        // Before the referent check this compiled `ready` with
+        // `sacrifice` on `$source`: the wrong permanent, silently. A
+        // creature's trigger, not a sorcery: a spell has no source object
+        // for "it" and refuses at the lowering whatever the frame read.
+        const outcome = compileCard(
+            horror(
+                "Probe",
+                "When this creature enters, search your library for a creature card, put it onto the battlefield, then sacrifice it."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
     });
 
     it("the frame is a `, then` tail after a table head: Perilous Research, whole", () => {
