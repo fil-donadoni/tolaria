@@ -732,6 +732,51 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         });
     });
 
+    describe("addMana (CR 106.1)", () => {
+        it("prices fixed pips as ramp, one unit per mana", () => {
+            const v = valueOp({ op: "addMana", mana: { B: 3 } }, cf);
+            expect(v.points).toBe(3 * LATENT.ramp);
+            expect(v.tags).toEqual(["ramp"]);
+        });
+
+        it("reads a computed amount through the grounding, not as zero", () => {
+            const op: EffectOp = {
+                op: "addMana",
+                mana: { U: { X: true } },
+            };
+            const ctx = contextAwareGrounding({
+                resolveValue: () => 4,
+                resolveIsSelf: () => true,
+                resolveForEachCount: () => 1,
+            });
+            const v = valueOp(op, ctx);
+            expect(v.points).toBe(4 * LATENT.ramp);
+            expect(v.tags).not.toContain("board-scaling");
+        });
+
+        it("flags a computed amount board-scaling with a floor value (card in hand)", () => {
+            const v = valueOp(
+                {
+                    op: "addMana",
+                    mana: {
+                        U: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "opponent",
+                                filter: { subtype: "Island" },
+                            },
+                        },
+                    },
+                },
+                cf
+            );
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["ramp", "board-scaling"])
+            );
+            expect(v.points).toBeGreaterThan(0);
+        });
+    });
+
     describe("pump (CR 613.4c)", () => {
         it("a positive pump loads the `pump` feature", () => {
             const op: EffectOp = {
