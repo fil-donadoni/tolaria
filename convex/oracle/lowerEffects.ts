@@ -2014,6 +2014,35 @@ function lowerSentenceBody(
                 duration: durationSpec(sentence.duration),
             }));
         }
+        // CR 205.1a + CR 613.1d/e/4b — the source's type line is replaced,
+        // indefinitely (no `duration`): the same four Ops Oko's "becomes a
+        // green Elk creature with base power and toughness 3/3" is written in.
+        case "become-creature": {
+            if (sentence.subject.kind !== "self")
+                return unlowerable(
+                    "a type-line replacement is lowered on the source only"
+                );
+            const target = { ref: "$source" as const };
+            return lowered([
+                { op: "setCardTypes", target, types: ["Creature"] },
+                { op: "setSubtype", target, subtypes: [sentence.subtype] },
+                ...(sentence.colors.length > 0
+                    ? [
+                          {
+                              op: "setColor" as const,
+                              target,
+                              colors: [...sentence.colors],
+                          },
+                      ]
+                    : []),
+                {
+                    op: "setBasePT",
+                    target,
+                    power: sentence.power,
+                    toughness: sentence.toughness,
+                },
+            ]);
+        }
         case "grant-ability": {
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
