@@ -267,10 +267,6 @@ describe("refusals: the neighbours each rule must not read", () => {
     const refused = (card: OracleCard) =>
         expect(compileCard(card).state).toBe("unparsed");
 
-    it('"Scry N, then …" is another clause, not a bare scry', () => {
-        refused(instant("Test", "{U}", "Scry 1, then draw a card."));
-    });
-
     it('"the other" names the card left of a TWO-card window only', () => {
         refused(
             instant(

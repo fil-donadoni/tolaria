@@ -66,6 +66,13 @@ import {
 import { matchingClusterIssues, signatureMatches } from "./lib/gap-issues";
 import { opGapKey } from "./lib/grammar-gaps";
 import {
+    auditSentenceKinds,
+    baselineSentenceKinds,
+    EFFECT_CLAUSE_PATH,
+    effectSentenceKinds,
+    renderSentenceKinds,
+} from "./lib/sentence-kinds";
+import {
     handTailClaimMismatches,
     isExempting,
     scanFilesForCompilerGaps,
@@ -725,11 +732,23 @@ async function main(): Promise<void> {
         )
     );
     const botCensus = readBotGapCensus(root);
-    if (ok) {
-        console.log(`${out}\n\n${clusterCensus}\n${botCensus}`);
+    // The shrink-only census of effect-sentence kinds (issue #6557, issue
+    // #6714, `lib/sentence-kinds.ts`): the table of whole-sentence kinds may
+    // only lose rows to the Verb Frame layer — the kinds read off the source
+    // at HEAD are a subset of those at the merge-base with the base branch
+    // (at `HEAD^` on the base tip). No committed list.
+    const kinds = auditSentenceKinds({
+        head: effectSentenceKinds(
+            readFileSync(join(root, EFFECT_CLAUSE_PATH), "utf8")
+        ),
+        baseline: baselineSentenceKinds(root),
+    });
+    const kindsOut = renderSentenceKinds(kinds);
+    if (ok && kinds.violations.length === 0) {
+        console.log(`${out}\n${kindsOut}\n\n${clusterCensus}\n${botCensus}`);
         return;
     }
-    console.error(`${out}\n\n${clusterCensus}\n${botCensus}`);
+    console.error(`${out}\n${kindsOut}\n\n${clusterCensus}\n${botCensus}`);
     process.exit(1);
 }
 

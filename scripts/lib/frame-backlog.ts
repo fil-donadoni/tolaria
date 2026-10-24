@@ -18,7 +18,7 @@ import {
     COMPOSITION_HEADS,
     FRAME_HEADS,
     SUBJECT_LEADS,
-} from "../../convex/oracle/grammar/shared/verbFrames";
+} from "../../convex/oracle/grammar/shared/frameHeads";
 import {
     CARD_LEVEL,
     NO_SLOT,
