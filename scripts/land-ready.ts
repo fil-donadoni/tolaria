@@ -146,6 +146,9 @@ export interface PreQueueDeps {
     regenerate: () => boolean;
     /** Put the derived paths back to `HEAD`, so the worktree stays clean. */
     restore: () => void;
+    /** A body/diff refusal already stands (no escape): the tests cannot change
+     *  the outcome, so the costly tier is not run (issue #6620). */
+    skipCostly?: boolean;
 }
 
 /** The step id reported when the derived state could not be rebuilt. */
@@ -202,7 +205,7 @@ export function runPreQueue(deps: PreQueueDeps): {
             });
             if (!r.ok) failedAll.push(check.id);
         }
-        if (failedAll.length > 0) {
+        if (failedAll.length > 0 || deps.skipCostly === true) {
             for (const check of costly)
                 outcomes.push({ id: check.id, status: "not-run", ms: 0 });
         } else {
@@ -544,6 +547,7 @@ function preQueueGate(
     );
     const t0 = Date.now();
     const { failed, failedAll, result } = runPreQueue({
+        skipCostly: refusals.length > 0,
         plan,
         present,
         added: addedPaths(ORIGIN_BASE, cwd),

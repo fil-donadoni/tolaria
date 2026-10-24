@@ -258,6 +258,25 @@ describe("runPreQueue — cheap tier first, all reds at once (issue #6620)", () 
         expect(ran.some((c) => c.includes("check:ts"))).toBe(false);
     });
 
+    it("a standing refusal skips the costly tier even when the cheap tier is green", () => {
+        const ran: string[] = [];
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
+            skipCostly: true,
+            exec: (command) => {
+                ran.push(command);
+                return { ok: true, ms: 1 };
+            },
+        });
+        expect(r.failedAll).toEqual([]);
+        expect(ran.some((c) => c.includes("check:ts"))).toBe(false);
+    });
+
     it("a green cheap tier runs the costly tier, fail-fast", () => {
         const { ran, r } = drive(["check:ts"]);
         expect(r.failedAll).toEqual(["tsc[all]"]);
