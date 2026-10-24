@@ -220,10 +220,11 @@ over two machines); the rest is batch health's.
 
 - **Iterating**: targeted only, `bunx vitest run <path>`; formatting automatic.
 - **Pre-PR**: `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136).
-- **Merge**: session → `bun run land:ready <PR#>`; the **land-runner** (issue
-  #5469) runs `land`: rebase, **`check:lane`**, merge, under the mutex (ADR
-  0136); red → `land-failed`. **Release**: **`bun run release`** — full gate
-  on base tip, then fast-forward release branch (ADR 0116).
+- **Merge**: session → `bun run land:ready <PR#>` (step 0 = `base:drift`
+  preflight, issue #6647: behind → rebases, overlap → refuses); the **Mergify
+  queue** rebases the PR in a draft, runs **`check:lane`**, merges (ADR 0136);
+  red → `land-failed`. **Release**: **`bun run release`** — full gate on base
+  tip, then fast-forward release branch (ADR 0116).
 - **`check:lane` paid ONCE, by `land`, on the rebased tip** (skipped if tip
   and base already gated green). Lanes: `skin` (`src/**`) / `engine`
   (`convex/**`, `scripts/**`, `data/**`, `.claude/**` tooling, repo config,
@@ -246,7 +247,7 @@ over two machines); the rest is batch health's.
 - **No CI: local gates are the only gates.** Full suite **per batch**: health
   fires at the 20th landing since GREEN or 8 h after the first un-healthed
   (ADR 0154); a failed vitest project is re-run once before RED. **Topology
-  B'** (any machine, #5873): MacBook = sessions + land-runner + `release`;
+  B'** (any machine, #5873): MacBook = sessions + `release`;
   Huawei = health, crons, audits. **The verdict is shared**
   (commit status on the gated sha, read through the verdict store by
   `queue:plan`, `land`, the loop, on both machines); `release` re-proves the
@@ -275,7 +276,7 @@ over two machines); the rest is batch health's.
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for
 all sessions). Docs-only: `bun run wt:docs <slug>` → write →
-`bun run docs:ship` (`check:docs` in seconds, then the land-runner); else `bun run wt:new <N>` (`quality-gates.md`
+`bun run docs:ship` (`check:docs` in seconds, then the queue); else `bun run wt:new <N>` (`quality-gates.md`
 § Worktree isolation). **Fresh worktree needs `bun run worktree:init`** —
 `216 files failed, 0 tests failed` = missing bootstrap, not red baseline.
 
@@ -284,11 +285,11 @@ all sessions). Docs-only: `bun run wt:docs <slug>` → write →
 only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh` read it; an
 `origin/<name>` literal elsewhere reds `branches.test.ts`.
 
-**Merging goes through `land`, run by the land-runner** (#2537, issue #5469).
-`land` holds the gate mutex across
-rebase → `check:lane` → push → merge (tree landed = tree gated), refuses a PR
-not based on base; no health per landing (appends tip, detaches batch
-decision). Red landing: `/next-ticket`'s `land-failures.md`.
+**Merging goes through the Mergify queue** (#2537, issue #5643): it rebases
+the PR in a draft, runs `check:lane` there, merges (tree landed = tree gated);
+no health per landing. **Rebase first, verify after** (issue #6647):
+`bun run base:drift --rebase` before the review or any verification beyond
+targeted tests. Red landing: `/next-ticket`'s `land-failures.md`.
 
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
 base tip.** `land` proves the lane, batch health the rest, `release` re-proves
