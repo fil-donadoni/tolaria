@@ -434,10 +434,9 @@ export const viciousRivalry = defineCard(() => ({
 // 2), two targets take 1 each.
 //
 // The body is one `dealDamage` per announced slot rather than a
-// `forEach { select: { set: "targets" } }` sweep, and that is load-bearing,
-// not stylistic: `selectForEachMembers` (`gre/effects/interpreter.ts`) keeps
-// only `t.type === "permanent"` entries, so an "any target" PLAYER pick would
-// be silently dropped from the iteration and take no damage. A missing second
+// `forEach { select: { set: "targets" } }` sweep: the hand-written card
+// predates the sweep reading player targets, and a fixed slot per announced
+// target is the exact shape the card prints. A missing second
 // slot (only one target announced) simply resolves to nothing and the Op is
 // skipped (CR 608.2b), which is exactly the "one target" reading.
 //
