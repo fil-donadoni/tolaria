@@ -41534,6 +41534,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moonglove Extractor",
+        "scryfallId": "8383e0ab-81b4-4a6b-b87b-dd9180dca1c2",
+        "oracleId": "980affa7-6308-4acd-af64-f804e574a89b",
+        "firstSet": "ecl",
+        "firstPrintId": "8383e0ab-81b4-4a6b-b87b-dd9180dca1c2",
+        "firstPrintSet": "ecl",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Moonglove Winnower",
         "scryfallId": "effb7761-98a8-4cb8-883a-ddcb91d30c08",
         "oracleId": "d4870995-f434-4985-a921-1dc9556cee41",
