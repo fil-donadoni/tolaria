@@ -33,7 +33,8 @@ import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./oracle.fixture";
+import { oracleCard, parseContext } from "./oracle.fixture";
+import { readFrameChain } from "../grammar/shared/verbFrames";
 
 const SOUL_SHATTER: OracleCard = {
     oracleId: "615927c2-3fb0-4e64-a1a7-55fb56de1423",
@@ -217,65 +218,73 @@ describe("superlative edict — the frontier", () => {
 });
 
 describe("superlative edict — refusals (fail-closed, ADR 0105 § 2)", () => {
-    // [line, the span the refusal is attributed to]. The span says WHICH check
-    // refused — the sentence read as "no slot consumed the line" before the rule.
+    // [line, a fragment of the frame's reason]. Each line is attributed to
+    // the WHOLE member the `sacrifice` Verb Frame opened (issue #6630), so
+    // the Clause Family report groups it under `frame sacrifice`; the reason
+    // says WHICH check refused.
     it.each([
         // Out of scope: "least"/"lowest" print on no sole-gap card.
         [
             "Target opponent sacrifices a creature with the least power among creatures they control.",
-            "least",
+            '"least" is not a superlative',
         ],
         // A stat the grammar does not rank by.
         [
             "Target opponent sacrifices a creature with the greatest toughness among creatures they control.",
-            "toughness",
+            '"toughness" is not a stat',
         ],
         // Another player's pool, or the whole battlefield — not the engine's.
         [
             "Target opponent sacrifices a creature with the greatest power among creatures you control.",
-            "creatures you control",
+            '"creatures you control" is not a set',
         ],
         [
             "Target opponent sacrifices a creature with the greatest power among creatures on the battlefield.",
-            "creatures on the battlefield",
+            '"creatures on the battlefield" is not a set',
         ],
         // A pool that is NOT the candidates' own: ranking creatures and
         // planeswalkers, offering only creatures, would rank the wrong set.
         [
             "Target opponent sacrifices a creature with the greatest mana value among creatures and planeswalkers they control.",
-            "creatures and planeswalkers they control",
+            "is not the candidates' own permanent types",
         ],
         // A combat-role clause narrows the candidates but not the printed pool.
         [
             "Target opponent sacrifices an attacking creature with the greatest power among attacking creatures they control.",
-            "attacking creatures",
+            '"attacking creatures" is not a plural permanent type',
         ],
         // …and the converse: the candidates are narrowed to attackers but the
         // printed pool is every creature, which the engine would not rank.
         [
             "Target opponent sacrifices an attacking creature with the greatest power among creatures they control.",
-            "creatures they control",
+            "is not the candidates' own permanent types",
         ],
         // Power is a creature's characteristic; a pool that holds a planeswalker
         // has permanents with no power to rank (CR 208.3).
         [
             "Target opponent sacrifices a creature or planeswalker with the greatest power among creatures and planeswalkers they control.",
-            "power",
+            "only creatures can be ranked by power",
         ],
         // "two creatures with the greatest power" ranks each pick, not the pool once.
         [
             "Target opponent sacrifices two creatures with the greatest power among creatures they control.",
-            "two",
+            "a superlative selects ONE permanent",
         ],
         // Not a type noun at all.
         [
             "Target opponent sacrifices a creature with the greatest power among cards they control.",
-            "cards",
+            '"cards" is not a plural permanent type',
         ],
-    ])("%s", (line, span) => {
+    ])("%s", (line, reason) => {
         const card = sorcery(line);
         expect(compileCard(card).state).toBe("unparsed");
-        expect(refusedSpan(card)).toBe(span);
+        expect(refusedSpan(card)).toBe(line.slice(0, -1));
+        // WHICH check refused: the frame's own reason, read off the chain
+        // reader (the compile keeps the member as the span).
+        const chain = readFrameChain(line.slice(0, -1), parseContext());
+        expect(chain !== null && !chain.ok ? chain.reason : "").toContain(
+            reason
+        );
     });
 
     it("the plain edict is unchanged — no superlative field is invented", () => {

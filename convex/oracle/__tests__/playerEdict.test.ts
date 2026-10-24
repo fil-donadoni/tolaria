@@ -9,8 +9,9 @@
 //     the corpus prints (creature, land, attacking creature, creature or
 //     planeswalker, a counted "two creatures", the whole-permanent list).
 //  2. REFUSALS — the neighbours this rule must NOT read: a rider on the
-//     phrase, an X count, a second verb in the sentence, a selector the
-//     descriptor has no field for, a subject with no antecedent.
+//     phrase, a second verb in the sentence, a selector the descriptor has
+//     no field for, a subject with no antecedent; an X count the spell never
+//     announces is read and refused at the lowering.
 //  3. LOWERING — the chooser is the NAMED player, never the caster.
 //  4. BEHAVIOUR — the compiled scripts run through the real interpreter: the
 //     prompt belongs to the sacrificing player, a player with nothing to give
@@ -37,7 +38,8 @@ import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { OracleCard } from "../types";
-import { oracleCard } from "./oracle.fixture";
+import { oracleCard, parseContext } from "./oracle.fixture";
+import { readFrameChain } from "../grammar/shared/verbFrames";
 
 /** A corpus row, verbatim (`data/oracle-corpus.json.gz`). */
 function row(
@@ -391,29 +393,25 @@ describe("player edict — goldens (CR 701.21a, CR 101.4)", () => {
 });
 
 describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
-    // [line, the span the refusal is attributed to]. Asserting the span, not
-    // the message, is what says WHICH rule refused: "no slot consumed the
-    // line" is what every one of these lines read as before the rule existed.
+    // [line, a fragment of the frame's reason]. Each line is attributed to
+    // the WHOLE member the `sacrifice` Verb Frame opened (issue #6630): the
+    // frame owns the sentence it opens, so the Clause Family report groups
+    // the gap under `frame sacrifice`; the reason says WHICH clause refused.
     it.each([
         // A clause on the phrase the descriptor has no field for (Run Afoul).
         [
             "Target opponent sacrifices a creature of their choice with flying.",
             "creature of their choice with flying",
         ],
-        // A magnitude that is a fact about the cast (Devastating Dreams).
-        [
-            "Each player sacrifices X lands of their choice.",
-            "Each player sacrifices X lands of their choice",
-        ],
         // A second verb in the sentence (Geth's Verdict).
         [
             "Target player sacrifices a creature of their choice and loses 1 life.",
-            "Target player sacrifices a creature of their choice and loses 1 life",
+            "and loses 1 life",
         ],
         // A per-candidate stat bound is a filter field the edict has no slot for.
         [
             "Target opponent sacrifices a creature with power 3 or greater.",
-            "powerFilter",
+            '"powerFilter" is not expressible',
         ],
         // "attacking or blocking" is two roles; the filter reads one (Celestial Flare).
         [
@@ -424,22 +422,22 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
         // OR-list cannot say; only a printed "or" is read (Dystopia).
         [
             "Target opponent sacrifices a green white creature of their choice.",
-            "colors",
+            'need a printed "or"',
         ],
         // Nor does a type exclusion (Doomsday Confluence).
         [
             "Each player sacrifices a nonartifact creature of their choice.",
-            "excludeTypes",
+            '"excludeTypes" is not expressible',
         ],
         // "blocking" is a combat role the filter does not read: only "attacking".
         [
             "Target player sacrifices a blocking creature of their choice.",
-            "combatRole",
+            'only "attacking" is expressible',
         ],
         // A colour count beside a colour word is an AND no filter field says.
         [
             "Each player sacrifices a multicolored white permanent of their choice.",
-            "multicolored white permanent",
+            "colour count beside a colour adjective",
         ],
         // Two nouns, each with its own article: no single filter (Perilous Predicament).
         [
@@ -449,28 +447,58 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
         // A counted rider (Urborg Justice).
         [
             "Target opponent sacrifices a creature of their choice for each creature put into your graveyard from the battlefield this turn.",
-            "creature of their choice for each creature put into your graveyard from the battlefield this turn",
+            "for each creature put into your graveyard",
         ],
         // The noun disagrees with the count.
-        ["Target player sacrifices two creature of their choice.", "creature"],
-        ["Target player sacrifices a creatures of their choice.", "creatures"],
+        [
+            "Target player sacrifices two creature of their choice.",
+            '"two creature" disagrees in number',
+        ],
+        [
+            "Target player sacrifices a creatures of their choice.",
+            '"a creatures" disagrees in number',
+        ],
         // Clauses that would WIDEN the choice if dropped: the chooser is the
         // target, so "you control" read as "a creature" lets them give up one
         // of their own, and "tapped" / "Goblin" / "basic" narrow the pool the
         // Oracle text never narrowed to.
-        ["Target player sacrifices a creature you control.", "controller"],
+        [
+            "Target player sacrifices a creature you control.",
+            '"controller" is not expressible',
+        ],
         [
             "Target player sacrifices a creature an opponent controls.",
-            "controller",
+            '"controller" is not expressible',
         ],
-        ["Target player sacrifices a tapped creature.", "tapped"],
-        ["Target player sacrifices a Goblin.", "subtypes"],
-        ["Target player sacrifices a basic land.", "supertypes"],
+        [
+            "Target player sacrifices a tapped creature.",
+            '"tapped" is not expressible',
+        ],
+        ["Target player sacrifices a Goblin.", '"subtypes" is not expressible'],
+        [
+            "Target player sacrifices a basic land.",
+            '"supertypes" is not expressible',
+        ],
         // Only a permanent can be sacrificed (CR 701.21a).
-        ["Target player sacrifices an instant.", "types"],
-    ])("%s", (text, span) => {
+        [
+            "Target player sacrifices an instant.",
+            "only a permanent can be sacrificed",
+        ],
+    ])("%s", (text, reason) => {
         expect(refusal(sorcery(text))).toBe("no slot consumed the line");
-        expect(refusedSpan(sorcery(text))).toBe(span);
+        expect(refusedSpan(sorcery(text))).toBe(text.slice(0, -1));
+        // WHICH check refused: the frame's own reason, read off the chain
+        // reader (the compile keeps the member as the span).
+        const chain = readFrameChain(text.slice(0, -1), parseContext());
+        expect(chain !== null && !chain.ok ? chain.reason : "").toContain(
+            reason
+        );
+    });
+
+    it("an X count is read by the frame and refused by the lowering when the spell announces no {X} (Devastating Dreams, CR 107.3)", () => {
+        expect(
+            refusal(sorcery("Each player sacrifices X lands of their choice."))
+        ).toBe("an effect reads X but its source announces no {X} (CR 107.3)");
     });
 
     it('"that player" with no head naming one is refused, never guessed', () => {

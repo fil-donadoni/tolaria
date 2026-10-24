@@ -5,7 +5,7 @@
  *
  * A Verb Frame is ONE Effect Script Op spelled as Oracle text, its arguments
  * filled by the leaf sub-grammars (object descriptor, quantity, zone
- * reference) rather than by a table of whole printed sentences. Three frames
+ * reference) rather than by a table of whole printed sentences. Four frames
  * ship here, one per Op:
  *
  *  - `search`   — the `choice` Op over the controller's library:
@@ -27,6 +27,14 @@
  *                 instant tutors' "shuffle and put <pronoun> on top", whose
  *                 printed order (shuffle BEFORE the placement, or the shuffle
  *                 would bury the card) is kept as two frames.
+ *  - `sacrifice` — the `sacrifice` Op (CR 701.21a):
+ *                 "Sacrifice <quantity> <descriptor>" (the controller's own
+ *                 edict), "<player> sacrifices <quantity> <descriptor>[ of
+ *                 their choice]" (the named player's), "Sacrifice <this
+ *                 <type>|it>" (the source, no choice) and the "… unless you
+ *                 <payment>" rider on the source (CR 118.12a). Quantity,
+ *                 descriptor, player and payment are each the shared leaf
+ *                 sub-grammar's; the frame reads no word of them itself.
  *
  * The `moveZone` frame's OBJECT argument classes (issue #6631), each a
  * fixture in `verbFrames.test.ts`:
@@ -83,19 +91,38 @@ import { readNumberWord } from "./quantity";
 import type {
     CardType,
     EffectCardFilter,
+    EffectChoiceSuperlative,
     TargetRequirement,
 } from "../../../cards/types";
-import { fail, ok, type FailureTrace, type RuleResult } from "../../rule";
 import {
+    fail,
+    ok,
+    type FailureTrace,
+    type RuleContext,
+    type RuleResult,
+} from "../../rule";
+import { isSelfPhrase } from "./cost";
+import {
+    subjectRule,
+    type AmountIR,
+    type EffectSentenceIR,
+    type SubjectIR,
+} from "./effectClause";
+import { PLAYER_PHRASES, playerRefRule, type PlayerRefIR } from "./playerRef";
+import {
+    COLOR_OR_LIST,
     descriptorRule,
     librarySearchFilterFromDescriptor,
     opensTargetPhrase,
     ownPermanentChoiceFilterFromDescriptor,
+    sacrificeFilterFromDescriptor,
+    SUPERLATIVE_TAIL,
+    superlativeFromClause,
     zoneChoiceFilterFromDescriptor,
 } from "./targetFilter";
+import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { massSubjectRule } from "./massSubject";
-import { subjectRule, type SubjectIR } from "./effectClause";
 
 export const VERB_FRAME = "verb frame";
 
@@ -194,7 +221,49 @@ export type FrameIR =
            *  library the sentence before searched ("Then that player
            *  shuffles", folded by sentence assembly). */
           readonly player: "you" | "that-player";
+      }
+    | {
+          readonly frame: "sacrifice";
+          /** CR 701.21a — who sacrifices: the controller for the imperative
+           *  ("Sacrifice a creature"), the named player otherwise ("Target
+           *  player sacrifices …"). The pool is always their own permanents. */
+          readonly player: PlayerRefIR;
+          readonly object: SacrificedObjectIR;
+          /** CR 118.12a — "unless you <payment>": the controller may pay
+           *  instead, and the sacrifice happens only when they do not. Read
+           *  on the source (or the pronoun for it) only: the payer and the
+           *  owner of the loss are the same player. */
+          readonly unless?: UnlessPaymentIR;
       };
+
+/**
+ * CR 701.21a — what a `sacrifice` frame gives up: ONE named permanent (the
+ * source, or the pronoun for it — no choice to make), or the sacrificing
+ * player's CHOICE of permanents matching a descriptor.
+ */
+export type SacrificedObjectIR =
+    | { readonly kind: "named"; readonly subject: SubjectIR }
+    | {
+          readonly kind: "chosen";
+          readonly count: SacrificeCountIR;
+          readonly filter: EffectCardFilter;
+          /** CR 608.2h — "with the greatest power among creatures they
+           *  control": the pick narrows to the permanents tied for the
+           *  extreme stat. */
+          readonly superlative?: EffectChoiceSuperlative;
+          /** The printed "a creature" / "two lands", kept for the prompt. */
+          readonly phrase: string;
+      };
+
+/**
+ * The quantity classes the sacrifice frame reads: a printed count ("a",
+ * "two"), "X" (CR 107.3), "that many" (the amount the head carried — a
+ * damage head's, Phyrexian Negator) and "any number of" — a range the
+ * chooser sizes.
+ */
+export type SacrificeCountIR =
+    | Extract<AmountIR, { kind: "fixed" | "x" | "event-amount" }>
+    | { readonly kind: "any-number" };
 
 /**
  * One sentence read as frames. Deliberately WITHOUT a `kind`: the frame layer
@@ -210,6 +279,12 @@ export interface FrameChainIR {
     readonly frames: readonly FrameIR[];
     /** Opened by a sentence-initial "Then" (the ". Then" connector). */
     readonly continuation?: true;
+    /**
+     * CR 118.12 — the "If you do, <effect>." sentence behind the chain, folded
+     * in by `assembleSentences` (the `If you do` Composition Rule): the
+     * effect runs only on the evidence the chain's sacrifice left.
+     */
+    readonly then?: EffectSentenceIR;
 }
 
 export type FrameName = FrameIR["frame"];
@@ -229,6 +304,16 @@ export const VERB_FRAMES: readonly {
     {
         name: "shuffle",
         opens: /^(?:shuffle(?:$| and put )|(?:that|the) player shuffles\b)/i,
+    },
+    {
+        name: "sacrifice",
+        // The imperative, or a player reference the shared sub-grammar
+        // reads followed by the finite verb. The phrases are plain words,
+        // nothing to escape.
+        opens: new RegExp(
+            `^(?:sacrifice|(?:${PLAYER_PHRASES.join("|")}) sacrifices?) `,
+            "i"
+        ),
     },
 ];
 
@@ -759,6 +844,208 @@ function readMoveMember(
     });
 }
 
+/** CR 118.12a — where the sacrifice frame's payment rider begins. */
+const UNLESS = " unless ";
+/** CR 101.4 — "of their choice" names the chooser the edict already has
+ *  (the rule's own example, "Each player sacrifices a creature", has each
+ *  player choose). Read behind a player head only: the imperative has no
+ *  "their" to agree with. */
+const OF_THEIR_CHOICE = " of their choice";
+/** CR 107.3 / CR 120.3 — the quantity words that are not a printed count. */
+const ANY_NUMBER_OF = /^any number of (.+)$/;
+const THAT_MANY = /^that many (.+)$/;
+const X_OF = /^X (.+)$/;
+/** The two printed spellings of "not the source itself". */
+const ANOTHER = "another ";
+const OTHER_THAN = " other than ";
+/**
+ * "any number of" as a `choice` range: the chooser sizes the pick, so the
+ * ceiling is above any reachable battlefield and the floor is zero — the
+ * encoding the cost grammar's "Discard your hand" already uses for a count
+ * no board reaches (`cost.ts`).
+ */
+export const ANY_NUMBER_CEILING = 99;
+
+/**
+ * CR 701.21a — the object of a `sacrifice` frame. A NAMED permanent is the
+ * source (`{self}` / "this <noun>", the table `isSelfPhrase` keeps) or the
+ * pronoun for it ("it") — both the controller's own, so the sacrifice is
+ * legal by construction. "Enchanted creature" is NOT one: an Aura on an
+ * opponent's creature names a permanent its controller cannot sacrifice, and
+ * no corpus effect prints the form (the one printing is a cost). Anything
+ * else is read as "<quantity> <descriptor>": a CHOSEN set, the shared
+ * descriptor converted by `sacrificeFilterFromDescriptor`, which refuses
+ * every clause the filter cannot say rather than widening the pool.
+ */
+function readSacrificedObject(
+    text: string,
+    ctx: unknown
+): RuleResult<SacrificedObjectIR> {
+    if (isSelfPhrase(text))
+        return ok({ kind: "named" as const, subject: { kind: "self" } });
+    if (text === "it")
+        return ok({ kind: "named" as const, subject: { kind: "pronoun" } });
+    let count: SacrificeCountIR;
+    let noun: string;
+    // "another creature" / "a creature other than this creature": the pool
+    // is the chooser's permanents less the source itself — the filter's
+    // `excludeSource`, the one encoding the hand-written edicts write.
+    let excludeSource = false;
+    const anyNumber = text.match(ANY_NUMBER_OF);
+    const thatMany = text.match(THAT_MANY);
+    const x = text.match(X_OF);
+    if (text.startsWith(ANOTHER)) {
+        count = { kind: "fixed", value: 1 };
+        noun = text.slice(ANOTHER.length);
+        excludeSource = true;
+    } else if (anyNumber !== null) {
+        count = { kind: "any-number" };
+        noun = anyNumber[1]!;
+    } else if (thatMany !== null) {
+        count = { kind: "event-amount" };
+        noun = thatMany[1]!;
+    } else if (x !== null) {
+        count = { kind: "x" };
+        noun = x[1]!;
+    } else {
+        const at = text.indexOf(" ");
+        const n = at === -1 ? null : readNumberWord(text.slice(0, at));
+        if (n === null)
+            return fail(
+                `"${text}" is not an object the sacrifice frame reads (the source, "it", or "<quantity> <descriptor>")`,
+                text
+            );
+        count = { kind: "fixed", value: n };
+        noun = text.slice(at + 1);
+    }
+    const otherThan = noun.indexOf(OTHER_THAN);
+    if (otherThan !== -1) {
+        const excluded = noun.slice(otherThan + OTHER_THAN.length);
+        if (!isSelfPhrase(excluded))
+            return fail(
+                `"other than ${excluded}" excludes something that is not the source`,
+                excluded
+            );
+        noun = noun.slice(0, otherThan);
+        excludeSource = true;
+    }
+    const tail = SUPERLATIVE_TAIL.exec(noun);
+    const descriptor = descriptorRule.run(tail === null ? noun : tail[1]!, ctx);
+    if (!descriptor.ok) return descriptor;
+    // The noun's number is the quantity's: "a creature", "two creatures",
+    // "X lands", "any number of permanents".
+    const plural = count.kind !== "fixed" || count.value !== 1;
+    if ((descriptor.value.plural === true) !== plural)
+        return fail(`"${text}" disagrees in number`, noun);
+    const filter = sacrificeFilterFromDescriptor(
+        descriptor.value,
+        COLOR_OR_LIST.test(noun)
+    );
+    if (!filter.ok) return filter;
+    let superlative: EffectChoiceSuperlative | undefined;
+    if (tail !== null) {
+        // "two creatures with the greatest power" ranks each pick, not the
+        // pool once — no encoding, so refused rather than read as one.
+        if (count.kind !== "fixed" || count.value !== 1)
+            return fail("a superlative selects ONE permanent", text);
+        const read = superlativeFromClause(
+            tail[2]!,
+            tail[3]!,
+            tail[4]!,
+            filter.value,
+            ctx
+        );
+        if (!read.ok) return read;
+        superlative = read.value;
+    }
+    return ok({
+        kind: "chosen" as const,
+        count,
+        filter: excludeSource
+            ? { ...filter.value, excludeSource: true }
+            : filter.value,
+        ...(superlative === undefined ? {} : { superlative }),
+        phrase: text,
+    });
+}
+
+/**
+ * CR 701.21a — one `sacrifice` member: "sacrifice <object>" (the controller)
+ * or "<player> sacrifices <object>[ of their choice]" (the named player), with
+ * the CR 118.12a rider "unless you <payment>" on a named permanent. `null`
+ * when the member opens no sacrifice frame.
+ */
+function readSacrificeMember(
+    lower: string,
+    ctx: unknown
+): RuleResult<FrameIR> | null {
+    let player: PlayerRefIR;
+    let rest: string;
+    const imperative = lower.startsWith("sacrifice ");
+    if (imperative) {
+        player = { kind: "you" };
+        rest = lower.slice("sacrifice ".length);
+    } else {
+        const head = lower.match(/^(.+?) (sacrifices?) (.+)$/);
+        if (head === null) return null;
+        const ref = playerRefRule.run(head[1]!, ctx);
+        if (!ref.ok) return null;
+        // The verb agrees with its subject: "you sacrifice", "each player
+        // sacrifices" — a line that disagrees is one we have misread.
+        const plural = ref.value.kind === "you";
+        if ((head[2] === "sacrifice") !== plural)
+            return fail(
+                `"${head[1]} ${head[2]}" — the verb does not agree with its subject`,
+                lower
+            );
+        player = ref.value;
+        rest = head[3]!;
+    }
+    let unless: UnlessPaymentIR | undefined;
+    const unlessAt = rest.indexOf(UNLESS);
+    if (unlessAt !== -1) {
+        const rider = rest.slice(unlessAt + UNLESS.length);
+        // CR 118.12a — "[a player may do something else]": the payer this
+        // frame reads is the controller ("you"), who also owns the loss;
+        // "unless they pay" (Slow Motion) and "unless any player pays" (Icy
+        // Prison) are payer classes it does not declare, refused by name.
+        if (!rider.startsWith("you "))
+            return fail(
+                `"unless ${rider}" — only "unless you <payment>" is a rider the sacrifice frame reads`,
+                rider
+            );
+        const payment = readUnlessPayment(
+            rider.slice("you ".length),
+            ctx as RuleContext
+        );
+        if (!payment.ok) return payment;
+        unless = payment.value;
+        rest = rest.slice(0, unlessAt);
+    }
+    if (!imperative && rest.endsWith(OF_THEIR_CHOICE))
+        rest = rest.slice(0, -OF_THEIR_CHOICE.length);
+    const object = readSacrificedObject(rest, ctx);
+    if (!object.ok) return object;
+    // Only the source (or the pronoun for it) is sacrificed unless paid for;
+    // "sacrifice a creature unless …" is not a printed form.
+    if (unless !== undefined && object.value.kind !== "named")
+        return fail("only the source is sacrificed unless paid for", rest);
+    // CR 701.21a — a named permanent is the controller's to sacrifice; the
+    // player reference belongs to the edict ("target player sacrifices a
+    // creature"), never to "target player sacrifices it".
+    if (object.value.kind === "named" && player.kind !== "you")
+        return fail(
+            `"${rest}" is a named permanent — only its controller sacrifices it`,
+            rest
+        );
+    return ok({
+        frame: "sacrifice" as const,
+        player,
+        object: object.value,
+        ...(unless === undefined ? {} : { unless }),
+    });
+}
+
 /**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
@@ -894,6 +1181,29 @@ function readMember(
             frames: [{ frame: "shuffle", player: "that-player" }],
             referent,
         };
+    const sacrifice = readSacrificeMember(lower, ctx);
+    if (sacrifice !== null) {
+        // The refusal names the WHOLE member, whatever sub-grammar refused
+        // inside it: the gap keys the retired kinds' backlog issues claim
+        // stay where the refusal tables pin them (`playerEdict.test.ts`).
+        if (!sacrifice.ok) return { refused: sacrifice.reason };
+        // CR 608.2c — behind a find, "it" is the card the chain found (the
+        // nearest antecedent), which this frame does not read: the source's
+        // pronoun is the only "it" it sacrifices, so the member is refused
+        // rather than read as the source.
+        if (
+            referent !== null &&
+            sacrifice.value.frame === "sacrifice" &&
+            sacrifice.value.object.kind === "named" &&
+            sacrifice.value.object.subject.kind === "pronoun"
+        )
+            return {
+                refused: `"${member}" — "it" names the card an earlier frame found; the sacrifice frame reads only the source's pronoun`,
+            };
+        // A sacrifice produces no referent a later frame could name: the
+        // pronoun rule binds the LAST find, and this is not one.
+        return { frames: [sacrifice.value], referent };
+    }
     if (VERB_FRAMES[2]!.opens.test(lower))
         return { refused: `"${member}" is not a form of the frame it opens` };
     return null;
@@ -901,7 +1211,8 @@ function readMember(
 
 /**
  * Read a whole sentence as a frame chain. `null` when its first member opens
- * no frame (the sentence is the table's to read); a refusal when it opens one
+ * no frame (the sentence is the table's to read), or when a sacrifice-only
+ * chain meets a tail that is no frame (the `, then` rule's); a refusal when it opens one
  * and a member fails — attributed to THAT member, with the chain's progress
  * (how many members before it were read) so the deepest failure wins.
  */
@@ -941,12 +1252,22 @@ export function readFrameChain(
                     f.frame === "search"
             );
         const read = readMember(member, ctx, referent, lastSearch ?? null);
-        if (read === null)
+        if (read === null) {
+            // CR 608.2c — "Sacrifice a creature, then draw a card": a chain of
+            // sacrifice frames alone binds no pronoun a split could lose, so
+            // the sentence is handed back to the `, then` Composition Rule,
+            // which reads the head as this chain and the tail as the table's.
+            // The parse is the same either way (`sentenceRule` falls back to
+            // the `, then` read); what the hand-back changes is the gap's
+            // attribution — the table's for the tail, not this frame's.
+            if (i > 0 && frames.every((frame) => frame.frame === "sacrifice"))
+                return null;
             return refuse(
                 `"${member}" is not a verb frame this chain reads`,
                 member,
                 i
             );
+        }
         if ("refused" in read)
             return read.failure !== undefined &&
                 !read.failure.ok &&

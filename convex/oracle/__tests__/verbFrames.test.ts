@@ -1222,6 +1222,347 @@ describe("moveZone frame — object classes beyond the found card (issue #6631)"
     });
 });
 
+// ── the `sacrifice` frame (issue #6630, pilot 2) ─────────────────────────────
+//
+// One golden per ARGUMENT CLASS: the object (a named permanent — the source,
+// "it" — or "<quantity> <descriptor>"; "enchanted creature" is refused), the quantity
+// (a count, "X", "that many", "any number of"), the player (the imperative's
+// controller, "target player", "each player", "each opponent") and the CR
+// 118.12a rider. The classes the retired kinds read keep their own fixtures,
+// re-pinned byte for byte in `playerEdict.test.ts`, `superlativeEdict.test.ts`,
+// `sacrificeSource.test.ts`, `sacrificeUnless.test.ts` and
+// `handPutAndThatManySacrifice.test.ts` (lost = 0 by test); here are the
+// classes the frame ADDS, and a refusal per undeclared class.
+
+const edict = (
+    filter: object,
+    phrase: string,
+    count: unknown = 1,
+    player: unknown = "controller",
+    bind = "$sacrifice1"
+) => [
+    {
+        op: "choice",
+        kind: "sacrifice-permanents",
+        player,
+        zone: "battlefield",
+        filter,
+        count,
+        prompt: `Sacrifice ${phrase}.`,
+        bind,
+    },
+    { op: "sacrifice", permanents: { ref: bind } },
+];
+const EVERY_PERMANENT = {
+    type: [
+        "Artifact",
+        "Battle",
+        "Creature",
+        "Enchantment",
+        "Land",
+        "Planeswalker",
+    ],
+};
+const refusedSpan = (card: ReturnType<typeof oracleCard>) => {
+    const outcome = compileCard(card);
+    expect(outcome.state, card.oracleText).toBe("unparsed");
+    return outcome.state === "unparsed"
+        ? outcome.gaps[0]?.attribution?.span
+        : undefined;
+};
+const refusedPath = (card: ReturnType<typeof oracleCard>) => {
+    const outcome = compileCard(card);
+    return outcome.state === "unparsed"
+        ? outcome.gaps[0]?.attribution?.path
+        : undefined;
+};
+const horror = (name: string, oracleText: string) =>
+    oracleCard({
+        name,
+        manaCost: "{1}{B}",
+        typeLine: "Creature — Horror",
+        oracleText,
+        power: "2",
+        toughness: "2",
+    });
+
+describe("sacrifice frame — the object argument (CR 701.21a)", () => {
+    it("the imperative edict, 'Sacrifice a creature': the controller's own pick — Accursed Centaur, whole", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (row) => row.card.name === "Accursed Centaur"
+        )!;
+        expect(sortKeys(compiledDefinition(fixture.card))).toEqual(
+            sortKeys(fixture.expected)
+        );
+    });
+
+    it("a type disjunction: Dredge's 'a creature or land' is one filter, then the next sentence", () => {
+        const text = "Sacrifice a creature or land.\nDraw a card.";
+        expect(
+            compiledDefinition(
+                oracleCard({
+                    name: "Dredge",
+                    manaCost: "{B}",
+                    typeLine: "Instant",
+                    oracleText: text,
+                })
+            ).effects
+        ).toEqual([
+            ...edict({ type: ["Creature", "Land"] }, "a creature or land"),
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+    });
+
+    it("'nontoken' is the filter's isToken: false (CR 111.1) — Forbidden Ritual's first sentence", () => {
+        expect(
+            compiledDefinition(
+                sorcery("Probe", "{B}", "Sacrifice a nontoken permanent.")
+            ).effects
+        ).toEqual(
+            edict(
+                { ...EVERY_PERMANENT, isToken: false },
+                "a nontoken permanent"
+            )
+        );
+    });
+
+    it("'enchanted creature' is refused, even at an Aura's own site: an Aura on an opponent's creature names a permanent its controller cannot sacrifice (CR 701.21a)", () => {
+        const aura = oracleCard({
+            name: "Probe",
+            manaCost: "{B}",
+            typeLine: "Enchantment — Aura",
+            oracleText: "Enchant creature\n{B}: Sacrifice enchanted creature.",
+        });
+        expect(refusedSpan(aura)).toBe("Sacrifice enchanted creature");
+    });
+
+    it("the verb agrees with its subject, and 'of their choice' needs a player head: 'You sacrifices', 'Each player sacrifice', 'Sacrifice a creature of their choice' are refused", () => {
+        for (const text of [
+            "You sacrifices a creature.",
+            "Each player sacrifice a creature.",
+            "Sacrifice a creature of their choice.",
+        ])
+            expect(refusedSpan(sorcery("Probe", "{B}", text))).toBe(
+                text.slice(0, -1)
+            );
+    });
+
+    it("'another <descriptor>' and '<descriptor> other than this <noun>' exclude the source: Lord of the Pit's sentence; 'other than that creature' is refused", () => {
+        const def = compiledDefinition(
+            horror(
+                "Probe",
+                "At the beginning of your upkeep, sacrifice a creature other than this creature."
+            )
+        );
+        expect(def.compiledTriggeredAbilities?.[0]?.effects).toEqual(
+            edict(
+                { type: "Creature", excludeSource: true },
+                "a creature other than this creature"
+            )
+        );
+        expect(
+            compiledDefinition(
+                sorcery("Probe", "{B}", "Sacrifice another creature.")
+            ).effects
+        ).toEqual(
+            edict({ type: "Creature", excludeSource: true }, "another creature")
+        );
+        expect(
+            refusedSpan(
+                horror(
+                    "Probe",
+                    "At the beginning of your upkeep, sacrifice a creature other than that creature."
+                )
+            )
+        ).toBe("Sacrifice a creature other than that creature");
+    });
+
+    it("refuses an undeclared object class by name, the span the whole member: 'all …', 'two other …', a named card, 'half the creatures'", () => {
+        for (const text of [
+            "Sacrifice all creatures you control.",
+            "Sacrifice two other creatures.",
+            "Sacrifice a creature named Spitting Drake.",
+            "Target opponent sacrifices half the creatures they control of their choice.",
+        ]) {
+            const card = sorcery("Probe", "{B}", text);
+            expect(refusedSpan(card)).toBe(text.slice(0, -1));
+            expect(refusedPath(card)).toEqual(["effect clause", "verb frame"]);
+        }
+    });
+
+    it("a named permanent is its controller's to sacrifice: 'Target player sacrifices it' is refused", () => {
+        expect(
+            refusedSpan(sorcery("Probe", "{B}", "Target player sacrifices it."))
+        ).toBe("Target player sacrifices it");
+    });
+});
+
+describe("sacrifice frame — the quantity argument (CR 107.3, CR 120.3)", () => {
+    it("'X' under 'each player': Tectonic Break, whole — a golden lifts the runtime-sized pick out of quarantine", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (row) => row.card.name === "Tectonic Break"
+        )!;
+        const outcome = compileCard(fixture.card);
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "unparsed")
+            expect(sortKeys(outcome.definition)).toEqual(
+                sortKeys(fixture.expected)
+            );
+    });
+
+    it("'another' under 'you may … If you do': Brawl-Bash Ogre, whole — the golden lifts the runtime-binding gate out of quarantine", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (row) => row.card.name === "Brawl-Bash Ogre"
+        )!;
+        const outcome = compileCard(fixture.card);
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "unparsed")
+            expect(sortKeys(outcome.definition)).toEqual(
+                sortKeys(fixture.expected)
+            );
+    });
+
+    it("'any number of': a 0-up range the chooser sizes (Renounce's first sentence)", () => {
+        const outcome = compileCard(
+            sorcery("Probe", "{1}{W}", "Sacrifice any number of permanents.")
+        );
+        // No corpus card prints the form alone — every one counts "the
+        // permanents sacrificed this way" next, the next slice — so the
+        // form is a probe here and stays quarantined on a real card.
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state !== "unparsed")
+            expect(outcome.definition.effects).toEqual(
+                edict(EVERY_PERMANENT, "any number of permanents", {
+                    min: 0,
+                    max: 99,
+                })
+            );
+    });
+
+    it("a quantity and a noun that disagree in number are refused: 'two creature', 'X land', 'any number of creature'", () => {
+        for (const text of [
+            "Sacrifice two creature.",
+            "Sacrifice X land.",
+            "Sacrifice any number of creature.",
+        ])
+            expect(refusedSpan(sorcery("Probe", "{B}", text))).toBe(
+                text.slice(0, -1)
+            );
+    });
+});
+
+describe("sacrifice frame — the rider and the chain (CR 118.12a, CR 608.2c)", () => {
+    it("'unless you <payment>' on an edict, or with any payer but you, is refused: the rider spares a NAMED permanent", () => {
+        for (const text of [
+            "When this creature enters, sacrifice a creature unless you pay {2}.",
+            "When this creature enters, sacrifice it unless they pay {2}.",
+            "When this creature enters, sacrifice it unless any player pays {3}.",
+        ])
+            // The member is reported capitalised, as the sentence grammar
+            // sees it behind the head.
+            expect(refusedSpan(horror("Probe", text))).toBe(
+                "S" + text.slice("When this creature enters, s".length, -1)
+            );
+    });
+
+    it("an 'and' joining a clause the frame does not read refuses the member whole: Phyrexian War Beast", () => {
+        expect(
+            refusedSpan(
+                horror(
+                    "Phyrexian War Beast",
+                    "When this creature leaves the battlefield, sacrifice a land and this creature deals 1 damage to you."
+                )
+            )
+        ).toBe("Sacrifice a land and this creature deals 1 damage to you");
+    });
+
+    it("a sacrifice chain hands a non-frame tail back to the `, then` rule: 'Sacrifice a creature, then draw a card'", () => {
+        expect(
+            compiledDefinition(
+                sorcery(
+                    "Probe",
+                    "{B}",
+                    "Sacrifice a creature, then draw a card."
+                )
+            ).effects
+        ).toEqual([
+            ...edict({ type: "Creature" }, "a creature"),
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+    });
+
+    it("a comma inside the descriptor stays in the member — the chain splits on ', then' alone: Braids, Cabal Minion", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Braids, Cabal Minion",
+                manaCost: "{2}{B}{B}",
+                typeLine: "Legendary Creature — Human Minion",
+                oracleText:
+                    "At the beginning of each player's upkeep, that player sacrifices an artifact, creature, or land.",
+                power: "2",
+                toughness: "2",
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state !== "unparsed")
+            expect(
+                outcome.definition.compiledTriggeredAbilities?.[0]?.effects
+            ).toEqual(
+                edict(
+                    { type: ["Artifact", "Creature", "Land"] },
+                    "an artifact, creature, or land",
+                    1,
+                    { ref: "$event.activePlayerId" }
+                )
+            );
+    });
+
+    it("'it' behind a find is the card the chain found, not the source — the member is refused rather than read as the source (CR 608.2c)", () => {
+        // Before the referent check this compiled `ready` with
+        // `sacrifice` on `$source`: the wrong permanent, silently. A
+        // creature's trigger, not a sorcery: a spell has no source object
+        // for "it" and refuses at the lowering whatever the frame read.
+        const outcome = compileCard(
+            horror(
+                "Probe",
+                "When this creature enters, search your library for a creature card, put it onto the battlefield, then sacrifice it."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("the frame is a `, then` tail after a table head: Perilous Research, whole", () => {
+        const text = "Draw two cards, then sacrifice a permanent.";
+        expect(
+            compiledDefinition(
+                oracleCard({
+                    name: "Perilous Research",
+                    manaCost: "{1}{U}",
+                    typeLine: "Instant",
+                    oracleText: text,
+                })
+            ).effects
+        ).toEqual([
+            { op: "draw", player: "controller", count: 2 },
+            ...edict(EVERY_PERMANENT, "a permanent"),
+        ]);
+    });
+
+    it("a delayed 'Sacrifice it at the beginning of the next end step' stays the trigger kind's — the frame refuses, the table reads", () => {
+        const def = compiledDefinition(
+            sorcery(
+                "Probe",
+                "{B}",
+                "Create a 1/1 black Rat creature token. Sacrifice it at the beginning of the next end step."
+            )
+        );
+        expect(def.effects?.[1]).toMatchObject({
+            op: "delayedTrigger",
+            timing: "next-end-step",
+        });
+    });
+});
+
 describe("frameOf — the Clause Family head a span opens", () => {
     it("names the frame of a member or of a gap's unconsumed span, and nothing for the rest", () => {
         expect(frameOf("Search your library for a card named Avarax")).toBe(
@@ -1237,5 +1578,17 @@ describe("frameOf — the Clause Family head a span opens", () => {
         );
         expect(frameOf("Shuffle your graveyard into your library")).toBeNull();
         expect(frameOf("Whenever a Goblin you control attacks")).toBeNull();
+        // The sacrifice frame: the imperative, or a player reference the
+        // shared sub-grammar reads, with the verb — never a verb alone.
+        expect(frameOf("Sacrifice all creatures you control")).toBe(
+            "sacrifice"
+        );
+        expect(
+            frameOf("Each opponent sacrifices a creature of their choice")
+        ).toBe("sacrifice");
+        expect(frameOf("That creature's controller sacrifices a land")).toBe(
+            null
+        );
+        expect(frameOf("Whenever you sacrifice a creature")).toBeNull();
     });
 });

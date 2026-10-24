@@ -26,6 +26,7 @@ import type {
     Color,
     EffectCardFilter,
     EffectCountSpec,
+    EffectChoiceCount,
     EffectPlayerRef,
     EffectPredicate,
     EffectCaptureSource,
@@ -61,10 +62,11 @@ import {
     targetRequirementFromDescriptor,
     type DescriptorIR,
 } from "./grammar/shared/targetFilter";
-import type {
-    FrameChainIR,
-    FrameIR,
-    MoveObjectIR,
+import {
+    ANY_NUMBER_CEILING,
+    type FrameChainIR,
+    type FrameIR,
+    type MoveObjectIR,
 } from "./grammar/shared/verbFrames";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
@@ -4135,100 +4137,6 @@ function lowerSentenceBody(
                     then: [{ op: "sacrifice", target: { ref: "$source" } }],
                 },
             ]);
-        // CR 118.12a — "sacrifice it unless you <payment>" MEANS "you may pay;
-        // if you don't, sacrifice it": the `mayPay` + `if not` pair verbatim
-        // (Phyrexian Dreadnought). The payment is one `CostLegs` leg.
-        case "sacrifice-unless": {
-            const target = objectSelector(sentence.subject, slots, site);
-            if (!target.ok) return target;
-            const bind = walk.nextBind("may");
-            return lowered([
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    cost: lowerUnlessPayment(sentence.payment),
-                    prompt: unlessPaymentPrompt(
-                        sentence.payment,
-                        site.selfName
-                    ),
-                    bind,
-                },
-                {
-                    op: "if",
-                    predicate: { not: { binding: bind } },
-                    then: [{ op: "sacrifice", target: target.value }],
-                },
-            ]);
-        }
-        case "sacrifice-source": {
-            // CR 701.21a — the source is the permanent sacrificed. With an
-            // "If you do" behind it (CR 608.2c) the sacrifice binds what it
-            // moved; an empty bind (the source already gone) fails the gate.
-            const target = objectSelector(sentence.subject, slots, site);
-            if (!target.ok) return target;
-            if (sentence.then === undefined)
-                return lowered([{ op: "sacrifice", target: target.value }]);
-            const inner = gatedSentence(sentence.then, walk, site);
-            if (!inner.ok) return inner;
-            const bind = walk.nextBind("sacrificed");
-            return lowered([
-                { op: "sacrifice", target: target.value, bind },
-                {
-                    op: "if",
-                    predicate: {
-                        boundMatchesFilter: { ref: bind },
-                        filter: {},
-                    },
-                    then: inner.value,
-                },
-            ]);
-        }
-        case "sacrifice": {
-            // CR 701.21a — an edict: the sacrificing player CHOOSES among their
-            // own permanents, then those permanents are sacrificed. The pair is
-            // the one every hand-written edict writes (Innocent Blood, Liliana
-            // of the Veil), the choice raised for the player who sacrifices —
-            // never the caster. A player with no matching permanent gets no
-            // candidates, so neither the prompt nor the sacrifice happens
-            // (CR 101.3 — an impossible instruction is ignored).
-            const bind = walk.nextBind("sacrifice");
-            const count = lowerAmount(sentence.count, site);
-            if (!count.ok) return count;
-            const edict = (player: EffectPlayerRef): EffectOp[] => [
-                {
-                    op: "choice",
-                    kind: "sacrifice-permanents",
-                    player,
-                    zone: "battlefield",
-                    filter: sentence.filter,
-                    ...(sentence.superlative === undefined
-                        ? {}
-                        : { superlative: sentence.superlative }),
-                    count: count.value,
-                    prompt: `Sacrifice ${sentence.phrase}.`,
-                    bind,
-                },
-                { op: "sacrifice", permanents: { ref: bind } },
-            ];
-            // CR 101.4 — "each player": every player chooses in APNAP order,
-            // then all the picks are sacrificed together.
-            if (sentence.player.kind === "each-player")
-                return lowered([
-                    {
-                        op: "forEach",
-                        select: { set: "players" },
-                        simultaneous: true,
-                        effects: edict({ ref: "$each" }),
-                    },
-                ]);
-            // CR 102.2 — in a two-player game "each opponent" is the one
-            // other player, and the edict is one-sided exactly as printed.
-            if (sentence.player.kind === "each-opponent")
-                return lowered(edict("opponent"));
-            const player = playerRef(sentence.player, slots, site);
-            if (!player.ok) return player;
-            return lowered(edict(player.value));
-        }
         case "conjunction": {
             // CR 608.2c — the halves in the order printed, each through the
             // shared walk so a target announced in one is allocated once.
@@ -4977,6 +4885,12 @@ function lowerFrameChain(
     let found: string | null = null;
     for (const frame of sentence.frames) {
         switch (frame.frame) {
+            case "sacrifice": {
+                const lowered = lowerSacrificeFrame(frame, walk, site);
+                if (!lowered.ok) return lowered;
+                ops.push(...lowered.value);
+                break;
+            }
             case "search": {
                 const bind = walk.nextBind("found");
                 const statedQuality = Object.keys(frame.filter).length > 0;
@@ -5021,7 +4935,118 @@ function lowerFrameChain(
                 break;
         }
     }
-    return lowered(ops);
+    if (sentence.then === undefined) return lowered(ops);
+    // CR 118.12 — "If you do" behind the chain: the gated effect runs on the
+    // EVIDENCE the sacrifice left (the bind of the Op that moved something;
+    // an empty bind — the source already gone, nothing picked — fails the
+    // gate, CR 118.3), never on the instruction alone.
+    const inner = gatedSentence(sentence.then, walk, site);
+    if (!inner.ok) return inner;
+    const evidence = paidEvidence(ops, walk, "sacrificed");
+    if (evidence === null)
+        return unlowerable(
+            '"If you do" follows a chain that leaves no evidence it was done (CR 118.12)'
+        );
+    return lowered([
+        ...evidence.ops,
+        {
+            op: "if",
+            predicate: {
+                boundMatchesFilter: { ref: evidence.bind },
+                filter: {},
+            },
+            then: inner.value,
+        },
+    ]);
+}
+
+/**
+ * CR 701.21a — the `sacrifice` frame, one of two shapes:
+ *
+ *  - a NAMED permanent (the source, the pronoun for it): one `sacrifice` Op on the object selector; with the CR
+ *    118.12a rider, the `mayPay` + `if not` pair verbatim ("sacrifice it
+ *    unless you <payment>" MEANS "you may pay; if you don't, sacrifice it" —
+ *    Phyrexian Dreadnought), the payment one `CostLegs` leg;
+ *  - a CHOSEN set (an edict): the sacrificing player CHOOSES among their own
+ *    permanents, then those permanents are sacrificed — the pair every
+ *    hand-written edict writes (Innocent Blood, Liliana of the Veil), the
+ *    choice raised for the player who sacrifices, never the caster. A player
+ *    with no matching permanent gets no candidates, so neither the prompt nor
+ *    the sacrifice happens (CR 101.3 — an impossible instruction is ignored).
+ */
+function lowerSacrificeFrame(
+    frame: Extract<FrameIR, { frame: "sacrifice" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const slots = walk.targets;
+    if (frame.object.kind === "named") {
+        const target = objectSelector(frame.object.subject, slots, site);
+        if (!target.ok) return target;
+        if (frame.unless === undefined)
+            return lowered([{ op: "sacrifice", target: target.value }]);
+        const bind = walk.nextBind("may");
+        return lowered([
+            {
+                op: "mayPay",
+                player: "controller",
+                cost: lowerUnlessPayment(frame.unless),
+                prompt: unlessPaymentPrompt(frame.unless, site.selfName),
+                bind,
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: bind } },
+                then: [{ op: "sacrifice", target: target.value }],
+            },
+        ]);
+    }
+    const { object } = frame;
+    const bind = walk.nextBind("sacrifice");
+    // "any number of" — the chooser sizes the pick, zero up (CR 701.21a); a
+    // printed count, "X" or "that many" is the amount grammar's.
+    let count: EffectChoiceCount;
+    if (object.count.kind === "any-number")
+        count = { min: 0, max: ANY_NUMBER_CEILING };
+    else {
+        const amount = lowerAmount(object.count, site);
+        if (!amount.ok) return amount;
+        count = amount.value;
+    }
+    const edict = (player: EffectPlayerRef): EffectOp[] => [
+        {
+            op: "choice",
+            kind: "sacrifice-permanents",
+            player,
+            zone: "battlefield",
+            filter: object.filter,
+            ...(object.superlative === undefined
+                ? {}
+                : { superlative: object.superlative }),
+            count,
+            prompt: `Sacrifice ${object.phrase}.`,
+            bind,
+        },
+        { op: "sacrifice", permanents: { ref: bind } },
+    ];
+    // CR 101.4 — "each player": every player chooses in APNAP order, then all
+    // the picks are sacrificed together.
+    if (frame.player.kind === "each-player")
+        return lowered([
+            {
+                op: "forEach",
+                select: { set: "players" },
+                simultaneous: true,
+                effects: edict({ ref: "$each" }),
+            },
+        ]);
+    // CR 102.2 — in a two-player game "each opponent" is the one other
+    // player, and the edict is one-sided exactly as printed.
+    if (frame.player.kind === "each-opponent")
+        return lowered(edict("opponent"));
+    const player = playerRef(frame.player, slots, site);
+    if (!player.ok) return player;
+    return lowered(edict(player.value));
 }
 
 /**
@@ -5205,14 +5230,30 @@ function lowerMoveFrame(
  */
 function paidEvidence(
     ops: readonly EffectOp[],
-    walk: SentenceWalk
+    walk: SentenceWalk,
+    prefix = "did"
 ): { readonly ops: EffectOp[]; readonly bind: string } | null {
     for (let i = ops.length - 1; i >= 0; i--) {
         const op = ops[i]!;
         if (op.op !== "sacrifice" && op.op !== "moveZone") continue;
-        if (!("target" in op) && !("cards" in op)) continue;
+        // A picked set's sacrifice binds its FIRST pick (the interpreter's
+        // CR 608.2h snapshot) — nothing picked, nothing bound, gate shut.
+        // That is whole evidence only for a pick of exactly one: a count of
+        // two paid with one creature would still bind (CR 118.3 — a cost is
+        // paid in full or not at all), so a larger pick is no evidence here.
+        if ("permanents" in op && op.permanents !== undefined) {
+            const ref = (op.permanents as { ref?: string }).ref;
+            const pick = ops.find(
+                (candidate) =>
+                    candidate.op === "choice" &&
+                    (candidate as { bind?: string }).bind === ref
+            ) as { count?: unknown } | undefined;
+            // …and no earlier sacrifice stands in for it: the LAST cost is
+            // the one "If you do" asks about (CR 118.12), or nothing is.
+            if (pick?.count !== 1) return null;
+        } else if (!("target" in op) && !("cards" in op)) continue;
         const existing = (op as { bind?: string }).bind;
-        const bind = existing ?? walk.nextBind("did");
+        const bind = existing ?? walk.nextBind(prefix);
         const stamped = existing === undefined ? { ...op, bind } : op;
         return {
             ops: [...ops.slice(0, i), stamped as EffectOp, ...ops.slice(i + 1)],
