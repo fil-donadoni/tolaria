@@ -208,9 +208,18 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
     it("a stuck attempt (instance fix not defensible) still reaches the revert rung", () => {
         expect(
             ladderRung(
-                facts({ episode: withAttempt({ attempt: MAX_FIX_ATTEMPTS }) })
+                facts({
+                    episode: withAttempt({
+                        attempt: MAX_FIX_ATTEMPTS,
+                        note: "no reproduction at the tip",
+                    }),
+                })
             )
-        ).toMatchObject({ kind: "revert", culprit: CULPRIT });
+        ).toMatchObject({
+            kind: "revert",
+            culprit: CULPRIT,
+            why: expect.stringContaining("stuck"),
+        });
     });
 });
 
