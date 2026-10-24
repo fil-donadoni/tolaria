@@ -88,10 +88,18 @@ function fail(message: string, code = 1): never {
     process.exit(code);
 }
 
+/** `maxBuffer` well over the ~20 MB lockfile `lockfileAt("HEAD")` shows: the
+ *  1 MB default ENOBUFS it mid-blob (issue #6642). */
 function git(args: string[]): string {
-    const r = spawnSync("git", args, { cwd: ROOT, encoding: "utf8" });
+    const r = spawnSync("git", args, {
+        cwd: ROOT,
+        encoding: "utf8",
+        maxBuffer: 512 * 1024 * 1024,
+    });
     if (r.status !== 0)
-        fail(`git ${args.join(" ")} failed: ${(r.stderr ?? "").trim()}`);
+        fail(
+            `git ${args.join(" ")} failed: ${r.error?.message ?? (r.stderr ?? "").trim()}`
+        );
     return r.stdout.trim();
 }
 

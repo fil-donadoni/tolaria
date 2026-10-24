@@ -124,9 +124,16 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
  *  worktree pays its module graph once. */
 const GENERATOR_WALL_MS = 5 * 60_000;
 
+/** `maxBuffer` well over the ~20 MB lockfile: the 1 MB default made
+ *  `git show <tip>:<lockfile>` ENOBUFS mid-blob, and the truncated text
+ *  reached `parseLockfile` as "Unterminated string" after a 39-min sweep
+ *  (issue #6642). A child-process error (ENOBUFS, spawn failure) is a
+ *  failure: status null, its message on stderr, never a partial stdout. */
+const GIT_MAX_BUFFER = 512 * 1024 * 1024;
+
 function git(
     args: string[],
-    opts: { env?: NodeJS.ProcessEnv; timeout?: number } = {}
+    opts: { env?: NodeJS.ProcessEnv; timeout?: number; cwd?: string } = {}
 ): {
     status: number | null;
     stdout: string;
@@ -134,20 +141,53 @@ function git(
     timedOut: boolean;
 } {
     const r = spawnSync("git", args, {
-        cwd: ROOT,
+        cwd: opts.cwd ?? ROOT,
         encoding: "utf8",
         env: opts.env,
         timeout: opts.timeout,
         killSignal: "SIGKILL",
+        maxBuffer: GIT_MAX_BUFFER,
     });
+    const code = (r.error as { code?: string } | undefined)?.code;
+    if (r.error !== undefined && code !== "ETIMEDOUT")
+        return {
+            status: null,
+            stdout: "",
+            stderr: `git ${args[0]}: ${r.error.message}`,
+            timedOut: false,
+        };
     return {
         status: r.status,
         stdout: r.stdout ?? "",
         stderr: r.stderr ?? "",
-        timedOut:
-            r.error !== undefined &&
-            (r.error as { code?: string }).code === "ETIMEDOUT",
+        timedOut: code === "ETIMEDOUT",
     };
+}
+
+/** A file's whole text at `rev`, or why it could not be read — the
+ *  replay's moved-tip path parses two such blobs (issue #6642). */
+export function blobAt(
+    rev: string,
+    path: string,
+    cwd: string = ROOT
+): { ok: true; text: string } | { ok: false; why: string } {
+    const r = git(["show", `${rev}:${path}`], { cwd });
+    if (r.status !== 0)
+        return {
+            ok: false,
+            why: `git show ${rev.slice(0, 10)}:${path} failed: ${r.stderr.trim() || `exit ${r.status ?? "?"}`}`,
+        };
+    return { ok: true, text: r.stdout };
+}
+
+/** The lockfile as committed at `rev`, or `null` once the failure is said. */
+function lockfileAt(rev: string): Lockfile | null {
+    const blob = blobAt(rev, LOCKFILE_PATH);
+    if (!blob.ok) {
+        complain(blob.why);
+        return null;
+    }
+    return parseLockfile(blob.text);
 }
 
 const say = (line: string): void => console.log(`derive:sync: ${line}`);
@@ -514,9 +554,8 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
         return false;
     }
     if (!detachAt(newTip)) return false;
-    const base = parseLockfile(
-        git(["show", `${head}:${LOCKFILE_PATH}`]).stdout
-    );
+    const base = lockfileAt(head);
+    if (base === null) return false;
     const ours = readLockfile();
     const { lock, carried } = overlayBranchVerdicts(base, ours, swept);
     // The header: the swept Bot hash — every carried verdict was played
@@ -638,9 +677,8 @@ function replayBot(dryRun: boolean): number {
                 );
                 return 0;
             }
-            const tipBefore = parseLockfile(
-                git(["show", `${remoteTip}:${LOCKFILE_PATH}`]).stdout
-            );
+            const tipBefore = lockfileAt(remoteTip);
+            if (tipBefore === null) return 1;
             if (!moveToTip(head, remoteTip, swept)) return 1;
             head = remoteTip;
             swept = readLockfile();
