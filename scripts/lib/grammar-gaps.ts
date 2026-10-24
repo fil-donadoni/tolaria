@@ -487,6 +487,28 @@ function distinctGaps(
     return out;
 }
 
+/** One unparsed card with its distinct Grammar Gaps (key → gap, fragment). */
+export interface CardGaps {
+    readonly card: CardRow;
+    readonly gaps: ReadonlyMap<
+        string,
+        { readonly gap: GrammarGap; readonly fragment: FragmentRow }
+    >;
+}
+
+/**
+ * Every unparsed card with its distinct gaps — the raw material the frame
+ * backlog (`lib/frame-backlog.ts`) groups by its own classifier.
+ */
+export function unparsedCardGaps(
+    lock: Pick<Lockfile, "fragments" | "cards">
+): CardGaps[] {
+    const gaps = fragmentGaps(lock);
+    return lock.cards
+        .filter((c) => c.state === "unparsed" && c.gaps !== undefined)
+        .map((card) => ({ card, gaps: distinctGaps(card, gaps) }));
+}
+
 /** The oracle ids of the lockfile's cards in a format pool (`poolIn`). */
 export function poolTarget(
     lock: Pick<Lockfile, "cards">,
