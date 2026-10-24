@@ -10406,4 +10406,39 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.34a + CR 107.3a — "Flashback—{1}{U}, Exile X blue cards from your
+    // graveyard": the flashback mana rides `flashback`, the caster-announced
+    // exile count rides `additionalCosts.flashbackExileFromGraveyard`. Exhibits
+    // `lookDistribute` over a runtime X, a look amount the canned smoke
+    // scenario does not size.
+    {
+        rule: "flashback",
+        card: {
+            oracleId: "9196c8dc-bca6-4c35-949e-8c14a699a41d",
+            name: "Flash of Insight",
+            manaCost: "{X}{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Look at the top X cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.\nFlashback—{1}{U}, Exile X blue cards from your graveyard. (You may cast this card from your graveyard for its flashback cost, then exile it. You can't exile Flash of Insight to pay for its own flashback cost.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Flash of Insight",
+            types: ["Instant"],
+            manaCost: { X: "X", generic: 1, U: 1 },
+            oracleText:
+                "Look at the top X cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.\nFlashback—{1}{U}, Exile X blue cards from your graveyard. (You may cast this card from your graveyard for its flashback cost, then exile it. You can't exile Flash of Insight to pay for its own flashback cost.)",
+            effects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: { X: true },
+                    take: 1,
+                },
+            ],
+            additionalCosts: { flashbackExileFromGraveyard: { color: "U" } },
+            flashback: { X: 1, U: 1 },
+        },
+    },
 ]);
