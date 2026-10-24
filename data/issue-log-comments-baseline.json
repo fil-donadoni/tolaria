@@ -310,7 +310,6 @@
     "scripts/prints-sync.ts#3d53a7a5ae",
     "scripts/purge-identity-tests.ts#2498981475",
     "scripts/queue-plan.ts#fa98499ca5",
-    "scripts/seed-preset-deck.ts#bd5bc31472",
     "scripts/target-bot-reach.ts#2feb499a74",
     "scripts/ui-gate/attempt-console.ts#4edf4833a1",
     "scripts/ui-gate/index.ts#ea545a1fe8",

@@ -2,15 +2,14 @@
 /**
  * `bun run seed:preset <slug|--all> [--dry-run]` — register the 25 Premodern
  * metagame lists from `data/premodern-metagame-decks.json` as Preset Decks
- * (issue #3168; `--all` is issue #3254; the source is the metagame file since
- * issue #6675, ONE source for Preset Decks — where an archetype also had a
+ * (the source is the metagame file, issue #6675 — ONE source for Preset Decks — where an archetype also had a
  * hand-curated Tier 1 list the mtgtop8 list replaces it on the same slug).
  *
  * Why this exists: Preset Decks are rows in the `presetDecks` table (ADR 0033
  * / PRD #466), and the only writer was `createPreset`, driven by a human in
  * the Admin deck editor. `convex/decks.ts` points at a `seedPresets` migration
  * as the seed path; that migration appears in two comments and no code. So
- * "seed the Preset Decks" (issue #2719) named work with no tool, and six
+ * "seed the Preset Decks" named work with no tool, and six
  * 75-card lists were going to be retyped by hand.
  *
  * Two constraints inherited from `seed-scenario.ts`, for the same reasons:
