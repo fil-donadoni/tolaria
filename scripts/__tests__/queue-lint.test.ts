@@ -9,8 +9,10 @@ import {
     TARGET_FILES_FIX,
     TARGET_FILES_LABEL,
     unlinkedCardNames,
+    type BlockerBand,
     type LintableIssue,
 } from "../lib/queue-lint";
+import type { BoardPriority } from "../lib/queue-plan";
 import { parseTargetFiles } from "../lib/queue-plan";
 
 /**
@@ -642,5 +644,70 @@ describe("queue lint — dependency parity (issue #3794)", () => {
         expect(isBlocking(lintIssue(issue({ blockedByNative: [500] })))).toBe(
             false
         );
+    });
+});
+
+describe("queue lint — blocker band (issue #6709)", () => {
+    const blocker = (
+        number: number,
+        band: BoardPriority | null,
+        open = true
+    ): BlockerBand => ({ number, band, open });
+
+    const bandFinding = (band: BoardPriority | null, blockers: BlockerBand[]) =>
+        lintIssue(issue(), { bands: { band, blockers } }).find(
+            (f) => f.rule === "blocker-band"
+        );
+
+    it("a P1 issue blocked by an open P3 issue is flagged, naming blocker, bands and the fix", () => {
+        const f = bandFinding("P1", [blocker(4171, "P3")]);
+        expect(f).toBeDefined();
+        expect(f!.severity).toBe("advisory");
+        expect(f!.message).toContain("#4171 is P3");
+        expect(f!.message).toContain("P1");
+        expect(f!.fix).toContain("bun run issue:inherit-band 100 4171");
+        expect(f!.fix).toContain("detach #4171");
+    });
+
+    it("an unprioritised blocker is weaker than any named band", () => {
+        const f = bandFinding("P3", [blocker(7, null)]);
+        expect(f!.message).toContain("#7 is unprioritised");
+    });
+
+    it("equal bands, a stronger blocker and a closed blocker yield nothing", () => {
+        expect(bandFinding("P1", [blocker(7, "P1")])).toBeUndefined();
+        expect(bandFinding("P1", [blocker(7, "P0")])).toBeUndefined();
+        expect(bandFinding("P1", [blocker(7, "P3", false)])).toBeUndefined();
+    });
+
+    it("an issue with no band of its own has nothing to be weaker than", () => {
+        expect(bandFinding(null, [blocker(7, "P3")])).toBeUndefined();
+    });
+
+    it("lists only the weaker blockers among several", () => {
+        const f = bandFinding("P1", [
+            blocker(7, "P0"),
+            blocker(8, "P2"),
+            blocker(9, "P3", false),
+        ]);
+        expect(f!.message).toContain("#8 is P2");
+        expect(f!.message).not.toContain("#7 is");
+        expect(f!.message).not.toContain("#9 is");
+    });
+
+    it("is not run without band context (the planner pays no board read)", () => {
+        expect(
+            lintIssue(issue()).find((f) => f.rule === "blocker-band")
+        ).toBeUndefined();
+    });
+
+    it("is never blocking", () => {
+        expect(
+            isBlocking(
+                lintIssue(issue(), {
+                    bands: { band: "P0", blockers: [blocker(7, "P3")] },
+                })
+            )
+        ).toBe(false);
     });
 });
