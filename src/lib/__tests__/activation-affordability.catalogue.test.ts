@@ -68,6 +68,7 @@ type Shape =
     | "loyalty"
     | "tapOtherFilter"
     | "sacrificeFilter"
+    | "returnToHandFilter"
     | "requiresAttackedThisTurn"
     | "activationCondition";
 
@@ -375,6 +376,10 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // viewer's own battlefield — the "new cost shape pays the entry fee once"
     // this sweep is built around (issue #1951 review).
     if (a.cost.sacrificeFilter) out.push("sacrificeFilter");
+    // CR 602.1a — "return a permanent matching <filter> you control to its
+    // owner's hand" (Wirewood Symbiote's "Return an Elf you control") rides
+    // the same gate and the same fixture as `sacrificeFilter` (`giveUpLegOf`).
+    if (a.cost.returnToHandFilter) out.push("returnToHandFilter");
     // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
     // attacked this turn" is an ACTIVATION-TIMING gate rather than a cost leg,
     // but it lands on the same `getStackAbilities` surface-vs-hide contract
@@ -389,6 +394,34 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // gate as a `canActivate` closure, which `skipReason` can only skip.
     if (a.activationCondition) out.push("activationCondition");
     return out;
+}
+
+/** CR 602.1a / 118.3 — the ability's FILTERED give-up leg (sacrifice or
+ *  return-to-hand) as one record, so every fixture branch below builds and
+ *  breaks both shapes the same way. Restated here rather than read off the
+ *  engine's `permanentGiveUpCostLegs`, for the reason `holds` below gives. */
+function giveUpLegOf(a: ActivatedAbility):
+    | {
+          shape: "sacrificeFilter" | "returnToHandFilter";
+          filter: PermanentFilter;
+          count: number;
+      }
+    | undefined {
+    if (a.cost.sacrificeFilter) {
+        return {
+            shape: "sacrificeFilter",
+            filter: a.cost.sacrificeFilter,
+            count: a.cost.sacrificeFilterCount ?? 1,
+        };
+    }
+    if (a.cost.returnToHandFilter) {
+        return {
+            shape: "returnToHandFilter",
+            filter: a.cost.returnToHandFilter,
+            count: 1,
+        };
+    }
+    return undefined;
 }
 
 /** CR 107 — number comparison, restated here ON PURPOSE rather than imported:
@@ -462,6 +495,7 @@ function isManaMenuGated(a: ActivatedAbility): boolean {
         // (`canPayFilteredGiveUpCost`): before that they were unpayable, so
         // withholding the entry would have hidden the only way to find out.
         !a.cost.sacrificeFilter &&
+        !a.cost.returnToHandFilter &&
         !a.cost.discardFilter
     ) {
         return false;
@@ -482,7 +516,8 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
     ) {
         return "no catalogue creature matches the tapOtherFilter";
     }
-    if (a.cost.sacrificeFilter) {
+    const giveUp = giveUpLegOf(a);
+    if (giveUp) {
         // A real catalogue match is preferred (`findMatchingAnyPermanentCardId`),
         // but its absence is no longer a skip: `syntheticSacrificeFixture`
         // covers a filter with no backing card definition (Caribou Range's
@@ -492,17 +527,17 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
         // isToken) is the one case still worth a skip rather than a false
         // assertion.
         if (
-            findMatchingAnyPermanentCardId(a.cost.sacrificeFilter) === null &&
+            findMatchingAnyPermanentCardId(giveUp.filter) === null &&
             !matchesPermanentFilter(
                 syntheticSacrificeFixture(
                     "synthetic-probe",
-                    a.cost.sacrificeFilter
+                    giveUp.filter
                 ) as unknown as Parameters<typeof matchesPermanentFilter>[0],
-                a.cost.sacrificeFilter,
+                giveUp.filter,
                 { selfControllerId: VIEWER, selfInstanceId: SOURCE_ID }
             )
         ) {
-            return "no catalogue permanent (real or synthetic) matches the sacrificeFilter";
+            return `no catalogue permanent (real or synthetic) matches the ${giveUp.shape}`;
         }
         // Self-referential sacrifice (Thopter Foundry's "sacrifice a nontoken
         // artifact" on an artifact source): the ability's OWN source is
@@ -540,11 +575,11 @@ function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
                     // Caribou tokens it made) instead of masking the check.
                     isToken: false,
                 },
-                a.cost.sacrificeFilter,
+                giveUp.filter,
                 { selfControllerId: VIEWER, selfInstanceId: "self-probe" }
             )
         ) {
-            return "sacrificeFilter self-matches the ability's own source";
+            return `${giveUp.shape} self-matches the ability's own source`;
         }
     }
     if (a.getTargetRequirement) return "getTargetRequirement predicate";
@@ -588,6 +623,7 @@ for (const def of getAllCards()) {
                   (s) =>
                       s === "tapOtherFilter" ||
                       s === "sacrificeFilter" ||
+                      s === "returnToHandFilter" ||
                       s === "discardFilter"
               )
             : shapesOf(a);
@@ -727,13 +763,12 @@ function env(c: Case, broken: boolean) {
     // one-short discipline `tapOtherFilter` uses, and for a single-permanent
     // cost it degenerates to removing the only candidate.
     const sacrificeHelpers: CardInstance[] = [];
-    if (ability.cost.sacrificeFilter) {
-        const matchId = findMatchingAnyPermanentCardId(
-            ability.cost.sacrificeFilter
-        );
-        const sacNeeded = ability.cost.sacrificeFilterCount ?? 1;
+    const giveUp = giveUpLegOf(ability);
+    if (giveUp) {
+        const matchId = findMatchingAnyPermanentCardId(giveUp.filter);
+        const sacNeeded = giveUp.count;
         const sacCount =
-            broken && shape === "sacrificeFilter" ? sacNeeded - 1 : sacNeeded;
+            broken && shape === giveUp.shape ? sacNeeded - 1 : sacNeeded;
         for (let i = 0; i < sacCount; i++) {
             if (matchId) {
                 const helperDef = getAllCards().find((d) => d.id === matchId)!;
@@ -747,17 +782,14 @@ function env(c: Case, broken: boolean) {
                     // needs `isToken: true` here; the common "Sacrifice a
                     // Zombie"/"an artifact" shape needs `false`, matching a
                     // normally-cast permanent).
-                    isToken: ability.cost.sacrificeFilter.isToken ?? false,
+                    isToken: giveUp.filter.isToken ?? false,
                 });
             } else {
                 // No backing catalogue definition (Caribou Range's
                 // TOKEN-ONLY "Caribou" subtype) — the synthetic fallback,
                 // verified satisfiable by `skipReason` before this point.
                 sacrificeHelpers.push(
-                    syntheticSacrificeFixture(
-                        `sac${i}`,
-                        ability.cost.sacrificeFilter
-                    )
+                    syntheticSacrificeFixture(`sac${i}`, giveUp.filter)
                 );
             }
         }
@@ -775,10 +807,10 @@ function env(c: Case, broken: boolean) {
     // player fallback satisfies without the dummy at all) — so it is safe to
     // drop exactly the sacrificed type(s) from the dummy without breaking
     // its OWN targeting role.
-    const dummySacrificeTypes = ability.cost.sacrificeFilter?.types
-        ? Array.isArray(ability.cost.sacrificeFilter.types)
-            ? ability.cost.sacrificeFilter.types
-            : [ability.cost.sacrificeFilter.types]
+    const dummySacrificeTypes = giveUp?.filter.types
+        ? Array.isArray(giveUp.filter.types)
+            ? giveUp.filter.types
+            : [giveUp.filter.types]
         : [];
     // CR 113.6 (issue #2235) — a graveyard-source ability's SOURCE sits in the
     // graveyard, never the battlefield (Whiteout, Ashen Ghoul): stamp its zone

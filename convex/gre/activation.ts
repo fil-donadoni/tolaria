@@ -54,6 +54,7 @@ import type { CastFromZone } from "./castCost";
 import {
     isTapLockedBySummoningSickness,
     manaValue,
+    permanentGiveUpCostLegs,
     stackManaValue,
 } from "./constants";
 import { findEscapeCastable } from "./escape";
@@ -632,35 +633,48 @@ export function assertDiscardFilterCostAffordable(
     }
 }
 
-/** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" is unpayable
- *  unless the activator controls enough matching permanents. The twin of
+/** CR 602.1 / 118.3 — a filtered give-up-a-permanent leg ("Sacrifice
+ *  a permanent matching <filter>", "Return a permanent matching <filter> you
+ *  control to its owner's hand") is unpayable unless the activator controls
+ *  enough matching permanents. The twin of
  *  {@link assertDiscardFilterCostAffordable}, extracted for the same reason
- *  (issue #3455). Throws; no-op when the ability has no such leg. */
-export function assertSacrificeFilterCostAffordable(
+ *  (issue #3455): the stack path, the NON-STACK mana path and the targeted
+ *  `finalizeTargetSelection` path all gate on this one predicate. Which keys
+ *  are such legs, and how many each owes, is `permanentGiveUpCostLegs`'s.
+ *  Throws; no-op when the ability has no such leg. */
+export function assertPermanentGiveUpCostAffordable(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     ability: ActivatedAbility
 ): void {
-    const leg = ability.cost.sacrificeFilter;
-    if (!leg) return;
-    const candidates = player.battlefield.filter((c) =>
-        // Layered view, matching `sacrificeCandidates` (issue #1209).
-        matchesPermanentFilter(effectivePermanentView(state, c), leg, {
-            selfControllerId: player.id,
-            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
-            // source is not a legal payment for its own cost.
-            selfInstanceId: card.id,
-            // "Sacrifice enchanted creature" (`hostOfSource`
-            // fails closed without the host).
-            selfAttachedToId: card.attachedTo,
-            supertypesOf: liveSupertypesOf,
-        })
-    );
-    // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland permanents"
-    // (Bolas's Citadel): the gate is a COUNT, not mere existence.
-    if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-        throw new Error("No legal permanent to pay the sacrifice cost");
+    for (const leg of permanentGiveUpCostLegs(ability.cost)) {
+        const candidates = player.battlefield.filter((c) =>
+            // Layered view, matching `sacrificeCandidates` (issue #1209).
+            matchesPermanentFilter(
+                effectivePermanentView(state, c),
+                leg.filter,
+                {
+                    selfControllerId: player.id,
+                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
+                    // source is not a legal payment for its own cost.
+                    selfInstanceId: card.id,
+                    // "Sacrifice enchanted creature" (`hostOfSource` fails closed
+                    // without the host).
+                    selfAttachedToId: card.attachedTo,
+                    supertypesOf: liveSupertypesOf,
+                }
+            )
+        );
+        // CR 602.1 / 118.3 — "Sacrifice TEN nonland permanents" (Bolas's
+        // Citadel): the gate is a COUNT, not mere existence.
+        if (candidates.length < leg.count) {
+            throw new Error(
+                leg.action === "return"
+                    ? "No legal permanent to pay the return-to-hand cost"
+                    : "No legal permanent to pay the sacrifice cost"
+            );
+        }
     }
 }
 
@@ -2601,11 +2615,12 @@ export function activateAbilityOnState(
     if (ability.cost.life !== undefined && player.life < ability.cost.life) {
         throw new Error("Not enough life");
     }
-    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
+    // CR 602.1 / 118.3 — "sacrifice a permanent matching <filter>" / "return a
+    // permanent matching <filter> you control to its owner's hand": the
     // activation is illegal if no matching permanent is on the activating
     // player's battlefield. Validated up-front so we never enter a
     // pendingActivation that can't be paid.
-    assertSacrificeFilterCostAffordable(state, player, card, ability);
+    assertPermanentGiveUpCostAffordable(state, player, card, ability);
     // CR 702.49a — Ninjutsu's "Return an unblocked attacking creature you
     // control to its owner's hand" leg: illegal unless such a creature exists.
     // This gate is ALSO the keyword's timing rule — a creature is neither
