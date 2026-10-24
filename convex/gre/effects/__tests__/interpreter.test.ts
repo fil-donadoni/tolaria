@@ -25879,6 +25879,8 @@ registerTokenDefinition({
     types: ["Land"],
 });
 
+const SIRENS_CALL_ID = "d992b336-3b6e-43e1-8662-d85664349b44";
+
 describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () => {
     // The permanent per-Op test (new-Op regime). Shape: discard a card, then
     // offer a FREE cast of it FROM THE GRAVEYARD as part of THIS resolution —
@@ -26145,6 +26147,52 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
         expect(
             state.players[0].graveyard.some((c) => c.id === "cdrBlizzard")
         ).toBe(false);
+    });
+
+    // --- A card's OWN phase restriction binds a cast during resolution -------
+    // CR 608.2g waives only timing restrictions based on the card's TYPE; the
+    // card-specific "Cast this spell only during the beginning of combat step
+    // or earlier" (Siren's Call) still binds (CR 117.1b, issue #2177).
+    function sirensCallCdrState(phase: GameState["phase"]): GameState {
+        const call = makeInstance(getDefinition(SIRENS_CALL_ID).id, {
+            id: "cdrCall",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        // Siren's Call is also "only during an opponent's turn": the OPPONENT
+        // is active, so only the phase decides.
+        return makeState({
+            phase,
+            activePlayerId: "p2",
+            players: [makePlayer("p1", { hand: [call] }), makePlayer("p2")],
+        });
+    }
+
+    it("passes silently over a card whose own phase restriction is violated — no Cast/Decline offered (CR 117.1b, issue #2177)", () => {
+        const id = cdrScript("test-op-cdr-phase-restriction-violated");
+        const state = sirensCallCdrState("POSTCOMBAT_MAIN");
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        answer(state, ["cdrCall"]);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === "cdrCall")).toBe(
+            true
+        );
+    });
+
+    it("offers and casts the same card inside its phase window", () => {
+        const id = cdrScript("test-op-cdr-phase-restriction-met");
+        const state = sirensCallCdrState("PRECOMBAT_MAIN");
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        answer(state, ["cdrCall"]);
+
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+        answer(state, ["cast"]);
+        expect(state.stack.some((s) => s.id === "cdrCall")).toBe(true);
     });
 
     // (The commit primitive `castChosenSpell` carries the same gate

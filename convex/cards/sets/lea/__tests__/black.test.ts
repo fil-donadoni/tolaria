@@ -65,6 +65,8 @@ const demonicHordes = getDefinition("6c9bb8b1-fb79-4b99-ba09-c6e6c860de50");
 const demonicTutor = getDefinition("711d4d54-5520-4de8-9b93-79902ed8e562");
 const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
 const fear = getDefinition("0cd927be-e63f-4371-a1d8-7a0489cb187e");
+const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const sirensCall = getDefinition("d992b336-3b6e-43e1-8662-d85664349b44");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const gaeasBalance = getDefinition("f1ffc5f8-ff1c-4733-b046-8679fa16371b");
@@ -3915,6 +3917,86 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         const onStack = state.stack.find((s) => s.id === "opp-blizzard");
         expect(onStack).toBeDefined();
         expect(onStack!.castById).toBe("p2"); // the opponent's spell (CR 601)
+    });
+
+    // --- A card's OWN phase restriction binds the controlled cast ----------
+    // CR 608.2g waives only the timing restrictions based on the card's TYPE;
+    // Siren's Call's "Cast this spell only during the beginning of combat
+    // step or earlier" is card-specific (CR 117.1b, issue #2177). Word of
+    // Command has no eligibility predicate, so `castChosenSpell` is the
+    // authoritative seam.
+    function wocPhaseState(
+        cardId: string,
+        landId: string,
+        phase: GameState["phase"],
+        lands = 1
+    ): GameState {
+        const spell = makeInstance(cardId, {
+            id: "opp-phase",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const battlefield = Array.from({ length: lands }, (_, i) =>
+            makeInstance(landId, {
+                id: `opp-phase-land-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            })
+        );
+        return makeState({
+            phase,
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [spell], battlefield }),
+            ],
+        });
+    }
+
+    it("card-specific phase restriction violated -> not played (CR 117.1b / 601.3a, issue #2177)", () => {
+        const state = wocPhaseState(
+            sirensCall.id,
+            island.id,
+            "POSTCOMBAT_MAIN"
+        );
+        castWordOfCommand(state);
+        submitPick(state, "opp-phase");
+
+        expect(state.stack.some((s) => s.id === "opp-phase")).toBe(false);
+        expect(state.players[1].hand.some((c) => c.id === "opp-phase")).toBe(
+            true
+        );
+        expect(state.players[1].battlefield.every((c) => !c.isTapped)).toBe(
+            true
+        );
+    });
+
+    it("card-specific phase restriction satisfied -> played (the gate is a window, not a blanket refusal)", () => {
+        const state = wocPhaseState(sirensCall.id, island.id, "PRECOMBAT_MAIN");
+        castWordOfCommand(state);
+        submitPick(state, "opp-phase");
+
+        expect(state.stack.find((s) => s.id === "opp-phase")?.castById).toBe(
+            "p2"
+        );
+    });
+
+    it("type-based sorcery-speed timing stays WAIVED: a Sorcery is cast outside a main phase (CR 608.2g)", () => {
+        const state = wocPhaseState(
+            fireball.id,
+            mountain.id,
+            "DECLARE_BLOCKERS",
+            2
+        );
+        castWordOfCommand(state);
+        submitPick(state, "opp-phase");
+        submitOption(state, "1");
+        submitTarget(state, "p1");
+
+        expect(state.stack.find((s) => s.id === "opp-phase")?.castById).toBe(
+            "p2"
+        );
     });
 
     it("modal spell: controller chooses the mode; the chosen mode's target/resolution apply (CR 700.2c/d)", () => {

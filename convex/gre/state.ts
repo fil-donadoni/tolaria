@@ -160,6 +160,7 @@ import {
     getExtraLandDrops,
     getLegalTargets,
     NO_TARGETING_SOURCE,
+    passesCastPhaseRestriction,
     raiseTriggerTargetSelection,
     targetingSourceFromCard,
     protectionSourceFromTargeting,
@@ -18302,6 +18303,11 @@ export function buildSpellContext(
             // is rules text on the printed card no longer exists once it is
             // cast face down. `turnFaceDown` is run on a throwaway shallow
             // copy so the real card is untouched when the gate refuses.
+            //
+            // Issue #2177 — the card's own `castPhaseRestriction` is NOT
+            // re-checked here: it is rules text of the printed card, which a
+            // face-down spell no longer has (CR 708.2), the same reason the
+            // gate above reads the face-down characteristics.
             const faceDownProbe: CardInstanceState = { ...inHand };
             turnFaceDown(state, faceDownProbe, "cast-face-down");
             if (
@@ -18466,7 +18472,14 @@ export function buildSpellContext(
             // of letting a forbidden cast through. One shared function, two
             // call sites — the announce/enforce split `getLegalActions` and
             // the cast mutation already use.
-            return castProhibitionReason(playerId, found, state) === undefined;
+            // CR 117.1b / 601.3a — the card's OWN phase/turn restriction ("Cast
+            // this spell only before the combat damage step", Berserk) is not
+            // a timing restriction based on the card's TYPE, so CR 608.2g does
+            // not waive it. `castChosenSpell` re-checks it authoritatively.
+            return (
+                passesCastPhaseRestriction(state, found) &&
+                castProhibitionReason(playerId, found, state) === undefined
+            );
         },
         getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
             // CR 116.2a / 305 (issue #1961) — the LAND twin of
@@ -18709,6 +18722,15 @@ export function buildSpellContext(
                 castProhibitionReason(controllerId, handCard, state) !==
                 undefined
             ) {
+                return false; // forbidden — not played (CR 601.3a / 117.3)
+            }
+
+            // CR 117.1b / 601.3a (issue #2177) — the card's OWN phase / turn
+            // restriction is card-specific, not a timing restriction based on
+            // the card's TYPE, so the CR 608.2g waiver does not reach it. The
+            // restriction is evaluated at the CASTER's turn position, the same
+            // `passesCastPhaseRestriction` `getLegalActions` calls.
+            if (!passesCastPhaseRestriction(state, handCard)) {
                 return false; // forbidden — not played (CR 601.3a / 117.3)
             }
 

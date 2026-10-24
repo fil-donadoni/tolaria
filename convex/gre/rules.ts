@@ -2879,7 +2879,7 @@ export function genericManaShortfall(
 /** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk
  *  "cast only before the combat damage step"). Returns true when the card
  *  either has no restriction or the current phase is in its allow-list. */
-function passesCastPhaseRestriction(
+export function passesCastPhaseRestriction(
     state: GameState,
     card: CardInstanceState
 ): boolean {
