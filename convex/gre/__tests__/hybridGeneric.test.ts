@@ -157,6 +157,20 @@ describe("monocolour hybrid — leg solver and cast gate (CR 107.4e)", () => {
         });
     });
 
+    it("takes the colour leg when both legs are affordable (auto-tap picks the cheaper)", () => {
+        const { card, player, state } = handState(one, { W: 1, R: 2 });
+        withTemporaryDefinition(variant(one), () => {
+            const folded = solveHybridGenericLegs(
+                player,
+                card,
+                one,
+                undefined,
+                state
+            );
+            expect(folded && normalizeManaCost(folded)).toEqual({ W: 1 });
+        });
+    });
+
     it("decides the legs together with the generic tail", () => {
         // {1}{2/W} with exactly {W}{R}: the colour leg + the tail is payable,
         // the generic leg (3 mana in total) is not.
