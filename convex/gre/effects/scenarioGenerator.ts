@@ -624,6 +624,10 @@ interface Requirements {
     /** Counter types an Op of the same script puts on `$source` — a read of
      *  one of them would see a count the static prediction cannot size. */
     sourceCounterWrites: Set<string>;
+    /** Names a `delayedTrigger` captures for its payload (CR 603.7): the
+     *  payload's refs to them are bound at creation, so they are not runtime
+     *  bindings of the canned scenario. Filled by the nested walk only. */
+    capturedRefs: Set<string>;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -694,6 +698,7 @@ function analyseOwnArguments(op: EffectOp, req: Requirements): void {
         }
         const record = node as Record<string, unknown>;
         if (typeof record.ref === "string") {
+            if (req.capturedRefs.has(record.ref)) return;
             if (record.ref === "$source" || record.ref === "$each")
                 skipBecause(
                     req,
@@ -713,6 +718,10 @@ function analyseOwnArguments(op: EffectOp, req: Requirements): void {
     };
     for (const [key, value] of Object.entries(op)) {
         if (key === "op" || isEffectOp(value)) continue;
+        // CR 603.7: a delayed trigger's `capture` only records the objects its
+        // future body refers to; nothing acts on them at resolution, so a
+        // `$source` there is not a subject the canned scenario must seed.
+        if (op.op === "delayedTrigger" && key === "capture") continue;
         walk(value, key);
     }
 }
@@ -4144,7 +4153,14 @@ export function planSmokeTest(
         // container (`mayPay` + `if`) hide a body acting on `$source`. That is
         // the very fail-open this walk exists to close (ADR 0105 § 7.1).
         const nested = emptyRequirements(SPELL_HOST);
-        for (const op of nestedOps(effects)) analyseOpFully(op, nested);
+        const inner = nestedOps(effects);
+        for (const op of [...effects, ...inner])
+            if (op.op === "delayedTrigger")
+                for (const [key, value] of Object.entries(op))
+                    if (key === "capture" && typeof value === "object")
+                        for (const name of Object.keys(value ?? {}))
+                            nested.capturedRefs.add(name);
+        for (const op of inner) analyseOpFully(op, nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
 
@@ -4198,6 +4214,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sourceSubject: false,
         sourceCounterReads: new Set(),
         sourceCounterWrites: new Set(),
+        capturedRefs: new Set(),
     };
 }
 
