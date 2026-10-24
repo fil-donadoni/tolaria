@@ -378,9 +378,10 @@ function readPush(before: string, after: string, primary: string) {
 
 /**
  * How long `seed` waits for the derive commit of a stale tip (ADR 0157,
- * issue #6248): `derive:sync` runs in `housekeeping` (one run at a time,
- * up to 50 min), so the commit is usually a minute or two away but can
- * queue behind a long run; the hourly cron is its backstop. A job that
+ * issue #6248): `derive:sync` runs in `housekeeping` (one run at a time),
+ * so the commit is usually a minute or two away but can queue behind a long
+ * run — a drift sweep over many misses is tens of minutes (ADR 0158 § 2b,
+ * issue #6687); the hourly cron is its backstop. A job that
  * waits an hour holds the seed runner — past this bound (inside the job's
  * `timeout-minutes`) the seed is red and run by hand.
  */

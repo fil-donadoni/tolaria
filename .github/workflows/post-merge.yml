@@ -148,10 +148,11 @@ jobs:
         # drift sweep (issue #6687) plays the tip's Bot-verdict misses first —
         # a few cards in place on a tip a PR played, the heavy mutex past
         # `LOCK_FREE_MISSES` (the MacBook's `land` waits behind it, as behind
-        # the replay); the wall is its worst path, `DERIVE_SYNC_TIMEOUT_MS`
-        # (160) plus the other steps. The miss count, played count and wall
-        # land in this job's summary.
-        timeout-minutes: 180
+        # the replay); the wall is the steps' ceilings — gaps:sync (30),
+        # prune (30), `DERIVE_SYNC_TIMEOUT_MS` (160) — plus the workspace, so
+        # the runner's cancel never lands mid-sweep. The miss count, played
+        # count and wall land in this job's summary.
+        timeout-minutes: 240
         steps:
             - name: Job worktree
               shell: bash

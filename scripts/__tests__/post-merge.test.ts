@@ -482,9 +482,14 @@ describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, 
         ).toBe("b");
     });
 
-    it("a derive commit carrying the card index its drift sweep wrote is it (issue #6687)", () => {
+    it("a derive commit carrying the card index its drift sweep wrote is it — beside the lockfile, never alone (issue #6687)", () => {
         expect(
             deriveCommitAmong([
+                {
+                    sha: "e",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [CARD_INDEX_PATH],
+                },
                 {
                     sha: "d",
                     subject: DERIVE_SYNC_COMMIT_SUBJECT,

@@ -289,10 +289,12 @@ function fixtureIo(
     disk: () => Lockfile;
     calls: { carry: number; play: number; index: number };
     reports: { line: string; summary: string }[];
+    warnings: string[];
 } {
     let disk = tip.lock;
     const calls = { carry: 0, play: 0, index: 0 };
     const reports: { line: string; summary: string }[] = [];
+    const warnings: string[] = [];
     let clock = 0;
     const io: DriftSweepIo = {
         head: "abcdef0123456789",
@@ -319,8 +321,9 @@ function fixtureIo(
         acknowledged: new Set(),
         now: () => (clock += 1500),
         report: (r) => reports.push(r),
+        warn: (line) => warnings.push(line),
     };
-    return { io, disk: () => disk, calls, reports };
+    return { io, disk: () => disk, calls, reports, warnings };
 }
 
 describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (ADR 0158 § 2b, issue #6687)", () => {
@@ -350,7 +353,7 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         const tip = mergedTip();
         const player = spyPlayer();
         const run = fixtureIo(tip, player);
-        expect(runDriftSweep(run.io)).toBe(true);
+        expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
         expect(run.calls).toEqual({ carry: 0, play: 1, index: 0 });
         expect(player.calls.sort()).toEqual(
             [1, 2, 3].map((n) => vanilla(n).oracleId).sort()
@@ -375,28 +378,30 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         ).toEqual({ kind: "commit", paths: [LOCKFILE_PATH] });
     });
 
-    it("zero misses carries, as the write path always did — nothing played, nothing reported", () => {
+    it("zero misses carries, as the write path always did — nothing played, reported as 0", () => {
         const tip = mergedTip();
         const current = buildLockfile(tip.corpus, {
             botReach: playingBotReach(tip.lock, BOT, spyPlayer().play),
         });
         const player = spyPlayer();
         const run = fixtureIo({ lock: current, corpus: tip.corpus }, player);
-        expect(runDriftSweep(run.io)).toBe(true);
+        expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
         expect(run.calls).toEqual({ carry: 1, play: 0, index: 0 });
         expect(player.calls).toEqual([]);
-        expect(run.reports).toEqual([]);
+        expect(run.reports.map((r) => r.line)).toEqual([
+            "abcdef0123: drift sweep — 0 miss(es), 0 played, 0s",
+        ]);
         expect(serializeLockfile(run.disk())).toBe(serializeLockfile(current));
     });
 
-    it("a card the sweep freezes leaves `ready` and is reported; one it brings in is indexed; a failed play is the run's failure", () => {
+    it("a card the sweep freezes leaves `ready` and is reported; one it brings in is indexed", () => {
         const tip = mergedTip();
         const freezeOne: BotPlayer = (oracleId) =>
             oracleId === vanilla(1).oracleId
                 ? { outcome: "frozen", cause: "never-chosen", form: "x" }
                 : { outcome: "played" };
         const run = fixtureIo(tip, { play: freezeOne });
-        expect(runDriftSweep(run.io)).toBe(true);
+        expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
         const row = run
             .disk()
             .cards.find((r) => r.oracleId === vanilla(1).oracleId)!;
@@ -412,14 +417,73 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
             },
             spyPlayer()
         );
-        expect(runDriftSweep(next.io)).toBe(true);
+        expect(runDriftSweep(next.io)).toEqual({ ok: true, indexed: true });
         expect(next.calls.index).toBe(1);
         expect(next.reports[0]!.line).toContain("1 newly `ready`");
+    });
 
-        const failing = fixtureIo(mergedTip(), spyPlayer());
-        const io = { ...failing.io, play: () => false };
-        expect(runDriftSweep(io)).toBe(false);
-        expect(failing.reports).toEqual([]);
+    it("a failed play or index falls back to the carry: the header and catalogue still land, the misses stay stale", () => {
+        const tip = mergedTip();
+        const failing = fixtureIo(tip, spyPlayer());
+        expect(runDriftSweep({ ...failing.io, play: () => false })).toEqual({
+            ok: true,
+            indexed: false,
+        });
+        expect(failing.calls.carry).toBe(1);
+        expect(failing.warnings[0]).toContain("compile failed");
+        expect(staleOf(failing.disk(), tip.corpus)).toHaveLength(3);
+
+        const frozen = fixtureIo(tip, {
+            play: (oracleId) =>
+                oracleId === vanilla(1).oracleId
+                    ? { outcome: "frozen", cause: "never-chosen", form: "x" }
+                    : { outcome: "played" },
+        });
+        runDriftSweep(frozen.io);
+        const unfreezing = fixtureIo(
+            {
+                lock: frozen.disk(),
+                corpus: [vanilla(1, "4"), ...tip.corpus.slice(1)],
+            },
+            spyPlayer()
+        );
+        expect(runDriftSweep({ ...unfreezing.io, index: () => false })).toEqual(
+            { ok: true, indexed: false }
+        );
+        expect(unfreezing.calls).toEqual({ carry: 1, play: 1, index: 0 });
+        expect(unfreezing.warnings[0]).toContain("oracle:index");
+
+        // Not even the carry wrote: the run's failure.
+        expect(
+            runDriftSweep({
+                ...fixtureIo(tip, spyPlayer()).io,
+                play: () => false,
+                carry: () => false,
+            }).ok
+        ).toBe(false);
+    });
+
+    it("`lost` is the misses' only — a card a compiler change took out of `ready` is not the sweep's", () => {
+        const tip = mergedTip();
+        const run = fixtureIo(tip, spyPlayer());
+        // A current row that leaves `ready` with the play: not a miss.
+        const current = vanilla(4).oracleId;
+        let rows = 0;
+        const io: DriftSweepIo = {
+            ...run.io,
+            readRows: () =>
+                rows++ === 0
+                    ? run.disk().cards
+                    : run
+                          .disk()
+                          .cards.map((r) =>
+                              r.oracleId === current
+                                  ? { ...r, state: "quarantine" as const }
+                                  : r
+                          ),
+        };
+        runDriftSweep(io);
+        expect(run.reports[0]!.line).not.toContain("left `ready`");
     });
 });
 

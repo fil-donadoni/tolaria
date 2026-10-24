@@ -115,6 +115,7 @@ import {
     verdictCurrency,
     type CatalogueEntry,
     type DerivedEntry,
+    type DriftSweepResult,
     type Freshness,
     type LostCard,
 } from "./lib/derive-sync";
@@ -364,7 +365,7 @@ function appendSummary(markdown: string): void {
  * `housekeeping`'s `DERIVE_SYNC_TIMEOUT_MS` sits above them, so this run's
  * own SIGTERM reaches the compile first and the gate reaps the sweep.
  */
-function driftSweep(head: string): boolean {
+function driftSweep(head: string): DriftSweepResult {
     return runDriftSweep({
         head,
         readRows: () => readLockfile().cards,
@@ -406,6 +407,7 @@ function driftSweep(head: string): boolean {
             say(line);
             appendSummary(summary);
         },
+        warn: complain,
     });
 }
 
@@ -413,14 +415,17 @@ function driftSweep(head: string): boolean {
 function write(dryRun: boolean): number {
     const head = git(["rev-parse", "HEAD"]).stdout.trim();
     if (!ensureCorpus()) return 1;
+    const swept = driftSweep(head);
     if (
-        !driftSweep(head) ||
+        !swept.ok ||
         !generate("catalogue:pack", ["scripts/catalogue-artifact.ts"])
     )
         return 1;
-    const found = entries(DERIVE_SYNC_PATHS);
+    // The card index only when `oracle:index` ran — never a stray edit.
+    const owned = swept.indexed ? DERIVE_SYNC_PATHS : DERIVED_PATHS;
+    const found = entries(owned);
     if (found === null) return 1;
-    const plan = derivePlan(found, DERIVE_SYNC_PATHS);
+    const plan = derivePlan(found, owned);
     if (plan.kind === "no-op") {
         say(`${head.slice(0, 10)} is derived-fresh — nothing to commit`);
         return 0;

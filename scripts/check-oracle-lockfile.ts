@@ -256,7 +256,12 @@ export function headerHashDrift(
  * them through `derive:sync --settled`, `pending` within the grace.
  *
  * The miss set is the probe's — the one `oracle:compile`'s sweep plays — so
- * the two can never disagree about what is stale.
+ * the two can never disagree about what is stale. The CONTRACT a writer of
+ * carried verdicts owes (issue #6688): a row whose verdict was played on
+ * another definition must be a probe miss here — today the probe keys on
+ * `row.definition`, so a row that pairs a NEW definition with an OLD
+ * verdict reads current and is never replayed; such a writer marks the row
+ * and teaches this probe the marker, under a test here.
  */
 export function staleVerdicts(
     lock: Lockfile,

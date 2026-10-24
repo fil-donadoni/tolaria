@@ -171,20 +171,57 @@ export interface DriftSweepIo {
         readonly line: string;
         readonly summary: string;
     }) => void;
+    /** A failure the run survives, said once. */
+    readonly warn: (line: string) => void;
+}
+
+/** What step 1 left: `ok` false only when not even the carry wrote the
+ *  lockfile; `indexed` when `oracle:index` ran, so the commit may carry the
+ *  card index — and only then. */
+export interface DriftSweepResult {
+    readonly ok: boolean;
+    readonly indexed: boolean;
 }
 
 /**
  * Step 1 of the write path (ADR 0158 § 2b, issue #6687): zero misses carry,
- * as the write path always did — seconds, nothing played, no report; any
- * miss is played by the bare compile, reported, and a card it brought into
- * `ready` indexed. False when a generator failed (it said why).
+ * as the write path always did — seconds, nothing played; any miss is played
+ * by the bare compile and a card it brought into `ready` indexed. Reported
+ * either way. A play or an index that fails (a wall, machine admission's
+ * exit 77, Scryfall) falls back to the carry: the header and catalogue
+ * commit must still land — a stale verdict never holds the deployment (ADR
+ * 0158 § 2b) — and the misses stay stale, which health waits on through
+ * `--settled` and reds past the grace. `lost` is read over the misses only:
+ * a card that left `ready` for a compiler or registry reason is not the
+ * sweep's.
  */
-export function runDriftSweep(io: DriftSweepIo): boolean {
+export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     const misses = io.misses();
-    if (misses.size === 0) return io.carry();
+    const carried = (why: string | null): DriftSweepResult => {
+        if (why !== null)
+            io.warn(
+                `${why} — carrying the verdicts instead: the header and catalogue still land, the ${misses.size} miss(es) stay stale for the next run (health waits on them, ADR 0158 § 2b)`
+            );
+        return { ok: io.carry(), indexed: false };
+    };
+    if (misses.size === 0) {
+        const result = carried(null);
+        if (result.ok)
+            io.report(
+                renderDriftSweep({
+                    sha: io.head,
+                    misses: 0,
+                    played: 0,
+                    wallMs: 0,
+                    lost: [],
+                    gained: [],
+                })
+            );
+        return result;
+    }
     const before = io.readRows();
     const started = io.now();
-    if (!io.play()) return false;
+    if (!io.play()) return carried("the drift sweep's compile failed");
     const after = io.readRows();
     const outcome = botReplayOutcome(before, after, io.acknowledged);
     io.report(
@@ -193,11 +230,13 @@ export function runDriftSweep(io: DriftSweepIo): boolean {
             misses: misses.size,
             played: playedMisses(misses, after),
             wallMs: io.now() - started,
-            lost: outcome.lost,
+            lost: outcome.lost.filter((c) => misses.has(c.oracleId)),
             gained: outcome.gained,
         })
     );
-    return outcome.gained.length === 0 || io.index();
+    if (outcome.gained.length === 0) return { ok: true, indexed: false };
+    if (io.index()) return { ok: true, indexed: true };
+    return carried("`oracle:index` failed for the newly `ready` card(s)");
 }
 
 /**
