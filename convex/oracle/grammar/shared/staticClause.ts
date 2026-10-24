@@ -336,7 +336,7 @@ export type StaticClauseIR =
      * CR 614.12a / 614.1c — "As <self> enters, exile any number of <type>
      * cards from your graveyard" (Sutured Ghoul): the controller picks any
      * number of their own matching graveyard cards, none included, and they
-     * are exiled linked to the entering permanent (CR 607.2a).
+     * are exiled linked to the entering permanent (CR 607.2b).
      */
     | {
           readonly kind: "as-enters-exile-from-graveyard";
@@ -2245,7 +2245,7 @@ const asEntersSacrificeRule: Rule<StaticClauseIR> = pattern(
  * "As <self> enters, exile any number of creature cards from your graveyard."
  * (Sutured Ghoul.) CR 614.12a: an "as … enters" clause is a replacement
  * effect, so the exile happens before the permanent exists and the cards it
- * exiles are the linked pile CR 607.2a lets the permanent's other abilities
+ * exiles are the linked pile CR 607.2b lets the permanent's other abilities
  * read. Anchored on the whole sentence and on creature cards: another card
  * type, a fixed count ("two creature cards"), or an opponent's graveyard
  * differs from the anchored text and stays refused.
