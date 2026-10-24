@@ -7,6 +7,7 @@
  * verdict.
  */
 import { parentPort, workerData } from "node:worker_threads";
+import { harnessErrorVerdict } from "./bot-reach-player";
 import type { WorkerRequest, WorkerResponse } from "./bot-reach-shard";
 import type { BotPlayer } from "./oracle-bot-reach";
 
@@ -22,14 +23,19 @@ const ready: Promise<BotPlayer> = import(playerModule).then(
 port.on("message", async (request: WorkerRequest) => {
     try {
         const play = await ready;
-        const results = request.batch.map(
-            ([oracleId, definition]) =>
-                [oracleId, play(oracleId, definition)] as const
-        );
+        // Card by card, as the in-process path: a throw is THAT card's
+        // `harness-error`, so the verdict never depends on batch boundaries.
+        const results = request.batch.map(([oracleId, definition]) => {
+            try {
+                return [oracleId, play(oracleId, definition)] as const;
+            } catch (error) {
+                return [oracleId, harnessErrorVerdict(error)] as const;
+            }
+        });
         port.postMessage({ results } satisfies WorkerResponse);
     } catch (error) {
-        // A throw outside the player's own catch: the batch is the sweep's
-        // `harness-error`, the worker stays up for the next one.
+        // The Bot did not load: the batch is `harness-error`, the worker
+        // stays up for the next one.
         port.postMessage({
             error: error instanceof Error ? error.message : String(error),
         } satisfies WorkerResponse);

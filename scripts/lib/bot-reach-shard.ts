@@ -36,6 +36,10 @@ export const SWEEP_BATCH = 8;
 /** A worker is only spawned for this many misses at least: each loads the
  *  Bot (seconds) before its first play. */
 export const MIN_MISSES_PER_WORKER = 16;
+/** A batch is ~3 s of play; one that is silent this long is a wedged worker
+ *  (a hung import, a busy loop) — `harness-error`, not a sweep that never
+ *  ends. */
+export const BATCH_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** The player module a worker loads: exports `createBotPlayer`. */
 export const DEFAULT_PLAYER_MODULE = new URL(
@@ -93,11 +97,22 @@ export async function playMisses(
     );
     if (queue.length === 0) return verdicts;
     if (width <= 1) {
-        const play: BotPlayer = await (
-            await import(playerModule)
-        ).createBotPlayer();
+        // The same guarantees as a worker's: a Bot that will not load, or a
+        // throw past the player, is `harness-error`, never a lost run.
+        let play: BotPlayer | null = null;
+        let loadError: unknown = null;
+        try {
+            play = await (await import(playerModule)).createBotPlayer();
+        } catch (error) {
+            loadError = error;
+        }
         for (const [id, definition] of queue) {
-            verdicts.set(id, play(id, definition));
+            try {
+                if (play === null) throw loadError;
+                verdicts.set(id, play(id, definition));
+            } catch (error) {
+                verdicts.set(id, harnessErrorVerdict(error));
+            }
             options.onPlay?.(id);
         }
         return verdicts;
@@ -126,9 +141,11 @@ export async function playMisses(
                     });
                     let inFlight: WorkerRequest["batch"] = [];
                     let settled = false;
+                    let watchdog: ReturnType<typeof setTimeout> | undefined;
                     const settle = (why?: string) => {
                         if (settled) return;
                         settled = true;
+                        clearTimeout(watchdog);
                         if (why !== undefined) fail(inFlight, why);
                         inFlight = [];
                         void worker.terminate();
@@ -136,8 +153,13 @@ export async function playMisses(
                         done();
                     };
                     const dispatch = () => {
+                        clearTimeout(watchdog);
                         inFlight = take();
                         if (inFlight.length === 0) return settle();
+                        watchdog = setTimeout(
+                            () => settle("no answer within the batch timeout"),
+                            BATCH_TIMEOUT_MS
+                        );
                         worker.postMessage({
                             batch: inFlight,
                         } satisfies WorkerRequest);

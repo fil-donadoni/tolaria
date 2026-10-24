@@ -90,7 +90,13 @@ describe("the sharded sweep is deterministic across worker counts", () => {
         const played = out.corpusOrder.filter(
             ([, v]) => v?.cause !== "harness-error"
         );
-        expect(played.length).toBeGreaterThan(80);
+        // Only the card that threw: a batch boundary never shows in a verdict.
+        expect(
+            out.corpusOrder.filter(([, v]) => v?.cause === "harness-error")
+        ).toHaveLength(1);
+        expect(played.length).toBe(96);
+        const inProcess = await drive(1, 96, ["throw-1"]);
+        expect(out.corpusOrder).toEqual(inProcess.corpusOrder);
     }, 90_000);
 
     it("turns a worker that cannot load the Bot into harness-error for every card, and still returns", async () => {

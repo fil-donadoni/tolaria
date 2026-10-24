@@ -88,7 +88,7 @@ import {
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
 import { runUnderHeavyAdmission } from "./lib/heavy-admission";
-import { createBotPlayer } from "./lib/bot-reach-player";
+import { createBotPlayer, harnessErrorVerdict } from "./lib/bot-reach-player";
 import { playMisses, sweepWorkerCount } from "./lib/bot-reach-shard";
 import {
     emptyRetirementLedger,
@@ -416,14 +416,6 @@ export function readCommittedLockfile(): Lockfile | null {
 }
 
 /**
- * The Bot-play player (ADR 0105 § 7.2): `lib/bot-reach-player.ts`, whose
- * dynamic import of the Bot keeps it out of `buildLockfile`'s module graph —
- * the drift guard's regenerator must never be able to play. Used in place by
- * `--replay-card`; the sweep plays through the shard pool.
- */
-const botPlayer = createBotPlayer;
-
-/**
  * The write path's sweep (issue #6686, ADR 0158 § 1): a collecting pass
  * learns which definitions miss the cache, the shard pool plays them over `W`
  * worker threads, and the source handed back reads their verdicts — through
@@ -452,7 +444,11 @@ async function sweepingBotReach(
     return playingBotReach(
         previous,
         currentBotHash,
-        (oracleId) => verdicts.get(oracleId)!,
+        (oracleId) =>
+            verdicts.get(oracleId) ??
+            harnessErrorVerdict(
+                "sweep: no verdict for a card the probe missed"
+            ),
         { replay }
     );
 }
@@ -526,7 +522,11 @@ async function replayingNamedCards(
         );
         process.exit(1);
     }
-    const source = replayingCardsBotReach(previous, ids, await botPlayer());
+    const source = replayingCardsBotReach(
+        previous,
+        ids,
+        await createBotPlayer()
+    );
     const nameOf = new Map(corpus.map((c) => [c.oracleId, c.name]));
     return {
         source,
