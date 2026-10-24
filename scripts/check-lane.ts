@@ -896,8 +896,8 @@ export const CHEAP_GUARDS: readonly {
     // Health still runs the whole file through `test:bot`.
     {
         id: "eval-weights-fit",
-        admits: /^(convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$|verdictStore[^/]*\.ts$)|data\/verdicts\.lock\.json$|scripts\/lib\/verdict-pack-cache\.ts$)/,
-        lacks: "no changed path under convex/{gre,cards,oracle}/**, convex/debugScenarioSpec.ts, convex/verdictStore*.ts, data/verdicts.lock.json nor the verdict pack cache — no input of the Weight Fit moved",
+        admits: /^(convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$|verdictStore[^/]*\.ts$)|data\/verdicts\.lock\.json$|scripts\/lib\/(verdict-pack-cache|verdict-store|corpus-exclusion)\.ts$)/,
+        lacks: "no changed path under convex/{gre,cards,oracle}/**, convex/debugScenarioSpec.ts, convex/verdictStore*.ts, data/verdicts.lock.json nor the verdict corpus loaders (scripts/lib/{verdict-pack-cache,verdict-store,corpus-exclusion}.ts) — no input of the Weight Fit moved",
         command: `bunx vitest run --project bot-node ${EVAL_WEIGHTS_FIT_TEST} -t '${EVAL_WEIGHTS_FIT_FILTER}'`,
     },
     {

@@ -244,7 +244,8 @@ advisory run skips it (`CORPUS_EXCLUDED`), so it surfaced as a second RED
 (issue #6558). Of the two placements — a `CHEAP_GUARDS` row, or health-only
 with `health-early` running it — the owner chose the row: `eval-weights-fit`,
 admitted by every fit input (`search-cost`'s trees, `convex/verdictStore*.ts`,
-`data/verdicts.lock.json`, `scripts/lib/verdict-pack-cache.ts`), running ONLY
+`data/verdicts.lock.json`, `scripts/lib/{verdict-pack-cache,verdict-store,corpus-exclusion}.ts`;
+`data/catalogue/*` is base-written, never in a PR diff, ADR 0157), running ONLY
 the reproducibility test by `-t` filter, never the file's contract half. Cost:
 9.8 s wall at load ~11 on the MacBook (the fit itself 4.1 s; the whole file
 12.4–16.2 s), at the ≤ 10 s budget's edge; the Huawei figure is owed. It is

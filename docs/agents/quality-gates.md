@@ -789,8 +789,8 @@ A sixth, `eval-weights-fit` (issue #6559), is the Weight Fit's
 reproducibility guard (`weightFit.bot.test.ts`): the committed
 `DEFAULT_EVAL_WEIGHTS` must be the fit of the blade registry plus the
 Verdict Lock. Admitted by every fit input — `search-cost`'s trees,
-`convex/verdictStore*.ts`, `data/verdicts.lock.json` and
-`scripts/lib/verdict-pack-cache.ts` — it runs that ONE test by name
+`convex/verdictStore*.ts`, `data/verdicts.lock.json` and the corpus loaders
+(`scripts/lib/{verdict-pack-cache,verdict-store,corpus-exclusion}.ts`) — it runs that ONE test by name
 (`-t 'reproduces DEFAULT_EVAL_WEIGHTS'`), not the file's contract half.
 It reads the locked corpus through the machine pack cache, so it holds only
 on the self-hosted lane; the hosted advisory run skips it

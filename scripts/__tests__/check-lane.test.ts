@@ -2392,6 +2392,9 @@ describe("check-lane — the Weight Fit guard runs wherever a fit input can chan
             "convex/verdictStoreMemory.ts",
             "data/verdicts.lock.json",
             "scripts/lib/verdict-pack-cache.ts",
+            "scripts/lib/verdict-store.ts",
+            // It decides the corpus describe's skip.
+            "scripts/lib/corpus-exclusion.ts",
             EVAL_WEIGHTS_FIT_TEST,
         ]) {
             expect(guard(classifyLane([file]))?.command, file).toBe(command);
