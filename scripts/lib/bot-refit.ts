@@ -57,7 +57,8 @@ export const FIT_WRITE_STEP: RefitStep = {
  *  disk (a module graph is read once). */
 export const RECORD_PINS_STEP: RefitStep = {
     id: "pins",
-    argv: [...VITEST_BOT, "-u", ...BOT_PIN_TESTS],
+    // `-u` takes an optional value: before the paths it swallows the first one.
+    argv: [...VITEST_BOT, ...BOT_PIN_TESTS, "-u"],
     env: { RECORD_BOT_PINS: "1" },
     onFail: "a pin test failed while recording — a fixture may be half-written",
 };
