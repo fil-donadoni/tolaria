@@ -30852,7 +30852,6 @@
         {"id":"608.2c","line":"// CR 608.2c — the count is met: the replacement is added; else the","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — the counter goes on FIRST…","sites":1,"status":"baseline"},
         {"id":"608.2c","line":"// CR 608.2c — the halves in the order printed, each through the","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
-        {"id":"608.2c","line":"// CR 608.2c — the join is \", \" or \", then \" for the library frames, whose","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — the later instruction reads the set the earlier one bound.","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c), generalised from the idioms that bound each to one head:","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c): \"Search your library for <quantity> <descriptor>[, reveal","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
