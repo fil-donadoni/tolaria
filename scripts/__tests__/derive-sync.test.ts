@@ -10,6 +10,24 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LOCKFILE_PATH as CHECK_GAPS_LOCKFILE_PATH } from "../check-gaps";
+import { staleVerdicts } from "../check-oracle-lockfile";
+import {
+    buildLockfile as buildLockfileRaw,
+    type BuildLockfileOptions,
+} from "../oracle-compile";
+import type { CorpusCard } from "../oracle-corpus";
+import {
+    DERIVED_GRACE_MS,
+    derivePredicateAnswer,
+    derivedTipVerdict,
+} from "../lib/health-step";
+import {
+    carriedBotReach,
+    playingBotReach,
+    type BotPlayer,
+} from "../lib/oracle-bot-reach";
+import { serializeLockfile, type Lockfile } from "../lib/oracle-lockfile";
+import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import { BASE_BRANCH } from "../lib/branches";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "../lib/catalogue-merge";
 import { commitOnScratchIndex } from "../lib/commit-tree";
@@ -21,15 +39,20 @@ import {
     CARD_INDEX_PATH,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
+    DERIVE_SYNC_PATHS,
     LOCKFILE_PATH,
     botRegressionTitle,
     botReplayOutcome,
     botReplayPlan,
     derivePlan,
     derivedFreshness,
+    derivedStaleLine,
     pushDerivedCommit,
     pushOutcome,
     renderBotRegressionIssue,
+    runDriftSweep,
+    verdictCurrency,
+    type DriftSweepIo,
     type GitRun,
     type ReplayRow,
 } from "../lib/derive-sync";
@@ -154,7 +177,7 @@ describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (i
         expect(body).toContain("Nothing was committed");
     });
 
-    it("the replay commit owns the derived paths plus the card index (the compiler's pool projection), under its own subject; derive:sync still refuses the index", () => {
+    it("the replay commit owns the derived paths plus the card index (the compiler's pool projection), under its own subject; the derive commit owns the same (issue #6687), a bare derivePlan still refuses the index", () => {
         // The card index the replay may carry is the one `oracle:index`
         // writes and the compiler's `poolHash` reads.
         const entry = {
@@ -179,9 +202,304 @@ describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (i
         expect(() => derivePlan([entry])).toThrow(
             /owns .* — not data\/card-index\.json/
         );
+        expect([...DERIVE_SYNC_PATHS]).toEqual([...BOT_REPLAY_PATHS]);
         // `land` tells the two pushes apart by subject AND files.
         expect(BOT_REPLAY_COMMIT_SUBJECT).not.toBe(DERIVE_SYNC_COMMIT_SUBJECT);
         expect(BOT_REGRESSION_LABELS).toEqual(["bug", "area:game-bot"]);
+    });
+});
+
+// ── The drift sweep on the base (ADR 0158 § 2b, issue #6687) ─────────────
+
+// SYNTHETIC corpus only — never stamped against the committed retirement
+// ledger (issue #4027, as in `oracle-bot-reach.test.ts`).
+function buildLockfile(
+    corpus: readonly CorpusCard[],
+    options: BuildLockfileOptions = {}
+): Lockfile {
+    return buildLockfileRaw(corpus, {
+        retirements: emptyRetirementLedger(),
+        ...options,
+    });
+}
+
+/** `staleVerdicts` on the synthetic corpus, same ledger rule. */
+const staleOf = (lock: Lockfile, corpus: readonly CorpusCard[]) =>
+    staleVerdicts(lock, corpus, { retirements: emptyRetirementLedger() });
+
+const vanilla = (n: number, power = "2"): CorpusCard => ({
+    oracleId: `00000000-0000-0000-0000-00000000d${String(n).padStart(3, "0")}`,
+    name: `Drift Bear ${n}`,
+    manaCost: "{1}{G}",
+    typeLine: "Creature — Bear",
+    oracleText: "",
+    power,
+    toughness: "2",
+    layout: "normal",
+    legalIn: ["premodern"],
+    poolIn: ["premodern"],
+});
+
+const BOT = "sha256:bot-of-the-tip";
+
+/** A player that records every card it is asked to play. */
+function spyPlayer(): { calls: string[]; play: BotPlayer } {
+    const calls: string[] = [];
+    return {
+        calls,
+        play: (oracleId) => {
+            calls.push(oracleId);
+            return { outcome: "played" };
+        },
+    };
+}
+
+/**
+ * The base after a merge: four cards played on the base before it; the merge
+ * moved two definitions (power 2 → 3) and left a third `ready` row with no
+ * verdict at all (a draft regenerated `--carry-bot`). The fourth is current.
+ */
+function mergedTip(): { lock: Lockfile; corpus: CorpusCard[] } {
+    const before = [1, 2, 3, 4].map((n) => vanilla(n));
+    const played = buildLockfile(before, {
+        botReach: playingBotReach(null, BOT, spyPlayer().play),
+    });
+    const corpus = [vanilla(1, "3"), vanilla(2, "3"), vanilla(3), vanilla(4)];
+    const unverdicted = vanilla(3).oracleId;
+    return {
+        lock: {
+            ...played,
+            cards: played.cards.map((row) =>
+                row.oracleId === unverdicted
+                    ? { ...row, botReach: undefined }
+                    : row
+            ),
+        },
+        corpus,
+    };
+}
+
+/** The write path's step 1 over an in-memory lockfile: the generators are
+ *  the compile driver's own sources, nothing spawned. */
+function fixtureIo(
+    tip: { lock: Lockfile; corpus: CorpusCard[] },
+    player: { play: BotPlayer }
+): {
+    io: DriftSweepIo;
+    disk: () => Lockfile;
+    calls: { carry: number; play: number; index: number };
+    reports: { line: string; summary: string }[];
+} {
+    let disk = tip.lock;
+    const calls = { carry: 0, play: 0, index: 0 };
+    const reports: { line: string; summary: string }[] = [];
+    let clock = 0;
+    const io: DriftSweepIo = {
+        head: "abcdef0123456789",
+        readRows: () => disk.cards,
+        misses: () => new Set(staleOf(disk, tip.corpus).map((c) => c.oracleId)),
+        carry: () => {
+            calls.carry += 1;
+            disk = buildLockfile(tip.corpus, {
+                botReach: carriedBotReach(disk),
+            });
+            return true;
+        },
+        play: () => {
+            calls.play += 1;
+            disk = buildLockfile(tip.corpus, {
+                botReach: playingBotReach(disk, BOT, player.play),
+            });
+            return true;
+        },
+        index: () => {
+            calls.index += 1;
+            return true;
+        },
+        acknowledged: new Set(),
+        now: () => (clock += 1500),
+        report: (r) => reports.push(r),
+    };
+    return { io, disk: () => disk, calls, reports };
+}
+
+describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (ADR 0158 § 2b, issue #6687)", () => {
+    it("staleVerdicts names every `ready` row with no verdict for the definition the tip compiles — a moved definition, a missing verdict — and nothing current", () => {
+        const tip = mergedTip();
+        expect(
+            staleOf(tip.lock, tip.corpus)
+                .map((c) => c.name)
+                .sort()
+        ).toEqual(["Drift Bear 1", "Drift Bear 2", "Drift Bear 3"]);
+        // A tip a PR played whole is current — and tier 3 cannot tell the
+        // two apart: the carried regeneration reproduces the stale bytes.
+        const carried = buildLockfile(tip.corpus, {
+            botReach: carriedBotReach(tip.lock),
+        });
+        expect(
+            serializeLockfile(
+                buildLockfile(tip.corpus, {
+                    botReach: carriedBotReach(carried),
+                })
+            )
+        ).toBe(serializeLockfile(carried));
+        expect(staleOf(carried, tip.corpus)).toHaveLength(3);
+    });
+
+    it("on a tip with N misses it plays exactly those N, reports N played, and the rows it commits are current", () => {
+        const tip = mergedTip();
+        const player = spyPlayer();
+        const run = fixtureIo(tip, player);
+        expect(runDriftSweep(run.io)).toBe(true);
+        expect(run.calls).toEqual({ carry: 0, play: 1, index: 0 });
+        expect(player.calls.sort()).toEqual(
+            [1, 2, 3].map((n) => vanilla(n).oracleId).sort()
+        );
+        expect(staleOf(run.disk(), tip.corpus)).toEqual([]);
+        // The header's Bot hash is the committed one: the replay alone moves it.
+        expect(run.disk().header.botHash).toBe(tip.lock.header.botHash);
+        expect(run.reports).toHaveLength(1);
+        expect(run.reports[0]!.line).toContain(
+            "drift sweep — 3 miss(es), 3 played, 2s"
+        );
+        expect(run.reports[0]!.summary).toContain("| 3 | 3 | 2s | 0 | 0 |");
+        // The lockfile's rows changed: the derive commit carries it.
+        expect(
+            derivePlan([
+                {
+                    path: LOCKFILE_PATH,
+                    committed: serializeLockfile(tip.lock),
+                    regenerated: serializeLockfile(run.disk()),
+                },
+            ])
+        ).toEqual({ kind: "commit", paths: [LOCKFILE_PATH] });
+    });
+
+    it("zero misses carries, as the write path always did — nothing played, nothing reported", () => {
+        const tip = mergedTip();
+        const current = buildLockfile(tip.corpus, {
+            botReach: playingBotReach(tip.lock, BOT, spyPlayer().play),
+        });
+        const player = spyPlayer();
+        const run = fixtureIo({ lock: current, corpus: tip.corpus }, player);
+        expect(runDriftSweep(run.io)).toBe(true);
+        expect(run.calls).toEqual({ carry: 1, play: 0, index: 0 });
+        expect(player.calls).toEqual([]);
+        expect(run.reports).toEqual([]);
+        expect(serializeLockfile(run.disk())).toBe(serializeLockfile(current));
+    });
+
+    it("a card the sweep freezes leaves `ready` and is reported; one it brings in is indexed; a failed play is the run's failure", () => {
+        const tip = mergedTip();
+        const freezeOne: BotPlayer = (oracleId) =>
+            oracleId === vanilla(1).oracleId
+                ? { outcome: "frozen", cause: "never-chosen", form: "x" }
+                : { outcome: "played" };
+        const run = fixtureIo(tip, { play: freezeOne });
+        expect(runDriftSweep(run.io)).toBe(true);
+        const row = run
+            .disk()
+            .cards.find((r) => r.oracleId === vanilla(1).oracleId)!;
+        expect(row.state).not.toBe("ready");
+        expect(run.reports[0]!.line).toContain("1 left `ready`: Drift Bear 1");
+        expect(run.calls.index).toBe(0);
+
+        // The frozen row's definition moves again: the next tip unfreezes it.
+        const next = fixtureIo(
+            {
+                lock: run.disk(),
+                corpus: [vanilla(1, "4"), ...tip.corpus.slice(1)],
+            },
+            spyPlayer()
+        );
+        expect(runDriftSweep(next.io)).toBe(true);
+        expect(next.calls.index).toBe(1);
+        expect(next.reports[0]!.line).toContain("1 newly `ready`");
+
+        const failing = fixtureIo(mergedTip(), spyPlayer());
+        const io = { ...failing.io, play: () => false };
+        expect(runDriftSweep(io)).toBe(false);
+        expect(failing.reports).toEqual([]);
+    });
+});
+
+describe("--settled — health waits on stale Bot verdicts within the grace, reds past it (ADR 0158 § 2b, issue #6687)", () => {
+    const t0 = 1_700_000_000_000;
+    /** `--settled`'s answer on a tree as health reads it: the printed line
+     *  through `derivePredicateAnswer`, then the grace. */
+    const judged = (verdict: ReturnType<typeof verdictCurrency>, age: number) =>
+        derivedTipVerdict({
+            stale: (() => {
+                const a = derivePredicateAnswer(
+                    verdict.fresh
+                        ? { status: 0, signal: null, output: "" }
+                        : {
+                              status: 1,
+                              signal: null,
+                              output: derivedStaleLine(verdict.why),
+                          }
+                );
+                if (a.kind === "broken") throw new Error(a.why);
+                return a.kind === "stale" ? a.why : null;
+            })(),
+            committedAtMs: t0,
+            nowMs: t0 + age,
+        });
+
+    it("a tip with stale rows is pending within the grace and RED with cause derive:sync past it", () => {
+        const tip = mergedTip();
+        const verdict = verdictCurrency({
+            stale: staleOf(tip.lock, tip.corpus).map((c) => c.name),
+            headerBotHash: BOT,
+            treeBotHash: BOT,
+            openRegression: null,
+        });
+        expect(verdict.fresh).toBe(false);
+        const pending = judged(verdict, 5 * 60_000);
+        expect(pending.kind).toBe("pending");
+        if (pending.kind !== "pending") return;
+        expect(pending.reason).toContain("3 `ready` row(s)");
+        expect(pending.reason).toContain("Drift Bear 1");
+        const red = judged(verdict, DERIVED_GRACE_MS);
+        expect(red.kind).toBe("red");
+        if (red.kind !== "red") return;
+        expect(red.reason).toContain("derive:sync");
+    });
+
+    it("a header Bot hash that is not the tree's is stale — unless this Bot's regression issue is open", () => {
+        const moved = {
+            stale: [],
+            headerBotHash: "sha256:old-bot",
+            treeBotHash: BOT,
+        };
+        const stale = verdictCurrency({ ...moved, openRegression: null });
+        expect(stale.fresh).toBe(false);
+        if (stale.fresh) return;
+        expect(stale.why).toContain("--replay-bot");
+        expect(judged(stale, 5 * 60_000).kind).toBe("pending");
+        expect(verdictCurrency({ ...moved, openRegression: 4242 })).toEqual({
+            fresh: true,
+        });
+    });
+
+    it("current rows under the tree's Bot are settled — gated as ever", () => {
+        expect(
+            verdictCurrency({
+                stale: [],
+                headerBotHash: BOT,
+                treeBotHash: BOT,
+                openRegression: null,
+            })
+        ).toEqual({ fresh: true });
+        const many = verdictCurrency({
+            stale: Array.from({ length: 8 }, (_, i) => `Card ${i}`),
+            headerBotHash: BOT,
+            treeBotHash: BOT,
+            openRegression: null,
+        });
+        expect(many.fresh).toBe(false);
+        if (many.fresh) return;
+        expect(many.why).toContain("Card 4, … 3 more");
     });
 });
 

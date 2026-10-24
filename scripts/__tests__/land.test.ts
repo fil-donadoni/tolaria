@@ -1497,13 +1497,14 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         git("commit", "-q", "-m", BOT_REPLAY_COMMIT_SUBJECT);
         expect(verify(old)).toBe(0);
 
-        // The card index is the replay's, never derive:sync's.
+        // derive:sync's drift sweep may index a card it brought into
+        // `ready` too (issue #6687): its commit carries the card index.
         const old2 = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#5)");
         writeFileSync(join(repo, CARD_INDEX_PATH), "indexed again\n");
         git("add", CARD_INDEX_PATH);
         git("commit", "-q", "-m", DERIVE_SYNC_COMMIT_SUBJECT);
-        expect(verify(old2)).not.toBe(0);
+        expect(verify(old2)).toBe(0);
 
         const old3 = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#6)");

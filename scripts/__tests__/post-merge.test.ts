@@ -16,7 +16,11 @@ import {
     seedPlan,
     syncNotice,
 } from "../lib/post-merge";
-import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "../lib/derive-sync";
+import {
+    CARD_INDEX_PATH,
+    DERIVED_PATHS,
+    DERIVE_SYNC_COMMIT_SUBJECT,
+} from "../lib/derive-sync";
 import {
     seed,
     awaitDeriveCommit,
@@ -476,6 +480,18 @@ describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, 
                 },
             ])
         ).toBe("b");
+    });
+
+    it("a derive commit carrying the card index its drift sweep wrote is it (issue #6687)", () => {
+        expect(
+            deriveCommitAmong([
+                {
+                    sha: "d",
+                    subject: DERIVE_SYNC_COMMIT_SUBJECT,
+                    files: [DERIVED_PATHS[0]!, CARD_INDEX_PATH],
+                },
+            ])
+        ).toBe("d");
     });
 
     it("null with none yet; a foreign file or no file under the subject is not it", () => {
