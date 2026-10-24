@@ -122,7 +122,7 @@ describe("characteristic-setting statics — goldens (CR 613)", () => {
                 "Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.",
             compiledStaticEffects: [
                 { kind: "type-add", filter, types: ["Creature"] },
-                { kind: "pt-cda", filter, count: { kind: "mana-value" } },
+                { kind: "pt-set", filter, count: { kind: "mana-value" } },
             ],
         });
     });
@@ -355,7 +355,7 @@ describe("characteristic-setting statics — expansion", () => {
                     .staticEffects ?? []
             ).map((effect) => effect.kind);
         expect(kinds(HUMILITY)).toEqual(["ability-loss", "pt-set"]);
-        expect(kinds(OPALESCENCE)).toEqual(["type-add", "pt-cda"]);
+        expect(kinds(OPALESCENCE)).toEqual(["type-add", "pt-set"]);
         expect(kinds(TERRAVORE)).toEqual(["pt-cda"]);
         expect(kinds(SKYSHROUD_ELITE)).toEqual(["pt-buff"]);
         expect(kinds(ENGINEERED_PLAGUE)).toEqual(["pt-buff"]);

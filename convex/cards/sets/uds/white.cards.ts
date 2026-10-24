@@ -73,7 +73,7 @@ const IS_OTHER_NON_AURA_ENCHANTMENT: (
 // creature in addition to its other types and has base power and base
 // toughness each equal to its mana value." (CR 205 layer-4 type-add + CR
 // 613.4b layer-7b base P/T set from the target's own mana value — same
-// two-layer CDA shape as Animate Artifact / Titania's Song, scoped to every
+// two-layer shape as Animate Artifact / Titania's Song, scoped to every
 // OTHER non-Aura enchantment on the battlefield instead of a single Aura host
 // or a noncreature-artifact set.) Unconditional (no "isn't already a
 // creature" gate) — unlike Animate Artifact's host clause, Opalescence's text
@@ -93,9 +93,9 @@ export const opalescence = defineCard(() => ({
             types: ["Creature"],
         },
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: IS_OTHER_NON_AURA_ENCHANTMENT,
-            compute: (_source, _state, ctx, target) => {
+            computeFor: (_source, _state, ctx, target) => {
                 const mv = ctx.getManaValue(target);
                 return { power: mv, toughness: mv };
             },

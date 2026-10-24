@@ -16,6 +16,8 @@ const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const heroicDefiance = getDefinition("0dc1aa36-5d3b-4d25-9d54-937cdabf72a4");
 const strengthOfUnity = getDefinition("1a9d4ff8-af35-413f-9aa2-f4c6e34fade2");
 const exoticCurse = getDefinition("8ee35d99-9a8a-421b-bf43-74446909d87d");
+const aspectOfWolf = getDefinition("fd9ac9e6-1395-4fbd-80e2-645f0d910c29");
+const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const dragonWhelp = getDefinition("6bbf1eab-bc32-4835-b566-8634b1fe81b0");
 
 function board(
@@ -107,5 +109,18 @@ describe("pt-cda host + Aura modification (CR 613.4a/c, CR 604.3a)", () => {
         ];
         expect(getEffectivePower(state, host)).toBe(2);
         expect(getEffectiveToughness(state, host)).toBe(2);
+    });
+
+    it("Aspect of Wolf (+floor(F/2)/+ceil(F/2)) adds to the CDA instead of replacing it", () => {
+        const { state, host } = board([
+            { id: "aow", defId: aspectOfWolf.id, attachedTo: "nm" },
+        ]);
+        for (let i = 0; i < 3; i++) {
+            state.players[0].battlefield.push(
+                makeInstance(forest.id, { id: `fo${i}`, controllerId: "p1" })
+            );
+        }
+        expect(getEffectivePower(state, host)).toBe(5); // 4 + floor(3/2)
+        expect(getEffectiveToughness(state, host)).toBe(6); // 4 + ceil(3/2)
     });
 });

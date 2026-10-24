@@ -894,7 +894,7 @@ export const juggernaut = defineCard(() => ({
 }));
 
 // Kormus Bell — "All Swamps are 1/1 black creatures that are still lands."
-// (CR 305.7 type-add + pt-cda + color-grant). Same pattern as Living Lands
+// (CR 305.7 type-add + pt-set + color-grant). Same pattern as Living Lands
 // but for Swamps + grants black color.
 export const kormusBell = defineCard(() => ({
     id: "3f4ef7a1-148d-44ac-89ed-0ef379cca0c6",
@@ -910,9 +910,10 @@ export const kormusBell = defineCard(() => ({
             types: ["Creature"],
         },
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: (target) => target.subtypes.includes("Swamp"),
-            compute: () => ({ power: 1, toughness: 1 }),
+            power: 1,
+            toughness: 1,
         },
         {
             kind: "color-grant",
