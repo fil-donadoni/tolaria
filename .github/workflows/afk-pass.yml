@@ -83,13 +83,18 @@ jobs:
             # write its record (no bun, perhaps): a finished run without one
             # holds the dispatcher (`records-unknown`), so leave a
             # `setup-failed` one. Host by the runner's name, as afk:pass.
+            # Run from `runner.temp` and recreate the workspace: a failed
+            # "Job worktree" can leave no `$GITHUB_WORKSPACE`, and then no
+            # later step, the upload included, can even start (issue #6781).
             - name: Record a failed setup
               if: failure()
               shell: bash
+              working-directory: ${{ runner.temp }}
               env:
                   AFK_ISSUE: ${{ inputs.issue }}
                   AFK_RECORD_DIR: ${{ runner.temp }}/afk-pass-record
               run: |
+                  mkdir -p "$GITHUB_WORKSPACE"
                   [ -f "$AFK_RECORD_DIR/record.json" ] && exit 0
                   mkdir -p "$AFK_RECORD_DIR"
                   issue=0
