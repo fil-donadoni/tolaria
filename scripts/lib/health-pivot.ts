@@ -120,26 +120,39 @@ function standingRedSha(root: string, opts: PivotOpts): string | null {
     return lineageBlocks(lineage.kind) ? (lineage.verdict?.sha ?? null) : null;
 }
 
+/** The env var the ladder's headless fixer carries, so the `repair-issue` it
+ *  runs records the issue as the ladder's own (issue #6554). */
+export const LADDER_ATTEMPT_ENV = "TOLARIA_LADDER_ATTEMPT";
+
 /** Record `issue` as a repair of the standing RED, on that sha's `health-fix`
- *  status. Returns a note for the operator, or null when nothing was written
- *  (no pivot, no RED standing, store unreachable). Never throws. */
+ *  status. `ladder` marks it the RED ladder's own attempt's (issue #6554);
+ *  absent, it is an interactive session's. Returns a note for the operator,
+ *  or null when nothing was written (no pivot, no RED standing, store
+ *  unreachable). Never throws. */
 export function recordPivotRepairIssue(
     root: string,
     issue: number,
-    opts: PivotOpts = {}
+    opts: PivotOpts & { ladder?: boolean } = {}
 ): string | null {
     try {
         const store = pivotStore(root, FIX_CONTEXT, opts);
         const sha = standingRedSha(root, opts);
         if (sha === null) return null;
-        const issues = new Set(store.read(sha)?.issues ?? []);
+        const held = store.read(sha);
+        const issues = new Set(held?.issues ?? []);
         issues.add(issue);
+        const ladderIssues = new Set(held?.ladderIssues ?? []);
+        if (opts.ladder) ladderIssues.add(issue);
+        const ascending = (s: Set<number>) => [...s].sort((a, b) => a - b);
         store.write({
             sha,
             status: "amber",
             step: "repair",
             machine: machineName(),
-            issues: [...issues].sort((a, b) => a - b),
+            issues: ascending(issues),
+            ...(ladderIssues.size > 0
+                ? { ladderIssues: ascending(ladderIssues) }
+                : {}),
         });
         return `repair issue #${issue} recorded on the pivot for ${sha.slice(0, 8)}`;
     } catch (e) {
@@ -161,5 +174,26 @@ export function pivotRepairIssues(
     } catch (e) {
         warn("the repair issues could not be read", e);
         return [];
+    }
+}
+
+/** The standing RED's repair issues split by who declared them (issue
+ *  #6554): the ladder's own attempt's, and every other session's. */
+export function pivotRepairOrigins(
+    root: string,
+    opts: PivotOpts = {}
+): { ladder: number[]; foreign: number[] } {
+    try {
+        const sha = standingRedSha(root, opts);
+        if (sha === null) return { ladder: [], foreign: [] };
+        const held = pivotStore(root, FIX_CONTEXT, opts).read(sha);
+        const ladder = held?.ladderIssues ?? [];
+        return {
+            ladder,
+            foreign: (held?.issues ?? []).filter((n) => !ladder.includes(n)),
+        };
+    } catch (e) {
+        warn("the repair issues could not be read", e);
+        return { ladder: [], foreign: [] };
     }
 }
