@@ -485,7 +485,7 @@ describe("spell slot — flashback (CR 702.34a)", () => {
                     "Look at the top X cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.\nFlashback—{1}{U}, Exile X blue cards from your graveyard.",
             })
         );
-        expect(def.flashback).toEqual({ generic: 1, U: 1 });
+        expect(def.flashback).toEqual({ X: 1, U: 1 });
         expect(def.additionalCosts).toEqual({
             flashbackExileFromGraveyard: { color: "U" },
         });
