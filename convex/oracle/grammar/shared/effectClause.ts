@@ -210,6 +210,17 @@ export type AmountIR =
     | {
           readonly kind: "sacrificed-source-characteristic";
           readonly characteristic: "power";
+      }
+    /**
+     * CR 202.3 + CR 608.2h — "the exiled card's mana value" where the card is
+     * the one the ability's own "Exile the top card of your library" cost
+     * exiled: its last known characteristics ride on the stack item. Read as
+     * words; only a site whose cost exiles the top card can bind it
+     * (`SiteOptions.costExiledTopCard`), every other site refuses the line.
+     */
+    | {
+          readonly kind: "cost-exiled-card-characteristic";
+          readonly characteristic: "manaValue";
       };
 
 /**
@@ -4286,7 +4297,9 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
  * tail defines it. The tail is one of two counts: "the number of <plural
  * descriptor>" and "the number of cards in your hand minus N".
  */
-const WHERE_X_IS = /^(.+), where X is (the number of .+)$/;
+const WHERE_X_IS =
+    /^(.+), where X is (the number of .+|the exiled card(?:'|’)s mana value)$/;
+const EXILED_CARD_MANA_VALUE = /^the exiled card(?:'|’)s mana value$/;
 const CARDS_IN_YOUR_HAND_MINUS =
     /^the number of cards in your hand minus (\S+)$/;
 /**
@@ -6063,6 +6076,12 @@ function libraryHalf(span: string) {
  * descriptor clause the count cannot express is the LOWERING's refusal.
  */
 function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
+    // CR 202.3 — the card the activation cost exiled; the site binds it.
+    if (EXILED_CARD_MANA_VALUE.test(tail))
+        return ok({
+            kind: "cost-exiled-card-characteristic" as const,
+            characteristic: "manaValue" as const,
+        });
     const hand = tail.match(CARDS_IN_YOUR_HAND_MINUS);
     if (hand !== null) {
         const minus = readNumberWord(hand[1]!);
@@ -6103,6 +6122,10 @@ function bindWhereX(
         case "deal-damage":
             return sentence.amount.kind === "x"
                 ? { ...sentence, amount }
+                : null;
+        case "counters":
+            return sentence.count.kind === "x"
+                ? { ...sentence, count: amount }
                 : null;
         case "conjunction": {
             const effects = sentence.effects.map((e) => bindWhereX(e, amount));

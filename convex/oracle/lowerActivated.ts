@@ -175,6 +175,9 @@ export function lowerActivatedAbility(input: {
             ...(input.cost.atoms.some((a) => a.kind === "sacrifice-self")
                 ? { sourceSacrificed: true as const }
                 : {}),
+            ...(input.cost.atoms.some((a) => a.kind === "exile-top-of-library")
+                ? { costExiledTopCard: true as const }
+                : {}),
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);

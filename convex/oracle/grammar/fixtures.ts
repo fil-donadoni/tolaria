@@ -5123,6 +5123,63 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 118.1 + CR 608.2h + CR 202.3 — "the exiled card's mana value" where
+    // the card is the one the ability's own "Exile the top card of your
+    // library" cost exiled (Phyrexian Devourer): read off the cost snapshot as
+    // the `sacrificed` value. The canned smoke scenario never pays a cost, so
+    // no snapshot exists to read and the form would sit in quarantine without
+    // evidence (issue #5327).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "28b1ed69-784c-4642-86c7-104792d5afc2",
+            name: "Phyrexian Devourer",
+            manaCost: "{6}",
+            typeLine: "Artifact Creature — Phyrexian Construct",
+            oracleText:
+                "When this creature's power is 7 or greater, sacrifice it.\nExile the top card of your library: Put X +1/+1 counters on this creature, where X is the exiled card's mana value.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Phyrexian Devourer",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Phyrexian", "Construct"],
+            manaCost: { X: 6 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature's power is 7 or greater, sacrifice it.\nExile the top card of your library: Put X +1/+1 counters on this creature, where X is the exiled card's mana value.",
+            activatedAbilities: [
+                {
+                    id: "phyrexian-devourer-ability",
+                    oracleText:
+                        "Exile the top card of your library: Put X +1/+1 counters on this creature, where X is the exiled card's mana value.",
+                    cost: { exileTopOfLibrary: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$source" },
+                            count: { sacrificed: { read: "manaValue" } },
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "phyrexian-devourer-trigger",
+                    oracleText:
+                        "When this creature's power is 7 or greater, sacrifice it.",
+                    head: { kind: "power-reached", atLeast: 7 },
+                    effects: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
+        },
+    },
     // CR 702.34a / 514.2 (issue #4756) — "<target instant or sorcery card in
     // your graveyard> gains flashback until end of turn. The flashback cost is
     // equal to its mana cost." Exhibits the "grants flashback to a
