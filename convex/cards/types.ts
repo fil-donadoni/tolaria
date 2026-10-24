@@ -21230,6 +21230,14 @@ export interface CardDefinition {
      *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
      *  and REMOVES the field — no engine read ever sees it. */
     damagePreventionCounterRemoval?: boolean;
+    /** CR 615 — "Prevent all damage that would be dealt to you." The Oracle
+     *  compiler's JSON-pure declaration of the clause:
+     *  `expandControllerDamagePrevention`
+     *  (`abilities/controllerDamagePrevention.ts`) rebuilds it at the
+     *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
+     *  scoped to the source's controller and REMOVES the field — no engine
+     *  read ever sees it. */
+    preventsDamageToController?: boolean;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

@@ -110,6 +110,8 @@ export interface LoweredStatic {
     readonly triggeredAbilities?: readonly CompiledTriggeredAbility[];
     /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
     readonly damagePreventionCounterRemoval?: true;
+    /** CR 615 — "Prevent all damage that would be dealt to you". */
+    readonly preventsDamageToController?: true;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -707,6 +709,11 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: { damagePreventionCounterRemoval: true },
+            };
+        case "controller-damage-prevention":
+            return {
+                ok: true,
+                lowered: { preventsDamageToController: true },
             };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);
