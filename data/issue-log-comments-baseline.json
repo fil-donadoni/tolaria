@@ -249,7 +249,6 @@
     "scripts/check-convex-heap.ts#f65f13c792",
     "scripts/check-cr-citations.ts#bfb4765934",
     "scripts/check-gaps.ts#d75e028600",
-    "scripts/check-lane.ts#cc859bc3e1",
     "scripts/check-lane.ts#dd5b54d612",
     "scripts/check-targets.ts#4d85b9a32d",
     "scripts/check-test-hygiene.ts#3d115b0a31",
