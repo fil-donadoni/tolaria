@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
 import {
     bladeDeckKnowledge,
@@ -8,6 +8,7 @@ import {
     type BladeScenario,
 } from "../ai/blade";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cloneGameState } from "../clone";
 import { enumerateMoves, onlyPassIsLegal, type Move } from "../moves";
@@ -19,6 +20,8 @@ import {
     searchWithTrace,
 } from "../search";
 import type { GameState } from "../state";
+import { RECORDING_BOT_PINS, pinRecorder } from "./botPinRecorder.fixture";
+import digests from "./fixtures/searchForcedPass.pins.json";
 
 /**
  * Forced-pass fast path (issue #4460, PRD #4454) — the contract is
@@ -35,22 +38,24 @@ import type { GameState } from "../state";
 
 const ITERATIONS = 100;
 const SEED = 0xb1ade;
+const recorder = pinRecorder(
+    join(__dirname, "fixtures/searchForcedPass.pins.json")
+);
 
 type Fixture = {
     name: string;
     /** Label prefix of the blade entry — unique, resolved below. */
     labelPrefix: string;
-    /** Recorded on the tree BEFORE the fast path existed (base 6a9791267);
-     *  the root digests are re-recorded on each refit of
-     *  `DEFAULT_EVAL_WEIGHTS` (the chosen move and the RNG counter do not
-     *  move — the pin is the fast path's byte-identity with the plain path,
-     *  which the second describe below checks on every tree). */
+    /** Recorded on the tree BEFORE the fast path existed (base 6a9791267).
+     *  The chosen move and the RNG counter do not move with a refit; the root
+     *  digest — sha256 (first 16 hex) over `key:visits:meanReward` of every
+     *  root candidate, most-visited first, the whole root table unrounded — is
+     *  `fixtures/searchForcedPass.pins.json`, re-recorded by `bun run
+     *  bot:refit` (issue #6690). The pin is the fast path's byte-identity with
+     *  the plain path, which the second describe below checks on every tree. */
     expected: {
         chosen: string;
         gameRngCounter: number;
-        /** sha256 (first 16 hex) over `key:visits:meanReward` of every root
-         *  candidate, most-visited first — the whole root table, unrounded. */
-        rootDigest: string;
     };
 };
 
@@ -63,7 +68,6 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
             gameRngCounter: 118,
-            rootDigest: "a044aa5531c03f44",
         },
     },
     {
@@ -72,7 +76,6 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Fireball (X=3) → Blade P2",
             gameRngCounter: 118,
-            rootDigest: "ba3fb0f11d1ea558",
         },
     },
     {
@@ -81,7 +84,6 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Captain's Maneuver (X=1) → Blade P1, Craw Wurm",
             gameRngCounter: 118,
-            rootDigest: "1878d8839056dac8",
         },
     },
 ];
@@ -93,6 +95,11 @@ function scenarioFor(prefix: string): BladeScenario {
 }
 
 describe("forced-pass fast path: decisions are byte-identical (issue #4460)", () => {
+    // Record mode (`bun run bot:refit`, issue #6690).
+    afterAll(() => {
+        if (RECORDING_BOT_PINS) recorder.flush(FIXTURES.map((f) => f.name));
+    });
+
     for (const fixture of FIXTURES) {
         it(`${fixture.name}: same move, same game RNG counter, same root statistics`, () => {
             const scenario = scenarioFor(fixture.labelPrefix);
@@ -108,24 +115,31 @@ describe("forced-pass fast path: decisions are byte-identical (issue #4460)", ()
                 deckKnowledge
             );
 
+            const rootDigest = createHash("sha256")
+                .update(
+                    (trace?.candidates ?? [])
+                        .map(
+                            (c) =>
+                                `${moveKey(c.move)}:${c.visits}:${c.meanReward}`
+                        )
+                        .join("\n")
+                )
+                .digest("hex")
+                .slice(0, 16);
+            if (RECORDING_BOT_PINS) {
+                recorder.set(fixture.name, rootDigest);
+                return;
+            }
             const actual = {
                 chosen: trace?.chosen ?? "",
                 // The search never touches the caller's state (it clones), and
                 // the GAME's stream is not the search's to advance.
                 gameRngCounter: state.rngCounter,
-                rootDigest: createHash("sha256")
-                    .update(
-                        (trace?.candidates ?? [])
-                            .map(
-                                (c) =>
-                                    `${moveKey(c.move)}:${c.visits}:${c.meanReward}`
-                            )
-                            .join("\n")
-                    )
-                    .digest("hex")
-                    .slice(0, 16),
             };
             expect(actual).toEqual(fixture.expected);
+            expect(rootDigest).toBe(
+                (digests as Record<string, string>)[fixture.name]
+            );
         });
     }
 });
