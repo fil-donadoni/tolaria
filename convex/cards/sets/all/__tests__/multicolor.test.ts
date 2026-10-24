@@ -14,7 +14,7 @@ import {
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
-import type { GameState } from "../../../../gre/types";
+import type { GameState } from "../../../../gre/state";
 
 const vault = getDefinition("f9b0164c-2d4e-48ab-addd-322d9b504739");
 
