@@ -944,10 +944,8 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
     });
 
     it("damage mode with TWO targets deals 1 to EACH, and a PLAYER target is not skipped", () => {
-        // The player half is the whole reason this mode is written as one
-        // `dealDamage` per announced slot: a `forEach { set: "targets" }`
-        // sweep keeps only permanent entries, so a targeted player would
-        // silently take nothing.
+        // The player half: a targeted player must take the damage like a
+        // creature does, whatever the mode's op shape.
         const victim = makeInstance(PC_CREATURE_ID, {
             id: "victim",
             controllerId: "p2",
