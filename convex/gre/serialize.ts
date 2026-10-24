@@ -922,6 +922,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
         lki.ownerId = item.sourceLki.ownerId;
         base.sourceLki = lki;
     }
+    if (item.sourceLkiPower !== undefined) {
+        base.sourceLkiPower = item.sourceLkiPower;
+    }
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
     // CR 603.3b (issue #2954) — a `oncePerEventBatch` trigger's full firing
     // batch must survive a save taken while the trigger sits on the stack (a
@@ -1141,6 +1144,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
             },
             ctx
         );
+    }
+    if (typeof compact.sourceLkiPower === "number") {
+        item.sourceLkiPower = compact.sourceLkiPower;
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];

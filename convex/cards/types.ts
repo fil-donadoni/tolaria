@@ -4388,8 +4388,13 @@ export interface SpellContext {
      *  by any fight card (pre-"fight" Tracker template and modern "fights").
      *  `fighter` names the other combatant explicitly (the `fight` Effect Op,
      *  "target creature you control fights target creature …"); omitted, it
-     *  is the resolving ability's source. No-op if either creature is no
-     *  longer on the battlefield (CR 701.14b). */
+     *  is the resolving ability's source. With a `fighter` it is a CR 701.14
+     *  fight: no-op if either creature is no longer on the battlefield
+     *  (CR 701.14b). Without one it is the pre-"fight" template ("This
+     *  creature deals damage equal to its power to target creature. That
+     *  creature deals damage equal to its power to this creature"): a source
+     *  that has left the battlefield still deals its half from last known
+     *  information and the return half is skipped (CR 608.2h). */
     fight: (target: TargetSelection, fighter?: TargetSelection) => void;
     gainLife: (playerId: string, amount: number) => void;
     loseLife: (playerId: string, amount: number) => void;
