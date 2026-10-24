@@ -130,7 +130,6 @@ import {
     forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
-import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
 import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
 import {
     BASIC_LAND_SUBTYPE_ORDER,
@@ -1260,21 +1259,20 @@ function toPermanentFilter(
         return UNMATCHABLE_FILTER;
     }
     // CR 205.3m (issue #6618) — "shares a creature type with <object>": the
-    // referent's last-known creature types ORed into `PermanentFilter.subtypes`
-    // (OR within the field), ANDed with a literal `subtype` by intersection.
-    // Dropping it would be fail-OPEN (every creature); no shared type is the
-    // UNMATCHABLE_FILTER sentinel.
+    // referent's last-known creature types, ORed within `PermanentFilter.
+    // subtypes`. Dropping it would be fail-OPEN (every creature); no shared
+    // type is the UNMATCHABLE_FILTER sentinel. `PermanentFilter` has ONE
+    // subtype slot, so a literal `subtype` beside it (an AND the slot cannot
+    // express) is refused by the validator and fails closed here.
     if (filter.sharesCreatureTypeWith !== undefined) {
         const shared = resolveSharedCreatureTypes(
             ctx,
             filter.sharesCreatureTypeWith
         );
-        const both =
-            subtypes === undefined
-                ? shared
-                : shared.filter((s) => subtypes?.includes(s));
-        if (both.length === 0) return UNMATCHABLE_FILTER;
-        subtypes = both;
+        if (shared.length === 0 || subtypes !== undefined) {
+            return UNMATCHABLE_FILTER;
+        }
+        subtypes = shared;
     }
     return {
         types: filter.type,

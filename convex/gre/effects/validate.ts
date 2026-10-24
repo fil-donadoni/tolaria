@@ -444,6 +444,10 @@ function isCardFilter(
     // this field opt-OUTs at exactly those same battlefield-guaranteed sites.
     const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
     const entries = Object.entries(value);
+    // CR 205.3m (issue #6618) — `sharesCreatureTypeWith` and a `subtype` in the
+    // same clause are an AND of two subtype sets, which `PermanentFilter`'s
+    // single subtype slot cannot express: refused rather than half-honoured.
+    if ("sharesCreatureTypeWith" in value && "subtype" in value) return false;
     return entries.every(([k, v]) => {
         if (k === "type" || k === "excludeType" || k === "excludeSubtype") {
             return isValueOrArray(
