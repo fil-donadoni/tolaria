@@ -179,15 +179,9 @@ bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # da
 bun run check:oracle && bun run catalogue:check && bun run check:index && bun run check:gaps && bun run cr:lint
 ```
 
-The bare compile is session-scoped (ADR 0158 § 2a, issues #6463, #6688): it
-plays only your GRADUATIONS — cards this tree brings to `ready` that were not
-`ready` with a verdict — sharded over worker threads; every drift row
-(`ready` before and after, definition moved — a rule touching every
-definition is thousands) carries its committed verdict marked `botStale`,
-and those verdicts arrive post-merge, when the base replays them
-(`derive:sync`). Header on the committed Bot hash — a Bot PR before yours is
-never your replay. It never queues for the heavy mutex; minutes here is a
-bug (or a form graduating wholesale): stop, say so in the PR.
+The bare compile (ADR 0158 § 2a) plays only your graduations; a drift row
+(definition moved) carries its verdict `botStale`, replayed by the base
+post-merge; header on the committed Bot hash. Minutes = a bug.
 
 Never hand-edit a generated file (`oracle-compiled.json`, `card-index.json`,
 `data/catalogue/*`) — regenerate. If the rule
@@ -202,9 +196,7 @@ bun run oracle:report --delta >"$SCRATCHPAD/delta.log" 2>&1; echo "exit=$?"; cat
 ```
 
 Per set and corpus, `before / after / delta / lost` against `origin/<base>`,
-then two `bot verdicts` lines from the compile's own classification: the
-graduations played here (a `frozen` one named — it left `ready` for
-`quarantine`, so it is in no `gained`) and the rows carrying a stale verdict.
+then `bot verdicts` (frozen graduations named).
 **`lost` must be 0**: a card leaving `ready` is a regression the rule caused,
 and `check:oracle` refuses it unless `data/oracle-state-regressions.json`
 acknowledges it with a human-written reason. Fix the rule rather than writing
@@ -253,11 +245,9 @@ bunx vitest run convex/oracle convex/cards/__tests__ scripts/__tests__/grammar-g
 
 **Bot reachability is COMPUTED for a graduated card** (issue #3830, ADR 0105
 § 7.2): step 6's compile plays the graduates and records `botReach` on their
-rows — `frozen` is quarantined `bot-unreachable` (named by step 7's
-`bot verdicts` line),
+rows — `frozen` is quarantined `bot-unreachable` (named in step 7),
 `ignored` ships and counts toward a Bot Gap `gaps:sync` files after the
-merge. Drift rows' verdicts arrive post-merge (step 6). Only
-`harness-error` owes the manual three-seam walk of
+merge. Only `harness-error` owes the manual three-seam walk of
 `.claude/rules/gre-development.md` § Bot reachability.
 
 **The gaps this ticket's landing files take their Target's band, never this
