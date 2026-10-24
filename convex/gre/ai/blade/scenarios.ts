@@ -847,12 +847,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: false,
                 },
+                // Real cards, not `hiddenHand`: a blade position must load
+                // into a live game (issue #1432); basic lands stand in as
+                // slots whose value no board changes.
+                { name: "Forest", owner: "opp", zone: "hand", count: 5 },
             ],
             phase: "DECLARE_ATTACKERS",
             turn: 5,
             landCount: 4,
             libraryCount: 20,
-            hiddenHand: { opp: 5 },
         },
         bot: "me",
         budget: { iterations: 400 },
@@ -889,12 +892,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                     counters: { "+1/+1": 2 },
                 },
+                // Real cards, not `hiddenHand`: a blade position must load
+                // into a live game (issue #1432); basic lands stand in as
+                // slots whose value no board changes.
+                { name: "Forest", owner: "opp", zone: "hand", count: 5 },
             ],
             phase: "DECLARE_ATTACKERS",
             turn: 5,
             landCount: 4,
             libraryCount: 20,
-            hiddenHand: { opp: 5 },
         },
         bot: "me",
         budget: { iterations: 400 },

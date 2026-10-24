@@ -666,15 +666,18 @@
                 "counters": {
                     "+1/+1": 2
                 }
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 5
             }
         ],
         "phase": "DECLARE_ATTACKERS",
         "turn": 5,
         "landCount": 4,
-        "libraryCount": 20,
-        "hiddenHand": {
-            "opp": 5
-        }
+        "libraryCount": 20
     },
     "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)": {
         "cards": [
