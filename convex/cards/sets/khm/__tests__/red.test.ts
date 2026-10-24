@@ -21,7 +21,7 @@ import {
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
 import { getEffectivePower } from "../../../../gre/layers";
-import { assertSacrificeFilterCostAffordable } from "../../../../gre/activation";
+import { assertPermanentGiveUpCostAffordable } from "../../../../gre/activation";
 import { buildActivationSacrificeSelection } from "../../../../gre/activationCostPicks";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -200,7 +200,7 @@ describe("Magda, Brazen Outlaw — Sacrifice five Treasures: tutor (CR 118.3 / 7
     it("is unpayable with four Treasures, payable with five", () => {
         const four = withTreasures(4);
         expect(() =>
-            assertSacrificeFilterCostAffordable(
+            assertPermanentGiveUpCostAffordable(
                 four,
                 getPlayer(four, "p1"),
                 source(four),
@@ -209,7 +209,7 @@ describe("Magda, Brazen Outlaw — Sacrifice five Treasures: tutor (CR 118.3 / 7
         ).toThrow();
         const five = withTreasures(5);
         expect(() =>
-            assertSacrificeFilterCostAffordable(
+            assertPermanentGiveUpCostAffordable(
                 five,
                 getPlayer(five, "p1"),
                 source(five),
