@@ -615,9 +615,10 @@ and two queued PRs collided on them textually. `housekeeping` runs
 `oracle:prune-regressions` so it builds on their commits: the **drift sweep**
 (ADR 0158 § 2b, issue #6687) — the tip's `ready` rows whose Bot verdict was
 not played on the definition the tip compiles (`staleVerdicts`), counted with
-no lock; none → `oracle:compile --carry-bot` as before, else a bare
-`oracle:compile` plays exactly them (in place up to `LOCK_FREE_MISSES`, the
-heavy mutex past it), `oracle:index` for a card it brought into `ready`, the
+no lock; none → `oracle:compile --carry-bot` as before, else
+`oracle:compile --play-misses` plays exactly them — the drift rows a
+session's bare compile carried `botStale` (issue #6688) included — in place
+up to `LOCK_FREE_MISSES`, the heavy mutex past it, `oracle:index` for a card it brought into `ready`, the
 miss count, played count and wall in the job summary — then `catalogue:pack`
 on the tip in its worktree (the corpus cache is copied from the primary
 checkout when the worktree lacks it), the five paths (plus the card index)

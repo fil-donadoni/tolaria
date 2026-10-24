@@ -6,8 +6,10 @@
  *   1. stop (exit 0) when a re-pin PR is still open, or when Scryfall's
  *      `oracle_cards` bulk is the one already pinned;
  *   2. `oracle:corpus --repin`, then everything that follows from the pin:
- *      `oracle:compile` (the Bot sweep, under the heavy mutex — exit 77 is
- *      passed through as INFRA), `oracle:legality`, `oracle:index`,
+ *      `oracle:compile --play-misses` (the whole Bot sweep, under the heavy
+ *      mutex — a re-pin moves every definition, and a bare run would carry
+ *      those verdicts stale past step 3's `ready` losses, issue #6688; exit
+ *      77 is passed through as INFRA), `oracle:legality`, `oracle:index`,
  *      `oracle:pool`, `catalogue:build`;
  *   3. settle what blocks the merge (`lib/corpus-repin.ts`): `ready` losses
  *      acknowledged, enforced-Target claims written — both pointing at ONE
@@ -263,7 +265,7 @@ function main(): void {
     const fromDate = corpusDate(before.updatedAt);
     say(`re-pinned ${fromDate} → ${date}`);
 
-    step("oracle:compile", ["scripts/oracle-compile.ts"]);
+    step("oracle:compile", ["scripts/oracle-compile.ts", "--play-misses"]);
     step("oracle:legality", ["scripts/oracle-legality.ts"]);
     step("oracle:index", ["scripts/oracle-index-backfill.ts"]);
     step("oracle:pool", ["scripts/catalogue-artifact.ts"]);

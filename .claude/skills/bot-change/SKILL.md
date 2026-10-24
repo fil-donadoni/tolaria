@@ -238,9 +238,10 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 
 ## Oracle lockfile — a bare compile never replays for your Bot
 
-A bare `bun run oracle:compile` carries every committed verdict whose
-definition is unchanged and plays only the definition misses (issue #6463),
-header on the committed Bot hash. The whole replay under your Bot
+A bare `bun run oracle:compile` carries every committed verdict, plays only
+the cards the tree graduates to `ready` — a drift row's verdict is carried
+marked `botStale`, replayed by the base after the merge (ADR 0158 § 2a,
+issue #6688) — header on the committed Bot hash (issue #6463). The whole replay under your Bot
 (`--replay-bot`, 20–47 min) runs ONCE on the base after your PR merges
 (`derive:sync --replay-bot`, the `bot-replay` job): no card left `ready` →
 swept lockfile pushed; a card your change froze → a `bug` (`area:game-bot`)

@@ -143,6 +143,12 @@ bun run oracle:corpus  >"$SCRATCHPAD/corpus.log"  2>&1; echo "exit=$?"
 bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"
 ```
 
+The bare compile plays only the cards this tree graduates to `ready` — their
+Bot verdicts land in this PR — and carries every drift row's committed
+verdict (`ready` before and after, definition moved) marked `botStale`: those
+verdicts arrive post-merge, when the base replays them (ADR 0158 § 2a). It
+never queues for the heavy mutex.
+
 A corpus bump moves every state in the lockfile, so it is its own PR, on its
 own issue — never a side effect of one card. If the card is absent and the pin
 is current, the name is wrong: check it against the Scryfall response of §1.
@@ -168,9 +174,10 @@ bun run catalogue:pack >"$SCRATCHPAD/pack.log"  2>&1; echo "exit=$?"
 bun run check:oracle && bun run catalogue:check && bun run check:index
 ```
 
-**Bot read-back.** ADR 0137 says reachability is computed, but the Bot-play
-sweep is issue #3830, open — nothing writes `botReach` today. So walk the three
-seams by hand over the card's `opsUsed` from §2
+**Bot read-back.** ADR 0137 says reachability is computed: the card's row
+carries `botReach` — played in the PR that graduated it, or carried
+`botStale` until the base replays it after the merge (ADR 0158 § 2a). A
+verdict is not the walk, so walk the three seams by hand over the card's `opsUsed` from §2
 (`.claude/rules/gre-development.md` § Bot reachability): `enumerateMoves`
 (reachable?), the choice surface (can it answer?), `OP_VALUERS` +
 `OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
