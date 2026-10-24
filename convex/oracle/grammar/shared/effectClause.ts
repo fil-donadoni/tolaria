@@ -441,6 +441,143 @@ export type CounterTaxIR =
           readonly amount: number;
       };
 
+/**
+ * Every `kind` of the whole-sentence table, in union order: the ONE authority
+ * the shrink-only kind census reads (`scripts/lib/sentence-kinds.ts`, issue
+ * #6557, issue #6621). The assertion below ties it to `EffectSentenceIR` both
+ * ways, so `tsc` reds on a kind added to the union and not here, or here and
+ * not to the union. The frame layer (`FrameChainIR`) carries no kind and has
+ * no row.
+ */
+export const EFFECT_SENTENCE_KINDS = [
+    "choose-creature-type",
+    "set-chosen-creature-type",
+    "choose-land-types",
+    "set-chosen-land-type",
+    "replace-mana-production-color",
+    "grant-mana-substitution",
+    "grant-spell-mana-substitution",
+    "add-mana",
+    "add-mana-instead-if",
+    "reveal-random-hand-card",
+    "named-card-reveal-gate",
+    "pay-variable-then",
+    "pay-mana-then",
+    "sacrifice-source",
+    "pump",
+    "animate",
+    "become-creature",
+    "grant-ability",
+    "grant-flashback",
+    "choose-color-grant-protection",
+    "set-color-choice",
+    "set-land-type",
+    "deal-damage-each-player-count",
+    "deal-damage",
+    "deal-damage-divided",
+    "distribute-counters",
+    "delayed-remove-distributed-counters",
+    "deal-damage-each-of-x-targets",
+    "return-up-to-x-bounded-targets",
+    "suppress-damage-prevention",
+    "lock-damage",
+    "prevent-next-damage",
+    "prevent-next-damage-from-chosen-source",
+    "prevent-combat-damage-to-and-by",
+    "fight",
+    "prevent-combat-damage-by",
+    "redirect-next-damage",
+    "draw",
+    "coin-flip-series",
+    "destroy",
+    "exile",
+    "counter",
+    "sacrifice-source-at-counters",
+    "counter-limit-instead",
+    "retarget",
+    "tap-untap",
+    "skip-next-untap",
+    "regenerate",
+    "untap-chosen-permanents",
+    "combat-restriction",
+    "assigns-no-combat-damage",
+    "player-attack-protection",
+    "effect-and-assigns-no-combat-damage",
+    "forced-block",
+    "prevent-regeneration",
+    "prevent-regeneration-damaged",
+    "land-play-lock",
+    "player-lock",
+    "gain-control",
+    "exchange-control",
+    "attach",
+    "life",
+    "counters",
+    "move-zone",
+    "graveyard-end-card",
+    "graveyard-sweep",
+    "return-self-from-graveyard",
+    "each-player-puts",
+    "put-subtype-from-hand",
+    "create-token",
+    "mill",
+    "optional-shuffle-that-player-library",
+    "shuffle-graveyard-into-library",
+    "return-own-permanent",
+    "exile-graveyard",
+    "exile-graveyard-and-library-copies",
+    "exile-same-name-library-copies",
+    "put-back",
+    "draw-put-back",
+    "shuffle-self-into-library",
+    "exile-until-leaves",
+    "return-exiled",
+    "return-all-exiled-with",
+    "graveyard-play",
+    "graveyard-redirect",
+    "exile-if-dies",
+    "exile-when-dies",
+    "exile-self",
+    "explore",
+    "discard-at-random",
+    "delayed-draw-next-upkeep",
+    "delayed-removal",
+    "delayed-return",
+    "name-card",
+    "discard-named-from-hand",
+    "dig-named-to-hand",
+    "look-hand",
+    "look-random-hand",
+    "reveal-hand-pick",
+    "optional-hand-cost-then",
+    "draw-then-ranged-topdeck",
+    "discard",
+    "sacrifice-unless",
+    "sacrifice",
+    "tap-chosen-per-counter",
+    "conjunction",
+    "optional",
+    "kicked",
+    "controls-more",
+    "replace-if-kicked",
+    "look-distribute",
+    "reveal-top-to-hand",
+    "reveal-until",
+    "first-player-may-reveal-until",
+    "divide-library-piles",
+    "search-reveal-pile-pick",
+    "look-reorder",
+    "phase-out",
+    "keep-one-of-each-permanent-type",
+    "choose-one-per-category",
+    "scry",
+    "loot",
+    "shuffle-hand-redraw",
+    "shuffle-own-graveyard-into-library",
+    "search-target-library",
+    "upgrade-if-controls",
+] as const;
+
 export type EffectSentenceIR =
     /**
      * The Verb Frame layer (`verbFrames.ts`, issue #6557): a sentence read as
@@ -2126,6 +2263,16 @@ export type EffectSentenceIR =
           readonly upgraded: EffectSentenceIR;
       };
 
+/** `true` iff the two kind unions are the same set — either direction missing is `never`. */
+type KindsAgree<Union, Listed> = [Union] extends [Listed]
+    ? [Listed] extends [Union]
+        ? true
+        : never
+    : never;
+export const EFFECT_SENTENCE_KINDS_MATCH_UNION: KindsAgree<
+    Exclude<EffectSentenceIR["kind"], undefined>,
+    (typeof EFFECT_SENTENCE_KINDS)[number]
+> = true;
 /**
  * Where a looked-at window goes (CR 401.4), as the routing sentence prints it.
  *
