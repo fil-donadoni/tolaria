@@ -254,6 +254,48 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
         );
     });
 
+    it("a card name under a filter's `name` is a literal like a number (CR 201.2): two named searches are one form", () => {
+        const named = (name: string): SmokeSkip => ({
+            code: "runtime-amount",
+            reason: "same reason",
+            op: {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { name },
+                count: { min: 0, max: 1 },
+                prompt: `Search your library for a card named ${name}.`,
+                bind: "$found1",
+            } as unknown as EffectOp,
+        });
+        expect(smokeSkipForm(named("Avarax"), undefined)).toBe(
+            smokeSkipForm(named("Squadron Hawk"), undefined)
+        );
+        // A name OUTSIDE a filter is structure and stays: a `createToken`
+        // named Wolf and one named Goblin are two forms.
+        const token = (name: string): SmokeSkip => ({
+            code: "runtime-amount",
+            reason: "same reason",
+            op: { op: "createToken", name, count: 1 } as unknown as EffectOp,
+        });
+        expect(smokeSkipForm(token("Wolf"), undefined)).not.toBe(
+            smokeSkipForm(token("Goblin"), undefined)
+        );
+        // A name is abstracted, a subtype is not: the form keeps what the
+        // scenario's shape depends on.
+        const typed: SmokeSkip = {
+            ...named("Avarax"),
+            op: {
+                ...(named("Avarax").op as object),
+                filter: { subtype: "Goblin" },
+            } as unknown as EffectOp,
+        };
+        expect(smokeSkipForm(named("Avarax"), undefined)).not.toBe(
+            smokeSkipForm(typed, undefined)
+        );
+    });
+
     it("a zone change's form carries the zone its announced object comes from", () => {
         // Same Op, same skeleton, same reason: only the HOST's requirement
         // says whether the object is on the battlefield or in a graveyard.

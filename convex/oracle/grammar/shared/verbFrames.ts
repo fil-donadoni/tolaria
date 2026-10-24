@@ -12,6 +12,15 @@
  *                 "Search your library for <quantity> <descriptor>", with the
  *                 optional reveal of the find ("…, reveal it") as its argument
  *                 (CR 701.20a — how the other players learn what was taken).
+ *                 The quantity classes: "a"/"an" (one, compelled when no
+ *                 quality is stated — CR 701.23b), a printed count of two or
+ *                 more ("three cards"), "up to N", and "any number of" (an
+ *                 open count, clamped to the library). The descriptor may end
+ *                 in "named <Name>" (CR 201.2 — the English name, one name;
+ *                 the card's own name arrives as the normaliser's marker and
+ *                 is put back by the lowering) and may read "with mana value
+ *                 X or less" (CR 107.3 — the X the source announced, gated by
+ *                 the lowering site).
  *  - `moveZone` — "<put|exile|return> <object> <destination>": an object
  *                 changes zone (CR 400.7). The OBJECT is one of the argument
  *                 classes below; the DESTINATION is a zone reference (hand,
@@ -59,8 +68,13 @@
  *
  * A frame CHAIN is the members of one sentence in printed order, joined by
  * ", " or ", then " (CR 608.2c — instructions are followed in the order
- * written, so the comma and the "then" are the same join), or opened by a
- * sentence-initial "Then" (the ". Then" connector, `continuation`). Two
+ * written, so the comma and the "then" are the same join), or by a bare
+ * " and " whose right side opens a frame or a reveal ("search your library
+ * for a basic land card and reveal it", "… and put it onto the battlefield
+ * tapped" — the same join printed without the comma; an " and " whose right
+ * side opens nothing stays inside its member, where the descriptor refuses
+ * it: "a Forest card and a Plains card" is two finds, not a chain), or opened
+ * by a sentence-initial "Then" (the ". Then" connector, `continuation`). Two
  * Composition Rules act inside the chain:
  *
  *  - the OBJECT PRONOUN ("it", "that card", "the card", "them", "those
@@ -94,6 +108,7 @@ import type {
     EffectChoiceSuperlative,
     TargetRequirement,
 } from "../../../cards/types";
+import { SELF_MARKER } from "../../normalize";
 import {
     fail,
     ok,
@@ -193,9 +208,13 @@ export type FrameIR =
           readonly filter: EffectCardFilter;
           /** The quantity and description as printed, kept for the prompt. */
           readonly phrase: string;
-          /** How many cards the quantity names ("a" = 1, "up to N" = N). */
+          /** How many cards the quantity names ("a" = 1, "three" = 3,
+           *  "up to N" = N; "any number of" = {@link ANY_NUMBER}). */
           readonly count: number;
-          /** "up to N": the find is a range, never compelled. */
+          /** "up to N" / "any number of": the quantity itself is a range,
+           *  so the find is never compelled, whatever the description. A
+           *  printed count ("three cards") is exact, clamped by what the
+           *  library holds (CR 609.3) when no quality is stated. */
           readonly upTo: boolean;
           /** CR 701.20a — the reveal of the find, when the line prints one. */
           readonly reveal?: PronounIR;
@@ -336,6 +355,25 @@ export function frameOf(span: string): FrameName | null {
 /** CR 701.23a — the quantity classes the search frame reads. */
 const SEARCH_ONE = /^(an?) (.+)$/;
 const SEARCH_UP_TO = /^up to (\S+) (.+)$/;
+const SEARCH_ANY_NUMBER = /^any number of (.+)$/;
+const SEARCH_COUNT = /^(\S+) (.+)$/;
+/**
+ * "any number of": the engine's open-count idiom — the `choice` Op clamps a
+ * range's `max` to the cards available, so the largest safe integer is "every
+ * matching card" (Skyship Weatherlight's hand-written definition is the
+ * reference). Lowered as `{ min: 0, max: ANY_NUMBER }`.
+ */
+export const ANY_NUMBER = Number.MAX_SAFE_INTEGER;
+/**
+ * CR 201.2 — "<descriptor> named <Name>": the name is the English name, taken
+ * whole (lazy left side, so the first " named " splits). The filter carries
+ * ONE name, so a name list is two finds and is refused: "named A or B",
+ * "named A and/or a card named B", "named A and a card named B" — any "and",
+ * "or", "and/or" or a second "named" inside the name. A name that holds the
+ * card's own marker beside other words is no printed form either.
+ */
+const NAMED = /^(.+?) named (.+)$/;
+const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 const THAT_PLAYER_SHUFFLES =
@@ -1047,6 +1085,42 @@ function readSacrificeMember(
 }
 
 /**
+ * CR 701.23a — the quantity that opens the search's object: how many cards,
+ * whether the count is a range, and the noun phrase left for the descriptor.
+ * A count word that is not one ("exactly two", "that many", "X") is refused by
+ * name — a count the engine would have to invent is a card that resolves and
+ * does nothing. "up to one" is refused too: no corpus card prints it, and
+ * reading it would make "up to" and "a" two spellings of one class.
+ */
+function readSearchQuantity(
+    rest: string
+):
+    | { readonly count: number; readonly upTo: boolean; readonly noun: string }
+    | { readonly refused: string } {
+    const one = rest.match(SEARCH_ONE);
+    if (one !== null) return { count: 1, upTo: false, noun: one[2]! };
+    const upTo = rest.match(SEARCH_UP_TO);
+    if (upTo !== null) {
+        const n = readNumberWord(upTo[1]!);
+        if (n === null || n < 2)
+            return {
+                refused: `"up to ${upTo[1]}" is not a count of two or more`,
+            };
+        return { count: n, upTo: true, noun: upTo[2]! };
+    }
+    const anyNumber = rest.match(SEARCH_ANY_NUMBER);
+    if (anyNumber !== null)
+        return { count: ANY_NUMBER, upTo: true, noun: anyNumber[1]! };
+    const counted = rest.match(SEARCH_COUNT);
+    const n = counted === null ? null : readNumberWord(counted[1]!);
+    if (counted !== null && n !== null && n >= 2)
+        return { count: n, upTo: false, noun: counted[2]! };
+    return {
+        refused: `"${rest}" is not a quantity class the search frame reads ("a", "an", a count of two or more, "up to N", "any number of")`,
+    };
+}
+
+/**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
  * last search (`reveal`), or the reason it is refused. `null` when the member
@@ -1069,27 +1143,16 @@ function readMember(
 
     if (VERB_FRAMES[0]!.opens.test(lower)) {
         const rest = lower.slice("search your library for ".length);
-        const one = rest.match(SEARCH_ONE);
-        const upTo = rest.match(SEARCH_UP_TO);
-        let count: number;
-        let noun: string;
-        if (one !== null) {
-            count = 1;
-            noun = one[2]!;
-        } else if (upTo !== null) {
-            const n = readNumberWord(upTo[1]!);
-            if (n === null || n < 2)
-                return {
-                    refused: `"up to ${upTo[1]}" is not a count of two or more`,
-                };
-            count = n;
-            noun = upTo[2]!;
-        } else {
-            return {
-                refused: `"${rest}" is not a quantity class the search frame reads ("a", "an", "up to N")`,
-            };
-        }
-        const descriptor = descriptorRule.run(noun, ctx);
+        const quantity = readSearchQuantity(rest);
+        if ("refused" in quantity) return quantity;
+        const { count, upTo } = quantity;
+        // CR 201.2 — "a card named <Name>": the name is split off before the
+        // descriptor reads the noun, and joins the filter after it.
+        const named = quantity.noun.match(NAMED);
+        const descriptor = descriptorRule.run(
+            named === null ? quantity.noun : named[1]!,
+            ctx
+        );
         if (!descriptor.ok) return { refused: descriptor.reason };
         if ((descriptor.value.plural === true) !== count > 1)
             return {
@@ -1097,14 +1160,29 @@ function readMember(
             };
         const filter = librarySearchFilterFromDescriptor(descriptor.value);
         if (!filter.ok) return { refused: filter.reason };
+        if (named !== null && NAME_LIST.test(named[2]!))
+            return {
+                refused: `"named ${named[2]}" names more than one card name — a search filter carries one name (CR 201.2)`,
+            };
+        if (
+            named !== null &&
+            named[2]!.includes(SELF_MARKER) &&
+            named[2] !== SELF_MARKER
+        )
+            return {
+                refused: `"named ${named[2]}" puts the card's own name beside other words — not a name any card prints`,
+            };
         return {
             frames: [
                 {
                     frame: "search",
-                    filter: filter.value,
+                    filter:
+                        named === null
+                            ? filter.value
+                            : { ...filter.value, name: named[2]! },
                     phrase: rest,
                     count,
-                    upTo: upTo !== null,
+                    upTo,
                 },
             ],
             referent: { plural: count > 1, consumed: false },
@@ -1210,6 +1288,43 @@ function readMember(
 }
 
 /**
+ * CR 608.2c — the members of one sentence: split at ", " (a leading "then"
+ * dropped), then at a bare " and " whose right side opens a frame or is the
+ * reveal argument — the comma-less spelling of the same join ("…for a basic
+ * land card and reveal it", "…and put it onto the battlefield tapped"). An
+ * " and " whose right side opens nothing stays in its member, so "a Forest
+ * card and a Plains card" reaches the descriptor whole and is refused there.
+ */
+function splitMembers(body: string): string[] {
+    // CR 608.2c — ", " joins members; a comma INSIDE a member (a type list,
+    // "target artifact, creature, or enchantment") opens nothing and is
+    // rejoined to the member it belongs to.
+    const pieces: string[] = [];
+    for (const piece of body.split(", ")) {
+        if (pieces.length > 0 && !opensMember(piece))
+            pieces[pieces.length - 1] += `, ${piece}`;
+        else pieces.push(piece);
+    }
+    // " and " joins two frames inside one member ("…for a card and reveal
+    // it"); an "and" inside a descriptor opens nothing.
+    const out: string[] = [];
+    for (const [i, member] of pieces.entries()) {
+        const parts = (i === 0 ? member : member.replace(/^then /, "")).split(
+            " and "
+        );
+        let current = parts[0]!;
+        for (const part of parts.slice(1)) {
+            if (frameOf(part) !== null || REVEAL.test(part)) {
+                out.push(current);
+                current = part;
+            } else current = `${current} and ${part}`;
+        }
+        out.push(current);
+    }
+    return out;
+}
+
+/**
  * Read a whole sentence as a frame chain. `null` when its first member opens
  * no frame (the sentence is the table's to read), or when a sacrifice-only
  * chain meets a tail that is no frame (the `, then` rule's); a refusal when it opens one
@@ -1222,17 +1337,7 @@ export function readFrameChain(
 ): RuleResult<FrameChainIR> | null {
     const continuation = /^Then /.test(span);
     const body = continuation ? span.slice("Then ".length) : span;
-    // CR 608.2c — ", " joins members; a comma INSIDE a member (a type list,
-    // "target artifact, creature, or enchantment") opens nothing and is
-    // rejoined to the member it belongs to.
-    const members: string[] = [];
-    for (const piece of body.split(", ")) {
-        if (members.length > 0 && !opensMember(piece))
-            members[members.length - 1] += `, ${piece}`;
-        else members.push(piece);
-    }
-    for (let i = 1; i < members.length; i++)
-        members[i] = members[i]!.replace(/^then /, "");
+    const members = splitMembers(body);
     if (members.length === 0 || frameOf(members[0]!) === null) return null;
     const frames: FrameIR[] = [];
     let referent: Referent | null = null;

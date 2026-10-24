@@ -12547,4 +12547,314 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Verb Frames (issue #6622, CR 701.23a) — the search frame's "with mana value X or less" on a coloured creature card; the hand-written card round-trips `equal`. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0d96b60b-a060-48ee-bb83-93f1c4a10669",
+            name: "Green Sun's Zenith",
+            manaCost: "{X}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for a green creature card with mana value X or less, put it onto the battlefield, then shuffle. Shuffle Green Sun's Zenith into its owner's library.",
+            layout: "normal",
+        },
+        expected: {
+            effects: [
+                {
+                    bind: "$found1",
+                    count: { max: 1, min: 0 },
+                    filter: {
+                        color: "G",
+                        manaValueAtMost: { X: true },
+                        type: "Creature",
+                    },
+                    kind: "search-library",
+                    op: "choice",
+                    player: "controller",
+                    prompt: "Search your library for a green creature card with mana value X or less.",
+                    zone: "library",
+                },
+                {
+                    cards: { ref: "$found1" },
+                    from: "library",
+                    op: "moveZone",
+                    player: "controller",
+                    to: "battlefield",
+                },
+                { action: "shuffle", op: "libraryLook", player: "controller" },
+                { op: "shuffleSelfIntoLibrary" },
+            ],
+            manaCost: { G: 1, X: "X" },
+            name: "Green Sun's Zenith",
+            oracleText:
+                "Search your library for a green creature card with mana value X or less, put it onto the battlefield, then shuffle. Shuffle Green Sun's Zenith into its owner's library.",
+            types: ["Sorcery"],
+        },
+    },
+    // Verb Frames (issue #6622, CR 701.23a) — the search frame's "a card named <self>" (CR 201.2), behind a trigger's may-gate; the name literal is one form for every self-naming search (`opSkeleton`). Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2e1deb7e-d40d-437e-b817-b66132d2d1d6",
+            name: "Avarax",
+            manaCost: "{3}{R}{R}",
+            typeLine: "Creature — Beast",
+            oracleText:
+                "Haste\nWhen this creature enters, you may search your library for a card named Avarax, reveal it, put it into your hand, then shuffle.\n{1}{R}: This creature gets +1/+0 until end of turn.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            activatedAbilities: [
+                {
+                    cost: { mana: { R: 1, X: 1 } },
+                    effects: [
+                        {
+                            duration: { phase: "end-of-turn" },
+                            op: "pump",
+                            power: 1,
+                            target: { ref: "$source" },
+                            toughness: 0,
+                        },
+                    ],
+                    id: "avarax-ability",
+                    oracleText:
+                        "{1}{R}: This creature gets +1/+0 until end of turn.",
+                    useStack: true,
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    effects: [
+                        {
+                            bind: "$may2",
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Search your library for a card named Avarax, reveal it, put it into your hand, then shuffle?",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may2" },
+                            then: [
+                                {
+                                    bind: "$found1",
+                                    count: { max: 1, min: 0 },
+                                    filter: { name: "Avarax" },
+                                    kind: "search-library",
+                                    op: "choice",
+                                    player: "controller",
+                                    prompt: "Search your library for a card named Avarax.",
+                                    zone: "library",
+                                },
+                                {
+                                    cards: { ref: "$found1" },
+                                    op: "reveal",
+                                    player: "controller",
+                                },
+                                {
+                                    cards: { ref: "$found1" },
+                                    from: "library",
+                                    op: "moveZone",
+                                    player: "controller",
+                                    to: "hand",
+                                },
+                                {
+                                    action: "shuffle",
+                                    op: "libraryLook",
+                                    player: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                    head: { kind: "entered", scope: "self" },
+                    id: "avarax-trigger",
+                    oracleText:
+                        "When this creature enters, you may search your library for a card named {self}, reveal it, put it into your hand, then shuffle.",
+                },
+            ],
+            manaCost: { R: 2, X: 3 },
+            name: "Avarax",
+            oracleText:
+                "Haste\nWhen this creature enters, you may search your library for a card named Avarax, reveal it, put it into your hand, then shuffle.\n{1}{R}: This creature gets +1/+0 until end of turn.",
+            power: 3,
+            staticAbilities: ["haste"],
+            subtypes: ["Beast"],
+            toughness: 3,
+            types: ["Creature"],
+        },
+    },
+    // Verb Frames (issue #6622, CR 701.23a) — the search frame's "with mana value X or less" on an artifact card, the X of the spell's own cost. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "42a3855d-25ab-45b3-9e5d-9a0f3da35a05",
+            name: "Reshape",
+            manaCost: "{X}{U}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "As an additional cost to cast this spell, sacrifice an artifact.\nSearch your library for an artifact card with mana value X or less, put it onto the battlefield, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            additionalCosts: { sacrificeFilter: { types: ["Artifact"] } },
+            effects: [
+                {
+                    bind: "$found1",
+                    count: { max: 1, min: 0 },
+                    filter: { manaValueAtMost: { X: true }, type: "Artifact" },
+                    kind: "search-library",
+                    op: "choice",
+                    player: "controller",
+                    prompt: "Search your library for an artifact card with mana value X or less.",
+                    zone: "library",
+                },
+                {
+                    cards: { ref: "$found1" },
+                    from: "library",
+                    op: "moveZone",
+                    player: "controller",
+                    to: "battlefield",
+                },
+                { action: "shuffle", op: "libraryLook", player: "controller" },
+            ],
+            manaCost: { U: 2, X: "X" },
+            name: "Reshape",
+            oracleText:
+                "As an additional cost to cast this spell, sacrifice an artifact.\nSearch your library for an artifact card with mana value X or less, put it onto the battlefield, then shuffle.",
+            types: ["Sorcery"],
+        },
+    },
+    // Verb Frames (issue #6622, CR 701.23a) — the search frame's "any number of" (an open count, clamped to the library) into the graveyard. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "46c7f465-304c-4c4b-a1f6-9707706dbf94",
+            name: "Iname, Death Aspect",
+            manaCost: "{4}{B}{B}",
+            typeLine: "Legendary Creature — Spirit",
+            oracleText:
+                "When Iname enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
+            power: "4",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            compiledTriggeredAbilities: [
+                {
+                    effects: [
+                        {
+                            bind: "$may2",
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Search your library for any number of Spirit cards, put them into your graveyard, then shuffle?",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may2" },
+                            then: [
+                                {
+                                    bind: "$found1",
+                                    count: { max: 9007199254740991, min: 0 },
+                                    filter: { subtype: "Spirit" },
+                                    kind: "search-library",
+                                    op: "choice",
+                                    player: "controller",
+                                    prompt: "Search your library for any number of Spirit cards.",
+                                    zone: "library",
+                                },
+                                {
+                                    cards: { ref: "$found1" },
+                                    from: "library",
+                                    op: "moveZone",
+                                    player: "controller",
+                                    to: "graveyard",
+                                },
+                                {
+                                    action: "shuffle",
+                                    op: "libraryLook",
+                                    player: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                    head: { kind: "entered", scope: "self" },
+                    id: "iname-death-aspect-trigger",
+                    oracleText:
+                        "When {self} enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
+                },
+            ],
+            manaCost: { B: 2, X: 4 },
+            name: "Iname, Death Aspect",
+            oracleText:
+                "When Iname enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
+            power: 4,
+            subtypes: ["Spirit"],
+            supertypes: ["Legendary"],
+            toughness: 4,
+            types: ["Creature"],
+        },
+    },
+    // Verb Frames (issue #6622, CR 701.23a) — the search frame's "with mana value X or less" at an {X} activation (CR 107.3). Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6b8183bb-20c4-4d45-b944-508a6a874bb3",
+            name: "Citanul Flute",
+            manaCost: "{5}",
+            typeLine: "Artifact",
+            oracleText:
+                "{X}, {T}: Search your library for a creature card with mana value X or less, reveal it, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            activatedAbilities: [
+                {
+                    cost: { mana: { X: "X" }, tap: true },
+                    effects: [
+                        {
+                            bind: "$found1",
+                            count: { max: 1, min: 0 },
+                            filter: {
+                                manaValueAtMost: { X: true },
+                                type: "Creature",
+                            },
+                            kind: "search-library",
+                            op: "choice",
+                            player: "controller",
+                            prompt: "Search your library for a creature card with mana value X or less.",
+                            zone: "library",
+                        },
+                        {
+                            cards: { ref: "$found1" },
+                            op: "reveal",
+                            player: "controller",
+                        },
+                        {
+                            cards: { ref: "$found1" },
+                            from: "library",
+                            op: "moveZone",
+                            player: "controller",
+                            to: "hand",
+                        },
+                        {
+                            action: "shuffle",
+                            op: "libraryLook",
+                            player: "controller",
+                        },
+                    ],
+                    id: "citanul-flute-ability",
+                    oracleText:
+                        "{X}, {T}: Search your library for a creature card with mana value X or less, reveal it, put it into your hand, then shuffle.",
+                    useStack: true,
+                },
+            ],
+            manaCost: { X: 5 },
+            name: "Citanul Flute",
+            oracleText:
+                "{X}, {T}: Search your library for a creature card with mana value X or less, reveal it, put it into your hand, then shuffle.",
+            types: ["Artifact"],
+        },
+    },
 ]);
