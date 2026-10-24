@@ -15,9 +15,10 @@
  * The overlay is what the driver writes instead of bare OURS: OURS with every
  * card row whose verdict the commit CHANGED (theirs vs base) taken from
  * theirs. The resolver's `--carry-bot` then carries those rows like any other
- * — and still only where the row's definition matches what the rebased tree
- * compiles, so a verdict measured on a definition the merge moved is dropped
- * (left unswept), never misattributed. The file written here is an
+ * — as played only where the row's definition matches what the rebased tree
+ * compiles; a verdict measured on a definition the merge moved is carried
+ * marked `botStale` (ADR 0158 § 2a), for the base to replay, never
+ * misattributed. The file written here is an
  * intermediate: the regeneration rewrites every byte of it.
  */
 import type { CardRow, Lockfile } from "./oracle-lockfile";
@@ -25,10 +26,15 @@ import type { CardRow, Lockfile } from "./oracle-lockfile";
 /** The one regenerated artifact this overlay applies to, repo-relative. */
 export const BOT_VERDICT_OVERLAY_PATH = "data/oracle-compiled.json";
 
+/** A row's verdict — its `botStale` marker included, so a commit that
+ *  REPLAYED a carried verdict to the same outcome still counts as a change
+ *  (issue #6688). A theirs row that is itself `botStale` never does: it
+ *  carried the committed verdict and measured nothing, and substituting it
+ *  would overwrite a verdict the base has since replayed. */
 function verdictOf(row: CardRow | undefined): string {
     return row === undefined
         ? ""
-        : `${row.botReach ?? ""}\u0000${row.botGap ?? ""}`;
+        : `${row.botReach ?? ""}\u0000${row.botGap ?? ""}\u0000${row.botStale === true ? "stale" : ""}`;
 }
 
 /**
@@ -49,7 +55,7 @@ export function overlayBranchVerdicts(
     );
     const changed = new Map<string, CardRow>();
     for (const row of theirs.cards) {
-        if (row.botReach === undefined) continue;
+        if (row.botReach === undefined || row.botStale === true) continue;
         if (verdictOf(row) === verdictOf(baseRows.get(row.oracleId))) continue;
         changed.set(row.oracleId, row);
     }

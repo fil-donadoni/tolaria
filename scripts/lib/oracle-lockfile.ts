@@ -149,6 +149,15 @@ export interface CardRow {
      *  not `played`. */
     readonly botGap?: string;
     /**
+     * Present iff `botReach` was NOT played on this row's definition: a
+     * session's bare compile carried the committed verdict of a drift row —
+     * `ready` before and after, definition moved (ADR 0158 § 2a, issue
+     * #6688). Stale, never missing: the probe reads the row as a miss, so
+     * the base's drift sweep replays it after the merge and drops the marker
+     * (issue #6687).
+     */
+    readonly botStale?: true;
+    /**
      * Present iff this card's hand-written definition has been RETIRED
      * (issue #3049, ADR 0114 §1) — this row is then the only copy of the
      * card's behaviour, and a diff touching it is a behaviour change with no

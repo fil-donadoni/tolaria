@@ -161,7 +161,8 @@ export interface DriftSweepIo {
     readonly misses: () => ReadonlySet<string>;
     /** `oracle:compile --carry-bot`: writes, never plays. */
     readonly carry: () => boolean;
-    /** Bare `oracle:compile`: plays exactly the misses. */
+    /** `oracle:compile --play-misses`: plays exactly the misses, drift
+     *  and graduation alike (a bare run would carry the drift, issue #6688). */
     readonly play: () => boolean;
     /** `oracle:index`: a row for every card newly `ready`. */
     readonly index: () => boolean;
@@ -284,7 +285,7 @@ export function derivedStaleLine(why: string): string {
 // ── The Bot-play replay on the base (issue #6463) ─────────────────────────
 //
 // A session's bare `oracle:compile` carries the committed Bot-play verdicts
-// whatever the Bot hash says and plays only its definition misses, so the
+// whatever the Bot hash says and plays only its graduations, so the
 // header's Bot hash moves ONLY here: `derive:sync --replay-bot`, run by the
 // `bot-replay` job of `post-merge.yml` after each merge and nightly, compares
 // the header's hash with the tree's and, on a mismatch, replays every `ready`

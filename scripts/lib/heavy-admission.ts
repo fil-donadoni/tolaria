@@ -3,10 +3,12 @@
  *
  * WHY. Most heavy work is admitted in `package.json` — the script's command is
  * `bun scripts/gate.ts <tier> '<command>'`. That spelling cannot express "only
- * on SOME flags": `oracle:compile` plays the Bot-play sweep (mean 28 min) when
- * bare, but `--check` and `--carry-bot` never play, and `--carry-bot` is what
- * `land`'s artifact resolver runs. Wrapping the whole script would queue the
- * drift guard behind a `land` for nothing. So a script whose cost depends on
+ * on SOME flags": `oracle:compile` plays the base's Bot-play sweep (mean 28
+ * min) under `--play-misses` / `--replay-bot`, but a session's bare run plays
+ * only its graduations (ADR 0158 § 2a), `--check` and `--carry-bot` never
+ * play, and `--carry-bot` is what `land`'s artifact resolver runs. Wrapping
+ * the whole script would queue the drift guard behind a `land` for nothing.
+ * So a script whose cost depends on
  * its flags decides in-process and, when it is the heavy spelling, re-runs
  * itself under `gate.ts job` — the outer process does nothing but wait.
  *

@@ -179,10 +179,9 @@ bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # da
 bun run check:oracle && bun run catalogue:check && bun run check:index && bun run check:gaps && bun run cr:lint
 ```
 
-The bare compile is session-scoped (issue #6463): committed Bot verdicts
-carried on unchanged definitions, only the graduates played, header on the
-committed Bot hash — a Bot PR before yours is never your replay. Minutes
-here is a bug: stop, say so in the PR.
+The bare compile (ADR 0158 § 2a) plays only your graduations; a drift row
+(definition moved) carries its verdict `botStale`, replayed by the base
+post-merge; header on the committed Bot hash. Minutes = a bug.
 
 Never hand-edit a generated file (`oracle-compiled.json`, `card-index.json`,
 `data/catalogue/*`) — regenerate. If the rule
@@ -196,7 +195,8 @@ shrinks) and close the gap's issue with the PR.
 bun run oracle:report --delta >"$SCRATCHPAD/delta.log" 2>&1; echo "exit=$?"; cat "$SCRATCHPAD/delta.log"
 ```
 
-Per set and corpus, `before / after / delta / lost` against `origin/<base>`.
+Per set and corpus, `before / after / delta / lost` against `origin/<base>`,
+then `bot verdicts` (frozen graduations named).
 **`lost` must be 0**: a card leaving `ready` is a regression the rule caused,
 and `check:oracle` refuses it unless `data/oracle-state-regressions.json`
 acknowledges it with a human-written reason. Fix the rule rather than writing
@@ -245,7 +245,7 @@ bunx vitest run convex/oracle convex/cards/__tests__ scripts/__tests__/grammar-g
 
 **Bot reachability is COMPUTED for a graduated card** (issue #3830, ADR 0105
 § 7.2): step 6's compile plays the graduates and records `botReach` on their
-rows — `frozen` is quarantined `bot-unreachable` (a `lost`, step 7),
+rows — `frozen` is quarantined `bot-unreachable` (named in step 7),
 `ignored` ships and counts toward a Bot Gap `gaps:sync` files after the
 merge. Only `harness-error` owes the manual three-seam walk of
 `.claude/rules/gre-development.md` § Bot reachability.

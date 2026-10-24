@@ -68,7 +68,9 @@ import {
 import { ORIGIN_BASE } from "./lib/branches";
 import {
     formatReadyDelta,
+    formatVerdictDelta,
     readyDelta,
+    verdictDelta,
     type SetMembership,
 } from "./lib/oracle-ready-delta";
 import {
@@ -457,7 +459,9 @@ function reportDelta(
         process.stdout.write(
             `\nno longer ready (${corpus.lost.length}): ${corpus.lost.join(", ")}\n`
         );
-    process.stdout.write("\n");
+    process.stdout.write(
+        `\n${formatVerdictDelta(verdictDelta(baseline.cards, lock.cards))}\n`
+    );
 }
 
 /** `--flag value`, or `undefined` when the flag is absent. */

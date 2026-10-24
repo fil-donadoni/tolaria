@@ -9,6 +9,7 @@
  */
 
 import type { CardRow } from "./oracle-lockfile";
+import { classifyVerdict } from "./oracle-bot-reach";
 
 /** One set's membership, by Scryfall oracle id (MTGJSON `scryfallOracleId`). */
 export interface SetMembership {
@@ -100,4 +101,56 @@ export function formatReadyDelta(
         );
     }
     return `${lines.join("\n")}\n`;
+}
+
+/**
+ * The Bot-verdict side of the delta (ADR 0158 § 2a, issue #6688), read with
+ * the sweep's own classification (`classifyVerdict`) so the two can never
+ * disagree: a session PLAYS its graduations — a frozen one leaves `ready`
+ * for `quarantine` and is named here, never silently absent from `gained` —
+ * and CARRIES drift verdicts, marked `botStale`, which the base replays
+ * after the merge.
+ */
+export interface VerdictDelta {
+    /** Rows this tree graduated against the baseline that carry a verdict. */
+    readonly graduated: number;
+    /** The graduations the Bot froze (`bot-unreachable`), sorted. */
+    readonly frozen: readonly string[];
+    /** Rows carrying a verdict played on another definition (`botStale`) —
+     *  this branch's carries and any the base has not replayed yet. */
+    readonly carried: number;
+}
+
+export function verdictDelta(
+    before: readonly CardRow[],
+    after: readonly CardRow[]
+): VerdictDelta {
+    const baseline = new Map(before.map((r) => [r.oracleId, r] as const));
+    let graduated = 0;
+    let carried = 0;
+    const frozen: string[] = [];
+    for (const r of after) {
+        if (r.botReach === undefined || r.definition === undefined) continue;
+        if (r.botStale === true) {
+            carried++;
+            continue;
+        }
+        const known = classifyVerdict(baseline.get(r.oracleId), r.definition);
+        if (known.kind !== "graduation") continue;
+        graduated++;
+        if (r.botReach === "frozen") frozen.push(r.name);
+    }
+    return { graduated, frozen: frozen.sort(), carried };
+}
+
+/** The lines `oracle:report --delta` prints under the table. */
+export function formatVerdictDelta(delta: VerdictDelta): string {
+    const frozen =
+        delta.frozen.length > 0
+            ? `, ${delta.frozen.length} frozen by the Bot: ${delta.frozen.join(", ")}`
+            : "";
+    return (
+        `bot verdicts: ${delta.graduated} graduation(s) played here${frozen}\n` +
+        `bot verdicts: ${delta.carried} row(s) carry a stale verdict (drift) — the base replays them after the merge\n`
+    );
 }

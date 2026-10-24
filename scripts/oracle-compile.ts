@@ -15,6 +15,7 @@
  * Usage:
  *   bun scripts/oracle-compile.ts            # regenerate the lockfile
  *   bun scripts/oracle-compile.ts --check    # regenerate into memory and diff
+ *   bun scripts/oracle-compile.ts --play-misses  # the base: play every miss
  *   bun scripts/oracle-compile.ts --replay-bot   # re-play every `ready` card
  *   bun scripts/oracle-compile.ts --carry-bot    # write, never play (`land`)
  *   bun scripts/oracle-compile.ts --carry-bot --replay-card <name>
@@ -22,20 +23,23 @@
  *
  * The write path also runs the Bot-play sweep (ADR 0105 § 7.2, issue #3830):
  * every card that compiles `ready` is played by the Bot at both seats
- * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
- * definition is unchanged (`lib/oracle-bot-reach.ts`). A bare run is
- * SESSION-SCOPED: it plays only the definition misses (a
- * changed definition, a card newly `ready`, a `ready` card with no verdict)
- * and keeps the committed Bot hash in the header; a Bot hash that moved is
- * never a reason to replay the catalogue here — that whole replay is
- * `--replay-bot`, run on the base by `derive:sync --replay-bot` once per Bot
- * change. `--check` never plays; it carries the committed verdicts forward.
- * A bare run first counts its cache misses with no lock: zero
- * misses → it writes the carried lockfile and never queues; up to
- * `LOCK_FREE_MISSES` → it plays them in place, like `--replay-card` does
- * (seconds, not a sweep); more → it takes the heavy gate's mutex (`gate.ts
- * job`) and plays only the misses. `--replay-bot` always takes
- * the mutex; `--check` and `--carry-bot` take nothing.
+ * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while it
+ * was played on the definition the card compiles (`lib/oracle-bot-reach.ts`).
+ * A bare run is a SESSION's (ADR 0158 § 2a, issue #6688): it plays only its
+ * GRADUATIONS — cards this tree brings to `ready` that were not `ready` with
+ * a verdict — sharded over worker threads, and CARRIES the committed verdict
+ * of every drift row (`ready` before and after, definition moved), marked
+ * `botStale`; the base replays those after the merge (`derive:sync`, issue
+ * #6687). It keeps the committed Bot hash in the header; a Bot hash that
+ * moved is never a reason to replay the catalogue here — that whole replay
+ * is `--replay-bot`, run on the base by `derive:sync --replay-bot` once per
+ * Bot change. A bare run never queues for the heavy mutex.
+ *
+ * `--play-misses` is the base's drift sweep: every miss is played, drift
+ * and graduation alike. It counts them first with no lock: zero → the
+ * carried lockfile; up to `LOCK_FREE_MISSES` → played in place; more → it
+ * takes the heavy gate's mutex (`gate.ts job`). `--replay-bot` always takes
+ * the mutex; `--check` and `--carry-bot` never play and take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
  * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
@@ -48,11 +52,13 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compileCard } from "../convex/oracle/compile";
 import type {
+    CompiledDefinition,
     CompileState,
     Gap,
     OracleCard,
     QuarantineReason,
 } from "../convex/oracle/types";
+import type { BotReachVerdict } from "../convex/gre/ai/botReach";
 import { GRAMMAR_VERSION } from "../convex/oracle/version";
 import type { CardDefinition } from "../convex/cards/types";
 // PURE over a definition, and free of the search — see its header for why the
@@ -66,6 +72,7 @@ import {
     fragmentKey,
     fragmentRow,
     LOCKFILE_GENERATOR,
+    parseLockfile,
     POOL_PROJECTION_SOURCE,
     poolHash,
     registryHash,
@@ -80,6 +87,7 @@ import {
     botGapKey,
     botHash,
     carriedBotReach,
+    carriedOrPlayed,
     playingBotReach,
     probingBotReach,
     rankBotGaps,
@@ -88,6 +96,7 @@ import {
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
 import { runUnderHeavyAdmission } from "./lib/heavy-admission";
+import { baseArtifact, gitRunner } from "./lib/base-artifact";
 import { createBotPlayer, harnessErrorVerdict } from "./lib/bot-reach-player";
 import { playMisses, sweepWorkerCount } from "./lib/bot-reach-shard";
 import {
@@ -323,18 +332,22 @@ export function buildLockfile(
             outcome.state === "ready"
                 ? botReach?.verdictFor(card.oracleId, outcome.definition)
                 : undefined;
+        // A stale (carried) verdict keeps the key it was committed with —
+        // never one recomputed from a definition it was not played on.
         const gap =
-            verdict !== undefined && outcome.state !== "unparsed"
-                ? botGapKey(
-                      verdict,
-                      outcome.opsUsed,
-                      castShape({
-                          ...outcome.definition,
-                          id: card.oracleId,
-                          rarity: "common",
-                      } as CardDefinition)
-                  )
-                : undefined;
+            verdict?.stale === true
+                ? verdict.gap
+                : verdict !== undefined && outcome.state !== "unparsed"
+                  ? botGapKey(
+                        verdict,
+                        outcome.opsUsed,
+                        castShape({
+                            ...outcome.definition,
+                            id: card.oracleId,
+                            rarity: "common",
+                        } as CardDefinition)
+                    )
+                  : undefined;
         const state: CompileState =
             verdict?.outcome === "frozen" ? "quarantine" : outcome.state;
         if (outcome.state === "unparsed") {
@@ -376,6 +389,7 @@ export function buildLockfile(
                 definition: outcome.definition,
                 ...(verdict !== undefined ? { botReach: verdict.outcome } : {}),
                 ...(gap !== undefined ? { botGap: gap } : {}),
+                ...(verdict?.stale === true ? { botStale: true } : {}),
             });
         }
     }
@@ -426,54 +440,157 @@ export function readCommittedLockfile(): Lockfile | null {
 async function sweepingBotReach(
     previous: Lockfile | null,
     replay: boolean,
-    build: (source: BotReachSource) => unknown,
-    options: { workers?: number; playerModule?: string } = {}
+    build: (source: BotReachSource) => unknown
 ): Promise<ReturnType<typeof playingBotReach>> {
-    const started = Date.now();
     const currentBotHash = botHash(ROOT);
     const probe = probingBotReach(previous, currentBotHash, replay);
     build(probe);
-    const verdicts = await playMisses(probe.missDefinitions(), {
-        workers: options.workers ?? sweepWorkerCount(process.env),
-        playerModule: options.playerModule,
+    const verdicts = await playSharded(probe.missDefinitions());
+    return playingBotReach(previous, currentBotHash, verdictOf(verdicts), {
+        replay,
+    });
+}
+
+/** The shard pool over `definitions`, with a progress line on stderr. */
+function playSharded(
+    definitions: ReadonlyMap<string, CompiledDefinition>
+): Promise<ReadonlyMap<string, BotReachVerdict>> {
+    const started = Date.now();
+    return playMisses(definitions, {
+        workers: sweepWorkerCount(process.env),
         onPlay: () => {
             const s = Math.round((Date.now() - started) / 1000);
             process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
         },
     });
-    return playingBotReach(
-        previous,
-        currentBotHash,
-        (oracleId) =>
-            verdicts.get(oracleId) ??
-            harnessErrorVerdict(
-                "sweep: no verdict for a card the probe missed"
-            ),
-        { replay }
-    );
+}
+
+/** A player that reads a verdict the shard pool already produced. */
+function verdictOf(
+    verdicts: ReadonlyMap<string, BotReachVerdict>
+): (oracleId: string) => BotReachVerdict {
+    return (oracleId) =>
+        verdicts.get(oracleId) ??
+        harnessErrorVerdict("sweep: no verdict for a card the probe missed");
 }
 
 /**
- * How many definition misses a bare run plays WITHOUT the heavy mutex (issue
- * #6463). A play is hundreds of ms (6,500 cards in 20–40 min ≈ 0.2–0.4 s
- * each), so 25 misses are 5–10 s — the cost of a light gate step, and the
- * shape `--carry-bot --replay-card` already runs lock-free. A grammar
- * session's bare compile today is 0–20 misses (the cards its rule
- * graduated); a re-pin or a rule graduating a whole form goes over, and
- * queues like a sweep.
+ * A SESSION's write path — the bare run (ADR 0158 § 2a, issue #6688). The
+ * probe classifies every miss (`classifyVerdict`): the GRADUATIONS are
+ * played — by `play`, the shard pool in production — and the drift rows
+ * carry their committed verdict marked `botStale`, for the base to replay
+ * after the merge. No admission: a graduation set is hundreds of cards at
+ * most, so a session never queues for the heavy mutex. Zero misses returns
+ * the probe's own lockfile, the `--carry-bot` one.
+ */
+export async function sessionSweep(options: {
+    readonly previous: Lockfile | null;
+    /** The base's lockfile, graduations are classified against — after a
+     *  first run the disk holds them `ready` (`sessionBaseline`). */
+    readonly baseline: Lockfile | null;
+    readonly currentBotHash: string;
+    readonly build: (source: BotReachSource) => string;
+    readonly play: (
+        graduations: ReadonlyMap<string, CompiledDefinition>
+    ) => Promise<ReadonlyMap<string, BotReachVerdict>>;
+}): Promise<{ text: string; played: number; carried: number }> {
+    const probe = probingBotReach(
+        options.previous,
+        options.currentBotHash,
+        false,
+        options.baseline
+    );
+    const text = options.build(probe);
+    if (probe.misses().size === 0) return { text, played: 0, carried: 0 };
+    const graduations = probe.graduations();
+    const verdicts =
+        graduations.size === 0
+            ? new Map<string, BotReachVerdict>()
+            : await options.play(graduations);
+    const source = carriedOrPlayed(
+        options.previous,
+        options.currentBotHash,
+        verdictOf(verdicts),
+        { baseline: options.baseline }
+    );
+    return {
+        text: options.build(source),
+        played: source.played(),
+        carried: source.carried(),
+    };
+}
+
+/**
+ * The lockfile a session classifies graduations against: the base's, at the
+ * merge-base (`lib/base-artifact.ts`) — the committed lockfile before this
+ * branch. The disk file is the cache, not the baseline: after a first bare
+ * run it holds this branch's graduations `ready` with a verdict, and a rule
+ * fixed between two runs would read them as drift and carry them stale
+ * (review of issue #6688). No base to read (a tarball, a clone that never
+ * fetched it) → the disk file, said on stderr.
+ */
+function sessionBaseline(previous: Lockfile | null): Lockfile | null {
+    const base = baseArtifact(gitRunner(ROOT), "data/oracle-compiled.json");
+    if (base.kind === "text") {
+        try {
+            return parseLockfile(base.text);
+        } catch (err) {
+            process.stderr.write(
+                `oracle:compile — the lockfile at ${base.at} does not parse (${(err as Error).message}); graduations classified against the disk file\n`
+            );
+            return previous;
+        }
+    }
+    process.stderr.write(
+        `oracle:compile — no base lockfile (${base.kind === "unavailable" ? base.why : base.detail}); graduations classified against the disk file\n`
+    );
+    return previous;
+}
+
+/**
+ * What a run does with the Bot-play sweep, from its flags: `check` and
+ * `carry` never play; `session` (bare) plays its graduations; `misses`
+ * (`--play-misses`, the base's drift sweep) and `replay` (`--replay-bot`)
+ * play the base's work. Pure.
+ */
+export type SweepMode = "check" | "carry" | "session" | "misses" | "replay";
+
+export function sweepMode(argv: readonly string[]): SweepMode {
+    if (argv.includes("--check")) return "check";
+    if (argv.includes("--carry-bot")) return "carry";
+    if (argv.includes("--replay-bot")) return "replay";
+    if (argv.includes("--play-misses")) return "misses";
+    return "session";
+}
+
+/** Whether a mode may queue for the heavy mutex: the base's two sweeps
+ *  only — never a session (ADR 0158 § 2a). */
+export function sweepAdmits(mode: SweepMode): boolean {
+    return mode === "misses" || mode === "replay";
+}
+
+/**
+ * How many misses the BASE's drift sweep (`--play-misses`) plays WITHOUT the
+ * heavy mutex (issue #6463; a session never queues, ADR 0158 § 2a). A play
+ * is hundreds of ms (6,500 cards in 20–40 min ≈ 0.2–0.4 s each), so 25
+ * misses are 5–10 s — the cost of a light gate step. The tip after a small
+ * grammar merge stays in place; a re-pin or a rule moving every definition
+ * goes over, and the post-merge sweep is admitted like any heavy job
+ * (issue #6687's contract).
  */
 export const LOCK_FREE_MISSES = 25;
 
 /**
- * The bare / `--replay-bot` write path (issue #6069): the heavy mutex only
- * when there is enough to play. A bare run probes the cache first — a
- * compile, seconds, no lock — and with zero misses returns the probe's
- * lockfile, which is the one the sweep would write. Up to `lockFreeMisses`
- * misses are played in place (issue #6463); more (or a replay, which ignores
- * the cache) wait on `admit`; a non-null code means the run was re-executed
- * under the mutex and that child's exit code is the run's. The child probes
- * again after acquiring, so a lockfile that moved during the wait is read
- * fresh, and the sweep plays exactly the misses.
+ * The base's write path — `--play-misses` / `--replay-bot` (issue #6069):
+ * the heavy mutex only when there is enough to play. `--play-misses` probes
+ * the cache first — a compile, seconds, no lock — and with zero misses
+ * returns the probe's lockfile, which is the one the sweep would write. Up
+ * to `lockFreeMisses` misses are played in place (issue #6463); more (or a
+ * replay, which ignores the cache) wait on `admit`; a non-null code means the
+ * run was re-executed under the mutex and that child's exit code is the
+ * run's. The child probes again after acquiring, so a lockfile that moved
+ * during the wait is read fresh, and the sweep plays exactly the misses.
+ * A session's bare run never comes here: {@link sessionSweep}.
  */
 export async function sweepWhenMissing(options: {
     readonly previous: Lockfile | null;
@@ -573,20 +690,27 @@ function replayCardNames(argv: readonly string[]): string[] {
 }
 
 async function main(): Promise<void> {
-    const check = process.argv.includes("--check");
-    const replay = process.argv.includes("--replay-bot");
+    const argv = process.argv.slice(2);
     // `--carry-bot` WRITES the lockfile without playing: the committed
-    // verdicts are carried forward on unchanged definitions, a changed one is
-    // left unswept. What `land`'s artifact resolver runs (ADR 0105 § 7.2).
-    const carry = process.argv.includes("--carry-bot");
+    // verdicts are carried forward — a drift row's marked stale, as a
+    // session writes it — and a graduation is left unswept. What `land`'s
+    // artifact resolver runs (ADR 0105 § 7.2).
+    const mode = sweepMode(argv);
+    const flags = ["--check", "--carry-bot", "--replay-bot", "--play-misses"];
+    if (flags.filter((f) => argv.includes(f)).length > 1) {
+        process.stderr.write(
+            `oracle:compile — ${flags.join(", ")} are exclusive\n`
+        );
+        process.exit(2);
+    }
     // `--carry-bot --replay-card <name>` (repeatable, issue #4957): carry
     // every verdict, PLAY only the named cards. A handful of plays, not a
     // sweep, so it does not queue for the heavy mutex either.
-    const replayNames = replayCardNames(process.argv.slice(2));
-    if (replayNames.length > 0 && (!carry || check || replay)) {
+    const replayNames = replayCardNames(argv);
+    if (replayNames.length > 0 && mode !== "carry") {
         process.stderr.write(
             "oracle:compile — --replay-card runs only with --carry-bot " +
-                "(and without --check / --replay-bot)\n"
+                "(and without --check / --replay-bot / --play-misses)\n"
         );
         process.exit(2);
     }
@@ -597,30 +721,37 @@ async function main(): Promise<void> {
     const corpus = () => (corpusRead ??= readCorpus());
     const build = (source: BotReachSource) =>
         serializeLockfile(buildLockfile(corpus(), { botReach: source }));
-    // The sweep is heavy work (mean 28 min, issue #4941): a run that will play
-    // waits for the heavy gate's mutex instead of racing a `land` — but only
-    // once it knows it has more than a handful of misses to play (issues
-    // #6069, #6463). `--check` never plays: it is the drift guard's question,
-    // asked from a script (ADR 0105 § 7.2 — the sweep never runs inside a
-    // gate); `--carry-bot` never queues.
+    // `--check` never plays: it is the drift guard's question, asked from a
+    // script (ADR 0105 § 7.2 — the sweep never runs inside a gate);
+    // `--carry-bot` never queues. A session plays its graduations in place
+    // (ADR 0158 § 2a). Only the base's sweeps — heavy work, a re-pin's misses
+    // are the whole catalogue — wait for the heavy gate's mutex, and
+    // `--play-misses` only past a handful (issues #6069, #6463).
     const swept =
-        check || carry
+        mode === "check" || mode === "carry"
             ? null
-            : await sweepWhenMissing({
-                  previous,
-                  currentBotHash: botHash(ROOT),
-                  replay,
-                  build,
-                  admit: () =>
-                      runUnderHeavyAdmission(
-                          process.argv[1],
-                          process.argv.slice(2)
-                      ),
-                  sweep: () =>
-                      sweepingBotReach(previous, replay, (source) =>
-                          buildLockfile(corpus(), { botReach: source })
-                      ),
-              });
+            : sweepAdmits(mode)
+              ? await sweepWhenMissing({
+                    previous,
+                    currentBotHash: botHash(ROOT),
+                    replay: mode === "replay",
+                    build,
+                    admit: () => runUnderHeavyAdmission(process.argv[1], argv),
+                    sweep: () =>
+                        sweepingBotReach(
+                            previous,
+                            mode === "replay",
+                            (source) =>
+                                buildLockfile(corpus(), { botReach: source })
+                        ),
+                })
+              : await sessionSweep({
+                    previous,
+                    baseline: sessionBaseline(previous),
+                    currentBotHash: botHash(ROOT),
+                    build,
+                    play: playSharded,
+                });
     if (swept !== null && "exit" in swept) process.exit(swept.exit);
     const narrowed =
         replayNames.length > 0
@@ -629,7 +760,7 @@ async function main(): Promise<void> {
     const text =
         swept?.text ?? build(narrowed?.source ?? carriedBotReach(previous));
     if (narrowed !== null) narrowed.refuseUnplayed();
-    if (check) {
+    if (mode === "check") {
         const current = existsSync(LOCKFILE_PATH)
             ? readFileSync(LOCKFILE_PATH, "utf8")
             : "";
@@ -647,13 +778,17 @@ async function main(): Promise<void> {
     const reach = { played: 0, ignored: 0, frozen: 0 };
     for (const row of lock.cards) if (row.botReach) reach[row.botReach] += 1;
     const playedNow = swept?.played ?? narrowed?.source.playedIds().size ?? 0;
+    const carried =
+        swept !== null && "carried" in swept
+            ? `, ${swept.carried} carried stale for the base to replay`
+            : "";
     const counts = deriveCounts(lock.cards);
     process.stderr.write(
         `\noracle:compile — ${counts.total} cards: ` +
             `${counts.ready} ready, ${counts.quarantine} quarantine, ` +
             `${counts.unparsed} unparsed -> data/oracle-compiled.json\n` +
             `oracle:compile — bot reach: ${reach.played} played, ${reach.ignored} ignored, ` +
-            `${reach.frozen} frozen (${playedNow} played this run, the rest cached); ` +
+            `${reach.frozen} frozen (${playedNow} played this run${carried}, the rest cached); ` +
             `${lock.botGaps.length} Bot Gaps\n`
     );
 }

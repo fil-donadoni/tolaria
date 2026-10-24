@@ -94,6 +94,13 @@ stays whole: a card a PR brings to `ready` carries its verdict in that PR —
 and **carries** the committed verdict for drift rows. The re-exec under
 `gate.ts job`, `LOCK_FREE_MISSES` and the `admit` path retire: a pass never
 takes the heavy mutex for a sweep again. `--replay-bot` is unchanged.
+_As built (issue #6688, on the owner's contract from issue #6687):_ the
+base's drift sweep plays its whole miss set with the `--play-misses` flag,
+which keeps `LOCK_FREE_MISSES` and the `admit` path, so a whole-catalogue
+sweep on the base stays admitted; no bare run reaches them. A carried row
+is marked `botStale`, so the probe reads it as a miss, and graduation is
+judged against the merge-base's lockfile, not the disk file a first run
+already wrote.
 
 **2b. The base replays drift after each merge (issue #6687).** Post-merge
 `derive:sync` computes the miss set on the tip and plays exactly those rows

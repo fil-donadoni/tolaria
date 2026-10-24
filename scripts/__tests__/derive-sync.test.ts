@@ -6,7 +6,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LOCKFILE_PATH as CHECK_GAPS_LOCKFILE_PATH } from "../check-gaps";
@@ -23,6 +29,7 @@ import {
 } from "../lib/health-step";
 import {
     carriedBotReach,
+    carriedOrPlayed,
     playingBotReach,
     type BotPlayer,
 } from "../lib/oracle-bot-reach";
@@ -347,6 +354,45 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
             )
         ).toBe(serializeLockfile(carried));
         expect(staleOf(carried, tip.corpus)).toHaveLength(3);
+    });
+
+    // Issue #6688's contract with this sweep: a session's bare compile pairs
+    // the NEW definition with the OLD verdict on every drift row. Marked
+    // `botStale`, the row is a miss whatever its definition — else it would
+    // read as a cache hit here and never be replayed.
+    it("a drift row a session carried (botStale) is stale though its definition is the tip's, and the sweep replays it current", () => {
+        const before = [1, 2].map((n) => vanilla(n));
+        const played = buildLockfile(before, {
+            botReach: playingBotReach(null, BOT, spyPlayer().play),
+        });
+        const corpus = [vanilla(1, "3"), vanilla(2)];
+        const session = spyPlayer();
+        const merged = buildLockfile(corpus, {
+            botReach: carriedOrPlayed(played, BOT, session.play),
+        });
+        expect(session.calls).toEqual([]);
+        const bear1 = merged.cards.find((c) => c.name === "Drift Bear 1")!;
+        expect(bear1).toMatchObject({ botReach: "played", botStale: true });
+        expect(staleOf(merged, corpus).map((c) => c.name)).toEqual([
+            "Drift Bear 1",
+        ]);
+        const player = spyPlayer();
+        const run = fixtureIo({ lock: merged, corpus }, player);
+        runDriftSweep(run.io);
+        expect(player.calls).toEqual([bear1.oracleId]);
+        expect(staleOf(run.disk(), corpus)).toEqual([]);
+        expect(run.disk().cards.some((c) => c.botStale === true)).toBe(false);
+    });
+
+    it("the write path plays the misses through --play-misses, never a bare compile (which would carry them)", () => {
+        const script = readFileSync(
+            join(import.meta.dirname, "..", "derive-sync.ts"),
+            "utf8"
+        );
+        expect(
+            script.match(/"scripts\/oracle-compile\.ts", "--play-misses"\]/g)
+        ).toHaveLength(2);
+        expect(script).not.toMatch(/\["scripts\/oracle-compile\.ts"\]/);
     });
 
     it("on a tip with N misses it plays exactly those N, reports N played, and the rows it commits are current", () => {
