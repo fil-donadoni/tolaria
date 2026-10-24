@@ -1,16 +1,16 @@
 /**
  * What the Bot-play sweep puts in the OPPONENT's graveyard for a spell that
- * exiles a player's graveyard (CR 404.1, CR 406.1, issue #4829).
+ * exiles a player's graveyard (CR 404.1, CR 406.1).
  *
  * The position's graveyards hold a filler creature that nothing can cast from
  * there, and the evaluator prices a graveyard card at zero unless its owner can
- * reach it (`graveyardReach`, issue #3042). Exiling it was worth nothing, so
+ * reach it (`graveyardReach`). Exiling it was worth nothing, so
  * the spell read `never-chosen` — a limit of the harness, not a fact about the
  * Bot. The graveyard learns the shape instead: cards the opponent can use from
  * there, so the exile takes something away and casting is an outcome the
  * caster can want.
  *
- * HOW MANY, and WHICH (issue #5071). The credit is capped (`graveyardReachCap`,
+ * HOW MANY, and WHICH. The credit is capped (`graveyardReachCap`,
  * 2 cards at `graveyardReachFraction` of their latent worth), so exiling a
  * graveyard is worth at most a small slice of a card in hand: at 1-ply a lone
  * flashback spell left the cast ~58 below `pass` (hand 66 vs 8 against an
@@ -20,7 +20,7 @@
  * (a body, so a larger latent worth than a spell) fill the cap: `played` on
  * 40/40 and at the default budget. The pose was the noise, not the valuation —
  * the cap is deliberate (`graveyardReachTerm`: a trade must not become a
- * wash).
+ * wash). Measured in issue #5071.
  *
  * Lives beside `botReach.ts` for the same reason as its siblings: it decides
  * what the position CONTAINS, so it is a verdict input and sits inside the Bot
