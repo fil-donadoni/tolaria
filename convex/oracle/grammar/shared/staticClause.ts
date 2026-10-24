@@ -839,22 +839,24 @@ export const abilityCostModifierRule: Rule<StaticClauseIR> = pattern(
 // ── Frame: attack tax (CR 508.1d / 508.1h) ─────────────────────────────────
 
 /**
- * CR 508.1d / 508.1h — "Creatures can't attack you unless their controller
- * pays {N} for each creature they control that's attacking you" (Ghostly
- * Prison, Propaganda, Windborn Muse). A cost to attack, determined and paid
- * as attackers are declared. Only the bare "Creatures" subject is read: it is
- * the one every fixtured card prints, and the one qualified subject in the
- * corpus ("Nonblack creatures", Elephant Grass) needs a negated colour
- * `PermanentFilter` cannot carry.
+ * CR 508.1d / 508.1h — "<Creatures | Nonblack creatures> can't attack you
+ * unless their controller pays {N} for each creature they control that's
+ * attacking you" (Ghostly Prison, Propaganda, Windborn Muse; Elephant Grass).
+ * A cost to attack, determined and paid as attackers are declared. The
+ * "Nonblack" subject is a negated colour (CR 105.2), carried as
+ * `excludeColors`; no other qualified subject is printed in the corpus.
  */
 export const attackManaTaxRule: Rule<StaticClauseIR> = pattern(
     "attack mana tax",
-    /^Creatures can't attack you unless their controller pays \{(\d+)\} for each creature they control that's attacking you$/,
+    /^(Creatures|Nonblack creatures) can't attack you unless their controller pays \{(\d+)\} for each creature they control that's attacking you$/,
     (match): RuleResult<StaticClauseIR> =>
         ok({
             kind: "attack-mana-tax" as const,
-            attackers: { types: ["Creature"] },
-            perAttacker: Number(match[1]),
+            attackers:
+                match[1] === "Creatures"
+                    ? { types: ["Creature"] }
+                    : { types: ["Creature"], excludeColors: ["B"] },
+            perAttacker: Number(match[2]),
         })
 );
 

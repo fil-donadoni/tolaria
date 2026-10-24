@@ -4081,6 +4081,10 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // engine-matcher path matches it exactly as the server does;
     // `ClientPermanentFilter` has a `colors` field but no count bound, and no
     // shipped board-highlight filter asks for one.
+    // CR 105.2 — the negative of `colors`, read off the same derived colour
+    // set by the engine matcher; `ClientPermanentFilter` has no negated colour
+    // and no shipped board-highlight filter asks for one.
+    excludeColors: "adapter-only",
     colorCountAtLeast: "adapter-only",
     // `power`/`toughness` are always populated.
     powerAtLeast: "adapter-only",
@@ -4169,6 +4173,8 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     colors: "populated",
     // CR 105.2b (issue #3837) — the count bound reads the SAME `colors` array
     // the key above does, so it is populated for free by this reducer.
+    // CR 105.2 — the negative of `colors`, over the same `colors` array.
+    excludeColors: "populated",
     colorCountAtLeast: "populated",
     tapped: "populated",
     isToken: "populated",
