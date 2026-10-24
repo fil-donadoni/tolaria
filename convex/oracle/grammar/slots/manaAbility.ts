@@ -75,7 +75,7 @@ import {
 } from "../../rule";
 import type { ParseContext } from "../../types";
 import { COLORED_MANA_COLORS, MANA_COLORS } from "../../../gre/manaColors";
-import { activationCostRule } from "../shared/cost";
+import { activationCostRule, costMovesCardToLibrary } from "../shared/cost";
 import { forEachRule, readNumberWord } from "../shared/quantity";
 import {
     boardManaFilterFromDescriptor,
@@ -437,13 +437,27 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     });
 });
 
-const manaAbilityBody: Rule<SlotIR> = pair(
+const manaAbilityPair: Rule<SlotIR> = pair(
     MANA_ABILITY_SLOT,
     ": ",
     activationCostRule,
     addEffect,
     (cost, produces) => ({ kind: "mana-ability" as const, cost, produces })
 );
+
+const manaAbilityBody: Rule<SlotIR> = rule(MANA_ABILITY_SLOT, (span, ctx) => {
+    const read = manaAbilityPair.run(span, ctx);
+    if (
+        read.ok &&
+        read.value.kind === "mana-ability" &&
+        costMovesCardToLibrary(read.value.cost)
+    )
+        return fail(
+            "a cost that moves a card to a library is no mana ability (CR 605.1a)",
+            span
+        );
+    return read;
+});
 
 const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
 

@@ -17,8 +17,10 @@
  * ability's cost is an activation cost like any other, and before this file
  * existed the mana slot carried a private two-atom copy that could not read
  * "Sacrifice a Goblin: Add {R}" or "{T}, Pay 1 life: Add {B} or {R}". None of
- * the atoms below moves a card to or from a library, so CR 605.1a's fourth
- * criterion still holds by construction for everything the mana slot accepts.
+ * the atoms below moves a card to or from a library except
+ * `graveyard-to-library-bottom`, which the mana slot refuses
+ * (`costMovesCardToLibrary`), so CR 605.1a's fourth criterion still holds for
+ * everything the mana slot accepts.
  */
 
 import type {
@@ -102,6 +104,14 @@ export type CostAtomIR =
           readonly cardType?: CardType;
           readonly owner?: "you";
       }
+    /** CR 401.4 / 118.3 — "Put three cards from your graveyard on the bottom
+     *  of your library" (Battlefield Scrounger). The exile-from-graveyard
+     *  picker with a different destination, so it lowers onto the same
+     *  `cost.exileFromGraveyard` leg with `destination: "library-bottom"`. */
+    | {
+          readonly kind: "graveyard-to-library-bottom";
+          readonly count: number;
+      }
     /** CR 701.13a — exile: "Exile this artifact" as a cost (CR 118.1). */
     | { readonly kind: "exile-self" }
     /** CR 118.1 / 701.13a — "Exile the top card of your library" as a cost:
@@ -174,6 +184,9 @@ const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
 const ADD_COUNTER = /^Put (\S+) (\S+) counters? on (.+)$/;
 const EXILE_GRAVEYARD =
     /^Exile (\S+) (?:(\S+) )?cards? from (your graveyard|a single graveyard)$/;
+
+const GRAVEYARD_TO_LIBRARY_BOTTOM =
+    /^Put (\S+) cards? from your graveyard on the bottom of your library$/;
 
 const TAP_OTHER = /^Tap (\S+) (untapped .+)$/;
 
@@ -444,6 +457,16 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
         }
 
         if (span.startsWith("Put ")) {
+            const toLibrary = span.match(GRAVEYARD_TO_LIBRARY_BOTTOM);
+            if (toLibrary !== null) {
+                const count = readNumberWord(toLibrary[1]!);
+                if (count === null)
+                    return fail(`"${toLibrary[1]}" is not a count`, span);
+                return ok({
+                    kind: "graveyard-to-library-bottom" as const,
+                    count,
+                });
+            }
             const match = span.match(ADD_COUNTER);
             if (match === null)
                 return fail(
@@ -490,6 +513,12 @@ function splitCount(span: string): { count: number; rest: string } | null {
     if (at === -1) return null;
     const count = readNumberWord(span.slice(0, at));
     return count === null ? null : { count, rest: span.slice(at + 1) };
+}
+
+/** CR 605.1a — a cost that moves a card to a library makes the ability no
+ *  mana ability, so the mana slot (which shares this sub-grammar) refuses it. */
+export function costMovesCardToLibrary(ir: ActivationCostIR): boolean {
+    return ir.atoms.some((atom) => atom.kind === "graveyard-to-library-bottom");
 }
 
 /**
@@ -606,6 +635,13 @@ export function lowerActivationCost(
                 cost.exileFromGraveyard = value;
                 break;
             }
+            case "graveyard-to-library-bottom":
+                cost.exileFromGraveyard = {
+                    count: atom.count,
+                    owner: "you",
+                    destination: "library-bottom",
+                };
+                break;
             case "exile-self":
             case "exile-self-from-hand":
                 cost.exileThis = true;

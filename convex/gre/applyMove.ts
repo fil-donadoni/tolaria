@@ -65,7 +65,7 @@ import type {
     StackItem,
 } from "./state";
 import {
-    exileCardFromGraveyard,
+    payGraveyardCostCards,
     removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
@@ -1157,13 +1157,17 @@ export function applyActivationCostsForSearch(
             );
             if (snap) out.additionalSacrificeSnapshot = costCardSnapshot(snap);
         }
-        for (const id of exile.cardInstanceIds) {
-            // Through the shared `exileCardFromGraveyard` primitive the live
-            // activation path uses (`game.ts`), so the sandbox inherits its
-            // CR 608.2b miss guard and the CR 400.7 graveyard-departure tally
-            // (issue #3240) instead of restating either.
-            if (gyOwner) exileCardFromGraveyard(gyOwner, id);
-        }
+        // Through the shared `payGraveyardCostCards` the live activation path
+        // uses (`activation.ts`), so the sandbox inherits its CR 608.2b miss
+        // guard, the CR 400.7 graveyard-departure tally and the cost's
+        // destination (exile, or the library's bottom) instead of restating them.
+        if (gyOwner)
+            payGraveyardCostCards(
+                state,
+                gyOwner,
+                exile.cardInstanceIds,
+                ability.cost.exileFromGraveyard?.destination
+            );
     }
     // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).
     for (const id of picks.discardIds ?? []) {

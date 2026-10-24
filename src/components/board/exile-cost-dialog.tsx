@@ -22,7 +22,12 @@ export default function ExileCostDialog({
     gameId,
     playerId,
 }: {
-    choice: { count: number; cardType?: string; owner?: "you" };
+    choice: {
+        count: number;
+        cardType?: string;
+        owner?: "you";
+        destination?: "library-bottom";
+    };
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
@@ -102,7 +107,11 @@ export default function ExileCostDialog({
             onOpenChange={(open) => {
                 if (!open) void handleCancel();
             }}
-            title="Exile from a graveyard"
+            title={
+                choice.destination === "library-bottom"
+                    ? "Put cards from your graveyard on the bottom of your library"
+                    : "Exile from a graveyard"
+            }
             subtitle={
                 needsOwnerChoice
                     ? "Choose a graveyard"
