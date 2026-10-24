@@ -709,6 +709,11 @@
             "label": "activation payoff: shoots its own last counter when the block has already doomed it",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Warning": [

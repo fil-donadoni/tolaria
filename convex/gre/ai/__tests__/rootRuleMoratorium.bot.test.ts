@@ -385,11 +385,14 @@ describe("a blade entry that depends on a rule flips when the rule is disabled",
     // unit tests above cannot see — `SearchVariant` → `runSearchWithTrace` →
     // `selectRootMove`. A rule that is genuinely inert leaves its entries
     // green here; a load-bearing one turns them red, and this one is
-    // load-bearing.
+    // load-bearing. (It was `standing-spend-hold` on the Ballista's end-step
+    // entry until issue #3376 dropped body-funded shots from the tree below
+    // the root: that entry now holds with the rule off, so it no longer
+    // proves the knob.)
     const LABEL =
-        "activation timing: does not shoot away its own last counter at the opponent's end step";
+        "activation timing: holds a sacrifice engine through its own main phase";
 
-    it("`standing-spend-hold` (issue #3319) is what keeps the Ballista alive at the opponent's end step", () => {
+    it("`hold-trick` is what holds the sacrifice engine in its own main phase", () => {
         const entry = BLADE_SCENARIOS.find((s) => s.label === LABEL);
         if (!entry) throw new Error(`blade entry "${LABEL}" not found`);
         // ONE seed, not the entry's five: the blade suite owns the full run,
@@ -407,7 +410,7 @@ describe("a blade entry that depends on a rule flips when the rule is disabled",
 
         const withoutRule = runBladeScenario(
             oneSeed,
-            noRuleVariant(`${NO_RULE_VARIANT_PREFIX}standing-spend-hold`)
+            noRuleVariant(`${NO_RULE_VARIANT_PREFIX}hold-trick`)
         );
         expect(withoutRule.ok).toBe(false);
         expect(withoutRule.seeds[0]?.move?.kind).toBe("activate-ability");

@@ -73,6 +73,7 @@ import {
     applyAllCombatDamage,
     finalizeDrawReplacementPay,
     isSorceryTimingFor,
+    PHASE_ORDER,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -176,6 +177,7 @@ import {
 // activation could just as well happen in a later, better-informed window.
 import {
     animatedBodyCannotFight,
+    costShrinksSource,
     effectiveAbilityOf,
     effectiveActivatedAbilityEntryOf,
     isDeferrableStackAbility,
@@ -1312,17 +1314,83 @@ export function applyMoveInSearch(
  *  material `margin` (breaks outcome-equal ties), both from the bot's view. */
 type Leaf = { reward: number; margin: number };
 
+/** A point on the game clock: the turn number and the step's index in
+ *  `PHASE_ORDER` (CR 500.1). Approximate past an additional combat phase,
+ *  which re-enters earlier steps of the same turn and so reads as less time
+ *  (clamped at zero by `stepsSince`) — a win there is charged as sooner than
+ *  it is, never as later. */
+type GameClock = { turn: number; step: number };
+
+function gameClockOf(state: GameState): GameClock {
+    return { turn: state.turn, step: PHASE_ORDER.indexOf(state.phase) };
+}
+
+/** Steps of game time from `since` to `state` — never negative. */
+function stepsSince(since: GameClock, state: GameState): number {
+    const now = gameClockOf(state);
+    return Math.max(
+        0,
+        (now.turn - since.turn) * PHASE_ORDER.length + (now.step - since.step)
+    );
+}
+
 /** Score a stable leaf from the bot's perspective — ONE evaluation yields both
  *  the value the reward band shapes and the material margin (issue #4459),
- *  byte-identical to `reward` + `materialMargin` at half the player scores. */
+ *  byte-identical, without `since`, to `reward` + `materialMargin` at half the
+ *  player scores.
+ *
+ *  `since` — the search root's game clock — makes a WON leaf pay for the game
+ *  time it took (issue #3376): a sooner win outranks a later one. A won game's
+ *  material only orders wins by how decisive they are (`evaluate`), and
+ *  reaching the win sooner is the more decisive: every step in between is a
+ *  window the opponent acts in with cards the search cannot see. Without it,
+ *  a creature that can win NOW by spending itself scored below passing and
+ *  winning a few steps later with the creature still on the board — inside
+ *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
+ *  see.
+ *
+ *  The win's height ABOVE the band floor shrinks by `WIN_STEP_DECAY` per step
+ *  of game time, down to `WIN_DECAY_FLOOR`. A factor, never a subtracted cost: a cost large enough to
+ *  separate a win now from a win a combat later pinned every win a turn or
+ *  more away to the band floor, and wins that all score the floor are wins
+ *  the material can no longer order (the saturation ADR 0102 measured) — a
+ *  sacrifice that threw a land away tied `pass` on a board both lines win by
+ *  decking. Floored, because a win a turn away is still a win: decayed to a
+ *  sliver of its height, a storm kill that decks the opponent at their next
+ *  draw read barely above a burn spell that did not. Scaled, two wins at the
+ *  same step keep their material order
+ *  exactly, and a win never leaves the band. It touches the REWARD only: the
+ *  tie-break margin stays pure material, like `evaluate`'s race
+ *  and combat terms. Losses and open leaves are untouched; with no `since`
+ *  the leaf is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
-    weights: EvalWeights
+    weights: EvalWeights,
+    since?: GameClock
 ): Leaf {
     const { value, margin } = evaluateWithMargin(state, botId, weights);
-    return { reward: rewardFromValue(value, weights), margin };
+    const reward = rewardFromValue(value, weights);
+    if (since && value >= terminalMagnitude(weights)) {
+        const floor = 1 - weights.terminalBand;
+        const decay = Math.max(
+            WIN_DECAY_FLOOR,
+            WIN_STEP_DECAY ** stepsSince(since, state)
+        );
+        return { reward: floor + (reward - floor) * decay, margin };
+    }
+    return { reward, margin };
 }
+
+/** Per step of game time, the share of a win's height above the band floor
+ *  that survives (`scoreLeaf`, issue #3376), never below `WIN_DECAY_FLOOR`.
+ *  Measured against the two cases that bound it: a win now against a win
+ *  five steps later (main phase → combat damage) must land more than
+ *  `outcomeEps` apart — 0.85⁵ ≈ 0.44, floored at half — and a win a turn
+ *  away must keep enough height to beat a line that never wins (the
+ *  Brain Freeze decking entry), which half does and a tenth did not. */
+const WIN_STEP_DECAY = 0.85;
+const WIN_DECAY_FLOOR = 0.5;
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
  *  resolution can raise a second mandatory discard, and a cleanup discard can
@@ -1420,7 +1488,9 @@ export function rollout(
     state: GameState,
     botId: string,
     rng: () => number,
-    weights: EvalWeights
+    weights: EvalWeights,
+    /** The search root's clock, for `scoreLeaf`'s win timing. */
+    since?: GameClock
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1490,7 +1560,8 @@ export function rollout(
                     !isDiscardExchangeSacrifice(state, pid, botId, m) &&
                     !isDrainExchangeSacrifice(state, pid, botId, m) &&
                     !isDrawExchangeSacrifice(state, pid, botId, m) &&
-                    !isDenialExchangeSacrifice(state, pid, botId, m)
+                    !isDenialExchangeSacrifice(state, pid, botId, m) &&
+                    !isSourceBodyDamageConversion(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -1523,7 +1594,7 @@ export function rollout(
         }
         applyMoveInSearch(state, pid, chosen, true);
     }
-    return scoreLeaf(state, botId, weights);
+    return scoreLeaf(state, botId, weights, since);
 }
 
 /** Rollout default-policy guardrail (ADR 0020 §4). Returns true for a move the
@@ -2653,6 +2724,57 @@ export function isDenialExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own activation that pays for damage out of its
+ *  source's BODY (`costShrinksSource`: the counters it removes are part of
+ *  the source's power or toughness), on an empty stack (issue #3376).
+ *
+ *  The counter-cost sibling of `isRemovalExchangeSacrifice`, and broader on
+ *  one axis on purpose: the damage may aim at a FACE. Below the root no
+ *  window makes a chip shot worth a slice of a standing creature — the greedy
+ *  policy still takes the shot whose probe reads it as decisive (lethal, a
+ *  creature it kills), and only the ε draw and the tree's own children lose
+ *  it. Those two are where it hurt: an "any target" ping offers one variant
+ *  per player and creature against one `pass`, so it is the likeliest ε draw
+ *  at every window, and the body erodes once per window the line opens. A
+ *  declared attack opens three more windows (blocks, damage, end of combat)
+ *  than a declined one, so the attack edge's subtree lost the creature more
+ *  often than `pass`'s and its own damage drowned in that — a risk-free
+ *  attack into an empty board read below declining it on most seeds, while
+ *  the same position with a vanilla attacker attacked on every seed.
+ *  Measured: neither site alone fixes it (ε draw only: the 1-counter attack
+ *  on 3 of 12 seeds; tree only: the hand-holding one on 7 of 12).
+ *
+ *  An empty stack only: in response is the window where spending the body is
+ *  the play (the creature is about to die anyway). Damage only: a shield paid
+ *  in counters (`preventDamage`) creates its value inside a combat window, as
+ *  `isSourceConfinedSacrificeConversion` already argues. The bot's own moves
+ *  only and never at the root, like its siblings — a LETHAL shot included,
+ *  as their lethal drains and burns are: the root weighs it at every real
+ *  decision, and kept in the tree it handed `pass` a win one step later that
+ *  `hold-trick` read as outcome-equal to the shot now (measured, issue #3376).
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isSourceBodyDamageConversion(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId || state.stack.length > 0) return false;
+    if (move.kind !== "activate-ability") return false;
+    const source = state.players
+        .find((p) => p.id === pid)
+        ?.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    if (!ability || ability.resolve || ability.resolveSteps || ability.effect)
+        return false;
+    const effects = ability.effects;
+    if (!effects?.length || !effects.every((op) => op.op === "dealDamage"))
+        return false;
+    return costShrinksSource(state, source, ability);
+}
+
 /** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
  *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
  *  #5445) — lands given up for a spell.
@@ -2852,7 +2974,8 @@ function puctDescend(
     path: Edge[],
     rng: () => number,
     weights: EvalWeights,
-    config: ActionPriorConfig
+    config: ActionPriorConfig,
+    since: GameClock
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -2952,7 +3075,7 @@ function puctDescend(
     };
     node.children.set(opened.key, opened);
     path.push(opened);
-    backpropagate(path, rollout(world, botId, rng, weights), botId);
+    backpropagate(path, rollout(world, botId, rng, weights, since), botId);
     return true;
 }
 
@@ -2986,6 +3109,7 @@ function iterate(
         deckKnowledge,
         opponentModel
     );
+    const since = gameClockOf(rootState);
     const path: Edge[] = [];
     let node = root;
 
@@ -3053,6 +3177,12 @@ function iterate(
                                 pid,
                                 botId,
                                 k.move
+                            ) ||
+                            isSourceBodyDamageConversion(
+                                world,
+                                pid,
+                                botId,
+                                k.move
                             ))
                     ) &&
                     !isManaBaseSacrificeCast(world, pid, botId, k.move)
@@ -3079,7 +3209,8 @@ function iterate(
                     path,
                     rng,
                     weights,
-                    actionPriors
+                    actionPriors,
+                    since
                 )
             ) {
                 return; // expanded + rolled out
@@ -3110,7 +3241,11 @@ function iterate(
             };
             node.children.set(pick.key, edge);
             path.push(edge);
-            backpropagate(path, rollout(world, botId, rng, weights), botId);
+            backpropagate(
+                path,
+                rollout(world, botId, rng, weights, since),
+                botId
+            );
             return;
         }
 
@@ -3151,7 +3286,7 @@ function iterate(
     }
 
     // Reached a terminal/at-depth leaf without expanding: score it as-is.
-    backpropagate(path, scoreLeaf(world, botId, weights), botId);
+    backpropagate(path, scoreLeaf(world, botId, weights, since), botId);
 }
 
 /** Propagate a bot-perspective leaf along the visited edges, each edge storing
