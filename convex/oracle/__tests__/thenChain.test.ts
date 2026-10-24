@@ -268,16 +268,18 @@ describe("then-chain — refusals (fail-closed)", () => {
         }
     );
 
-    it("a second connector is refused as a tail that is not one effect: the corpus prints no chain of three", () => {
+    it("a second connector is flattened: 'A, then B, then C' is three effects in printed order (CR 608.2c)", () => {
         const result = readChain(
             "Create a 1/1 white Soldier creature token",
             "create a 1/1 white Soldier creature token, then draw a card"
         );
-        expect(result.ok).toBe(false);
-        if (!result.ok)
-            expect(result.reason).toMatch(
-                /continues with an effect, not a then-chain/
-            );
+        expect(result.ok).toBe(true);
+        if (result.ok && result.value.role === "then-chain")
+            expect(result.value.effects.map((e) => e.kind)).toEqual([
+                "create-token",
+                "create-token",
+                "draw",
+            ]);
     });
 
     it("an unreadable head is refused on the HEAD span, under the token rule's own reason", () => {
@@ -301,16 +303,18 @@ describe("then-chain — refusals (fail-closed)", () => {
             );
     });
 
-    it("only a token-creation head opens the connector: the loot pattern is still read by its own rule", () => {
+    it("an exact shape with its own ', then' is read whole, never re-split: the loot keeps its own rule", () => {
         const loot = compiled(
             sorcery("Then Probe", "{1}{U}", "Draw a card, then discard a card.")
         ).effects as { op: string }[];
         expect(loot.map((e) => e.op)).toEqual(["draw", "choice", "discard"]);
-        expect(
-            compileCard(
-                sorcery("Then Probe", "{2}{W}", "Scry 1, then draw a card.")
-            ).state
-        ).toBe("unparsed");
+    });
+
+    it("any head the sentence grammar reads opens the connector (the `, then` Composition Rule, issue #6557)", () => {
+        const scry = compiled(
+            sorcery("Then Probe", "{2}{W}", "Scry 1, then draw a card.")
+        ).effects as { op: string }[];
+        expect(scry.map((e) => e.op)).toEqual(["scryReorder", "draw"]);
     });
 });
 
