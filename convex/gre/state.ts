@@ -17180,6 +17180,10 @@ export function buildSpellContext(
                             ...c,
                             name,
                             colors: STATIC_EFFECT_CTX.getColors(c),
+                            // CR 202.3 — live mana value, so the filter's
+                            // `manaValueAtLeast` / `manaValueAtMost` /
+                            // `manaValueEquals` read a number, not nothing.
+                            manaValue: permanentManaValue(c),
                             // CR 400.7 (issue #1458) — "entered the
                             // battlefield this turn": the REAL entry stamp
                             // (`enteredOnTurn`, written by
