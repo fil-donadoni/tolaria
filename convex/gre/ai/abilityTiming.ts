@@ -44,6 +44,7 @@ import { payRemoveCounterCost } from "../state";
 import { permanentGiveUpCostLegs } from "../constants";
 import { cloneGameState } from "../clone";
 import { checkStateBasedActions } from "../sba";
+import { getEffectivePT } from "../layers";
 import {
     getEffectiveActivatedAbilities,
     type EffectiveActivatedAbility,
@@ -375,6 +376,46 @@ function survivesSweep(
         );
     } catch {
         return true;
+    }
+}
+
+/** Whether paying `ability`'s cost would, ON THIS BOARD, take part or all of
+ *  its own source's BODY — the source leaves the battlefield
+ *  (`costDestroysSource`), or its power or toughness after the CR 613.4 layer
+ *  pipeline ends lower (issue #3376).
+ *
+ *  The partial sibling of `costDestroysSource`, on the same argument: when the
+ *  counters ARE the body, removing one spends a slice of a standing permanent
+ *  that would otherwise keep attacking and blocking, and the last one spends
+ *  all of it. Decided by SIMULATION like its sibling — the cost is paid
+ *  through the engine's own `payRemoveCounterCost` chokepoint on a clone and
+ *  the layers recompute power and toughness — so a counter that is not part of
+ *  power or toughness (a charge counter, a spore counter) never reads as a
+ *  shrink, and no counter type is hardcoded.
+ *
+ *  Scoped to `removeCounter`, for the reason `costDestroysSource` gives: no
+ *  other cost key reaches the source's own stats. Fail-closed: a payment the
+ *  chokepoint refuses or a throw leaves the activation alone. */
+export function costShrinksSource(
+    state: GameState,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    const cost = ability.cost.removeCounter;
+    if (!cost) return false;
+    if (costDestroysSource(state, source, ability)) return true;
+    try {
+        const probe = cloneGameState(state);
+        const card = probe.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === source.id);
+        if (!card) return false;
+        const before = getEffectivePT(probe, card);
+        payRemoveCounterCost(probe, card, cost);
+        const after = getEffectivePT(probe, card);
+        return after.power < before.power || after.toughness < before.toughness;
+    } catch {
+        return false;
     }
 }
 
