@@ -51,6 +51,7 @@ import {
     isPermanentTypeLine,
     modalBackFaceDefinitionId,
 } from "../cards/modalDfc";
+import { withdrawFullText } from "./fullText";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type {
     CardInstanceState,
@@ -294,6 +295,8 @@ export function revertTransform(
     card: CardInstanceState
 ): boolean {
     if (!card.transformed) return false;
+    // CR 613.1c — a full-text effect (layer 3) ends before the face changes.
+    withdrawFullText(state, card);
     const frontId = card.transformedFrom;
     if (!frontId) return false;
     const frontDef = tryGetDefinition(frontId);
@@ -324,6 +327,9 @@ export function transformPermanent(
     state: LayerStateView,
     card: CardInstanceState
 ): void {
+    // CR 613.1c — a full-text effect (layer 3) ends before the face changes,
+    // so the flip reads the layer-1 face; the next sync re-applies it.
+    withdrawFullText(state, card);
     if (!card.transformed) {
         const frontId = (card.card as { id?: string }).id;
         if (!frontId) return;

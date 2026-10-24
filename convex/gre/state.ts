@@ -63,6 +63,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import {
+    declaresFullTextEffect,
     declaresLingeringStaticEffect,
     getInstanceManaCost,
 } from "../cards/registry";
@@ -355,6 +356,11 @@ import {
     type CopyOptions,
     type CopySource,
 } from "./copy";
+import {
+    copiableDefId,
+    copiableImagePrintId,
+    syncFullTextEffects,
+} from "./fullText";
 import type { ContinuousEffect } from "./continuousEffects";
 import {
     purgeContinuousEffectsForInstance,
@@ -4764,7 +4770,11 @@ export function beginApplyingStaticEffects(
     const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-    if (effects.length === 0) return;
+    // CR 612.6 — a full-text effect is a static ability too, and the text it
+    // presents carries static abilities of its own (CR 613.7a: they take this
+    // object's timestamp), so its source is stamped like any other.
+    if (effects.length === 0 && !declaresFullTextEffect(copiableDefId(source)))
+        return;
     const seq =
         options?.preserveTimestamp && source.staticSeq !== undefined
             ? source.staticSeq
@@ -4784,8 +4794,17 @@ export function beginApplyingStaticEffects(
     // They run here, not only at the next stable transition, so a resolution
     // that reads a permanent's characteristics between an ETB and the SBA pass
     // sees the same answer the derivation would give it.
+    syncFullText(state);
     syncLayers2to5(state);
     syncLayer6(state);
+}
+
+/** CR 613.1c — layer 3's full-text effects (`gre/fullText.ts`), brought in
+ *  line with the board. Runs ahead of every layers-2-to-5 recompute in this
+ *  module, and at the graveyard funnels that change what a full-text effect
+ *  names (CR 611.3a). */
+function syncFullText(state: GameState): void {
+    syncFullTextEffects(state, () => allocStaticTimestamp(state));
 }
 
 /** CR 611.2 — `source` STOPS APPLYING its static abilities: its ability-loss
@@ -4890,6 +4909,7 @@ export function stopApplyingStaticEffects(
     // out, and on a re-attach it never leaves at all), so both derivations are
     // told to skip it rather than being made to wait for the array to catch up.
     const stoppedSourceIds = new Set([source.id]);
+    syncFullText(state);
     syncLayers2to5(state, { stoppedSourceIds });
     syncLayer6(state, { stoppedSourceIds });
 }
@@ -4932,6 +4952,7 @@ export function recomputeContinuousEffects(state: GameState): void {
     // The staleness class it used to carry goes with it: every gate, of every
     // kind, on every source, is re-evaluated against the live board here,
     // instead of only the kinds someone remembered to list.
+    syncFullText(state);
     syncLayers2to5(state);
     syncLayer6(state);
 }
@@ -4964,6 +4985,7 @@ export function applyExistingGrantsTo(
 ): void {
     ensureLayers2to5Base(newPermanent);
     ensureLayer6Base(newPermanent);
+    syncFullText(state);
     syncLayers2to5(state);
     syncLayer6(state);
 }
@@ -6889,18 +6911,22 @@ export function removePermanentTo(
     // departure is that answer. An ability that needs the older object frozen
     // has `sourceLki` for it.
     const lastKnownCopiable = (state.lastKnownCopiable ??= {});
+    // CR 707.2 — the COPIABLE identity: a full-text effect is a text-changing
+    // effect and is not copied, so it rides beside it for the look-back only.
+    const lkiPrint = copiableImagePrintId(creature);
     lastKnownCopiable[creature.id] = {
-        defId: presentedDefId(creature),
+        defId: copiableDefId(creature),
+        ...(creature.fullTextAnchor
+            ? { fullTextDefId: presentedDefId(creature) }
+            : {}),
         // CR 707.2 — a face-down permanent contributes no exception (its
         // copiable values are the face-down body), the same call `applyCopy`
         // makes for a live source.
         ...(!creature.faceDown && creature.copyExcept
             ? { copyExcept: { ...creature.copyExcept } }
             : {}),
-        // Art follows the object the player saw; a face-down one lends none.
-        ...(!creature.faceDown && creature.imagePrintId
-            ? { imagePrintId: creature.imagePrintId }
-            : {}),
+        // Art follows the copiable object; a face-down one lends none.
+        ...(!creature.faceDown && lkiPrint ? { imagePrintId: lkiPrint } : {}),
         turn: state.turn,
     };
     creature.zone = toZone;
@@ -7050,6 +7076,9 @@ export function removePermanentTo(
     // for every other card, so it is NOT what clears a layer-4 type mutation.
     // That is `revertTypeLine`'s job, called on both departure branches above.
     applyZoneCharacteristics(creature);
+    // CR 611.3a — the owner's graveyard has a new top card (after the zone
+    // characteristics above, which can make it a creature card).
+    if (toZone === "graveyard") syncFullText(state);
     // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
     // knowledge: every player watched it sit on the battlefield and watched it
     // move, so its identity in hand is known to all (CR 400.3 — a zone change
@@ -20224,6 +20253,25 @@ function moveCardWithGraveyardReplacement(
     from: Exclude<Zone, "stack">,
     to: Exclude<Zone, "stack">
 ): CardInstanceState {
+    const moved = moveCardWithGraveyardReplacementUnsynced(
+        state,
+        player,
+        cardInstanceId,
+        from,
+        to
+    );
+    // CR 611.3a — a graveyard's top card may have changed.
+    if (from === "graveyard" || to === "graveyard") syncFullText(state);
+    return moved;
+}
+
+function moveCardWithGraveyardReplacementUnsynced(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack">,
+    to: Exclude<Zone, "stack">
+): CardInstanceState {
     if (to !== "graveyard") {
         // Read BEFORE the move: `moveCard` clears `faceDownBy` on the way out
         // of exile, and a face-down exile no player may look at (issue #3812)
@@ -20397,7 +20445,11 @@ export function removeFromZone(
     // CR 400.7 — the SECOND graveyard-exit chokepoint: graveyard → STACK, i.e.
     // every cast from the graveyard (flashback CR 702.34a, escape CR 702.138a,
     // Ashen Ghoul's activation seam). A cast is a departure like any other.
-    if (from === "graveyard") noteGraveyardDeparture(player);
+    if (from === "graveyard") {
+        noteGraveyardDeparture(player);
+        // CR 611.3a — the graveyard has a new top card.
+        syncFullText(state);
+    }
     // ADR 0026 — the stack is a public zone: putting a card on the stack makes
     // its identity universally known. Empty its persistent per-viewer knowledge
     // so that if it later returns to a hidden zone (e.g. a countered spell sent
@@ -20723,6 +20775,7 @@ export function discardToGraveyard(
             },
         ]);
     }
+    if (destination === "graveyard") syncFullText(state);
     emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId, cause);
     return true;
 }

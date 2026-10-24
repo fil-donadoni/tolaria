@@ -514,6 +514,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "faceDown",
             "faceDownBy",
             "faceDownOf",
+            "fullTextAnchor",
             "imagePrintId",
             "isToken",
             "knownTo",

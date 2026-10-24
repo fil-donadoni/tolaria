@@ -3301,6 +3301,26 @@ export interface OffBattlefieldCharacteristics {
     toughness?: number;
 }
 
+/** CR 612.6 — "this permanent has the full text of <object>": a layer-3
+ *  (CR 613.1c) text-changing effect that replaces not only the rules text but
+ *  the name, mana cost, colour indicator, type line, power and toughness.
+ *  Declared by {@link CardDefinition.fullText}; applied on the battlefield by
+ *  `syncFullTextEffects` (`gre/fullText.ts`, which documents the reading).
+ *
+ *  The object is the TOP card of the controller's graveyard (CR 404.3 — the
+ *  last element of `graveyard`), checked unfiltered: "as long as the top card
+ *  of your graveyard is a creature card" is the top card IF it is one, never
+ *  the topmost one that is. */
+export interface FullTextEffect {
+    /** CR 404.3 — whose graveyard's top card supplies the text. */
+    from: "controller-graveyard-top";
+    /** The card type that top card must have for the effect to apply. */
+    requiresType: CardType;
+    /** "… and has the text '<ability>'" — ids of this card's OWN
+     *  `activatedAbilities` it keeps while it presents another card's text. */
+    retainedActivatedAbilityIds?: readonly string[];
+}
+
 /** Structural definition of a token permanent created at resolution time
  *  (CR 707.1 — a token is created in the form described by the effect that
  *  creates it). All fields are static for the token's lifetime; tokens
@@ -20362,6 +20382,9 @@ export interface CardDefinition {
      *  shared reader in `gre/zoneCharacteristics.ts`; see that module's header
      *  for the consumer census it feeds. */
     offBattlefieldCharacteristics?: OffBattlefieldCharacteristics;
+    /** CR 612.6 — "as long as <condition>, this permanent has the full text of
+     *  <object>": a conditional layer-3 static. See {@link FullTextEffect}. */
+    fullText?: FullTextEffect;
     /** CR 702.122b — "This creature crews Vehicles as though its power were N
      *  greater" (Shorikai's Pilot token, the Pilot/Vehicle cycle). A static
      *  characteristic of the CREW-ING creature, not of the Vehicle: it is added

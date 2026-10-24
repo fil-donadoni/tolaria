@@ -12,6 +12,7 @@
  */
 
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
+import { withdrawFullText } from "./fullText";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
@@ -128,6 +129,9 @@ export function turnFaceDown(
     producer: FaceDownProducer
 ): void {
     if (card.faceDown) return;
+    // CR 708.2 — a face-down permanent has no text, so a full-text effect on
+    // it ends, and the hidden identity is the layer-1 one underneath it.
+    withdrawFullText(state, card);
     card.faceDownOf = (card.card as { id?: string }).id;
     card.faceDownBy = producer;
     card.card = { id: FACE_DOWN_CARD_ID };
