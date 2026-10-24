@@ -10179,4 +10179,67 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "player", count: 1 },
         },
     },
+    // CR 701.26a + CR 122.1 — "that player taps an untapped artifact, creature,
+    // or land they control for each fade counter on this artifact": the choice's
+    // size is the source's live counter count and its chooser the head's
+    // player, both runtime bindings the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c4ea0931-43e0-4214-9e0b-213eee3a7e69",
+            name: "Tangle Wire",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "Fading 4 (This artifact enters with four fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nAt the beginning of each player's upkeep, that player taps an untapped artifact, creature, or land they control for each fade counter on this artifact.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tangle Wire",
+            types: ["Artifact"],
+            manaCost: { X: 3 },
+            oracleText:
+                "Fading 4 (This artifact enters with four fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nAt the beginning of each player's upkeep, that player taps an untapped artifact, creature, or land they control for each fade counter on this artifact.",
+            staticAbilities: ["fading 4"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "tangle-wire-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player taps an untapped artifact, creature, or land they control for each fade counter on this artifact.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-permanents",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "battlefield",
+                            filter: {
+                                type: ["Artifact", "Creature", "Land"],
+                                tapped: false,
+                            },
+                            count: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "fade",
+                                },
+                            },
+                            prompt: "Tap an untapped artifact, creature, or land you control.",
+                            bind: "$tapped1",
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$tapped1" },
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

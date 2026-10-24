@@ -3525,6 +3525,43 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "tap-chosen-per-counter": {
+            // CR 701.26a — the named player picks among their own untapped
+            // permanents as many as the source has counters (the count is
+            // read as the choice is raised), then each is tapped. Routed
+            // through `forEach { set: "bound" }` like `untap-chosen-permanents`.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const bind = walk.nextBind("tapped");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: player.value,
+                    zone: "battlefield",
+                    filter: sentence.filter,
+                    count: {
+                        counters: {
+                            of: { ref: "$source" },
+                            type: sentence.counterType,
+                        },
+                    },
+                    prompt: `Tap ${sentence.phrase} you control.`,
+                    bind,
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: bind },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ]);
+        }
         case "untap-chosen-permanents": {
             // CR 701.26b + CR 109.2 — the controller picks up to N permanents
             // from every battlefield (nothing is announced), each is untapped.

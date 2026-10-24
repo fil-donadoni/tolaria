@@ -64768,6 +64768,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tangle Wire",
+        "scryfallId": "ad62f313-8a8a-4ffa-ada2-b12b76288729",
+        "oracleId": "c4ea0931-43e0-4214-9e0b-213eee3a7e69",
+        "firstSet": "nem",
+        "firstPrintId": "ad62f313-8a8a-4ffa-ada2-b12b76288729",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Tanglebloom",
         "scryfallId": "361a524c-17aa-43a0-8aea-1d26a9a1044c",
         "oracleId": "87890f04-b831-4869-a7de-72789a466c71",
