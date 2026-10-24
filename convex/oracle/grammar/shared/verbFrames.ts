@@ -110,8 +110,10 @@ export type FrameIR =
  * One sentence read as frames. Deliberately WITHOUT a `kind`: the frame layer
  * is not a row of the sentence table (`EffectSentenceIR`'s kinds), and the
  * shrink-only kind census (`scripts/lib/sentence-kinds.ts`, read off this
- * source at two trees) counts the table alone. `kind?: undefined` lets every `switch (sentence.kind)` fall through
- * to the frame lowering without narrowing by hand at each consumer.
+ * source at two trees) counts the table alone — `FrameChainIR` is its one
+ * declared kindless member. `kind?: undefined` lets every
+ * `switch (sentence.kind)` fall through to the frame lowering without
+ * narrowing by hand at each consumer.
  */
 export interface FrameChainIR {
     readonly kind?: undefined;

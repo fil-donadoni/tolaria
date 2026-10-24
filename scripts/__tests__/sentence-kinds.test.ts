@@ -3,9 +3,10 @@
 // baseline tree — the merge-base with the base branch, `HEAD^` on the base
 // tip. No committed list. Pure over its inputs, so each exit is pinned with
 // its own input; the baseline reader is pinned on a fake runner per outcome;
-// and a REAL `git rebase` proves the design's point: a branch that retires
-// one kind rebases onto a base that retired another with no conflict and no
-// red, while a kind added on the branch reds (issue #6714 acceptance).
+// and a REAL `git rebase` proves the design's point through the shipped
+// path: a branch that retires one kind rebases onto a base that retired
+// another with no conflict and no red, while a kind added on the branch reds
+// (issue #6714 acceptance).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -17,7 +18,15 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+    afterAll,
+    afterEach,
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+} from "vitest";
 import type { GitResult, GitRunner } from "../lib/base-artifact";
 import { ORIGIN_BASE } from "../lib/branches";
 import { scrubGitRepoEnv } from "../lib/git-repo-env";
@@ -35,7 +44,11 @@ const SOURCE = `
 export type AmountIR = { readonly kind: "flat" };
 
 export type EffectSentenceIR =
+    /**
+     * The frame layer: no kind, by design.
+     */
     | FrameChainIR
+    /** A doc comment riding ahead of the member it documents. */
     | {
           /** doc */
           readonly kind: "draw";
@@ -47,17 +60,48 @@ export type EffectSentenceIR =
     | { readonly kind: "regenerate" }
     | { readonly kind: "forced-block"; readonly count: number };
 
+type Later = { readonly kind: "later" };
 export type LibraryRouteIR = { readonly kind: "elsewhere" };
 `;
 
-describe("effectSentenceKinds reads the union off the source", () => {
-    it("takes the member kinds at the union's indentation, multi-line and one-line, and nothing deeper or later", () => {
+describe("effectSentenceKinds reads the union off the source — strictly", () => {
+    it("takes one kind per member at the union's indentation, multi-line and one-line, and nothing deeper or past the union's end", () => {
         expect(effectSentenceKinds(SOURCE)).toEqual([
             "draw",
             "pump",
             "regenerate",
             "forced-block",
         ]);
+    });
+
+    it("throws on an alias member it cannot read — a kind cannot enter behind a type name", () => {
+        expect(() =>
+            effectSentenceKinds(
+                SOURCE.replace("| FrameChainIR", "| FrameChainIR\n    | NewIR")
+            )
+        ).toThrow(/member `NewIR` is an alias/);
+    });
+
+    it("throws on a member without a readable kind — a parenthesised or intersected spelling", () => {
+        expect(() =>
+            effectSentenceKinds(
+                SOURCE.replace(
+                    '| { readonly kind: "regenerate" }',
+                    '| (Base & { readonly kind: "regenerate" })'
+                )
+            )
+        ).toThrow(/member without a readable `kind`/);
+    });
+
+    it("throws when the union yields no kinds at all — an empty set is a subset of anything", () => {
+        expect(() =>
+            effectSentenceKinds(
+                "export type EffectSentenceIR =\n    | FrameChainIR;\n"
+            )
+        ).toThrow(/yields no kinds/);
+        expect(() => effectSentenceKinds("export type Other = 1;")).toThrow(
+            /no `EffectSentenceIR` union/
+        );
     });
 
     it("the real tree: the pilot's four retired kinds are gone, and HEAD's kinds are a subset of the baseline tree's", () => {
@@ -130,7 +174,9 @@ function runner(
         if (override !== undefined) return override(args);
         switch (step) {
             case "rev-parse":
-                return args[1] === "HEAD" ? ok("head456\n") : ok("true\n");
+                if (args[1] === "HEAD") return ok("head456\n");
+                if (args.includes("HEAD^^{commit}")) return ok("parent789\n");
+                return ok("true\n");
             case "merge-base":
                 return ok("base123\n");
             case "cat-file":
@@ -161,25 +207,35 @@ describe("baselineKindsSource — which tree is the baseline", () => {
         });
     });
 
-    it("on the base tip (merge-base = HEAD): HEAD^, never the file against itself", () => {
+    it("on the base tip (merge-base = HEAD): the parent's sha, never the file against itself", () => {
         const git = runner({ "merge-base": () => ok("head456\n") });
         const out = baselineKindsSource(git);
         expect(out.kind).toBe("text");
         expect(out.kind === "text" && out.at).toBe(
-            `HEAD^:${EFFECT_CLAUSE_PATH}`
+            `parent789:${EFFECT_CLAUSE_PATH}`
         );
-        expect(git.seen).toContain(`show HEAD^:${EFFECT_CLAUSE_PATH}`);
+        expect(git.seen).toContain(`show parent789:${EFFECT_CLAUSE_PATH}`);
     });
 
-    it("on the base tip with no parent carrying the file: a declared skip", () => {
-        const git = runner({
+    it("on the base tip with no parent, or a parent without the file: a declared skip", () => {
+        const root = runner({
+            "merge-base": () => ok("head456\n"),
+            "rev-parse": (args) =>
+                args.includes("HEAD^^{commit}")
+                    ? no("")
+                    : args[1] === "HEAD"
+                      ? ok("head456\n")
+                      : ok("true\n"),
+        });
+        const atRoot = baselineKindsSource(root);
+        expect(atRoot.kind).toBe("unavailable");
+        expect(baselineFromOutcome(atRoot).kind).toBe("none");
+        const firstRevision = runner({
             "merge-base": () => ok("head456\n"),
             "cat-file": (args) =>
-                args[2]?.startsWith("HEAD^:") ? no("missing") : ok(""),
+                args[2]?.startsWith("parent789:") ? no("missing") : ok(""),
         });
-        const out = baselineKindsSource(git);
-        expect(out.kind).toBe("unavailable");
-        expect(baselineFromOutcome(out).kind).toBe("none");
+        expect(baselineKindsSource(firstRevision).kind).toBe("unavailable");
     });
 
     it("no base ref in this clone: a declared skip, not a red", () => {
@@ -198,7 +254,7 @@ describe("baselineKindsSource — which tree is the baseline", () => {
     });
 });
 
-/** A union of four kinds, each member wide enough that two edits far apart rebase without a conflict. */
+/** A union of kinds, each member wide enough that two edits far apart rebase without a conflict. */
 function union(kinds: readonly string[]): string {
     const members = kinds
         .map(
@@ -212,27 +268,26 @@ function union(kinds: readonly string[]): string {
     return `export type EffectSentenceIR =\n    | FrameChainIR\n${members};\n\nexport type Other = { readonly kind: "x" };\n`;
 }
 
-describe("sentence-kinds — a real git rebase (issue #6714)", () => {
+describe("sentence-kinds — a real git rebase through the shipped path (issue #6714)", () => {
     let repo: string;
+    const savedEnv: Record<string, string | undefined> = {};
+    // `baselineSentenceKinds(repo)` runs the production git runner, which
+    // keeps the process environment: a hook's `GIT_DIR` would point it at
+    // the wrong repository, so the keys are scrubbed for this block.
+    beforeAll(() => {
+        for (const key of Object.keys(process.env))
+            if (key.startsWith("GIT_")) savedEnv[key] = process.env[key];
+        scrubGitRepoEnv(process.env);
+    });
+    afterAll(() => {
+        for (const [key, value] of Object.entries(savedEnv))
+            if (value !== undefined) process.env[key] = value;
+    });
     const git = (...args: string[]): string => {
-        const env = { ...process.env };
-        scrubGitRepoEnv(env);
-        const r = spawnSync("git", args, { cwd: repo, encoding: "utf8", env });
+        const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
         if (r.status !== 0)
             throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
         return r.stdout;
-    };
-    const runnerHere: GitRunner = (args) => {
-        const env = { ...process.env };
-        scrubGitRepoEnv(env);
-        const r = spawnSync("git", [...args], {
-            cwd: repo,
-            encoding: "utf8",
-            env,
-        });
-        return r.status === 0
-            ? { ok: true, out: r.stdout }
-            : { ok: false, error: r.stderr.trim() };
     };
     const writeUnion = (kinds: readonly string[]): void => {
         mkdirSync(dirname(join(repo, EFFECT_CLAUSE_PATH)), {
@@ -240,14 +295,16 @@ describe("sentence-kinds — a real git rebase (issue #6714)", () => {
         });
         writeFileSync(join(repo, EFFECT_CLAUSE_PATH), union(kinds));
     };
+    /** `check:gaps`'s composition, verbatim, on the fixture repository. */
     const audit = () =>
         auditSentenceKinds({
             head: effectSentenceKinds(
                 readFileSync(join(repo, EFFECT_CLAUSE_PATH), "utf8")
             ),
-            baseline: baselineFromOutcome(baselineKindsSource(runnerHere)),
+            baseline: baselineSentenceKinds(repo),
         });
     const base = ORIGIN_BASE.slice("origin/".length);
+    const SHA_AT = new RegExp(`^[0-9a-f]{40}:${EFFECT_CLAUSE_PATH}$`);
 
     beforeEach(() => {
         repo = mkdtempSync(join(tmpdir(), "sentence-kinds-"));
@@ -285,7 +342,7 @@ describe("sentence-kinds — a real git rebase (issue #6714)", () => {
                 readFileSync(join(repo, EFFECT_CLAUSE_PATH), "utf8")
             )
         ).toEqual(["beta", "gamma"]);
-        expect(r.baseline.kind).toBe("tree");
+        expect(r.baseline.kind === "tree" && r.baseline.at).toMatch(SHA_AT);
         expect(r.violations).toEqual([]);
     });
 
@@ -293,9 +350,7 @@ describe("sentence-kinds — a real git rebase (issue #6714)", () => {
         writeUnion(["alpha", "beta", "gamma", "delta", "epsilon"]);
         git("commit", "-q", "-am", "branch: add epsilon");
         const r = audit();
-        expect(r.baseline.kind === "tree" && r.baseline.at).toMatch(
-            new RegExp(`^[0-9a-f]{40}:${EFFECT_CLAUSE_PATH}$`)
-        );
+        expect(r.baseline.kind === "tree" && r.baseline.at).toMatch(SHA_AT);
         expect(r.violations).toEqual([{ kind: "grown", name: "epsilon" }]);
     });
 
@@ -306,7 +361,7 @@ describe("sentence-kinds — a real git rebase (issue #6714)", () => {
         git("update-ref", `refs/remotes/${ORIGIN_BASE}`, "HEAD");
         let r = audit();
         expect(r.baseline.kind === "tree" && r.baseline.at).toBe(
-            `HEAD^:${EFFECT_CLAUSE_PATH}`
+            `${git("rev-parse", "HEAD^").trim()}:${EFFECT_CLAUSE_PATH}`
         );
         expect(r.violations).toEqual([]);
         writeUnion(["alpha", "beta", "gamma", "zeta"]);

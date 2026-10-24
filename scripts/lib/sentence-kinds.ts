@@ -41,28 +41,64 @@ export const EFFECT_CLAUSE_PATH =
     "convex/oracle/grammar/shared/effectClause.ts";
 
 /**
- * The kinds `EffectSentenceIR` declares, read off the grammar's source: every
- * `readonly kind: "<name>"` at the union member's own indentation — a
- * multi-line member's field, or a one-line `| { readonly kind: "…" }` member —
- * between `export type EffectSentenceIR =` and the next top-level
- * declaration. Nested object types sit deeper and are not kinds; a named
- * alias member (the frame layer, `kind?: undefined`) is not one either, by
- * design: `sentence-kinds.test.ts` pins both spellings and the alias.
+ * The member types the union may carry WITHOUT a `kind`: the Verb Frame
+ * layer (`kind?: undefined`, `verbFrames.ts`), by design not a row of the
+ * table. Any other member must declare its kind, or the census throws — a
+ * parser that skipped what it did not recognise would let a kind enter
+ * unseen, and an empty set is a subset of anything (review of PR #6562).
+ */
+const KINDLESS_MEMBERS: ReadonlySet<string> = new Set(["FrameChainIR"]);
+
+/**
+ * The kinds `EffectSentenceIR` declares, read off the grammar's source: one
+ * per top-level `    | ` member between `export type EffectSentenceIR =` and
+ * the next line at column 0 — `readonly kind: "<name>"` at the member's own
+ * indentation (ten spaces for a multi-line member, inline for a one-line
+ * `| { readonly kind: "…" }`). Nested object types sit deeper and are not
+ * kinds. STRICT: a member that yields no kind and is not a `KINDLESS_MEMBERS`
+ * alias throws, as does a union that yields none at all; the kinds are types,
+ * so the source text is the only authority and it must be read whole.
  */
 export function effectSentenceKinds(source: string): string[] {
     const start = source.indexOf("export type EffectSentenceIR =");
     if (start === -1)
         throw new Error(`${EFFECT_CLAUSE_PATH}: no \`EffectSentenceIR\` union`);
     const rest = source.slice(start + "export type EffectSentenceIR =".length);
-    const end = rest.search(/\n(?:export |\/\*\*\n \*)/);
+    const end = rest.search(/\n(?=\S)/);
     const body = end === -1 ? rest : rest.slice(0, end);
     const kinds: string[] = [];
-    // A member spelled over several lines carries its kind at ten spaces; one
-    // spelled on a single line opens with `| { readonly kind: "…"`.
-    for (const m of body.matchAll(
-        /^(?: {10}readonly kind: "([^"]+)";| {4}\| \{ readonly kind: "([^"]+)")/gm
-    ))
-        kinds.push((m[1] ?? m[2])!);
+    // Members start at four spaces with `| `; whatever follows up to the next
+    // such line (doc comments included) is the member's text.
+    const members = body.split(/^(?= {4}\| )/m).slice(1);
+    for (const member of members) {
+        const text = member.slice(6);
+        // The next member's doc comment rides along; it is not the member.
+        const code = text
+            .split("\n")
+            .filter((line) => !/^\s*(?:\/\*\*|\*|\/\/)/.test(line))
+            .join("\n")
+            .trim()
+            .replace(/;$/, "");
+        const alias = /^([A-Za-z_]\w*)$/.exec(code);
+        if (alias !== null) {
+            if (KINDLESS_MEMBERS.has(alias[1]!)) continue;
+            throw new Error(
+                `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` member \`${alias[1]}\` is an alias the kind census cannot read — inline its kind, or add it to KINDLESS_MEMBERS if it carries none by design`
+            );
+        }
+        const m =
+            /^\{ readonly kind: "([^"]+)"/.exec(text) ??
+            /^ {10}readonly kind: "([^"]+)";/m.exec(text);
+        if (m === null)
+            throw new Error(
+                `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` member without a readable \`kind\` — ${text.split("\n")[0]?.trim()}`
+            );
+        kinds.push(m[1]!);
+    }
+    if (kinds.length === 0)
+        throw new Error(
+            `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` yields no kinds — the union moved or was respelled; the census cannot read it`
+        );
     return kinds;
 }
 
@@ -106,8 +142,10 @@ export function auditSentenceKinds(input: {
  * The source of `effectClause.ts` at the baseline tree: the merge-base with
  * the base branch, or — when that merge-base IS `HEAD` (the base tip, or a
  * detached worktree at it), where `baseArtifact` would compare the file with
- * itself — the parent commit `HEAD^`. Pure given its runner, so every
- * branch has a fixture.
+ * itself — the parent commit `HEAD^`, resolved to its sha. On the tip this
+ * is a ONE-COMMIT contract by decision (issue #6714): a kind that reached the
+ * base outside the queue is caught by the landing that carried it, not by a
+ * later health run. Pure given its runner, so every branch has a fixture.
  */
 export function baselineKindsSource(git: GitRunner): BaseArtifactOutcome {
     const base = baseArtifact(git, EFFECT_CLAUSE_PATH);
@@ -120,11 +158,17 @@ export function baselineKindsSource(git: GitRunner): BaseArtifactOutcome {
         };
     const mergeBase = base.at.slice(0, base.at.indexOf(":"));
     if (mergeBase !== head.out.trim()) return base;
-    const at = `HEAD^:${EFFECT_CLAUSE_PATH}`;
+    const parent = git(["rev-parse", "--verify", "--quiet", "HEAD^^{commit}"]);
+    if (!parent.ok)
+        return {
+            kind: "unavailable",
+            why: `HEAD is the base tip and a root commit — no parent tree to shrink against`,
+        };
+    const at = `${parent.out.trim()}:${EFFECT_CLAUSE_PATH}`;
     if (!git(["cat-file", "-e", at]).ok)
         return {
             kind: "unavailable",
-            why: `HEAD is the base tip and its parent does not carry ${EFFECT_CLAUSE_PATH} (a root commit, or the file's first revision)`,
+            why: `HEAD is the base tip and its parent does not carry ${EFFECT_CLAUSE_PATH} (the file's first revision)`,
         };
     const show = git(["show", at]);
     if (!show.ok)
