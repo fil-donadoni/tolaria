@@ -10501,4 +10501,573 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             flashback: { X: 1, U: 1 },
         },
     },
+    // Verb Frames (issue #6557, CR 701.23a) — the search frame's card-type disjunction, revealed, shuffled, then placed on top. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "fb81f95c-70f8-4eb7-8d15-15d0ae23ec03",
+            name: "Mystical Tutor",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for an instant or sorcery card, reveal it, then shuffle and put that card on top.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mystical Tutor",
+            types: ["Instant"],
+            manaCost: {
+                U: 1,
+            },
+            oracleText:
+                "Search your library for an instant or sorcery card, reveal it, then shuffle and put that card on top.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        type: ["Instant", "Sorcery"],
+                    },
+                    count: {
+                        min: 0,
+                        max: 1,
+                    },
+                    prompt: "Search your library for an instant or sorcery card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: {
+                        ref: "$found1",
+                    },
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the search frame's single card type put onto the battlefield, behind an additional cost. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "254878f0-be90-4653-a395-0c41258fceaf",
+            name: "Tinker",
+            manaCost: "{2}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "As an additional cost to cast this spell, sacrifice an artifact.\nSearch your library for an artifact card, put that card onto the battlefield, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tinker",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 2,
+                U: 1,
+            },
+            oracleText:
+                "As an additional cost to cast this spell, sacrifice an artifact.\nSearch your library for an artifact card, put that card onto the battlefield, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        type: "Artifact",
+                    },
+                    count: {
+                        min: 0,
+                        max: 1,
+                    },
+                    prompt: "Search your library for an artifact card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+            additionalCosts: {
+                sacrificeFilter: {
+                    types: ["Artifact"],
+                },
+            },
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the moveZone frame's graveyard destination on a plain 'a card' (mandatory, CR 701.23b). Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "299fc083-0834-4064-8344-f895aff68867",
+            name: "Entomb",
+            manaCost: "{B}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for a card, put that card into your graveyard, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Entomb",
+            types: ["Instant"],
+            manaCost: {
+                B: 1,
+            },
+            oracleText:
+                "Search your library for a card, put that card into your graveyard, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: 1,
+                    prompt: "Search your library for a card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the 'up to N' quantity with 'them' into the graveyard. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8203c621-a1a0-4865-8c9a-0d4064c86107",
+            name: "Buried Alive",
+            manaCost: "{2}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for up to three creature cards, put them into your graveyard, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Buried Alive",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 2,
+                B: 1,
+            },
+            oracleText:
+                "Search your library for up to three creature cards, put them into your graveyard, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        type: "Creature",
+                    },
+                    count: {
+                        min: 0,
+                        max: 3,
+                    },
+                    prompt: "Search your library for up to three creature cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the search frame's colour class. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "86cebe2a-95e7-4f22-99cc-e805aeaf347e",
+            name: "Merchant Scroll",
+            manaCost: "{1}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for a blue instant card, reveal that card, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Merchant Scroll",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 1,
+                U: 1,
+            },
+            oracleText:
+                "Search your library for a blue instant card, reveal that card, put it into your hand, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        type: "Instant",
+                        color: "U",
+                    },
+                    count: {
+                        min: 0,
+                        max: 1,
+                    },
+                    prompt: "Search your library for a blue instant card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: {
+                        ref: "$found1",
+                    },
+                },
+                {
+                    op: "moveZone",
+                    cards: {
+                        ref: "$found1",
+                    },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the search frame's mana-value ceiling on a subtyped permanent card. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "1ea0c775-fde0-4a21-b4c2-8bcec0e4f4f8",
+            name: "Rathi Assassin",
+            manaCost: "{2}{B}{B}",
+            typeLine: "Creature — Phyrexian Zombie Mercenary Assassin",
+            oracleText:
+                "{1}{B}{B}, {T}: Destroy target tapped nonblack creature.\n{3}, {T}: Search your library for a Mercenary permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rathi Assassin",
+            types: ["Creature"],
+            subtypes: ["Phyrexian", "Zombie", "Mercenary", "Assassin"],
+            manaCost: {
+                X: 2,
+                B: 2,
+            },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{1}{B}{B}, {T}: Destroy target tapped nonblack creature.\n{3}, {T}: Search your library for a Mercenary permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "rathi-assassin-ability",
+                    oracleText:
+                        "{1}{B}{B}, {T}: Destroy target tapped nonblack creature.",
+                    cost: {
+                        mana: {
+                            X: 1,
+                            B: 2,
+                        },
+                        tap: true,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: {
+                                target: 0,
+                            },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        excludeColors: ["B"],
+                        tappedFilter: "tapped",
+                    },
+                },
+                {
+                    id: "rathi-assassin-ability-2",
+                    oracleText:
+                        "{3}, {T}: Search your library for a Mercenary permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+                    cost: {
+                        mana: {
+                            X: 3,
+                        },
+                        tap: true,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                subtype: "Mercenary",
+                                manaValueAtMost: 3,
+                            },
+                            count: {
+                                min: 0,
+                                max: 1,
+                            },
+                            prompt: "Search your library for a Mercenary permanent card with mana value 3 or less.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$found1",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the to-top ordering on an activated ability beside a static line. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2c275a85-5a15-46cd-a6e7-add63f9b853d",
+            name: "Sterling Grove",
+            manaCost: "{G}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Other enchantments you control have shroud. (They can't be the targets of spells or abilities.)\n{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sterling Grove",
+            types: ["Enchantment"],
+            manaCost: {
+                W: 1,
+                G: 1,
+            },
+            oracleText:
+                "Other enchantments you control have shroud. (They can't be the targets of spells or abilities.)\n{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.",
+            activatedAbilities: [
+                {
+                    id: "sterling-grove-ability",
+                    oracleText:
+                        "{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.",
+                    cost: {
+                        mana: {
+                            X: 1,
+                        },
+                        sacrifice: true,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: "Enchantment",
+                            },
+                            count: {
+                                min: 0,
+                                max: 1,
+                            },
+                            prompt: "Search your library for an enchantment card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: {
+                                ref: "$found1",
+                            },
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$found1",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "library-top",
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    filter: {
+                        types: ["Enchantment"],
+                        controllerRelation: "you",
+                        excludeSource: true,
+                    },
+                    keyword: "shroud",
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6557, CR 701.23a) — the mana-value ceiling on a card-type disjunction, behind a trigger's may-gate. Exhibits the runtime-sized `choice` / `moveZone` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "47a785ed-8095-4685-8daa-02c4e2b0ffcd",
+            name: "Spellseeker",
+            manaCost: "{2}{U}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "When this creature enters, you may search your library for an instant or sorcery card with mana value 2 or less, reveal it, put it into your hand, then shuffle.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Spellseeker",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: {
+                X: 2,
+                U: 1,
+            },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, you may search your library for an instant or sorcery card with mana value 2 or less, reveal it, put it into your hand, then shuffle.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spellseeker-trigger",
+                    oracleText:
+                        "When this creature enters, you may search your library for an instant or sorcery card with mana value 2 or less, reveal it, put it into your hand, then shuffle.",
+                    head: {
+                        kind: "entered",
+                        scope: "self",
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Search your library for an instant or sorcery card with mana value 2 or less, reveal it, put it into your hand, then shuffle?",
+                            bind: "$may2",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                binding: "$may2",
+                            },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "search-library",
+                                    player: "controller",
+                                    zone: "library",
+                                    filter: {
+                                        type: ["Instant", "Sorcery"],
+                                        manaValueAtMost: 2,
+                                    },
+                                    count: {
+                                        min: 0,
+                                        max: 1,
+                                    },
+                                    prompt: "Search your library for an instant or sorcery card with mana value 2 or less.",
+                                    bind: "$found1",
+                                },
+                                {
+                                    op: "reveal",
+                                    player: "controller",
+                                    cards: {
+                                        ref: "$found1",
+                                    },
+                                },
+                                {
+                                    op: "moveZone",
+                                    cards: {
+                                        ref: "$found1",
+                                    },
+                                    player: "controller",
+                                    from: "library",
+                                    to: "hand",
+                                },
+                                {
+                                    op: "libraryLook",
+                                    action: "shuffle",
+                                    player: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

@@ -447,6 +447,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "entries carry a human-written reason (`--acknowledge`); stale ones are pruned after merge (issue #6061)",
     },
     {
+        pattern: "data/effect-sentence-kinds.json",
+        kind: "human-input",
+        why: "the shrink-only census of EffectSentenceIR kinds (issue #6557): a kind leaves by decision with its source edit, never enters; regenerating from source would admit a grown list, so `sentence-kinds.ts` checks it instead",
+    },
+    {
         pattern: "data/targets.json",
         kind: "human-input",
         why: "the owner's Enforced Targets",
