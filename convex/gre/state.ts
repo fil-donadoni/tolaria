@@ -229,7 +229,10 @@ import { modeInstances, soleChosenModeId } from "./modeSelection";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
 // pay through, so a return-to-hand cost has ONE execution path in the engine.
-import { applySacrificeSelection } from "./sacrificeChoice";
+import {
+    applySacrificeSelection,
+    costVictimTypeFields,
+} from "./sacrificeChoice";
 import {
     declaresAsEntersMode,
     getActivatedManaColor,
@@ -20577,6 +20580,67 @@ export function payDiscardAtRandomCost(
 ): void {
     // CR 118 — a cost payment, not an effect (issue #3814).
     discardCardsAtRandom(state, playerId, count, { kind: "cost" });
+}
+
+/** CR 118.1 / 608.2h — the additional-cost-victim snapshot of a CARD a cost is
+ *  about to move out of its zone (a graveyard card exiled to pay
+ *  `cost.exileFromGraveyard`, a library card exiled to pay
+ *  `cost.exileTopOfLibrary`). The card is gone by the time the ability
+ *  resolves, so "the exiled card's mana value" must read this snapshot, never
+ *  the live zone. MUST be called BEFORE the card moves. */
+export function costCardSnapshot(
+    card: CardInstanceState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> {
+    const defId = (card.card as { id?: string }).id;
+    const def = defId ? tryGetDefinition(defId) : undefined;
+    return {
+        cardInstanceId: card.id,
+        mv: manaValue(def?.manaCost),
+        ...(card.subtypes && card.subtypes.length > 0
+            ? { subtypes: [...card.subtypes] }
+            : {}),
+        ...costVictimTypeFields(card),
+    };
+}
+
+/** CR 118.3 — the `cost.exileTopOfLibrary` leg is payable only while the payer
+ *  has a card in their library. SINGLE AUTHORITY for its affordability: the
+ *  announcement throw, `enumerateAbilityMoves`, the search-side cost payer and
+ *  the client's `getStackAbilities` hint all ask this question. */
+export function canPayExileTopOfLibrary(player: {
+    library: { length: number } | { count: number };
+}): boolean {
+    const lib = player.library;
+    return ("length" in lib ? lib.length : lib.count) > 0;
+}
+
+/** SINGLE AUTHORITY for paying the `cost.exileTopOfLibrary` activation cost —
+ *  "Exile the top card of your library" (CR 118.1; CR 701.13a — the card moves
+ *  to exile; CR 406.3 — face up, as no face-down instruction is printed).
+ *  Emits ONE `CARDS_EXILED` (the choke point every "whenever a card is put
+ *  into exile" trigger watches).
+ *
+ *  Returns the exiled card's CR 608.2h snapshot for the resulting stack item,
+ *  or undefined when the library is empty — the vanished-resource policy every
+ *  deferred cost leg shares: the caller drops the activation rather than
+ *  paying a phantom cost. */
+export function payExileTopOfLibraryCost(
+    state: GameState,
+    player: PlayerState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> | undefined {
+    const top = player.library[0];
+    if (!top) return undefined;
+    const snapshot = costCardSnapshot(top);
+    moveCard(player, top.id, "library", "exile");
+    emitCardsExiled(state, [
+        {
+            cardInstanceId: top.id,
+            cardId: (top.card as { id?: string }).id,
+            fromZone: "library",
+            ownerId: player.id,
+        },
+    ]);
+    return snapshot;
 }
 
 /** Deducts mana cost from pool. Colored first, then generic. When

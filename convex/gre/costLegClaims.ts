@@ -161,6 +161,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 406.2 / 602.1 — the enumerator counts matching graveyard cards, and the picks enumerator produces the named victims.",
         autoPayable: false,
     },
+    exileTopOfLibrary: {
+        paidBy: {
+            file: "convex/gre/state.ts",
+            symbol: "canPayExileTopOfLibrary",
+        },
+        why: "CR 118.3 / 701.13a — the enumerator gates on a non-empty library through this predicate, and `applyActivationCostsForSearch` pays the leg through `payExileTopOfLibraryCost`, the helper every mutation commit site calls, stamping the same CR 608.2h snapshot onto the pushed item. No pick: the card is fixed by the library's order. Paid on the battlefield-source branch only, like every leg but `exileThis`/`discardThis`; no hand- or graveyard-source ability carries it.",
+        autoPayable: false,
+    },
     manaEqualToEnchantedCreatureCost: {
         paidBy: {
             file: "convex/gre/moves.ts",
