@@ -281,6 +281,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [trample] › (no Ops)",
+            "issue": 6671
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [trample] › lookDistribute",
             "issue": 4908
         },
