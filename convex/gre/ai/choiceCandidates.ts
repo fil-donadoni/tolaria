@@ -2258,6 +2258,83 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** The applicability gate `graveyardExileCandidates` declines on — ONE
+ *  predicate for gate and generator. Only the as-enters "exile any number of
+ *  <filter> cards from your graveyard" leg (CR 614.12a, Sutured Ghoul) is a
+ *  search node here: a Recall-style `choose-graveyard-card` stays on the
+ *  greedy value-max default in `brain.ts` (ADR 0018). */
+function graveyardExileIsSearchable(choice: PendingChoice): boolean {
+    return (
+        choice.asEntersKind === "exileFromGraveyard" &&
+        getPendingChoiceMax(choice.count) > 0
+    );
+}
+
+/** `choose-graveyard-card` as-enters (CR 614.12a / 607.2b) — "As this enters,
+ *  exile any number of <filter> cards from your graveyard".
+ *
+ *  An as-enters choice parks the permanent in `stagedEntries` until it is
+ *  answered, so with no generator a probe of the cast stopped at the prompt and
+ *  scored seven mana spent for a body that never reached the battlefield — the
+ *  card read as `never-chosen` in the Bot-play sweep. The answer is also the
+ *  card's whole strength (the linked pile sizes a characteristic-defining
+ *  P/T), so it is a real decision, not a default.
+ *
+ *  SIGN-AGNOSTIC like `choosePermanentsCandidates`: exiling spends graveyard
+ *  cards the chooser may want elsewhere, so the decline (`min <= 0`) is always
+ *  offered beside the best-worth-first prefixes across the `[min, max]` ladder,
+ *  and the search scores the resulting states. The pool is the live allow-list
+ *  the prompt carries, narrowed to the chooser's graveyard. */
+const graveyardExileCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    if (!graveyardExileIsSearchable(choice)) return [];
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = new Set(choice.candidateIds ?? []);
+    const pool = owner.graveyard
+        .filter((c) => allow.has(c.id))
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (a, b) =>
+                b.worth - a.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+    const max = Math.min(getPendingChoiceMax(choice.count), pool.length);
+    const min = Math.min(
+        Math.max(0, getPendingChoiceMin(choice.count)),
+        pool.length
+    );
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<string>();
+    const emit = (size: number): void => {
+        if (out.length >= CHOICE_TOP_K) return;
+        const picked = pool.slice(0, size);
+        const setKey = picked
+            .map((e) => e.identity)
+            .sort()
+            .join(" | ");
+        if (seen.has(setKey)) return;
+        seen.add(setKey);
+        out.push({
+            key: `choose-graveyard-card:${setKey || "none"}`,
+            move: {
+                kind: "resolution-choice",
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: picked.map((e) => e.card.id),
+            },
+        });
+    };
+
+    if (min <= 0) emit(0);
+    for (let size = max; size >= Math.max(min, 1); size--) emit(size);
+    return out;
+};
+
 /** `pick-source` (CR 609.7a), issue #5601 — "a source of your choice": ONE
  *  permanent of either seat or ONE spell on the stack, never targeted (the
  *  Circle of Protection cycle, Pentagram of the Ages). With no generator the
@@ -2367,6 +2444,8 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // could not get past a suspended "choose [up to] N permanents", and the
     // minimal-legal default answered every "up to N" with nothing.
     "choose-permanents": choosePermanentsCandidates,
+    // CR 614.12a — the as-enters graveyard exile; see `graveyardExileCandidates`.
+    "choose-graveyard-card": graveyardExileCandidates,
     // CR 609.7a (issue #5601) — see `pickSourceCandidates`: without a
     // generator the settle stopped at the source pick and never scored the
     // shield the Circle of Protection buys.
@@ -2401,6 +2480,7 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     // Issue #3545 — excludes the as-enters `copy` family, which stays on its
     // own `brain.ts` policy; see `choosePermanentsIsSearchable`.
     "choose-permanents": choosePermanentsIsSearchable,
+    "choose-graveyard-card": graveyardExileIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).
