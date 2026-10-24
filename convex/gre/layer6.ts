@@ -104,10 +104,10 @@ type Layer6Action =
  *  caller may feed one of them back in as input. */
 export type Layer6Derivation = {
     /** CR 613.1f — the effective keyword multiset. A MULTISET, not a set: two
-     *  sources granting flying put two occurrences on, and one
-     *  `keyword-remove` takes one back off (CR 113.1 — the abilities are
-     *  separate instances). #1715's "Flight then Gravity Sphere" case is
-     *  exactly this arithmetic. */
+     *  sources granting flying put two occurrences on (CR 113.1 — the
+     *  abilities are separate instances), and a `keyword-remove` takes every
+     *  occurrence applied before it in the walk — the object loses the
+     *  keyword, not one grant of it. */
     staticAbilities: string[];
     /** CR 613.1f — the keyword grants a live SOURCE's static ability is
      *  contributing, in the shape `grantedStaticAbilities` has always had.
@@ -883,8 +883,9 @@ function resolveActivatedGrant(
  *  separately):
  *
  *  - a GRANT pushes one occurrence of its keyword;
- *  - a REMOVAL takes one occurrence back off (CR 113.1 — two grants of flying
- *    are two abilities, and "loses flying" removes one of them);
+ *  - a REMOVAL takes every occurrence applied SO FAR (two grants of flying
+ *    are two abilities, CR 113.1, and "loses flying" removes both — a grant
+ *    later in the walk survives);
  *  - an ABILITY LOSS clears everything applied SO FAR, which is precisely
  *    "everything with an earlier timestamp" (Humility, then Fire Whip: the
  *    Whip's grant is later in the walk and survives).

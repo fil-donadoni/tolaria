@@ -305,8 +305,9 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         });
 
         it("a timestamp-preserving round trip of the aura is a no-op (apply and unapply are exact inverses)", () => {
-            // The counter-gated refresh (`recomputeContinuousEffects`): the
-            // pair must neither EAT nor resurrect an occurrence.
+            // A re-application that keeps the source's timestamp (CR 613.7 —
+            // `preserveTimestamp`): the pair must neither EAT nor resurrect
+            // an occurrence.
             const { state, elemental, aura, sphere } = makeFlyingBoard();
             beginApplyingStaticEffects(state, aura);
             beginApplyingStaticEffects(state, sphere);
