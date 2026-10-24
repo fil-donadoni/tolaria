@@ -125,3 +125,44 @@ describe("Put cards from graveyard on the library bottom — refusals", () => {
         ).toBe("unparsed");
     });
 });
+
+describe("restriction pairs (CR 602.5b, 602.1b)", () => {
+    const ability = (text: string) => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Pair Probe",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Elf",
+                oracleText: text,
+                power: "1",
+                toughness: "1",
+            })
+        );
+        if (outcome.state !== "ready") return undefined;
+        return outcome.definition.activatedAbilities?.[0];
+    };
+
+    it("sorcery speed and once per turn (DOT-7 Repair Squad's form)", () => {
+        const a = ability(
+            "{1}: Draw a card. Activate only as a sorcery and only once each turn."
+        );
+        expect(a?.sorcerySpeedOnly).toBe(true);
+        expect(a?.oncePerTurn).toBe(true);
+    });
+
+    it("sorcery speed and the threshold gate (Cabal Inquisitor's form)", () => {
+        const a = ability(
+            "{1}: Draw a card. Activate only as a sorcery and only if there are seven or more cards in your graveyard."
+        );
+        expect(a?.sorcerySpeedOnly).toBe(true);
+        expect(a?.activationCondition).toMatchObject({ right: 7 });
+    });
+
+    it("refuses a first half that is not an 'activate only' sentence", () => {
+        expect(
+            ability(
+                "{T}: Draw a card. Any player may activate this ability and only once each turn."
+            )
+        ).toBeUndefined();
+    });
+});

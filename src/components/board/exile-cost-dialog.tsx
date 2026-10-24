@@ -38,6 +38,8 @@ export default function ExileCostDialog({
     const [chosenOwnerId, setChosenOwnerId] = useState<string | null>(null);
     const [selected, setSelected] = useState<string[]>([]);
 
+    const toBottom = choice.destination === "library-bottom";
+
     const matches = (card: CardInstance): boolean =>
         choice.cardType === undefined ||
         getDefinition(card.card.id).types.includes(choice.cardType as never);
@@ -108,14 +110,14 @@ export default function ExileCostDialog({
                 if (!open) void handleCancel();
             }}
             title={
-                choice.destination === "library-bottom"
+                toBottom
                     ? "Put cards from your graveyard on the bottom of your library"
                     : "Exile from a graveyard"
             }
             subtitle={
                 needsOwnerChoice
                     ? "Choose a graveyard"
-                    : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to exile`
+                    : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to ${toBottom ? "put on the bottom of your library" : "exile"}`
             }
             size="wide"
             dismissable={!isPending}
@@ -166,7 +168,8 @@ export default function ExileCostDialog({
                             }
                             onClick={() => void handleConfirm()}
                         >
-                            Exile {selected.length}/{choice.count}
+                            {toBottom ? "Put" : "Exile"} {selected.length}/
+                            {choice.count}
                         </Button>
                     </div>
                 </>

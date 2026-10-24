@@ -5207,6 +5207,9 @@ function readRestrictions(span: string): RestrictionIR[] | undefined {
     if (single !== undefined) return [single];
     const parts = span.split(" and only ");
     if (parts.length !== 2) return undefined;
+    // Both halves keep the printed "activate only" head ("Any player may
+    // activate this ability and only …" is not printed English).
+    if (!parts[0]!.startsWith("activate only ")) return undefined;
     const first = readRestriction(parts[0]!);
     const second = readRestriction(`activate only ${parts[1]}`);
     if (first === undefined || second === undefined) return undefined;
