@@ -110,7 +110,7 @@ export const ARCHETYPES: readonly {
     { slug: "landstill", name: "Landstill", archetypeId: 1473 },
     { slug: "oath-ponza", name: "Oath of Druids", archetypeId: 1486 },
     { slug: "aluren", name: "Aluren", archetypeId: 1489 },
-    { slug: "deck-1", name: "Stiflenought", archetypeId: 1495 },
+    { slug: "stiflenought", name: "Stiflenought", archetypeId: 1495 },
     { slug: "burn", name: "Sligh/Burn", archetypeId: 1472 },
     { slug: "enchantress", name: "Enchantress", archetypeId: 1481 },
     { slug: "rg-aggro", name: "RG Aggro", archetypeId: 1694 },

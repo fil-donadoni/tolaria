@@ -11,7 +11,9 @@ import { buildPresetPayload, deckColors } from "../lib/preset-deck-seed";
 import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
+import { buildSeedPresetRow } from "../../convex/decks";
 import { parseArgs, seedOne } from "../seed-preset-deck";
+import { readMetagameDecks } from "../premodern-metagame-import";
 
 const resolve = (name: string) => tryGetCardByName(name);
 const SUPPLIED = "2026-08-23";
@@ -232,5 +234,67 @@ describe("seed:preset --all classification (issue #3254)", () => {
                     !/unknown card name\(s\)/.test(r.problems?.join("\n") ?? "")
             );
         expect(silent).toEqual([]);
+    });
+});
+
+describe("seed:preset --all over the metagame lists (issue #6675)", () => {
+    // The release ships these 25 lists as production Preset Decks, so the
+    // sweep's guarantee is pinned here: every one builds a payload.
+    const file = readMetagameDecks(ROOT);
+
+    it("reads the 25 metagame lists, stiflenought under its own slug", () => {
+        expect(file.decks).toHaveLength(25);
+        const slugs = file.decks.map((d) => d.slug);
+        expect(slugs).toContain("stiflenought");
+        expect(slugs).not.toContain("deck-1");
+    });
+
+    // A list with a card nobody has built yet is BLOCKED, never a failure: the
+    // deploy sweep re-tries it every build and it seeds itself once its last
+    // card lands. The count moves up as cards land, so it is never pinned.
+    const unresolvedOf = (deck: Tier1Deck): string[] =>
+        [
+            ...new Set([...deck.main, ...deck.sideboard].map((r) => r.name)),
+        ].filter((name) => resolve(name) === null);
+
+    it("every playable list builds a legal Premodern 60 + 15 payload", () => {
+        expect(file.decks.some((d) => unresolvedOf(d).length === 0)).toBe(true);
+        for (const deck of file.decks) {
+            if (unresolvedOf(deck).length > 0) continue;
+            const { payload, problems } = buildPresetPayload(
+                deck,
+                "premodern",
+                "mtgtop8.com",
+                resolve
+            );
+            expect({ slug: deck.slug, problems }).toEqual({
+                slug: deck.slug,
+                problems: [],
+            });
+            expect(payload!.cards).toHaveLength(60);
+            expect(payload!.sideboard).toHaveLength(15);
+        }
+    });
+
+    it("every other list is reported blocked, naming its unresolved cards", () => {
+        for (const deck of file.decks) {
+            const unresolved = unresolvedOf(deck);
+            if (unresolved.length === 0) continue;
+            const row = seedOne(deck, "mtgtop8.com", true);
+            expect(row.state).toBe("blocked");
+            expect(row.problems?.join("\n")).toContain(unresolved.join(", "));
+        }
+    });
+});
+
+describe("seed row slug (issue #6675)", () => {
+    it("keeps the canonical slug when the archetype name slugifies elsewhere", () => {
+        for (const [slug, name] of [
+            ["goblin", "Goblins"],
+            ["burn", "Sligh/Burn"],
+            ["oath-ponza", "Oath of Druids"],
+        ]) {
+            expect(buildSeedPresetRow({ name }, slug).slug).toBe(slug);
+        }
     });
 });
