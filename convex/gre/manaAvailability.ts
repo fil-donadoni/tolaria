@@ -45,11 +45,16 @@
 // PURE. No async, no state mutation.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { normalizeManaCost, unrestrictedFloatingMana } from "./state";
+import {
+    normalizeManaCost,
+    restrictionAllowsSpell,
+    unrestrictedFloatingMana,
+} from "./state";
 import type { Color, ManaCost } from "../cards/types";
 import { normalizedHybridPips } from "./manaColors";
 import {
     MANA_COLORS,
+    getManaTapOptionRestriction,
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
@@ -64,6 +69,13 @@ import { coverColoredAndHybridPips } from "./payWith";
  *  set of colours that mana could be. The currency every question below is
  *  asked in. */
 export type ManaUnits = ReadonlyArray<ReadonlySet<Color>>;
+
+/** The spell a castability probe is for: what CR 106.6 spend restrictions are
+ *  judged against. */
+export type ManaSpellContext = {
+    types: readonly string[];
+    supertypes: readonly string[];
+};
 
 /** A both-players battlefield view, as `getManaTapOptionsDetailed` wants it. */
 type BattlefieldsView = ReadonlyArray<{
@@ -121,23 +133,15 @@ type BattlefieldsView = ReadonlyArray<{
  *  colours land in the union exactly like the old "one unit, colors = union
  *  of choices" special case did.
  *
- *  NOTE — `manaRestriction` is NOT consulted here, same as before this
- *  rewrite: this list only tracks which raw colours a source could ever
- *  produce, not whether the resulting mana is legally spendable on a given
- *  spell. Restricted mana is honoured only once it reaches the pool, at
- *  `coloredCostLeftover` below (CR 106.6). Delighted Halfling (issue #1559)
- *  IS now exactly the previously-hypothetical shape: an UNRESTRICTED `{C}`
- *  tap ability combined with a SEPARATE, RESTRICTED-any-colour tap ability
- *  ("Spend this mana only to cast a legendary spell..."). The leak is real
- *  and live: this gate unions both abilities' colours with no restriction
- *  awareness, so the castability check (whatever consumes
- *  `getProducibleManaUnits`, e.g. offering "Cast" on a spell) treats the
- *  restricted any-colour mana as freely spendable, and will offer "cast" for
- *  a NON-legendary spell the restricted mana can't legally pay for (CR 106.6
- *  is still enforced correctly at actual payment time —
- *  `payManaCostForSpell` / `spendablePoolForSpell` — so no illegal cast can
- *  ever actually commit; this is a castability-AFFORDANCE overcount, not a
- *  legality hole). tracked-by: #1733 */
+ *  CR 106.6 — a SPELL-SPECIFIC probe (`spell` given, the castability gate's
+ *  `buildManaSourceUnits`) drops every option whose own ability's
+ *  `manaRestriction` forbids that spell (`getManaTapOptionRestriction` +
+ *  `restrictionAllowsSpell`) BEFORE the colours are unioned, so Delighted
+ *  Halfling's any-colour "legendary spell" mana counts for a legendary spell
+ *  and for nothing else, and an `Adarkar Unicorn` contributes nothing to any
+ *  cast. Resolved per OPTION, not per card: the same permanent's unrestricted
+ *  `{C}` stays. Without `spell` (the bot's leaf heuristic, which asks about no
+ *  particular spell) the list is the spell-blind raw yield. */
 function producibleManaUnitsWithDebt(
     card: CardInstanceState,
     /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
@@ -165,7 +169,8 @@ function producibleManaUnitsWithDebt(
     battlefields?: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    spell?: ManaSpellContext
 ): { units: Set<Color>[]; debt: number } {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
@@ -193,7 +198,7 @@ function producibleManaUnitsWithDebt(
     // undefined` (board-blind) for a caller that genuinely has no `GameState`
     // on hand (there is none today); the "identical" guarantee is no longer
     // scoped to a subset of callers.
-    const detailed = getManaTapOptionsDetailed(
+    const allOptions = getManaTapOptionsDetailed(
         card,
         controllerId,
         battlefields,
@@ -201,6 +206,19 @@ function producibleManaUnitsWithDebt(
             requireTap: true,
         }
     );
+    const detailed = spell
+        ? allOptions.filter((opt) => {
+              const restriction = getManaTapOptionRestriction(card, opt.source);
+              return (
+                  restriction === null ||
+                  restrictionAllowsSpell(
+                      restriction,
+                      spell.types,
+                      spell.supertypes
+                  )
+              );
+          })
+        : allOptions;
 
     // Issue #2420 review finding 2 — the widened `requireTap` gate now also
     // returns a PURE-GENERIC `cost.mana` option (Farrelite Priest's
@@ -397,6 +415,9 @@ export function boardManaCensus(
         /** Skip the `base` list when no caller wants it — the leaf heuristic
          *  asks for both, `coloredCostLeftover` only for `now`. */
         wantBase?: boolean;
+        /** CR 106.6 — judge each option's spend restriction against this
+         *  spell; omitted = spell-blind. */
+        spell?: ManaSpellContext;
     } = {}
 ): { now: Set<Color>[]; base: Set<Color>[] } {
     const converters = opts.converters;
@@ -420,7 +441,8 @@ export function boardManaCensus(
         const { units, debt } = producibleManaUnitsWithDebt(
             perm,
             opts.controllerId,
-            opts.battlefields
+            opts.battlefields,
+            opts.spell
         );
         const row: Set<Color>[] = [];
         if (widen && widen.size > 0) {
@@ -463,6 +485,7 @@ export function boardManaUnits(
         converters?: ReadonlyMap<string, ReadonlySet<Color>>;
         controllerId?: string;
         battlefields?: BattlefieldsView;
+        spell?: ManaSpellContext;
     } = {}
 ): Set<Color>[] {
     return boardManaCensus(battlefield, { ...opts, wantBase: false }).now;
