@@ -9896,4 +9896,158 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 603.7a — "Return this artifact / it / that card to … at the beginning
+    // of the next end step": a delayed trigger whose body is one zone move.
+    // Rakalite exhibits the `$source` capture, Liberate the capture of an
+    // exiled card's binding, Dragon Mask the capture of the announced target.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0fd7c711-3ff4-4691-914f-242e6737066c",
+            name: "Rakalite",
+            manaCost: "{6}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rakalite",
+            types: ["Artifact"],
+            manaCost: { X: 6 },
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+            activatedAbilities: [
+                {
+                    id: "rakalite-ability",
+                    oracleText:
+                        "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { target: 0 },
+                            amount: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Return this artifact to its owner's hand at the beginning of the next end step.",
+                            capture: { $self: { ref: "$source" } },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$self" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: { type: "any", count: 1 },
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "96794470-31ea-478f-b11c-dc8342a508e2",
+            name: "Liberate",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Exile target creature you control. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Liberate",
+            types: ["Instant"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Exile target creature you control. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+            effects: [
+                { op: "exile", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+                    capture: { $c: { ref: "$that1" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$c" },
+                            from: "exile",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b5109270-b052-489c-951c-d4b21a41ff6f",
+            name: "Dragon Mask",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dragon Mask",
+            types: ["Artifact"],
+            manaCost: { X: 3 },
+            oracleText:
+                "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+            activatedAbilities: [
+                {
+                    id: "dragon-mask-ability",
+                    oracleText:
+                        "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { target: 0 },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Return it to its owner's hand at the beginning of the next end step.",
+                            capture: { $c: { target: 0 } },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$c" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                },
+            ],
+        },
+    },
 ]);
