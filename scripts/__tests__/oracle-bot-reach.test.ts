@@ -832,6 +832,12 @@ describe("a session plays only its graduations; drift verdicts are carried (ADR 
             frozen: ["Test Bolt"],
             carried: 1,
         });
+        // Against itself the frozen Bolt is `current`, never a graduation.
+        expect(verdictDelta(session.cards, session.cards)).toEqual({
+            graduated: 0,
+            frozen: [],
+            carried: 1,
+        });
     });
 
     it("no bare run reaches the heavy mutex: only the base's two sweeps admit", () => {
