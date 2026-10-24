@@ -839,6 +839,16 @@ export const EVAL_WEIGHTS_FIT_TEST =
     "convex/gre/ai/__tests__/weightFit.bot.test.ts";
 export const EVAL_WEIGHTS_FIT_FILTER = "reproduces DEFAULT_EVAL_WEIGHTS";
 
+/** The derived-figure pins other than the two cheap guards above, run by
+ *  `bun run bot:refit --check` and admitted as the `bot-pins` cheap guard
+ *  (issue #6690): forced-pass root digests, leaf-score snapshot, mana-census
+ *  snapshot. */
+export const BOT_PINS_TESTS: readonly string[] = [
+    "convex/gre/__tests__/searchForcedPass.bot.test.ts",
+    "convex/gre/__tests__/searchLeafScore.bot.test.ts",
+    "convex/gre/__tests__/evaluateManaCensus.bot.test.ts",
+];
+
 export const CHEAP_GUARDS: readonly {
     id: string;
     /** A changed path that is one of the guard's inputs. */
@@ -903,6 +913,18 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$|verdictStore[^/]*\.ts$)|data\/verdicts\.lock\.json$|scripts\/lib\/(verdict-pack-cache|verdict-store|corpus-exclusion)\.ts$)/,
         lacks: "no changed path under convex/{gre,cards,oracle}/**, convex/debugScenarioSpec.ts, convex/verdictStore*.ts, data/verdicts.lock.json nor the verdict corpus loaders (scripts/lib/{verdict-pack-cache,verdict-store,corpus-exclusion}.ts) — no input of the Weight Fit moved",
         command: `bunx vitest run --project bot-node ${EVAL_WEIGHTS_FIT_TEST} -t '${EVAL_WEIGHTS_FIT_FILTER}'`,
+    },
+    // Issue #6690 (ADR 0158 §3): the evaluation-value pins a weight refit or a
+    // search change moves — a `bot-node` trio no scoped lane related, which
+    // went RED on the base after PR #6560 (issue #6564). Same admission as
+    // `search-cost`; `bun run bot:refit` regenerates what it reds on. 7.5 s
+    // wall at load ~13 (2026-10-24, warm transform cache); health runs the
+    // files through `test:bot`.
+    {
+        id: "bot-pins",
+        admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
+        lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing the evaluation-value pins derive from moved",
+        command: `bunx vitest run --project bot-node ${BOT_PINS_TESTS.join(" ")}`,
     },
     {
         id: "check:baseline-shrink",

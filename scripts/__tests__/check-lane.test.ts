@@ -632,6 +632,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             "blade-index",
             "search-cost",
             "eval-weights-fit",
+            "bot-pins",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
@@ -854,6 +855,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // Nor anything a search iteration runs on (issue #6545).
             "search-cost",
             "eval-weights-fit",
+            "bot-pins",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:duplicate-test-blocks",
@@ -1029,6 +1031,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // The search cost-counter pin (issue #6545).
             "search-cost",
             "eval-weights-fit",
+            "bot-pins",
             "check:issue-log-comments",
         ]);
         expect(ids(engine.skip)).toEqual([
@@ -1066,6 +1069,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:test-hygiene",
             "search-cost",
             "eval-weights-fit",
+            "bot-pins",
             "check:issue-log-comments",
         ]);
         expect(ids(cards.skip)).toEqual([
@@ -1097,6 +1101,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "blade-index",
             "search-cost",
             "eval-weights-fit",
+            "bot-pins",
             "check:baseline-shrink",
             "check:derived-in-diff",
             "check:issue-log-comments",
