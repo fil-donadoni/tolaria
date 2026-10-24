@@ -46732,6 +46732,16 @@
         "source": "compiled"
     },
     {
+        "name": "Phyrexian Devourer",
+        "scryfallId": "319430fa-11e4-426e-8297-67df8474c3cc",
+        "oracleId": "28b1ed69-784c-4642-86c7-104792d5afc2",
+        "firstSet": "all",
+        "firstPrintId": "319430fa-11e4-426e-8297-67df8474c3cc",
+        "firstPrintSet": "all",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Phyrexian Digester",
         "scryfallId": "f9112062-1a1b-462b-85d3-821ea91778b8",
         "oracleId": "9e7b03ae-dcf5-4892-9000-aee7e2cd2fed",
@@ -53032,6 +53042,16 @@
         "firstSet": "s99",
         "firstPrintId": "11270682-d751-49e7-9c84-e47bde2f2647",
         "firstPrintSet": "s99",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Royal Herbalist",
+        "scryfallId": "027e03e1-1a39-47ba-b206-44d022b4c346",
+        "oracleId": "b3baf498-3be7-4a22-8fed-806d8d8ac748",
+        "firstSet": "all",
+        "firstPrintId": "027e03e1-1a39-47ba-b206-44d022b4c346",
+        "firstPrintSet": "all",
         "rarity": "common",
         "source": "compiled"
     },
