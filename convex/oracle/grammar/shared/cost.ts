@@ -18,9 +18,10 @@
  * existed the mana slot carried a private two-atom copy that could not read
  * "Sacrifice a Goblin: Add {R}" or "{T}, Pay 1 life: Add {B} or {R}". None of
  * the atoms below moves a card to or from a library except
- * `graveyard-to-library-bottom`, which the mana slot refuses
- * (`costMovesCardToLibrary`), so CR 605.1a's fourth criterion still holds for
- * everything the mana slot accepts.
+ * `graveyard-to-library-bottom`, whose `exileFromGraveyard` leg the mana slot's
+ * stackless-path guard (`lowerActivated.ts`) has no payment site for and
+ * refuses, so CR 605.1a's fourth criterion still holds for everything the
+ * mana slot accepts.
  */
 
 import type {
@@ -513,12 +514,6 @@ function splitCount(span: string): { count: number; rest: string } | null {
     if (at === -1) return null;
     const count = readNumberWord(span.slice(0, at));
     return count === null ? null : { count, rest: span.slice(at + 1) };
-}
-
-/** CR 605.1a — a cost that moves a card to a library makes the ability no
- *  mana ability, so the mana slot (which shares this sub-grammar) refuses it. */
-export function costMovesCardToLibrary(ir: ActivationCostIR): boolean {
-    return ir.atoms.some((atom) => atom.kind === "graveyard-to-library-bottom");
 }
 
 /**

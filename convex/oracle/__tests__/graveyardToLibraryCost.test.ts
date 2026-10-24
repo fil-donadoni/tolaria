@@ -102,17 +102,11 @@ describe("Put cards from graveyard on the library bottom — refusals", () => {
     });
 
     it("is no mana ability: CR 605.1a refuses a cost that moves a card to a library", () => {
-        const outcome = compileCard(
-            creature(
+        expect(
+            compiles(
                 "Put a card from your graveyard on the bottom of your library: Add {G}."
             )
-        );
-        if (outcome.state === "ready") {
-            const [ability] = outcome.definition.activatedAbilities ?? [];
-            expect(ability?.useStack).not.toBe(false);
-        } else {
-            expect(outcome.state).toBe("unparsed");
-        }
+        ).toBe("unparsed");
     });
 
     it("refuses a restriction pair whose second half is unreadable", () => {
