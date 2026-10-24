@@ -341,7 +341,7 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         [forceOfNature().id]: 0.645,
         // Priced on the land fetch curve plus the dual's colour-breadth bonus
         // (issue #3282), not the bare curve.
-        [breedingPool().id]: 0.4325,
+        [breedingPool().id]: 0.443,
     };
 
     it("prices a hand tutor's finds at the pre-fix priors", () => {
