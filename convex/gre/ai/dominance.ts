@@ -1418,6 +1418,10 @@ export function isProbeEligibleMove(
             cost.discardLastDrawn ||
             cost.discardAtRandom !== undefined ||
             cost.exileFromGraveyard ||
+            // CR 118.1 / 701.13a — the probe does not pay "Exile the top card
+            // of your library", and the exiled card can BE the payoff (its mana
+            // value read back as X).
+            cost.exileTopOfLibrary ||
             cost.removeCounter ||
             cost.addCounter ||
             cost.life !== undefined ||
