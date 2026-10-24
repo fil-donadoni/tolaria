@@ -9973,6 +9973,13 @@ export function applyOneTargetSelection(
             sourceSubtypes: [],
             chooserId: playerId,
             activePlayerId: state.activePlayerId,
+            // CR 601.2c + CR 404.1 — "from a single graveyard": later picks
+            // must share the first pick's graveyard owner.
+            siblingControllerId: siblingControllerIdFor(
+                state,
+                pt.sameController,
+                pt.selected
+            ),
         };
         const cardFilterViolation = checkCardTargetFilters(
             cardFilterCtx,
