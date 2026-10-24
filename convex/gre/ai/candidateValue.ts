@@ -460,6 +460,9 @@ function hasDynamicSubtype(filter: EffectCardFilter | undefined): boolean {
     if (st !== undefined && typeof st === "object" && !Array.isArray(st)) {
         return true;
     }
+    // CR 205.3m (issue #6618) — "shares a creature type with <object>" names
+    // an object that only exists mid-resolution: the same unreadable shape.
+    if (filter.sharesCreatureTypeWith !== undefined) return true;
     return (filter.any ?? []).some(hasDynamicSubtype);
 }
 
@@ -506,6 +509,9 @@ function matchesCountFilter(
     const subtypes = asArray(literalSubtypes);
     if (subtypes && !subtypes.some((s) => card.subtypes.includes(s)))
         return false;
+    // CR 205.3m (issue #6618) — unresolvable pre-cast; refused for the reason
+    // the dynamic `subtype` is above.
+    if (filter.sharesCreatureTypeWith !== undefined) return false;
     // manaValueAtMost/manaValueEquals/supertype/color/hasCounter/name: not
     // evaluated here (see doc comment) — a filter naming ONLY these fields
     // still matches on type/subtype alone, matching this reader's "best

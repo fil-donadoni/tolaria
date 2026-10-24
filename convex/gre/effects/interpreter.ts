@@ -130,6 +130,7 @@ import {
     forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
+import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
 import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
 import {
     BASIC_LAND_SUBTYPE_ORDER,
@@ -1254,9 +1255,26 @@ function toPermanentFilter(
     // ("creatures of the chosen type" becoming "all creatures"), and an
     // unresolved ref resolves to the empty list, which matches nothing —
     // the UNMATCHABLE_FILTER sentinel, not a silently absent constraint.
-    const subtypes = resolveFilterSubtypes(ctx, filter.subtype);
+    let subtypes = resolveFilterSubtypes(ctx, filter.subtype);
     if (subtypes !== undefined && subtypes.length === 0) {
         return UNMATCHABLE_FILTER;
+    }
+    // CR 205.3m (issue #6618) — "shares a creature type with <object>": the
+    // referent's last-known creature types ORed into `PermanentFilter.subtypes`
+    // (OR within the field), ANDed with a literal `subtype` by intersection.
+    // Dropping it would be fail-OPEN (every creature); no shared type is the
+    // UNMATCHABLE_FILTER sentinel.
+    if (filter.sharesCreatureTypeWith !== undefined) {
+        const shared = resolveSharedCreatureTypes(
+            ctx,
+            filter.sharesCreatureTypeWith
+        );
+        const both =
+            subtypes === undefined
+                ? shared
+                : shared.filter((s) => subtypes?.includes(s));
+        if (both.length === 0) return UNMATCHABLE_FILTER;
+        subtypes = both;
     }
     return {
         types: filter.type,
@@ -1426,6 +1444,61 @@ function resolveFilterSubtypes(
     return stored === undefined || stored.length === 0 ? [] : [stored[0]];
 }
 
+/** CR 205.3m / 608.2h — the CREATURE types of the object an
+ *  `EffectCardFilter.sharesCreatureTypeWith` selector names, as last known.
+ *
+ *  A snapshot binding is read out of its `SNAP_SUBTYPES` slot, which
+ *  `bindSnapshot` filled BEFORE the object moved — zone-free, so a creature
+ *  that died (or a token that ceased to exist, CR 704.5d) still answers. Every
+ *  other selector (an announced slot, `$each`, `$event.<field>`) resolves to
+ *  an object and reads `getCharacteristics`; a `graveyard-card` event field
+ *  reads the card in its graveyard.
+ *
+ *  Returns the EMPTY list for every unresolvable edge — an uncaptured binding,
+ *  a missing slot, a player, a referent with no creature type — which every
+ *  consumer treats as "matches nothing" (fail CLOSED, never "no constraint"). */
+function resolveSharedCreatureTypes(
+    ctx: SpellContext,
+    selector: EffectObjectSelector
+): string[] {
+    let subtypes: readonly string[] | undefined;
+    if ("ref" in selector && !isEventRef(selector.ref)) {
+        const snapSubtypes = readBinding(ctx, selector.ref)?.[SNAP_SUBTYPES];
+        if (snapSubtypes !== undefined) {
+            subtypes = snapSubtypes.split(SNAP_LIST_SEP);
+        }
+    }
+    if (subtypes === undefined) {
+        const target = resolveCharacteristicsTarget(ctx, selector);
+        subtypes = target
+            ? ctx.getCharacteristics(target)?.subtypes
+            : undefined;
+    }
+    return (subtypes ?? []).filter((s) => CREATURE_SUBTYPES.has(s));
+}
+
+/** The object an `EffectObjectSelector` names for a characteristics read —
+ *  `resolveObjectRef`, widened to the `$event` `graveyard-card` family whose
+ *  referent is no longer on the battlefield (CR 400.7e). Never a player. */
+function resolveCharacteristicsTarget(
+    ctx: SpellContext,
+    selector: EffectObjectSelector
+): TargetSelection | undefined {
+    if ("ref" in selector && isEventRef(selector.ref)) {
+        const ev = resolveEventRef(ctx, selector.ref);
+        if (ev?.family === "graveyard-card") {
+            const owner = ctx.getGraveyardCardOwner(ev.id);
+            return owner === undefined
+                ? undefined
+                : { type: "graveyard-card", id: ev.id, playerId: owner };
+        }
+    }
+    const target = resolveObjectRef(ctx, selector);
+    return target === undefined || target.type === "player"
+        ? undefined
+        : target;
+}
+
 /** Matches a hidden-zone card's registry-read characteristics (library /
  *  graveyard, via `getLibraryCards` / `getGraveyardCards`) against an
  *  `EffectCardFilter` (issue #677). Every present field is ANDed; an
@@ -1489,6 +1562,16 @@ function matchesCardFilter(
     // binding's chosen one (Tsabo's Decree). An empty list from the dynamic
     // form matches nothing, the same fail-closed reading `color` takes.
     const subtypes = resolveFilterSubtypes(ctx, filter.subtype);
+    // CR 205.3m (issue #6618) — "shares a creature type with <object>": at
+    // least one of the referent's last-known creature types; none matches
+    // nothing.
+    if (filter.sharesCreatureTypeWith !== undefined) {
+        const shared = resolveSharedCreatureTypes(
+            ctx,
+            filter.sharesCreatureTypeWith
+        );
+        if (!shared.some((s) => card.subtypes.includes(s))) return false;
+    }
     // CR 105.2 (issue #3806) — literal colours, or the cost-sacrificed
     // permanent's last-known ones (Mind Extraction). An empty set from the
     // dynamic form matches nothing, which is the fail-closed reading.

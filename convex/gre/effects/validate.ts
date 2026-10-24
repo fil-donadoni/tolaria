@@ -464,6 +464,11 @@ function isCardFilter(
                 (m) => typeof m === "string" && m.length > 0
             );
         }
+        // CR 205.3m (issue #6618) — "shares a creature type with <object>".
+        // Shape only: the ordered ref pass checks the binding / `$event` family.
+        if (k === "sharesCreatureTypeWith") {
+            return isObjectSelector(v);
+        }
         if (k === "supertype") {
             return typeof v === "string" && TOKEN_SUPERTYPES.has(v);
         }
@@ -6966,6 +6971,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // like `target`. No other field in the vocabulary is
                                 // named `with`.
                                 keyHint === "sharesColor" ||
+                                // `EffectCardFilter.sharesCreatureTypeWith` (issue
+                                // #6618) — the object whose last-known creature
+                                // types the filter compares, an
+                                // `EffectObjectSelector` exactly like `target`;
+                                // tagged `graveyardCardPosition` below.
+                                keyHint === "sharesCreatureTypeWith" ||
                                 // `sameColors` (issue #3806) — `sharesColor`'s
                                 // set-equality twin, same two object-selector
                                 // positions, sharing the `with` row below.
@@ -7013,6 +7024,13 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 keyHint === "attachTo"
                               ? "object"
                               : "number",
+            // CR 400.7e (issue #6618) — `sharesCreatureTypeWith` reads only
+            // the referent's characteristics, so it may name the card a zone
+            // change put into a graveyard (`$event.card`), unlike every other
+            // object position.
+            ...(keyHint === "sharesCreatureTypeWith"
+                ? { graveyardCardPosition: true as const }
+                : {}),
         });
         return;
     }
