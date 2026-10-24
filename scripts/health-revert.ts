@@ -191,7 +191,7 @@ function main(): number {
         // What `base-health` admits the revert PR by: the repair issue,
         // recorded against the standing RED. Unrecorded, the queue would
         // hold the PR forever — a failed try instead.
-        const recorded = recordPivotRepairIssue(root, issue);
+        const recorded = recordPivotRepairIssue(root, issue, { ladder: true });
         if (recorded === null)
             throw new Error(
                 `issue #${issue} could not be recorded as the RED's repair`

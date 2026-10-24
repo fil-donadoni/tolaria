@@ -19,13 +19,16 @@ import {
     TRANSIENT_NOTE,
     walkEpisode,
     escalationTitle,
+    FOREIGN_REPAIR_MAX_MS,
     hostOfRunnerName,
+    ownRepairPrs,
     ladderRung,
     MAX_FIX_ATTEMPTS,
     parseCulprit,
     revertBranch,
     revertPrBody,
     type EpisodeRed,
+    type ForeignRepair,
     type LadderFacts,
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
@@ -55,6 +58,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         laddered: true,
         episode: [{ sha: RED, attempt: null, culprit: CULPRIT }],
         revertPr: null,
+        foreignRepairs: [],
         escalated: null,
         now: NOW,
         ...over,
@@ -626,5 +630,99 @@ describe("walkEpisode — the REDs since the last GREEN", () => {
         const { standingEvidence } = walkEpisode(["s2", "s1"], read);
         expect(standingEvidence).toBe("ev s2");
         expect(walkEpisode(["x", "s2"], read).standingEvidence).toBeNull();
+    });
+});
+
+describe("ladderRung — a repair declared outside the ladder (issue #6554)", () => {
+    const repair = (
+        over: Partial<NonNullable<ForeignRepair["pr"]>> | null
+    ): ForeignRepair[] => [
+        {
+            issue: 6545,
+            pr:
+                over === null
+                    ? null
+                    : {
+                          number: 6546,
+                          state: "open",
+                          landFailed: false,
+                          createdAt: NOW - 60_000,
+                          ...over,
+                      },
+        },
+    ];
+
+    it("an open PR waits, naming it — no fixer is spawned", () => {
+        expect(ladderRung(facts({ foreignRepairs: repair({}) }))).toMatchObject(
+            {
+                kind: "wait",
+                why: expect.stringContaining("PR #6546"),
+            }
+        );
+    });
+
+    it("waits instead of the revert too (both fixer attempts stuck)", () => {
+        expect(
+            ladderRung(
+                facts({
+                    foreignRepairs: repair({}),
+                    episode: [
+                        {
+                            sha: RED,
+                            attempt: {
+                                sha: RED,
+                                outcome: "stuck",
+                                attempt: 2,
+                                at: RECENT,
+                            },
+                            culprit: CULPRIT,
+                        },
+                    ],
+                })
+            ).kind
+        ).toBe("wait");
+    });
+
+    it("merged with the tip un-gated waits as today", () => {
+        expect(
+            ladderRung(
+                facts({
+                    tip: "d".repeat(40),
+                    foreignRepairs: repair({ state: "merged" }),
+                })
+            ).kind
+        ).toBe("wait");
+    });
+
+    it.each([
+        ["closed unmerged", { state: "closed" as const }],
+        ["land-failed", { landFailed: true }],
+        ["past the bound", { createdAt: NOW - FOREIGN_REPAIR_MAX_MS - 1 }],
+    ])("a PR %s releases the ladder to its own rung", (_n, over) => {
+        expect(
+            ladderRung(facts({ foreignRepairs: repair(over) }))
+        ).toMatchObject({ kind: "fix", attempt: 1 });
+    });
+
+    it("a declared repair with no PR yet does not hold the ladder", () => {
+        expect(ladderRung(facts({ foreignRepairs: repair(null) })).kind).toBe(
+            "fix"
+        );
+    });
+});
+
+describe("ownRepairPrs — a stuck attempt withdraws only its own", () => {
+    const prs = [
+        { number: 6546, closes: [6545] },
+        { number: 6550, closes: [6548] },
+        { number: 6551, closes: [] },
+    ];
+
+    it("closes the PR closing the attempt's issue, never another session's", () => {
+        expect(ownRepairPrs(prs, [6548])).toEqual([6550]);
+    });
+
+    it("an interactive-only pivot withdraws nothing", () => {
+        expect(ownRepairPrs(prs, [])).toEqual([]);
     });
 });
