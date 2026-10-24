@@ -28,7 +28,14 @@ describe("blobAt — a committed file's whole text at a revision (issue #6642)",
         git("config", "user.name", "t");
         git("config", "commit.gpgsign", "false");
     });
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("reads a blob past the 1 MB child-process default whole — the lockfile is ~20 MB", () => {
         // 3 MB of JSON: past the default that truncated the real read.
