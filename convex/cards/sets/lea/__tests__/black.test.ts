@@ -3920,9 +3920,9 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
     });
 
     // --- A card's OWN phase restriction binds the controlled cast ----------
-    // CR 608.2g waives only the timing restrictions based on the card's TYPE;
-    // Siren's Call's "Cast this spell only during the beginning of combat
-    // step or earlier" is card-specific (CR 117.1b, issue #2177). Word of
+    // A cast during resolution (CR 608.2g) skips priority, but Siren's Call's
+    // own "Cast this spell only ... before attackers are declared" is a
+    // prohibition printed on the card (CR 601.3, issue #2177). Word of
     // Command has no eligibility predicate, so `castChosenSpell` is the
     // authoritative seam.
     function wocPhaseState(
@@ -3954,7 +3954,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         });
     }
 
-    it("card-specific phase restriction violated -> not played (CR 117.1b / 601.3a, issue #2177)", () => {
+    it("card-specific phase restriction violated -> not played (CR 601.3, issue #2177)", () => {
         const state = wocPhaseState(
             sirensCall.id,
             island.id,

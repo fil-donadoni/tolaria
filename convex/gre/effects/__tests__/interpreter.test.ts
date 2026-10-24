@@ -26150,9 +26150,9 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
     });
 
     // --- A card's OWN phase restriction binds a cast during resolution -------
-    // CR 608.2g waives only timing restrictions based on the card's TYPE; the
-    // card-specific "Cast this spell only during the beginning of combat step
-    // or earlier" (Siren's Call) still binds (CR 117.1b, issue #2177).
+    // A cast during resolution (CR 608.2g) skips priority, but the card's own
+    // "Cast this spell only ... before attackers are declared" (Siren's Call)
+    // is a prohibition printed on the card and still binds (CR 601.3).
     function sirensCallCdrState(phase: GameState["phase"]): GameState {
         const call = makeInstance(getDefinition(SIRENS_CALL_ID).id, {
             id: "cdrCall",
@@ -26169,7 +26169,7 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
         });
     }
 
-    it("passes silently over a card whose own phase restriction is violated — no Cast/Decline offered (CR 117.1b, issue #2177)", () => {
+    it("passes silently over a card whose own phase restriction is violated — no Cast/Decline offered (CR 601.3, issue #2177)", () => {
         const id = cdrScript("test-op-cdr-phase-restriction-violated");
         const state = sirensCallCdrState("POSTCOMBAT_MAIN");
         pushSpell(state, id, "p1");

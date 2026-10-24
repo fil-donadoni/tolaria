@@ -18472,10 +18472,12 @@ export function buildSpellContext(
             // of letting a forbidden cast through. One shared function, two
             // call sites — the announce/enforce split `getLegalActions` and
             // the cast mutation already use.
-            // CR 117.1b / 601.3a — the card's OWN phase/turn restriction ("Cast
-            // this spell only before the combat damage step", Berserk) is not
-            // a timing restriction based on the card's TYPE, so CR 608.2g does
-            // not waive it. `castChosenSpell` re-checks it authoritatively.
+            // CR 601.3 — the card's OWN phase/turn restriction ("Cast this
+            // spell only before the combat damage step", Berserk) is a
+            // prohibition printed on the card, not sorcery-speed timing from
+            // its TYPE: a cast during resolution (CR 608.2g) skips priority,
+            // but the card's own text still binds. `castChosenSpell`
+            // re-checks it authoritatively.
             return (
                 passesCastPhaseRestriction(state, found) &&
                 castProhibitionReason(playerId, found, state) === undefined
@@ -18725,13 +18727,13 @@ export function buildSpellContext(
                 return false; // forbidden — not played (CR 601.3a / 117.3)
             }
 
-            // CR 117.1b / 601.3a (issue #2177) — the card's OWN phase / turn
-            // restriction is card-specific, not a timing restriction based on
-            // the card's TYPE, so the CR 608.2g waiver does not reach it. The
-            // restriction is evaluated at the CASTER's turn position, the same
-            // `passesCastPhaseRestriction` `getLegalActions` calls.
+            // CR 601.3 — the card's OWN phase / turn restriction is a
+            // prohibition printed on the card, not sorcery-speed timing from
+            // its TYPE, so a controlled cast or one during resolution
+            // (CR 608.2g) still honours it. Same `passesCastPhaseRestriction`
+            // `getLegalActions` calls.
             if (!passesCastPhaseRestriction(state, handCard)) {
-                return false; // forbidden — not played (CR 601.3a / 117.3)
+                return false; // forbidden — not played (CR 601.3)
             }
 
             // CR 118.8 — additional sacrifice cost. The picked permanent must
