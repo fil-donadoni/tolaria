@@ -1523,6 +1523,40 @@ export function ownPermanentChoiceFilterFromDescriptor(
 }
 
 /**
+ * Descriptor → the `choice` Op's filter for a card the controller picks out
+ * of their own hand or graveyard ("a basic land card from your hand", "X
+ * creature cards from your graveyard" — the moveZone Verb Frame's chosen-card
+ * class, `verbFrames.ts`). The same argument classes as a library search, on
+ * a CARD noun; "<Subtype> permanent card" (CR 110.4 — a permanent card is any
+ * card that is not an instant or sorcery) is written as the subtype plus
+ * `excludeType: ["Instant", "Sorcery"]`, the shape every hand-written
+ * hand→battlefield drop carries (Goblin Lackey), rather than the search
+ * frame's enumerated permanent types: one behaviour, the catalogue's spelling.
+ */
+export function zoneChoiceFilterFromDescriptor(
+    descriptor: DescriptorIR
+): RuleResult<EffectCardFilter> {
+    const types = descriptor.types;
+    if (
+        descriptor.card === true &&
+        types !== undefined &&
+        types.length === PERMANENT_TYPES.length &&
+        PERMANENT_TYPES.every((type) => types.includes(type))
+    ) {
+        const rest = Object.fromEntries(
+            Object.entries(descriptor).filter(([field]) => field !== "types")
+        ) as DescriptorIR;
+        const narrowed = librarySearchFilterFromDescriptor(rest);
+        if (!narrowed.ok) return narrowed;
+        return ok({
+            ...narrowed.value,
+            excludeType: ["Instant", "Sorcery"],
+        });
+    }
+    return librarySearchFilterFromDescriptor(descriptor);
+}
+
+/**
  * Descriptor → what a library search may find (CR 701.23a — "a card that
  * matches the given description"), as an `EffectCardFilter`.
  *

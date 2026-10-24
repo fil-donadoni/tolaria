@@ -88,14 +88,12 @@ import {
     dividedTargetsRule,
     narrowedStackRequirement,
     opensTargetPhrase,
-    ownPermanentChoiceFilterFromDescriptor,
     unqualifiedPermanentChoiceFilter,
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
     targetFilterRule,
     targetRequirementFromDescriptor,
 } from "./targetFilter";
-import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
 import { readPumpThenColor } from "./pumpColorChain";
 import { readThenChain } from "./thenChain";
@@ -118,18 +116,6 @@ const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
  *  phrase: a descriptor after it ("each of X target creatures") is a different
  *  announcement and is not read. */
 const EACH_OF_X_TARGETS = "each of X targets";
-/** CR 400.3 — the plural destination of a sweep bounce. */
-const THEIR_OWNERS_HANDS = "their owners' hands";
-/**
- * CR 400.3 — the singular-owner spelling of a sweep bounce: "Return
- * all artifacts target player owns to their hand" (Hurkyl's Recall). The
- * announced player is the sweep's whole scope, so the zone is "their hand".
- * The sweep is scoped by the announced player's battlefield (the selector has
- * no owner axis), the same reading the hand-written card carries
- * (tracked-by: #2785).
- */
-const TARGET_PLAYER_OWNS = / target player owns$/;
-const THEIR_HAND = "their hand";
 /** CR 120.3 — the player half of a creature sweep that is not the exact phrase. */
 const AND_EACH_PLAYER = " and each player";
 
@@ -1283,32 +1269,6 @@ export type EffectSentenceIR =
           readonly count: AmountIR;
       }
     | {
-          readonly kind: "move-zone";
-          readonly subject: SubjectIR;
-          readonly to: ZoneRefIR;
-          /**
-           * CR 110.2a + CR 400.7 — "onto the battlefield under your control":
-           * the effect, not the card's owner, says who controls the new
-           * object. Printed only with a battlefield destination.
-           */
-          readonly under?: "you";
-      }
-    | {
-          /**
-           * CR 404.2 — "Return the top creature card of your graveyard to the
-           * battlefield" / "Exile the bottom card of target player's
-           * graveyard": a DETERMINISTIC pick out of the ordered graveyard, no
-           * target announced for the card itself (CR 115.1). `owner` is the
-           * graveyard's owner: the ability's controller, or an announced
-           * player.
-           */
-          readonly kind: "graveyard-end-card";
-          readonly position: "top" | "bottom";
-          readonly cardType: CardType | null;
-          readonly owner: "you" | "target-player";
-          readonly to: "battlefield" | "exile";
-      }
-    | {
           /**
            * CR 400.7 + CR 110.2a — "Return all enchantment cards from your
            * graveyard to the battlefield": every matching card, together,
@@ -1340,17 +1300,6 @@ export type EffectSentenceIR =
           readonly from: "graveyard" | "hand";
           readonly types: readonly CardType[];
           readonly optional: boolean;
-      }
-    | {
-          /**
-           * CR 400.7 + CR 205.3 — "[You may] put a <Subtype> permanent card
-           * from your hand onto the battlefield": the controller picks one
-           * card of that creature type that is not an instant or sorcery. The
-           * "may" is the enclosing `optional` wrapper's, folded into the
-           * pick's 0..1 count at lowering.
-           */
-          readonly kind: "put-subtype-from-hand";
-          readonly subtype: string;
       }
     | ({
           /**
@@ -1395,17 +1344,6 @@ export type EffectSentenceIR =
           /** The printed count word ("two"), kept for the choice prompt. */
           readonly word: string;
           readonly max: number;
-      }
-    | {
-          /**
-           * CR 400.3 — "return a blue or black creature you control to its
-           * owner's hand": the controller CHOOSES one of their own permanents
-           * as the sentence resolves; nothing is announced. `phrase` is the
-           * printed clause, kept for the prompt the chooser reads.
-           */
-          readonly kind: "return-own-permanent";
-          readonly filter: EffectCardFilter;
-          readonly phrase: string;
       }
     | {
           /**
@@ -3620,19 +3558,23 @@ export function assembleSentences(
 }
 
 /**
- * "Exile that card." — read by the effect grammar as a `move-zone` of the
+ * "Exile that card." — read by the moveZone Verb Frame as a zone change of the
  * CR 400.7e zone-change anaphora (Planar Void's "exile that card"); behind a
  * pick from a revealed hand the same words name the picked card, so
  * `assembleSentences` folds them into the pick's exile route there and
  * nowhere else.
  */
 function isExileThatCard(sentence: SentenceIR): boolean {
+    if (sentence.role !== "effect" || sentence.effect.kind !== undefined)
+        return false;
+    const frames = sentence.effect.frames;
+    if (frames.length !== 1) return false;
+    const frame = frames[0]!;
     return (
-        sentence.role === "effect" &&
-        sentence.effect.kind === "move-zone" &&
-        sentence.effect.subject.kind === "that-card" &&
-        sentence.effect.to.zone === "exile" &&
-        sentence.effect.to.owner === "any"
+        frame.frame === "moveZone" &&
+        frame.object.kind === "subject" &&
+        frame.object.subject.kind === "that-card" &&
+        frame.to.zone === "exile"
     );
 }
 
@@ -4590,12 +4532,6 @@ const YOU_DRAW_AND_LOSE_LIFE =
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 701.17a — "Mill three cards" (the controller's own library). */
-/** CR 404.2 — "Return the top creature card of your graveyard to the battlefield". */
-const RETURN_TOP_CARD =
-    /^Return the top (\w+) card of your graveyard to the battlefield$/;
-/** CR 404.2 — "Exile the bottom card of target player's graveyard". */
-const EXILE_BOTTOM_CARD =
-    /^Exile the bottom card of target player(?:'|’)s graveyard$/;
 /** CR 400.7 — "Return all enchantment cards from your graveyard to the battlefield". */
 const RETURN_ALL_FROM_GRAVEYARD =
     /^Return all (\w+) cards from your graveyard to the battlefield$/;
@@ -4608,10 +4544,6 @@ const RETURN_SELF_FROM_GRAVEYARD_ATTACHED =
 /** CR 101.4 — "Each player puts a creature card from their graveyard onto the battlefield". */
 const EACH_PLAYER_PUTS =
     /^Each player (puts|may put) an? (.+) card from their (graveyard|hand) onto the battlefield$/;
-
-/** CR 205.3 — "Put a Goblin permanent card from your hand onto the battlefield". */
-const PUT_SUBTYPE_FROM_HAND =
-    /^Put an? (\S+) permanent card from your hand onto the battlefield$/;
 
 /** A permanent card type word ("creature", "enchantment") as a `CardType`. */
 function permanentCardType(word: string): CardType | null {
@@ -4633,12 +4565,6 @@ function permanentCardTypeList(phrase: string): readonly CardType[] | null {
     return types;
 }
 
-/** CR 110.2a — "Put <object> onto the battlefield under your control". */
-const PUT_UNDER_YOUR_CONTROL =
-    /^Put (.+) onto the battlefield under your control$/;
-/** CR 404.1 — "Exile target player's graveyard": the owner is a possessive. */
-const RETURN_OWN_PERMANENT =
-    /^Return (an? .+ you control) to its owner(?:'|’)s hand$/;
 /** CR 701.26b — "Untap up to seven lands": a choice, not a target. */
 /** "up to one target creature" is a TARGET (CR 115.1) and stays with the
  *  announced-subject path; only an unannounced noun phrase is a choice. */
@@ -4646,6 +4572,7 @@ const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
 /** CR 106.4 — the tail of a tap sweep over an announced player's permanents. */
 const TAP_TARGET_PLAYER_SWEEP_DRAIN =
     /^Tap (all .+) target player controls and that player loses all unspent mana$/;
+/** CR 404.1 — "Exile target player's graveyard": the owner is a possessive. */
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
 /** CR 205.4a — "Exile all cards from <player>'s graveyard other than basic land cards". */
 const EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS =
@@ -5443,14 +5370,19 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // sentences (CR 608.2c), so an exact shape with its own ", then"
         // (the loot, the library look) is never re-read as a chain.
         const { result: whole, frameOpened } = wholeSentence(span, ctx);
-        // A sentence that opened a frame chain owns its connectors: its
-        // refusal is final, never re-read as two sentences.
-        if (whole.ok || frameOpened) return whole;
+        if (whole.ok) return whole;
+        // CR 608.2c — ", then" opens after ANY head, a frame chain included
+        // ("Return a creature you control to its owner's hand, then destroy
+        // all creatures", issue #6631): the head is re-read whole by the
+        // same three readers. A sentence that opened a frame chain and is
+        // not a ", then" chain either owns its connectors: its refusal is
+        // final, never the table's.
         const chained = readThenChain(span, ctx, (tail) =>
             sentenceRule.run(capitalise(tail), ctx)
         );
-        if (chained === null || chained.ok) return chained ?? whole;
-        return deeperFailure(whole, chained);
+        if (chained === null) return whole;
+        if (chained.ok) return chained;
+        return frameOpened ? whole : deeperFailure(whole, chained);
     })
 );
 
@@ -7775,27 +7707,6 @@ function effectSentence(
         } satisfies EffectSentenceIR);
 
     // ── the ordered graveyard, swept or taken from the end (CR 404.2) ──────
-    const topCard = span.match(RETURN_TOP_CARD);
-    if (topCard !== null) {
-        const cardType = permanentCardType(topCard[1]!);
-        if (cardType === null)
-            return fail(`"${topCard[1]}" is not a permanent card type`, span);
-        return ok({
-            kind: "graveyard-end-card" as const,
-            position: "top" as const,
-            cardType,
-            owner: "you" as const,
-            to: "battlefield" as const,
-        } satisfies EffectSentenceIR);
-    }
-    if (EXILE_BOTTOM_CARD.test(span))
-        return ok({
-            kind: "graveyard-end-card" as const,
-            position: "bottom" as const,
-            cardType: null,
-            owner: "target-player" as const,
-            to: "exile" as const,
-        } satisfies EffectSentenceIR);
     const sweep = span.match(RETURN_ALL_FROM_GRAVEYARD);
     if (sweep !== null) {
         const cardType = permanentCardType(sweep[1]!);
@@ -7817,17 +7728,6 @@ function effectSentence(
             to: "battlefield" as const,
             attachedTo: "entering-creature" as const,
         } satisfies EffectSentenceIR);
-    const putFromHand = span.match(PUT_SUBTYPE_FROM_HAND);
-    if (putFromHand !== null) {
-        // CR 205.3m — a creature type; any other word is a card type or
-        // supertype the filter would have to read differently.
-        if (!CREATURE_SUBTYPES.has(putFromHand[1]!))
-            return fail(`"${putFromHand[1]}" is not a creature type`, span);
-        return ok({
-            kind: "put-subtype-from-hand" as const,
-            subtype: putFromHand[1]!,
-        } satisfies EffectSentenceIR);
-    }
     const eachPuts = span.match(EACH_PLAYER_PUTS);
     if (eachPuts !== null) {
         const types = permanentCardTypeList(eachPuts[2]!);
@@ -7842,127 +7742,6 @@ function effectSentence(
             types,
             optional: eachPuts[1] === "may put",
         } satisfies EffectSentenceIR);
-    }
-
-    // ── zone change (CR 400.6) ─────────────────────────────────────────────
-    if (span.startsWith("Return ")) {
-        // CR 400.3 — a chosen permanent of the controller's own, not an
-        // announced target ("return a creature you control to its owner's hand").
-        const own = span.match(RETURN_OWN_PERMANENT);
-        if (own !== null) {
-            const descriptor = descriptorRule.run(
-                own[1]!.replace(/^an? /, ""),
-                ctx
-            );
-            if (!descriptor.ok) return descriptor;
-            if (descriptor.value.plural === true)
-                return fail(`"${own[1]}" is not one permanent`, own[1]!);
-            const filter = ownPermanentChoiceFilterFromDescriptor(
-                descriptor.value
-            );
-            if (!filter.ok) return filter;
-            return ok({
-                kind: "return-own-permanent" as const,
-                filter: filter.value,
-                phrase: uncapitalise(span),
-            } satisfies EffectSentenceIR);
-        }
-        const toAt = span.lastIndexOf(" to ");
-        if (toAt === -1) return fail("a return needs a destination zone", span);
-        const objectSpan = span.slice("Return ".length, toAt);
-        // CR 400.3 + CR 110.1 — "Return all <permanents> to their owners'
-        // hands": a sweep bounce. The destination is the PLURAL spelling of
-        // "its owner's hand" and is read only behind a sweep, whose number it
-        // agrees with ("Return target creature to their owners' hands" is not
-        // English, so the singular subject keeps the singular zone).
-        if (
-            objectSpan.startsWith("all ") &&
-            span.slice(toAt + " to ".length) === THEIR_OWNERS_HANDS
-        ) {
-            const mass = massSubjectRule.run(objectSpan, ctx);
-            if (!mass.ok) return mass;
-            return ok({
-                kind: "move-zone" as const,
-                subject: { kind: "mass" as const, ...mass.value } as SubjectIR,
-                to: { zone: "hand" as const, owner: "its-owner" as const },
-            } satisfies EffectSentenceIR);
-        }
-        if (
-            objectSpan.startsWith("all ") &&
-            TARGET_PLAYER_OWNS.test(objectSpan) &&
-            span.slice(toAt + " to ".length) === THEIR_HAND
-        ) {
-            const mass = massSubjectRule.run(
-                objectSpan.replace(TARGET_PLAYER_OWNS, ""),
-                ctx
-            );
-            if (!mass.ok) return mass;
-            if (mass.value.select.controller !== undefined)
-                return fail("two owner clauses", span);
-            return ok({
-                kind: "move-zone" as const,
-                subject: {
-                    kind: "mass" as const,
-                    ...mass.value,
-                    targetPlayerControls: true as const,
-                } as SubjectIR,
-                to: { zone: "hand" as const, owner: "its-owner" as const },
-            } satisfies EffectSentenceIR);
-        }
-        const subject = subjectRule.run(objectSpan, ctx);
-        if (!subject.ok) return subject;
-        const zone = zoneRefRule.run(span.slice(toAt + " to ".length), ctx);
-        if (!zone.ok) return zone;
-        return ok({
-            kind: "move-zone" as const,
-            subject: subject.value,
-            to: zone.value,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── put an announced permanent on top of its owner's library ───────────
-    // CR 400.3 — "Put target creature you control on top of its owner's
-    // library": the same zone change as "Return … to", spelled with "on" and
-    // the library end in the destination phrase. Only the top-of-library
-    // spelling is read; the subject must be a single announced object.
-    if (span.startsWith("Put ")) {
-        // CR 110.2a + CR 400.7 — "Put target creature card from a graveyard
-        // onto the battlefield under your control" (Reanimate): the card
-        // leaves ANY graveyard and the effect names its new controller.
-        const reanimate = span.match(PUT_UNDER_YOUR_CONTROL);
-        if (reanimate !== null) {
-            const subject = subjectRule.run(reanimate[1]!, ctx);
-            if (!subject.ok) return subject;
-            return ok({
-                kind: "move-zone" as const,
-                subject: subject.value,
-                to: { zone: "battlefield" as const, owner: "any" as const },
-                under: "you" as const,
-            } satisfies EffectSentenceIR);
-        }
-        const onAt = span.lastIndexOf(" on top of ");
-        if (onAt !== -1) {
-            const subject = subjectRule.run(
-                span.slice("Put ".length, onAt),
-                ctx
-            );
-            if (!subject.ok) return subject;
-            if (subject.value.kind !== "target")
-                return fail(
-                    "putting on top of a library reads one announced object",
-                    span
-                );
-            const zone = zoneRefRule.run(
-                `the top of ${span.slice(onAt + " on top of ".length)}`,
-                ctx
-            );
-            if (!zone.ok) return zone;
-            return ok({
-                kind: "move-zone" as const,
-                subject: subject.value,
-                to: zone.value,
-            } satisfies EffectSentenceIR);
-        }
     }
 
     // ── play from your graveyard, exile what would go there (CR 601.3) ────
@@ -8050,18 +7829,10 @@ function effectSentence(
         }
         const subject = subjectRule.run(span.slice("Exile ".length), ctx);
         if (!subject.ok) return subject;
-        // CR 400.7e — "exile that card": the card a zone change put into a
-        // graveyard; the lowering site binds it or refuses the line.
-        if (subject.value.kind === "that-card")
-            return ok({
-                kind: "move-zone" as const,
-                subject: subject.value,
-                to: { zone: "exile" as const, owner: "any" as const },
-            } satisfies EffectSentenceIR);
-        // Only a CARD in a graveyard, never a battlefield permanent: the
-        // catalogue writes the graveyard case as `moveZone`/`to: "exile"` and
-        // the battlefield case as the dedicated `exile` Op, and picking one for
-        // both would encode half the corpus in the wrong shape.
+        // CR 701.13a — only an announced BATTLEFIELD permanent is the `exile`
+        // Op's: a card in a graveyard, the card a head put there ("that
+        // card") and every other object are the moveZone Verb Frame's
+        // (`verbFrames.ts`), which lowers to `moveZone`/`to: "exile"`.
         if (
             subject.value.kind === "target" &&
             subject.value.requirement.zone === undefined
@@ -8070,19 +7841,10 @@ function effectSentence(
                 kind: "exile" as const,
                 subject: subject.value,
             } satisfies EffectSentenceIR);
-        if (
-            subject.value.kind !== "target" ||
-            subject.value.requirement.zone !== "graveyard"
-        )
-            return fail(
-                "exiling anything but a card in a graveyard is not in grammar v0",
-                span
-            );
-        return ok({
-            kind: "move-zone" as const,
-            subject: subject.value,
-            to: { zone: "exile" as const, owner: "any" as const },
-        } satisfies EffectSentenceIR);
+        return fail(
+            "exiling anything but an announced battlefield permanent is the moveZone frame's",
+            span
+        );
     }
 
     // ── look at the top of a library, put it back (CR 401.4) ──────────────

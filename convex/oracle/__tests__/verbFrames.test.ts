@@ -7,8 +7,11 @@
 //
 //  1. GOLDEN — one real corpus card per ARGUMENT CLASS a frame accepts (not
 //     per card): the search's quantity and descriptor classes and its reveal
-//     pronouns, the moveZone's pronoun × destination × tapped, the shuffle's
-//     three spellings. Compared whole where the card is one line, by effects
+//     pronouns, the moveZone's pronoun × destination × tapped and — issue
+//     #6631 — its other object classes (the site's anaphora, the source, an
+//     announced target, a sweep, a graveyard's end card, a chosen card from
+//     your hand or graveyard, an own permanent), the shuffle's three
+//     spellings. Compared whole where the card is one line, by effects
 //     where the frame sits behind a cost or a trigger head.
 //  2. REFUSALS — one per frame for a class it does not declare, and the
 //     pronoun rule's two refusals (no referent, wrong number).
@@ -501,12 +504,11 @@ describe("moveZone frame — pronoun × destination × tapped (CR 400.7, CR 110.
         ]);
     });
 
-    it("refuses a destination outside the declared classes: another player's hand, exile, 'into the battlefield', the bottom", () => {
+    it("refuses a destination outside the declared classes: another player's hand, 'into exile' (the verb is the destination, CR 406.1), 'into the battlefield'", () => {
         for (const text of [
             "Search your library for a card, put that card into its owner's hand, then shuffle.",
             "Search your library for a card, put that card into exile, then shuffle.",
             "Search your library for a card, put that card into the battlefield, then shuffle.",
-            "Search your library for a card, put that card on the bottom of your library, then shuffle.",
         ])
             expect(compileCard(sorcery("Probe", "{B}", text)).state).toBe(
                 "unparsed"
@@ -527,14 +529,14 @@ describe("moveZone frame — pronoun × destination × tapped (CR 400.7, CR 110.
 });
 
 describe("the object pronoun rule (CR 608.2h) — bound to the last find, refused otherwise", () => {
-    it("a pronoun with no referent: 'Put it into your hand' opens no search", () => {
+    it("a pronoun with no referent: 'Put it into your hand' opens no search, and a spell's site names no object either (CR 608.2h)", () => {
         const outcome = compileCard(
             sorcery("Probe", "{U}", "Put it into your hand, then shuffle.")
         );
         expect(outcome.state).toBe("unparsed");
         if (outcome.state === "unparsed")
-            expect(outcome.gaps[0]?.attribution?.span).toBe(
-                "Put it into your hand"
+            expect(outcome.gaps[0]?.reason).toContain(
+                '"it" names no object at this site'
             );
     });
 
@@ -735,6 +737,488 @@ describe("lowering invariants", () => {
                 }[name as "Demonic Tutor"];
             expect(compileCard(card!).state, name).toBe("ready");
         }
+    });
+});
+
+const creature = (
+    name: string,
+    manaCost: string,
+    typeLine: string,
+    oracleText: string,
+    power: string,
+    toughness: string
+) => oracleCard({ name, manaCost, typeLine, oracleText, power, toughness });
+
+/** The effects of a card's first triggered / activated ability, or its spell. */
+function firstEffects(card: ReturnType<typeof oracleCard>) {
+    const def = compiledDefinition(card);
+    return (
+        def.compiledTriggeredAbilities?.[0]?.effects ??
+        def.activatedAbilities?.[0]?.effects ??
+        def.effects
+    );
+}
+
+describe("moveZone frame — object classes beyond the found card (issue #6631)", () => {
+    it("the site's 'it' exiled behind a dies head: Cyclopean Mummy (CR 400.7e, CR 701.13a)", () => {
+        expect(
+            firstEffects(
+                creature(
+                    "Cyclopean Mummy",
+                    "{1}{B}",
+                    "Creature — Zombie",
+                    "When this creature dies, exile it.",
+                    "2",
+                    "1"
+                )
+            )
+        ).toEqual([
+            { op: "moveZone", target: { ref: "$source" }, to: "exile" },
+        ]);
+    });
+
+    it("the site's 'it' on top of its owner's library behind 'you may': Avenging Angel — `library-top`, the one value that repositions a GRAVEYARD card (a `position` there is ignored and the card is bottomed)", () => {
+        expect(
+            firstEffects(
+                creature(
+                    "Avenging Angel",
+                    "{3}{W}{W}",
+                    "Creature — Angel",
+                    "Flying\nWhen this creature dies, you may put it on top of its owner's library.",
+                    "3",
+                    "3"
+                )
+            )
+        ).toEqual([
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Put it on top of its owner's library?",
+                bind: "$may1",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$may1" },
+                then: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$source" },
+                        to: "library-top",
+                    },
+                ],
+            },
+        ]);
+    });
+
+    it("the source on top of its owner's library: Wayward Soul (CR 400.3)", () => {
+        expect(
+            firstEffects(
+                creature(
+                    "Wayward Soul",
+                    "{2}{U}{U}",
+                    "Creature — Spirit",
+                    "Flying\n{U}: Put this creature on top of its owner's library.",
+                    "3",
+                    "2"
+                )
+            )
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: { ref: "$source" },
+                to: "library",
+                position: 1,
+            },
+        ]);
+    });
+
+    it("a chain of two: 'exile it, then return the top creature card of your graveyard to the battlefield' — Mistmoon Griffin (CR 404.2)", () => {
+        expect(
+            firstEffects(
+                creature(
+                    "Mistmoon Griffin",
+                    "{3}{W}",
+                    "Creature — Griffin",
+                    "Flying\nWhen this creature dies, exile it, then return the top creature card of your graveyard to the battlefield.",
+                    "2",
+                    "2"
+                )
+            )
+        ).toEqual([
+            { op: "moveZone", target: { ref: "$source" }, to: "exile" },
+            {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: "top",
+                    player: "controller",
+                    filter: { type: "Creature" },
+                },
+                to: "battlefield",
+            },
+        ]);
+    });
+
+    it("a graveyard's top card on the bottom of your library: Soldevi Digger (CR 404.2, CR 401.2)", () => {
+        expect(
+            firstEffects(
+                oracleCard({
+                    name: "Soldevi Digger",
+                    manaCost: "{2}",
+                    typeLine: "Artifact",
+                    oracleText:
+                        "{2}: Put the top card of your graveyard on the bottom of your library.",
+                })
+            )
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: "top",
+                    player: "controller",
+                },
+                to: "library",
+            },
+        ]);
+    });
+
+    it("a chosen card from your hand onto the battlefield tapped, the 'may' folded into the pick: Elvish Pioneer (CR 110.5b)", () => {
+        expect(
+            firstEffects(
+                creature(
+                    "Elvish Pioneer",
+                    "{G}",
+                    "Creature — Elf Druid",
+                    "When this creature enters, you may put a basic land card from your hand onto the battlefield tapped.",
+                    "1",
+                    "1"
+                )
+            )
+        ).toEqual([
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { type: "Land", supertype: "Basic" },
+                count: { min: 0, max: 1 },
+                prompt: "You may put a basic land card from your hand onto the battlefield tapped.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+                tapped: true,
+            },
+        ]);
+    });
+
+    it("'<Subtype> permanent card' from your hand keeps the catalogue's excludeType shape: Goblin Lackey, byte-identical to its kind-era definition", () => {
+        const text =
+            "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.";
+        expect(
+            firstEffects(
+                creature(
+                    "Goblin Lackey",
+                    "{R}",
+                    "Creature — Goblin",
+                    text,
+                    "1",
+                    "1"
+                )
+            )
+        ).toEqual([
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: {
+                    subtype: "Goblin",
+                    excludeType: ["Instant", "Sorcery"],
+                },
+                count: { min: 0, max: 1 },
+                prompt: "You may put a Goblin permanent card from your hand onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+            },
+        ]);
+    });
+
+    it("two cards from your hand on the bottom of your library behind a ', then' chain, and an own permanent returned: Sawtooth Loon", () => {
+        const def = compiledDefinition(
+            creature(
+                "Sawtooth Loon",
+                "{2}{W}{U}",
+                "Creature — Bird",
+                "Flying\nWhen this creature enters, return a white or blue creature you control to its owner's hand.\nWhen this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
+                "2",
+                "2"
+            )
+        );
+        expect(def.compiledTriggeredAbilities?.[0]?.effects).toEqual([
+            {
+                op: "choice",
+                kind: "choose-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Creature", color: ["W", "U"] },
+                count: 1,
+                prompt: "Return a white or blue creature you control to its owner's hand.",
+                bind: "$bounce1",
+            },
+            {
+                op: "forEach",
+                select: { set: "bound", ref: "$bounce1" },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+        expect(def.compiledTriggeredAbilities?.[1]?.effects).toEqual([
+            { op: "draw", player: "controller", count: 2 },
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                count: 2,
+                prompt: "Put two cards from your hand on the bottom of your library.",
+                bind: "$picked1",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked1" },
+                player: "controller",
+                from: "hand",
+                to: "library",
+            },
+        ]);
+    });
+
+    it("an announced graveyard card to the battlefield tapped: Undergrowth Recon (CR 110.5b)", () => {
+        expect(
+            firstEffects(
+                oracleCard({
+                    name: "Undergrowth Recon",
+                    manaCost: "{1}{G}{G}",
+                    typeLine: "Enchantment",
+                    oracleText:
+                        "At the beginning of your upkeep, return target land card from your graveyard to the battlefield tapped.",
+                })
+            )
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+                tapped: true,
+            },
+        ]);
+    });
+
+    it("an announced permanent on the bottom of its owner's library: Condemn (CR 401.2)", () => {
+        expect(
+            compiledDefinition(
+                oracleCard({
+                    name: "Condemn",
+                    manaCost: "{W}",
+                    typeLine: "Instant",
+                    oracleText:
+                        "Put target attacking creature on the bottom of its owner's library. Its controller gains life equal to its toughness.",
+                })
+            ).effects
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: "bottom",
+                bind: "$that1",
+            },
+            {
+                op: "gainLife",
+                player: { ref: "$that1.controller" },
+                amount: { ref: "$that1.toughness" },
+            },
+        ]);
+    });
+
+    it("an announced graveyard card on the bottom of its owner's library is pushed, no position: Chrome Companion", () => {
+        expect(
+            compiledDefinition(
+                creature(
+                    "Chrome Companion",
+                    "{2}",
+                    "Artifact Creature — Dog",
+                    "Whenever this creature becomes tapped, you gain 1 life.\n{2}, {T}: Put target card from a graveyard on the bottom of its owner's library.",
+                    "2",
+                    "1"
+                )
+            ).activatedAbilities?.[0]?.effects
+        ).toEqual([{ op: "moveZone", target: { target: 0 }, to: "library" }]);
+    });
+
+    it("a comma inside a type list is not a chain join: Hoodwink's 'target artifact, enchantment, or land' (CR 608.2c)", () => {
+        const def = compiledDefinition(
+            oracleCard({
+                name: "Hoodwink",
+                manaCost: "{1}{U}",
+                typeLine: "Instant",
+                oracleText:
+                    "Return target artifact, enchantment, or land to its owner's hand.",
+            })
+        );
+        expect(def.effects).toEqual([
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+        ]);
+        expect(def.targetRequirement).toEqual({
+            type: ["Artifact", "Enchantment", "Land"],
+            count: 1,
+        });
+    });
+
+    it("re-pins the kind-era forms byte for byte: Reanimate (under your control), Hurkyl's Recall (a sweep an announced player owns)", () => {
+        expect(
+            compiledDefinition(
+                sorcery(
+                    "Reanimate",
+                    "{B}",
+                    "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to that card's mana value."
+                )
+            ).effects
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+                controller: "controller",
+                bind: "$that1",
+            },
+            {
+                op: "loseLife",
+                player: "controller",
+                amount: { ref: "$that1.manaValue" },
+            },
+        ]);
+        expect(
+            compiledDefinition(
+                oracleCard({
+                    name: "Hurkyl's Recall",
+                    manaCost: "{1}{U}",
+                    typeLine: "Instant",
+                    oracleText:
+                        "Return all artifacts target player owns to their hand.",
+                })
+            ).effects
+        ).toEqual([
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Artifact" },
+                    controller: { target: 0 },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+    });
+
+    it("a group of targets wider than one goes to their owners' hands; one target does not (CR 400.3)", () => {
+        const group = compiledDefinition(
+            sorcery(
+                "Probe",
+                "{1}{U}",
+                "Return up to two target nonblack creatures to their owners' hands."
+            )
+        );
+        expect(group.effects).toEqual([
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+            { op: "moveZone", target: { target: 1 }, to: "hand" },
+        ]);
+        expect(
+            compileCard(
+                sorcery(
+                    "Probe",
+                    "{U}",
+                    "Return target creature to their owners' hands."
+                )
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("refuses a battlefield object sent to exile or a graveyard by this frame (the target shape would skip it): the source at an attack head, 'that creature', a non-permanent chosen card onto the battlefield", () => {
+        for (const [typeLine, text] of [
+            ["Creature — Turtle", "Whenever this creature attacks, exile it."],
+            [
+                "Creature — Turtle",
+                "{1}: Put this creature into its owner's graveyard.",
+            ],
+            [
+                "Creature — Turtle",
+                "When this creature enters, you may put a sorcery card from your graveyard onto the battlefield.",
+            ],
+            [
+                "Creature — Turtle",
+                "When this creature enters, you may put an instant card from your hand onto the battlefield.",
+            ],
+        ] as const)
+            expect(
+                compileCard(
+                    oracleCard({
+                        name: "Probe",
+                        manaCost: "{1}{G}",
+                        typeLine,
+                        oracleText: text,
+                        power: "1",
+                        toughness: "1",
+                    })
+                ).state
+            ).toBe("unparsed");
+    });
+
+    it("refuses the undeclared object classes by name: 'X cards' (a cost's quantity), 'any number of', 'from a graveyard' (no one owner's zone), the top card of a library (no Op), 'into exile', a sweep to one hand", () => {
+        for (const text of [
+            "Exile X creature cards from your graveyard.",
+            "Exile any number of cards from your graveyard.",
+            "Exile a card from a graveyard.",
+            "Exile the top card of your library.",
+            "Put the top card of your library into your graveyard.",
+            "Return all creatures to its owner's hand.",
+        ])
+            expect(compileCard(sorcery("Probe", "{B}", text)).state).toBe(
+                "unparsed"
+            );
+    });
+
+    it("refuses the pairs the sentence table still reads, so each keeps one reader: a battlefield permanent exiled, the source returned from your graveyard, a sweep onto the battlefield", () => {
+        // Each of these compiles — by the TABLE (the exile kind, the
+        // return-self kind, the graveyard sweep), never ambiguously.
+        expect(
+            compileCard(sorcery("Probe", "{W}", "Exile target creature.")).state
+        ).not.toBe("unparsed");
+        expect(
+            compileCard(
+                sorcery(
+                    "Probe",
+                    "{G}",
+                    "Return all enchantment cards from your graveyard to the battlefield."
+                )
+            ).state
+        ).not.toBe("unparsed");
     });
 });
 

@@ -288,7 +288,9 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
         expect(clauseHead("Destroy target red permanent")).toBe(
             "Destroy target <colour> permanent"
         );
-        expect(clauseHead("Exile all sorceries")).toBe("Exile all <type>");
+        expect(clauseHead("Tap all sorceries")).toBe("Tap all <type>");
+        // A span that opens a Verb Frame is the frame's family, folded or not.
+        expect(clauseHead("Exile all sorceries")).toBe("frame moveZone");
         // A lead that is itself a fold word folds; a keyword never does.
         expect(clauseHead("Creatures you control get +N/+N")).toBe(
             clauseHead("Artifacts you control get +N/+N")

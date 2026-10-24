@@ -20,6 +20,7 @@ import {
 import type {
     EffectObjectSelector,
     EffectOp,
+    EffectMoveZone,
     CardSupertype,
     CardType,
     Color,
@@ -60,7 +61,11 @@ import {
     targetRequirementFromDescriptor,
     type DescriptorIR,
 } from "./grammar/shared/targetFilter";
-import type { FrameChainIR } from "./grammar/shared/verbFrames";
+import type {
+    FrameChainIR,
+    FrameIR,
+    MoveObjectIR,
+} from "./grammar/shared/verbFrames";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
@@ -1937,7 +1942,8 @@ function lowerSentenceBody(
     const slots = walk.targets;
     // The Verb Frame layer (`verbFrames.ts`): a sentence read as frames
     // carries no kind and lowers frame by frame, one Op each.
-    if (sentence.kind === undefined) return lowerFrameChain(sentence, walk);
+    if (sentence.kind === undefined)
+        return lowerFrameChain(sentence, walk, site);
     switch (sentence.kind) {
         case "pump": {
             if (sentence.perOtherAttacking !== undefined) {
@@ -3121,65 +3127,6 @@ function lowerSentenceBody(
                 },
             ]);
         }
-        case "move-zone": {
-            // "that card" names the head's card only while no earlier
-            // sentence introduced an object of its own.
-            if (
-                sentence.subject.kind === "that-card" &&
-                (walk.actedOn !== null ||
-                    walk.libraryLookedAt !== null ||
-                    slots.requirements().length > 0)
-            )
-                return unlowerable(
-                    '"that card" may name an object an earlier sentence introduced'
-                );
-            const moved = lowerMoveZone(
-                sentence.subject,
-                sentence.to,
-                slots,
-                site,
-                sentence.under
-            );
-            // CR 608.2h — "that creature" names ONE object, so a WIDE group
-            // (an "up to N" head fanned out over several ops) leaves no
-            // referent: recording the first op's would name whichever target
-            // happened to be picked first. One op, one referent; more than
-            // one, none.
-            if (moved.ok && moved.value.length === 1)
-                recordActedOn(walk, sentence.subject, moved.value[0]!);
-            return moved;
-        }
-        case "graveyard-end-card": {
-            // CR 404.2 — the positional selector `moveZone` ships; an
-            // announced player's graveyard is a player slot allocated here.
-            let player: EffectPlayerRef = "controller";
-            if (sentence.owner === "target-player") {
-                const index = slots.allocate({ type: "player", count: 1 });
-                if (!index.ok) return index;
-                player = { target: index.value };
-            }
-            const move: Extract<EffectOp, { op: "moveZone" }> = {
-                op: "moveZone",
-                target: {
-                    zone: "graveyard",
-                    position: sentence.position,
-                    player,
-                    ...(sentence.cardType !== null
-                        ? { filter: { type: sentence.cardType } }
-                        : {}),
-                },
-                to: sentence.to,
-            };
-            // CR 400.7j — the returned card is an object later sentences of
-            // this effect can find.
-            if (sentence.to === "battlefield")
-                walk.introduced = {
-                    op: move,
-                    creature: sentence.cardType === "Creature",
-                    slots: slots.requirements().length,
-                };
-            return lowered([move]);
-        }
         case "graveyard-sweep":
             // CR 400.7 — one simultaneous `forEach` over the controller's
             // graveyard cards of the type (Replenish).
@@ -3232,12 +3179,6 @@ function lowerSentenceBody(
             ]);
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);
-        case "put-subtype-from-hand":
-            // Only the "you may" printing is read; its `optional` wrapper
-            // lowers the pick, never this bare arm.
-            return unlowerable(
-                "an unconditional put from the hand is not a printed form"
-            );
         case "create-token":
             return lowerCreateToken(sentence, walk, site);
         case "optional": {
@@ -3255,15 +3196,16 @@ function lowerSentenceBody(
                 return unlowerable(
                     "an optional delayed draw is chosen at the delayed trigger, not here"
                 );
-            // CR 603.2 + CR 400.7 — "you may put a <Subtype> permanent card
-            // from your hand onto the battlefield": the pick's 0..1 count IS
-            // the "may" (declining picks nothing), the shape every
-            // hand-written hand→battlefield drop writes.
-            if (sentence.effect.kind === "put-subtype-from-hand")
+            // CR 603.2 + CR 400.7 — "you may put a <descriptor> card from
+            // your hand onto the battlefield": the pick's 0..1 count IS the
+            // "may" (declining picks nothing), the shape every hand-written
+            // hand→battlefield drop writes.
+            const pick = optionalChosenMove(sentence.effect);
+            if (pick !== null)
                 return sentence.then === undefined
-                    ? lowerOptionalPutFromHand(sentence.effect)
+                    ? lowerOptionalChosenMove(pick, sentence.clause)
                     : unlowerable(
-                          '"If you do" behind an optional put from the hand is not a printed form'
+                          '"If you do" behind an optional pick from a zone is not a printed form'
                       );
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
@@ -3584,73 +3526,6 @@ function lowerSentenceBody(
                     to: "library",
                 },
                 { op: "libraryLook", action: "shuffle", player: player.value },
-            ]);
-        }
-        case "return-own-permanent": {
-            // CR 400.3 — the controller picks one of their own permanents and
-            // it returns to its owner's hand. The pick is routed through
-            // `forEach { set: "bound" }`: a `choice` Op's `bind` holds the raw
-            // picks, while `moveZone.target` wants a snapshot ref.
-            const bind = walk.nextBind("bounce");
-            return lowered([
-                {
-                    op: "choice",
-                    kind: "choose-permanents",
-                    player: "controller",
-                    zone: "battlefield",
-                    filter: sentence.filter,
-                    count: 1,
-                    prompt: `${capitalise(sentence.phrase)}.`,
-                    bind,
-                },
-                {
-                    op: "forEach",
-                    select: { set: "bound", ref: bind },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            to: "hand",
-                        },
-                    ],
-                },
-            ]);
-        }
-        case "tap-chosen-per-counter": {
-            // CR 701.26a — the named player picks among their own untapped
-            // permanents as many as the source has counters (the count is
-            // read as the choice is raised), then each is tapped. Routed
-            // through `forEach { set: "bound" }` like `untap-chosen-permanents`.
-            const player = playerRef(sentence.player, slots, site);
-            if (!player.ok) return player;
-            const bind = walk.nextBind("tapped");
-            return lowered([
-                {
-                    op: "choice",
-                    kind: "choose-permanents",
-                    player: player.value,
-                    zone: "battlefield",
-                    filter: sentence.filter,
-                    count: {
-                        counters: {
-                            of: { ref: "$source" },
-                            type: sentence.counterType,
-                        },
-                    },
-                    prompt: `Tap ${sentence.phrase} you control.`,
-                    bind,
-                },
-                {
-                    op: "forEach",
-                    select: { set: "bound", ref: bind },
-                    effects: [
-                        {
-                            op: "tapUntap",
-                            action: "tap",
-                            target: { ref: "$each" },
-                        },
-                    ],
-                },
             ]);
         }
         case "untap-chosen-permanents": {
@@ -5058,7 +4933,8 @@ function lowerSentenceBody(
  */
 function lowerFrameChain(
     sentence: FrameChainIR,
-    walk: SentenceWalk
+    walk: SentenceWalk,
+    site: SiteOptions
 ): Lowered<EffectOp[]> {
     const ops: EffectOp[] = [];
     let found: string | null = null;
@@ -5090,18 +4966,9 @@ function lowerFrameChain(
                 break;
             }
             case "moveZone": {
-                if (found === null)
-                    return unlowerable(
-                        `"put ${frame.pronoun} …" names a card no frame found`
-                    );
-                ops.push({
-                    op: "moveZone",
-                    cards: { ref: found },
-                    player: "controller",
-                    from: "library",
-                    to: frame.to,
-                    ...(frame.tapped ? { tapped: true } : {}),
-                });
+                const moved = lowerMoveFrame(frame, found, walk, site);
+                if (!moved.ok) return moved;
+                ops.push(...moved.value);
                 break;
             }
             case "shuffle":
@@ -5118,6 +4985,179 @@ function lowerFrameChain(
         }
     }
     return lowered(ops);
+}
+
+/**
+ * One `moveZone` frame (`verbFrames.ts`, issue #6631), by its object class:
+ *
+ *  - the chain PRONOUN: the find of the search before it leaves the library
+ *    for the printed destination (CR 400.7), tapped when the line says so
+ *    (CR 110.5b);
+ *  - a SUBJECT: the announced target, the source, the site's anaphora or a
+ *    sweep, lowered by `lowerMoveZone` — the path the retired `move-zone`
+ *    sentence kind took, so every Compiled Definition it produced is
+ *    unchanged. "It" at a site whose head put a card into a graveyard names
+ *    that card (CR 400.7e), as "that card" does;
+ *  - a GRAVEYARD END CARD (CR 404.2): the positional `moveZone` selector; an
+ *    announced player's graveyard allocates its player slot here;
+ *  - a CHOSEN CARD: the `choice` out of the controller's own zone, then the
+ *    `moveZone` of the picks;
+ *  - an OWN PERMANENT (CR 400.3): the `choice` on the controller's
+ *    battlefield, routed through `forEach { set: "bound" }` because the
+ *    `moveZone.target` shape wants a snapshot ref.
+ */
+function lowerMoveFrame(
+    frame: Extract<FrameIR, { frame: "moveZone" }>,
+    found: string | null,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const slots = walk.targets;
+    const { object, to, tapped } = frame;
+    switch (object.kind) {
+        case "pronoun": {
+            if (found === null)
+                return unlowerable(
+                    `"${frame.phrase}" names a card no frame found`
+                );
+            return lowered([
+                {
+                    op: "moveZone",
+                    cards: { ref: found },
+                    player: "controller",
+                    from: "library",
+                    to: movableDestination(to),
+                    ...(tapped ? { tapped: true } : {}),
+                },
+            ]);
+        }
+        case "subject": {
+            const subject = object.subject;
+            // CR 701.13a — the target shape's `moveZone` re-derives a departed
+            // object in a graveyard and SKIPS a battlefield one bound for
+            // exile or a graveyard: the source, "that creature" or the
+            // head's "it" reach those zones only behind a head that put the
+            // object into a graveyard; on the battlefield that is the
+            // `exile` Op's kind, or a sacrifice, never this frame.
+            if (
+                (to.zone === "exile" || to.zone === "graveyard") &&
+                (subject.kind === "self" ||
+                    subject.kind === "that-creature" ||
+                    subject.kind === "pronoun") &&
+                site.antecedents?.card === undefined
+            )
+                return unlowerable(
+                    `a permanent on the battlefield is not put into ${to.zone} by this frame — only a card a head put into a graveyard is`
+                );
+            // "that card" names the head's card only while no earlier
+            // sentence introduced an object of its own.
+            if (
+                subject.kind === "that-card" &&
+                (walk.actedOn !== null ||
+                    walk.libraryLookedAt !== null ||
+                    slots.requirements().length > 0)
+            )
+                return unlowerable(
+                    '"that card" may name an object an earlier sentence introduced'
+                );
+            const moved = lowerMoveZone(
+                subject,
+                to,
+                slots,
+                site,
+                frame.under,
+                tapped
+            );
+            // CR 608.2h — "that creature" names ONE object, so a WIDE group
+            // (an "up to N" head fanned out over several ops) leaves no
+            // referent: recording the first op's would name whichever target
+            // happened to be picked first. One op, one referent; more than
+            // one, none.
+            if (moved.ok && moved.value.length === 1)
+                recordActedOn(walk, subject, moved.value[0]!);
+            return moved;
+        }
+        case "graveyard-end": {
+            // CR 404.2 — the positional selector `moveZone` ships; an
+            // announced player's graveyard is a player slot allocated here.
+            let player: EffectPlayerRef = "controller";
+            if (object.owner === "target-player") {
+                const index = slots.allocate({ type: "player", count: 1 });
+                if (!index.ok) return index;
+                player = { target: index.value };
+            }
+            const move: Extract<EffectOp, { op: "moveZone" }> = {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: object.position,
+                    player,
+                    ...(object.cardType !== null
+                        ? { filter: { type: object.cardType } }
+                        : {}),
+                },
+                to: movableDestination(to) as EffectMoveZone,
+                ...(tapped ? { tapped: true } : {}),
+            };
+            // CR 400.7j — the returned card is an object later sentences of
+            // this effect can find.
+            if (to.zone === "battlefield")
+                walk.introduced = {
+                    op: move,
+                    creature: object.cardType === "Creature",
+                    slots: slots.requirements().length,
+                };
+            return lowered([move]);
+        }
+        case "chosen":
+            // CR 603.2 — every printed hand→battlefield drop says "you may"
+            // (folded into the pick's range by the `optional` wrapper); the
+            // bare instruction is not a printed form.
+            if (object.zone === "hand" && to.zone === "battlefield")
+                return unlowerable(
+                    "an unconditional put from the hand onto the battlefield is not a printed form"
+                );
+            return lowered(
+                chosenMoveOps(
+                    object,
+                    to,
+                    tapped,
+                    walk.nextBind("picked"),
+                    `${capitalise(frame.phrase)}.`,
+                    object.count
+                )
+            );
+        case "own-permanent": {
+            // CR 400.3 — the controller picks one of their own permanents and
+            // it returns to its owner's hand. The pick is routed through
+            // `forEach { set: "bound" }`: a `choice` Op's `bind` holds the raw
+            // picks, while `moveZone.target` wants a snapshot ref.
+            const bind = walk.nextBind("bounce");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: object.filter,
+                    count: 1,
+                    prompt: `${capitalise(frame.phrase)}.`,
+                    bind,
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: bind },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ]);
+        }
+    }
 }
 
 /**
@@ -5378,37 +5418,96 @@ function recordActedOn(
 }
 
 /**
- * CR 400.7 + CR 205.3 — "You may put a <Subtype> permanent card from your hand
- * onto the battlefield": a 0..1 pick of the controller's own hand, then the
- * `moveZone` of that pick. A "permanent card" is any card that is not an
- * instant or sorcery (CR 110.1), hence `excludeType`.
+ * CR 603.2 + CR 400.7 — the one frame chain whose "you may" folds into the
+ * pick: a single `moveZone` frame of a chosen card from the controller's own
+ * zone, printed with a quantity of exactly one. `null` for every other
+ * optional sentence, which keeps the `mayPay` gate.
  */
-function lowerOptionalPutFromHand(
-    sentence: Extract<EffectSentenceIR, { kind: "put-subtype-from-hand" }>
+function optionalChosenMove(
+    sentence: EffectSentenceIR
+): Extract<FrameIR, { frame: "moveZone" }> | null {
+    if (sentence.kind !== undefined || sentence.frames.length !== 1)
+        return null;
+    const frame = sentence.frames[0]!;
+    if (frame.frame !== "moveZone" || frame.object.kind !== "chosen")
+        return null;
+    return frame.object.count === 1 ? frame : null;
+}
+
+/**
+ * CR 400.7 — "You may put a <descriptor> card from your hand onto the
+ * battlefield": a 0..1 pick of the controller's own zone, then the `moveZone`
+ * of that pick. The pick's range IS the "may" (declining picks nothing), and
+ * the prompt is the printed clause behind its "You may", the shape every
+ * hand-written hand→battlefield drop writes (Goblin Lackey).
+ */
+function lowerOptionalChosenMove(
+    frame: Extract<FrameIR, { frame: "moveZone" }>,
+    clause: string
 ): Lowered<EffectOp[]> {
-    const bind = "$picked";
-    return lowered([
-        {
-            op: "choice",
-            kind: "choose-hand-card",
-            player: "controller",
-            zone: "hand",
-            filter: {
-                subtype: sentence.subtype,
-                excludeType: ["Instant", "Sorcery"],
-            },
-            count: { min: 0, max: 1 },
-            prompt: `You may put a ${sentence.subtype} permanent card from your hand onto the battlefield.`,
-            bind,
-        },
+    if (frame.object.kind !== "chosen") return unlowerable("not a chosen pick");
+    return lowered(
+        chosenMoveOps(
+            frame.object,
+            frame.to,
+            frame.tapped,
+            "$picked",
+            `You may ${clause}.`,
+            { min: 0, max: 1 }
+        )
+    );
+}
+
+/**
+ * CR 400.7 — the `choice` of cards out of the controller's own hand or
+ * graveyard and the `moveZone` of the picks, in that order: the two Ops the
+ * chosen-card class of the moveZone frame lowers to.
+ */
+function chosenMoveOps(
+    object: Extract<MoveObjectIR, { kind: "chosen" }>,
+    to: ZoneRefIR,
+    tapped: boolean,
+    bind: string,
+    prompt: string,
+    count: Extract<EffectOp, { op: "choice" }>["count"]
+): EffectOp[] {
+    const choice: Extract<EffectOp, { op: "choice" }> = {
+        op: "choice",
+        kind:
+            object.zone === "hand"
+                ? "choose-hand-card"
+                : "choose-graveyard-card",
+        player: "controller",
+        zone: object.zone,
+        ...(Object.keys(object.filter).length > 0
+            ? { filter: object.filter }
+            : {}),
+        count,
+        prompt,
+        bind,
+    };
+    return [
+        choice,
         {
             op: "moveZone",
             cards: { ref: bind },
             player: "controller",
-            from: "hand",
-            to: "battlefield",
+            from: object.zone,
+            to: movableDestination(to),
+            ...(tapped ? { tapped: true } : {}),
         },
-    ]);
+    ];
+}
+
+/**
+ * CR 400.1 — a frame destination as the `cards`-shape `moveZone` names it:
+ * the top of the library is its own value, the bottom is the plain library
+ * (the leg pushes, i.e. bottoms, the card).
+ */
+function movableDestination(to: ZoneRefIR): EffectMoveZone | "library-top" {
+    if (to.zone === "library")
+        return to.position === "top" ? "library-top" : "library";
+    return to.zone;
 }
 
 /**
@@ -5650,8 +5749,14 @@ function lowerMoveZone(
     zone: ZoneRefIR,
     slots: TargetSlots,
     site: SiteOptions,
-    under?: "you"
+    under?: "you",
+    tapped = false
 ): Lowered<EffectOp[]> {
+    // CR 110.5b — "onto the battlefield tapped": the entering permanent.
+    const entering = (
+        op: Extract<EffectOp, { op: "moveZone" }>
+    ): Extract<EffectOp, { op: "moveZone" }> =>
+        tapped ? { ...op, tapped: true } : op;
     // CR 110.2a + CR 400.7 — "put target creature card from a graveyard onto
     // the battlefield under your control": ANY graveyard, the controller of
     // the ability controls the new object. One announced permanent card.
@@ -5670,12 +5775,14 @@ function lowerMoveZone(
         const taken = objectSelectors(subject, slots, site);
         if (!taken.ok) return taken;
         return lowered(
-            taken.value.map((target) => ({
-                op: "moveZone",
-                target,
-                to: "battlefield",
-                controller: "controller",
-            }))
+            taken.value.map((target) =>
+                entering({
+                    op: "moveZone",
+                    target,
+                    to: "battlefield",
+                    controller: "controller",
+                })
+            )
         );
     }
     // CR 400.7e — "return that card to its owner's hand": the card the site's
@@ -5697,12 +5804,21 @@ function lowerMoveZone(
                     '"that card" may be put onto the battlefield only from its controller\'s own graveyard'
                 );
             return lowered([
-                { op: "moveZone", target: card, to: "battlefield" },
+                entering({ op: "moveZone", target: card, to: "battlefield" }),
             ]);
         }
+        // CR 401.2 — "put it on top of / on the bottom of its owner's
+        // library": the card moves by id and the top is the 1-based slot the
+        // target shape repositions to; no position pushes, i.e. bottoms it.
+        if (zone.zone === "library" && zone.owner === "its-owner")
+            return lowered([
+                zone.position === "top"
+                    ? { op: "moveZone", target: card, to: "library-top" }
+                    : { op: "moveZone", target: card, to: "library" },
+            ]);
         if (zone.zone !== "hand" || zone.owner !== "its-owner")
             return unlowerable(
-                '"that card" is returned only to its owner\'s hand, to exile or to the battlefield in grammar v0'
+                "\"that card\" is returned only to its owner's hand, to exile, to the battlefield or to an end of its owner's library"
             );
         return lowered([{ op: "moveZone", target: card, to: "hand" }]);
     }
@@ -5768,26 +5884,67 @@ function lowerMoveZone(
     if (zone.zone === "graveyard" && zone.owner === "its-owner")
         return each("graveyard");
     if (zone.zone === "exile") return each("exile");
-    if (reanimated) return each("battlefield");
+    if (reanimated)
+        return lowered(
+            targets.value.map((target) =>
+                entering({ op: "moveZone", target, to: "battlefield" })
+            )
+        );
     // CR 400.3 — "put target creature you control on top of its owner's
     // library": an object only ever reaches its OWNER's library, and "on top"
     // is the 1-based `position: 1` that `moveZone` ships (Teferi, Oust). One
     // announced object only: N objects put on top at once need the owner's
     // chosen order, which a sequence of single Ops does not give.
+    const oneObject =
+        (subject.kind === "target" && subject.requirement.count === 1) ||
+        subject.kind === "self" ||
+        subject.kind === "pronoun" ||
+        subject.kind === "that-creature";
+    // CR 401.2 — "on top of its owner's library": a battlefield permanent
+    // takes the 1-based `position: 1`; a card that may sit in a graveyard —
+    // an announced graveyard card, "that card", or the source / "it" behind
+    // a head that put it there — takes `to: "library-top"`, the one value
+    // the graveyard leg repositions with (a `position` on a graveyard card
+    // is ignored by the engine and the card is appended, i.e. bottomed).
+    const maybeInGraveyard =
+        (subject.kind === "target" &&
+            subject.requirement.zone === "graveyard") ||
+        ((subject.kind === "self" || subject.kind === "pronoun") &&
+            site.antecedents?.card !== undefined);
     if (
         zone.zone === "library" &&
         zone.owner === "its-owner" &&
         zone.position === "top" &&
-        subject.kind === "target" &&
-        subject.requirement.count === 1
+        oneObject
     )
         return lowered(
-            targets.value.map((target) => ({
-                op: "moveZone",
-                target,
-                to: "library",
-                position: 1,
-            }))
+            targets.value.map((target) =>
+                maybeInGraveyard
+                    ? { op: "moveZone", target, to: "library-top" }
+                    : { op: "moveZone", target, to: "library", position: 1 }
+            )
+        );
+    // CR 401.2 — "on the bottom of its owner's library": `"bottom"` is the
+    // position the battlefield leg takes; a graveyard-sourced card is pushed,
+    // which bottoms it, so the position is written only for a permanent.
+    if (
+        zone.zone === "library" &&
+        zone.owner === "its-owner" &&
+        zone.position === "bottom" &&
+        oneObject
+    )
+        return lowered(
+            targets.value.map((target) =>
+                subject.kind === "target" &&
+                subject.requirement.zone === "graveyard"
+                    ? { op: "moveZone", target, to: "library" }
+                    : {
+                          op: "moveZone",
+                          target,
+                          to: "library",
+                          position: "bottom",
+                      }
+            )
         );
     return unlowerable(
         `"${zone.zone}" is not a zone destination in grammar v0`

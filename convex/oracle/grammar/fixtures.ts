@@ -11070,4 +11070,622 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 400.3 + CR 401.2 — "you may put target card from a graveyard on the bottom of its owner's library": an announced graveyard card pushed onto (the bottom of) its owner's library, the moveZone frame's announced-subject class behind the optional gate (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Nantuko Tracer",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Insect Druid",
+            oracleText:
+                "When this creature enters, you may put target card from a graveyard on the bottom of its owner's library.",
+            power: "2",
+            toughness: "1",
+            oracleId: "4fd567cb-0b8e-41dd-a2b7-87a196de294a",
+            layout: "normal",
+            legalIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Nantuko Tracer",
+            types: ["Creature"],
+            subtypes: ["Insect", "Druid"],
+            manaCost: { X: 1, G: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, you may put target card from a graveyard on the bottom of its owner's library.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "nantuko-tracer-trigger",
+                    oracleText:
+                        "When this creature enters, you may put target card from a graveyard on the bottom of its owner's library.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: "card",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "any",
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Put target card from a graveyard on the bottom of its owner's library?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { target: 0 },
+                                    to: "library",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 400.3 — "Put this creature on top of its owner's library": the source moved to position 1 of its owner's library (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Wayward Soul",
+            manaCost: "{2}{U}{U}",
+            typeLine: "Creature — Spirit",
+            oracleText:
+                "Flying\n{U}: Put this creature on top of its owner's library.",
+            power: "3",
+            toughness: "2",
+            oracleId: "319b4715-c3eb-49bf-b8d2-4d41e601ebe4",
+            layout: "normal",
+            legalIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Wayward Soul",
+            types: ["Creature"],
+            subtypes: ["Spirit"],
+            manaCost: { X: 2, U: 2 },
+            power: 3,
+            toughness: 2,
+            oracleText:
+                "Flying\n{U}: Put this creature on top of its owner's library.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "wayward-soul-ability",
+                    oracleText:
+                        "{U}: Put this creature on top of its owner's library.",
+                    cost: { mana: { U: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "library",
+                            position: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 401.2 — "Put target attacking creature on the bottom of its owner's library": the battlefield leg's own `"bottom"` position, then the life gain read off the moved object's snapshot (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Condemn",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Put target attacking creature on the bottom of its owner's library. Its controller gains life equal to its toughness.",
+            oracleId: "377d31b5-0a48-4d5b-91bd-b5a62d4f7899",
+            layout: "normal",
+            legalIn: ["modern", "legacy", "vintage", "commander"],
+            poolIn: ["modern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Condemn",
+            types: ["Instant"],
+            manaCost: { W: 1 },
+            oracleText:
+                "Put target attacking creature on the bottom of its owner's library. Its controller gains life equal to its toughness.",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "library",
+                    position: "bottom",
+                    bind: "$that1",
+                },
+                {
+                    op: "gainLife",
+                    player: { ref: "$that1.controller" },
+                    amount: { ref: "$that1.toughness" },
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: ["attacking"],
+            },
+        },
+    },
+    // CR 110.5b — "return target land card from your graveyard to the battlefield tapped": the tapped rider on an announced graveyard card (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Undergrowth Recon",
+            manaCost: "{1}{G}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your upkeep, return target land card from your graveyard to the battlefield tapped.",
+            oracleId: "3fbe46fa-88da-439a-994e-c8f1791332a8",
+            layout: "normal",
+            legalIn: ["modern", "legacy", "vintage", "commander"],
+            poolIn: ["modern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Undergrowth Recon",
+            types: ["Enchantment"],
+            manaCost: { X: 1, G: 2 },
+            oracleText:
+                "At the beginning of your upkeep, return target land card from your graveyard to the battlefield tapped.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "undergrowth-recon-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, return target land card from your graveyard to the battlefield tapped.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    targetRequirement: {
+                        type: "Land",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 400.7e + CR 701.13a — "When this creature dies, exile it": the site's "it" is the source, re-derived in the graveyard by the target shape's default, moved to exile (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Cyclopean Mummy",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Zombie",
+            oracleText: "When this creature dies, exile it.",
+            power: "2",
+            toughness: "1",
+            oracleId: "f5f2c98c-dd89-4b60-83e5-07f5fdc699ef",
+            layout: "normal",
+            legalIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Cyclopean Mummy",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 1, B: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText: "When this creature dies, exile it.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "cyclopean-mummy-trigger",
+                    oracleText: "When this creature dies, exile it.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 400.3 + CR 401.2 — an own permanent returned to its owner's hand (the chooser's `forEach { set: "bound" }`), and two chosen hand cards put on the bottom of the library behind a ", then" chain (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Sawtooth Loon",
+            manaCost: "{2}{W}{U}",
+            typeLine: "Creature — Bird",
+            oracleText:
+                "Flying\nWhen this creature enters, return a white or blue creature you control to its owner's hand.\nWhen this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
+            power: "2",
+            toughness: "2",
+            oracleId: "b917e472-2550-4381-b756-45487c2c187a",
+            layout: "normal",
+            legalIn: ["premodern", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Sawtooth Loon",
+            types: ["Creature"],
+            subtypes: ["Bird"],
+            manaCost: { X: 2, W: 1, U: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flying\nWhen this creature enters, return a white or blue creature you control to its owner's hand.\nWhen this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "sawtooth-loon-trigger",
+                    oracleText:
+                        "When this creature enters, return a white or blue creature you control to its owner's hand.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-permanents",
+                            player: "controller",
+                            zone: "battlefield",
+                            filter: { type: "Creature", color: ["W", "U"] },
+                            count: 1,
+                            prompt: "Return a white or blue creature you control to its owner's hand.",
+                            bind: "$bounce1",
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$bounce1" },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "sawtooth-loon-trigger-2",
+                    oracleText:
+                        "When this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        { op: "draw", player: "controller", count: 2 },
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            count: 2,
+                            prompt: "Put two cards from your hand on the bottom of your library.",
+                            bind: "$picked1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked1" },
+                            player: "controller",
+                            from: "hand",
+                            to: "library",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 110.5b + CR 603.2 — "you may put a basic land card from your hand onto the battlefield tapped": the chosen-card class, the "may" folded into the pick's 0..1 range (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Elvish Pioneer",
+            manaCost: "{G}",
+            typeLine: "Creature — Elf Druid",
+            oracleText:
+                "When this creature enters, you may put a basic land card from your hand onto the battlefield tapped.",
+            power: "1",
+            toughness: "1",
+            oracleId: "5f4138e9-5471-467f-a15e-89e9e7929f0c",
+            layout: "normal",
+            legalIn: [
+                "premodern",
+                "pauper",
+                "modern",
+                "legacy",
+                "vintage",
+                "commander",
+            ],
+            poolIn: [
+                "premodern",
+                "pauper",
+                "modern",
+                "legacy",
+                "vintage",
+                "commander",
+            ],
+        },
+        expected: {
+            name: "Elvish Pioneer",
+            types: ["Creature"],
+            subtypes: ["Elf", "Druid"],
+            manaCost: { G: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, you may put a basic land card from your hand onto the battlefield tapped.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "elvish-pioneer-trigger",
+                    oracleText:
+                        "When this creature enters, you may put a basic land card from your hand onto the battlefield tapped.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: { min: 0, max: 1 },
+                            prompt: "You may put a basic land card from your hand onto the battlefield tapped.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: "controller",
+                            from: "hand",
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 404.2 — "exile it, then return the top creature card of your graveyard to the battlefield": a two-frame chain, the graveyard's end card picked positionally (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Mistmoon Griffin",
+            manaCost: "{3}{W}",
+            typeLine: "Creature — Griffin",
+            oracleText:
+                "Flying\nWhen this creature dies, exile it, then return the top creature card of your graveyard to the battlefield.",
+            power: "2",
+            toughness: "2",
+            oracleId: "7fe9d30f-c778-4769-a3ae-3cb48cd23e07",
+            layout: "normal",
+            legalIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "pauper", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Mistmoon Griffin",
+            types: ["Creature"],
+            subtypes: ["Griffin"],
+            manaCost: { X: 3, W: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flying\nWhen this creature dies, exile it, then return the top creature card of your graveyard to the battlefield.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "mistmoon-griffin-trigger",
+                    oracleText:
+                        "When this creature dies, exile it, then return the top creature card of your graveyard to the battlefield.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "exile",
+                        },
+                        {
+                            op: "moveZone",
+                            target: {
+                                zone: "graveyard",
+                                position: "top",
+                                player: "controller",
+                                filter: { type: "Creature" },
+                            },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 404.2 + CR 401.2 — "Put the top card of your graveyard on the bottom of your library": the graveyard's top card pushed onto the library (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Soldevi Digger",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}: Put the top card of your graveyard on the bottom of your library.",
+            oracleId: "b526962e-be8a-4803-b038-57869bb96751",
+            layout: "normal",
+            legalIn: ["premodern", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Soldevi Digger",
+            types: ["Artifact"],
+            manaCost: { X: 2 },
+            oracleText:
+                "{2}: Put the top card of your graveyard on the bottom of your library.",
+            activatedAbilities: [
+                {
+                    id: "soldevi-digger-ability",
+                    oracleText:
+                        "{2}: Put the top card of your graveyard on the bottom of your library.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: {
+                                zone: "graveyard",
+                                position: "top",
+                                player: "controller",
+                            },
+                            to: "library",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 118.12 + CR 701.23a — "you may exile it. If you do, search your library for an enchantment card, put that card onto the battlefield, then shuffle": the exile of the source as the paid cost, gated search frames behind it (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Academy Rector",
+            manaCost: "{3}{W}",
+            typeLine: "Creature — Human Cleric",
+            oracleText:
+                "When this creature dies, you may exile it. If you do, search your library for an enchantment card, put that card onto the battlefield, then shuffle.",
+            power: "1",
+            toughness: "2",
+            oracleId: "e3c85068-b4b6-40b9-a16c-5c3b2d059ec4",
+            layout: "normal",
+            legalIn: ["premodern", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Academy Rector",
+            types: ["Creature"],
+            subtypes: ["Human", "Cleric"],
+            manaCost: { X: 3, W: 1 },
+            power: 1,
+            toughness: 2,
+            oracleText:
+                "When this creature dies, you may exile it. If you do, search your library for an enchantment card, put that card onto the battlefield, then shuffle.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "academy-rector-trigger",
+                    oracleText:
+                        "When this creature dies, you may exile it. If you do, search your library for an enchantment card, put that card onto the battlefield, then shuffle.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Exile it?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    to: "exile",
+                                    bind: "$did2",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        boundMatchesFilter: { ref: "$did2" },
+                                        filter: {},
+                                    },
+                                    then: [
+                                        {
+                                            op: "choice",
+                                            kind: "search-library",
+                                            player: "controller",
+                                            zone: "library",
+                                            filter: { type: "Enchantment" },
+                                            count: { min: 0, max: 1 },
+                                            prompt: "Search your library for an enchantment card.",
+                                            bind: "$found3",
+                                        },
+                                        {
+                                            op: "moveZone",
+                                            cards: { ref: "$found3" },
+                                            player: "controller",
+                                            from: "library",
+                                            to: "battlefield",
+                                        },
+                                        {
+                                            op: "libraryLook",
+                                            action: "shuffle",
+                                            player: "controller",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 400.7e + CR 401.2 — "you may put it on top of its owner's library" behind a dies head: the card sits in a graveyard, so the move is `to: "library-top"` — the one value the graveyard leg repositions with (issue #6631).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Avenging Angel",
+            manaCost: "{3}{W}{W}",
+            typeLine: "Creature — Angel",
+            oracleText:
+                "Flying\nWhen this creature dies, you may put it on top of its owner's library.",
+            power: "3",
+            toughness: "3",
+            oracleId: "3415a199-05ac-4627-be97-f842eb1415a3",
+            layout: "normal",
+            legalIn: ["premodern", "legacy", "vintage", "commander"],
+            poolIn: ["premodern", "legacy", "vintage", "commander"],
+        },
+        expected: {
+            name: "Avenging Angel",
+            types: ["Creature"],
+            subtypes: ["Angel"],
+            manaCost: { X: 3, W: 2 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Flying\nWhen this creature dies, you may put it on top of its owner's library.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "avenging-angel-trigger",
+                    oracleText:
+                        "When this creature dies, you may put it on top of its owner's library.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Put it on top of its owner's library?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    to: "library-top",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

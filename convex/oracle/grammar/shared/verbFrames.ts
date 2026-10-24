@@ -12,15 +12,42 @@
  *                 "Search your library for <quantity> <descriptor>", with the
  *                 optional reveal of the find ("…, reveal it") as its argument
  *                 (CR 701.20a — how the other players learn what was taken).
- *  - `moveZone` — "put <pronoun> <into|onto|on> <zone>[ tapped]": the found
- *                 card changes zone (CR 400.7), to the hand, the battlefield
- *                 (tapped when printed, CR 110.5b), the top of the library or
- *                 the graveyard — the destinations a corpus card prints.
+ *  - `moveZone` — "<put|exile|return> <object> <destination>": an object
+ *                 changes zone (CR 400.7). The OBJECT is one of the argument
+ *                 classes below; the DESTINATION is a zone reference (hand,
+ *                 battlefield — tapped when printed, CR 110.5b, under your
+ *                 control when printed, CR 110.2a — an end of a library, a
+ *                 graveyard), or the exile zone the verb "exile" itself names
+ *                 (CR 701.13a: "move it to the exile zone from wherever it
+ *                 is"; CR 406.1 — exile is ONE shared holding area, so the
+ *                 destination carries no owner slot and no "into exile"
+ *                 spelling: the verb is the destination).
  *  - `shuffle`  — the bare "shuffle" (CR 701.24a), the "that player shuffles"
  *                 that closes a search of another player's library, and the
  *                 instant tutors' "shuffle and put <pronoun> on top", whose
  *                 printed order (shuffle BEFORE the placement, or the shuffle
  *                 would bury the card) is kept as two frames.
+ *
+ * The `moveZone` frame's OBJECT argument classes (issue #6631), each a
+ * fixture in `verbFrames.test.ts`:
+ *
+ *  - the chain PRONOUN ("it", "that card", "them", …) bound to the find of an
+ *    earlier `search` frame;
+ *  - an ANNOUNCED or NAMED subject read by the shared `subjectRule` — a
+ *    target (on the battlefield or in a graveyard), the source ("this
+ *    creature"), "that card" / "it" at a site whose head put a card into a
+ *    graveyard (CR 400.7e), "that creature" — lowered by the same path the
+ *    retired `move-zone` sentence kind used;
+ *  - a SWEEP ("all creatures") returned to their owners' hands;
+ *  - a GRAVEYARD END CARD ("the top creature card of your graveyard", "the
+ *    bottom card of target player's graveyard": CR 404.2 — the pile is
+ *    ordered, so the pick is deterministic);
+ *  - a CHOSEN CARD FROM A ZONE ("a basic land card from your hand", "two
+ *    cards from your hand", "up to two creature cards from your graveyard"):
+ *    the controller picks from
+ *    their own hand or graveyard as the effect resolves;
+ *  - an OWN PERMANENT ("a Forest you control"): the controller picks one of
+ *    their permanents (CR 400.3 — it returns to its OWNER's hand).
  *
  * A frame CHAIN is the members of one sentence in printed order, joined by
  * ", " or ", then " (CR 608.2c — instructions are followed in the order
@@ -30,29 +57,45 @@
  *
  *  - the OBJECT PRONOUN ("it", "that card", "the card", "them", "those
  *    cards") binds to the last frame that produced a referent — the search —
- *    and is refused with no referent or with the wrong number (CR 608.2c:
- *    the rules of English applied to the text — the pronoun names the card
- *    the earlier instruction found); a find that no later frame moves, or one
- *    moved twice, is refused as well;
+ *    and is refused with the wrong number (CR 608.2c: the rules of English
+ *    applied to the text — the pronoun names the card the earlier
+ *    instruction found); with NO referent in the chain, "it" and "that card"
+ *    are the SITE's anaphora (the head's object, CR 608.2h) and every plural
+ *    pronoun is refused; a find that no later frame moves, or one moved
+ *    twice, is refused as well;
  *  - the chain is REFUSED whole when any member is not a frame: a sentence
  *    half read by frames and half by the sentence table is a reading nobody
  *    has vetted.
  *
  * Fail-closed, like every sub-grammar here: an argument outside a frame's
- * declared classes (a quantity "any number of", a destination "its owner's
- * hand", a descriptor naming a card) fails the member it sits in, and the
- * member is what the attribution names — so `oracle:report --families` groups
- * the gap under the frame it needs ({@link frameOf}).
+ * declared classes (a quantity "any number of", a descriptor naming a card,
+ * "the top card of your library" — a move no Op spells) fails the member it
+ * sits in, and the member is what the attribution names — so
+ * `oracle:report --families` groups the gap under the frame it needs
+ * ({@link frameOf}). The frame also refuses, BY NAME, every object ×
+ * destination pair the sentence table still reads (a battlefield permanent
+ * exiled — the `exile` Op's kind; the source returned from the graveyard;
+ * a graveyard sweep onto the battlefield): a sentence two readers accept is
+ * an ambiguity of the grammar (`wholeSentence`), never a card's.
  */
 
 import { readNumberWord } from "./quantity";
-import type { EffectCardFilter } from "../../../cards/types";
+import type {
+    CardType,
+    EffectCardFilter,
+    TargetRequirement,
+} from "../../../cards/types";
 import { fail, ok, type FailureTrace, type RuleResult } from "../../rule";
 import {
     descriptorRule,
     librarySearchFilterFromDescriptor,
+    opensTargetPhrase,
+    ownPermanentChoiceFilterFromDescriptor,
+    zoneChoiceFilterFromDescriptor,
 } from "./targetFilter";
-import { zoneRefRule } from "./zoneRef";
+import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
+import { massSubjectRule } from "./massSubject";
+import { subjectRule, type SubjectIR } from "./effectClause";
 
 export const VERB_FRAME = "verb frame";
 
@@ -69,13 +112,52 @@ const SINGULAR_PRONOUNS: ReadonlySet<PronounIR> = new Set([
     "the card",
 ]);
 const PRONOUN = "(it|that card|the card|them|those cards)";
+const PRONOUN_ONLY = new RegExp(`^${PRONOUN}$`);
 
-/** CR 400.7 — where a `moveZone` frame may put the found card. */
+/**
+ * CR 400.7 — where a `moveZone` frame may put a FOUND card (the chain
+ * pronoun class): the controller's own hand, the battlefield, an end of the
+ * controller's library, the controller's graveyard, or exile.
+ */
 export type MoveDestination =
     | "hand"
     | "battlefield"
     | "library-top"
-    | "graveyard";
+    | "library"
+    | "graveyard"
+    | "exile";
+
+/** The object a `moveZone` frame moves — its argument classes. */
+export type MoveObjectIR =
+    /** The find of an earlier `search` frame, named by its pronoun. */
+    | { readonly kind: "pronoun"; readonly pronoun: PronounIR }
+    /** An announced target, the source, the site's anaphora, or a sweep. */
+    | { readonly kind: "subject"; readonly subject: SubjectIR }
+    /**
+     * CR 404.2 — "the top creature card of your graveyard", "the bottom card
+     * of target player's graveyard": a deterministic pick out of the ordered
+     * pile. `owner` is the graveyard's: the controller or an announced player.
+     */
+    | {
+          readonly kind: "graveyard-end";
+          readonly position: "top" | "bottom";
+          readonly cardType: CardType | null;
+          readonly owner: "you" | "target-player";
+      }
+    /**
+     * CR 400.7 — "<quantity> <descriptor> from your <hand|graveyard>": the
+     * controller picks the cards from their own zone as the effect resolves.
+     * `count` is the printed quantity: a number ("a", "two") or a range ("up
+     * to two").
+     */
+    | {
+          readonly kind: "chosen";
+          readonly zone: "hand" | "graveyard";
+          readonly filter: EffectCardFilter;
+          readonly count: number | { readonly min: 0; readonly max: number };
+      }
+    /** CR 400.3 — "a Forest you control": one of the controller's permanents. */
+    | { readonly kind: "own-permanent"; readonly filter: EffectCardFilter };
 
 export type FrameIR =
     | {
@@ -93,10 +175,18 @@ export type FrameIR =
       }
     | {
           readonly frame: "moveZone";
-          readonly pronoun: PronounIR;
-          readonly to: MoveDestination;
+          readonly object: MoveObjectIR;
+          /**
+           * The destination zone (CR 400.1). The verb "exile" names
+           * `{ zone: "exile", owner: "any" }` (CR 406.1 — one shared zone).
+           */
+          readonly to: ZoneRefIR;
           /** CR 110.5b — "onto the battlefield tapped". */
           readonly tapped: boolean;
+          /** CR 110.2a — "onto the battlefield under your control". */
+          readonly under?: "you";
+          /** The member as printed, the prompt a chooser reads. */
+          readonly phrase: string;
       }
     | {
           readonly frame: "shuffle";
@@ -135,15 +225,20 @@ export const VERB_FRAMES: readonly {
     readonly opens: RegExp;
 }[] = [
     { name: "search", opens: /^search your library for /i },
-    {
-        name: "moveZone",
-        opens: new RegExp(`^put ${PRONOUN} (into|onto|on) `, "i"),
-    },
+    { name: "moveZone", opens: /^(?:put|exile|return) /i },
     {
         name: "shuffle",
         opens: /^(?:shuffle(?:$| and put )|(?:that|the) player shuffles\b)/i,
     },
 ];
+
+/** A chain piece that opens a member: a frame, its "then", a reveal, a shuffle. */
+function opensMember(piece: string): boolean {
+    return (
+        frameOf(piece) !== null ||
+        /^(?:then |reveal |shuffle|that player shuffles)/i.test(piece)
+    );
+}
 
 /** The frame a span (a member, or a gap's unconsumed span) opens, if any. */
 export function frameOf(span: string): FrameName | null {
@@ -157,55 +252,117 @@ export function frameOf(span: string): FrameName | null {
 const SEARCH_ONE = /^(an?) (.+)$/;
 const SEARCH_UP_TO = /^up to (\S+) (.+)$/;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
-const PUT = new RegExp(`^put ${PRONOUN} (into|onto|on) (.+?)( tapped)?$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 const THAT_PLAYER_SHUFFLES =
     /^(?:that|the) player shuffles(?: their library)?$/;
 
+/** The three spellings of the zone-change verb and their destination joins. */
+const MOVE_VERB = /^(put|exile|return) (.+)$/;
+/** "put <object> <into|onto|on> <zone>" — the first preposition splits. */
+const PUT_SPLIT = /^(.+?) (into|onto|on) (.+)$/;
+/** "return <object> to <zone>" — the LAST " to " splits (CR 400.3 zones). */
+const UNDER_YOUR_CONTROL = " under your control";
+const TAPPED = " tapped";
+/** CR 400.3 — the plural owners' hands a sweep returns to. */
+const THEIR_OWNERS_HANDS = "their owners' hands";
+const THEIR_OWNERS_HAND = "their owner's hand";
 /**
- * CR 400.1 — the destinations a `moveZone` frame reads, by preposition. The
+ * CR 400.3 — the singular-owner spelling of a sweep bounce: "Return all
+ * artifacts target player owns to their hand" (Hurkyl's Recall). The
+ * announced player is the sweep's whole scope, so the zone is "their hand";
+ * the sweep is scoped by the announced player's battlefield (the selector has
+ * no owner axis), the same reading the hand-written card carries
+ * (tracked-by: #2785).
+ */
+const TARGET_PLAYER_OWNS = / target player owns$/;
+const THEIR_HAND = "their hand";
+
+/** CR 404.2 — an end of an ordered graveyard. */
+const GRAVEYARD_END =
+    /^the (top|bottom) (?:(\w+) )?card of (your|target player(?:'|’)s) graveyard$/;
+/** CR 401.2 — an end of an ordered library: a move no Op spells, refused by name. */
+const LIBRARY_TOP_CARDS = /^the top (?:\S+ )?cards? of (?:your|.+?) library$/;
+/** CR 400.7 — "<quantity> <descriptor> from <zone>". */
+const FROM_ZONE = /^(.+) from (your hand|your graveyard|a graveyard|.+)$/;
+/** CR 400.3 — "<a|an> <descriptor> you control". */
+const OWN_PERMANENT = /^(an? .+ you control)$/;
+
+/**
+ * CR 400.1 — the destination a `put` member prints, by preposition. The
  * elided "on top" (the instant tutors' spelling) names the library the search
  * just looked through; every other destination is a zone reference the shared
- * sub-grammar reads, owned by the controller or by no one (the battlefield,
- * exile).
+ * sub-grammar reads.
  */
-function readDestination(
+function readPutDestination(
     preposition: string,
     zone: string
-): MoveDestination | string {
+): RuleResult<ZoneRefIR> {
     if (preposition === "on") {
-        if (zone === "top") return "library-top";
-        const ref = zoneRefRule.run(zone, undefined);
-        if (
-            ref.ok &&
-            ref.value.zone === "library" &&
-            ref.value.position === "top"
-        )
-            return ref.value.owner === "you"
-                ? "library-top"
-                : "a found card goes on top of your own library";
-        return `"on ${zone}" is not a destination the moveZone frame reads`;
+        if (zone === "top")
+            return ok({ zone: "library", owner: "you", position: "top" });
+        // "on top of its owner's library" — the zone reference spells "the
+        // top of …"; the article is the preposition's, not the phrase's.
+        const ref = zoneRefRule.run(
+            /^(?:top|bottom) of /.test(zone) ? `the ${zone}` : zone,
+            undefined
+        );
+        if (ref.ok && ref.value.zone === "library" && ref.value.position)
+            return ref;
+        return fail(
+            `"on ${zone}" is not a destination the moveZone frame reads`,
+            zone
+        );
     }
     const ref = zoneRefRule.run(zone, undefined);
-    if (!ref.ok) return ref.reason;
-    const { zone: kind, owner, position } = ref.value;
+    if (!ref.ok) return ref;
+    const { zone: kind, position } = ref.value;
     if (position !== undefined)
-        return `"${preposition} ${zone}" is not a destination the moveZone frame reads`;
+        return fail(
+            `"${preposition} ${zone}" is not a destination the moveZone frame reads`,
+            zone
+        );
     if (kind === "battlefield")
         return preposition === "onto"
-            ? "battlefield"
-            : '"into the battlefield" is not how a card enters';
+            ? ref
+            : fail('"into the battlefield" is not how a card enters', zone);
     if (preposition !== "into")
-        return `"onto ${zone}" is not a destination the moveZone frame reads`;
+        return fail(
+            `"onto ${zone}" is not a destination the moveZone frame reads`,
+            zone
+        );
     if (kind === "library")
-        return "a found card goes on top of the library, not back into it";
-    // "put it into exile" is a destination no corpus card prints for a found
-    // card (the printed verb is "exile it"), so it has no argument class here.
+        return fail(
+            "a card goes on top of or on the bottom of a library, not back into it",
+            zone
+        );
+    // CR 406.1 — exile is one shared zone with no owner; the verb "exile" is
+    // its only spelling here, so "put … into exile" names no destination.
     if (kind === "exile")
-        return '"into exile" is not a destination the moveZone frame reads';
-    if (owner !== "you")
-        return "a found card goes to your own hand or graveyard";
-    return kind;
+        return fail(
+            '"into exile" is not a destination the moveZone frame reads — the verb is "exile" (CR 406.1)',
+            zone
+        );
+    return ref;
+}
+
+/** CR 400.3 — the plural spellings of the owners' hands a SWEEP returns to. */
+function isSweepDestination(zone: string): boolean {
+    return (
+        zone === THEIR_OWNERS_HANDS ||
+        zone === THEIR_OWNERS_HAND ||
+        zone === THEIR_HAND
+    );
+}
+
+/** CR 400.3 — the destination a `return` member prints after " to ". */
+function readReturnDestination(zone: string): RuleResult<ZoneRefIR> {
+    if (isSweepDestination(zone))
+        return ok({ zone: "hand", owner: "its-owner" });
+    const ref = zoneRefRule.run(zone, undefined);
+    if (!ref.ok) return ref;
+    if (ref.value.zone === "exile")
+        return fail('a card is exiled, never "returned to exile"', zone);
+    return ref;
 }
 
 /** The referent the chain has produced so far: the find of the last search. */
@@ -215,15 +372,391 @@ interface Referent {
     readonly consumed: boolean;
 }
 
-function agreeing(
-    pronoun: PronounIR,
-    referent: Referent | null
-): string | null {
-    if (referent === null)
-        return `"${pronoun}" names a card no frame before it found`;
+function agreeing(pronoun: PronounIR, referent: Referent): string | null {
     if (SINGULAR_PRONOUNS.has(pronoun) === referent.plural)
         return `"${pronoun}" does not agree in number with the cards found`;
     return null;
+}
+
+/** The quantity word(s) a chosen-card or own-permanent phrase opens with. */
+function readChosenQuantity(
+    phrase: string
+): { readonly count: ChosenCount; readonly noun: string } | string {
+    const upTo = phrase.match(/^up to (\S+) (.+)$/);
+    if (upTo !== null) {
+        const n = readNumberWord(upTo[1]!);
+        if (n === null || n < 1)
+            return `"up to ${upTo[1]}" is not a count the moveZone frame reads`;
+        return { count: { min: 0, max: n }, noun: upTo[2]! };
+    }
+    if (/^any number of /.test(phrase))
+        return '"any number of" is not a quantity class the moveZone frame reads';
+    const one = phrase.match(/^an? (.+)$/);
+    if (one !== null) return { count: 1, noun: one[1]! };
+    // CR 107.3 — "X cards" is printed only as an additional COST (Skeletal
+    // Scrying, Haunting Misery), the cost sub-grammar's; no effect prints it.
+    if (/^X /.test(phrase))
+        return '"X" is not a quantity class the moveZone frame reads — no effect prints it';
+    const counted = phrase.match(/^(\S+) (.+)$/);
+    if (counted !== null) {
+        const n = readNumberWord(counted[1]!);
+        if (n !== null && n >= 1) return { count: n, noun: counted[2]! };
+    }
+    return `"${phrase}" opens with no quantity the moveZone frame reads ("a", "N", "up to N")`;
+}
+type ChosenCount = Extract<MoveObjectIR, { kind: "chosen" }>["count"];
+
+/**
+ * Read the OBJECT of a `moveZone` member — one of the argument classes the
+ * frame declares — or the reason it is none of them. `referent` is the find
+ * of the chain's last search, when one is still in scope.
+ */
+function readMoveObject(
+    span: string,
+    ctx: unknown,
+    referent: Referent | null
+): RuleResult<MoveObjectIR> {
+    const pronoun = span.match(PRONOUN_ONLY);
+    if (pronoun !== null) {
+        const word = pronoun[1] as PronounIR;
+        if (referent !== null) {
+            const disagreement = agreeing(word, referent);
+            if (disagreement !== null) return fail(disagreement, span);
+            return ok({ kind: "pronoun", pronoun: word });
+        }
+        // CR 608.2h / CR 400.7e — with no find in the chain, "it" is the
+        // head's object and "that card" the card the head put into a
+        // graveyard; both are the lowering site's to bind.
+        if (word === "it")
+            return ok({ kind: "subject", subject: { kind: "pronoun" } });
+        if (word === "that card")
+            return ok({ kind: "subject", subject: { kind: "that-card" } });
+        return fail(`"${word}" names a card no frame before it found`, span);
+    }
+    if (opensTargetPhrase(span) || span.startsWith("another target ")) {
+        const subject = subjectRule.run(span, ctx);
+        return subject.ok
+            ? ok({ kind: "subject", subject: subject.value })
+            : subject;
+    }
+    if (/^(all|each) /.test(span)) {
+        if (span.includes(" from "))
+            return fail(
+                "a sweep of cards in a zone is not an object the moveZone frame reads",
+                span
+            );
+        const owned = TARGET_PLAYER_OWNS.test(span);
+        const mass = massSubjectRule.run(
+            owned ? span.replace(TARGET_PLAYER_OWNS, "") : span,
+            ctx
+        );
+        if (!mass.ok) return mass;
+        if (owned && mass.value.select.controller !== undefined)
+            return fail("two owner clauses", span);
+        return ok({
+            kind: "subject",
+            subject: {
+                kind: "mass",
+                ...mass.value,
+                ...(owned ? { targetPlayerControls: true as const } : {}),
+            } as SubjectIR,
+        });
+    }
+    const end = span.match(GRAVEYARD_END);
+    if (end !== null) {
+        let cardType: CardType | null = null;
+        if (end[2] !== undefined) {
+            const type = end[2].charAt(0).toUpperCase() + end[2].slice(1);
+            if (!PERMANENT_CARD_TYPES.has(type))
+                return fail(`"${end[2]}" is not a permanent card type`, span);
+            cardType = type as CardType;
+        }
+        return ok({
+            kind: "graveyard-end",
+            position: end[1] as "top" | "bottom",
+            cardType,
+            owner: end[3] === "your" ? "you" : "target-player",
+        });
+    }
+    if (LIBRARY_TOP_CARDS.test(span))
+        return fail(
+            "the top cards of a library are moved by no Op the moveZone frame lowers to",
+            span
+        );
+    const own = span.match(OWN_PERMANENT);
+    if (own !== null) {
+        const quantity = readChosenQuantity(own[1]!);
+        if (typeof quantity === "string") return fail(quantity, span);
+        if (quantity.count !== 1)
+            return fail(
+                "an own-permanent choice reads exactly one permanent",
+                span
+            );
+        const descriptor = descriptorRule.run(quantity.noun, ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural === true)
+            return fail(`"${span}" is not one permanent`, span);
+        const filter = ownPermanentChoiceFilterFromDescriptor(descriptor.value);
+        if (!filter.ok) return filter;
+        return ok({ kind: "own-permanent", filter: filter.value });
+    }
+    const from = span.match(FROM_ZONE);
+    if (from !== null) {
+        const zone = from[2]!;
+        if (zone !== "your hand" && zone !== "your graveyard")
+            return fail(
+                `"from ${zone}" is not a zone the moveZone frame picks a card from (your hand, your graveyard)`,
+                span
+            );
+        const quantity = readChosenQuantity(from[1]!);
+        if (typeof quantity === "string") return fail(quantity, span);
+        const descriptor = descriptorRule.run(quantity.noun, ctx);
+        if (!descriptor.ok) return descriptor;
+        const plural =
+            typeof quantity.count === "number"
+                ? quantity.count > 1
+                : quantity.count.max > 1;
+        if ((descriptor.value.plural === true) !== plural)
+            return fail(
+                `"${from[1]}" pairs the quantity with the wrong number`,
+                span
+            );
+        const filter = zoneChoiceFilterFromDescriptor(descriptor.value);
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "chosen",
+            zone: zone === "your hand" ? "hand" : "graveyard",
+            filter: filter.value,
+            count: quantity.count,
+        });
+    }
+    const subject = subjectRule.run(span, ctx);
+    if (!subject.ok) return subject;
+    if (subject.value.kind === "player")
+        return fail("a player is not an object a zone change moves", span);
+    return ok({ kind: "subject", subject: subject.value });
+}
+
+/** CR 110.4 — the card types a permanent card may have. */
+const PERMANENT_CARD_TYPES: ReadonlySet<string> = new Set([
+    "Artifact",
+    "Battle",
+    "Creature",
+    "Enchantment",
+    "Land",
+    "Planeswalker",
+]);
+
+/** CR 110.4 — a chosen-card filter that admits permanent cards only. */
+function isPermanentCardFilter(filter: EffectCardFilter): boolean {
+    if (filter.excludeType !== undefined) return true;
+    const types = filter.type;
+    if (types === undefined) return false;
+    return (Array.isArray(types) ? types : [types]).every((type) =>
+        PERMANENT_CARD_TYPES.has(type)
+    );
+}
+
+/** CR 601.2c — a target count that may announce more than one object. */
+function announcesMany(count: TargetRequirement["count"]): boolean {
+    if (typeof count === "number") return count > 1;
+    if (count === "X") return true;
+    return (
+        count.max === undefined ||
+        count.max === "X" ||
+        typeof count.max !== "number" ||
+        count.max > 1
+    );
+}
+
+/**
+ * The object × destination pairs the frame ADMITS at grammar time. Only the
+ * pairs the sentence table STILL READS are refused here — a battlefield
+ * permanent exiled (the `exile` Op's kind), the source exiled ("Exile
+ * {self}", CR 608.2n) or returned from its graveyard to your hand (CR
+ * 113.6b), a sweep sent anywhere but its owners' hands — so that a sentence
+ * keeps ONE reader (`wholeSentence`'s ambiguity rule); the declared classes
+ * (a found card, a graveyard's end card, a chosen card, an own permanent)
+ * name their destinations outright; every other pair is the lowering's to
+ * admit or refuse by name.
+ */
+function admits(
+    object: MoveObjectIR,
+    to: ZoneRefIR,
+    verb: string,
+    tapped: boolean,
+    under: boolean,
+    sweepDestination: boolean
+): string | null {
+    const dest = `${to.zone}${to.position ? `-${to.position}` : ""}`;
+    if (tapped && to.zone !== "battlefield")
+        return '"tapped" is a state only a permanent entering the battlefield has (CR 110.5b)';
+    if (under && to.zone !== "battlefield")
+        return '"under your control" is printed only with a battlefield destination (CR 110.2a)';
+    // CR 400.3 — "their owners' hands" is the destination of MANY objects: a
+    // sweep, or an announced group wider than one ("up to two target
+    // nonblack creatures", Nightscape Battlemage); one object has one owner.
+    if (
+        sweepDestination &&
+        !(
+            object.kind === "subject" &&
+            (object.subject.kind === "mass" ||
+                (object.subject.kind === "target" &&
+                    announcesMany(object.subject.requirement.count)))
+        )
+    )
+        return "a plural owners' hands is the destination of a sweep or of a group of targets, not of one object (CR 400.3)";
+    switch (object.kind) {
+        case "pronoun":
+            if (to.zone === "exile" || to.zone === "battlefield") return null;
+            if (to.owner !== "you")
+                return "a found card goes to your own hand, library or graveyard";
+            return null;
+        case "graveyard-end":
+            if (tapped)
+                return '"tapped" is not a rider of a graveyard\'s end card';
+            // CR 404.2 — an announced player's graveyard: only its bottom
+            // card exiled is printed (the end-card classes a fixture pins).
+            if (object.owner === "target-player")
+                return to.zone === "exile"
+                    ? null
+                    : "another player's graveyard end card is only exiled";
+            if (to.zone === "exile" || to.zone === "battlefield") return null;
+            if (
+                to.zone === "library" &&
+                to.position === "bottom" &&
+                to.owner === "you"
+            )
+                return null;
+            if (to.zone === "hand" && to.owner === "you") return null;
+            return `"${dest}" is not where the moveZone frame puts a graveyard's end card`;
+        case "chosen":
+            if (to.zone === "exile") return null;
+            // CR 110.4 — only a permanent card can be put onto the
+            // battlefield: a filter naming a permanent type, or the
+            // "<Subtype> permanent card" exclusion of instants and sorceries.
+            if (to.zone === "battlefield")
+                return isPermanentCardFilter(object.filter)
+                    ? null
+                    : "only a permanent card is put onto the battlefield (CR 110.4)";
+            if (
+                to.zone === "library" &&
+                to.position === "bottom" &&
+                to.owner === "you"
+            )
+                return null;
+            if (to.zone === "library" && to.position === "top")
+                return 'cards put from the hand on top of the library in any order are the "putBack" sentence, not this frame (CR 401.4)';
+            if (
+                object.zone === "graveyard" &&
+                to.zone === "hand" &&
+                to.owner === "you"
+            )
+                return null;
+            return `"${dest}" is not where the moveZone frame puts a chosen card from your ${object.zone}`;
+        case "own-permanent":
+            return to.zone === "hand" && to.owner === "its-owner"
+                ? null
+                : "a permanent you control is returned to its owner's hand (CR 400.3)";
+        case "subject": {
+            const subject = object.subject;
+            if (subject.kind === "mass")
+                return verb === "return" &&
+                    to.zone === "hand" &&
+                    to.owner === "its-owner" &&
+                    sweepDestination
+                    ? null
+                    : "a sweep is returned to its owners' hands only";
+            if (subject.kind === "self") {
+                // CR 608.2n — "Exile {self}" is the resolving spell's own
+                // kind; CR 113.6b — "Return this card to your hand" the
+                // graveyard-functioning kind's.
+                if (to.zone === "exile")
+                    return "the source exiling itself is the exile-self kind, not this frame";
+                if (to.zone === "hand" && to.owner === "you")
+                    return "the source returned from your graveyard is the return-self-from-graveyard kind, not this frame";
+                return null;
+            }
+            // CR 701.13a — a battlefield permanent is exiled by the `exile`
+            // Op, the sentence table's kind, not moved by this frame.
+            if (
+                subject.kind === "target" &&
+                subject.requirement.zone === undefined &&
+                to.zone === "exile"
+            )
+                return "a battlefield permanent is exiled by the exile kind, not moved by this frame";
+            return null;
+        }
+    }
+}
+
+/**
+ * Read one `moveZone` member: the verb, its object and its destination.
+ * `null` when the member opens no zone-change verb.
+ */
+function readMoveMember(
+    lower: string,
+    ctx: unknown,
+    referent: Referent | null
+): RuleResult<Extract<FrameIR, { frame: "moveZone" }>> | null {
+    const verb = lower.match(MOVE_VERB);
+    if (verb === null) return null;
+    const word = verb[1]!;
+    let rest = verb[2]!;
+    let under = false;
+    let tapped = false;
+    if (rest.endsWith(UNDER_YOUR_CONTROL)) {
+        under = true;
+        rest = rest.slice(0, -UNDER_YOUR_CONTROL.length);
+    }
+    if (rest.endsWith(TAPPED)) {
+        tapped = true;
+        rest = rest.slice(0, -TAPPED.length);
+    }
+    let objectSpan: string;
+    let to: RuleResult<ZoneRefIR>;
+    let sweepDestination = false;
+    if (word === "exile") {
+        objectSpan = rest;
+        to = ok({ zone: "exile", owner: "any" });
+    } else if (word === "put") {
+        const split = rest.match(PUT_SPLIT);
+        if (split === null)
+            return fail(
+                '"put" needs a destination ("into", "onto", "on")',
+                lower
+            );
+        objectSpan = split[1]!;
+        to = readPutDestination(split[2]!, split[3]!);
+    } else {
+        const at = rest.lastIndexOf(" to ");
+        if (at === -1)
+            return fail('"return" needs a destination zone ("to …")', lower);
+        objectSpan = rest.slice(0, at);
+        const zone = rest.slice(at + " to ".length);
+        sweepDestination = isSweepDestination(zone);
+        to = readReturnDestination(zone);
+    }
+    if (!to.ok) return to;
+    const object = readMoveObject(objectSpan, ctx, referent);
+    if (!object.ok) return object;
+    const refused = admits(
+        object.value,
+        to.value,
+        word,
+        tapped,
+        under,
+        sweepDestination
+    );
+    if (refused !== null) return fail(refused, lower);
+    return ok({
+        frame: "moveZone",
+        object: object.value,
+        to: to.value,
+        tapped,
+        ...(under ? { under: "you" as const } : {}),
+        phrase: lower,
+    });
 }
 
 /**
@@ -243,7 +776,7 @@ function readMember(
           readonly referent: Referent | null;
       }
     | { readonly reveal: PronounIR }
-    | { readonly refused: string }
+    | { readonly refused: string; readonly failure?: RuleResult<never> }
     | null {
     const lower = member[0]!.toLowerCase() + member.slice(1);
 
@@ -294,6 +827,10 @@ function readMember(
     const reveal = lower.match(REVEAL);
     if (reveal !== null) {
         const pronoun = reveal[1] as PronounIR;
+        if (referent === null)
+            return {
+                refused: `"${pronoun}" names a card no frame before it found`,
+            };
         const disagreement = agreeing(pronoun, referent);
         if (disagreement !== null) return { refused: disagreement };
         if (lastSearch === null || lastSearch.reveal !== undefined)
@@ -304,50 +841,16 @@ function readMember(
         return { reveal: pronoun };
     }
 
-    const put = lower.match(PUT);
-    if (put !== null) {
-        const pronoun = put[1] as PronounIR;
-        const disagreement = agreeing(pronoun, referent);
-        if (disagreement !== null) return { refused: disagreement };
-        const to = readDestination(put[2]!, put[3]!);
-        const known: readonly string[] = [
-            "hand",
-            "battlefield",
-            "library-top",
-            "graveyard",
-        ];
-        if (!known.includes(to)) return { refused: to };
-        if (referent!.consumed)
-            return {
-                refused: `"put ${pronoun} …" moves a card an earlier frame already put somewhere`,
-            };
-        const tapped = put[4] !== undefined;
-        if (tapped && to !== "battlefield")
-            return {
-                refused:
-                    '"tapped" is a state only a permanent entering the battlefield has (CR 110.5b)',
-            };
-        return {
-            frames: [
-                {
-                    frame: "moveZone",
-                    pronoun,
-                    to: to as MoveDestination,
-                    tapped,
-                },
-            ],
-            referent: { ...referent!, consumed: true },
-        };
-    }
-
-    if (lower === "shuffle")
-        return { frames: [{ frame: "shuffle", player: "you" }], referent };
     const shuffleTop = lower.match(SHUFFLE_AND_TOP);
     if (shuffleTop !== null) {
         const pronoun = shuffleTop[1] as PronounIR;
+        if (referent === null)
+            return {
+                refused: `"${pronoun}" names a card no frame before it found`,
+            };
         const disagreement = agreeing(pronoun, referent);
         if (disagreement !== null) return { refused: disagreement };
-        if (referent!.consumed)
+        if (referent.consumed)
             return {
                 refused: `"put ${pronoun} on top" moves a card an earlier frame already put somewhere`,
             };
@@ -356,20 +859,42 @@ function readMember(
                 { frame: "shuffle", player: "you" },
                 {
                     frame: "moveZone",
-                    pronoun,
-                    to: "library-top",
+                    object: { kind: "pronoun", pronoun },
+                    to: { zone: "library", owner: "you", position: "top" },
                     tapped: false,
+                    phrase: lower,
                 },
             ],
-            referent: { ...referent!, consumed: true },
+            referent: { ...referent, consumed: true },
         };
     }
+
+    const move = readMoveMember(lower, ctx, referent);
+    if (move !== null) {
+        // A sub-grammar's refusal (a target phrase, a descriptor) keeps its
+        // own fragment and trace, as it did under the sentence table.
+        if (!move.ok) return { refused: move.reason, failure: move };
+        if (move.value.object.kind === "pronoun") {
+            if (referent!.consumed)
+                return {
+                    refused: `"${move.value.phrase}" moves a card an earlier frame already put somewhere`,
+                };
+            return {
+                frames: [move.value],
+                referent: { ...referent!, consumed: true },
+            };
+        }
+        return { frames: [move.value], referent };
+    }
+
+    if (lower === "shuffle")
+        return { frames: [{ frame: "shuffle", player: "you" }], referent };
     if (THAT_PLAYER_SHUFFLES.test(lower))
         return {
             frames: [{ frame: "shuffle", player: "that-player" }],
             referent,
         };
-    if (VERB_FRAMES[1]!.opens.test(lower) || VERB_FRAMES[2]!.opens.test(lower))
+    if (VERB_FRAMES[2]!.opens.test(lower))
         return { refused: `"${member}" is not a form of the frame it opens` };
     return null;
 }
@@ -386,9 +911,17 @@ export function readFrameChain(
 ): RuleResult<FrameChainIR> | null {
     const continuation = /^Then /.test(span);
     const body = continuation ? span.slice("Then ".length) : span;
-    const members = body
-        .split(", ")
-        .map((m, i) => (i === 0 ? m : m.replace(/^then /, "")));
+    // CR 608.2c — ", " joins members; a comma INSIDE a member (a type list,
+    // "target artifact, creature, or enchantment") opens nothing and is
+    // rejoined to the member it belongs to.
+    const members: string[] = [];
+    for (const piece of body.split(", ")) {
+        if (members.length > 0 && !opensMember(piece))
+            members[members.length - 1] += `, ${piece}`;
+        else members.push(piece);
+    }
+    for (let i = 1; i < members.length; i++)
+        members[i] = members[i]!.replace(/^then /, "");
     if (members.length === 0 || frameOf(members[0]!) === null) return null;
     const frames: FrameIR[] = [];
     let referent: Referent | null = null;
@@ -414,7 +947,12 @@ export function readFrameChain(
                 member,
                 i
             );
-        if ("refused" in read) return refuse(read.refused, member, i);
+        if ("refused" in read)
+            return read.failure !== undefined &&
+                !read.failure.ok &&
+                read.failure.fragment !== member
+                ? read.failure
+                : refuse(read.refused, member, i);
         if ("reveal" in read) {
             const at = frames.lastIndexOf(lastSearch!);
             frames[at] = { ...lastSearch!, reveal: read.reveal };

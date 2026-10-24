@@ -248,11 +248,28 @@ describe("reanimation — refusals (fail-closed neighbours)", () => {
             "a source that is not a graveyard",
             "Return target creature card from your hand to the battlefield.",
         ],
-        [
-            "a destination modifier the Op cannot carry",
-            "Return target creature card from your graveyard to the battlefield tapped.",
-        ],
     ];
+
+    // CR 110.5b — "to the battlefield tapped" is a rider the target shape
+    // carries (Titania, Gaea Incarnate's land; the moveZone frame, issue
+    // #6631): read, not refused.
+    it("reads the tapped rider on a graveyard target (CR 110.5b)", () => {
+        const outcome = compileCard(
+            sorcery(
+                "Return target land card from your graveyard to the battlefield tapped."
+            )
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.effects).toEqual([
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+                tapped: true,
+            },
+        ]);
+    });
 
     for (const [label, line] of REFUSED_BY_PARSE)
         it(`no slot reads ${label}`, () => {

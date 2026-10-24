@@ -44,11 +44,25 @@ describe("put on top of its owner's library (CR 400.3, issue #5406)", () => {
         ]);
     });
 
+    it("the bottom is the battlefield leg's own position (CR 401.2, issue #6631)", () => {
+        expect(
+            moveEffects(
+                creature(
+                    "Bottom Probe",
+                    "{U}, {T}: Put target creature you control on the bottom of its owner's library."
+                )
+            )
+        ).toEqual([
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: "bottom",
+            },
+        ]);
+    });
+
     it.each([
-        [
-            "the bottom, not the top",
-            "{U}, {T}: Put target creature you control on the bottom of its owner's library.",
-        ],
         [
             "a sweep, not one announced object",
             "{U}, {T}: Put all creatures you control on top of their owners' libraries.",
