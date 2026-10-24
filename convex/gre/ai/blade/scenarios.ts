@@ -14906,8 +14906,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A `predicate`, not `moves`: a registry `moves` entry is a fitted
+        // VERDICT and obliges a refit (`weightFit.bot.test.ts`); the entry
+        // still blocks at `must` without voting on the weights.
         expect: {
-            moves: [{ kind: "cast-spell", card: "Sutured Ghoul" }],
+            predicate: (move, state) =>
+                move?.kind === "cast-spell" &&
+                instanceIdsForName(state, "Sutured Ghoul").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Sutured Ghoul",
         },
         note: "Issue #6671. `choose-graveyard-card` had no candidate generator, so a probe of the cast stopped at the suspended as-enters prompt and scored seven mana spent for a body still parked in `stagedEntries`: the Bot-play sweep read the card `never-chosen`. Proof-of-failure: unregistering `choose-graveyard-card` from `CHOICE_CANDIDATE_GENERATORS` reds this entry.",
     },
