@@ -27,6 +27,7 @@ import type {
     EffectCountSpec,
     EffectPlayerRef,
     EffectPredicate,
+    EffectCaptureSource,
     EffectSignedValue,
     EffectTokenSpec,
     EffectValue,
@@ -1120,8 +1121,8 @@ export class SentenceWalk {
      * nothing it was not written for.
      */
     actedOn: {
-        /** A `destroy` or announced-target `moveZone` — both carry `bind`. */
-        readonly op: { bind?: string };
+        /** A `destroy`, `exile` or announced-target `moveZone` — each carries `bind`. */
+        readonly op: { op: string; bind?: string };
         readonly requirement: TargetRequirement;
     } | null = null;
 
@@ -3793,6 +3794,81 @@ function lowerSentenceBody(
                     capture: { $captured: { ref: bind } },
                     effects: [
                         { op: sentence.verb, target: { ref: "$captured" } },
+                    ],
+                },
+            ]);
+        }
+        case "delayed-return": {
+            // CR 603.7a — the delayed trigger is created now; its body moves
+            // the one object the sentence names, carried across by `capture`
+            // (gone or moved by then, the body skips, CR 608.2b).
+            let capture: EffectCaptureSource;
+            if (sentence.referent !== "it") {
+                capture = { ref: "$source" };
+            } else {
+                // CR 608.2h — "it" / "that card" is the ONE announced object.
+                const announced = slots.requirements();
+                const actedOn = walk.actedOn;
+                if (
+                    announced.length !== 1 ||
+                    walk.gatedRemoval ||
+                    headNamesAnObject(site)
+                )
+                    return unlowerable(
+                        '"it" names no single object announced before it (CR 608.2h)'
+                    );
+                if (sentence.destination === "battlefield") {
+                    // A card returned from exile: the exile sentence's object.
+                    if (
+                        actedOn === null ||
+                        actedOn.op.op !== "exile" ||
+                        actedOn.requirement !== announced[0]
+                    )
+                        return unlowerable(
+                            '"it" returned to the battlefield names no object exiled by the sentence before it (CR 608.2h)'
+                        );
+                    const bind = actedOn.op.bind ?? walk.nextBind("that");
+                    actedOn.op.bind = bind;
+                    capture = { ref: bind };
+                } else {
+                    if (actedOn !== null)
+                        return unlowerable(
+                            '"it" may name the object an earlier sentence moved or the announced target (CR 608.2h)'
+                        );
+                    capture = { target: 0 };
+                }
+            }
+            const when =
+                sentence.timing === "next-end-step" ? "end" : "cleanup";
+            const where =
+                sentence.destination === "hand"
+                    ? "its owner's hand"
+                    : "the battlefield under its owner's control";
+            const what =
+                sentence.referent !== "it"
+                    ? sentence.referent
+                    : sentence.destination === "battlefield"
+                      ? "that card"
+                      : "it";
+            // The capture name follows the hand-written delayed-return
+            // convention: `$self` for the source, `$c` for a bound object.
+            const name =
+                "ref" in capture && capture.ref === "$source" ? "$self" : "$c";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: sentence.timing,
+                    oracleText: `Return ${what} to ${where} at the beginning of the next ${when} step.`,
+                    capture: { [name]: capture },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: name },
+                            ...(sentence.destination === "battlefield"
+                                ? { from: "exile" as const }
+                                : {}),
+                            to: sentence.destination,
+                        },
                     ],
                 },
             ]);

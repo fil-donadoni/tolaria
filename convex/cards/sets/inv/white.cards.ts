@@ -486,13 +486,13 @@ export const liberate = defineCard(() => ({
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, controller: "you" },
     effects: [
-        { op: "exile", target: { target: 0 }, bind: "$c" },
+        { op: "exile", target: { target: 0 }, bind: "$exiled" },
         {
             op: "delayedTrigger",
             timing: "next-end-step",
             oracleText:
                 "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
-            capture: { $c: { ref: "$c" } },
+            capture: { $c: { ref: "$exiled" } },
             effects: [
                 {
                     op: "moveZone",

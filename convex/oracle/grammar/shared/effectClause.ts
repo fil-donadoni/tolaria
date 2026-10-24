@@ -1507,6 +1507,23 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 603.7a — "Return it / that card / this land to its owner's
+           * hand at the beginning of the next end step" (or cleanup step), and
+           * "Return it / that card to the battlefield under its owner's control
+           * at the beginning of the next end step": a delayed triggered ability
+           * whose body is one zone move of the object an earlier sentence (or
+           * the source itself) names. The referent is anaphora (CR 608.2h), so
+           * the sentence carries no subject: the lowering binds it or refuses.
+           * Riders ("with a +1/+1 counter on it", "and you skip your next draw
+           * step") are neighbours, refused here.
+           */
+          readonly kind: "delayed-return";
+          readonly referent: "it" | `this ${string}`;
+          readonly destination: "hand" | "battlefield";
+          readonly timing: "next-end-step" | "next-cleanup-step";
+      }
+    | {
+          /**
            * CR 201.4 — "Choose a [nonland] card name": the pick the SAME
            * ability's later sentence reads as "that name" (a `discard-named-
            * from-hand` or `dig-named-to-hand`). `prompt` is the printed
@@ -4360,6 +4377,13 @@ const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
 const DELAYED_DRAW_NEXT_UPKEEP =
     /^(?:You draw (\S+) cards?|Draw (a) card) at the beginning of the next turn(?:'|’)s upkeep$/;
+/**
+ * CR 603.7a — "Return it to its owner's hand at the beginning of the next end
+ * step" / "… cleanup step" and "Return that card to the battlefield under its
+ * owner's control at the beginning of the next end step".
+ */
+const DELAYED_RETURN =
+    /^Return (it|that card|this (?:land|artifact|creature|permanent|enchantment)) to (?:its owner(?:'|’)s hand at the beginning of the next (end|cleanup) step|the battlefield under its owner(?:'|’)s control at the beginning of the next (end) step)$/;
 /** CR 603.7a — "Exile it at the beginning of the next end step" / "Sacrifice it …". */
 const DELAYED_REMOVAL_NEXT_END_STEP =
     /^(Exile|Sacrifice) it at the beginning of the next end step$/;
@@ -6062,6 +6086,24 @@ function effectSentence(
                 delayedRemoval[1] === "Exile"
                     ? ("exile" as const)
                     : ("sacrifice" as const),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── delayed return at the next end / cleanup step (CR 603.7a) ──────────
+    // Before every verb branch for the same reason as the removal above.
+    const delayedReturn = span.match(DELAYED_RETURN);
+    if (delayedReturn !== null) {
+        const toHand = delayedReturn[2] !== undefined;
+        return ok({
+            kind: "delayed-return" as const,
+            referent: delayedReturn[1]!.startsWith("this ")
+                ? (delayedReturn[1]! as `this ${string}`)
+                : ("it" as const),
+            destination: toHand ? ("hand" as const) : ("battlefield" as const),
+            timing:
+                (delayedReturn[2] ?? delayedReturn[3]) === "cleanup"
+                    ? ("next-cleanup-step" as const)
+                    : ("next-end-step" as const),
         } satisfies EffectSentenceIR);
     }
 
