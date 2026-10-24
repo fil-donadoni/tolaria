@@ -13975,6 +13975,29 @@ export interface EffectCardFilter {
      *  `SpellContext.getChosenSubtypes` with no preceding bind. Same
      *  fail-closed contract: no stored choice matches nothing. */
     subtype?: string | string[] | EffectRef;
+    /** "Shares a creature type with <object>" (CR 205.3m — Reins of the
+     *  Vinesteed's "a creature that shares a creature type with that
+     *  creature"). Matches a card or permanent having AT LEAST ONE creature
+     *  type (CR 205.3m) in common with the referenced object. `EffectObjectSelector`:
+     *  an announced slot, a `bind` snapshot, `$each`, or a `$event.<field>`
+     *  object / graveyard-card field.
+     *
+     *  An object still on the battlefield answers with its current types
+     *  (CR 608.2h). Once it has left, ONLY a `bind` snapshot taken before it
+     *  moved carries its last-known types (read from `SNAP_SUBTYPES`,
+     *  zone-free, token-safe). A `$event.<graveyard-card>` or `{ target }`
+     *  selector on a departed object falls back to the card's printed
+     *  characteristics in its graveyard, and to nothing for a token or an
+     *  object no longer found — so bind a snapshot first where that matters.
+     *  Only CREATURE types count — a shared
+     *  non-creature subtype (an Aura both carry) is no match.
+     *
+     *  Fails CLOSED at every unresolvable edge — an uncaptured binding, a
+     *  missing slot, a referent with no creature type — yielding "matches
+     *  nothing", never "no constraint". Honest in every zone (a card shape
+     *  always carries `subtypes`), so the validator needs no battlefield gate.
+     *  ANDed with every other field, `subtype` included. */
+    sharesCreatureTypeWith?: EffectObjectSelector;
     supertype?: CardSupertype;
     /** Negative of `supertype` (CR 205.4a) — a card matches only if it has
      *  NONE of the listed supertypes. Mirrors `TargetRequirement.excludeSupertypes`
