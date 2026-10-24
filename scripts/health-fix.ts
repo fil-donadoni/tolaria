@@ -721,7 +721,7 @@ function listPrs(cwd: string, state: "open" | "all"): PrRow[] {
             "--json",
             "number,body,state,labels,createdAt",
             "--limit",
-            "100",
+            "300",
         ],
         cwd
     );
@@ -767,7 +767,12 @@ function readForeignRepairs(cwd: string): ForeignRepair[] {
         pr:
             prs
                 .filter((p) => p.closes.includes(issue))
-                .sort((a, b) => b.number - a.number)[0]?.pr ?? null,
+                // An open PR beats a newer closed or land-failed one.
+                .sort(
+                    (a, b) =>
+                        Number(b.pr.state === "open") -
+                            Number(a.pr.state === "open") || b.number - a.number
+                )[0]?.pr ?? null,
     }));
 }
 
