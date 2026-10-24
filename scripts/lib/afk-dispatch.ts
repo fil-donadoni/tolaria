@@ -582,6 +582,23 @@ export function holdReleases(
 
 /** The newest completed pass run of each issue — whose runner names the host
  *  a resume is pinned to. */
+/**
+ * A repair already tried (issue #6795): a pass for the issue FINISHED after
+ * its PR was last labelled `land-failed`, and the label still stands — that
+ * pass could not repair it, and dispatching it again on every dispatcher run
+ * would only spend a slot each time. A fresh `land-failed` label (a new red
+ * landing) makes it a pick again. An unknown label time never blocks.
+ */
+export function repairAttempted(
+    passRuns: readonly WorkflowRun[],
+    issue: number,
+    failedAt: string | null
+): boolean {
+    if (failedAt === null) return false;
+    const last = lastPassRun(passRuns, issue);
+    return last !== null && ms(last.createdAt) > ms(failedAt);
+}
+
 export function lastPassRun(
     passRuns: readonly WorkflowRun[],
     issue: number
@@ -721,10 +738,13 @@ export function planDispatch(
             });
         else waiting.push(r.number);
     }
-    const resumed = new Set(picked.resume.map((r) => r.number));
+    // One pass per issue: a resume wins, and two `land-failed` PRs naming one
+    // issue repair it once.
+    const seen = new Set(picked.resume.map((r) => r.number));
     for (const r of repairs) {
-        if (resumed.has(r.number)) continue;
+        if (seen.has(r.number)) continue;
         if (!take(null)) break;
+        seen.add(r.number);
         dispatch.push({
             issue: r.number,
             model: r.model,

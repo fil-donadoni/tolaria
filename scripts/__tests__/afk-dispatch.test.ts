@@ -12,6 +12,7 @@ import {
     holdReleases,
     hostOfRunnerName,
     livePassIssues,
+    repairAttempted,
     mayClaim,
     parseAfkDispatchConfig,
     parsePassRecord,
@@ -827,6 +828,24 @@ describe("afk-dispatch repairs (issue #6795)", () => {
             [repair(7, 70), repair(40, 400), repair(41, 410)]
         );
         expect(plan.dispatch.map((d) => d.issue)).toEqual([7, 40]);
+    });
+
+    it("two land-failed PRs naming one issue repair it once", () => {
+        const plan = planDispatch(
+            picked(facts([], [], [], [])),
+            { free: ["mbp", "hw", "hw"], online: ["mbp", "hw"] },
+            () => null,
+            [repair(40, 400), repair(40, 401)]
+        );
+        expect(plan.dispatch.filter((d) => d.issue === 40)).toHaveLength(1);
+    });
+
+    it("a repair a finished pass already tried since the label is not dispatched again", () => {
+        const runs = [passRun(1, 40, { createdAt: iso(30) })];
+        expect(repairAttempted(runs, 40, iso(60))).toBe(true);
+        expect(repairAttempted(runs, 40, iso(10))).toBe(false);
+        expect(repairAttempted(runs, 40, null)).toBe(false);
+        expect(repairAttempted(runs, 41, iso(60))).toBe(false);
     });
 
     it("an issue a live pass run holds is not a repair pick", () => {

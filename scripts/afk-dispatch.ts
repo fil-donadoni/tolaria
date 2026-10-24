@@ -75,6 +75,7 @@ import {
     hostOfRunnerName,
     lastPassRun,
     livePassIssues,
+    repairAttempted,
     mayClaim,
     parseAfkDispatchConfig,
     parsePassRecord,
@@ -303,9 +304,11 @@ function repairPicks(slug: string): RepairPick[] {
 }
 
 /** The `land-failed` PRs a pass can repair (issue #6795): `repairItems` over
- *  the open ones, minus an issue a live pass holds; a closed issue (its PR
- *  outlived it) or an unreadable one is left to its human. */
+ *  the open ones, minus an issue a live pass holds or a pass already tried
+ *  since the label (`repairAttempted`); a closed issue (its PR outlived it)
+ *  or an unreadable one is left to its human. */
 function repairDispatchables(
+    slug: string,
     passRuns: readonly WorkflowRun[],
     config: PlanConfig
 ): RepairItem[] {
@@ -323,6 +326,7 @@ function repairDispatchables(
             "number,headRefName",
         ])
     ) as { number: number; headRefName: string }[];
+    const failedAt = new Map(repairPicks(slug).map((p) => [p.pr, p.failedAt]));
     return repairItems(
         prs,
         (issue) => {
@@ -348,6 +352,8 @@ function repairDispatchables(
         },
         config,
         livePassIssues(passRuns)
+    ).filter(
+        (r) => !repairAttempted(passRuns, r.number, failedAt.get(r.pr) ?? null)
     );
 }
 
@@ -626,7 +632,7 @@ async function main(): Promise<void> {
     // An unreadable repair list costs the repairs this run, never the batch.
     let repairs: RepairItem[] = [];
     try {
-        repairs = repairDispatchables(passRuns, config);
+        repairs = repairDispatchables(slug, passRuns, config);
     } catch (err) {
         say(
             `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no repair this run`
