@@ -138,11 +138,15 @@ const conditionalTailNoPronoun: Rule<TailIR> = rule(
         // CR 702.33e — "if it was kicked …, it deals 2 damage": the
         // condition's "it" IS the permanent the head names, so it displaces
         // no referent and the tail's "it" keeps naming the source.
-        if (
-            parsed.ok &&
-            parsed.value.boundPronoun &&
-            parsed.value.condition?.kind !== "kicked-permanent"
-        )
+        // CR 603.4 — "if <player> controls no <things>, it …": a zero count
+        // names no object, so the pronoun has no nearer antecedent either.
+        const condition = parsed.ok ? parsed.value.condition : undefined;
+        const namesNoObject =
+            condition?.kind === "kicked-permanent" ||
+            (condition?.kind === "controls" &&
+                "atMost" in condition &&
+                condition.atMost === 0);
+        if (parsed.ok && parsed.value.boundPronoun && !namesNoObject)
             return fail(
                 '"it" after an intervening-if clause may name the condition, not the source',
                 span

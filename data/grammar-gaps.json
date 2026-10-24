@@ -163,11 +163,6 @@
             "issue": 4535
         },
         {
-            "key": "(op) › skipNextUntap",
-            "op": "skipNextUntap",
-            "issue": 4535
-        },
-        {
             "key": "(op) › transform",
             "op": "transform",
             "issue": 4534
