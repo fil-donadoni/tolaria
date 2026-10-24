@@ -1723,7 +1723,9 @@ export type EffectSentenceIR =
            * printed. The repeated explicit "you" is what makes the second
            * half an independent clause (a shared subject with an elided
            * second one — "draws two cards and loses 2 life" — is a different
-           * printed form and is not read here).
+           * printed form and is not read here; the one elided-"you" form
+           * read is "You draw X cards and lose X life", normalised to the
+           * explicit one).
            *
            * A WRAPPER over already-read sentences, like `optional` and
            * `kicked`: each half is read by the SAME rule that reads it as a
