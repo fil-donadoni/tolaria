@@ -70,11 +70,15 @@ const sweepSharing = (ref: string): EffectOp[] => [
     },
 ];
 
-function setup(effects: EffectOp[]) {
+function setup(
+    effects: EffectOp[],
+    p1Graveyard: ReturnType<typeof makeInstance>[] = []
+) {
     const id = registerScript(`test-sctw-${Math.random()}`, effects);
     const state = makeState({
         players: [
             makePlayer("p1", {
+                graveyard: p1Graveyard,
                 battlefield: [
                     makeInstance(GOBLIN_WARRIOR, {
                         id: "dead",
@@ -126,30 +130,52 @@ describe("EffectCardFilter.sharesCreatureTypeWith (CR 205.3m, 608.2h)", () => {
     });
 
     it("hidden-zone matcher (graveyard sweep) honours the same predicate", () => {
-        const state = setup([
-            { op: "destroy", target: { target: 0 }, bind: "$dead" },
-            {
-                op: "forEach",
-                select: {
-                    set: "graveyard",
-                    controller: "controller",
-                    filter: {
-                        type: "Creature",
-                        sharesCreatureTypeWith: { ref: "$dead" },
+        const state = setup(
+            [
+                { op: "destroy", target: { target: 0 }, bind: "$dead" },
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: "controller",
+                        filter: {
+                            type: "Creature",
+                            sharesCreatureTypeWith: { ref: "$dead" },
+                        },
                     },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "battlefield",
+                        },
+                    ],
                 },
-                effects: [
-                    {
-                        op: "moveZone",
-                        target: { ref: "$each" },
-                        to: "battlefield",
-                    },
-                ],
-            },
+            ],
+            [
+                makeInstance(ELF_WARRIOR, {
+                    id: "gy-elf-warrior",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                }),
+                makeInstance(ELF_DRUID, {
+                    id: "gy-druid",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                }),
+            ]
+        );
+        // The Elf Druid shares nothing with the dead Goblin Warrior and stays
+        // put; the Elf Warrior (Warrior) and the destroyed card itself return.
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "dead",
+            "gy-elf-warrior",
         ]);
-        // Only the destroyed Goblin Warrior sits in p1's graveyard, and it
-        // shares both its types with itself.
-        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["dead"]);
+        const graveyardIds = state.players[0].graveyard.map((c) => c.id);
+        expect(graveyardIds).toContain("gy-druid");
+        expect(graveyardIds).not.toContain("gy-elf-warrior");
     });
 
     it("fails CLOSED on a binding that was never captured — matches nothing, not everything", () => {
