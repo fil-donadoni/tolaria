@@ -7442,6 +7442,101 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
     {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3282).
+        // Hand-bound land search: the land leg of `libraryTargetWorth` prices a
+        // fetched land by its source quality and by whether it supplies a
+        // colour a valuable card in the searcher's own hand needs.
+        label: "land search: fetches the utility land when the hand's colours are covered",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a green card added to hand",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Demonic Tutor", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mishra's Factory", owner: "me", zone: "library" },
+                { name: "Arid Mesa", owner: "me", zone: "library" },
+                { name: "Badlands", owner: "me", zone: "library" },
+                { name: "Bayou", owner: "me", zone: "library" },
+                { name: "Blood Crypt", owner: "me", zone: "library" },
+                { name: "Bloodstained Mire", owner: "me", zone: "library" },
+                { name: "Breeding Pool", owner: "me", zone: "library" },
+                { name: "Flooded Strand", owner: "me", zone: "library" },
+                { name: "Forest", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        setup: [
+            { kind: "cast", card: "Demonic Tutor", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Mishra's Factory" }],
+        },
+        note: "Half 1 of the discriminating pair (issue #3282) — PAIRED WITH the Forest entry. Nothing in hand needs a colour the board lacks, so source quality decides: the utility land outranks the basic on `libraryTargetWorth`'s land leg. Proof-of-failure: reverting the land leg to the bare fetch curve ties every land and reds this entry.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3282).
+        // Hand-bound land search: the land leg of `libraryTargetWorth` prices a
+        // fetched land by its source quality and by whether it supplies a
+        // colour a valuable card in the searcher's own hand needs.
+        label: "land search: fetches the basic that is the only source of the hand's colour",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a green card in hand",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Demonic Tutor", owner: "me", zone: "hand" },
+                { name: "Serra Angel", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "library" },
+                { name: "Arid Mesa", owner: "me", zone: "library" },
+                { name: "Badlands", owner: "me", zone: "library" },
+                { name: "Blood Crypt", owner: "me", zone: "library" },
+                { name: "Bloodstained Mire", owner: "me", zone: "library" },
+                { name: "Flooded Strand", owner: "me", zone: "library" },
+                { name: "Forest", owner: "me", zone: "library" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Mountain", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        setup: [
+            { kind: "cast", card: "Demonic Tutor", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Plains" }],
+        },
+        note: "Half 2 of the discriminating pair (issue #3282) — PAIRED WITH the utility-land entry. Serra Angel needs {W}{W}, the board (Swamp, Island) produces no white, so the Plains is the decisive source and outranks every dual whose colours are already covered. Nine distinct land identities against `CHOICE_TOP_K` (8): the Plains sorts last, so under a bare-curve tie the generator prunes it and no reward can choose it.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3041).
         // PAIRED WITH: "entomb: buries the self-reachable card, not the bigger
         // body". Both halves are the SAME graveyard-bound search; what differs
