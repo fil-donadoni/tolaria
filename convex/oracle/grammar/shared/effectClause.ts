@@ -3772,6 +3772,8 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+/** The optional spelling of "it deals", up to the damage amount. */
+const HAVE_IT_DEAL = /^have it deal (.+ damage to .+)$/;
 /** CR 701.13a — the optional move of one of the controller's hand cards. */
 const OPTIONAL_HAND_COSTS = {
     "exile a card from your hand": "exile",
@@ -3851,7 +3853,20 @@ export function optionalSentenceRule(
                 count,
             });
         }
-        const parsed = inner.run(clause, ctx);
+        // CR 608.2h — "you may have it deal X damage to …": "have it deal" is
+        // the optional spelling of "it deals", the pronoun naming the object
+        // the trigger head names. Rewritten to the marker the leading-"It"
+        // sentence uses, so ONE damage rule reads both and the lowering's
+        // referent check (`pronounIsSource`) refuses a head naming no source.
+        // Only the damage verb: "have it <other verb>" is a form nobody here
+        // has shown a fixture for.
+        const haveItDeal = clause.match(HAVE_IT_DEAL);
+        const parsed = inner.run(
+            haveItDeal === null
+                ? clause
+                : `${PRONOUN_MARKER} deals ${haveItDeal[1]}`,
+            ctx
+        );
         if (!parsed.ok) return parsed;
         if (parsed.value.role !== "effect")
             return fail(
@@ -5967,6 +5982,10 @@ function bindWhereX(
                 ? { ...sentence, count: amount }
                 : null;
         case "life":
+            return sentence.amount.kind === "x"
+                ? { ...sentence, amount }
+                : null;
+        case "deal-damage":
             return sentence.amount.kind === "x"
                 ? { ...sentence, amount }
                 : null;
