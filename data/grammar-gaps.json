@@ -301,6 +301,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › choice+libraryLook+moveZone+regenerate",
+            "issue": 6750
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › counters",
             "issue": 4271
         },
@@ -618,6 +623,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › choice+libraryLook+moveZone",
             "issue": 4832
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+libraryLook+moveZone+reveal",
+            "issue": 6749
         },
         {
             "kind": "bot",
@@ -1558,6 +1568,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › each of X targets",
             "issue": 5696
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › As many times as you choose, you may pay N life, put those cards on the bottom of your library in any order",
+            "issue": 6743
         },
         {
             "kind": "grammar",
@@ -3546,6 +3561,11 @@
         },
         {
             "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"epic\" is not implemented in the Mechanics Registry",
+            "issue": 6745
+        },
+        {
+            "kind": "mechanic",
             "key": "planned-mechanic › keyword \"evolve\" is not implemented in the Mechanics Registry",
             "issue": 4001
         },
@@ -3843,6 +3863,21 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4387
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads a runtime \"left\" amount — the canned generator does not size it",
+            "issue": 6747
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads a runtime \"right\" amount — the canned generator does not size it",
+            "issue": 6748
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads ref \"$did2\" — depends on a runtime binding",
+            "issue": 6746
         },
         {
             "kind": "scenario",
