@@ -130,8 +130,6 @@ export const entomb = defineCard(() => ({
 // why that prompt matters — and why this card cannot copy it. Recorded in
 // docs/findings/2711-fromzones-sweep-unvalued-and-unsearched.md.
 //
-// hand-tail: "Exile all cards from target player's graveyard other than basic land cards." (#4195)
-// hand-tail: "For each card exiled this way, search that player's library for all cards with the same name as that card and exile them." (#4195)
 export const hauntingEchoes = defineCard(() => ({
     id: "aca4c571-48b8-4150-93f8-4cb5c8e797c4", // ODY 142 (first printing)
     name: "Haunting Echoes",
