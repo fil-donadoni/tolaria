@@ -36,11 +36,12 @@ import snapshot from "./fixtures/searchLeafScore.snapshot.json";
  *
  * Positions: the three of the cost fixture (`searchCost.bot.test.ts`, issue #4458).
  * Floats round-trip exactly through JSON (shortest round-trip repr), so
- * `toEqual` is a bit-for-bit comparison. `bun run bot:refit` rewrites the file
- * (`RECORD_BOT_PINS=1`, issue #6690) — only ever on a change that is MEANT to
- * move the evaluation.
+ * `toEqual` is a bit-for-bit comparison. `RECORD_LEAF_SNAPSHOT=1` rewrites the
+ * file — only ever on a change that is MEANT to move the evaluation.
  */
 
+// Recorded by `bun run bot:refit` (`RECORD_BOT_PINS=1`, issue #6690), which
+// replaced `RECORD_LEAF_SNAPSHOT=1`.
 const ITERATIONS = 100;
 const SEED = 0xb1ade;
 const ROLLOUT_SEEDS = [1, 2, 3, 4, 5];

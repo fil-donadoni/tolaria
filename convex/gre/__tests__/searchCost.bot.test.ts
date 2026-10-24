@@ -98,12 +98,11 @@ import pins from "./fixtures/searchCost.pins.json";
  * clones and SBA sweeps (clones / sweeps over a `vi.mock` run on the same
  * tree: medium +34 / +24, large +144 / +96), which the `vi.mock` never counted — that module was already
  * loaded unmocked through the setup file's catalogue import.
- *
- * The expected counters are `fixtures/searchCost.pins.json` (issue #6690): a
- * derived figure is regenerated, not hand-edited — `bun run bot:refit`
- * re-records it with the weights, `bun run bot:refit --check` reds when it lags.
  */
 
+// The expected counters are `fixtures/searchCost.pins.json` (issue #6690): a
+// derived figure is regenerated, not hand-edited — `bun run bot:refit`
+// re-records it with the weights, `bun run bot:refit --check` reds when it lags.
 const ITERATIONS = 100;
 const SEED = 0xb1ade;
 const recorder = pinRecorder(join(__dirname, "fixtures/searchCost.pins.json"));

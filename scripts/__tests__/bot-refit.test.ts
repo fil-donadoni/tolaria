@@ -2,13 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BOT_PINS_TESTS } from "../check-lane";
-import {
-    BOT_PIN_TESTS,
-    FIT_WRITE_STEP,
-    RECORD_PINS_STEP,
-    VERIFY_STEPS,
-    refitPlan,
-} from "../lib/bot-refit";
+import { BOT_PIN_TESTS, VERIFY_STEPS, refitPlan } from "../lib/bot-refit";
 
 const ROOT = resolve(__dirname, "../..");
 
@@ -41,13 +35,15 @@ describe("bot:refit plan (issue #6690)", () => {
     });
 
     it("-u follows the paths: before them vitest reads the first path as its value", () => {
-        const argv = RECORD_PINS_STEP.argv;
-        expect(argv.at(-1)).toBe("-u");
+        const [, record] = refitPlan([]);
+        expect(record.argv.at(-1)).toBe("-u");
         for (const test of BOT_PIN_TESTS) {
-            expect(argv.indexOf(test)).toBeLessThan(argv.indexOf("-u"));
+            expect(record.argv.indexOf(test)).toBeLessThan(
+                record.argv.indexOf("-u")
+            );
         }
-        expect(RECORD_PINS_STEP.env.RECORD_BOT_PINS).toBe("1");
-        expect(FIT_WRITE_STEP.env.BLADE_FIT_WRITE).toBe("1");
+        expect(record.env.RECORD_BOT_PINS).toBe("1");
+        expect(refitPlan([])[0].env.BLADE_FIT_WRITE).toBe("1");
     });
 
     it("every pin test exists and the lane's cheap guards cover the pins the search-cost and weight guards do not", () => {
