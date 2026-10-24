@@ -896,6 +896,28 @@ describe("pushDerivedCommit — landed / coalesced / failed against a bare remot
         expect(r.why).toMatch(/no answer within 10s/);
     });
 
+    // Issue #6765 — PR #6657 landed on a RED base this way: `derive:sync` run
+    // on a feature branch rebased onto the base, its derive commit built on
+    // the branch's HEAD, and a plain push fast-forwarded the base to it.
+    it("off-base: a commit built on a branch AHEAD of the base is refused — the base keeps its tip", () => {
+        const feature = commitOn(clone, head, "f.txt", "feature\n");
+        const sha = commitOn(clone, feature, "d.txt", "derived\n");
+        const r = pushDerivedCommit(runner(clone), input(sha, feature));
+        expect(r.outcome).toBe("off-base");
+        expect(r.remoteTip).toBe(head);
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(head);
+    });
+
+    it("failed, never a force push: a commit not built on `head` is not sent", () => {
+        const stray = commitOn(clone, head, "s.txt", "stray\n");
+        const elsewhere = commitOn(clone, stray, "e.txt", "e\n");
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const r = pushDerivedCommit(runner(clone), input(sha, elsewhere));
+        expect(r.outcome).toBe("failed");
+        expect(r.why).toMatch(/not built on/);
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(head);
+    });
+
     it("failed: refused with the base unmoved", () => {
         const sha = commitOn(clone, head, "d.txt", "derived\n");
         const real = runner(clone);
