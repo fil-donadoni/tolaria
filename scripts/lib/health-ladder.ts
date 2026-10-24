@@ -43,6 +43,10 @@ export const LANDED_WAIT_MS = 8 * 60 * 60 * 1000;
 /** A revert PR still in the queue after this long — held by a check it
  *  cannot pass — stops the ladder. */
 export const REVERT_QUEUE_MAX_MS = 12 * 60 * 60 * 1000;
+/** A repair another session declared on the pivot with a PR still open and
+ *  older than this no longer holds the ladder back (issue #6554): the ladder
+ *  resumes at the rung it would otherwise take. */
+export const FOREIGN_REPAIR_MAX_MS = 12 * 60 * 60 * 1000;
 /** Ladder runs one chain of `Next rung` dispatches may make (fix 1, fix 2,
  *  the revert's tries, the stop, and slack): a rung that fails before it
  *  records anything can never re-dispatch forever. */
@@ -91,6 +95,15 @@ export interface RevertPr {
     landFailed: boolean;
 }
 
+/** A repair declared on the pivot by a session other than the ladder's own
+ *  attempt (`health:fix repair-issue` run by hand, issue #6554), with the
+ *  PR that closes it. */
+export interface ForeignRepair {
+    issue: number;
+    /** The newest PR closing `issue`, or null when none was opened. */
+    pr: (RevertPr & { createdAt: number | null }) | null;
+}
+
 export type Rung =
     /** No RED stands: nothing to do. */
     | { kind: "none"; why: string }
@@ -116,6 +129,8 @@ export interface LadderFacts {
     episode: readonly EpisodeRed[];
     /** The PR of the episode's revert record, when it names one. */
     revertPr: RevertPr | null;
+    /** Repairs declared on the pivot by someone other than the ladder. */
+    foreignRepairs: readonly ForeignRepair[];
     /** An open escalation issue for the standing RED, by number. */
     escalated: number | null;
     /** A read the decision rests on failed. */
@@ -142,6 +157,35 @@ function episodeCulprit(episode: readonly EpisodeRed[]): Culprit | null {
     return null;
 }
 
+/** The declared foreign repair that holds the ladder back: its PR is open
+ *  (in the queue, not `land-failed`) and younger than the bound. Closed
+ *  unmerged, `land-failed`, merged (the tip then moved: `red !== tip`) or
+ *  past the bound releases the ladder. */
+export function inFlightForeignRepair(
+    repairs: readonly ForeignRepair[],
+    now: number
+): { issue: number; pr: number } | null {
+    for (const r of repairs) {
+        const pr = r.pr;
+        if (pr === null || pr.state !== "open" || pr.landFailed) continue;
+        if (pr.createdAt !== null && now - pr.createdAt > FOREIGN_REPAIR_MAX_MS)
+            continue;
+        return { issue: r.issue, pr: pr.number };
+    }
+    return null;
+}
+
+/** The open PRs a stuck attempt may withdraw: only those closing a repair
+ *  issue the attempt ITSELF recorded (issue #6554), never another session's. */
+export function ownRepairPrs(
+    prs: readonly { number: number; closes: readonly number[] }[],
+    ownIssues: readonly number[]
+): number[] {
+    return prs
+        .filter((pr) => pr.closes.some((n) => ownIssues.includes(n)))
+        .map((pr) => pr.number);
+}
+
 function revertOrStop(facts: LadderFacts, why: string): Rung {
     const culprit = episodeCulprit(facts.episode);
     if (culprit === null)
@@ -161,6 +205,7 @@ function revertOrStop(facts: LadderFacts, why: string): Rung {
  *  - a RED whose flake check and bisect have not run waits for them;
  *  - the revert, once tried, decides alone: in the queue → wait; landed and
  *    still RED, or unable to land → stop;
+ *  - a repair another session declared, its PR open → wait for it;
  *  - a repair that landed and left a RED (a second RED) → revert;
  *  - fixer attempts left → the next one; none → revert.
  */
@@ -249,6 +294,15 @@ export function ladderRung(facts: LadderFacts): Rung {
             why: `the revert PR #${pr.number} is in the queue`,
         };
     }
+
+    // A repair an interactive session declared, its PR in flight: the ladder
+    // spawns no fixer and reverts nothing beside it (issue #6554).
+    const foreign = inFlightForeignRepair(facts.foreignRepairs, facts.now);
+    if (foreign !== null)
+        return {
+            kind: "wait",
+            why: `PR #${foreign.pr} (issue #${foreign.issue}) is a repair declared for ${short(red)} outside the ladder — it is in flight`,
+        };
 
     const fixes = records.filter((a) => rungOf(a) === "fix");
     const running = fixes.find(
