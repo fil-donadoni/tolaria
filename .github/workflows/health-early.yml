@@ -26,6 +26,13 @@
 # § Serialising heavy work). Hosted only, so the corpus exclusion may appear
 # here (the structure guard's `corpus-exclusion-gating`). No secret: the
 # job's own token.
+#
+# A push that merges a DECLARED REPAIR of the standing RED (issue #6553) is
+# the exception, decided by `classify` in seconds: the run of a superseded tip
+# can only report the same RED, so the repair's run takes its own group and
+# starts at once instead of waiting ~20 min behind it, and the merge
+# dispatches health.yml's full `gate` on the new tip — this run never writes a
+# GREEN, and without the dispatch only the two-hourly cron would clear the RED.
 name: health-early
 
 on:
@@ -35,15 +42,50 @@ on:
 permissions:
     contents: read
 
-concurrency:
-    group: health-early
-    cancel-in-progress: false
-
 jobs:
+    classify:
+        name: declared repair?
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            statuses: read
+            pull-requests: read
+            actions: write
+        outputs:
+            repair: ${{ steps.repair.outputs.repair }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            # Total: a failed read answers "not a repair" (the serial batching).
+            - name: Does this push merge a declared repair of the standing RED?
+              id: repair
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ github.sha }}
+              run: bun run health:repair-merged --sha "$SHA"
+            # A merged repair needs the full gate on its tip at once (no
+            # `land` merge step under Mergify fires it).
+            - name: Repair merged → the full health gate on the new tip
+              if: ${{ steps.repair.outputs.repair == 'true' }}
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh workflow run health.yml --ref staging -f job=gate
+
     early:
         name: health (early, hosted)
+        needs: classify
+        if: ${{ !cancelled() }}
         runs-on: ubuntu-24.04
         timeout-minutes: 150
+        # One run at a time per group; a declared repair's tip has its own.
+        concurrency:
+            group: health-early${{ needs.classify.outputs.repair == 'true' && '-repair' || '' }}
+            cancel-in-progress: false
         # `contents: write` for the RED's evidence (a commit comment),
         # `statuses: write` for the verdict, `actions: write` to dispatch the
         # ladder and the re-gate.

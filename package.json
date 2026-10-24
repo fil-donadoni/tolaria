@@ -76,6 +76,7 @@
         "health:bisect": "bun scripts/health-bisect.ts",
         "health:fix": "bun scripts/health-fix.ts",
         "health:revert": "bun scripts/health-revert.ts",
+        "health:repair-merged": "bun scripts/health-repair-merged.ts",
         "health:nightly": "bun scripts/health-nightly.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "issue:inherit-band": "bun scripts/issue-inherit-band.ts",
