@@ -287,8 +287,14 @@ export function parseAllowlist(text: string): Allowlist {
  * detached worktree alike.
  */
 export function baselineAllowlist(root: string): Allowlist | null {
+    // The allowlist is ~140 KB and grows: past the 1 MB default `git show`
+    // would ENOBUFS and the baseline silently read as none (issue #6642).
     const git = (args: string[]) =>
-        spawnSync("git", args, { cwd: root, encoding: "utf8" });
+        spawnSync("git", args, {
+            cwd: root,
+            encoding: "utf8",
+            maxBuffer: 64 * 1024 * 1024,
+        });
     const prev = git([
         "log",
         "--format=%H",
