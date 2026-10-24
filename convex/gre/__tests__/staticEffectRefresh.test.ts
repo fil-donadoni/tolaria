@@ -300,23 +300,42 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // native + granted
             expect(elemental.staticAbilities).toEqual(["flying", "flying"]);
             beginApplyingStaticEffects(state, sphere);
-            expect(elemental.staticAbilities).toEqual(["flying"]);
+            // CR 613.1f — "all creatures lose flying" takes BOTH occurrences.
+            expect(elemental.staticAbilities).toEqual([]);
         });
 
-        it("an unapply/re-apply round trip of the aura is a no-op (apply and unapply are exact inverses)", () => {
-            // Reachable in production via `reattachAura`, reanimation and the
-            // counter-gated refresh: the pair must not EAT an occurrence.
+        it("a timestamp-preserving round trip of the aura is a no-op (apply and unapply are exact inverses)", () => {
+            // The counter-gated refresh (`recomputeContinuousEffects`): the
+            // pair must neither EAT nor resurrect an occurrence.
             const { state, elemental, aura, sphere } = makeFlyingBoard();
             beginApplyingStaticEffects(state, aura);
             beginApplyingStaticEffects(state, sphere);
             const before = [...elemental.staticAbilities];
-            expect(before).toEqual(["flying"]);
+            expect(before).toEqual([]);
+
+            for (let i = 0; i < 3; i++) {
+                stopApplyingStaticEffects(state, aura);
+                beginApplyingStaticEffects(state, aura, {
+                    preserveTimestamp: true,
+                });
+            }
+            expect(elemental.staticAbilities).toEqual(before);
+        });
+
+        it("a re-stamping re-apply of the aura makes it the LATER effect: exactly one flying (CR 613.7)", () => {
+            // `reattachAura` / reanimation: a genuinely new application takes a
+            // new timestamp, so the grant now outranks the Sphere — one
+            // occurrence however many times it runs, the native one still
+            // stripped.
+            const { state, elemental, aura, sphere } = makeFlyingBoard();
+            beginApplyingStaticEffects(state, aura);
+            beginApplyingStaticEffects(state, sphere);
 
             for (let i = 0; i < 3; i++) {
                 stopApplyingStaticEffects(state, aura);
                 beginApplyingStaticEffects(state, aura);
             }
-            expect(elemental.staticAbilities).toEqual(before);
+            expect(elemental.staticAbilities).toEqual(["flying"]);
         });
 
         it("a round trip of the STRIPPER is a no-op too", () => {
