@@ -258,6 +258,7 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
         ].filter((name) => resolve(name) === null);
 
     it("every playable list builds a legal Premodern 60 + 15 payload", () => {
+        expect(file.decks.some((d) => unresolvedOf(d).length === 0)).toBe(true);
         for (const deck of file.decks) {
             if (unresolvedOf(deck).length > 0) continue;
             const { payload, problems } = buildPresetPayload(
