@@ -189,7 +189,6 @@ describe("sharesCreatureTypeWith in the validator", () => {
         id: "test-host",
         name: "Test Host",
         effects,
-        targetRequirement: { type: "Creature", count: 1 },
     });
 
     it("accepts a declared snapshot binding", () => {
@@ -199,8 +198,11 @@ describe("sharesCreatureTypeWith in the validator", () => {
     it("rejects a non-selector value", () => {
         const bad = sweepSharing("$dead");
         (
-            (bad[1] as { select: { filter: Record<string, unknown> } }).select
-                .filter as Record<string, unknown>
+            (
+                bad[1] as unknown as {
+                    select: { filter: Record<string, unknown> };
+                }
+            ).select.filter as Record<string, unknown>
         ).sharesCreatureTypeWith = "Goblin";
         expect(validateEffectScript(host(bad)).length).toBeGreaterThan(0);
     });
@@ -208,8 +210,11 @@ describe("sharesCreatureTypeWith in the validator", () => {
     it("rejects a literal subtype in the same clause (one subtype slot)", () => {
         const both = sweepSharing("$dead");
         (
-            (both[1] as { select: { filter: Record<string, unknown> } }).select
-                .filter as Record<string, unknown>
+            (
+                both[1] as unknown as {
+                    select: { filter: Record<string, unknown> };
+                }
+            ).select.filter as Record<string, unknown>
         ).subtype = "Elf";
         expect(validateEffectScript(host(both)).length).toBeGreaterThan(0);
     });
