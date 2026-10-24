@@ -282,6 +282,12 @@ export function handCardMatchesFilter(
             return false;
         }
     }
+    // CR 702.34a — "with flashback", the hand-leg sibling of
+    // `matchesCardFilter`'s `hasFlashback` branch, read off the printed
+    // definition (this matcher holds no instance, so a granted flashback is
+    // not seen here).
+    if (filter.hasFlashback === true && def.flashback === undefined)
+        return false;
     // issue #897 — OR ACROSS filter dimensions. A filter carrying ONLY `any`
     // (no other field set) must not fail open (match every hand card) — every
     // check above is skipped when its field is absent, so without this the

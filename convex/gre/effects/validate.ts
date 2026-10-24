@@ -540,6 +540,14 @@ function isCardFilter(
             if (rejectManaCostEquals) return false;
             return isValueOrArray(v, isManaCostFilterValue);
         }
+        // CR 702.34a — "with flashback", a hidden-zone quality read off the
+        // card's flashback cost. Gated exactly like `manaCostEquals`:
+        // `toPermanentFilter` has no mapping for it, so a battlefield site
+        // would match every permanent (fail OPEN). Only `true` is a form.
+        if (k === "hasFlashback") {
+            if (rejectManaCostEquals) return false;
+            return v === true;
+        }
         if (k === "isToken") {
             return typeof v === "boolean";
         }
@@ -766,7 +774,7 @@ function filterUsesManaCostEquals(value: unknown): boolean {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (f.manaCostEquals !== undefined) {
+    if (f.manaCostEquals !== undefined || f.hasFlashback !== undefined) {
         return true;
     }
     return (
@@ -6133,7 +6141,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesManaCostEquals(entry.filter)
             ) {
                 errors.push(
-                    '"filter.manaCostEquals" is not valid with zone: "battlefield" — a live permanent has no printed-cost slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
+                    '"filter.manaCostEquals" / "filter.hasFlashback" is not valid with zone: "battlefield" — a live permanent has no printed-cost or flashback slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
                 );
             }
             if (

@@ -7425,6 +7425,10 @@ export interface SpellContext {
          *  OPPOSITE branch). `matchesCardFilter` fails CLOSED
          *  on `undefined`. */
         cost: ManaCost | undefined;
+        /** CR 702.34a — the card has a printed or granted flashback cost
+         *  (`EffectCardFilter.hasFlashback`). A shape without the slot fails
+         *  that filter CLOSED. */
+        flashback?: boolean;
     }>;
 
     /** Characteristics of every card in `playerId`'s library, read from the
@@ -7454,6 +7458,10 @@ export interface SpellContext {
          *  full rationale, issue #1898 finding 2). This is the field Urza's
          *  Saga III's `choice(zone: "library")` search restriction reads. */
         cost: ManaCost | undefined;
+        /** CR 702.34a — the card has a printed or granted flashback cost
+         *  (`EffectCardFilter.hasFlashback`). A shape without the slot fails
+         *  that filter CLOSED. */
+        flashback?: boolean;
     }>;
 
     /** Characteristics of every card in `playerId`'s graveyard, read from the
@@ -7479,6 +7487,10 @@ export interface SpellContext {
          *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
          *  #1898 finding 2). */
         cost: ManaCost | undefined;
+        /** CR 702.34a — the card has a printed or granted flashback cost
+         *  (`EffectCardFilter.hasFlashback`). A shape without the slot fails
+         *  that filter CLOSED. */
+        flashback?: boolean;
     }>;
     /** CR 404 / 400.7 — owner of the graveyard currently holding `id`, or
      *  undefined when the card isn't in any graveyard. Lets the interpreter
@@ -7509,6 +7521,10 @@ export interface SpellContext {
          *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
          *  #1898 finding 2). */
         cost: ManaCost | undefined;
+        /** CR 702.34a — the card has a printed or granted flashback cost
+         *  (`EffectCardFilter.hasFlashback`). A shape without the slot fails
+         *  that filter CLOSED. */
+        flashback?: boolean;
     }>;
     /** CR 400.7 — owner of the exile zone currently holding `id`, or undefined
      *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
@@ -14191,6 +14207,14 @@ export interface EffectCardFilter {
      *  ignore the field (fail OPEN). Single keyword; ANDed with every other
      *  field. */
     excludeAbility?: string;
+    /** "With flashback" (CR 702.34a — Quiet Speculation's "up to three cards
+     *  with flashback"). A HIDDEN-zone quality (hand/library/graveyard/exile):
+     *  read off the card's printed or granted flashback cost by
+     *  `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`.
+     *  `toPermanentFilter` has no mapping for it, so the validator rejects it
+     *  at battlefield-guaranteed sites (it would fail OPEN there), exactly as
+     *  it does `manaCostEquals`. ANDed with every other field. */
+    hasFlashback?: true;
     /** "Non-<subtype>" (CR 205.3, issue #4557 — Tranquil Domain's "all
      *  non-Aura enchantments"). The negative of `subtype`, mirroring
      *  `excludeType`'s shape: a permanent or card is dropped when it has ANY
