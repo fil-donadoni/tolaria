@@ -67,6 +67,7 @@ import {
     getInstanceManaCost,
 } from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
+import { hasFlashback } from "./flashback";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { classLevelOf } from "../cards/abilities/classLevels";
@@ -17970,6 +17971,7 @@ export function buildSpellContext(
             manaValue: number;
             colors: Color[];
             cost: CardManaCost | undefined;
+            flashback: boolean;
         }> {
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -17994,6 +17996,9 @@ export function buildSpellContext(
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
                     cost: manaCostForCardFilter(def),
+                    // CR 702.34a — printed or granted flashback, for
+                    // `EffectCardFilter.hasFlashback`.
+                    flashback: hasFlashback(c),
                 };
             });
         },
@@ -18011,6 +18016,7 @@ export function buildSpellContext(
             colors: Color[];
             manaValue: number;
             cost: CardManaCost | undefined;
+            flashback: boolean;
         }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -18033,6 +18039,9 @@ export function buildSpellContext(
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison (Urza's Saga III's "mana cost {0} or {1}").
                     cost: manaCostForCardFilter(def),
+                    // CR 702.34a — printed or granted flashback, for
+                    // `EffectCardFilter.hasFlashback`.
+                    flashback: hasFlashback(c),
                 };
             });
         },
@@ -18048,6 +18057,7 @@ export function buildSpellContext(
             manaValue: number;
             colors: Color[];
             cost: CardManaCost | undefined;
+            flashback: boolean;
         }> {
             return getPlayer(state, playerId).graveyard.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -18078,6 +18088,9 @@ export function buildSpellContext(
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
                     cost: manaCostForCardFilter(def),
+                    // CR 702.34a — printed or granted flashback, for
+                    // `EffectCardFilter.hasFlashback`.
+                    flashback: hasFlashback(c),
                 };
             });
         },
@@ -18108,6 +18121,7 @@ export function buildSpellContext(
             colors: Color[];
             counters: Record<string, number>;
             cost: CardManaCost | undefined;
+            flashback: boolean;
         }> {
             return getPlayer(state, playerId).exile.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -18128,6 +18142,9 @@ export function buildSpellContext(
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
                     cost: manaCostForCardFilter(def),
+                    // CR 702.34a — printed or granted flashback, for
+                    // `EffectCardFilter.hasFlashback`.
+                    flashback: hasFlashback(c),
                 };
             });
         },
