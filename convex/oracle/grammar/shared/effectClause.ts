@@ -1071,6 +1071,16 @@ export type EffectSentenceIR =
            */
           readonly thenDrainsManaPool?: true;
       }
+    | {
+          /**
+           * CR 502.3 — "<it> doesn't untap during your next untap
+           * step": the one-shot untap lock on the source (`skipNextUntap`).
+           * The subject is the source or the site's pronoun for it; a named
+           * or announced permanent is a different instruction.
+           */
+          readonly kind: "skip-next-untap";
+          readonly subject: SubjectIR;
+      }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
     | {
           /**
@@ -5003,6 +5013,7 @@ const REDIRECT_NEXT_DAMAGE =
  * refused rather than read as one, and "can't attack" is refused until a
  * standalone corpus card gives it a fixture (Change of Heart carries Buyback).
  */
+const SKIP_NEXT_UNTAP = /^(.+) doesn't untap during your next untap step$/;
 const COMBAT_RESTRICTION = /^(.+) can't (block|be blocked) this turn$/;
 const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
     new Map([
@@ -7250,6 +7261,22 @@ function effectSentence(
         return ok({
             kind: "tap-untap" as const,
             action,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── next-untap lock (CR 502.3) ─────────────────────────────────────
+    const untapLock = span.match(SKIP_NEXT_UNTAP);
+    if (untapLock !== null) {
+        const subject = subjectRule.run(untapLock[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (subject.value.kind !== "self" && subject.value.kind !== "pronoun")
+            return fail(
+                "only the source (or its pronoun) takes a next-untap lock",
+                span
+            );
+        return ok({
+            kind: "skip-next-untap" as const,
             subject: subject.value,
         } satisfies EffectSentenceIR);
     }
