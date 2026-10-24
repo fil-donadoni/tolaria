@@ -790,7 +790,10 @@ function spendableExtraMana(
     const base = boardCensusFor(state, player).base;
     const extra: ReadonlySet<Color>[] = [];
     for (const color of MANA_COLORS) {
-        for (let i = 0; i < (mana[color] ?? 0); i++) {
+        // A computed amount (a `count`, a `ref`) is not grounded here: it reads
+        // 0, the under-read this function declares as its safe direction.
+        const pips = mana[color];
+        for (let i = 0; i < (typeof pips === "number" ? pips : 0); i++) {
             extra.push(new Set<Color>([color]));
         }
     }
