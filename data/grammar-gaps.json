@@ -3941,6 +3941,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › amount reads whether the \"kicker-u\" kicker was paid — the canned generator casts unkicked",
+            "issue": 6757
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › construct \"forEach\" iterates a runtime-selected set — covered by the card's own tests",
             "issue": 4156
         },
@@ -3998,6 +4003,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › script mixes player and permanent target slots",
             "issue": 4234
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › Skywarp Skaab ability \"skywarp-skaab-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 6758
         },
         {
             "kind": "scenario",
