@@ -201,6 +201,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [fear] › choice+sacrifice",
+            "issue": 6774
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [first strike,flash] › (no Ops)",
             "issue": 4280
         },
@@ -238,6 +243,11 @@
             "kind": "bot",
             "key": "never-chosen › Creature [flash] › destroy",
             "issue": 4073
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flying,trample] › choice+regenerate+sacrifice",
+            "issue": 6775
         },
         {
             "kind": "bot",
@@ -303,6 +313,11 @@
             "kind": "bot",
             "key": "never-chosen › Creature › choice+libraryLook+moveZone+regenerate",
             "issue": 6750
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › choice+sacrifice",
+            "issue": 6776
         },
         {
             "kind": "bot",
@@ -523,6 +538,11 @@
             "kind": "bot",
             "key": "never-chosen › Planeswalker › choice+createToken+destroy+if+loseLife+mill+reflexiveTrigger+sacrifice",
             "issue": 4841
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery X › choice+forEach+sacrifice",
+            "issue": 6777
         },
         {
             "kind": "bot",
@@ -3816,6 +3836,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"choice\" acts on $each — covered by the card's own per-card test",
+            "issue": 6773
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"choice\" reads a runtime \"count\" amount — the canned generator does not size it",
             "issue": 5249
         },
@@ -3878,6 +3903,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"if\" reads ref \"$did2\" — depends on a runtime binding",
             "issue": 6746
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"if\" reads ref \"$did3\" — depends on a runtime binding",
+            "issue": 6772
         },
         {
             "kind": "scenario",
