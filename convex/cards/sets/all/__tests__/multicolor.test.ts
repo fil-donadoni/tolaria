@@ -63,7 +63,7 @@ function answerPay(state: GameState, accept: boolean): void {
     applyMayPaySubmit(state, { playerId: "p1", accept });
 }
 
-// Lim-Dûl's Vault (CR 401.4 look, CR 119.4 pay life, CR 701.24 shuffle) —
+// Lim-Dûl's Vault (CR 401.4 order, CR 119.4 pay life, CR 701.24 shuffle) —
 // "Look at the top five cards of your library. As many times as you choose,
 // you may pay 1 life, put those cards on the bottom of your library in any
 // order, then look at the top five cards of your library. Then shuffle and put

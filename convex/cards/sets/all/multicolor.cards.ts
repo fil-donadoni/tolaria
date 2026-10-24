@@ -7,10 +7,8 @@ import { defineCard } from "../../types";
 // library. As many times as you choose, you may pay 1 life, put those cards on
 // the bottom of your library in any order, then look at the top five cards of
 // your library. Then shuffle and put the last cards you looked at this way on
-// top in any order." (CR 401.4 — look; CR 119.4 — pay life; CR 701.24 —
+// top in any order." (CR 401.4 — arrange in any order; CR 119.4 — pay life; CR 701.24 —
 // shuffle)
-//
-// compiler-gap: As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library (#5603)
 //
 // protocol card: the optional repeat is a player-driven loop whose every
 // iteration shows the library top and asks again, and the Effect Script DSL has
@@ -23,6 +21,7 @@ import { defineCard } from "../../types";
 // order the cards are bottomed in, and the order they are put back on top in
 // after the shuffle (the player sees the same five cards either way, so
 // deciding the order at the last look loses nothing).
+// compiler-gap: As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library (#5603)
 export const limDulsVault = defineCard(() => ({
     id: "f9b0164c-2d4e-48ab-addd-322d9b504739", // ALL 107
     rarity: "uncommon",
@@ -37,7 +36,7 @@ export const limDulsVault = defineCard(() => ({
             // Iteration already carried out before an earlier suspension.
             if (ctx.recallChoice(`vault-bottomed-${i}`)) continue;
             const seen = ctx.peekLibraryTop(me, 5).length;
-            if (seen === 0) return; // CR 608.2b — nothing to look at
+            if (seen === 0) return; // empty library: nothing to look at
             // The look: the player sees the top five and arranges them. Order-
             // only (`destination: "none"`), so the five stay on top.
             if (
