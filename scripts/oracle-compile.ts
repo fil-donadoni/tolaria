@@ -72,6 +72,7 @@ import {
     fragmentKey,
     fragmentRow,
     LOCKFILE_GENERATOR,
+    parseLockfile,
     POOL_PROJECTION_SOURCE,
     poolHash,
     registryHash,
@@ -95,6 +96,7 @@ import {
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
 import { runUnderHeavyAdmission } from "./lib/heavy-admission";
+import { baseArtifact, gitRunner } from "./lib/base-artifact";
 import { createBotPlayer, harnessErrorVerdict } from "./lib/bot-reach-player";
 import { playMisses, sweepWorkerCount } from "./lib/bot-reach-shard";
 import {
@@ -330,18 +332,22 @@ export function buildLockfile(
             outcome.state === "ready"
                 ? botReach?.verdictFor(card.oracleId, outcome.definition)
                 : undefined;
+        // A stale (carried) verdict keeps the key it was committed with —
+        // never one recomputed from a definition it was not played on.
         const gap =
-            verdict !== undefined && outcome.state !== "unparsed"
-                ? botGapKey(
-                      verdict,
-                      outcome.opsUsed,
-                      castShape({
-                          ...outcome.definition,
-                          id: card.oracleId,
-                          rarity: "common",
-                      } as CardDefinition)
-                  )
-                : undefined;
+            verdict?.stale === true
+                ? verdict.gap
+                : verdict !== undefined && outcome.state !== "unparsed"
+                  ? botGapKey(
+                        verdict,
+                        outcome.opsUsed,
+                        castShape({
+                            ...outcome.definition,
+                            id: card.oracleId,
+                            rarity: "common",
+                        } as CardDefinition)
+                    )
+                  : undefined;
         const state: CompileState =
             verdict?.outcome === "frozen" ? "quarantine" : outcome.state;
         if (outcome.state === "unparsed") {
@@ -479,13 +485,21 @@ function verdictOf(
  */
 export async function sessionSweep(options: {
     readonly previous: Lockfile | null;
+    /** The base's lockfile, graduations are classified against — after a
+     *  first run the disk holds them `ready` (`sessionBaseline`). */
+    readonly baseline: Lockfile | null;
     readonly currentBotHash: string;
     readonly build: (source: BotReachSource) => string;
     readonly play: (
         graduations: ReadonlyMap<string, CompiledDefinition>
     ) => Promise<ReadonlyMap<string, BotReachVerdict>>;
 }): Promise<{ text: string; played: number; carried: number }> {
-    const probe = probingBotReach(options.previous, options.currentBotHash);
+    const probe = probingBotReach(
+        options.previous,
+        options.currentBotHash,
+        false,
+        options.baseline
+    );
     const text = options.build(probe);
     if (probe.misses().size === 0) return { text, played: 0, carried: 0 };
     const graduations = probe.graduations();
@@ -496,13 +510,41 @@ export async function sessionSweep(options: {
     const source = carriedOrPlayed(
         options.previous,
         options.currentBotHash,
-        verdictOf(verdicts)
+        verdictOf(verdicts),
+        { baseline: options.baseline }
     );
     return {
         text: options.build(source),
         played: source.played(),
         carried: source.carried(),
     };
+}
+
+/**
+ * The lockfile a session classifies graduations against: the base's, at the
+ * merge-base (`lib/base-artifact.ts`) — the committed lockfile before this
+ * branch. The disk file is the cache, not the baseline: after a first bare
+ * run it holds this branch's graduations `ready` with a verdict, and a rule
+ * fixed between two runs would read them as drift and carry them stale
+ * (review of issue #6688). No base to read (a tarball, a clone that never
+ * fetched it) → the disk file, said on stderr.
+ */
+function sessionBaseline(previous: Lockfile | null): Lockfile | null {
+    const base = baseArtifact(gitRunner(ROOT), "data/oracle-compiled.json");
+    if (base.kind === "text") {
+        try {
+            return parseLockfile(base.text);
+        } catch (err) {
+            process.stderr.write(
+                `oracle:compile — the lockfile at ${base.at} does not parse (${(err as Error).message}); graduations classified against the disk file\n`
+            );
+            return previous;
+        }
+    }
+    process.stderr.write(
+        `oracle:compile — no base lockfile (${base.kind === "unavailable" ? base.why : base.detail}); graduations classified against the disk file\n`
+    );
+    return previous;
 }
 
 /**
@@ -705,6 +747,7 @@ async function main(): Promise<void> {
                 })
               : await sessionSweep({
                     previous,
+                    baseline: sessionBaseline(previous),
                     currentBotHash: botHash(ROOT),
                     build,
                     play: playSharded,

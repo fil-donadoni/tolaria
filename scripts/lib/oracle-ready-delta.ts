@@ -116,7 +116,8 @@ export interface VerdictDelta {
     readonly graduated: number;
     /** The graduations the Bot froze (`bot-unreachable`), sorted. */
     readonly frozen: readonly string[];
-    /** Rows carrying a verdict played on another definition (`botStale`). */
+    /** Rows carrying a verdict played on another definition (`botStale`) —
+     *  this branch's carries and any the base has not replayed yet. */
     readonly carried: number;
 }
 
@@ -150,6 +151,6 @@ export function formatVerdictDelta(delta: VerdictDelta): string {
             : "";
     return (
         `bot verdicts: ${delta.graduated} graduation(s) played here${frozen}\n` +
-        `bot verdicts: ${delta.carried} drift row(s) carried stale — the base replays them after the merge\n`
+        `bot verdicts: ${delta.carried} row(s) carry a stale verdict (drift) — the base replays them after the merge\n`
     );
 }

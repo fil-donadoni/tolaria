@@ -703,6 +703,7 @@ describe("a session plays only its graduations; drift verdicts are carried (ADR 
         const asked: string[] = [];
         const result = await sessionSweep({
             previous: committed,
+            baseline: committed,
             currentBotHash: "sha256:tree-bot",
             build,
             play: async (graduations) => {
@@ -728,6 +729,80 @@ describe("a session plays only its graduations; drift verdicts are carried (ADR 
         expect(verdicts.get("graduation-absent")).toEqual({
             outcome: "played",
         });
+    });
+
+    // Review of issue #6688: the disk file is the CACHE, the base's lockfile
+    // the baseline. After a first run the disk holds the graduations `ready`
+    // with a verdict; a rule fixed between two runs must replay them.
+    it("a second run after a rule fix replays the branch's graduations — classified against the base, not the disk", async () => {
+        const firstRun = lockWith(
+            [
+                ...DRIFT.map((oracleId) => row({ oracleId, botStale: true })),
+                ...GRADUATIONS.map((oracleId) => row({ oracleId })),
+            ],
+            "sha256:committed-bot"
+        );
+        const asked: string[] = [];
+        const result = await sessionSweep({
+            previous: firstRun,
+            baseline: committed,
+            currentBotHash: "sha256:tree-bot",
+            build,
+            play: async (graduations) => {
+                asked.push(...graduations.keys());
+                return new Map(
+                    [...graduations.keys()].map((id) => [
+                        id,
+                        { outcome: "played" } as BotReachVerdict,
+                    ])
+                );
+            },
+        });
+        expect(asked.sort()).toEqual(GRADUATIONS);
+        expect(result.carried).toBe(1000);
+    });
+
+    it("a carried row keeps the Bot Gap key it was committed with, never one recomputed from the new definition", () => {
+        const previous = buildLockfile(CORPUS, {
+            botReach: fixedSource({
+                [BEAR_ID]: { outcome: "played" },
+                [BOLT_ID]: {
+                    outcome: "ignored",
+                    cause: "never-chosen",
+                    form: "Instant target:any",
+                },
+            }),
+        });
+        const OLD_KEY = "never-chosen › Sorcery target:creature › destroy";
+        const moved: Lockfile = {
+            ...previous,
+            cards: previous.cards.map((c) =>
+                c.oracleId === BOLT_ID
+                    ? {
+                          ...c,
+                          botGap: OLD_KEY,
+                          definition: {
+                              ...c.definition!,
+                              name: "Old Bolt",
+                          } as CompiledDefinition,
+                      }
+                    : c
+            ),
+        };
+        const session = buildLockfile(CORPUS, {
+            botReach: carriedOrPlayed(moved, "sha256:x", spyPlayer().play),
+        });
+        const bolt = session.cards.find((c) => c.oracleId === BOLT_ID)!;
+        expect(bolt).toMatchObject({
+            botReach: "ignored",
+            botGap: OLD_KEY,
+            botStale: true,
+        });
+        expect(
+            serializeLockfile(
+                buildLockfile(CORPUS, { botReach: carriedBotReach(session) })
+            )
+        ).toBe(serializeLockfile(session));
     });
 
     it("a frozen row is not `ready`: a moved definition graduates (played), an unchanged one is current", () => {

@@ -119,7 +119,13 @@ export type BotPlayer = (
  * and with it `staleVerdicts` and the base's drift sweep — reads it as a
  * miss, never as a verdict for the definition it now sits beside.
  */
-export type SourcedVerdict = BotReachVerdict & { readonly stale?: true };
+export type SourcedVerdict = BotReachVerdict & {
+    readonly stale?: true;
+    /** A stale verdict's Bot Gap key AS COMMITTED — never recomputed from a
+     *  definition the verdict was not played on, so a carried row names no
+     *  gap that no play produced (`check:gaps`, `gaps:sync` read it). */
+    readonly gap?: string;
+};
 
 /** What `buildLockfile` asks for a card that compiled `ready`. */
 export interface BotReachSource {
@@ -148,15 +154,21 @@ function rowVerdict(row: CardRow): BotReachVerdict | undefined {
  *
  *  - `current`: the row's verdict was played on this very definition —
  *    reused, nothing to play;
- *  - `drift`: the row was `ready` WITH a verdict and still is, but the
- *    verdict was not played on this definition (it moved, or the verdict was
- *    already carried) — the committed verdict is CARRIED, marked stale, and
- *    the base replays it after the merge (issue #6687);
- *  - `graduation`: the row was not `ready` with a verdict — absent,
+ *  - `drift`: the BASELINE row was `ready` WITH a verdict, the row still
+ *    carries one, but it was not played on this definition (the definition
+ *    moved, or the verdict was already carried) — the verdict is CARRIED,
+ *    marked stale, and the base replays it after the merge (issue #6687);
+ *  - `graduation`: the baseline row was not `ready` with a verdict — absent,
  *    unparsed, quarantined (a `frozen` row included), or `ready` with none.
  *    This tree brings the card to `ready`, so a session PLAYS it: its verdict
  *    belongs to the PR that graduates it (`gre-development.md` § Bot
  *    reachability).
+ *
+ * `row` is the cache — the lockfile on disk, what this tree last wrote;
+ * `baseline.row` is what the card was BEFORE this change (`undefined`: no
+ * row there), by default the same row. A session passes the base's row (`sessionBaseline`): after its first
+ * run the disk already holds its graduations `ready` with a verdict, and a
+ * rule fixed between two runs must replay them, not carry them stale.
  */
 export type VerdictClass =
     | { readonly kind: "current"; readonly verdict: BotReachVerdict }
@@ -165,7 +177,8 @@ export type VerdictClass =
 
 export function classifyVerdict(
     row: CardRow | undefined,
-    definition: CompiledDefinition
+    definition: CompiledDefinition,
+    baseline: { readonly row: CardRow | undefined } = { row }
 ): VerdictClass {
     const verdict = row === undefined ? undefined : rowVerdict(row);
     if (row === undefined || verdict === undefined)
@@ -176,9 +189,17 @@ export function classifyVerdict(
         JSON.stringify(row.definition) === JSON.stringify(definition)
     )
         return { kind: "current", verdict };
-    return row.state === "ready"
-        ? { kind: "drift", verdict: { ...verdict, stale: true } }
-        : { kind: "graduation" };
+    const was = baseline.row;
+    const wasReady = was?.state === "ready" && rowVerdict(was) !== undefined;
+    if (!wasReady || row.state !== "ready") return { kind: "graduation" };
+    return {
+        kind: "drift",
+        verdict: {
+            ...verdict,
+            stale: true,
+            ...(row.botGap !== undefined ? { gap: row.botGap } : {}),
+        },
+    };
 }
 
 /** The committed verdict of a row whose verdict was played on this very
@@ -245,22 +266,31 @@ export function playingBotReach(
 
 /**
  * A SESSION's source — the bare `oracle:compile` (ADR 0158 § 2a, issue
- * #6688): reuse a `current` verdict, CARRY a drift row's committed verdict
- * marked stale, PLAY a graduation. A compiler change touching one field of
- * every definition is then thousands of carried rows plus the handful of
- * cards the PR actually graduates — never a whole-catalogue sweep inside the
- * PR. The header keeps the committed Bot hash (`sweepCache`).
+ * #6688): reuse a `current` verdict, CARRY a drift row's verdict marked
+ * stale, PLAY a graduation — classified against `baseline`, the base's
+ * lockfile (default: `previous`, when there is none to read). A compiler
+ * change touching one field of every definition is then thousands of carried
+ * rows plus the handful of cards the PR actually graduates — never a
+ * whole-catalogue sweep inside the PR. The header keeps the committed Bot
+ * hash (`sweepCache`).
  */
 export function carriedOrPlayed(
     previous: Lockfile | null,
     currentBotHash: string,
     play: BotPlayer,
-    options: { onPlay?: (oracleId: string) => void } = {}
+    options: {
+        baseline?: Lockfile | null;
+        onPlay?: (oracleId: string) => void;
+    } = {}
 ): BotReachSource & {
     readonly played: () => number;
     readonly carried: () => number;
 } {
     const cache = sweepCache(previous, currentBotHash);
+    const before =
+        options.baseline === undefined
+            ? cache.rows
+            : rowsById(options.baseline);
     let played = 0;
     let carried = 0;
     return {
@@ -268,7 +298,11 @@ export function carriedOrPlayed(
         played: () => played,
         carried: () => carried,
         verdictFor(oracleId, definition) {
-            const known = classifyVerdict(cache.rows.get(oracleId), definition);
+            const known = classifyVerdict(
+                cache.rows.get(oracleId),
+                definition,
+                { row: before.get(oracleId) }
+            );
             if (known.kind === "drift") carried += 1;
             if (known.kind !== "graduation") return known.verdict;
             played += 1;
@@ -286,15 +320,17 @@ export function carriedOrPlayed(
  * verdict a hit, the header on the committed Bot hash — byte-identical to
  * `--carry-bot`'s (issue #6463).
  *
- * Each miss is classified by {@link classifyVerdict} (ADR 0158 § 2a): a
- * session plays the `graduations`, carries the `drift`. A row marked
- * `botStale` is a miss whatever its definition, so the base's drift sweep —
- * `staleVerdicts` reads this set (issue #6687) — replays it.
+ * Each miss is classified by {@link classifyVerdict} (ADR 0158 § 2a),
+ * against `baseline` (default: `previous`): a session plays the
+ * `graduations`, carries the `drift`. A row marked `botStale` is a miss
+ * whatever its definition, so the base's drift sweep — `staleVerdicts` reads
+ * this set (issue #6687) — replays it.
  */
 export function probingBotReach(
     previous: Lockfile | null,
     currentBotHash: string,
-    replay = false
+    replay = false,
+    baseline?: Lockfile | null
 ): BotReachSource & {
     readonly misses: () => ReadonlySet<string>;
     /** Each miss with the definition to play — the base's sharded work list
@@ -307,6 +343,7 @@ export function probingBotReach(
     readonly drift: () => ReadonlySet<string>;
 } {
     const cache = sweepCache(previous, currentBotHash, replay);
+    const before = baseline === undefined ? cache.rows : rowsById(baseline);
     const misses = new Map<string, CompiledDefinition>();
     const graduations = new Map<string, CompiledDefinition>();
     const drift = new Set<string>();
@@ -317,7 +354,11 @@ export function probingBotReach(
         graduations: () => graduations,
         drift: () => drift,
         verdictFor(oracleId, definition) {
-            const known = classifyVerdict(cache.rows.get(oracleId), definition);
+            const known = classifyVerdict(
+                cache.rows.get(oracleId),
+                definition,
+                { row: before.get(oracleId) }
+            );
             if (known.kind === "current") return known.verdict;
             misses.set(oracleId, definition);
             if (known.kind === "drift") drift.add(oracleId);

@@ -204,7 +204,7 @@ bun run oracle:report --delta >"$SCRATCHPAD/delta.log" 2>&1; echo "exit=$?"; cat
 Per set and corpus, `before / after / delta / lost` against `origin/<base>`,
 then two `bot verdicts` lines from the compile's own classification: the
 graduations played here (a `frozen` one named — it left `ready` for
-`quarantine`, so it is in no `gained`) and the drift rows carried stale.
+`quarantine`, so it is in no `gained`) and the rows carrying a stale verdict.
 **`lost` must be 0**: a card leaving `ready` is a regression the rule caused,
 and `check:oracle` refuses it unless `data/oracle-state-regressions.json`
 acknowledges it with a human-written reason. Fix the rule rather than writing
