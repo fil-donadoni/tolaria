@@ -12857,4 +12857,131 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             types: ["Artifact"],
         },
     },
+    // CR 701.17a + CR 400.2 — "Mill four cards. You may put a creature card
+    // from among them into your hand.": the pick reaches only the cards this
+    // mill put into the graveyard (issue #5499). Exhibits the mill's
+    // card-dependent forms: the `choice` reads the `bindAll` binding only the
+    // mill writes, sized by a runtime range, and the `moveZone` changes zones
+    // on an object the generator does not model.
+    {
+        rule: "from among",
+        card: {
+            oracleId: "cbf5bd0a-20ef-4dce-9f70-13339d438ff7",
+            name: "Eerie Gravestone",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText:
+                "When this artifact enters, draw a card.\n{1}{B}, Sacrifice this artifact: Mill four cards. You may put a creature card from among them into your hand. (To mill four cards, put the top four cards of your library into your graveyard.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Eerie Gravestone",
+            types: ["Artifact"],
+            manaCost: { X: 2 },
+            oracleText:
+                "When this artifact enters, draw a card.\n{1}{B}, Sacrifice this artifact: Mill four cards. You may put a creature card from among them into your hand. (To mill four cards, put the top four cards of your library into your graveyard.)",
+            activatedAbilities: [
+                {
+                    id: "eerie-gravestone-ability",
+                    oracleText:
+                        "{1}{B}, Sacrifice this artifact: Mill four cards. You may put a creature card from among them into your hand.",
+                    cost: { mana: { X: 1, B: 1 }, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "mill",
+                            player: "controller",
+                            count: 4,
+                            bindAll: "$milled1",
+                        },
+                        {
+                            op: "choice",
+                            kind: "choose-graveyard-card",
+                            player: "controller",
+                            zone: "graveyard",
+                            candidates: [{ ref: "$milled1" }],
+                            filter: { type: "Creature" },
+                            count: { min: 0, max: 1 },
+                            prompt: "You may put a creature card from among the milled cards into your hand.",
+                            bind: "$pick2",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$pick2" },
+                            player: "controller",
+                            from: "graveyard",
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "eerie-gravestone-trigger",
+                    oracleText: "When this artifact enters, draw a card.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        },
+    },
+    // CR 701.17a + CR 400.2 + CR 110.4a — the same mill pick over "a permanent
+    // card", a type LIST: its `choice` is a different card-dependent form from
+    // Eerie Gravestone's single type, and a spell rather than an ability
+    // (issue #5499).
+    {
+        rule: "from among",
+        card: {
+            oracleId: "46cf0e3e-3c3e-4eb8-a71a-4b4b87744ced",
+            name: "Something Worth Saving",
+            manaCost: "{1}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Mill four cards. You may put a permanent card from among them into your hand. You gain 1 life. (To mill four cards, put the top four cards of your library into your graveyard.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Something Worth Saving",
+            types: ["Instant"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "Mill four cards. You may put a permanent card from among them into your hand. You gain 1 life. (To mill four cards, put the top four cards of your library into your graveyard.)",
+            effects: [
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 4,
+                    bindAll: "$milled1",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    candidates: [{ ref: "$milled1" }],
+                    filter: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a permanent card from among the milled cards into your hand.",
+                    bind: "$pick2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$pick2" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "hand",
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+        },
+    },
 ]);
