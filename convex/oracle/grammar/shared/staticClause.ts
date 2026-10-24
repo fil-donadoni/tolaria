@@ -245,6 +245,8 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /** CR 401.5 — "Play with the top card of your library revealed". */
+    | { readonly kind: "reveal-library-top" }
     /**
      * CR 509.1b — "This creature can't block": the source's own printed
      * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
@@ -2112,6 +2114,26 @@ const extraLandDropRule: Rule<StaticClauseIR> = pattern(
         ok({ kind: "extra-land-drop" as const, count: 1 })
 );
 
+// ── Frame: the library-top reveal (CR 401.5) ──────────────────────────────
+
+/**
+ * "Play with the top card of your library revealed." (Goblin Spy, Courser of
+ * Kruphix.) CR 401.5: an effect tells a player to play with the top card of
+ * their library revealed. The sentence is the whole clause; the opponent
+ * variants ("Your opponents play with…") and the companion "you may look at"
+ * permission name a different audience or effect and stay refused by the
+ * anchored match.
+ */
+const REVEAL_LIBRARY_TOP = "Play with the top card of your library revealed";
+
+const revealLibraryTopRule: Rule<StaticClauseIR> = rule(
+    "library top reveal",
+    (span): RuleResult<StaticClauseIR> =>
+        span === REVEAL_LIBRARY_TOP
+            ? ok({ kind: "reveal-library-top" as const })
+            : fail("not the library-top reveal template", span)
+);
+
 // ── Frame: the as-enters discard (CR 614.1a) ────────────────────────────────
 
 /**
@@ -2222,6 +2244,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         skipDrawStepRule,
         optionalDrawSkipRule,
         extraLandDropRule,
+        revealLibraryTopRule,
         asEntersDiscardRule,
         playerShroudRule,
         flashCastCleanupSacrificeRule,
