@@ -330,7 +330,15 @@ describe("gold round-trip — precision", () => {
         // compare, while its line now compiles to `excludeColors` — the same
         // move as the entries above. The compiled definition is proven by
         // `costTaxes.test.ts` instead.
-        expect(REPORT.incomparable.length).toBeLessThan(79);
+        //
+        // Raised 79 -> 82 with the compositional grammar pilot: Altar
+        // of Bone's and Spellseeker's tutor lines (Verb Frames) and Mindstab
+        // Thrull's "you may sacrifice it. If you do, …" (the If-you-do rule)
+        // are now compiled while their hand-written twins keep closures the
+        // projection cannot compare — the same move as the entries above. The
+        // compiled definitions are proven by `verbFrames.test.ts` and
+        // `compositionRules.test.ts` instead.
+        expect(REPORT.incomparable.length).toBeLessThan(82);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

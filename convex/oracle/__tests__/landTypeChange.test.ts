@@ -345,7 +345,9 @@ describe("becomes a basic land type — the neighbours it refuses", () => {
                 })
             )
         ).toEqual([
-            "effect clause: Until end of turn, target land you control becomes the basic land type of your choice in addition to its other types",
+            // The leading duration is read (the Composition Rule, issue
+            // #6557); what the member list cannot read is the ADD form.
+            "effect clause > effect clause: Target land you control becomes the basic land type of your choice in addition to its other types",
         ]);
     });
 
