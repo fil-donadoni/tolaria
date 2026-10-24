@@ -200,6 +200,9 @@ export function handCardMatchesFilter(
     ) {
         return false;
     }
+    // CR 205.3m (issue #6618) — `sharesCreatureTypeWith` names an object this
+    // `SpellContext`-free matcher cannot read: refused, same reason as above.
+    if (filter.sharesCreatureTypeWith !== undefined) return false;
     const literalSubtypes: string | string[] | undefined = filter.subtype;
     const subtypes = asArray(literalSubtypes);
     if (

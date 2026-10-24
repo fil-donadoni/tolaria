@@ -444,6 +444,10 @@ function isCardFilter(
     // this field opt-OUTs at exactly those same battlefield-guaranteed sites.
     const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
     const entries = Object.entries(value);
+    // CR 205.3m (issue #6618) — `sharesCreatureTypeWith` and a `subtype` in the
+    // same clause are an AND of two subtype sets, which `PermanentFilter`'s
+    // single subtype slot cannot express: refused rather than half-honoured.
+    if ("sharesCreatureTypeWith" in value && "subtype" in value) return false;
     return entries.every(([k, v]) => {
         if (k === "type" || k === "excludeType" || k === "excludeSubtype") {
             return isValueOrArray(
@@ -463,6 +467,11 @@ function isCardFilter(
                 v,
                 (m) => typeof m === "string" && m.length > 0
             );
+        }
+        // CR 205.3m (issue #6618) — "shares a creature type with <object>".
+        // Shape only: the ordered ref pass checks the binding / `$event` family.
+        if (k === "sharesCreatureTypeWith") {
+            return isObjectSelector(v);
         }
         if (k === "supertype") {
             return typeof v === "string" && TOKEN_SUPERTYPES.has(v);
@@ -6974,6 +6983,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // like `target`. No other field in the vocabulary is
                                 // named `with`.
                                 keyHint === "sharesColor" ||
+                                // `EffectCardFilter.sharesCreatureTypeWith` (issue
+                                // #6618) — the object whose last-known creature
+                                // types the filter compares, an
+                                // `EffectObjectSelector` exactly like `target`;
+                                // tagged `graveyardCardPosition` below.
+                                keyHint === "sharesCreatureTypeWith" ||
                                 // `sameColors` (issue #3806) — `sharesColor`'s
                                 // set-equality twin, same two object-selector
                                 // positions, sharing the `with` row below.
@@ -7021,6 +7036,13 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 keyHint === "attachTo"
                               ? "object"
                               : "number",
+            // CR 400.7e (issue #6618) — `sharesCreatureTypeWith` reads only
+            // the referent's characteristics, so it may name the card a zone
+            // change put into a graveyard (`$event.card`), unlike every other
+            // object position.
+            ...(keyHint === "sharesCreatureTypeWith"
+                ? { graveyardCardPosition: true as const }
+                : {}),
         });
         return;
     }
@@ -7461,7 +7483,7 @@ function checkEventRef(
     if (row.family === "graveyard-card") {
         if (positionFamily !== "object" || use.graveyardCardPosition !== true)
             errors.push(
-                `${at}: "$event" ref "${use.ref}" is a graveyard-card field — it is legal only as moveZone's target, the one Op that acts on a card in a graveyard (CR 400.7e)`
+                `${at}: "$event" ref "${use.ref}" is a graveyard-card field — it is legal only as moveZone's target or an EffectCardFilter.sharesCreatureTypeWith referent, the positions that read a card in a graveyard (CR 400.7e)`
             );
         return;
     }
