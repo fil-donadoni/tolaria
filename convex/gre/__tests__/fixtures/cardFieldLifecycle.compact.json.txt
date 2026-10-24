@@ -263,6 +263,10 @@
           "copyOptions": {
             "copyColor": true
           },
+          "fullTextAnchor": {
+            "underlyingDefId": "def-under",
+            "underlyingImagePrintId": "print-under"
+          },
           "timedCopyEffects": {
             "underlying": null,
             "effects": [
@@ -654,6 +658,10 @@
       "copiedFrom": "def-orig",
       "copyOptions": {
         "copyColor": true
+      },
+      "fullTextAnchor": {
+        "underlyingDefId": "def-under",
+        "underlyingImagePrintId": "print-under"
       },
       "timedCopyEffects": {
         "underlying": null,

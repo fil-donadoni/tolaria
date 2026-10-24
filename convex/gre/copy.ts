@@ -17,6 +17,12 @@ import {
     abilityLossTimestamp,
     grantOutrankedByAbilityLoss,
 } from "./activatedAbilities";
+import {
+    copiableDefId,
+    copiableImagePrintId,
+    installFullText,
+    withdrawFullText,
+} from "./fullText";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import { backFaceDefinitionIdOf } from "./transform";
 import type {
@@ -42,7 +48,7 @@ import type { LayerStateView } from "./layers";
  *  the new field. */
 export type CopySource = Pick<
     CardInstanceState,
-    "card" | "faceDown" | "copyExcept" | "imagePrintId"
+    "card" | "faceDown" | "copyExcept" | "imagePrintId" | "fullTextAnchor"
 >;
 
 /** Re-exported alias so engine call sites import copy-option typing from the
@@ -112,10 +118,10 @@ export function applyTimedCopy(
         : recipient.copiedFrom || recipient.copyOptions
           ? copyLayerOf(
                 {
-                    card: { id: presentedDefId(recipient) },
+                    card: { id: copiableDefId(recipient) },
                     copyExcept: recipient.copyExcept,
                     // The art the copy effect being covered shows now.
-                    imagePrintId: recipient.imagePrintId,
+                    imagePrintId: copiableImagePrintId(recipient),
                     faceDown: recipient.faceDown,
                 } as CopySource,
                 recipient.copyOptions ?? {}
@@ -190,13 +196,12 @@ export function rematerialiseTimedCopies(
 
 function copyLayerOf(source: CopySource, opts: CopyOptions): TimedCopyLayer {
     const except = source.faceDown ? undefined : source.copyExcept;
+    const print = copiableImagePrintId(source);
     return {
-        sourceDefId: presentedDefId(source),
+        sourceDefId: copiableDefId(source),
         ...(except ? { sourceCopyExcept: { ...except } } : {}),
         // A face-down source's print names the hidden card (CR 708.5).
-        ...(!source.faceDown && source.imagePrintId
-            ? { sourceImagePrintId: source.imagePrintId }
-            : {}),
+        ...(!source.faceDown && print ? { sourceImagePrintId: print } : {}),
         // JSON-pure (a card's `except` clause, ADR 0046); cloned so instance
         // state never aliases a module-level `CardDefinition` array.
         opts: JSON.parse(JSON.stringify(opts)) as CopyOptions,
@@ -226,6 +231,10 @@ function applyCopyEffect(
     source: CopySource,
     opts: CopyOptions
 ): void {
+    // CR 613.1a / 613.1c — a copy effect replaces LAYER 1; a full-text effect
+    // on the recipient is layer 3 and is re-applied over the new identity by
+    // the next sync (`gre/fullText.ts`).
+    withdrawFullText(state, recipient);
     const copyColor = opts.copyColor ?? true;
     // CR 613.7 — the colours of THIS copy effect replace the ones a PREVIOUS
     // copy effect stamped (issue #3236). Read BEFORE `copyOptions` is
@@ -237,7 +246,9 @@ function applyCopyEffect(
         recipient.copyOptions !== undefined &&
         (recipient.copyOptions.colorOverride !== undefined ||
             recipient.copyOptions.copyColor === false);
-    const sourceDefId = presentedDefId(source);
+    // CR 707.2 — "text-changing effects … are not copied": a source under a
+    // full-text effect contributes its layer-1 identity, not the text it shows.
+    const sourceDefId = copiableDefId(source);
     const def = getDefinition(sourceDefId);
 
     // CR 707.3 — "the copy's copiable values become the copied information.
@@ -349,7 +360,9 @@ function applyCopyEffect(
     // the face-up source's print. A face-down source (CR 708.2 / 708.5) must
     // NOT lend its print: the copy is the generic face-down body and the print
     // would name the hidden card to every viewer.
-    const copiedPrint = source.faceDown ? undefined : source.imagePrintId;
+    const copiedPrint = source.faceDown
+        ? undefined
+        : copiableImagePrintId(source);
     const presentedPrint = opts.imagePrintId ?? copiedPrint;
     if (presentedPrint) {
         recipient.imagePrintId = presentedPrint;
@@ -388,6 +401,10 @@ export function revertCopy(
     state: LayerStateView,
     card: CardInstanceState
 ): void {
+    // CR 613.1c — the full-text effect (layer 3) ends first, so the revert
+    // below reads the copy's own identity; on the way off the battlefield
+    // (`removePermanentTo`) this is also what ends it for a non-copy.
+    withdrawFullText(state, card);
     if (!card.copiedFrom) return;
     const printedId = card.copiedFrom;
     const def = tryGetDefinition(printedId);
@@ -545,7 +562,27 @@ export function lookBackSelf(
     const entry = state.lastKnownCopiable?.[card.id];
     if (!entry) return card;
     const printedId = presentedDefId(card);
-    if (entry.defId === printedId) return card;
+    const view =
+        entry.defId === printedId ? card : lookBackLayer1(state, card, entry);
+    // CR 612.6 / 613.1c — a full-text effect (layer 3) the object had as it
+    // left: its abilities are the presented card's (a dies trigger on the text
+    // it showed triggers). Applied over the layer-1 appearance, on a copy.
+    const shownDef = entry.fullTextDefId
+        ? tryGetDefinition(entry.fullTextDefId)
+        : undefined;
+    if (!shownDef) return view;
+    const shown: CardInstanceState = { ...view };
+    return installFullText(state, shown, shownDef, undefined) ? shown : view;
+}
+
+/** {@link lookBackSelf}'s layer-1 half: the copy / transform / face-down
+ *  identity the departed permanent presented, rebuilt from its LKI entry. */
+function lookBackLayer1(
+    state: LookBackStateView,
+    card: CardInstanceState,
+    entry: LastKnownCopiable
+): CardInstanceState {
+    const printedId = presentedDefId(card);
     const def = tryGetDefinition(entry.defId);
     if (!def) return card;
 

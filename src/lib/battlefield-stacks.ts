@@ -139,8 +139,9 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     // into a Forest taps for {G} (issue #5494). Expiry empties the field and
     // the permanent rejoins its clean siblings.
     if (hasLayer3or4Change(card)) return true;
-    // Copy effect anchor (CR 707.2) — a copy carries a printed identity.
-    if (card.copiedFrom) return true;
+    // Copy effect anchor (CR 707.2) — a copy carries a printed identity; so
+    // does a permanent under a full-text effect (CR 612.6).
+    if (card.copiedFrom || card.fullTextAnchor) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).
     if (card.isAttacking || card.isBlocking) return true;
     // NOTE: face-down (CR 708.2) is deliberately NOT an `isAltered` singleton
