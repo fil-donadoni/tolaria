@@ -1453,6 +1453,9 @@ function matchesCardFilter(
         // (the CR 608.2h `boundMatchesFilter` snapshot) — fails CLOSED
         // below, never open.
         cost?: ManaCost;
+        // CR 702.34a — printed or granted flashback, for `hasFlashback`.
+        // Absent on a card shape with no such slot: fails CLOSED below.
+        flashback?: boolean;
     },
     filter: EffectCardFilter
 ): boolean {
@@ -1578,6 +1581,9 @@ function matchesCardFilter(
         const exact = resolveValue(ctx, filter.manaValueEquals);
         if (exact === undefined || card.manaValue !== exact) return false;
     }
+    // CR 702.34a — "with flashback": the card has a flashback cost. A card
+    // shape with no `flashback` slot fails CLOSED, never open.
+    if (filter.hasFlashback === true && card.flashback !== true) return false;
     // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST match
     // (CR 202), distinct from `manaValueEquals` right above. A card shape
     // with no `cost` slot (the CR 608.2h snapshot) fails CLOSED — never
