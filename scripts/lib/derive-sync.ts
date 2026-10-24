@@ -335,6 +335,16 @@ export function pushDerivedCommit(
     readonly why: string;
     readonly remoteTip: string;
 } {
+    // A lease that matches skips git's fast-forward check, so a `sha` not
+    // built on `head` would be a FORCE push: refused here, never sent.
+    if (
+        git(["merge-base", "--is-ancestor", input.head, input.sha]).status !== 0
+    )
+        return {
+            outcome: "failed",
+            why: `${input.sha.slice(0, 10)} is not built on ${input.head.slice(0, 10)} — not pushed`,
+            remoteTip: input.head,
+        };
     const push = git(
         [
             "push",
