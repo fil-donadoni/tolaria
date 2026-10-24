@@ -50700,6 +50700,16 @@
         "firstPrintSet": "tmp"
     },
     {
+        "name": "Reap",
+        "scryfallId": "229f8a3d-d1a5-46d7-9b1b-e165397e6579",
+        "oracleId": "7fcb8472-1e77-4dcd-b18f-8abf8806da08",
+        "firstSet": "tmp",
+        "firstPrintId": "229f8a3d-d1a5-46d7-9b1b-e165397e6579",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Reap the Seagraf",
         "scryfallId": "4defdead-19fa-4535-9f71-8808388b0332",
         "oracleId": "95ff3ba5-cbd2-4723-9498-3fc6df5be973",
