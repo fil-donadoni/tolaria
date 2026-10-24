@@ -6801,8 +6801,8 @@ export function removePermanentTo(
     // An activated ability's stack item is a clone of its source, so its source
     // id is the item id (`buildActivatedAbilityStackItem`); a triggered one
     // carries `triggerSourceId`. `sourceLkiPower` is the effective (layer-folded)
-    // power at departure, which the raw record cannot reproduce once the
-    // permanent's own statics are gone: "this creature deals damage equal to its
+    // power at departure (other sources' effects folded in, as the CR 603.10
+    // snapshot below), which the raw record cannot reproduce: "this creature deals damage equal to its
     // power" reads it (CR 608.2h).
     for (const item of state.stack) {
         const abilitySourceId =

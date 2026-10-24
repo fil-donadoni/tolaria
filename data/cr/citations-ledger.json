@@ -24251,6 +24251,7 @@
         {"id":"603.10","line":"// leftTrigger factory tests (CR 603.10) — the `causedByOpponent` condition","sites":1,"status":"baseline"},
         {"id":"603.10","line":"// moved it), the trigger simply does nothing (CR 603.10","sites":1,"status":"baseline"},
         {"id":"603.10","line":"// off the death event's CR 603.10 last-known-information type line,","sites":1,"status":"baseline"},
+        {"id":"603.10","line":"// power at departure (other sources' effects folded in, as the CR 603.10","sites":1,"status":"confirmed","ruleHash":"fef9f8dba4f8cdd2"},
         {"id":"603.10","line":"// reads the death event's CR 603.10 type line — both gates close.","sites":1,"status":"baseline"},
         {"id":"603.10","line":"// record and fizzle a trigger CR 603.10 says resolves off last known","sites":1,"status":"baseline"},
         {"id":"603.10","line":"// resolves (CR 603.10); move that exact object to exile","sites":1,"status":"baseline"},
