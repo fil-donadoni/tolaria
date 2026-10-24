@@ -1718,6 +1718,21 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.26a + CR 109.2 — "<player> taps an untapped <permanent
+           * types> they control for each <type> counter on this <noun>": the
+           * named player CHOOSES, among their own untapped permanents, as
+           * many as the source has counters of `counterType` (a count read
+           * live as the sentence resolves, CR 122.1), and taps them. Fewer
+           * candidates than counters taps what exists (CR 101.3).
+           */
+          readonly kind: "tap-chosen-per-counter";
+          readonly player: PlayerRefIR;
+          readonly filter: EffectCardFilter;
+          readonly counterType: string;
+          readonly phrase: string;
+      }
+    | {
+          /**
            * CR 608.2c — "You <verb phrase> and you <verb phrase>": two
            * instructions in ONE printed sentence, carried out in the order
            * printed. The repeated explicit "you" is what makes the second
@@ -4498,6 +4513,9 @@ const COLOR_ALTERNATIVES =
 /** CR 118.12a — where a sacrifice rider's payment begins. */
 const SACRIFICE_UNLESS = " unless you ";
 const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
+/** CR 701.26a — "<player> taps an untapped <types> they control for each <type> counter on this <noun>". */
+const TAP_CHOSEN_PER_COUNTER =
+    /^(.+?) taps an untapped (.+?) (?:they|that player) control for each (\S+) counter on this (\S+)$/;
 /** CR 701.21a — the imperative "Sacrifice that many permanents": the controller's own edict. */
 const SACRIFICE_THAT_MANY = /^Sacrifice that many (permanents)$/;
 /**
@@ -8158,6 +8176,34 @@ function effectSentence(
             kind: "sacrifice-unless" as const,
             subject: subject.value,
             payment: payment.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── tap the player's own untapped permanents, one per counter (CR 701.26a)
+    const tapPer = span.match(TAP_CHOSEN_PER_COUNTER);
+    if (tapPer !== null) {
+        const player = playerSubject(tapPer[1]!, ctx);
+        if (player === null)
+            return fail(`"${tapPer[1]}" is not a player`, span);
+        const source = subjectRule.run(`this ${tapPer[4]}`, ctx);
+        if (!source.ok || source.value.kind !== "self")
+            return fail(`"this ${tapPer[4]}" is not the source`, span);
+        const descriptor = descriptorRule.run(tapPer[2]!, ctx);
+        if (!descriptor.ok) return descriptor;
+        // "an untapped creatures" disagrees in number: one permanent per counter.
+        if (descriptor.value.plural === true)
+            return fail(`"${tapPer[2]}" disagrees in number`, tapPer[2]!);
+        const filter = sacrificeFilterFromDescriptor(
+            descriptor.value,
+            COLOR_ALTERNATIVES.test(tapPer[2]!)
+        );
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "tap-chosen-per-counter" as const,
+            player,
+            filter: { ...filter.value, tapped: false },
+            counterType: tapPer[3]!,
+            phrase: `an untapped ${tapPer[2]}`,
         } satisfies EffectSentenceIR);
     }
 
