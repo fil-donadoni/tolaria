@@ -566,6 +566,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:card › moveZone",
+            "issue": 6592
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:player › choice+discard",
             "issue": 4278
         },
