@@ -731,3 +731,39 @@ describe("costPose — discard leg of a caster-chosen additional cost", () => {
         );
     });
 });
+
+// CR 701.12 — an enters-trigger that exchanges control of the card itself for
+// an opposing creature is only worth casting against a better body than its own.
+describe("targetPose — exchange of control", () => {
+    it("poses the opponent a creature worth taking for Gilded Drake", () => {
+        const cards = targetPose(getCardByName("Gilded Drake")!).cards;
+        expect(cards).toEqual([
+            { name: "Force of Nature", owner: "opp", zone: "battlefield" },
+        ]);
+    });
+
+    it("poses nothing for a creature that only takes control", () => {
+        const def: CardDefinition = {
+            id: "bot-reach-test:steal",
+            name: "Bot Reach Steal",
+            rarity: "common",
+            manaCost: { U: 1 },
+            types: ["Sorcery"],
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                },
+            ],
+        };
+        expect(targetPose(def).cards).toEqual([]);
+    });
+
+    it("plays Gilded Drake", () => {
+        expect(playBotReach(getCardByName("Gilded Drake")!).outcome).toBe(
+            "played"
+        );
+    }, 300_000);
+});
