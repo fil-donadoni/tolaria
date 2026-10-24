@@ -11883,4 +11883,668 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "05baf38c-677a-42e3-bb8c-a52a0a478984",
+            name: "Ramosian Commander",
+            manaCost: "{2}{W}{W}",
+            typeLine: "Creature — Human Rebel",
+            oracleText:
+                "{6}, {T}: Search your library for a Rebel permanent card with mana value 5 or less, put it onto the battlefield, then shuffle.",
+            power: "2",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ramosian Commander",
+            types: ["Creature"],
+            subtypes: ["Human", "Rebel"],
+            manaCost: { X: 2, W: 2 },
+            power: 2,
+            toughness: 4,
+            oracleText:
+                "{6}, {T}: Search your library for a Rebel permanent card with mana value 5 or less, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "ramosian-commander-ability",
+                    oracleText:
+                        "{6}, {T}: Search your library for a Rebel permanent card with mana value 5 or less, put it onto the battlefield, then shuffle.",
+                    cost: { mana: { X: 6 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                subtype: "Rebel",
+                                manaValueAtMost: 5,
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Rebel permanent card with mana value 5 or less.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2e7a9ea9-f76c-4c12-950f-c613fa16cfa8",
+            name: "Captain Sisay",
+            manaCost: "{2}{G}{W}",
+            typeLine: "Legendary Creature — Human Soldier",
+            oracleText:
+                "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Captain Sisay",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Human", "Soldier"],
+            manaCost: { X: 2, W: 1, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "captain-sisay-ability",
+                    oracleText:
+                        "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { supertype: "Legendary" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a legendary card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found1" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4845dc21-7534-4896-b298-4d44cd7a3b27",
+            name: "Moggcatcher",
+            manaCost: "{2}{R}{R}",
+            typeLine: "Creature — Human Mercenary",
+            oracleText:
+                "{3}, {T}: Search your library for a Goblin permanent card, put it onto the battlefield, then shuffle.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Moggcatcher",
+            types: ["Creature"],
+            subtypes: ["Human", "Mercenary"],
+            manaCost: { X: 2, R: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{3}, {T}: Search your library for a Goblin permanent card, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "moggcatcher-ability",
+                    oracleText:
+                        "{3}, {T}: Search your library for a Goblin permanent card, put it onto the battlefield, then shuffle.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                subtype: "Goblin",
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Goblin permanent card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "59e1899f-a9e8-48aa-b3fb-0b7d9fd6859c",
+            name: "Seahunter",
+            manaCost: "{2}{U}{U}",
+            typeLine: "Creature — Human Mercenary",
+            oracleText:
+                "{3}, {T}: Search your library for a Merfolk permanent card, put it onto the battlefield, then shuffle.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Seahunter",
+            types: ["Creature"],
+            subtypes: ["Human", "Mercenary"],
+            manaCost: { X: 2, U: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{3}, {T}: Search your library for a Merfolk permanent card, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "seahunter-ability",
+                    oracleText:
+                        "{3}, {T}: Search your library for a Merfolk permanent card, put it onto the battlefield, then shuffle.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                subtype: "Merfolk",
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Merfolk permanent card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "762d864b-69bc-43ac-af2f-e18186010169",
+            name: "Sliver Overlord",
+            manaCost: "{W}{U}{B}{R}{G}",
+            typeLine: "Legendary Creature — Sliver Mutant",
+            oracleText:
+                "{3}: Search your library for a Sliver card, reveal that card, put it into your hand, then shuffle.\n{3}: Gain control of target Sliver. (This effect lasts indefinitely.)",
+            power: "7",
+            toughness: "7",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sliver Overlord",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Sliver", "Mutant"],
+            manaCost: { W: 1, U: 1, B: 1, R: 1, G: 1 },
+            power: 7,
+            toughness: 7,
+            oracleText:
+                "{3}: Search your library for a Sliver card, reveal that card, put it into your hand, then shuffle.\n{3}: Gain control of target Sliver. (This effect lasts indefinitely.)",
+            activatedAbilities: [
+                {
+                    id: "sliver-overlord-ability",
+                    oracleText:
+                        "{3}: Search your library for a Sliver card, reveal that card, put it into your hand, then shuffle.",
+                    cost: { mana: { X: 3 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { subtype: "Sliver" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Sliver card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found1" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+                {
+                    id: "sliver-overlord-ability-2",
+                    oracleText: "{3}: Gain control of target Sliver.",
+                    cost: { mana: { X: 3 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "gainControl",
+                            target: { target: 0 },
+                            controller: "controller",
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        subtypeFilter: ["Sliver"],
+                    },
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7a838374-fc40-4fb6-9d38-a96f01e7038a",
+            name: "Wirewood Herald",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Elf",
+            oracleText:
+                "When this creature dies, you may search your library for an Elf card, reveal that card, put it into your hand, then shuffle.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wirewood Herald",
+            types: ["Creature"],
+            subtypes: ["Elf"],
+            manaCost: { X: 1, G: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature dies, you may search your library for an Elf card, reveal that card, put it into your hand, then shuffle.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "wirewood-herald-trigger",
+                    oracleText:
+                        "When this creature dies, you may search your library for an Elf card, reveal that card, put it into your hand, then shuffle.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Search your library for an Elf card, reveal that card, put it into your hand, then shuffle?",
+                            bind: "$may2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may2" },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "search-library",
+                                    player: "controller",
+                                    zone: "library",
+                                    filter: { subtype: "Elf" },
+                                    count: { min: 0, max: 1 },
+                                    prompt: "Search your library for an Elf card.",
+                                    bind: "$found1",
+                                },
+                                {
+                                    op: "reveal",
+                                    player: "controller",
+                                    cards: { ref: "$found1" },
+                                },
+                                {
+                                    op: "moveZone",
+                                    cards: { ref: "$found1" },
+                                    player: "controller",
+                                    from: "library",
+                                    to: "hand",
+                                },
+                                {
+                                    op: "libraryLook",
+                                    action: "shuffle",
+                                    player: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "910ff092-7c9d-49d3-a6df-497683e45bbd",
+            name: "Cateran Summons",
+            manaCost: "{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for a Mercenary card, reveal that card, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cateran Summons",
+            types: ["Sorcery"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Search your library for a Mercenary card, reveal that card, put it into your hand, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { subtype: "Mercenary" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a Mercenary card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.23a) — runtime-sized search: the activated / triggered / spell search frame whose filter names a subtype or supertype (or a mana-value ceiling). Exhibits the `choice` form the canned generator does not size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d74c3871-018a-4450-a613-f67703bb0d72",
+            name: "Dragonstorm",
+            manaCost: "{8}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for a Dragon permanent card, put it onto the battlefield, then shuffle.\nStorm (When you cast this spell, copy it for each spell cast before it this turn.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dragonstorm",
+            types: ["Sorcery"],
+            manaCost: { X: 8, R: 1 },
+            oracleText:
+                "Search your library for a Dragon permanent card, put it onto the battlefield, then shuffle.\nStorm (When you cast this spell, copy it for each spell cast before it this turn.)",
+            staticAbilities: ["storm"],
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        subtype: "Dragon",
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a Dragon permanent card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.21a) — the may-sacrifice gate whose "if you do" reads the sacrifice's runtime binding, then a defending-player discard of a fixed count. Exhibits the `if` / `discard` forms the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "43abe1f3-7b92-411a-bf93-e158f949685c",
+            name: "Mindstab Thrull",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Creature — Thrull",
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you may sacrifice it. If you do, defending player discards three cards.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mindstab Thrull",
+            types: ["Creature"],
+            subtypes: ["Thrull"],
+            manaCost: { X: 1, B: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you may sacrifice it. If you do, defending player discards three cards.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "mindstab-thrull-trigger",
+                    oracleText:
+                        "Whenever this creature attacks and isn't blocked, you may sacrifice it. If you do, defending player discards three cards.",
+                    head: { kind: "attacks-unblocked" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Sacrifice it?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "sacrifice",
+                                    target: { ref: "$source" },
+                                    bind: "$did2",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        boundMatchesFilter: { ref: "$did2" },
+                                        filter: {},
+                                    },
+                                    then: [
+                                        {
+                                            op: "choice",
+                                            kind: "discard-hand",
+                                            player: "opponent",
+                                            zone: "hand",
+                                            count: 3,
+                                            prompt: "Discard three cards.",
+                                            bind: "$discard3",
+                                        },
+                                        {
+                                            op: "discard",
+                                            player: "opponent",
+                                            cards: { ref: "$discard3" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6623, CR 701.21a) — the same may-sacrifice gate with a targeted "if you do" body. The announced target slot adds a form facet, so the targeted shape needs its own fixture.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c304777a-39a9-4a2a-8cec-8116afb34c5b",
+            name: "Thalakos Deceiver",
+            manaCost: "{3}{U}",
+            typeLine: "Creature — Thalakos Wizard",
+            oracleText:
+                "Shadow (This creature can block or be blocked by only creatures with shadow.)\nWhenever this creature attacks and isn't blocked, you may sacrifice it. If you do, gain control of target creature. (This effect lasts indefinitely.)",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Thalakos Deceiver",
+            types: ["Creature"],
+            subtypes: ["Thalakos", "Wizard"],
+            manaCost: { X: 3, U: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Shadow (This creature can block or be blocked by only creatures with shadow.)\nWhenever this creature attacks and isn't blocked, you may sacrifice it. If you do, gain control of target creature. (This effect lasts indefinitely.)",
+            staticAbilities: ["shadow"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "thalakos-deceiver-trigger",
+                    oracleText:
+                        "Whenever this creature attacks and isn't blocked, you may sacrifice it. If you do, gain control of target creature.",
+                    head: { kind: "attacks-unblocked" },
+                    targetRequirement: { type: "Creature", count: 1 },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Sacrifice it?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "sacrifice",
+                                    target: { ref: "$source" },
+                                    bind: "$did2",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        boundMatchesFilter: { ref: "$did2" },
+                                        filter: {},
+                                    },
+                                    then: [
+                                        {
+                                            op: "gainControl",
+                                            target: { target: 0 },
+                                            controller: "controller",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
