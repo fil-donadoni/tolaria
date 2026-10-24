@@ -407,6 +407,13 @@
             "needsSetup": false
         }
     ],
+    "Mind Twist": [
+        {
+            "label": "wish: brings the sorcery in from outside the game rather than declining",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Mishra's Factory": [
         {
             "label": "land search: fetches the utility land when the hand's colours are covered",

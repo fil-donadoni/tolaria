@@ -6209,6 +6209,40 @@ export const OP_EXECUTORS: {
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         revealToAllPlayers(ctx, playerId, ids);
     },
+    // CR 400.11b + CR 701.20a — "You may reveal a <filter> card you own from
+    // outside the game and put it into your hand." The pool is hidden, so the
+    // filter is precomputed into the pick's allow-list here, as a hidden
+    // library search's is (an empty list is still a pick: see below). The pick SUSPENDS once; on the replay the picked
+    // card moves into hand FIRST and is revealed there, because
+    // `markKnownToAll` stamps cards in a hand or library and an
+    // outside-the-game card is in neither until it arrives.
+    bringFromOutsideGame(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 609.3
+        const filter = op.filter;
+        const candidateIds = ctx
+            .getOutsideGameCards(playerId)
+            .filter(
+                (c) => filter === undefined || matchesCardFilter(ctx, c, filter)
+            )
+            .map((c) => c.id);
+        // Raised even when nothing matches (an empty "you may"): whether the
+        // pick appears must not tell the other players what the hidden pool
+        // holds.
+        const picks = ctx.requestOutsideGameCard({
+            playerId,
+            // Fixed: the pipeline keys on `step:choiceId`, and `step` IS this
+            // Op's checkpointed position.
+            choiceId: "outside-game",
+            candidateIds,
+            prompt: op.prompt,
+        });
+        if (picks === undefined) return "suspend";
+        const [picked] = picks;
+        if (picked === undefined) return; // "you may" — declined
+        if (!ctx.bringFromOutsideGameToHand(playerId, picked)) return;
+        revealToAllPlayers(ctx, playerId, [picked]);
+    },
     // CR 400.2 look (Urza's Bauble) — "Look at a card at random in
     // `player`'s hand": a PRIVATE look. A thin adapter over the two
     // SpellContext primitives `lookRandomHandCard` (seeded-PRNG pick + private

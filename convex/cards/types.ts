@@ -7471,6 +7471,48 @@ export interface SpellContext {
         flashback?: boolean;
     }>;
 
+    /** Characteristics of every card `playerId` owns OUTSIDE the game (CR
+     *  400.11 — not a zone; CR 400.11a — the sideboard), read from the card
+     *  registry (CR 108.1) in `outsideGamePool` order (`gre/outsideGame.ts`:
+     *  the holder, then an unspent companion). The same shape as
+     *  `getLibraryCards`, so a `bringFromOutsideGame` Op's `filter` is
+     *  matched through the shared `matchesCardFilter` exactly as a hidden
+     *  library search's is. Empty when the player owns none. */
+    getOutsideGameCards: (playerId: string) => Array<{
+        id: string;
+        name: string;
+        types: CardType[];
+        subtypes: string[];
+        supertypes: CardSupertype[];
+        colors: Color[];
+        manaValue: number;
+        cost: ManaCost | undefined;
+        flashback?: boolean;
+    }>;
+
+    /** CR 400.11b — raise the `choose-outside-game-card` pick: `playerId`
+     *  MAY choose one of `candidateIds` (cards they own from outside the
+     *  game, `count: { min: 0, max: 1 }` — every printed form says "you
+     *  may"). The `requestChoice` suspend/replay contract: first call enqueues
+     *  the PendingChoice and returns `undefined` (the caller must suspend);
+     *  the replay returns the picked ids (empty = declined). Carries no
+     *  `zone` — outside the game is not one. */
+    requestOutsideGameCard: (req: {
+        playerId: string;
+        choiceId: string;
+        candidateIds: string[];
+        prompt: string;
+    }) => string[] | undefined;
+
+    /** CR 400.11b — put the card `instanceId` that `playerId` owns from
+     *  outside the game into their hand (`bringIntoHandFromOutsideGame`,
+     *  `gre/outsideGame.ts`). False when it is no longer outside the game
+     *  (CR 609.3 — nothing moves). */
+    bringFromOutsideGameToHand: (
+        playerId: string,
+        instanceId: string
+    ) => boolean;
+
     /** Characteristics of every card in `playerId`'s graveyard, read from the
      *  card registry (CR 108.1). Mirrors `getHandCards`; used by effects that
      *  count graveyard cards by type/colour (Nameless Race: "white cards in
@@ -18693,6 +18735,40 @@ export type EffectOp =
           bind?: string;
       }
     | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
+    /** CR 400.11b (an effect brings a card into the game from outside it) +
+     *  CR 701.20a (reveal) — "You may reveal a sorcery card you own from
+     *  outside the game and put it into your hand." (the Wish cards: Burning
+     *  Wish, Cunning Wish, Living Wish, Glittering Wish).
+     *
+     *  `player` MAY choose one card they own from outside the game
+     *  (`outsideGamePool`, `gre/outsideGame.ts`: the sideboard holder, CR
+     *  400.11a, plus an unspent companion) that `filter` matches; the chosen
+     *  card is revealed to every player (`markKnownToAll` + `notifyReveal`,
+     *  the `reveal` Op's pair) and put into `player`'s hand. Skins the
+     *  `getOutsideGameCards` / `requestOutsideGameCard` /
+     *  `bringFromOutsideGameToHand` SpellContext primitives; SUSPENDS once on
+     *  the pick (`choose-outside-game-card`).
+     *
+     *  An Op rather than `choice` + `reveal` + `moveZone`: each of those is
+     *  keyed on a ZONE, and CR 400.11 says outside the game is not one — the
+     *  pool, its hidden-information exposure and its submit check are this
+     *  Op's alone. Optional by construction (`count: { min: 0, max: 1 }`):
+     *  every printed form says "you may", and the pool is hidden, so a
+     *  declined pick is indistinguishable from a failed find. A pool with no
+     *  matching card still raises the pick, with an empty allow-list, so its
+     *  presence tells the other players nothing; the projection also hides
+     *  the allow-list from every viewer but the chooser. Deliberately NOT
+     *  here: the
+     *  "choose" wording with no reveal (Mastermind's Acquisition), more than
+     *  one card, a destination other than hand — a field each when a card
+     *  needs it. */
+    | {
+          op: "bringFromOutsideGame";
+          player: EffectPlayerRef;
+          filter?: EffectCardFilter;
+          /** The pick's prompt, quoting the printed description. */
+          prompt: string;
+      }
     /** CR 400.2 look (Urza's Bauble) — "Look at a card at random in
      *  `player`'s hand", a PRIVATE look shown only to `looker` (default the
      *  resolving controller, CR 113.7). Distinct from the public `reveal` Op

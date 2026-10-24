@@ -168,6 +168,7 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
                 },
             ],
             companion: { name: "Lurrus of the Dream-Den", owner: "me" },
+            outsideGame: [{ name: "Lightning Bolt", owner: "me" }],
         };
         const normalized = normalizeScenarioSpec(
             JSON.parse(JSON.stringify(EVERY_FIELD))

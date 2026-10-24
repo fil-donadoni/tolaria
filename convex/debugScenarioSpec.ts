@@ -978,6 +978,18 @@ export const scenarioSpecValidator = v.object({
             used: v.optional(v.boolean()),
         })
     ),
+    // CR 400.11a — cards a seat owns OUTSIDE the game (its sideboard), the
+    // pool a Wish brings a card in from. A scenario's synthetic board never
+    // runs the sideboard snapshot at game init, so it names them here.
+    // Mirrors `debugSetupScenario`'s matching arg (`convex/game.ts`).
+    outsideGame: v.optional(
+        v.array(
+            v.object({
+                name: v.string(),
+                owner: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+            })
+        )
+    ),
 });
 
 export type ScenarioCard = {
@@ -1319,6 +1331,9 @@ export type ScenarioSpec = {
      *  (`assertLiveGameCanContinue`). */
     stack?: ScenarioStackItem[];
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
+    /** CR 400.11a — cards each seat owns outside the game (`owner` defaults
+     *  to `"me"`), seeded into `PlayerState.outsideGame`. Omitted = none. */
+    outsideGame?: { name: string; owner?: "me" | "opp" }[];
 };
 
 /** The validator's own field names — the WRITE-path shape, which is what a
@@ -2369,6 +2384,19 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
             set(companion, "used", pickBoolean(raw.companion.used));
             spec.companion = companion;
         }
+    }
+    if (Array.isArray(raw.outsideGame)) {
+        const entries: { name: string; owner?: "me" | "opp" }[] = [];
+        for (const entry of raw.outsideGame) {
+            if (!isRecord(entry)) continue;
+            const name = pickString(entry.name);
+            if (name === undefined) continue;
+            const owner = pickString(entry.owner);
+            entries.push(
+                owner === "me" || owner === "opp" ? { name, owner } : { name }
+            );
+        }
+        if (entries.length > 0) spec.outsideGame = entries;
     }
     return spec;
 }

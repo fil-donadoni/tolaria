@@ -3037,6 +3037,7 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "wish: brings the sorcery in from outside the game rather than declining": null,
     "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice": {
         "cards": [
             {
