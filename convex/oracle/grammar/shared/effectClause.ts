@@ -4505,13 +4505,14 @@ const SACRIFICE_THAT_MANY = /^Sacrifice that many (permanents)$/;
  */
 const SUPERLATIVE_TAIL = /^(.+?) with the (\S+) (.+?) among (.+)$/;
 /**
- * CR 608.2c — "You draw a card and you lose 1 life": a draw, then a life
- * loss, each with the explicit "you" the Oracle text prints. Anchored at both
- * ends and pinned to exactly these two verbs: every other conjunction stays
- * refused until a corpus card prints it (ADR 0137 anti-leniency).
+ * CR 608.2c — "You draw a card and you lose 1 life" / "You draw X cards and
+ * lose X life": a draw, then a life loss, the second subject either repeated
+ * or elided (one subject, "you", for both verbs). Anchored at both ends and
+ * pinned to exactly these two verbs: every other conjunction stays refused
+ * until a corpus card prints it (ADR 0137 anti-leniency).
  */
 const YOU_DRAW_AND_LOSE_LIFE =
-    /^You (draw \S+ cards?) and (you lose \S+ life)$/;
+    /^You (draw \S+ cards?) and (?:you )?(lose \S+ life)$/;
 /**
  * CR 608.2c — "You draw a card and that opponent discards a card": a draw by
  * the controller, then a discard by the player the head named. Pinned to
@@ -6981,7 +6982,14 @@ function effectSentence(
     if (drawAnd !== null) {
         const draw = effectSentence(capitalise(drawAnd[1]!), ctx);
         if (!draw.ok) return draw;
-        const second = effectSentence(capitalise(drawAnd[2]!), ctx);
+        const second = effectSentence(
+            capitalise(
+                drawAnd[2]!.startsWith("lose ")
+                    ? `you ${drawAnd[2]}`
+                    : drawAnd[2]!
+            ),
+            ctx
+        );
         if (!second.ok) return second;
         return ok({
             kind: "conjunction" as const,
