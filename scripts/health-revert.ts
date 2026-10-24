@@ -12,7 +12,7 @@
  * when it cannot be, nothing is made (exit 4, no re-dispatch); the revert is
  * made in a throwaway worktree beside the primary checkout — a conflict (a
  * later PR depends on the culprit) records the rung `stuck` and exits 3,
- * which the next ladder run turns into the stop; then a repair issue is
+ * which the next ladder run hands to the fixer (ADR 0158 § 3); then a repair issue is
  * filed and recorded on the pivot (`health-fix`, what `base-health` admits a
  * repair by), the branch (`fix/issue-<repair issue>`, issue #6071) pushed, the PR opened and labelled `ready-to-land`,
  * and the culprit PR's closing issues reopened with the evidence and
