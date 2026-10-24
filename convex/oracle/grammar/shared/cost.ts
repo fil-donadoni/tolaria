@@ -24,6 +24,7 @@
 import type {
     ActivatedAbility,
     CardType,
+    Color,
     EffectCardFilter,
     ManaCost,
     PermanentFilter,
@@ -42,7 +43,11 @@ import {
 } from "../../rule";
 import type { ParsedTypeLine, ParseContext } from "../../types";
 import { readNumberWord } from "./quantity";
-import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
+import {
+    COLOR_WORDS,
+    descriptorRule,
+    permanentFilterFromDescriptor,
+} from "./targetFilter";
 
 export const ACTIVATION_COST = "activation cost";
 
@@ -102,6 +107,11 @@ export type CostAtomIR =
           readonly cardType?: CardType;
           readonly owner?: "you";
       }
+    /** CR 107.3a / 701.13a — "Exile X blue cards from your graveyard": X is
+     *  announced by the caster and the cost exiles exactly that many cards.
+     *  Only a flashback cost carries it (`additionalCosts.flashbackExileFromGraveyard`);
+     *  an activation cost has no announced X, so `lowerActivationCost` refuses it. */
+    | { readonly kind: "exile-x-from-graveyard"; readonly color?: Color }
     /** CR 701.13a — exile: "Exile this artifact" as a cost (CR 118.1). */
     | { readonly kind: "exile-self" }
     /** CR 118.1 / 701.13a — "Exile the top card of your library" as a cost:
@@ -322,6 +332,18 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             const match = span.match(EXILE_GRAVEYARD);
             if (match === null)
                 return fail("not an exile cost this grammar knows", span);
+            if (match[1] === "X") {
+                // CR 107.3a — X is announced by the caster; only the caster's
+                // own graveyard is a source the flashback exile picker reads.
+                if (match[3] !== "your graveyard")
+                    return fail("an X exile cost needs your graveyard", span);
+                if (match[2] === undefined)
+                    return ok({ kind: "exile-x-from-graveyard" as const });
+                const color = COLOR_WORDS.get(match[2]);
+                return color === undefined
+                    ? fail(`"${match[2]}" is not a colour`, span)
+                    : ok({ kind: "exile-x-from-graveyard" as const, color });
+            }
             const count = readNumberWord(match[1]!);
             if (count === null)
                 return fail(`"${match[1]}" is not a count`, span);
@@ -606,6 +628,13 @@ export function lowerActivationCost(
                 cost.exileFromGraveyard = value;
                 break;
             }
+            case "exile-x-from-graveyard":
+                // CR 107.3a — no announced X on an activated ability: refuse,
+                // never drop the cost.
+                return fail(
+                    "an exile-X cost has no encoding on an activated ability",
+                    "Exile X cards from your graveyard"
+                );
             case "exile-self":
             case "exile-self-from-hand":
                 cost.exileThis = true;
