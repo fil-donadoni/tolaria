@@ -700,6 +700,9 @@ export function commitAndPushAllowlist(
             env: opts.env,
             timeout: opts.timeout,
             killSignal: "SIGKILL",
+            // The allowlist is ~140 KB and grows with every gap: past the
+            // 1 MB default its `git show` would ENOBUFS (issue #6642).
+            maxBuffer: 64 * 1024 * 1024,
         });
     const why = (r: ReturnType<typeof git>): string =>
         r.error !== undefined &&
