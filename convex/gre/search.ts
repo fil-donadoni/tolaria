@@ -64,7 +64,10 @@ import {
 } from "./state";
 import type { ActivatedAbility, Color } from "../cards/types";
 import { observedOpponentColors } from "./ai/observedColors";
-import { checkStateBasedActions as sweepStateBasedActions } from "./sba";
+import {
+    checkStateBasedActions as sweepStateBasedActions,
+    checkStateBasedActionsAfterSpecialAction,
+} from "./sba";
 import {
     advancePhase,
     drainAutoPasses,
@@ -996,8 +999,10 @@ export function applyMoveInSearch(
             // and `summon-companion` this resets the pass cycle and keeps
             // priority with the actor.
             turnFaceUpInSearch(state, player, move.cardInstanceId);
-            state.passCount = 0;
-            checkStateBasedActions(state);
+            // CR 116.3 — its face-up triggers go on the stack and the actor,
+            // who may be the non-active player, keeps priority.
+            checkStateBasedActionsAfterSpecialAction(state, playerId);
+            SBA_SETTLED.add(state);
             return;
 
         case "cast-spell": {

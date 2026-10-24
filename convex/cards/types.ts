@@ -10982,6 +10982,7 @@ export type GameEventType =
     | "PERMANENT_TAPPED"
     | "PERMANENT_UNTAPPED"
     | "PERMANENT_EXERTED"
+    | "PERMANENT_TURNED_FACE_UP"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
@@ -11398,6 +11399,21 @@ export interface PermanentUntappedEvent {
     controllerId: string;
     permanentTypes: ReadonlyArray<CardType>;
     permanentSubtypes: ReadonlyArray<string>;
+}
+
+/** CR 708.8 / 702.37e — a face-down permanent on the battlefield was turned
+ *  face up: the morph special action, or a face-down sentinel's own
+ *  replacement effect turning it up (Illusionary Mask, ADR 0013). Emitted
+ *  AFTER the permanent regains its normal characteristics, so its own "when
+ *  this creature is turned face up" ability is on it when triggers are
+ *  collected. NOT emitted for the CR 708.9 reveal of a face-down object
+ *  leaving the battlefield or the stack: that card is revealed as it moves,
+ *  never turned face up as a permanent. Not an entry either — CR 708.8 keeps
+ *  every enters ability silent. */
+export interface PermanentTurnedFaceUpEvent {
+    type: "PERMANENT_TURNED_FACE_UP";
+    permanentId: string;
+    controllerId: string;
 }
 
 /** CR 701.43a — emitted once each time a permanent is EXERTED ("you choose to
@@ -12100,6 +12116,7 @@ export type GameEvent =
     | PermanentTappedEvent
     | PermanentUntappedEvent
     | PermanentExertedEvent
+    | PermanentTurnedFaceUpEvent
     | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent

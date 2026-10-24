@@ -2544,6 +2544,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aphetto Exterminator",
+        "scryfallId": "06be8f63-daf2-4dbe-bb07-2b246145cdab",
+        "oracleId": "a3bf5d18-77d5-4881-916c-cc125e621b6e",
+        "firstSet": "lgn",
+        "firstPrintId": "06be8f63-daf2-4dbe-bb07-2b246145cdab",
+        "firstPrintSet": "lgn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Apostle of Purifying Light",
         "scryfallId": "62f69602-b5fd-46d6-8dae-d77df35e378c",
         "oracleId": "0b49dbdc-4f1d-4895-b263-a48c7b7e6b44",
@@ -14952,6 +14962,26 @@
         "source": "compiled"
     },
     {
+        "name": "Daru Mender",
+        "scryfallId": "de13fba8-3fee-4ce2-b84d-b518a99eefe0",
+        "oracleId": "6072c129-9525-4630-b31a-d5d61a944d02",
+        "firstSet": "lgn",
+        "firstPrintId": "de13fba8-3fee-4ce2-b84d-b518a99eefe0",
+        "firstPrintSet": "lgn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Daru Sanctifier",
+        "scryfallId": "38b14a24-c74a-4465-9b36-8f5309e0a333",
+        "oracleId": "7e81539e-b790-41eb-bd5e-d1de130b46a1",
+        "firstSet": "lgn",
+        "firstPrintId": "38b14a24-c74a-4465-9b36-8f5309e0a333",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Daru Warchief",
         "scryfallId": "2630d3b5-8f3a-4aad-a45e-22a7979429f3",
         "oracleId": "3fce53fb-6914-4f43-b46b-18ca32ab21b2",
@@ -15881,6 +15911,16 @@
         "firstPrintId": "9c8e8719-8c33-429d-8b95-b7f813888850",
         "firstPrintSet": "ulg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Defender of the Order",
+        "scryfallId": "236b1c88-20a0-479e-91fb-16bb77f699fe",
+        "oracleId": "f9f4c574-ddbe-4ebc-bfda-29cf3e4b7c44",
+        "firstSet": "lgn",
+        "firstPrintId": "236b1c88-20a0-479e-91fb-16bb77f699fe",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -19438,6 +19478,16 @@
         "firstSet": "mh1",
         "firstPrintId": "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
         "firstPrintSet": "mh1"
+    },
+    {
+        "name": "Echo Tracer",
+        "scryfallId": "63390760-35a7-4b4c-8c68-5c84f90d0c58",
+        "oracleId": "34efa2fe-95ef-4a06-9a84-97f03ec68908",
+        "firstSet": "lgn",
+        "firstPrintId": "63390760-35a7-4b4c-8c68-5c84f90d0c58",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Ecologist's Terrarium",
@@ -38112,6 +38162,16 @@
         "source": "compiled"
     },
     {
+        "name": "Liege of the Axe",
+        "scryfallId": "eb518bf0-17ad-4bbf-b922-42ee76ffcbea",
+        "oracleId": "d838969a-b219-4964-bc7e-df0348392bbe",
+        "firstSet": "lgn",
+        "firstPrintId": "eb518bf0-17ad-4bbf-b922-42ee76ffcbea",
+        "firstPrintSet": "lgn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lieutenant Kirtar",
         "scryfallId": "e518750f-492d-4575-b4ee-c80c1f8e0a58",
         "oracleId": "ad39e859-e4a6-49cc-b738-4578a5250538",
@@ -40964,6 +41024,16 @@
         "source": "compiled"
     },
     {
+        "name": "Master of Pearls",
+        "scryfallId": "e8455229-6fec-4843-b888-e701c09620af",
+        "oracleId": "aca9df28-2df6-477c-b5b8-8e1863c84356",
+        "firstSet": "ktk",
+        "firstPrintId": "e8455229-6fec-4843-b888-e701c09620af",
+        "firstPrintSet": "ktk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Master of the Hunt",
         "scryfallId": "4e6bf56e-2d74-4e4d-a667-885853979377",
         "oracleId": "cdf89ad2-ce08-4708-88c2-8acdc861526d",
@@ -42629,6 +42699,16 @@
         "firstPrintId": "0d98f0c4-021a-407a-8b0c-5500d804f959",
         "firstPrintSet": "avr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mistfire Weaver",
+        "scryfallId": "8003a31f-7662-4e9e-8165-1ceea04fdf20",
+        "oracleId": "9af9c353-6b71-46e7-8815-a920e012dbb8",
+        "firstSet": "ktk",
+        "firstPrintId": "8003a31f-7662-4e9e-8165-1ceea04fdf20",
+        "firstPrintSet": "ktk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -44298,6 +44378,16 @@
         "firstSet": "jud",
         "firstPrintId": "16b93c93-5944-4289-bc5a-30b6e73b0dfd",
         "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Nantuko Vigilante",
+        "scryfallId": "e7474849-a6b4-4f3b-a836-37b88c26047b",
+        "oracleId": "28ea78dc-7ad6-4006-aaf8-4b25057ec019",
+        "firstSet": "lgn",
+        "firstPrintId": "e7474849-a6b4-4f3b-a836-37b88c26047b",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -47930,6 +48020,16 @@
         "firstSet": "ody",
         "firstPrintId": "e216a539-152b-4a83-98ef-1996182a5714",
         "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Patron of the Wild",
+        "scryfallId": "7f7a0810-3970-454f-8381-700d6c6aefdc",
+        "oracleId": "7ba8ae5b-8025-40eb-969d-38a85eefe7d6",
+        "firstSet": "lgn",
+        "firstPrintId": "7f7a0810-3970-454f-8381-700d6c6aefdc",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -52306,6 +52406,16 @@
         "firstSet": "soi",
         "firstPrintId": "a6fc4db9-a29c-4f50-8e41-105b45af0be9",
         "firstPrintSet": "soi",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Rattleclaw Mystic",
+        "scryfallId": "4fb6c2e0-eeaa-4d60-aab7-2b8c739a9278",
+        "oracleId": "84c9d8b8-8dd9-41fc-a2b6-af1ffb9090f9",
+        "firstSet": "ktk",
+        "firstPrintId": "4fb6c2e0-eeaa-4d60-aab7-2b8c739a9278",
+        "firstPrintSet": "ktk",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -59038,6 +59148,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shaleskin Plower",
+        "scryfallId": "42658b33-9a12-403b-bc7d-807fbe1f1a36",
+        "oracleId": "859502df-127f-4577-88c0-923119d37b9d",
+        "firstSet": "lgn",
+        "firstPrintId": "42658b33-9a12-403b-bc7d-807fbe1f1a36",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Shallow Grave",
         "scryfallId": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
         "oracleId": "9843d8a6-bcbf-40c2-8c41-316e97db9c62",
@@ -60920,6 +61040,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skinthinner",
+        "scryfallId": "89b8c392-da68-4894-b6e8-eb430141a0d7",
+        "oracleId": "c4dee5fe-36f0-4155-9437-2c0504feba2c",
+        "firstSet": "lgn",
+        "firstPrintId": "89b8c392-da68-4894-b6e8-eb430141a0d7",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Skirge Familiar",
         "scryfallId": "935ee538-3ea1-4a80-bb8f-01d562f63b5d",
         "oracleId": "ba95f24d-42da-48ce-bcf1-1b7c4b3c45b5",
@@ -60927,6 +61057,16 @@
         "firstPrintId": "935ee538-3ea1-4a80-bb8f-01d562f63b5d",
         "firstPrintSet": "usg",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skirk Marauder",
+        "scryfallId": "24d9c8ea-bdb5-4d9a-9d1e-218540c4ad2c",
+        "oracleId": "8ba0e831-054a-4e01-92ed-2845bd2fa12f",
+        "firstSet": "pal03",
+        "firstPrintId": "24d9c8ea-bdb5-4d9a-9d1e-218540c4ad2c",
+        "firstPrintSet": "pal03",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -68894,6 +69034,16 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Thelonite Hermit",
+        "scryfallId": "4af2dbf0-5fb5-487b-a517-16a5dd98498a",
+        "oracleId": "69d2e5f3-2f4d-4a36-bcd5-181164ecd894",
+        "firstSet": "psal",
+        "firstPrintId": "4af2dbf0-5fb5-487b-a517-16a5dd98498a",
+        "firstPrintSet": "psal",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Thelonite Monk",
         "scryfallId": "5400ff25-c70e-4095-a228-190601b86043",
         "oracleId": "26b0b742-48f7-4ab5-93de-6bd39a7f61ea",
@@ -74914,6 +75064,16 @@
         "source": "compiled"
     },
     {
+        "name": "Voidmage Apprentice",
+        "scryfallId": "55924a25-e749-48f6-8ef1-1fa8376f96b1",
+        "oracleId": "980939db-d867-4c16-a288-52f6528f2376",
+        "firstSet": "lgn",
+        "firstPrintId": "55924a25-e749-48f6-8ef1-1fa8376f96b1",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Voidmage Prodigy",
         "scryfallId": "7441e7f9-a326-4f61-b7b1-e0dbed06046f",
         "oracleId": "7e2cacae-2934-4ff5-81c6-dfce7a2820ef",
@@ -77664,6 +77824,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wingbeat Warrior",
+        "scryfallId": "cd58d164-861d-4c80-ad2f-6283ed82faa1",
+        "oracleId": "857392fe-1ce6-4d53-b039-98339d292ebb",
+        "firstSet": "lgn",
+        "firstPrintId": "cd58d164-861d-4c80-ad2f-6283ed82faa1",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Winged Coatl",
         "scryfallId": "bd23ae2b-9f69-4d8d-87f9-ebcbccd67342",
         "oracleId": "11369d8b-6443-43c3-a60f-dd920a4e8c08",
@@ -78085,6 +78255,16 @@
         "firstPrintId": "b7f1fb90-5c85-46a5-802d-248cc0250921",
         "firstPrintSet": "por",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Woodcloaker",
+        "scryfallId": "4aa85e09-a1cd-473d-98cd-c6a7c7aff949",
+        "oracleId": "92d17a26-bf73-4b62-b826-4cbe913d5c5e",
+        "firstSet": "scg",
+        "firstPrintId": "4aa85e09-a1cd-473d-98cd-c6a7c7aff949",
+        "firstPrintSet": "scg",
+        "rarity": "common",
         "source": "compiled"
     },
     {

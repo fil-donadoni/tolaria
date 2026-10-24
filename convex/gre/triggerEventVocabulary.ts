@@ -169,6 +169,11 @@ export const EVENT_FIELD_KINDS: {
         permanentTypes: "scalar",
         permanentSubtypes: "scalar",
     },
+    // CR 708.8 — the permanent just turned face up, still on the battlefield.
+    PERMANENT_TURNED_FACE_UP: {
+        permanentId: "object",
+        controllerId: "player",
+    },
     PERMANENT_EXERTED: {
         permanentId: "object",
         controllerId: "player",

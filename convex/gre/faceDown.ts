@@ -13,7 +13,7 @@
 
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
-import type { CardInstanceState } from "./state/declarations";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /**
@@ -174,4 +174,32 @@ export function turnFaceUp(
     // stale one would pick a face-down face for a face-up permanent if any
     // future reader forgot to check `faceDown` first (issue #2904).
     delete card.faceDownBy;
+}
+
+/** CR 708.8 / 702.37e — turns a face-down PERMANENT face up where it stands on
+ *  the battlefield and queues `PERMANENT_TURNED_FACE_UP`, the event "when this
+ *  creature is turned face up" abilities trigger on (CR 603.2). The one
+ *  battlefield turn-up seam: the morph special action (mutation and search
+ *  alike) and a face-down sentinel's own replacement (Illusionary Mask) come
+ *  through here. The CR 708.9 reveal of an object LEAVING the battlefield or
+ *  the stack calls {@link turnFaceUp} directly and queues nothing — that card
+ *  is revealed as it moves, never turned face up as a permanent.
+ *
+ *  The event is queued only when the turn-up happened (a card whose real id is
+ *  missing from the registry stays face down, and nothing was turned up). */
+export function turnFaceUpOnBattlefield(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    if (!card.faceDown) return;
+    turnFaceUp(state, card);
+    if (card.faceDown) return;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_TURNED_FACE_UP",
+            permanentId: card.id,
+            controllerId: card.controllerId,
+        },
+    ];
 }

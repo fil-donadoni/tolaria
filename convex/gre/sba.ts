@@ -957,3 +957,26 @@ export function checkStateBasedActions(state: GameState): void {
     processPendingActionTriggers(state);
     applyStateTriggers(state);
 }
+
+/** CR 116.3 / 117.5 — what follows a special action that can raise triggers
+ *  (the CR 702.37e morph turn-face-up): the pass count resets, SBAs run, the
+ *  triggers the sweep drains go on the stack, and then the player who TOOK the
+ *  action receives priority. `processPendingActionTriggers` hands priority to
+ *  the active player, which is wrong here: either player may take a special
+ *  action. Left where the flush parked it when that flush suspended on a choice
+ *  (CR 603.3b ordering, CR 603.3d a trigger's targets): the chooser holds it
+ *  until they answer. */
+export function checkStateBasedActionsAfterSpecialAction(
+    state: GameState,
+    actorId: string
+): void {
+    state.passCount = 0;
+    const choicesBefore = state.pendingChoices?.length ?? 0;
+    const targetBefore = state.pendingTarget;
+    checkStateBasedActions(state);
+    if (state.gameOver) return;
+    const suspended =
+        (state.pendingChoices?.length ?? 0) > choicesBefore ||
+        state.pendingTarget !== targetBefore;
+    if (!suspended) state.priorityPlayerId = actorId;
+}

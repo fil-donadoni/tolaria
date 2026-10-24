@@ -460,7 +460,10 @@ import {
     recordBlockedAttackers,
     applyMeleeUnblockedRider,
 } from "./gre/banding";
-import { checkStateBasedActions } from "./gre/sba";
+import {
+    checkStateBasedActions,
+    checkStateBasedActionsAfterSpecialAction,
+} from "./gre/sba";
 import {
     canTurnFaceUp,
     getMorphCost,
@@ -468,7 +471,7 @@ import {
     morphTurnUpPaymentPlan,
 } from "./gre/morph";
 import { isOverloadAlternativeCost } from "./gre/overload";
-import { turnFaceUp } from "./gre/faceDown";
+import { turnFaceUpOnBattlefield } from "./gre/faceDown";
 import {
     adventureCastOptionFor,
     isAdventureCastAlternativeCost,
@@ -4451,13 +4454,13 @@ export function applyTurnPermanentFaceUp(
     // CR 702.37e — "then turn the permanent face up. The morph effect on it
     // ends, and it regains its normal characteristics." One primitive, shared
     // with ADR 0013's replacement-driven turn-up.
-    turnFaceUp(state, permanent);
+    turnFaceUpOnBattlefield(state, permanent);
 
     // CR 116 — a special action puts nothing on the stack and cannot be
-    // responded to, but it IS a game action: the pass cycle restarts and
+    // responded to, but it IS a game action: the pass cycle restarts, its
+    // "when this creature is turned face up" triggers go on the stack, and
     // priority stays with the player who took it (CR 117.3c).
-    state.passCount = 0;
-    checkStateBasedActions(state);
+    checkStateBasedActionsAfterSpecialAction(state, playerId);
 }
 
 export { payLoyaltyCost };

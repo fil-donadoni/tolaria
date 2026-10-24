@@ -177,7 +177,7 @@ import {
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { morphTurnUpPaymentPlan } from "./morph";
 import { applyCastModeCharacteristics } from "./castMode";
-import { turnFaceUp } from "./faceDown";
+import { turnFaceUpOnBattlefield } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
 import { genericManaShortfall, spendGraveyardPlayPermission } from "./rules";
@@ -1702,7 +1702,7 @@ export function turnFaceUpInSearch(
             if (tapped.has(src.id)) src.isTapped = true;
         }
     }
-    turnFaceUp(state, permanent);
+    turnFaceUpOnBattlefield(state, permanent);
 }
 
 /** CR 113.1b / 605.3a (issue #2903) — pay a PLAYER-level granted ability
