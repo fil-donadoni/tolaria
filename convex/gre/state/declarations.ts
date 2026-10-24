@@ -3001,6 +3001,10 @@ export type PendingActivation = {
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
+    /** CR 118.1 / 701.13a — the `cost.exileTopOfLibrary` leg's intent, carried
+     *  to commit so a cancelled mana payment leaves the library untouched
+     *  (CR 601.2h). Paid LAST at commit by `payExileTopOfLibraryCost`. */
+    exileTopOfLibrary?: boolean;
     /** In-progress "discard a card matching <filter>" cost picker (CR 602.1 /
      *  118.3 — Survival of the Fittest "Discard a creature card"). Set when
      *  the ability has `cost.discardFilter`. `pickedCardIds` is undefined

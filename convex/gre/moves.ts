@@ -37,6 +37,7 @@ import {
     canPayRemoveCounterCost,
     canPayLifeCost,
     canPayDiscardAtRandom,
+    canPayExileTopOfLibrary,
     applyCostModifiers,
     getCastManaSubstitutions,
     getCostModifiers,
@@ -4741,6 +4742,14 @@ function enumerateAbilityMoves(
         // hand size — so it read as safe while being illegal, and the search
         // pushed an activation the mutation rejects.
         if (ability.cost.discardAtRandom && !canPayDiscardAtRandom(player)) {
+            continue;
+        }
+        // CR 118.3 — "Exile the top card of your library" is illegal with an
+        // EMPTY library; the server throws "No card in library to exile".
+        if (
+            ability.cost.exileTopOfLibrary &&
+            !canPayExileTopOfLibrary(player)
+        ) {
             continue;
         }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" cost is
