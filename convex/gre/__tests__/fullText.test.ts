@@ -180,7 +180,7 @@ describe("full-text effect — presenting (CR 612.6 / 613.1c)", () => {
                 inGraveyard(BOLT, "bolt"),
             ]);
             const shifter = find(state, "shifter");
-            // CR 404.3 — the TOP card, unfiltered: a creature under the Bolt
+            // CR 404.2 — the TOP card, unfiltered: a creature under the Bolt
             // does not count.
             expect(presentedDefId(shifter)).toBe(SHAPESHIFTER);
             expect(shifter.fullTextAnchor).toBeUndefined();

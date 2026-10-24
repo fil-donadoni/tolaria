@@ -166,9 +166,10 @@ export function withdrawFullText(
 }
 
 /** The object whose full text `card` has right now, or undefined when the
- *  effect's condition is false. CR 404.3: the top of a graveyard is the LAST
- *  element. "Tokens aren't considered cards" (CR 108.2b), so a creature token that has
- *  just died and not yet ceased to exist (CR 704.5d) does not qualify. */
+ *  effect's condition is false. CR 404.1 / 404.2: the top of the ordered
+ *  pile is the LAST element. "Tokens aren't considered cards" (CR 108.2b), so
+ *  a creature token that has just died and not yet ceased to exist
+ *  (CR 704.5d) does not qualify. */
 function fullTextObject(
     state: GameState,
     card: CardInstanceState,

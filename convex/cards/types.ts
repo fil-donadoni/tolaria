@@ -3307,12 +3307,12 @@ export interface OffBattlefieldCharacteristics {
  *  Declared by {@link CardDefinition.fullText}; applied on the battlefield by
  *  `syncFullTextEffects` (`gre/fullText.ts`, which documents the reading).
  *
- *  The object is the TOP card of the controller's graveyard (CR 404.3 — the
+ *  The object is the TOP card of the controller's graveyard (CR 404.1 — the
  *  last element of `graveyard`), checked unfiltered: "as long as the top card
  *  of your graveyard is a creature card" is the top card IF it is one, never
  *  the topmost one that is. */
 export interface FullTextEffect {
-    /** CR 404.3 — whose graveyard's top card supplies the text. */
+    /** CR 404.1 — whose graveyard's top card supplies the text. */
     from: "controller-graveyard-top";
     /** The card type that top card must have for the effect to apply. */
     requiresType: CardType;
