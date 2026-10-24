@@ -321,6 +321,17 @@ export type StaticClauseIR =
           readonly kind: "as-enters-discard";
           readonly filter: { readonly type: CardType };
       }
+    /**
+     * CR 614.1a / 701.21a — "If <self> would enter, sacrifice a <basic land
+     * type> instead. If you do, put <self> onto the battlefield. If you
+     * don't, put it into its owner's graveyard": the mandatory sibling of
+     * `as-enters-discard`, sending the permanent to the graveyard only when
+     * the controller has nothing to sacrifice.
+     */
+    | {
+          readonly kind: "as-enters-sacrifice";
+          readonly filter: PermanentFilter;
+      }
     /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
@@ -2189,6 +2200,35 @@ const asEntersDiscardRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+/**
+ * "If this land would enter, sacrifice a Forest instead. If you do, put this
+ * land onto the battlefield. If you don't, put it into its owner's
+ * graveyard." (Heart of Yavimaya.) CR 614.1a makes the "instead" a
+ * replacement effect of the entry and CR 701.21a defines the sacrifice. Only
+ * a basic land type names the victim: that is the whole printed family, and a
+ * broader noun ("a land", "a creature") differs from the anchored text and
+ * stays refused. As with the discard form, a rider other than the graveyard
+ * on the decline branch stays refused.
+ */
+const AS_ENTERS_SACRIFICE =
+    /^If (.+) would enter, sacrifice an? (Plains|Island|Swamp|Mountain|Forest) instead\. If you do, put (.+) onto the battlefield\. If you don't, put it into its owner's graveyard$/;
+
+const asEntersSacrificeRule: Rule<StaticClauseIR> = pattern(
+    "as-enters sacrifice",
+    AS_ENTERS_SACRIFICE,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(match[1]!) || !isSelfPhrase(match[3]!))
+            return fail(
+                "the sacrificing permanent is not this object",
+                match[0]
+            );
+        return ok({
+            kind: "as-enters-sacrifice" as const,
+            filter: { subtypes: match[2]! },
+        });
+    }
+);
+
 // ── Frame: player shroud (CR 702.18) ────────────────────────────────────────
 
 /**
@@ -2269,6 +2309,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         extraLandDropRule,
         revealLibraryTopRule,
         asEntersDiscardRule,
+        asEntersSacrificeRule,
         playerShroudRule,
         flashCastCleanupSacrificeRule,
         shuffleFromAnywhereRule,

@@ -3844,6 +3844,19 @@ export type AsEntersChoice =
      *  in the same simultaneous batch may already have exiled a card. The
      *  matcher reads it as a GRAVEYARD card (CR 113.6b). */
     | { kind: "exileFromGraveyard"; filter?: EffectCardFilter }
+    /** CR 614.1a + CR 701.21a — "if this permanent would enter, sacrifice a
+     *  <filter> instead. If you do, put it onto the battlefield. If you don't,
+     *  put it into `ifDeclined`" (Heart of Yavimaya).
+     *
+     *  The MANDATORY sibling of `discard`: no "may", so a controller holding a
+     *  matching permanent must name one — the prompt's `count` floor is 1 — and
+     *  only a board with no legal victim sends the object to `ifDeclined`
+     *  (the card's own "If you don't" sentence, CR 614.1a). The victim is read
+     *  from the controller's battlefield as the choice is OFFERED, so a
+     *  sibling entry already answered is gone from it; prompts queued
+     *  together are NOT re-narrowed (CR 614.12b, `renarrowSiblingCostChoices`
+     *  covers `payLife` only) — no card enters two of these at once. */
+    | { kind: "sacrifice"; filter: PermanentFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
      *  marked with an anchor word". No shipped card uses anchor words; the kind
