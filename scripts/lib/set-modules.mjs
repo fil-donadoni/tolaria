@@ -72,9 +72,7 @@ export function barrelSource(code) {
         `// catalogue's \`import * as ${code} from "./sets/${code}/index.cards"\``,
         `// resolves here (ADR 0043, issue #4811).`,
         "",
-        ...COLOUR_MODULES.map(
-            (m) => `export * from "./${m}${SET_MODULE_SUFFIX}";`
-        ),
+        ...COLOUR_MODULES.map((m) => `export * from "./${m}${SET_MODULE_SUFFIX}";`),
         "",
     ].join("\n");
 }
@@ -100,17 +98,9 @@ export function writeSetDirectory(setsDir, code, sources, importLine) {
             cards.length === 0
                 ? `${header}\n\nexport {};\n`
                 : `${header}\n${importLine}\n\n${cards.join("\n\n")}\n`;
-        writeFileSync(
-            resolve(setDir, `${module}${SET_MODULE_SUFFIX}.ts`),
-            body,
-            "utf-8"
-        );
+        writeFileSync(resolve(setDir, `${module}${SET_MODULE_SUFFIX}.ts`), body, "utf-8");
     }
 
-    writeFileSync(
-        resolve(setDir, `index${SET_MODULE_SUFFIX}.ts`),
-        barrelSource(code),
-        "utf-8"
-    );
+    writeFileSync(resolve(setDir, `index${SET_MODULE_SUFFIX}.ts`), barrelSource(code), "utf-8");
     return setDir;
 }
