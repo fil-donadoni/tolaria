@@ -2624,6 +2624,28 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
         expect(commitsAhead(root)).toBe(0);
     });
 
+    // Issue #6765 — run on a feature branch one commit ahead of the base, the
+    // update was built on the branch's HEAD and a plain push fast-forwarded
+    // the base to it, landing the branch's own commit outside the queue.
+    it("on a branch ahead of the base, the update lands on the base tip alone — never the branch's commit", () => {
+        const { bare, root } = repos();
+        const seed = git(root, ["rev-parse", "HEAD"]);
+        git(root, ["checkout", "-q", "-b", "feat/x"]);
+        writeFileSync(join(root, "feature.txt"), "feature\n");
+        git(root, ["add", "feature.txt"]);
+        git(root, ["commit", "-q", "-m", "feature"]);
+        expect(commitAndPushAllowlist(root, addOp(6))).toBe(true);
+        expect(git(bare, ["rev-parse", `${BASE_BRANCH}^`])).toBe(seed);
+        expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
+            ALLOWLIST_COMMIT_SUBJECT
+        );
+        expect(
+            spawnSync("git", ["cat-file", "-e", `${BASE_BRANCH}:feature.txt`], {
+                cwd: bare,
+            }).status
+        ).not.toBe(0);
+    });
+
     it("a landing that moved the allowlist itself is merged, not conflicted: the rows are re-applied to the allowlist it wrote", () => {
         const { bare, root } = repos();
         landElsewhere(bare, root, ALLOWLIST_PATH, '{"ops":[9]}\n');

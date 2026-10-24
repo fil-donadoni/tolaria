@@ -752,15 +752,37 @@ export function commitAndPushAllowlist(
         }
         return built.sha;
     };
-    const push = (sha: string) =>
-        git(["push", "-q", "origin", `${sha}:refs/heads/${BASE_BRANCH}`], {
-            timeout: netTimeoutMs,
-        });
+    // A compare-and-swap on the commit's parent (issue #6765): the push lands
+    // only while the base tip IS that parent. A plain push accepted any
+    // fast-forward, so a run on a feature branch rebased onto the base landed
+    // the branch's own commits with the allowlist update, outside the queue.
+    // Refused there, the update is re-applied on the fetched tip below.
+    const push = (sha: string, parent: string) =>
+        git(
+            [
+                "push",
+                "-q",
+                `--force-with-lease=refs/heads/${BASE_BRANCH}:${parent}`,
+                "origin",
+                `${sha}:refs/heads/${BASE_BRANCH}`,
+            ],
+            { timeout: netTimeoutMs }
+        );
+    const resolve = (rev: string): string | null => {
+        const r = git(["rev-parse", "--verify", "-q", `${rev}^{commit}`]);
+        if (r.status !== 0 || r.stdout.trim() === "") {
+            console.error(`gaps:sync: could not resolve ${rev}: ${why(r)}`);
+            return null;
+        }
+        return r.stdout.trim();
+    };
 
-    let sha = build("HEAD");
+    const head = resolve("HEAD");
+    if (head === null) return false;
+    let sha = build(head);
     if (sha === null) return false;
     if (sha === "unchanged") return true;
-    const first = push(sha);
+    const first = push(sha, head);
     if (first.status !== 0) {
         console.error(
             `gaps:sync: could not push the allowlist update to ${BASE_BRANCH}: ${why(first)} — re-applying it on the fetched tip, once`
@@ -774,10 +796,12 @@ export function commitAndPushAllowlist(
             );
             return false;
         }
-        sha = build(ORIGIN_BASE);
+        const tip = resolve(ORIGIN_BASE);
+        if (tip === null) return false;
+        sha = build(tip);
         if (sha === null) return false;
         if (sha === "unchanged") return true;
-        const again = push(sha);
+        const again = push(sha, tip);
         if (again.status !== 0) {
             console.error(
                 `gaps:sync: the allowlist update did not land on the second push either: ${why(again)}`
