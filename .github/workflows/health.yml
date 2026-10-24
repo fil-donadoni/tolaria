@@ -7,7 +7,8 @@
 # every gate its run never reached — all green, the RED closes as GREEN and
 # the flaky test is filed; reproduced, the bisect names the culprit PR in the
 # evidence (scripts/health-bisect.ts). A RED is climbed once. Its next
-# rungs — fix forward, revert the culprit, stop — are health-fix.yml's,
+# rungs — revert the named culprit FIRST (ADR 0158 § 3), fix forward only
+# when the revert conflicts or no culprit is named, stop — are health-fix.yml's,
 # dispatched to this machine whenever one is owed (issue #5646).
 #
 # `job: ladder` is the same ladder for a RED someone else found:
@@ -66,8 +67,8 @@ jobs:
               if: always()
               continue-on-error: true
               run: bun run health:bisect ladder
-            # The ladder's next rungs (issue #5646): fix forward, revert,
-            # stop — on this machine, which saw the RED. Asked every run, so
+            # The ladder's next rungs (issue #5646): revert first, fix
+            # forward only where a revert cannot (ADR 0158 § 3), stop — on this machine, which saw the RED. Asked every run, so
             # a lost dispatch is re-sent; a rung in flight waits.
             - name: Next rung (fix, revert, stop)
               id: rung

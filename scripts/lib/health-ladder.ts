@@ -5,15 +5,20 @@
  * `lib/health-bisect.ts`'s; their mark on the evidence (`LADDER_MARK`) is
  * what admits a RED here.
  *
- *   4. **Fix forward** — the headless fixer (`health:fix --headless`), at
+ * ADR 0158 § 3 (amends ADR 0156 rungs 4–5): a named culprit is reverted
+ * FIRST; fix-forward is the reopened issue's ordinary pass, under no RED.
+ *
+ *   4. **Revert** — the bisect named a culprit: a revert PR of its commit,
+ *      queued as a repair; the culprit's issue reopens with the evidence
+ *      for a fresh pass that lands the culprit again WITH the fix.
+ *   5. **Fix forward** — only what a revert cannot handle: the revert does
+ *      not apply (a later PR depends on the culprit), or the bisect named
+ *      no single culprit. The headless fixer (`health:fix --headless`), at
  *      most `MAX_FIX_ATTEMPTS` attempts per RED episode, each bounded by
  *      `FIX_ATTEMPT_TIMEOUT_MS`.
- *   5. **Revert** — both attempts stuck, or a second RED after a repair
- *      landed: a revert PR of the culprit's commit, queued as a repair; the
- *      culprit's issue reopens with the evidence.
- *   6. **Stop** — a revert that cannot be made or cannot land, a RED that
- *      outlives its revert, a RED with no culprit: one `ready-for-human`
- *      issue, one failed run (the email), the queue held by the RED itself.
+ *   6. **Stop** — a revert that cannot land, a RED that outlives its
+ *      revert, fixer attempts used up: one `ready-for-human` issue, one
+ *      failed run (the email), the queue held by the RED itself.
  *
  * Every decision is a pure function of facts read from the pivot (verdicts,
  * evidence, fix-attempt records), the base tip and the revert PR's state;
@@ -186,12 +191,23 @@ export function ownRepairPrs(
         .map((pr) => pr.number);
 }
 
-function revertOrStop(facts: LadderFacts, why: string): Rung {
+/** Revert the culprit, or stop: no culprit to revert, or the revert was
+ *  already tried and did not apply (`revertSpent`). */
+function revertOrStop(
+    facts: LadderFacts,
+    why: string,
+    revertSpent: boolean
+): Rung {
     const culprit = episodeCulprit(facts.episode);
     if (culprit === null)
         return {
             kind: "stop",
             why: `${why}, and the bisect named no culprit to revert — the failure cannot be isolated`,
+        };
+    if (revertSpent)
+        return {
+            kind: "stop",
+            why: `${why}, and the revert of the culprit does not apply`,
         };
     return { kind: "revert", culprit, attempt: 1, why };
 }
@@ -204,10 +220,13 @@ function revertOrStop(facts: LadderFacts, why: string): Rung {
  *  - a tip health has not gated (a repair just merged) waits for its verdict;
  *  - a RED whose flake check and bisect have not run waits for them;
  *  - the revert, once tried, decides alone: in the queue → wait; landed and
- *    still RED, or unable to land → stop;
+ *    still RED, or unable to land → stop; a revert that does not apply
+ *    (conflict) falls through to the fixer (ADR 0158 § 3);
  *  - a repair another session declared, its PR open → wait for it;
  *  - a repair that landed and left a RED (a second RED) → revert;
- *  - fixer attempts left → the next one; none → revert.
+ *  - a named culprit → revert it FIRST (ADR 0158 § 3);
+ *  - no culprit, or the revert did not apply: fixer attempts left → the next
+ *    one; none → stop.
  */
 export function ladderRung(facts: LadderFacts): Rung {
     if (facts.error)
@@ -245,54 +264,59 @@ export function ladderRung(facts: LadderFacts): Rung {
         .filter((a): a is FixAttempt => a !== null);
 
     const revert = records.find((a) => rungOf(a) === "revert");
+    // A revert that does not apply (a later PR depends on the culprit) is
+    // spent: the fixer takes the RED (ADR 0158 § 3), the revert never again.
+    let revertSpent = false;
     if (revert !== undefined) {
         const tries = revert.attempt ?? 1;
-        if (
+        const transient =
             revert.outcome === "stuck" &&
-            revert.note?.startsWith(TRANSIENT_NOTE) &&
-            tries < MAX_REVERT_TRIES
-        ) {
+            revert.note?.startsWith(TRANSIENT_NOTE);
+        if (transient && tries < MAX_REVERT_TRIES) {
             const culprit = episodeCulprit(facts.episode);
             if (culprit !== null)
                 return {
                     kind: "revert",
                     culprit,
                     attempt: tries + 1,
-                    why: `revert try ${tries} failed (${revert.note.slice(TRANSIENT_NOTE.length)}) — try ${tries + 1} of ${MAX_REVERT_TRIES}`,
+                    why: `revert try ${tries} failed (${revert.note?.slice(TRANSIENT_NOTE.length)}) — try ${tries + 1} of ${MAX_REVERT_TRIES}`,
                 };
         }
-        if (revert.outcome === "stuck")
+        if (transient)
             return {
                 kind: "stop",
-                why: `the revert could not be made${revert.note ? ` — ${revert.note}` : ""}`,
+                why: `the revert could not be made — ${revert.note}`,
             };
-        const pr = facts.revertPr;
-        if (pr === null)
-            return stale(revert, facts.now)
-                ? {
-                      kind: "stop",
-                      why: "a revert started and never opened its PR",
-                  }
-                : { kind: "wait", why: "a revert is being made" };
-        if (pr.state === "merged")
+        if (revert.outcome === "stuck") revertSpent = true;
+        else {
+            const pr = facts.revertPr;
+            if (pr === null)
+                return stale(revert, facts.now)
+                    ? {
+                          kind: "stop",
+                          why: "a revert started and never opened its PR",
+                      }
+                    : { kind: "wait", why: "a revert is being made" };
+            if (pr.state === "merged")
+                return {
+                    kind: "stop",
+                    why: `the RED stands after the revert PR #${pr.number} landed — the failure cannot be isolated`,
+                };
+            if (pr.state === "closed" || pr.landFailed)
+                return {
+                    kind: "stop",
+                    why: `the revert PR #${pr.number} cannot land (${pr.state === "closed" ? "closed unmerged" : "land-failed"})`,
+                };
+            if (olderThan(revert, REVERT_QUEUE_MAX_MS, facts.now))
+                return {
+                    kind: "stop",
+                    why: `the revert PR #${pr.number} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,
+                };
             return {
-                kind: "stop",
-                why: `the RED stands after the revert PR #${pr.number} landed — the failure cannot be isolated`,
+                kind: "wait",
+                why: `the revert PR #${pr.number} is in the queue`,
             };
-        if (pr.state === "closed" || pr.landFailed)
-            return {
-                kind: "stop",
-                why: `the revert PR #${pr.number} cannot land (${pr.state === "closed" ? "closed unmerged" : "land-failed"})`,
-            };
-        if (olderThan(revert, REVERT_QUEUE_MAX_MS, facts.now))
-            return {
-                kind: "stop",
-                why: `the revert PR #${pr.number} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,
-            };
-        return {
-            kind: "wait",
-            why: `the revert PR #${pr.number} is in the queue`,
-        };
+        }
     }
 
     // A repair an interactive session declared, its PR in flight: the ladder
@@ -322,7 +346,8 @@ export function ladderRung(facts: LadderFacts): Rung {
     if (landed !== undefined && landed.sha !== red)
         return revertOrStop(
             facts,
-            `a second RED follows the repair${landed.pr ? ` PR #${landed.pr}` : ""}`
+            `a second RED follows the repair${landed.pr ? ` PR #${landed.pr}` : ""}`,
+            revertSpent
         );
     if (landed !== undefined)
         return {
@@ -330,7 +355,24 @@ export function ladderRung(facts: LadderFacts): Rung {
             why: `a repair${landed.pr ? ` (PR #${landed.pr})` : ""} landed against ${short(red)}${landed.classGuard ? ` (its class guard is the owner's: issue #${landed.classGuard})` : ""} — health confirms on its tip`,
         };
     if (facts.secondRed)
-        return revertOrStop(facts, "a second RED follows a proved repair");
+        return revertOrStop(
+            facts,
+            "a second RED follows a proved repair",
+            revertSpent
+        );
+
+    // Rung 4 (ADR 0158 § 3): a named culprit is reverted FIRST; its issue
+    // reopens and the fix-forward is that issue's ordinary pass. The fixer
+    // below is only for what a revert cannot handle — the revert does not
+    // apply (`revertSpent`) or the bisect named no single culprit.
+    const culprit = episodeCulprit(facts.episode);
+    if (culprit !== null && !revertSpent)
+        return {
+            kind: "revert",
+            culprit,
+            attempt: 1,
+            why: `revert the culprit of ${short(red)} first — its issue's fresh pass lands it again with the fix`,
+        };
 
     const used = fixes.reduce((n, a) => Math.max(n, a.attempt ?? 1), 0);
     if (used < MAX_FIX_ATTEMPTS)
@@ -339,13 +381,13 @@ export function ladderRung(facts: LadderFacts): Rung {
             attempt: used + 1,
             why:
                 used === 0
-                    ? `fix forward ${short(red)}`
+                    ? `fix forward ${short(red)}${revertSpent ? " — the revert of the culprit does not apply" : " — the bisect named no culprit"}`
                     : `fixer attempt ${used} was stuck — attempt ${used + 1} of ${MAX_FIX_ATTEMPTS}`,
         };
-    return revertOrStop(
-        facts,
-        `both fixer attempts on ${short(red)} were stuck`
-    );
+    return {
+        kind: "stop",
+        why: `both fixer attempts on ${short(red)} were stuck${culprit === null ? ", and the bisect named no culprit to revert — the failure cannot be isolated" : ", and the revert of the culprit does not apply"}`,
+    };
 }
 
 /**
@@ -459,7 +501,7 @@ export function revertIssueBody(input: {
     return [
         "## What to build",
         "",
-        `Revert ${who}, the culprit the bisect named for the RED at \`${input.red}\`: ${input.why}. The RED ladder's last resort before it stops (ADR 0156 Amendment I, rung 5).`,
+        `Revert ${who}, the culprit the bisect named for the RED at \`${input.red}\`: ${input.why}. The RED ladder's first rung once a culprit is named (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
         "",
         "## Acceptance criteria",
         "",
@@ -489,7 +531,7 @@ export function revertPrBody(input: {
             ? `PR #${input.culprit.pr}`
             : `\`${input.culprit.sha}\``;
     return [
-        `Reverts ${who}, the commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` (ADR 0156 Amendment I, rung 5).`,
+        `Reverts ${who}, the commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
         "",
         `Closes #${input.issue}`,
         "",
@@ -515,7 +557,7 @@ export function reopenComment(input: {
     evidence: string | null;
 }): string {
     return [
-        `Reopened by the RED ladder: ${input.culprit.pr !== null ? `PR #${input.culprit.pr}` : `\`${input.culprit.sha}\``} turned the base RED at \`${input.red.slice(0, 12)}\`, the fixer did not repair it for good, and PR #${input.revertPr} reverts it. A fresh pass re-implements this issue against the evidence below.`,
+        `Reopened by the RED ladder: ${input.culprit.pr !== null ? `PR #${input.culprit.pr}` : `\`${input.culprit.sha}\``} turned the base RED at \`${input.red.slice(0, 12)}\`, and PR #${input.revertPr} reverts it. A fresh pass lands this issue again WITH the fix, against the evidence below (ADR 0158 § 3).`,
         "",
         input.evidence ?? "_no evidence published_",
     ].join("\n");

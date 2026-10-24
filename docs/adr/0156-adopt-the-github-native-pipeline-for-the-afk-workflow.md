@@ -571,6 +571,8 @@ because the old loop stopped on RED. Zero reverts. The ladder:
    an unisolable failure stops the flow — one email, one `ready-for-human`
    issue with the evidence, the queue held, no new passes.
 
+_Rungs 4–5 are reordered by [ADR 0158](0158-the-bot-play-sweep-leaves-the-pr-and-a-red-is-reverted-first.md) § 3: a named culprit is reverted first, fix-forward is the reopened issue's pass._
+
 Target, read on the cockpit: at least 80 % of RED episodes back to green
 without the owner, p90 under 6 h.
 

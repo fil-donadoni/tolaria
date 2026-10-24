@@ -25,6 +25,7 @@ import {
     ladderRung,
     MAX_FIX_ATTEMPTS,
     parseCulprit,
+    reopenComment,
     revertBranch,
     revertPrBody,
     type EpisodeRed,
@@ -62,6 +63,15 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         escalated: null,
         now: NOW,
         ...over,
+    };
+}
+
+/** The facts of a RED the bisect named no culprit for: the fixer's. */
+function noCulprit(over: Partial<LadderFacts> = {}): LadderFacts {
+    const f = facts(over);
+    return {
+        ...f,
+        episode: f.episode.map((r) => ({ ...r, culprit: null })),
     };
 }
 
@@ -110,19 +120,45 @@ describe("ladderRung — what is not the ladder's yet", () => {
     });
 });
 
-describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
-    it("a fresh RED gets fixer attempt 1", () => {
-        expect(ladderRung(facts())).toMatchObject({ kind: "fix", attempt: 1 });
+describe("ladderRung — rung 4, a named culprit is reverted first (ADR 0158 § 3)", () => {
+    it("a fresh RED with a culprit → the revert, never the fixer", () => {
+        expect(ladderRung(facts())).toMatchObject({
+            kind: "revert",
+            culprit: CULPRIT,
+            attempt: 1,
+        });
+    });
+
+    it("a culprit named on an earlier RED of the episode is reverted too", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprit: null },
+            { sha: OLD_RED, attempt: null, culprit: CULPRIT },
+        ];
+        expect(ladderRung(facts({ episode }))).toMatchObject({
+            kind: "revert",
+            culprit: CULPRIT,
+        });
+    });
+});
+
+describe("ladderRung — rung 5, fix forward only where a revert cannot, at most two attempts", () => {
+    it("a RED with no culprit gets fixer attempt 1", () => {
+        expect(ladderRung(noCulprit())).toMatchObject({
+            kind: "fix",
+            attempt: 1,
+        });
     });
 
     it("attempt 1 stuck → attempt 2", () => {
         expect(
-            ladderRung(facts({ episode: withAttempt({ attempt: 1 }) }))
+            ladderRung(noCulprit({ episode: withAttempt({ attempt: 1 }) }))
         ).toMatchObject({ kind: "fix", attempt: 2 });
     });
 
     it("a record from before the ladder (no rung, no attempt) counts as attempt 1", () => {
-        expect(ladderRung(facts({ episode: withAttempt({}) }))).toMatchObject({
+        expect(
+            ladderRung(noCulprit({ episode: withAttempt({}) }))
+        ).toMatchObject({
             kind: "fix",
             attempt: 2,
         });
@@ -149,7 +185,7 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
         const at = new Date(NOW - ATTEMPT_STALE_MS - 1).toISOString();
         expect(
             ladderRung(
-                facts({
+                noCulprit({
                     episode: withAttempt({
                         outcome: "attempting",
                         attempt: 1,
@@ -164,8 +200,8 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
         const episode: EpisodeRed[] = [
             { sha: RED, attempt: null, culprit: CULPRIT },
             ...withAttempt({ attempt: MAX_FIX_ATTEMPTS }, OLD_RED),
-        ];
-        expect(ladderRung(facts({ episode })).kind).toBe("revert");
+        ].map((r) => ({ ...r, culprit: null }));
+        expect(ladderRung(facts({ episode })).kind).toBe("stop");
     });
 
     it("a repair landed against the standing RED waits for health", () => {
@@ -209,7 +245,7 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
         });
     });
 
-    it("a stuck attempt (instance fix not defensible) still reaches the revert rung", () => {
+    it("a stuck attempt on a culprit-less RED with the bisect later naming one reaches the revert", () => {
         expect(
             ladderRung(
                 facts({
@@ -222,13 +258,69 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
         ).toMatchObject({
             kind: "revert",
             culprit: CULPRIT,
-            why: expect.stringContaining("stuck"),
         });
+    });
+
+    it("a revert that does not apply (conflict) hands the RED to the fixer (ADR 0158 § 3)", () => {
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        rung: "revert",
+                        outcome: "stuck",
+                        note: "conflict",
+                    }),
+                })
+            )
+        ).toMatchObject({
+            kind: "fix",
+            attempt: 1,
+            why: expect.stringContaining("does not apply"),
+        });
+    });
+
+    it("…and never reverts again: fixer attempts used up → stop", () => {
+        const episode: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: {
+                    sha: RED,
+                    rung: "revert",
+                    outcome: "stuck",
+                    note: "conflict",
+                    at: RECENT,
+                },
+                culprit: CULPRIT,
+            },
+            ...withAttempt({ attempt: MAX_FIX_ATTEMPTS }, OLD_RED),
+        ];
+        expect(ladderRung(facts({ episode }))).toMatchObject({
+            kind: "stop",
+            why: expect.stringContaining("does not apply"),
+        });
+    });
+
+    it("…and a second RED after a fixer's landing, revert spent → stop, not a second revert", () => {
+        const episode: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: {
+                    sha: RED,
+                    rung: "revert",
+                    outcome: "stuck",
+                    note: "conflict",
+                    at: RECENT,
+                },
+                culprit: CULPRIT,
+            },
+            ...withAttempt({ outcome: "landed", pr: 5800 }, OLD_RED),
+        ];
+        expect(ladderRung(facts({ episode })).kind).toBe("stop");
     });
 });
 
-describe("ladderRung — rung 5, revert as the last resort", () => {
-    it("both attempts stuck → revert the culprit", () => {
+describe("ladderRung — the revert, whenever a repair did not hold", () => {
+    it("fixer attempts on the episode do not delay the revert of a named culprit", () => {
         expect(
             ladderRung(
                 facts({ episode: withAttempt({ attempt: MAX_FIX_ATTEMPTS }) })
@@ -252,7 +344,7 @@ describe("ladderRung — rung 5, revert as the last resort", () => {
         expect(ladderRung(facts({ secondRed: true })).kind).toBe("revert");
     });
 
-    it("no culprit named → stop, not a guess", () => {
+    it("no culprit named, both attempts stuck → stop, not a guess", () => {
         expect(
             ladderRung(
                 facts({
@@ -303,20 +395,21 @@ describe("ladderRung — rung 6, stop", () => {
         pr: 5900,
     });
 
-    it("a revert that does not apply stops", () => {
+    it("a revert that failed for a transient reason, tries used up, stops", () => {
         expect(
             ladderRung(
                 facts({
                     episode: withAttempt({
                         rung: "revert",
                         outcome: "stuck",
-                        note: "conflict",
+                        attempt: MAX_REVERT_TRIES,
+                        note: `${TRANSIENT_NOTE}push refused`,
                     }),
                 })
             )
         ).toMatchObject({
             kind: "stop",
-            why: expect.stringContaining("conflict"),
+            why: expect.stringContaining("push refused"),
         });
     });
 
@@ -535,6 +628,20 @@ describe("the ladder's facts and texts", () => {
         ).toEqual(a);
     });
 
+    it("the reopened issue's comment carries the evidence and the fix-with-it pass (ADR 0158 § 3)", () => {
+        const body = reopenComment({
+            red: RED,
+            culprit: CULPRIT,
+            revertPr: 5900,
+            evidence: "FAIL searchCost pins",
+        });
+        expect(body).toContain("PR #5700");
+        expect(body).toContain("PR #5900 reverts it");
+        expect(body).toContain("FAIL searchCost pins");
+        expect(body).toContain("WITH the fix");
+        expect(body).not.toContain("fixer did not repair");
+    });
+
     it("the revert PR closes its repair issue — what `base-health` admits it by", () => {
         const body = revertPrBody({
             issue: 6001,
@@ -623,7 +730,7 @@ describe("review fixes — the bounds no rung can escape", () => {
         const old = new Date(NOW - LANDED_WAIT_MS - 1).toISOString();
         expect(
             ladderRung(
-                facts({
+                noCulprit({
                     episode: withAttempt({
                         outcome: "landed",
                         attempt: 1,
@@ -774,12 +881,12 @@ describe("ladderRung — a repair declared outside the ladder (issue #6554)", ()
     ])("a PR %s releases the ladder to its own rung", (_n, over) => {
         expect(
             ladderRung(facts({ foreignRepairs: repair(over) }))
-        ).toMatchObject({ kind: "fix", attempt: 1 });
+        ).toMatchObject({ kind: "revert", attempt: 1 });
     });
 
     it("a declared repair with no PR yet does not hold the ladder", () => {
         expect(ladderRung(facts({ foreignRepairs: repair(null) })).kind).toBe(
-            "fix"
+            "revert"
         );
     });
 });
