@@ -41,10 +41,8 @@ import { beginLayer7Pass, getEffectivePT, type Layer7Pass } from "./layers";
 import {
     isCreature,
     isLand,
-    isUntappedManaSource,
     hasNonManaActivatedAbility,
     isTapLockedBySummoningSickness,
-    getProducibleColorsOnBoard,
     hasInstantSpeed,
     manaValue,
     finiteManaUsesRemaining,
@@ -126,6 +124,7 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import { sourceQuality } from "./ai/sourceQuality";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeLatentLens } from "./ai/grounding";
 import {
@@ -2416,26 +2415,8 @@ function untappedSourceQuality(
         battlefield: p.battlefield,
     }));
     let bonus = 0;
-    for (const perm of me.battlefield) {
-        // CR 605.1a / 305.6 — score only sources that can produce mana; a
-        // fetchland (no mana ability) is not one, even though `isLand` is true
-        // and its search ability makes it "dual-purpose" (issue #1499). Nor is
-        // a board-conditional source currently producing zero (issue #1889).
-        if (!isUntappedManaSource(perm, me.battlefield)) continue;
-        // Only score a source with a real definition — a token without one
-        // (`getProducibleColorsOnBoard` reads the throwing `getDefinition`) contributes
-        // nothing to source quality.
-        if (!tryGetDefinition((perm.card as { id?: string }).id ?? ""))
-            continue;
-        // CR 106.4 (issue #1941) — BOARD-aware breadth: a board-derived
-        // colour set (Meteor Crater, Fellwar Stone) is worth exactly what it
-        // currently offers, not the five-colour no-board fallback its static
-        // `manaChoices` carries.
-        const breadth = getProducibleColorsOnBoard(perm, battlefields).size;
-        if (breadth > 1) bonus += (breadth - 1) * weights.sourceBreadthWeight;
-        if (hasNonManaActivatedAbility(perm))
-            bonus += weights.sourceDualPurposeWeight;
-    }
+    for (const perm of me.battlefield)
+        bonus += sourceQuality(perm, me.battlefield, battlefields, weights);
     return bonus;
 }
 

@@ -407,6 +407,13 @@
             "needsSetup": false
         }
     ],
+    "Mishra's Factory": [
+        {
+            "label": "land search: fetches the utility land when the hand's colours are covered",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Monk Realist": [
         {
             "label": "type-blind potential: casts Monk Realist into an opposing Glorious Anthem",
@@ -443,6 +450,13 @@
             "label": "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Plains": [
+        {
+            "label": "land search: fetches the basic that is the only source of the hand's colour",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Polluted Delta": [
