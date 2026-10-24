@@ -69,12 +69,16 @@
  * dirty-tree refusal applies here too, and an uncommitted card is a path the
  * classifier cannot see.
  *
- * NO STALENESS REFUSAL (ADR 0136 §1). Issue #3286 made this refuse a tree
- * behind the base tip or a RED base before paying the gate, to stop a
- * hand-run PRE-PR gate being paid twice. There is no pre-PR gate any more —
- * `land` pays the lane once, on the rebased tip, inside the mutex — so the
- * refusal went with it. A hand-run `check:lane` gates whatever HEAD is, stale
- * or not.
+ * NO STALENESS REFUSAL HERE (ADR 0136 §1, issue #6647). Issue #3286 made this
+ * refuse a tree behind the base tip or a RED base before paying the gate, to
+ * stop a hand-run PRE-PR gate being paid twice; the refusal went with that
+ * gate. Freshness is the base-drift preflight's (`bun run base:drift`,
+ * `lib/base-drift.ts`): `/next-ticket` runs it before the review and any
+ * verification beyond targeted tests, `land:ready` as its step 0 (behind →
+ * rebases and pushes, overlap → refuses with the list), a `--resume` repair
+ * before its push; the Mergify queue then rebases the PR in a draft before
+ * this lane runs there. The land-runner is retired (issue #5643). A hand-run
+ * `check:lane` gates whatever HEAD is, stale or not.
  *
  * `--preflight` (issue #4967, `land`'s static half on the un-rebased head) is
  * retired with `land`'s preflight (ADR 0154 §5, issue #5457).
