@@ -35,6 +35,7 @@ import type {
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
 import { LAND_SUBTYPE_MANA, manaValue } from "../constants";
 import { targetSlotBeneficence } from "./beneficence";
+import { childOpArrays } from "./effectOpChildren";
 
 /** The plain creature every generated position seeds (both sides), and the
  *  first choice for a requirement it already satisfies. */
@@ -769,6 +770,48 @@ function untapPose(def: CardDefinition): TargetPose | null {
     };
 }
 
+/** The opposing creature an exchange of control is posed against: an 8/8,
+ *  worth more than any body the exchange hands over, so trading for it is an
+ *  outcome the holder can want. Against the position's plain creature the
+ *  exchange is a downgrade and passing is the right play. */
+const EXCHANGE_PRIZE = "Force of Nature";
+
+/** Does `ops` (or any script nested in it) run a `gainControl` on `$source`
+ *  (the card hands itself over) beside one on an announced target (it takes
+ *  that permanent) — an exchange of control (CR 701.12)? */
+function exchangesControl(ops: readonly EffectOp[]): boolean {
+    let gives = false;
+    let takes = false;
+    const walk = (list: readonly EffectOp[]): void => {
+        for (const op of list) {
+            if (op.op === "gainControl") {
+                const target = op.target as { ref?: unknown; target?: unknown };
+                if (target.ref === "$source") gives = true;
+                else if (typeof target.target === "number") takes = true;
+            }
+            for (const child of childOpArrays(op)) walk(child);
+        }
+    };
+    walk(ops);
+    return gives && takes;
+}
+
+/**
+ * CR 701.12 — an exchange of control with the card itself hands the opponent
+ * the card's own body for theirs. In the position's plain-creature board that
+ * is a downgrade (the card is the better body), and passing is the right
+ * play; the pose gives the opponent a creature worth more than the card, the
+ * thing an exchange is worth casting for. `null` when `def` exchanges nothing.
+ */
+function exchangePose(def: CardDefinition): TargetPose | null {
+    if (!exchangesControl(def.effects ?? [])) return null;
+    return {
+        cards: [{ name: EXCHANGE_PRIZE, owner: "opp", zone: "battlefield" }],
+        omitToughnessBoost: false,
+        position: {},
+    };
+}
+
 /** The card a recursion spell returns, by the card type its requirement names
  *  — an artifact (alone, or with enchantment), a sorcery, or an instant or
  *  sorcery (the two spell types together). */
@@ -839,7 +882,11 @@ function requirementPose(
     // A requirement that narrows keeps its own pose (a combat role, a subtype);
     // the untap pose fills only the plain-creature case that had none.
     if (!req || !narrows(req))
-        return (modeId === undefined ? untapPose(def) : null) ?? NO_POSE;
+        return (
+            (modeId === undefined
+                ? (untapPose(def) ?? exchangePose(def))
+                : null) ?? NO_POSE
+        );
     const printed = creatureFor(req);
     const granted = printed === null ? grantedBody(req) : null;
     const body = printed ?? granted?.body ?? null;
