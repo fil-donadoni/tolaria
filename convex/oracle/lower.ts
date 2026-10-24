@@ -85,6 +85,7 @@ interface Accumulator {
     /** CR 702.8a — "You may cast this spell as though it had flash." */
     castAsThoughFlash: boolean;
     damagePreventionCounterRemoval: boolean;
+    preventsDamageToController: boolean;
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
@@ -570,6 +571,8 @@ function lowerLine(
             );
             if (out.damagePreventionCounterRemoval === true)
                 acc.damagePreventionCounterRemoval = true;
+            if (out.preventsDamageToController === true)
+                acc.preventsDamageToController = true;
             if (out.extraLandDrops !== undefined)
                 acc.extraLandDrops += out.extraLandDrops;
             if (out.revealsLibraryTop !== undefined)
@@ -835,6 +838,7 @@ export function lowerCard(
         shuffleFromAnywhere: false,
         castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
+        preventsDamageToController: false,
         extraLandDrops: 0,
         revealsLibraryTop: false,
         asEntersDiscards: [],
@@ -982,6 +986,9 @@ export function lowerCard(
     // CR 615 — likewise a closure pair; `expandDefinition` rebuilds it.
     if (acc.damagePreventionCounterRemoval)
         definition.damagePreventionCounterRemoval = true;
+    // CR 615 — likewise a closure; `expandDefinition` rebuilds it.
+    if (acc.preventsDamageToController)
+        definition.preventsDamageToController = true;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second
