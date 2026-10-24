@@ -18,6 +18,7 @@
  * Pure: no I/O. `check-lane.ts` / `land-ready.ts` do the git and the shell.
  */
 import {
+    CHEAP_GUARDS,
     fullLaneSecondsSteps,
     type LanePlan,
     type PlannedCheck,
@@ -37,6 +38,30 @@ export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
  * admission) — not seconds.
  */
 const WHOLE_PROJECT_VITEST = /^bunx vitest run( --project \S+)+\s*$/;
+
+/**
+ * The pure/offline tier (issue #6620): `bun run <script>` steps that read the
+ * tree and run no vitest — seconds each. They run FIRST and ALL of them (a
+ * session fixes five findings once, not in five rounds); a red anywhere in the
+ * tier means the tests behind it never start. Derived from `CHEAP_GUARDS`
+ * (the ones that are plain scripts) plus the lane's other offline checks —
+ * never a second list of guards.
+ */
+const CHEAP_TIER_COMMANDS: ReadonlySet<string> = new Set([
+    ...CHEAP_GUARDS.filter((g) => g.command === undefined).map(
+        (g) => `bun run ${g.id}`
+    ),
+    "bun run cr:lint",
+    "bun run check:index",
+    "bun run check:stubs",
+    "bun run check:oracle",
+    "bun run check:docs",
+]);
+
+/** True when the step is in the cheap, run-them-all tier. */
+export function isCheapStep(check: PlannedCheck): boolean {
+    return CHEAP_TIER_COMMANDS.has(check.command);
+}
 
 /** Tests that run in a suite the lane never gates (`HEALTH_ONLY_GUARDS`). */
 const HEALTH_ONLY_TEST = /\.(bot|perf)\.test\.tsx?$/;
@@ -145,5 +170,12 @@ export function preQueueSteps(
             command: `bunx vitest run ${fresh.join(" ")}`,
         });
     }
-    return { run, skip };
+    // Cheap tier first (stable): a red there is reported in seconds.
+    return {
+        run: [
+            ...run.filter(isCheapStep),
+            ...run.filter((c) => !isCheapStep(c)),
+        ],
+        skip,
+    };
 }
