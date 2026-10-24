@@ -9236,6 +9236,58 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 701.23b (stated quality) + CR 702.34a
+    // (flashback) + CR 404.1 (graveyard) + CR 701.24a (shuffle) — "Search
+    // target player's library for up to three cards with flashback and put
+    // them into that player's graveyard. Then the player shuffles.": the
+    // optional range narrowed by a `hasFlashback` filter. Exhibits the
+    // runtime-sized `{ min, max }` `choice` count and the `moveZone` out of
+    // the target's library the canned generator cannot model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "938f48a9-766e-41d3-a425-9c3a6adf675b",
+            name: "Quiet Speculation",
+            manaCost: "{2}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search target player's library for up to three cards with flashback and put them into that player's graveyard. Then the player shuffles.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Quiet Speculation",
+            types: ["Sorcery"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Search target player's library for up to three cards with flashback and put them into that player's graveyard. Then the player shuffles.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    zoneOwnerId: { target: 0 },
+                    filter: { hasFlashback: true },
+                    count: { min: 0, max: 3 },
+                    prompt: "Search that player's library for up to three cards with flashback.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: { target: 0 },
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { target: 0 },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
     // CR 701.23a (search) + CR 701.23b (stated quality) + CR 406.1 (exile) +
     // CR 701.24a (shuffle) — "Search target player's library for a card and
     // exile it. Then that player shuffles.": the controller searches the
