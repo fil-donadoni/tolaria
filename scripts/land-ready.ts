@@ -71,6 +71,13 @@ import {
     type RunResult,
 } from "./check-lane";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import {
+    buildReceipt,
+    measureDrift,
+    preflightLandReady,
+    RECEIPT_FILE,
+} from "./lib/base-drift";
+import { readOpenPrs } from "./base-drift";
 import { staleToolingRefusal } from "./lib/stale-tooling";
 import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
@@ -452,6 +459,40 @@ function restoreAndPush(
         ORIGIN_BASE
     );
     if (stale !== null) throw new Error(stale);
+    // Step 0 — the base-drift preflight (issue #6647): behind with nothing
+    // shared → rebase and push now, so every step below judges the rebased
+    // tree; behind with an overlap or a coupled artefact → refuse with the
+    // list. Current → nothing. The receipt goes under the worktree's git dir.
+    const drift = preflightLandReady(pr, {
+        measure: () => measureDrift({ run: git }, ORIGIN_BASE),
+        openPrs: readOpenPrs,
+        rebase: () => {
+            const r = spawnSync("git", ["rebase", "-q", ORIGIN_BASE], {
+                encoding: "utf8",
+            });
+            if (r.status !== 0) spawnSync("git", ["rebase", "--abort"]);
+            return r.status === 0;
+        },
+        push: (expected) =>
+            void git([
+                "push",
+                "-q",
+                `--force-with-lease=refs/heads/${branch}:${expected}`,
+                "origin",
+                `HEAD:refs/heads/${branch}`,
+            ]),
+        head: () => git(["rev-parse", "HEAD"]).trim(),
+        log: console.log,
+    });
+    headOid = drift.head;
+    writeFileSync(
+        resolve(git(["rev-parse", "--git-dir"]).trim(), RECEIPT_FILE),
+        JSON.stringify(
+            buildReceipt(drift.report, drift.verdict, new Date()),
+            null,
+            2
+        )
+    );
     let carried: DerivedCarried;
     try {
         carried = restoreDerivedState(
