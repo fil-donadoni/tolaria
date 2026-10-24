@@ -108,6 +108,9 @@ export interface LoweredStatic {
     /** CR 614.1a — the "instead" cost an entering permanent pays (discard a
      *  card, sacrifice a permanent), as the `entersWith.asEnters` member. */
     readonly asEntersCost?: AsEntersCost;
+    /** CR 305.1 + CR 601.3 — "You may play lands and cast spells from the top
+     *  of your library": land plays and casts off the top card. */
+    readonly playsFromLibraryTop?: true;
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
@@ -724,6 +727,8 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "play-from-library-top":
+            return { ok: true, lowered: { playsFromLibraryTop: true } };
         case "shuffle-from-anywhere":
             return { ok: true, lowered: { shuffleFromAnywhere: true } };
         case "flash-cast-cleanup-sacrifice":
