@@ -1,5 +1,5 @@
 // Mana ability: "Add three mana of any one color. Activate only as an instant."
-// (CR 605.1a / 106.1a / 605.3b) — Lion's Eye Diamond, Diamond Lion.
+// (CR 605.1a / 106.1a / 605.3a) — Lion's Eye Diamond, Diamond Lion.
 //
 // 1. GOLDEN — real corpus rows compiled whole.
 // 2. GOLD — Lion's Eye Diamond compiles back into its shipped definition.
@@ -28,7 +28,7 @@ function led(oracleText: string) {
     });
 }
 
-describe("three mana of any one color (CR 605.1a, 106.1a, 605.3b)", () => {
+describe("three mana of any one color (CR 605.1a, 106.1a, 605.3a)", () => {
     it("Lion's Eye Diamond: choice of five triples, stackless, discard + sacrifice cost", () => {
         const outcome = compileCard(led(LED_TEXT));
         expect(outcome.state).toBe("ready");

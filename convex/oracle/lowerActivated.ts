@@ -526,7 +526,7 @@ export function lowerManaAbility(input: {
                     };
                 ability.oncePerTurn = true;
                 break;
-            // CR 605.3b — instant speed is a mana ability's only speed.
+            // CR 605.3a — instant speed is a mana ability's only speed.
             case "instant-only":
                 break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's

@@ -345,7 +345,7 @@ const DRAW_RIDER = "Draw a card";
 const ONCE_PER_TURN_RIDER = "Activate only once each turn";
 
 /**
- * CR 605.3b — "Activate only as an instant." (Lion's Eye Diamond): a mana
+ * CR 605.3a — "Activate only as an instant." (Lion's Eye Diamond): a mana
  * ability is activatable any time its controller has priority or is paying a
  * cost, so the restriction is already the engine's behaviour and lowers to no
  * field. Read, not skipped, so the sentence is accounted for.

@@ -130,7 +130,7 @@ export type ManaRiderIR =
     /** CR 602.5b — "Activate only once each turn." (`oncePerTurn`, an
      *  activation gate rather than a tap-route effect). */
     | { readonly kind: "once-per-turn" }
-    /** CR 605.3b — "Activate only as an instant." A mana ability is already
+    /** CR 605.3a — "Activate only as an instant." A mana ability is already
      *  activatable at instant speed: lowers to no field. */
     | { readonly kind: "instant-only" };
 
