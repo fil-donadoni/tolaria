@@ -175,7 +175,13 @@ export function lowerActivatedAbility(input: {
             ...(input.cost.atoms.some((a) => a.kind === "sacrifice-self")
                 ? { sourceSacrificed: true as const }
                 : {}),
-            ...(input.cost.atoms.some((a) => a.kind === "exile-top-of-library")
+            // CR 608.2h — the stack item carries ONE cost-victim snapshot, so
+            // "the exiled card" is readable only while no other leg (a
+            // sacrifice, a graveyard exile, …) writes it first.
+            ...(input.cost.atoms.some(
+                (a) => a.kind === "exile-top-of-library"
+            ) &&
+            input.cost.atoms.every((a) => SNAPSHOT_FREE_COST_ATOMS.has(a.kind))
                 ? { costExiledTopCard: true as const }
                 : {}),
         });
@@ -244,6 +250,17 @@ export function lowerActivatedAbility(input: {
         return { ok: false, reason: restrictionError };
     return { ok: true, ability };
 }
+
+/** Cost atoms that write no cost-victim snapshot, so the exiled top card's
+ *  snapshot (CR 608.2h) is the only one on the stack item. */
+const SNAPSHOT_FREE_COST_ATOMS: ReadonlySet<string> = new Set([
+    "exile-top-of-library",
+    "mana",
+    "tap",
+    "pay-life",
+    "remove-counter",
+    "add-counter",
+]);
 
 /** CR 605.1a — activation-cost legs a MANA ability (`useStack: false`) has no
  *  payment site for, so lowering one would emit free mana.

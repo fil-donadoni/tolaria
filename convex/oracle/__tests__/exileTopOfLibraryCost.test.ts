@@ -74,6 +74,21 @@ describe("Exile-the-top-card cost — refusals (fail-closed)", () => {
         expect(activationCostRule.run(span, parseContext()).ok).toBe(false);
     });
 
+    it("refuses the exiled card's mana value beside a sacrifice leg (one snapshot)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Creature",
+                manaCost: "{1}",
+                typeLine: "Creature — Construct",
+                oracleText:
+                    "Sacrifice a creature, Exile the top card of your library: Put X +1/+1 counters on this creature, where X is the exiled card's mana value.",
+                power: "1",
+                toughness: "1",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
     it("refuses the exiled card's mana value when the cost exiles nothing", () => {
         const outcome = compileCard(
             oracleCard({
