@@ -978,7 +978,10 @@ export function useBattlefieldInteraction(player: Player) {
         const mana = getActivatedManaMenuEntry(card, stateView);
         const manaToggle =
             mana && mana.id !== manaCostAbility?.id ? mana : null;
-        if (stack.length === 0) return manaCostEntry;
+        // Issue #1908 — with no stack ability the free toggle is redundant on
+        // its own (a left click taps), but beside a cost-bearing mana entry it
+        // is the only way to reach the free ability, so keep falling through.
+        if (stack.length === 0 && manaCostEntry.length === 0) return [];
         if (!manaToggle) return [...manaCostEntry, ...stack];
         if (card.isTapped) {
             if (!canRefundManaTap(card, viewer))
