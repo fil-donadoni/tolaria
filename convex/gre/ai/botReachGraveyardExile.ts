@@ -50,7 +50,7 @@ function exilesGraveyard(node: unknown): boolean {
     return Object.values(rec).some(exilesGraveyard);
 }
 
-/** The opposing graveyard card the position hands a spell that exiles a
+/** The opposing graveyard cards the position hands a spell that exiles a
  *  graveyard, or none. */
 export function graveyardExilePose(def: CardDefinition): ScenarioCard[] {
     if (!def.types.some((t) => t === "Instant" || t === "Sorcery")) return [];
