@@ -2770,6 +2770,12 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "skip-next-untap": {
+            // CR 502.3 — effects can keep a permanent from untapping; one-shot flag.
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([{ op: "skipNextUntap", target: target.value }]);
+        }
         case "regenerate": {
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
