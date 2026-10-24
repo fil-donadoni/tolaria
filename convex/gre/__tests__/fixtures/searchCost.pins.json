@@ -1,7 +1,7 @@
 {
     "small (4 moves)": {
         "iterationsCompleted": 98,
-        "clones": 364,
+        "clones": 363,
         "enumerations": 2166,
         "evaluations": 342,
         "sbaSweeps": 2811,
