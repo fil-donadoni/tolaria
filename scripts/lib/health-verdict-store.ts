@@ -76,6 +76,10 @@ export interface Verdict {
      *  against this RED sha (issue #5593) — what `land` reads to recognise
      *  the closing PR as a repair, from whichever machine recorded them. */
     issues?: number[];
+    /** The `health-fix` context only: the subset of `issues` the RED
+     *  ladder's own attempt recorded (issue #6554) — the rest were declared
+     *  by an interactive session, whose PR the ladder never closes. */
+    ladderIssues?: number[];
 }
 
 /**
@@ -236,6 +240,8 @@ export function encodeDescription(v: Verdict): string {
     }
     if (tests.length > 0) out += `${SEP}tests: ${tests.join(",")}`;
     if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
+    if (v.ladderIssues && v.ladderIssues.length > 0)
+        fit(`ladder-issues: ${v.ladderIssues.join(",")}`);
     if (v.log && !isUrl(v.log)) fit(`log: ${v.log}`);
     return out;
 }
@@ -261,11 +267,13 @@ export function decodeStatus(input: {
         if (!m) continue;
         if (m[1] === "tests") v.tests = m[2].split(",").filter(Boolean);
         if (m[1] === "repair-of") v.repairOf = m[2];
-        if (m[1] === "issues")
-            v.issues = m[2]
+        const numbers = () =>
+            m[2]
                 .split(",")
                 .map(Number)
                 .filter((n) => Number.isInteger(n) && n > 0);
+        if (m[1] === "issues") v.issues = numbers();
+        if (m[1] === "ladder-issues") v.ladderIssues = numbers();
         if (m[1] === "failure") v.failure = m[2];
         if (m[1] === "log" && !v.log) v.log = m[2];
     }

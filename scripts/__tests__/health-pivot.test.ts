@@ -12,6 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { gateSkipReason } from "../lib/health-gate-skip";
 import {
     pivotRepairIssues,
+    pivotRepairOrigins,
     pivotRunInFlight,
     publishRunMarker,
     recordPivotRepairIssue,
@@ -185,6 +186,21 @@ describe("repair issues on the pivot", () => {
         expect(recordPivotRepairIssue(root, 7, o)).toMatch(/#7 recorded/);
         recordPivotRepairIssue(root, 3, o);
         expect(pivotRepairIssues(root, o)).toEqual([3, 7]);
+    });
+
+    it("tells the ladder's own repair issue from an interactive one (issue #6554)", () => {
+        const repo = sharedRepo([TIP, OLD], clock);
+        repo.seed(TIP, red());
+        const o = { run: repo.run } as const;
+        recordPivotRepairIssue(root, 6545, o);
+        recordPivotRepairIssue(root, 6548, { ...o, ladder: true });
+        // A later interactive record must not erase the ladder's mark.
+        recordPivotRepairIssue(root, 6560, o);
+        expect(pivotRepairIssues(root, o)).toEqual([6545, 6548, 6560]);
+        expect(pivotRepairOrigins(root, o)).toEqual({
+            ladder: [6548],
+            foreign: [6545, 6560],
+        });
     });
 
     it("no RED standing: nothing recorded, nothing read", () => {
