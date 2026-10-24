@@ -11,7 +11,7 @@
  *                                            → layer 7c `pt-buff`, chosen-type scope
  *   "Each other non-Aura enchantment is a creature in addition to its other
  *    types and has base power and base toughness each equal to its mana value"
- *                                            → layer 4 `type-add` + `pt-cda`
+ *                                            → layer 4 `type-add` + 7b `pt-set` (mana value)
  *   "<self>'s power and toughness are each equal to the number of land cards
  *    in all graveyards"                      → CR 604.3 `pt-cda`, self scope
  *   "<self>'s power is equal to the total power of the exiled cards and its

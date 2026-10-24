@@ -808,7 +808,7 @@ describe("Kaldra Compleat (MH2 #232, Living Weapon — issue #1340)", () => {
 });
 
 describe("Nettlecyst (MH2 #231, Living Weapon — issue #1340)", () => {
-    it("definition sanity — {3}, Equip {2}, single pt-cda", () => {
+    it("definition sanity — {3}, Equip {2}, single pt-buff", () => {
         expect(nettlecyst.manaCost).toEqual({ generic: 3 });
         expect(nettlecyst.subtypes).toEqual(["Equipment"]);
         const equip = nettlecyst.activatedAbilities!.find(
@@ -816,11 +816,11 @@ describe("Nettlecyst (MH2 #231, Living Weapon — issue #1340)", () => {
         )!;
         expect(equip.cost).toEqual({ mana: { generic: 2 } });
         expect((nettlecyst.staticEffects ?? []).map((e) => e.kind)).toEqual([
-            "pt-cda",
+            "pt-buff",
         ]);
     });
 
-    // CR 604.3 — a live board count, re-read at stat-read time. Nettlecyst
+    // CR 613.4c — a live board count, re-read at stat-read time. Nettlecyst
     // counts ITSELF (it is an artifact you control).
     it("buffs by artifacts + enchantments you control, ignoring the opponent's (GRE and wire format)", () => {
         const cyst = makeInstance(nettlecyst.id, {

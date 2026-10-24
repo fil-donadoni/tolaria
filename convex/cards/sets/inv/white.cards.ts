@@ -1393,7 +1393,7 @@ export const wayfaringGiant = defineCard(() => ({
 // Strength of Unity — {3}{W} Enchantment — Aura. "Enchant creature. Domain —
 // Enchanted creature gets +1/+1 for each basic land type among lands you
 // control." (CR 303.4 aura, CR 604.3 CDA, CR 702 preamble Domain ability
-// word, issue #1066.) The `pt-cda` reads the AURA'S OWN controller's Domain
+// word, issue #1066.) The `pt-buff` `computeFor` reads the AURA'S OWN controller's Domain
 // (`source` = the Aura permanent) — "lands you control" is the Aura
 // controller's board, not the enchanted creature's controller (relevant when
 // an opponent's creature is enchanted by an Aura you cast, though Strength
@@ -1410,9 +1410,9 @@ export const strengthOfUnity = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (source, state) => {
+            computeFor: (source, state) => {
                 const domain = countDomain(state, source.controllerId);
                 return { power: domain, toughness: domain };
             },

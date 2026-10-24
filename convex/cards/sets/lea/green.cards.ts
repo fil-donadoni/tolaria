@@ -41,9 +41,9 @@ export const aspectOfWolf = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (source, state) => {
+            computeFor: (source, state) => {
                 let forests = 0;
                 for (const player of state.players) {
                     for (const p of player.battlefield) {
@@ -782,8 +782,8 @@ export const livingArtifact = defineCard(() => ({
 }));
 
 // Living Lands — "All Forests are 1/1 creatures that are still lands."
-// (CR 305.7 type-add + pt-cda). Global static: type-add Creature to all
-// permanents with Forest subtype, pt-cda sets 1/1. Summoning sickness
+// (CR 305.7 type-add + pt-set). Global static: type-add Creature to all
+// permanents with Forest subtype, pt-set sets 1/1 (CR 613.4b). Summoning sickness
 // applies to newly-animated lands.
 export const livingLands = defineCard(() => ({
     id: "80be0580-7948-4d8e-8c0f-5e2797ac411b",
@@ -799,9 +799,10 @@ export const livingLands = defineCard(() => ({
             types: ["Creature"],
         },
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: (target) => target.subtypes.includes("Forest"),
-            compute: () => ({ power: 1, toughness: 1 }),
+            power: 1,
+            toughness: 1,
         },
     ],
 }));
