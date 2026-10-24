@@ -69,3 +69,31 @@ export function cardIsInOwnerGraveyard(
     )?.graveyard;
     return graveyard?.some((c) => c.id === self.id) === true;
 }
+
+/** Whether the card DIRECTLY above `self` in its owner's graveyard (the next
+ *  higher index, CR 404.2) is a Creature card — the predicate behind "a
+ *  creature card directly above it". False when `self` is absent from the pile
+ *  or sits on top (nothing above it). Structurally typed like
+ *  `creatureCardsAboveInGraveyard`. */
+export function creatureCardDirectlyAboveInGraveyard(
+    state:
+        | {
+              players: ReadonlyArray<{
+                  id: string;
+                  graveyard?: ReadonlyArray<{
+                      id: string;
+                      types: ReadonlyArray<string>;
+                  }>;
+              }>;
+          }
+        | undefined,
+    self: { id: string; ownerId: string }
+): boolean {
+    const graveyard = state?.players.find(
+        (p) => p.id === self.ownerId
+    )?.graveyard;
+    if (!graveyard) return false;
+    const idx = graveyard.findIndex((c) => c.id === self.id);
+    if (idx === -1) return false;
+    return graveyard[idx + 1]?.types.includes("Creature") === true;
+}

@@ -36302,6 +36302,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Krovikan Horror",
+        "scryfallId": "e1f3cb1c-6bde-4b55-b5bc-5b64b56930f2",
+        "oracleId": "a4c15223-784f-43a7-8626-30f96ccfdcaf",
+        "firstSet": "all",
+        "firstPrintId": "e1f3cb1c-6bde-4b55-b5bc-5b64b56930f2",
+        "firstPrintSet": "all"
+    },
+    {
         "name": "Krovikan Scoundrel",
         "scryfallId": "bd9f046c-b416-4d80-8998-047b98361352",
         "oracleId": "44c437ca-5d36-4bb3-9450-baf0c93ff4ce",
