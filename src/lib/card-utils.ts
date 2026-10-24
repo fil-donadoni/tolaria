@@ -68,6 +68,7 @@ import {
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
     canPayRemoveCounterCost,
+    functionsOnBattlefield,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -385,6 +386,9 @@ function clientManaAbilities(
             .filter(
                 ({ ability: a }) =>
                     !a.useStack &&
+                    // CR 113.6m — a hand-source mana ability (Elvish Spirit
+                    // Guide) is not one the permanent has.
+                    functionsOnBattlefield(a) &&
                     (a.manaProduced ||
                         a.manaChoices ||
                         a.getManaChoices ||
@@ -683,6 +687,7 @@ export function getNonTapManaChoices(
     ).find(
         ({ ability: a }) =>
             !a.useStack &&
+            functionsOnBattlefield(a) &&
             !a.cost.tap &&
             !a.cost.sacrifice &&
             (a.manaChoices || a.getManaChoices || a.manaColorSource)
@@ -771,6 +776,9 @@ export function getManaCostMenuAbility(
         getEffectiveClientAbilities(card).find(
             (a) =>
                 !a.useStack &&
+                // CR 113.6m — a hand-source mana ability (Elvish Spirit
+                // Guide) is offered on the hand card, never the permanent.
+                functionsOnBattlefield(a) &&
                 a.oracleText &&
                 (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice)) &&
                 (!a.cost.tapOtherFilter ||
@@ -2791,6 +2799,43 @@ export function getHandStackAbilities(
             return true;
         })
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+}
+
+/** CR 113.6m / 605.3a — the MANA abilities the viewer may activate on a card in
+ *  their OWN hand ("Exile this card from your hand: Add {G}.", Elvish Spirit
+ *  Guide): `activateFromHand` + `useStack: false`. The twin of
+ *  {@link getHandStackAbilities}, gated on the same timing and precondition
+ *  predicates; WHEN the mana window is open (priority, or paying a cost) is
+ *  the caller's, and `activateManaAbility` in game.ts is authoritative. No
+ *  Abeyance gate: that lock spares mana abilities (CR 605.1a). */
+export function getHandManaAbilities(
+    card: CardInstance,
+    phase: Phase | undefined,
+    stateView: TriggerStateView
+): { id: string; oracleText: string }[] {
+    const cardDef = tryGetDefinition(card.card.id);
+    return (cardDef?.activatedAbilities ?? [])
+        .filter(
+            (a) =>
+                a.activateFromHand &&
+                !a.useStack &&
+                !!a.oracleText &&
+                isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn,
+                    card.hasAttackedThisTurn,
+                    card.classLevel
+                ) &&
+                activationPreconditionViolation(
+                    stateView,
+                    card as unknown as PermanentView,
+                    a
+                ) === null
+        )
+        .map((a) => ({ id: a.id, oracleText: a.oracleText! }));
 }
 
 /** Filters `getStackAbilities` to those a NON-controller may activate on an

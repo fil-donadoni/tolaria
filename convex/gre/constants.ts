@@ -1131,7 +1131,10 @@ export function getProducibleColors(
         if (includeColorless || intrinsic !== "C") colors.add(intrinsic);
     }
     for (const c of producibleColorsFromAbilities(
-        getEffectiveActivatedAbilities(card).map(({ ability }) => ability),
+        // CR 113.6m — a hand-source mana ability is not one the permanent has.
+        getEffectiveActivatedAbilities(card)
+            .map(({ ability }) => ability)
+            .filter(functionsOnBattlefield),
         resolveManaColorSource,
         includeColorless,
         resolveDynamicAmount
@@ -2918,6 +2921,20 @@ export function isManaAbilityDefinition(
     );
 }
 
+/** CR 113.6b / 113.6m — an ability that names the zone it is activated from
+ *  (`activateFromHand`: Elvish Spirit Guide's "Exile this card from your hand:
+ *  Add {G}."; `activateFromGraveyard`) functions only there, so a PERMANENT
+ *  carrying it has no such ability on the battlefield. The gate every
+ *  battlefield mana-ability reader applies before offering one. */
+export function functionsOnBattlefield(
+    ability: Pick<
+        ActivatedAbility,
+        "activateFromHand" | "activateFromGraveyard"
+    >
+): boolean {
+    return !ability.activateFromHand && !ability.activateFromGraveyard;
+}
+
 /** Returns the activated mana ability definition for a card, or null.
  *
  *  CR 602.5b (issue #947) — when the found ability declares its own
@@ -2944,8 +2961,9 @@ export function getActivatedManaAbility(
 ) {
     if (abilitiesSuppressed(card)) return null;
     const ability =
-        getEffectiveActivatedAbilities(card).find(({ ability: a }) =>
-            isManaAbilityDefinition(a)
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) =>
+                isManaAbilityDefinition(a) && functionsOnBattlefield(a)
         )?.ability ?? null;
     if (!ability) return null;
     // CR 602.5 / 605.1a — a mana ability an `activation-restriction` static

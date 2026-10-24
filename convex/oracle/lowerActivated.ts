@@ -95,6 +95,7 @@ function mayRemoveSource(atom: CostAtomIR): boolean {
     switch (atom.kind) {
         case "sacrifice-self":
         case "exile-self":
+        case "exile-self-from-hand":
         case "return-self":
             return true;
         case "sacrifice-other": {
@@ -128,6 +129,15 @@ export function lowerActivatedAbility(input: {
 }): LowerAbilityResult {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
+    // CR 113.6m — a hand-exile cost makes the ability a HAND ability. Only the
+    // mana slot reads that zone (`lowerManaAbility`); on this slot the
+    // ability would lower without `activateFromHand` and be offered on the
+    // battlefield, where its cost cannot be paid.
+    if (input.cost.atoms.some(isHandExile))
+        return {
+            ok: false,
+            reason: "a stack ability activated from the hand is not in grammar v0 (CR 113.6m)",
+        };
 
     // CR 608.2h — the printed card still pumps its host after the Aura is
     // sacrificed, because the effect uses the Aura's last known information.
@@ -254,7 +264,10 @@ const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
  *  handler, not guessed — it pays `cost.tapOtherFilter`
  *  (`payTapOtherAbilityCost`) and `cost.mana` (`payManaCostWithRiders`) and
  *  then resolves; the bot's mirror `applyTapPlan` does the same. Every other
- *  leg on that route is silently free. */
+ *  leg on that route is silently free. The handler also pays `cost.exileThis`
+ *  from the zone the ability declares (`payExileThisCost`), admitted here for
+ *  the HAND form only (`lowerManaAbility`): a battlefield self-exile mana
+ *  ability is a neighbouring form this grammar has no fixture for. */
 const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "mana",
     "tapOtherFilter",
@@ -278,6 +291,11 @@ const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
  * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
  * which is the same ability printed inside quotation marks.
  */
+/** CR 113.6m — the "Exile this card from your hand" cost atom. */
+function isHandExile(atom: CostAtomIR): boolean {
+    return atom.kind === "exile-self-from-hand";
+}
+
 export function lowerManaAbility(input: {
     readonly id: string;
     readonly oracleText: string;
@@ -288,6 +306,16 @@ export function lowerManaAbility(input: {
     // (CR 602.1a draws no distinction); only the EFFECT half differs.
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
+    // CR 113.6m — "Exile this card from your hand: Add {G}." functions only in
+    // the hand. A FIXED production only: `activateManaAbility` deposits it
+    // directly, while a chosen colour is resolved off the permanent's
+    // battlefield mana ability, which a card in hand does not have.
+    const fromHand = input.cost.atoms.some(isHandExile);
+    if (fromHand && input.produces.kind !== "fixed")
+        return {
+            ok: false,
+            reason: "a mana ability activated from the hand reads a fixed production only (CR 113.6m)",
+        };
     // CR 605.1a — a mana ability does NOT use the stack, so it is paid by
     // `activateManaAbility` / `tapSourceIntoPayment`, not by the
     // `PendingActivation` machinery every stack ability rides. A leg neither
@@ -354,7 +382,9 @@ export function lowerManaAbility(input: {
         !hasFilteredGiveUpCost(cost.value)
     ) {
         const unpayableHere = Object.keys(cost.value).filter(
-            (leg) => !MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS.has(leg)
+            (leg) =>
+                !MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS.has(leg) &&
+                !(fromHand && leg === "exileThis")
         );
         if (unpayableHere.length > 0) {
             return {
@@ -395,6 +425,7 @@ export function lowerManaAbility(input: {
         // unconditionally: see the CR 605.1a argument in the slot file.
         useStack: false,
     };
+    if (fromHand) ability.activateFromHand = true;
     switch (input.produces.kind) {
         case "fixed":
             ability.manaProduced = input.produces.mana;
