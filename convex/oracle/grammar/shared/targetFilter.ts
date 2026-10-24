@@ -1629,13 +1629,16 @@ export function librarySearchFilterFromDescriptor(
         if (
             mv.min !== undefined ||
             mv.equals !== undefined ||
-            typeof mv.max !== "number"
+            mv.max === undefined
         )
             return fail(
-                'a library search reads "with mana value N or less" only',
+                'a library search reads "with mana value N or less" and "with mana value X or less" only',
                 "mvFilter"
             );
-        filter.manaValueAtMost = mv.max;
+        // CR 107.3 — "X" is the X the source announced; whether the site
+        // announces one is the lowering's gate (`lowerFrameChain`), the same
+        // gate a target filter's X passes.
+        filter.manaValueAtMost = mv.max === "X" ? { X: true } : mv.max;
     }
     return ok(filter);
 }

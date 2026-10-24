@@ -226,12 +226,16 @@ const FORM_FREE_TEXT_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * The Op's STRUCTURE with its literals abstracted: every number becomes `#`,
- * display/wiring text is dropped, and a nested Effect Script becomes
- * `[script]` (a nested Op raises its own skip, with its own form). "gets +1/+1"
- * and "gets +2/+2" share a skeleton; `$source` and `$each`, "to hand" and "to
- * exile", a `forEach` over creatures and one over lands do not.
+ * so does a card NAME inside a `filter` (CR 201.2 — "named Avarax" and
+ * "named Squadron Hawk" are one form the way "+1/+1" and "+2/+2" are: a
+ * literal the scenario's shape does not depend on; a `name` anywhere else —
+ * a token's, a `nameCard`'s — stays structure), display/wiring text is
+ * dropped, and a nested Effect Script becomes `[script]` (a nested Op raises
+ * its own skip, with its own form). "gets +1/+1" and "gets +2/+2" share a
+ * skeleton; `$source` and `$each`, "to hand" and "to exile", a `forEach` over
+ * creatures and one over lands do not.
  */
-function opSkeleton(node: unknown): unknown {
+function opSkeleton(node: unknown, parentKey: string | null = null): unknown {
     if (typeof node === "number") return "#";
     if (Array.isArray(node))
         return node.some(
@@ -239,12 +243,18 @@ function opSkeleton(node: unknown): unknown {
                 typeof child === "object" && child !== null && "op" in child
         )
             ? "[script]"
-            : node.map(opSkeleton);
+            : node.map((child) => opSkeleton(child));
     if (node === null || typeof node !== "object") return node;
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(node).sort()) {
         if (FORM_FREE_TEXT_KEYS.has(key)) continue;
-        out[key] = opSkeleton((node as Record<string, unknown>)[key]);
+        const value = (node as Record<string, unknown>)[key];
+        out[key] =
+            parentKey === "filter" &&
+            key === "name" &&
+            typeof value === "string"
+                ? "#"
+                : opSkeleton(value, key);
     }
     return out;
 }

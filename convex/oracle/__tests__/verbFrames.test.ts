@@ -27,8 +27,12 @@ import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
-import { frameOf } from "../grammar/shared/verbFrames";
-import { oracleCard } from "./oracle.fixture";
+import {
+    ANY_NUMBER,
+    frameOf,
+    readFrameChain,
+} from "../grammar/shared/verbFrames";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 function compiledDefinition(card: ReturnType<typeof oracleCard>) {
     const outcome = compileCard(card);
@@ -358,15 +362,15 @@ describe("search frame — quantity classes and the reveal argument", () => {
         ]);
     });
 
-    it("refuses an undeclared quantity class: 'any number of' (Mana Severance), 'X cards' (Insidious Dreams), a bare count (Intuition), 'up to one'", () => {
+    it("refuses the quantity classes still undeclared: 'X cards' (Insidious Dreams), 'exactly two' (Burning-Rune Demon), 'up to X' (Boundless Realms), 'up to one'", () => {
         for (const text of [
-            "Search your library for any number of land cards, exile them, then shuffle.",
             "Search your library for X cards, then shuffle and put those cards on top in any order.",
-            "Search your library for three cards and reveal them.",
+            "Search your library for exactly two cards not named Probe that have different names, put them into your hand, then shuffle.",
+            "Search your library for up to X basic land cards, put them onto the battlefield tapped, then shuffle.",
             "Search your library for up to one land card, put it into your hand, then shuffle.",
         ]) {
-            const outcome = compileCard(sorcery("Probe", "{U}", text));
-            expect(outcome.state).toBe("unparsed");
+            const outcome = compileCard(sorcery("Probe", "{X}{U}", text));
+            expect(outcome.state, text).toBe("unparsed");
             if (outcome.state === "unparsed")
                 expect(outcome.gaps[0]?.attribution?.span).toMatch(
                     /^Search your library for/
@@ -374,10 +378,10 @@ describe("search frame — quantity classes and the reveal argument", () => {
         }
     });
 
-    it("refuses an undeclared descriptor class: a card named (Avarax), a chosen type, a controller", () => {
+    it("refuses an undeclared descriptor class: a chosen type, a controller", () => {
         for (const text of [
-            "Search your library for a card named Avarax, reveal it, put it into your hand, then shuffle.",
             "Search your library for a creature card you control, reveal it, put it into your hand, then shuffle.",
+            "Search your library for a creature card of the chosen type, reveal it, put it into your hand, then shuffle.",
         ])
             expect(compileCard(sorcery("Probe", "{R}", text)).state).toBe(
                 "unparsed"
@@ -403,6 +407,343 @@ describe("search frame — quantity classes and the reveal argument", () => {
                 )
             ).state
         ).toBe("unparsed");
+    });
+});
+
+describe("search frame — the argument classes of issue #6622 (CR 701.23a)", () => {
+    const creature = (
+        name: string,
+        manaCost: string,
+        typeLine: string,
+        oracleText: string
+    ) =>
+        oracleCard({
+            name,
+            manaCost,
+            typeLine,
+            oracleText,
+            power: "3",
+            toughness: "3",
+        });
+    /** A "you may" trigger: the may-gate around the frames. */
+    const mayGate = (prompt: string, then: object[]) => [
+        {
+            op: "mayPay",
+            player: "controller",
+            prompt: `${prompt}?`,
+            bind: "$may2",
+        },
+        { op: "if", predicate: { binding: "$may2" }, then },
+    ];
+
+    it("'a card named <self>' (CR 201.2): Avarax — the name is a stated quality, so the find is optional (CR 701.23b)", () => {
+        const def = compiledDefinition(
+            creature(
+                "Avarax",
+                "{3}{R}{R}",
+                "Creature — Beast",
+                "Haste\nWhen this creature enters, you may search your library for a card named Avarax, reveal it, put it into your hand, then shuffle.\n{1}{R}: This creature gets +1/+0 until end of turn."
+            )
+        );
+        expect(sortKeys(def.compiledTriggeredAbilities?.[0]?.effects)).toEqual(
+            sortKeys(
+                mayGate(
+                    "Search your library for a card named Avarax, reveal it, put it into your hand, then shuffle",
+                    [
+                        search(
+                            "a card named Avarax",
+                            { name: "Avarax" },
+                            { min: 0, max: 1 }
+                        ),
+                        reveal(),
+                        move("hand"),
+                        SHUFFLE,
+                    ]
+                )
+            )
+        );
+    });
+
+    it("'up to three cards named <self>': Howling Wolf", () => {
+        const def = compiledDefinition(
+            creature(
+                "Howling Wolf",
+                "{2}{G}{G}",
+                "Creature — Wolf",
+                "When this creature enters, you may search your library for up to three cards named Howling Wolf, reveal them, put them into your hand, then shuffle."
+            )
+        );
+        expect(sortKeys(def.compiledTriggeredAbilities?.[0]?.effects)).toEqual(
+            sortKeys(
+                mayGate(
+                    "Search your library for up to three cards named Howling Wolf, reveal them, put them into your hand, then shuffle",
+                    [
+                        search(
+                            "up to three cards named Howling Wolf",
+                            { name: "Howling Wolf" },
+                            { min: 0, max: 3 }
+                        ),
+                        reveal(),
+                        move("hand"),
+                        SHUFFLE,
+                    ]
+                )
+            )
+        );
+    });
+
+    it("'any number of cards named <self>': Battalion Foot Soldier — an open count, clamped to the library", () => {
+        const def = compiledDefinition(
+            creature(
+                "Battalion Foot Soldier",
+                "{2}{W}",
+                "Creature — Human Soldier",
+                "When this creature enters, you may search your library for any number of cards named Battalion Foot Soldier, reveal them, put them into your hand, then shuffle."
+            )
+        );
+        expect(sortKeys(def.compiledTriggeredAbilities?.[0]?.effects)).toEqual(
+            sortKeys(
+                mayGate(
+                    "Search your library for any number of cards named Battalion Foot Soldier, reveal them, put them into your hand, then shuffle",
+                    [
+                        search(
+                            "any number of cards named Battalion Foot Soldier",
+                            { name: "Battalion Foot Soldier" },
+                            { min: 0, max: ANY_NUMBER }
+                        ),
+                        reveal(),
+                        move("hand"),
+                        SHUFFLE,
+                    ]
+                )
+            )
+        );
+    });
+
+    it("'any number of <descriptor>': Iname, Death Aspect's Spirit cards into the graveyard", () => {
+        const def = compiledDefinition(
+            oracleCard({
+                name: "Iname, Death Aspect",
+                manaCost: "{4}{B}{B}",
+                typeLine: "Legendary Creature — Spirit",
+                oracleText:
+                    "When Iname enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
+                power: "4",
+                toughness: "4",
+            })
+        );
+        expect(sortKeys(def.compiledTriggeredAbilities?.[0]?.effects)).toEqual(
+            sortKeys(
+                mayGate(
+                    "Search your library for any number of Spirit cards, put them into your graveyard, then shuffle",
+                    [
+                        search(
+                            "any number of Spirit cards",
+                            { subtype: "Spirit" },
+                            { min: 0, max: ANY_NUMBER }
+                        ),
+                        move("graveyard"),
+                        SHUFFLE,
+                    ]
+                )
+            )
+        );
+    });
+
+    it("'a card named <another card>' is read as that English name (Asmoranomardicadaistinaculdacar's Cookbook)", () => {
+        const chain = readFrameChain(
+            "search your library for a card named The Underworld Cookbook, reveal it, put it into your hand, then shuffle",
+            parseContext()
+        );
+        expect(chain?.ok).toBe(true);
+        if (chain?.ok)
+            expect(chain.value.frames[0]).toEqual({
+                frame: "search",
+                filter: { name: "The Underworld Cookbook" },
+                phrase: "a card named The Underworld Cookbook",
+                count: 1,
+                upTo: false,
+                reveal: "it",
+            });
+    });
+
+    it("a name list is two finds and is refused: Bogbrew Witch's 'or', Alpine Houndmaster's 'and/or', a bare 'and a card named', a marker beside other words", () => {
+        for (const text of [
+            "Search your library for a card named Festering Newt or Bubbling Cauldron, put it onto the battlefield tapped, then shuffle.",
+            "Search your library for a card named Alpine Watchdog and/or a card named Igneous Cur, reveal them, put them into your hand, then shuffle.",
+            "Search your library for a card named Alpine Watchdog and a card named Igneous Cur, reveal them, put them into your hand, then shuffle.",
+            "Search your library for a card named Alpine Watchdog and Igneous Cur, reveal it, put it into your hand, then shuffle.",
+            "Search your library for a card named Probe Twin, reveal it, put it into your hand, then shuffle.",
+        ])
+            expect(compileCard(sorcery("Probe", "{B}", text)).state, text).toBe(
+                "unparsed"
+            );
+    });
+
+    it("a name with a comma is read whole (CR 201.2): ', ' inside a member opens no member (CR 608.2c) — Silver Surfer's 'Galactus, Devourer of Worlds'", () => {
+        const surfer = compiledDefinition(
+            sorcery(
+                "Probe",
+                "{B}",
+                "Search your library for a card named Galactus, Devourer of Worlds, reveal it, put it into your hand, then shuffle."
+            )
+        );
+        expect(surfer.effects?.[0]).toEqual(
+            search(
+                "a card named Galactus, Devourer of Worlds",
+                { name: "Galactus, Devourer of Worlds" },
+                { min: 0, max: 1 }
+            )
+        );
+    });
+
+    it("'with mana value X or less' reads the announced X (CR 107.3): Citanul Flute's {X} activation, Chord of Calling's {X} cost", () => {
+        const flute = compiledDefinition(
+            oracleCard({
+                name: "Citanul Flute",
+                manaCost: "{5}",
+                typeLine: "Artifact",
+                oracleText:
+                    "{X}, {T}: Search your library for a creature card with mana value X or less, reveal it, put it into your hand, then shuffle.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(flute.activatedAbilities?.[0]?.effects).toEqual([
+            search(
+                "a creature card with mana value X or less",
+                { type: "Creature", manaValueAtMost: { X: true } },
+                { min: 0, max: 1 }
+            ),
+            reveal(),
+            move("hand"),
+            SHUFFLE,
+        ]);
+        const chord = compiledDefinition(
+            oracleCard({
+                name: "Chord of Calling",
+                manaCost: "{X}{G}{G}{G}",
+                typeLine: "Instant",
+                oracleText:
+                    "Convoke\nSearch your library for a creature card with mana value X or less, put it onto the battlefield, then shuffle.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(chord.effects).toEqual([
+            search(
+                "a creature card with mana value X or less",
+                { type: "Creature", manaValueAtMost: { X: true } },
+                { min: 0, max: 1 }
+            ),
+            move("battlefield"),
+            SHUFFLE,
+        ]);
+    });
+
+    it("X at a site that announces none is refused: a spell with no {X}, a trigger, a paid X (Taj-Nar Swordsmith)", () => {
+        expect(
+            compileCard(
+                sorcery(
+                    "Probe",
+                    "{2}{G}",
+                    "Search your library for a creature card with mana value X or less, put it onto the battlefield, then shuffle."
+                )
+            ).state
+        ).toBe("unparsed");
+        expect(
+            compileCard(
+                creature(
+                    "Probe",
+                    "{2}{G}",
+                    "Creature — Elf",
+                    "When this creature enters, search your library for a creature card with mana value X or less, put it onto the battlefield, then shuffle."
+                )
+            ).state
+        ).toBe("unparsed");
+        expect(
+            compileCard(
+                creature(
+                    "Taj-Nar Swordsmith",
+                    "{3}{W}",
+                    "Creature — Cat Soldier",
+                    "When this creature enters, you may pay {X}. If you do, search your library for an Equipment card with mana value X or less, put that card onto the battlefield, then shuffle."
+                )
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("a printed count of two or more is read and composes with the moveZone frame's 'exile them' (issue #6631): Foresight", () => {
+        const outcome = compileCard(
+            sorcery(
+                "Foresight",
+                "{1}{U}",
+                "Search your library for three cards, exile them, then shuffle.\nDraw a card at the beginning of the next turn's upkeep."
+            )
+        );
+        // The whole card reads; the smoke generator does not model a
+        // library → exile move, so the row is quarantined by that gate alone.
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state === "quarantine") {
+            expect(outcome.reasons.map((r) => r.kind)).toEqual([
+                "smoke-scenario",
+            ]);
+            expect(outcome.definition.effects?.slice(0, 2)).toEqual([
+                search("three cards", null, 3),
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                },
+            ]);
+        }
+        const chain = readFrameChain(
+            "Search your library for three cards, exile them, then shuffle",
+            parseContext()
+        );
+        expect(chain?.ok).toBe(true);
+        if (chain?.ok)
+            expect(chain.value.frames.map((f) => f.frame)).toEqual([
+                "search",
+                "moveZone",
+                "shuffle",
+            ]);
+    });
+
+    it("' and ' joins two frames inside one member (CR 608.2c): Verdant Crescendo's 'and put it onto the battlefield tapped', Ruin in Their Wake's 'and reveal it'", () => {
+        const put = readFrameChain(
+            "Search your library for a basic land card and put it onto the battlefield tapped",
+            parseContext()
+        );
+        expect(put?.ok).toBe(true);
+        if (put?.ok)
+            expect(put.value.frames.map((f) => f.frame)).toEqual([
+                "search",
+                "moveZone",
+            ]);
+        const revealed = readFrameChain(
+            "Search your library for a basic land card and reveal it",
+            parseContext()
+        );
+        // The find is revealed and put nowhere: the member reads, the chain
+        // is refused — the next sentence of the card is where it goes.
+        expect(revealed?.ok).toBe(false);
+        if (revealed && !revealed.ok)
+            expect(revealed.reason).toMatch(/put nowhere/);
+    });
+
+    it("an ' and ' whose right side opens no frame stays in the descriptor and is refused: Krosan Verge's two finds", () => {
+        const chain = readFrameChain(
+            "Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle",
+            parseContext()
+        );
+        expect(chain?.ok).toBe(false);
+        if (chain && !chain.ok)
+            expect(chain.fragment).toBe(
+                "Search your library for a Forest card and a Plains card"
+            );
     });
 });
 
@@ -705,6 +1046,13 @@ describe("lowering invariants", () => {
             "Vampiric Tutor",
             "Lay of the Land",
             "Rampant Growth",
+            // issue #6622 — the argument classes' fixtures: a named card, an
+            // open count, the announced-X ceiling at three sites.
+            "Avarax",
+            "Iname, Death Aspect",
+            "Citanul Flute",
+            "Reshape",
+            "Green Sun's Zenith",
         ]) {
             const fixture = GOLDEN_FIXTURES.find(
                 (row) => row.card.name === name
