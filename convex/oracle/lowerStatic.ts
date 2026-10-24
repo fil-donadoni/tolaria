@@ -161,10 +161,11 @@ export interface LoweredStatic {
     readonly ungrantableKeywords?: readonly string[];
 }
 
-/** The as-enters members that are a COST the entering permanent pays. */
+/** The as-enters members that are a COST the entering permanent pays (or,
+ *  for the graveyard exile, a pile it takes: CR 614.12a). */
 export type AsEntersCost = Extract<
     AsEntersChoice,
-    { kind: "discard" | "sacrifice" }
+    { kind: "discard" | "sacrifice" | "exileFromGraveyard" }
 >;
 
 export type LowerStaticResult =
@@ -709,6 +710,16 @@ export function lowerStaticClause(
                         kind: "sacrifice",
                         filter: clause.filter,
                         ifDeclined: "graveyard",
+                    },
+                },
+            };
+        case "as-enters-exile-from-graveyard":
+            return {
+                ok: true,
+                lowered: {
+                    asEntersCost: {
+                        kind: "exileFromGraveyard",
+                        filter: clause.filter,
                     },
                 },
             };

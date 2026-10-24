@@ -332,6 +332,16 @@ export type StaticClauseIR =
           readonly kind: "as-enters-sacrifice";
           readonly filter: PermanentFilter;
       }
+    /**
+     * CR 614.12a / 614.1c — "As <self> enters, exile any number of <type>
+     * cards from your graveyard" (Sutured Ghoul): the controller picks any
+     * number of their own matching graveyard cards, none included, and they
+     * are exiled linked to the entering permanent (CR 607.2b).
+     */
+    | {
+          readonly kind: "as-enters-exile-from-graveyard";
+          readonly filter: { readonly type: CardType };
+      }
     /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
@@ -2236,6 +2246,32 @@ const asEntersSacrificeRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: the as-enters graveyard exile (CR 614.12a) ──────────────────────
+
+/**
+ * "As <self> enters, exile any number of creature cards from your graveyard."
+ * (Sutured Ghoul.) CR 614.12a: an "as … enters" clause is a replacement
+ * effect, so the exile happens before the permanent exists and the cards it
+ * exiles are the linked pile CR 607.2b lets the permanent's other abilities
+ * read. Anchored on the whole sentence and on creature cards: another card
+ * type, a fixed count ("two creature cards"), or an opponent's graveyard
+ * differs from the anchored text and stays refused.
+ */
+const AS_ENTERS_EXILE_FROM_GRAVEYARD =
+    /^As (.+) enters, exile any number of creature cards from your graveyard$/;
+
+const asEntersExileFromGraveyardRule: Rule<StaticClauseIR> = pattern(
+    "as enters exile from graveyard",
+    AS_ENTERS_EXILE_FROM_GRAVEYARD,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "as-enters-exile-from-graveyard" as const,
+                  filter: { type: "Creature" as const },
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frame: player shroud (CR 702.18) ────────────────────────────────────────
 
 /**
@@ -2340,6 +2376,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         revealLibraryTopRule,
         asEntersDiscardRule,
         asEntersSacrificeRule,
+        asEntersExileFromGraveyardRule,
         playerShroudRule,
         playFromLibraryTopRule,
         flashCastCleanupSacrificeRule,
