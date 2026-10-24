@@ -27,7 +27,7 @@
  *                 instant tutors' "shuffle and put <pronoun> on top", whose
  *                 printed order (shuffle BEFORE the placement, or the shuffle
  *                 would bury the card) is kept as two frames.
- *  - `sacrifice` — the `sacrifice` Op (CR 701.21a; issue #6630, pilot 2):
+ *  - `sacrifice` — the `sacrifice` Op (CR 701.21a):
  *                 "Sacrifice <quantity> <descriptor>" (the controller's own
  *                 edict), "<player> sacrifices <quantity> <descriptor>[ of
  *                 their choice]" (the named player's), "Sacrifice <this
