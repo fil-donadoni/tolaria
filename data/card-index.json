@@ -24452,6 +24452,16 @@
         "source": "compiled"
     },
     {
+        "name": "Future Sight",
+        "scryfallId": "688bd665-4948-4961-aec5-f17782257f9b",
+        "oracleId": "93a0e938-b916-47ec-9803-369e885e253c",
+        "firstSet": "ons",
+        "firstPrintId": "688bd665-4948-4961-aec5-f17782257f9b",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Futurist Forge",
         "scryfallId": "a50feebf-c660-43f1-9fae-75294703b346",
         "oracleId": "0e5f97b5-bb8c-4688-a141-5db4d4eeccf0",
@@ -38260,6 +38270,16 @@
         "firstSet": "tsp",
         "firstPrintId": "febbea40-74c7-431f-a88f-c15d4fdda89d",
         "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Magus of the Future",
+        "scryfallId": "7025e614-7d08-4915-a985-3b876f1bdd1c",
+        "oracleId": "10758aa7-0f64-499f-8010-514e8fc31b7e",
+        "firstSet": "fut",
+        "firstPrintId": "7025e614-7d08-4915-a985-3b876f1bdd1c",
+        "firstPrintSet": "fut",
         "rarity": "rare",
         "source": "compiled"
     },
