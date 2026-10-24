@@ -532,7 +532,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Goblin Shrine",
     "Goblin Ski Patrol",
     "Goblin Snowman",
-    "Goblin Spy",
     "Goblin Wizard",
     "Goblins of the Flarg",
     "Godless Shrine",

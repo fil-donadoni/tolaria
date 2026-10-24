@@ -98,6 +98,8 @@ export interface LoweredStatic {
     };
     /** CR 305.2 — additional land plays each turn. */
     readonly extraLandDrops?: number;
+    /** CR 401.5 — the controller plays with their library top revealed. */
+    readonly revealsLibraryTop?: "controller";
     /** CR 614.1a — "you may discard a <type> card instead" as it enters. */
     readonly asEntersDiscard?: { readonly filter: { readonly type: CardType } };
     /** CR 614.1a — the self-shuffle replacement. */
@@ -651,6 +653,10 @@ export function lowerStaticClause(
                     optionalDrawSkip: { effects: clause.effects },
                 },
             };
+        // CR 401.5 / 604.2 — a flat scope `computeLibraryTopRevealedPlayers`
+        // reads live off the battlefield; never stored state.
+        case "reveal-library-top":
+            return { ok: true, lowered: { revealsLibraryTop: "controller" } };
         case "extra-land-drop":
             return { ok: true, lowered: { extraLandDrops: clause.count } };
         case "as-enters-discard":
