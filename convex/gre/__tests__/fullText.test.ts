@@ -420,6 +420,10 @@ describe("full-text effect — not copiable (CR 707.2)", () => {
         withShapeshifter(() => {
             const state = board([inGraveyard(CRAW_WURM, "wurm")]);
             removePermanentTo(state, "shifter", "exile");
+            // CR 400.7 — the card in exile is its printed self again.
+            const exiled = find(state, "shifter");
+            expect(presentedDefId(exiled)).toBe(SHAPESHIFTER);
+            expect(exiled.fullTextAnchor).toBeUndefined();
             expect(state.lastKnownCopiable?.shifter).toMatchObject({
                 defId: SHAPESHIFTER,
                 fullTextDefId: CRAW_WURM,
