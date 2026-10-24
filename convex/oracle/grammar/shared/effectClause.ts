@@ -102,6 +102,11 @@ import {
     type CoinFlipMarker,
 } from "./coinFlipSeries";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
+import {
+    printsAmongPick,
+    readAmongPickSentence,
+    type AmongPickSentenceIR,
+} from "./fromAmong";
 
 export const EFFECT_CLAUSE = "effect clause";
 
@@ -1436,6 +1441,13 @@ export type EffectSentenceIR =
           readonly kind: "mill";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+          /**
+           * CR 608.2c + CR 400.2 — "You may put a land card from among them
+           * into your hand.": the sentence after the mill picks from EXACTLY
+           * the cards it milled (`fromAmong.ts`), folded on by
+           * `assembleSentences` because "them" means nothing alone.
+           */
+          readonly pick?: AmongPickSentenceIR;
       }
     | {
           /**
@@ -2166,16 +2178,30 @@ export type LibraryRouteIR =
     | {
           readonly kind: "take";
           readonly count: AmountIR;
-          readonly rest:
-              | "bottom-any-order"
-              | "bottom-random-order"
-              | "graveyard";
+          readonly rest: LibraryRestIR;
           /**
            * "… and the OTHER on the bottom": the rest is exactly one card, so
            * the window must be two cards wide (CR 401.4 — one kept, one left).
            */
           readonly other?: true;
+      }
+    | {
+          /**
+           * "You may reveal a creature card from among them and put it into
+           * your hand. Put the rest on the bottom of your library in a random
+           * order." — a pick of ONE card the filter admits (`fromAmong.ts`),
+           * then the rest, each its own sentence.
+           */
+          readonly kind: "pick-from-among";
+          readonly pick: AmongPickSentenceIR;
+          readonly rest: LibraryRestIR;
       };
+
+/** Where the cards a look-and-route does not keep go (CR 401.4). */
+export type LibraryRestIR =
+    | "bottom-any-order"
+    | "bottom-random-order"
+    | "graveyard";
 
 /** Where a `reveal-until` sentence sends a card (the Op's own vocabulary). */
 export type UntilRouteDestination =
@@ -2330,6 +2356,14 @@ export type SentenceIR =
       }
     /** CR 401.4 — the routing half of a `look-distribute` (see there). */
     | { readonly role: "library-route"; readonly route: LibraryRouteIR }
+    /**
+     * CR 608.2c — a pick "from among them" (`fromAmong.ts`): the middle of a
+     * three-sentence look-and-route, or the tail of a mill. Folded onto its
+     * antecedent by `assembleSentences`; alone it points at nothing.
+     */
+    | { readonly role: "among-pick"; readonly pick: AmongPickSentenceIR }
+    /** CR 401.4 — "Put the rest <where>.", the last of the three. */
+    | { readonly role: "library-rest"; readonly rest: LibraryRestIR }
     /** CR 701.20a — the window half of a `reveal-until` (see there). */
     | { readonly role: "reveal-until"; readonly filter: EffectCardFilter }
     /** The routing half of a `reveal-until` (see there). */
@@ -2540,6 +2574,8 @@ export function assembleSentences(
     const restrictions: RestrictionIR[] = [];
     // CR 608.2c — a library window waits for the sentence that routes it.
     let window: Extract<SentenceIR, { role: "library-look" }> | null = null;
+    // The pick "from among them" of a window, waiting for "Put the rest …".
+    let windowPick: AmongPickSentenceIR | null = null;
     // CR 105.1 — a "Choose a color." marker waits for the ONE sentence that
     // reads its pick (`choose-color-grant-protection`); every other
     // follower, including a second marker or the end of the list, has no
@@ -3243,18 +3279,66 @@ export function assembleSentences(
             }
         }
         if (window !== null) {
-            if (sentence.role !== "library-route")
+            // CR 608.2c — the three-sentence form: "them" in the pick is the
+            // window, and the window is not routed until "Put the rest …".
+            if (sentence.role === "among-pick" && windowPick === null) {
+                windowPick = sentence.pick;
+                continue;
+            }
+            let route: LibraryRouteIR;
+            if (windowPick !== null) {
+                if (sentence.role !== "library-rest")
+                    return {
+                        ok: false,
+                        reason: "a pick from among them is not followed by where the rest go",
+                    };
+                route = {
+                    kind: "pick-from-among",
+                    pick: windowPick,
+                    rest: sentence.rest,
+                };
+                windowPick = null;
+            } else if (sentence.role === "library-route")
+                route = sentence.route;
+            else
                 return {
                     ok: false,
                     reason: "a library look is not followed by where its cards go",
                 };
-            const folded = foldLibraryRoute(window, sentence.route);
+            const folded = foldLibraryRoute(window, route);
             if (typeof folded === "string")
                 return { ok: false, reason: folded };
             effects.push(folded);
             window = null;
             continue;
         }
+        if (sentence.role === "among-pick") {
+            // CR 608.2c + CR 400.2 — "them" after a mill is the cards it
+            // milled; after anything else it names no set this grammar reads.
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "mill" ||
+                previous.pick !== undefined
+            )
+                return {
+                    ok: false,
+                    reason: '"from among them" follows no look, reveal or mill that put cards in view',
+                };
+            // "them" is plural: a mill of one card prints no set to pick from.
+            if (previous.count.kind === "fixed" && previous.count.value === 1)
+                return {
+                    ok: false,
+                    reason: '"from among them" follows a mill of a single card',
+                };
+            effects[effects.length - 1] = { ...previous, pick: sentence.pick };
+            continue;
+        }
+        if (sentence.role === "library-rest")
+            return {
+                ok: false,
+                reason: '"Put the rest" follows no pick from a library window',
+            };
         if (sentence.role === "library-look") {
             if (restrictions.length > 0)
                 return {
@@ -3712,6 +3796,14 @@ function foldLibraryRoute(
         return '"revealed this way" follows a look, not a reveal (CR 701.20a)';
     if (route.kind === "take" && window.reveal)
         return "a pick from a revealed window is not in this grammar";
+    // CR 701.20a — a revealed window's cards are all shown, so its pick is a
+    // plain "put"; a look's pick shows the one card taken ("reveal it"). The
+    // crossed pairs — a second reveal, and a private pick no fixture pins —
+    // are refused.
+    if (route.kind === "pick-from-among" && window.reveal === route.pick.reveal)
+        return window.reveal
+            ? '"reveal it" picks from a window that was looked at, not revealed'
+            : "a pick from a looked-at window reveals the card it takes";
     if (
         route.kind === "take" &&
         route.other === true &&
@@ -4024,6 +4116,12 @@ export function optionalSentenceRule(
             });
         }
         if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
+        // CR 608.2c — a pick "from among them" carries its own "You may":
+        // it is folded onto the window or mill before it, and the marker
+        // says the pick may take nothing, not that a whole effect is optional.
+        // A pick with no such antecedent is refused by `assembleSentences`.
+        if (printsAmongPick(capitalise(probe)))
+            return inner.run(capitalise(probe), ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
         // of an `optional-hand-cost-then`: what it gates is the "If you do"
@@ -4818,6 +4916,10 @@ const ROUTE_ALL_OF_SUBTYPE =
 const ROUTE_TAKE =
     /^Put (\S+) of (?:them|those cards) into your hand and the rest (on the bottom of your library in any order|on the bottom of your library in a random order|into your graveyard)$/;
 
+/** The last of the three-sentence routing: "Put the rest on the bottom …". */
+const ROUTE_REST_ALONE =
+    /^Put the rest (on the bottom of your library in any order|on the bottom of your library in a random order|into your graveyard)$/;
+
 /** The two-card window's routing: "Put one of them into your hand and the other on the bottom of your library". */
 const ROUTE_TAKE_OTHER =
     /^Put one of them into your hand and the other on the bottom of your library$/;
@@ -5436,7 +5538,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         const handPick = handPickSentence(span, ctx);
         if (handPick !== null) return handPick;
 
-        const library = libraryHalf(span);
+        const library = libraryHalf(span, ctx);
         if (library !== null) return library;
 
         const recoloured = readPumpThenColor(span, (half) =>
@@ -6171,7 +6273,21 @@ function handPickSentence(span: string, ctx: unknown) {
     return null;
 }
 
-function libraryHalf(span: string) {
+function libraryHalf(span: string, ctx: unknown) {
+    const pick = readAmongPickSentence(span, ctx);
+    if (pick !== null) {
+        if (!pick.ok) return pick;
+        return ok({
+            role: "among-pick" as const,
+            pick: pick.value,
+        } satisfies SentenceIR);
+    }
+    const rest = span.match(ROUTE_REST_ALONE);
+    if (rest !== null)
+        return ok({
+            role: "library-rest" as const,
+            rest: ROUTE_REST.get(rest[1]!)!,
+        } satisfies SentenceIR);
     const look = span.match(LIBRARY_LOOK);
     if (look !== null) {
         const count = readAmount(look[2]!);
