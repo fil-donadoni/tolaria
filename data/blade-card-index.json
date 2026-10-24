@@ -701,6 +701,13 @@
             "needsSetup": true
         }
     ],
+    "Tinker": [
+        {
+            "label": "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Uro, Titan of Nature's Wrath": [
         {
             "label": "self-sacrificing ETB: hard-casts Uro for its enter trigger",

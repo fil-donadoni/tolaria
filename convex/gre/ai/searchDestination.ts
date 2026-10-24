@@ -191,7 +191,7 @@ function flattenOps(effects: readonly EffectOp[], out: EffectOp[]): EffectOp[] {
 function choiceOpFor(
     ops: readonly EffectOp[],
     choiceId: string
-): { bind: string } | undefined {
+): { op: EffectOp; bind: string } | undefined {
     // A choice raised inside a `forEach` body carries its iteration scope
     // (`$picked@0:1` — Show and Tell's per-player pick, issue #4218); the Op
     // declares the authored name.
@@ -209,7 +209,7 @@ function choiceOpFor(
         if (found) return undefined;
         found = { op, bind: op.bind };
     }
-    return found && { bind: found.bind };
+    return found;
 }
 
 /** The zone the `moveZone` Ops consuming `bind` send the picks to, when they
@@ -276,4 +276,72 @@ export function choiceFindDestination(
     const choiceOp = choiceOpFor(ops, choice.choiceId);
     if (!choiceOp) return undefined;
     return moveDestinationFor(ops, choiceOp.bind);
+}
+
+/** Whether a string names `bind` itself or a path off it (`$picked`,
+ *  `$picked.manaValue`) — the spellings a later Op reads a binding through. */
+function namesBinding(value: string, bind: string): boolean {
+    return (
+        value === bind ||
+        value.startsWith(`${bind}.`) ||
+        value.startsWith(`${bind}[`)
+    );
+}
+
+/** Whether anything in `value` reads `bind`, OTHER than the two sites the
+ *  sole-move shape allows: the raising `choice` Op's own `bind` / `id`, and the
+ *  `cards` of a `moveZone` that moves the picks under the controller and binds
+ *  nothing itself. A `moveZone` that re-binds what entered ("sacrifice it at
+ *  the beginning of the next end step") hands the find to a later reader, so
+ *  it counts as a read. */
+function readsBindingElsewhere(
+    value: unknown,
+    bind: string,
+    choiceOp: EffectOp
+): boolean {
+    if (typeof value === "string") return namesBinding(value, bind);
+    if (Array.isArray(value)) {
+        return value.some((v) => readsBindingElsewhere(v, bind, choiceOp));
+    }
+    if (!value || typeof value !== "object") return false;
+    const rec = value as Record<string, unknown>;
+    const skip = new Set<string>();
+    if (rec === (choiceOp as unknown)) {
+        skip.add("bind");
+        skip.add("id");
+    } else if (
+        rec.op === "moveZone" &&
+        (rec.cards as { ref?: unknown } | undefined)?.ref === bind
+    ) {
+        if (rec.bind !== undefined || rec.player !== "controller") return true;
+        skip.add("cards");
+    }
+    return Object.entries(rec).some(
+        ([k, v]) => !skip.has(k) && readsBindingElsewhere(v, bind, choiceOp)
+    );
+}
+
+/** Whether the cards picked at `choice` are ONLY MOVED: the source's Effect
+ *  Script consumes the choice's binding through `cards`-shape `moveZone` Ops
+ *  and nothing else, and the choice is the stack item controller's own (issue
+ *  #6761). Then what a find does is exactly its destination: no later Op
+ *  charges life, deals damage or counts by it, and no re-binding of what
+ *  entered lets a delayed clause sacrifice it.
+ *
+ *  This is the half of "is finding a strict gain over failing to find (CR
+ *  701.23b)?" that lives in the script; the zone, the library's owner and the
+ *  find's worth are the candidate generator's to read. Fails closed like the
+ *  rest of this module: an underivable script, choice or consumer answers
+ *  `false`. Pure. */
+export function choicePicksOnlyMoved(
+    state: GameState,
+    choice: PendingChoice
+): boolean {
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    if (!item || item.controllerId !== choice.playerId) return false;
+    const script = resolvingEffectScript(item);
+    if (!script) return false;
+    const choiceOp = choiceOpFor(flattenOps(script, []), choice.choiceId);
+    if (!choiceOp) return false;
+    return !readsBindingElsewhere(script, choiceOp.bind, choiceOp.op);
 }

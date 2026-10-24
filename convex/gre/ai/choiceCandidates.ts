@@ -101,8 +101,10 @@ import {
 } from "./candidateValue";
 import {
     choiceFindDestination,
+    choicePicksOnlyMoved,
     searchFindDestination,
 } from "./searchDestination";
+import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 
 /** One opened branch of a choice node. */
 export type ChoiceCandidate = {
@@ -827,9 +829,10 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
  *  CR 701.23b — a player may FAIL TO FIND. Modelled whenever the choice's count
  *  admits an empty pick (`{ min: 0, … }`, the "you may search" shape): an empty
  *  submission is a real, sometimes-correct answer (keeping the library
- *  unshuffled, declining the life payment's downside), so it is always offered
- *  as its own branch rather than assumed away. A fixed-count choice
- *  (`count: 1`) has no legal empty answer and gets none. */
+ *  unshuffled, declining the life payment's downside), so it is offered as its
+ *  own branch rather than assumed away — EXCEPT where finding is provably a
+ *  strict gain ({@link failToFindIsDominated}, issue #6761). A fixed-count
+ *  choice (`count: 1`) has no legal empty answer and gets none. */
 const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const searcherId = choice.playerId;
     const zoneOwner = getPlayer(state, choice.zoneOwnerId ?? searcherId);
@@ -853,7 +856,10 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const out: Omit<ChoiceCandidate, "prior">[] = [];
 
     // CR 701.23b — "fail to find" (only when the count admits an empty pick).
-    if (getPendingChoiceMin(choice.count) <= 0) {
+    // Pushed FIRST so a pool that offers nothing still answers with it; pulled
+    // back out below once a find proves it dominated.
+    const failToFind = getPendingChoiceMin(choice.count) <= 0;
+    if (failToFind) {
         out.push({
             key: "search-library:none",
             move: submit([]),
@@ -964,8 +970,72 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
             },
         });
     }
+    if (
+        failToFind &&
+        failToFindIsDominated(state, choice, {
+            destination,
+            zoneOwnerIsSearcher: zoneOwner.id === searcherId,
+            libraryAfterFind: zoneOwner.library.length - take,
+            bestFindWorth: ranked[0]?.worth ?? 0,
+        })
+    ) {
+        return out.filter((c) => c.key !== "search-library:none");
+    }
     return out;
 };
+
+/** CR 701.23b — is "fail to find" DOMINATED by the best find (issue #6761)?
+ *
+ *  The empty answer is a real decision only where finding can cost something.
+ *  Where it provably cannot, keeping the branch is not caution, it is noise
+ *  with a price: ISMCTS backs the MEAN of a choice node's children up to the
+ *  move that raised it, so every visit spent on the losing empty branch drags
+ *  the cast below `pass` at a small budget. Measured on the Bot-play sweep:
+ *  Tinker at `count: { min: 0, max: 1 }` went from `played` to `ignored`
+ *  (root `pass` 25 visits / 0.59 vs the cast 23 / 0.56), and a `PRIOR_MIN`
+ *  prior on the branch did not move it — a prior decays with visits, the
+ *  dilution does not.
+ *
+ *  Dominated when ALL of these hold, each a reason finding could hurt:
+ *  - the find goes to the searcher's HAND or BATTLEFIELD — an exile, graveyard
+ *    or library-top find is a trade the searcher may decline;
+ *  - out of the searcher's OWN library — a find out of an opponent's library
+ *    moves their card, not a gain of the searcher's;
+ *  - the script only MOVES the picks ({@link choicePicksOnlyMoved}) — no later
+ *    Op charges, deals or counts by what was found;
+ *  - the library keeps at least `deckingHorizon` cards after the find — below
+ *    it the evaluator charges for every card the library loses (CR 104.3c), so
+ *    a find has a price the empty answer does not pay;
+ *  - the best find is worth something.
+ *
+ *  The horizon is `DEFAULT_EVAL_WEIGHTS`', the weights `libraryTargetWorth`
+ *  prices finds with, not a variant's. The accepted narrowing: a find can
+ *  still lose on entry (a legend-rule duplicate, an entry drawback the worth
+ *  does not read), and then the bot must find. Every find stays in the tree,
+ *  so it still chooses AMONG them.
+ *
+ *  Search-side only, like every other pruning: the empty submission stays
+ *  LEGAL, the engine still accepts it, and a human is still offered it. */
+function failToFindIsDominated(
+    state: GameState,
+    choice: PendingChoice,
+    read: {
+        destination: ReturnType<typeof searchFindDestination>;
+        zoneOwnerIsSearcher: boolean;
+        libraryAfterFind: number;
+        bestFindWorth: number;
+    }
+): boolean {
+    if (read.destination !== "hand" && read.destination !== "battlefield") {
+        return false;
+    }
+    if (!read.zoneOwnerIsSearcher) return false;
+    if (read.libraryAfterFind < DEFAULT_EVAL_WEIGHTS.deckingHorizon) {
+        return false;
+    }
+    if (read.bestFindWorth <= 0) return false;
+    return choicePicksOnlyMoved(state, choice);
+}
 
 /** The applicability gate `handPickCandidates` declines on — hoisted out so the
  *  gate and the generator are ONE predicate, never two that can drift (PR #1914
