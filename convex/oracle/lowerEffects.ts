@@ -4863,8 +4863,14 @@ function lowerSentenceBody(
  *  - `search` (CR 701.23a): the `choice` over the controller's library. The
  *    find is OPTIONAL when the description states a quality (CR 701.23b — a
  *    search of a hidden zone for cards with a stated quality never compels
- *    it) or the quantity is "up to N"; a search for plain "a card" states no
- *    quality and MUST find one, clamped by what the library holds (CR 609.3).
+ *    it) or the quantity is a range ("up to N", "any number of"); a search
+ *    for plain "a card" or "three cards" states no quality and MUST find
+ *    that many, clamped by what the library holds (CR 609.3). Two arguments
+ *    are the SITE's to settle: "with mana value X or less" reads the X the
+ *    source announced (CR 107.3 — refused where none is, and where X is a
+ *    paid amount the filter cannot carry), and "named <self>" carries the
+ *    normaliser's marker, put back as the printed name here (CR 201.2) in
+ *    the filter and in the prompt.
  *    The reveal (CR 701.20a) comes right after the choice, while the card is
  *    still in the library: it keeps its all-players knowledge through the
  *    move, and a later shuffle clears knowledge only of the cards still in
@@ -4893,18 +4899,36 @@ function lowerFrameChain(
             }
             case "search": {
                 const bind = walk.nextBind("found");
-                const statedQuality = Object.keys(frame.filter).length > 0;
+                if (typeof frame.filter.manaValueAtMost === "object") {
+                    // CR 107.3f — "you may pay {X}. If you do, …": X is in
+                    // the text, not in a cost, and is chosen as it is paid;
+                    // it lives in the payment's binding, which
+                    // `EffectCardFilter.manaValueAtMost` cannot read.
+                    if (site.paidBind !== undefined)
+                        return unlowerable(
+                            '"with mana value X or less" reads an X chosen as it was paid (CR 107.3f), which a card filter cannot carry'
+                        );
+                    if (!site.allowX)
+                        return unlowerable(
+                            "a search filter reads X but its source announces no {X} (CR 107.3)"
+                        );
+                }
+                const filter =
+                    frame.filter.name === SELF_MARKER
+                        ? { ...frame.filter, name: site.selfName }
+                        : frame.filter;
+                const statedQuality = Object.keys(filter).length > 0;
                 ops.push({
                     op: "choice",
                     kind: "search-library",
                     player: "controller",
                     zone: "library",
-                    ...(statedQuality ? { filter: frame.filter } : {}),
+                    ...(statedQuality ? { filter } : {}),
                     count:
                         statedQuality || frame.upTo
                             ? { min: 0, max: frame.count }
                             : frame.count,
-                    prompt: `Search your library for ${frame.phrase}.`,
+                    prompt: `Search your library for ${frame.phrase.split(SELF_MARKER).join(site.selfName)}.`,
                     bind,
                 });
                 if (frame.reveal !== undefined)
