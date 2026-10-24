@@ -26,11 +26,9 @@
  */
 
 import { readManaCost } from "../../manaCost";
-import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import type {
     Color,
     EffectCardFilter,
-    EffectChoiceSuperlative,
     EffectManaPool,
     ManaCost,
     TargetRequirement,
@@ -81,6 +79,7 @@ import {
     type PermanentSweepSelector,
 } from "./massSubject";
 import {
+    COLOR_OR_LIST,
     COLOR_WORDS,
     TYPE_NOUNS,
     type DescriptorIR,
@@ -88,9 +87,8 @@ import {
     dividedTargetsRule,
     narrowedStackRequirement,
     opensTargetPhrase,
-    unqualifiedPermanentChoiceFilter,
     sacrificeFilterFromDescriptor,
-    superlativeFromClause,
+    unqualifiedPermanentChoiceFilter,
     targetFilterRule,
     targetRequirementFromDescriptor,
 } from "./targetFilter";
@@ -551,17 +549,6 @@ export type EffectSentenceIR =
           readonly clause: string;
           readonly mana: ManaCost;
           readonly effect: EffectSentenceIR;
-      }
-    /**
-     * CR 701.21a — the imperative "Sacrifice this enchantment.": the source
-     * (or the site's pronoun for it) is sacrificed by its controller. `then`
-     * is the "If you do, <effect>." sentence behind it (CR 608.2c), folded in
-     * by `assembleSentences`: it runs only when the sacrifice happened.
-     */
-    | {
-          readonly kind: "sacrifice-source";
-          readonly subject: SubjectIR;
-          readonly then?: EffectSentenceIR;
       }
     | {
           readonly kind: "pump";
@@ -1679,44 +1666,6 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 118.12a — "sacrifice <this permanent> unless you <payment>": the
-           * controller pays to keep the source or loses it. ONE instruction,
-           * carried as one sentence so the payment is offered only to gate the
-           * sacrifice (the `counter … unless` twin above).
-           *
-           * The subject is the source or the site's pronoun for it ("sacrifice
-           * it"); any other object is a different rule and is refused.
-           */
-          readonly kind: "sacrifice-unless";
-          readonly subject: SubjectIR;
-          readonly payment: UnlessPaymentIR;
-      }
-    | {
-          /**
-           * CR 701.21a — "<player> sacrifices a <permanent filter> [of their
-           * choice]": an EDICT. "Of their choice" names the chooser — the
-           * sacrificing player — and the pool is their own permanents (CR
-           * 701.21a: a player can't sacrifice a permanent they don't control),
-           * so a sentence without the phrase means the same thing.
-           *
-           * `phrase` is the printed "a creature" / "two creatures", kept for
-           * the prompt the chooser reads. `count` is the printed number; the
-           * pick clamps to what the player controls (CR 101.3).
-           */
-          readonly kind: "sacrifice";
-          readonly player: PlayerRefIR;
-          /** A printed number, or "that many" — the damage a damage head
-           *  dealt or took (CR 120.3), read by the lowering's `lowerAmount`. */
-          readonly count: AmountIR;
-          readonly filter: EffectCardFilter;
-          /** CR 608.2h — "with the greatest power among creatures they
-           *  control": the pick narrows to the permanents tied for the extreme
-           *  stat. Absent for the plain edict. */
-          readonly superlative?: EffectChoiceSuperlative;
-          readonly phrase: string;
-      }
-    | {
-          /**
            * CR 701.26a + CR 109.2 — "<player> taps an untapped <permanent
            * types> they control for each <type> counter on this <noun>": the
            * named player CHOOSES, among their own untapped permanents, as
@@ -2428,6 +2377,16 @@ export function assemblyTrace(span: string, sentences: number): FailureTrace {
     return { path: [SENTENCE_ASSEMBLY], span, progress: sentences + 1 };
 }
 
+/** CR 118.12 — the chain's last frame is the controller's own, unridered sacrifice. */
+function endsInOwnSacrifice(chain: FrameChainIR): boolean {
+    const last = chain.frames[chain.frames.length - 1];
+    return (
+        last?.frame === "sacrifice" &&
+        last.player.kind === "you" &&
+        last.unless === undefined
+    );
+}
+
 export function assembleSentences(
     sentences: readonly SentenceIR[],
     opts: {
@@ -2771,9 +2730,15 @@ export function assembleSentences(
             // has no "do" to read, and a member already gated has no second
             // gate.
             const last = effects[effects.length - 1];
+            // A frame chain is such an action when its LAST frame is the
+            // controller's own sacrifice with no payment rider
+            // (`verbFrames.ts`, the `sacrifice` frame — issue #6630): "If
+            // you do" reads what YOU did, so an opponent's edict, or a
+            // sacrifice already gated on a payment, is no cost of yours.
             if (
-                (last?.kind === "sacrifice-source" ||
-                    last?.kind === "optional") &&
+                last !== undefined &&
+                (last.kind === "optional" ||
+                    (last.kind === undefined && endsInOwnSacrifice(last))) &&
                 last.then === undefined
             ) {
                 effects[effects.length - 1] = {
@@ -4492,29 +4457,9 @@ const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
 /** CR 701.9b — "Discard a card": the controller discards one of their choice. */
 const DISCARD_SELF = "Discard a card";
-/** CR 105.1 — "green or white": two colour words joined by a printed "or". */
-const COLOR_ALTERNATIVES =
-    /^(?:white|blue|black|red|green) or (?:white|blue|black|red|green) /;
-/**
- * CR 701.21a — "Target player sacrifices a creature of their choice": the
- * count word and the permanent phrase, "of their choice" optional. Anything
- * after the phrase ("with flying", "for each …", ", then …") stays inside
- * the phrase, where the descriptor reader refuses it.
- */
-/** CR 118.12a — where a sacrifice rider's payment begins. */
-const SACRIFICE_UNLESS = " unless you ";
-const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
 /** CR 701.26a — "<player> taps an untapped <types> they control for each <type> counter on this <noun>". */
 const TAP_CHOSEN_PER_COUNTER =
     /^(.+?) taps an untapped (.+?) (?:they|that player) control for each (\S+) counter on this (\S+)$/;
-/** CR 701.21a — the imperative "Sacrifice that many permanents": the controller's own edict. */
-const SACRIFICE_THAT_MANY = /^Sacrifice that many (permanents)$/;
-/**
- * CR 608.2h — the superlative tail of an edict's permanent phrase: "creature
- * with the greatest power among creatures they control". Head, extreme, stat
- * and set; each is validated by `superlativeFromClause`.
- */
-const SUPERLATIVE_TAIL = /^(.+?) with the (\S+) (.+?) among (.+)$/;
 /**
  * CR 608.2c — "You draw a card and you lose 1 life" / "You draw a card and
  * lose 1 life": a draw, then a life loss, the second "you" printed or elided. Anchored at both
@@ -8111,33 +8056,6 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── sacrifice it unless you pay (CR 118.12a) ───────────────────────────
-    const unlessAt = span.indexOf(SACRIFICE_UNLESS);
-    if (unlessAt !== -1 && uncapitalise(span).startsWith("sacrifice ")) {
-        const subject = subjectRule.run(
-            span.slice("Sacrifice ".length, unlessAt),
-            ctx
-        );
-        if (!subject.ok) return fail(subject.reason, span);
-        // Only the source (or the site's pronoun for it) is sacrificed unless
-        // paid for; "sacrifice target creature unless …" is not a printed form.
-        if (subject.value.kind !== "self" && subject.value.kind !== "pronoun")
-            return fail("only the source is sacrificed unless paid for", span);
-        const payment = readUnlessPayment(
-            span.slice(unlessAt + SACRIFICE_UNLESS.length),
-            ctx
-        );
-        // The refusal names the WHOLE sentence, not the payment: the gap key
-        // is the sentence's, so a refused payment stays under the key its
-        // backlog issue already claims.
-        if (!payment.ok) return fail(payment.reason, span);
-        return ok({
-            kind: "sacrifice-unless" as const,
-            subject: subject.value,
-            payment: payment.value,
-        } satisfies EffectSentenceIR);
-    }
-
     // ── tap the player's own untapped permanents, one per counter (CR 701.26a)
     const tapPer = span.match(TAP_CHOSEN_PER_COUNTER);
     if (tapPer !== null) {
@@ -8154,7 +8072,7 @@ function effectSentence(
             return fail(`"${tapPer[2]}" disagrees in number`, tapPer[2]!);
         const filter = sacrificeFilterFromDescriptor(
             descriptor.value,
-            COLOR_ALTERNATIVES.test(tapPer[2]!)
+            COLOR_OR_LIST.test(tapPer[2]!)
         );
         if (!filter.ok) return filter;
         return ok({
@@ -8164,80 +8082,6 @@ function effectSentence(
             counterType: tapPer[3]!,
             phrase: `an untapped ${tapPer[2]}`,
         } satisfies EffectSentenceIR);
-    }
-
-    // ── sacrifice, the player's choice (CR 701.21a) ────────────────────────
-    // The imperative is the controller's own edict, its size the amount the
-    // head carried ("that many" — the damage dealt, CR 120.3).
-    if (SACRIFICE_THAT_MANY.test(span))
-        return ok({
-            kind: "sacrifice" as const,
-            player: { kind: "you" as const },
-            count: { kind: "event-amount" as const },
-            filter: {},
-            phrase: "that many permanents",
-        } satisfies EffectSentenceIR);
-    const edict = span.match(SACRIFICE_EDICT);
-    if (edict !== null) {
-        const player = playerSubject(edict[1]!, ctx);
-        if (player === null) return fail(`"${edict[1]}" is not a player`, span);
-        const count = readNumberWord(edict[2]!);
-        if (count === null) return fail(`"${edict[2]}" is not a count`, span);
-        const tail = SUPERLATIVE_TAIL.exec(edict[3]!);
-        const descriptor = descriptorRule.run(
-            tail === null ? edict[3]! : tail[1]!,
-            ctx
-        );
-        if (!descriptor.ok) return descriptor;
-        // The noun's number is the count's: "a creature", "two creatures".
-        if ((descriptor.value.plural === true) !== (count !== 1))
-            return fail(
-                `"${edict[2]} ${edict[3]}" disagrees in number`,
-                edict[3]!
-            );
-        const filter = sacrificeFilterFromDescriptor(
-            descriptor.value,
-            COLOR_ALTERNATIVES.test(edict[3]!)
-        );
-        if (!filter.ok) return filter;
-        let superlative: EffectChoiceSuperlative | undefined;
-        if (tail !== null) {
-            // "two creatures with the greatest power" ranks each pick, not the
-            // pool once — no encoding, so refused rather than read as one.
-            if (count !== 1)
-                return fail("a superlative selects ONE permanent", edict[2]!);
-            const read = superlativeFromClause(
-                tail[2]!,
-                tail[3]!,
-                tail[4]!,
-                filter.value,
-                ctx
-            );
-            if (!read.ok) return read;
-            superlative = read.value;
-        }
-        return ok({
-            kind: "sacrifice" as const,
-            player,
-            count: { kind: "fixed" as const, value: count },
-            filter: filter.value,
-            ...(superlative === undefined ? {} : { superlative }),
-            phrase: `${edict[2]} ${edict[3]}`,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── sacrifice the source itself (CR 701.21a) ───────────────────────────
-    // "Sacrifice this enchantment": no choice, the source is the permanent.
-    if (uncapitalise(span).startsWith("sacrifice ")) {
-        const subject = subjectRule.run(span.slice("Sacrifice ".length), ctx);
-        if (
-            subject.ok &&
-            (subject.value.kind === "self" || subject.value.kind === "pronoun")
-        )
-            return ok({
-                kind: "sacrifice-source" as const,
-                subject: subject.value,
-            } satisfies EffectSentenceIR);
     }
 
     return fail("not an effect sentence this grammar knows", span);

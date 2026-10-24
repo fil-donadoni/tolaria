@@ -298,9 +298,10 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
         expect(clauseHead("White creatures get +N/+N")).toBe(
             "<colour> <type> get <pt>"
         );
-        // A capital that opens a sentence is not a subtype.
-        expect(clauseHead('Sacrifice it." Then draw')).toBe(
-            'Sacrifice it." Then draw'
+        // A capital that opens a sentence is not a subtype. ("Sacrifice …"
+        // itself now opens the sacrifice frame, so another verb stands here.)
+        expect(clauseHead('Destroy it." Then draw')).toBe(
+            'Destroy it." Then draw'
         );
         expect(clauseHead("Landfall — Whenever a land")).toBe(
             "Landfall — Whenever a"
@@ -324,6 +325,16 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
             "frame moveZone"
         );
         expect(clauseHead("Then that player shuffles")).toBe("frame shuffle");
+        // The sacrifice frame (issue #6630): the imperative and the player
+        // head, whatever object or rider follows.
+        expect(clauseHead("Sacrifice all creatures you control")).toBe(
+            "frame sacrifice"
+        );
+        expect(
+            clauseHead(
+                "Target player sacrifices a creature of their choice and loses 1 life"
+            )
+        ).toBe("frame sacrifice");
         // A span opening no frame keeps the opening-words head.
         expect(clauseHead("Shuffle your graveyard into your library")).toBe(
             "Shuffle your graveyard into"

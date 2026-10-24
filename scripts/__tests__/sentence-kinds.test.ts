@@ -104,7 +104,7 @@ describe("effectSentenceKinds reads the union off the source — strictly", () =
         );
     });
 
-    it("the real tree: the pilot's four retired kinds are gone, and HEAD's kinds are a subset of the baseline tree's", () => {
+    it("the real tree: the pilots' retired kinds (four of pilot 1, three of pilot 2) are gone, and HEAD's kinds are a subset of the baseline tree's", () => {
         const head = effectSentenceKinds(
             readFileSync(EFFECT_CLAUSE_PATH, "utf8")
         );
@@ -113,6 +113,10 @@ describe("effectSentenceKinds reads the union off the source — strictly", () =
             "search-library-to-battlefield",
             "search-library-to-top",
             "shuffle-searched-library",
+            // …and of pilot 2 (issue #6630), absorbed by the sacrifice frame.
+            "sacrifice",
+            "sacrifice-source",
+            "sacrifice-unless",
         ])
             expect(head).not.toContain(retired);
         const baseline = baselineSentenceKinds(process.cwd());

@@ -1417,6 +1417,16 @@ export function boardManaFilterFromDescriptor(
 
 const SACRIFICABLE_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
 
+/** CR 105.1 — "green or white": two colour words joined by a printed "or". */
+export const COLOR_OR_LIST =
+    /^(?:white|blue|black|red|green) or (?:white|blue|black|red|green) /;
+/**
+ * CR 608.2h — the superlative tail of an edict's permanent phrase: "creature
+ * with the greatest power among creatures they control". Head, extreme, stat
+ * and set; each is validated by `superlativeFromClause`.
+ */
+export const SUPERLATIVE_TAIL = /^(.+?) with the (\S+) (.+?) among (.+)$/;
+
 /**
  * Descriptor → the `choice` Op's battlefield filter for "<player> sacrifices a
  * <descriptor>" (CR 701.21a), the chooser being the sacrificing player.
@@ -1441,6 +1451,7 @@ export function sacrificeFilterFromDescriptor(
                 "plural",
                 "colors",
                 "multicolored",
+                "nontoken",
             ].includes(field)
         )
             return fail(
@@ -1475,6 +1486,9 @@ export function sacrificeFilterFromDescriptor(
     // CR 105.2b — "a multicolored permanent": the filter's colour COUNT bound
     // (`EffectCardFilter.colorCountAtLeast`, read live on the battlefield).
     if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
+    // CR 111.1 — "a nontoken permanent": one represented by a card
+    // (`EffectCardFilter.isToken`, the permanent filter's own encoding).
+    if (descriptor.nontoken === true) filter.isToken = false;
     const role = descriptor.combatRole;
     if (role !== undefined) {
         if (role.length !== 1 || role[0] !== "attacking")
