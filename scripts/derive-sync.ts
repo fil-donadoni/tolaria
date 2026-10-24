@@ -527,7 +527,12 @@ function fetchedBaseTip(): string | null {
         complain(`could not fetch ${BASE_BRANCH}: ${fetched.stderr.trim()}`);
         return null;
     }
-    return git(["rev-parse", ORIGIN_BASE]).stdout.trim();
+    const tip = git(["rev-parse", ORIGIN_BASE]);
+    if (tip.status !== 0 || tip.stdout.trim() === "") {
+        complain(`could not read ${ORIGIN_BASE}: ${tip.stderr.trim()}`);
+        return null;
+    }
+    return tip.stdout.trim();
 }
 
 /**
@@ -548,14 +553,15 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     say(
         `${BASE_BRANCH} moved to ${newTip.slice(0, 10)} during the sweep — re-applying the verdicts over it`
     );
+    // Read before the tree moves: a failed read leaves the sweep's files.
+    const base = lockfileAt(head);
+    if (base === null) return false;
     // The sweep's and the pack's writes: the detach needs a clean tree.
     if (git(["checkout", "-q", "--", "."]).status !== 0) {
         complain("could not restore the generated files before moving");
         return false;
     }
     if (!detachAt(newTip)) return false;
-    const base = lockfileAt(head);
-    if (base === null) return false;
     const ours = readLockfile();
     const { lock, carried } = overlayBranchVerdicts(base, ours, swept);
     // The header: the swept Bot hash — every carried verdict was played
