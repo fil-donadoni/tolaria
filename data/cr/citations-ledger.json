@@ -30764,6 +30764,7 @@
         {"id":"608.2c","line":"// CR 608.2c — an optional hand exile waits for the \"If you do\" it gates.","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — damage, then the controller's gain.","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — instructions run in the order written, so the counter","sites":1,"status":"baseline"},
+        {"id":"608.2c","line":"// CR 608.2c — or to the same-name library sweep before it.","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — several targets, only the now-illegal one is dropped and the","sites":1,"status":"baseline"},
         {"id":"608.2c","line":"// CR 608.2c — the \", then\" chain (`thenChain.ts`) reads its tail with the","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"// CR 608.2c — the controller follows the instructions in the","sites":1,"status":"baseline"},
