@@ -30453,7 +30453,7 @@
         {"id":"608.2c","line":"* CR 608.2c — \"If you control a <A> and a <B>, <effect> instead\": the","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"* CR 608.2c — \"You <verb phrase> and you <verb phrase>\": two","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"* CR 608.2c — \"You draw a card and that opponent discards a card\": a draw by","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
-        {"id":"608.2c","line":"* CR 608.2c — \"You draw a card and you lose 1 life\": a draw, then a life","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
+        {"id":"608.2c","line":"* CR 608.2c — \"You draw a card and you lose 1 life\" / \"You draw a card and","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"* CR 608.2c — \"You may exile a card from your hand.\", the first half of","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"* CR 608.2c — \"there are N or more cards in your graveyard\": a count of the","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
         {"id":"608.2c","line":"* CR 608.2c — a damage-and-gain: \"{self} deals 2 damage to target creature and","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
