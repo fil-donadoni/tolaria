@@ -4326,10 +4326,12 @@ const GRANT_SPELL_MANA_SUBSTITUTION =
     /^For one spell this turn, you may spend mana as though it were mana of any (color|type) to pay that spell's mana cost$/;
 /** CR 107.3f (issue #4529) — the first sentence of a variable payment. */
 const PAY_VARIABLE_MANA = "you may pay {X}";
-/** CR 118.12 — a FIXED mana payment: "you may pay" then pips only, whole. A
- *  variable {X} is `PAY_VARIABLE_MANA`'s; a non-mana leg ("pay 2 life") is
- *  another payment this rule does not read. */
-const PAY_FIXED_MANA = /^you may pay ((?:\{[WUBRGC0-9]+\})+)$/;
+/** CR 118.12 + CR 107.4e — a FIXED mana payment: "you may pay" then pips only,
+ *  whole; a guild-hybrid pip ("{W/B}") is one of them, kept as a hybrid pair by
+ *  `readManaCost`. A variable {X} is `PAY_VARIABLE_MANA`'s; a non-mana leg
+ *  ("pay 2 life") is another payment this rule does not read. */
+const PAY_FIXED_MANA =
+    /^you may pay ((?:\{(?:[WUBRGC0-9]+|[WUBRG]\/[WUBRG])\})+)$/;
 /** CR 508.1c — the player-scoped attack restriction with its evasion
  *  carve-out, whole. */
 const PLAYER_ATTACK_PROTECTION =
