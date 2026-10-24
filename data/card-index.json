@@ -29950,6 +29950,16 @@
         "firstPrintSet": "mmq"
     },
     {
+        "name": "Hidden Gibbons",
+        "scryfallId": "8f94da51-b4d9-4d79-9113-39f8f4a1be34",
+        "oracleId": "2315b044-bfd2-40dd-a73e-4cf064b36999",
+        "firstSet": "ulg",
+        "firstPrintId": "8f94da51-b4d9-4d79-9113-39f8f4a1be34",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Hidden Path",
         "scryfallId": "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
         "oracleId": "f1c9f5df-d36a-4e15-bae4-81190e4be477",

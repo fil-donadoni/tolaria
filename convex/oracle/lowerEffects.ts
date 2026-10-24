@@ -2014,7 +2014,7 @@ function lowerSentenceBody(
                 duration: durationSpec(sentence.duration),
             }));
         }
-        // CR 205.1a + CR 613.1d/e/4b — the source's type line is replaced,
+        // CR 205.1a + CR 613.1d — the source's type line is replaced,
         // indefinitely (no `duration`): the same four Ops Oko's "becomes a
         // green Elk creature with base power and toughness 3/3" is written in.
         case "become-creature": {
