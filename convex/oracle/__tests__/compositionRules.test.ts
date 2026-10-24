@@ -234,6 +234,126 @@ describe("`If you do,` — the optional action is a cost, paid or not (CR 118.12
         ]);
     });
 
+    it("behind a `sacrifice` frame chain the edict's pick IS the evidence (issue #6630, CR 118.12): Forbidden Ritual's first pair", () => {
+        const def = compiledDefinition(
+            oracleCard({
+                name: "Probe",
+                manaCost: "{2}{B}{B}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Sacrifice a nontoken permanent. If you do, draw a card.",
+            })
+        );
+        expect(def.effects).toEqual([
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: {
+                    type: [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker",
+                    ],
+                    isToken: false,
+                },
+                count: 1,
+                prompt: "Sacrifice a nontoken permanent.",
+                bind: "$sacrifice1",
+            },
+            // The sacrifice binds its first pick (the interpreter's CR 608.2h
+            // snapshot); nothing picked, nothing bound, gate shut.
+            {
+                op: "sacrifice",
+                permanents: { ref: "$sacrifice1" },
+                bind: "$sacrificed2",
+            },
+            {
+                op: "if",
+                predicate: {
+                    boundMatchesFilter: { ref: "$sacrificed2" },
+                    filter: {},
+                },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+    });
+
+    it("the gate reads what YOU did: an opponent's edict, or a pick of more than one, is no evidence (CR 118.12, CR 118.3)", () => {
+        const refusal = (oracleText: string) => {
+            const outcome = compileCard(
+                oracleCard({
+                    name: "Probe",
+                    manaCost: "{1}{B}",
+                    typeLine: "Sorcery",
+                    oracleText,
+                })
+            );
+            return outcome.state === "unparsed"
+                ? `unparsed: ${JSON.stringify(outcome.gaps)}`
+                : outcome.state;
+        };
+        // The fold never fires: the sacrifice was the opponent's.
+        expect(
+            refusal(
+                "Target opponent sacrifices a creature of their choice. If you do, draw a card."
+            )
+        ).toContain("unparsed");
+        // Two picks bind the first alone: one creature given up would still
+        // open the gate, so the pair is refused at the lowering.
+        expect(
+            refusal("Sacrifice two creatures. If you do, draw a card.")
+        ).toContain("leaves no evidence");
+        const optional = compileCard(
+            creature(
+                "Probe",
+                "When this creature enters, you may sacrifice two creatures. If you do, draw a card."
+            )
+        );
+        expect(optional.state).toBe("unparsed");
+        if (optional.state === "unparsed")
+            expect(JSON.stringify(optional.gaps)).toContain(
+                "leaves no evidence"
+            );
+        // A sacrifice already gated on a payment is no cost of yours either.
+        expect(
+            refusal(
+                "At the beginning of your upkeep, sacrifice this creature unless you pay {1}. If you do, draw a card."
+            )
+        ).toContain("unparsed");
+    });
+
+    it("the source form keeps its bind name: 'Sacrifice this enchantment. If you do, …' binds `$sacrificed1` as before the frame", () => {
+        const def = compiledDefinition(
+            oracleCard({
+                name: "Probe",
+                manaCost: "{1}{U}",
+                typeLine: "Enchantment",
+                oracleText:
+                    "At the beginning of your upkeep, sacrifice this enchantment. If you do, draw a card.",
+            })
+        );
+        expect(def.compiledTriggeredAbilities?.[0]?.effects).toEqual([
+            {
+                op: "sacrifice",
+                target: { ref: "$source" },
+                bind: "$sacrificed1",
+            },
+            {
+                op: "if",
+                predicate: {
+                    boundMatchesFilter: { ref: "$sacrificed1" },
+                    filter: {},
+                },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+    });
+
     it("the gated effect runs only on the EVIDENCE the action was paid (CR 118.3), never on the answer alone", () => {
         const def = compiledDefinition(
             creature(

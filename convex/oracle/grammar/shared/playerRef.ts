@@ -81,6 +81,9 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["defending player", { kind: "defending-player" }],
 ]);
 
+/** The printed phrases above, for a reader that dispatches on one opening. */
+export const PLAYER_PHRASES: readonly string[] = [...PHRASES.keys()];
+
 export const playerRefRule: Rule<PlayerRefIR> = subGrammar(
     PLAYER_REF,
     rule(PLAYER_REF, (span) => {

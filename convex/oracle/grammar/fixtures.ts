@@ -8331,7 +8331,19 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             kind: "sacrifice-permanents",
                             player: "controller",
                             zone: "battlefield",
-                            filter: {},
+                            // "permanents" as the shared descriptor reads
+                            // it: the whole permanent-type list (the
+                            // `sacrifice` frame's one spelling, issue #6630).
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                            },
                             count: { ref: "$event.amount" },
                             prompt: "Sacrifice that many permanents.",
                             bind: "$sacrifice1",
@@ -11680,6 +11692,189 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                                     op: "moveZone",
                                     target: { ref: "$source" },
                                     to: "library-top",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6630, CR 701.21a) — the `sacrifice` frame's
+    // IMPERATIVE edict, "Sacrifice a creature": the controller's own pick
+    // behind an enters head. Exhibits the "sacrifice consumes a choice
+    // binding" form the canned smoke scenario cannot answer, on the
+    // controller's seat (Diabolic Edict pins the announced player's).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b1e6921e-e460-4e58-82b0-d98ee31c279d",
+            name: "Accursed Centaur",
+            manaCost: "{B}",
+            typeLine: "Creature — Zombie Centaur",
+            oracleText: "When this creature enters, sacrifice a creature.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Accursed Centaur",
+            types: ["Creature"],
+            subtypes: ["Zombie", "Centaur"],
+            manaCost: { B: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: "When this creature enters, sacrifice a creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "accursed-centaur-trigger",
+                    oracleText:
+                        "When this creature enters, sacrifice a creature.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: "controller",
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                            count: 1,
+                            prompt: "Sacrifice a creature.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6630, CR 701.21a, CR 101.4, CR 107.3) — the
+    // `sacrifice` frame's "X" quantity under "each player": every player
+    // picks X of their own lands in APNAP order, the picks sacrificed
+    // together. Exhibits the runtime-sized `choice` (`count: { X: true }`)
+    // the canned generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4a3c6d0e-6d77-4434-95f4-737879de026f",
+            name: "Tectonic Break",
+            manaCost: "{X}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText: "Each player sacrifices X lands of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tectonic Break",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 2 },
+            oracleText: "Each player sacrifices X lands of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            filter: { type: "Land" },
+                            count: { X: true },
+                            prompt: "Sacrifice X lands.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Verb Frames (issue #6630, CR 701.21a, CR 118.12) — the `sacrifice`
+    // frame's "another <descriptor>" (the source excluded from the pool,
+    // `excludeSource`) under the `optional` wrapper and the `If you do`
+    // Composition Rule: the gated pump runs on the sacrifice's bind, the
+    // first pick's snapshot. Exhibits the runtime-binding `if` the canned
+    // generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0156bfbc-26bc-4699-a7ff-437f7c043716",
+            name: "Brawl-Bash Ogre",
+            manaCost: "{2}{B}{R}",
+            typeLine: "Creature — Ogre Warrior",
+            oracleText:
+                "Menace (This creature can't be blocked except by two or more creatures.)\nWhenever this creature attacks, you may sacrifice another creature. If you do, this creature gets +2/+2 until end of turn.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Brawl-Bash Ogre",
+            types: ["Creature"],
+            subtypes: ["Ogre", "Warrior"],
+            manaCost: { X: 2, B: 1, R: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Menace (This creature can't be blocked except by two or more creatures.)\nWhenever this creature attacks, you may sacrifice another creature. If you do, this creature gets +2/+2 until end of turn.",
+            staticAbilities: ["menace"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "brawl-bash-ogre-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, you may sacrifice another creature. If you do, this creature gets +2/+2 until end of turn.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Sacrifice another creature?",
+                            bind: "$may2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may2" },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "sacrifice-permanents",
+                                    player: "controller",
+                                    zone: "battlefield",
+                                    filter: {
+                                        type: "Creature",
+                                        excludeSource: true,
+                                    },
+                                    count: 1,
+                                    prompt: "Sacrifice another creature.",
+                                    bind: "$sacrifice1",
+                                },
+                                {
+                                    op: "sacrifice",
+                                    permanents: { ref: "$sacrifice1" },
+                                    bind: "$did3",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        boundMatchesFilter: { ref: "$did3" },
+                                        filter: {},
+                                    },
+                                    then: [
+                                        {
+                                            op: "pump",
+                                            target: { ref: "$source" },
+                                            power: 2,
+                                            toughness: 2,
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
                                 },
                             ],
                         },

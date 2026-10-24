@@ -136,7 +136,13 @@ describe('"nontoken" in a descriptor (CR 111.1)', () => {
         expect(targetRequirementFromDescriptor(descriptor.value).ok).toBe(
             false
         );
-        expect(sacrificeFilterFromDescriptor(descriptor.value).ok).toBe(false);
+        // The sacrifice filter READS it since the `sacrifice` Verb Frame
+        // (issue #6630): `isToken: false`, the permanent filter's encoding.
+        const sacrifice = sacrificeFilterFromDescriptor(descriptor.value);
+        expect(sacrifice.ok && sacrifice.value).toEqual({
+            type: "Creature",
+            isToken: false,
+        });
         expect(
             staticFilterFromDescriptor(descriptor.value, "recomputed").ok
         ).toBe(false);

@@ -4,8 +4,10 @@
 //  1. GOLDEN forms — one real corpus card per accepted form, compiled whole:
 //     the bare imperative (Dress Down) and the gated pair (Standstill), whose
 //     opponents-of-the-caster draw reads the spell-cast head's player.
-//  2. REFUSALS — printed neighbours the rule must NOT read: an edict over a
-//     chosen permanent, and an "If you do" with no sacrifice before it.
+//  2. REFUSALS — printed neighbours the rule must NOT read as the source: an
+//     edict over a chosen permanent (the controller's pick, since the
+//     `sacrifice` Verb Frame of issue #6630), and an "If you do" with no
+//     sacrifice before it.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -80,14 +82,26 @@ describe("sacrifice the source (CR 701.21a)", () => {
 });
 
 describe("sacrifice the source — refusals", () => {
-    it("refuses a chosen permanent (an edict is not the source)", () => {
-        const outcome = compileCard(
+    it("a chosen permanent is not the source: the imperative edict is the `sacrifice` frame's own form (issue #6630), the controller's pick", () => {
+        const abilities = triggers(
             enchantment(
                 "Edict",
                 "At the beginning of the end step, sacrifice a creature."
             )
         );
-        expect(outcome.state).toBe("unparsed");
+        expect(abilities?.[0]?.effects).toEqual([
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: "controller",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Sacrifice a creature.",
+                bind: "$sacrifice1",
+            },
+            { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+        ]);
     });
 
     it('refuses an "If you do" that follows no sacrifice', () => {
