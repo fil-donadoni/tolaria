@@ -18,14 +18,14 @@
  * a verdict before). They differ in what a miss does.
  *
  *  - {@link carriedOrPlayed} (bare `oracle:compile`, a SESSION — ADR 0158
- *    § 2a, issue #6688): plays the graduations only, and CARRIES a drift
+ *    § 2a): plays the graduations only, and CARRIES a drift
  *    row's committed verdict marked `botStale` — stale, never missing. It
  *    keeps the committed Bot hash in the header, whatever the tree's Bot
  *    (issue #6463), the honesty rule of `--carry-bot --replay-card`: a
  *    partial play never claims the whole lockfile was played under this
  *    tree's Bot.
  *  - {@link playingBotReach} (`--play-misses`, the BASE's drift sweep after
- *    each merge, issue #6687): plays every miss, drift and graduation, and
+ *    each merge, ADR 0158 § 2b): plays every miss, drift and graduation, and
  *    so clears every `botStale` marker; same header rule. `--replay-bot` is
  *    the one whole replay: it ignores the cache and writes the tree's Bot
  *    hash.
@@ -324,7 +324,7 @@ export function carriedOrPlayed(
  * against `baseline` (default: `previous`): a session plays the
  * `graduations`, carries the `drift`. A row marked `botStale` is a miss
  * whatever its definition, so the base's drift sweep — `staleVerdicts` reads
- * this set (issue #6687) — replays it.
+ * this set — replays it.
  */
 export function probingBotReach(
     previous: Lockfile | null,

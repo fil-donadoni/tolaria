@@ -22,10 +22,8 @@
  *   yield — heavy, queued in the `health` class. See ORDER below.
  *   job   — heavy, for the long CPU-bound JOBS an issue session legitimately
  *           runs itself: the Oracle compiler's Bot-play sweep (it re-execs
- *           itself here only for the base's sweeps, `--play-misses` past a
- *           handful of misses and `--replay-bot` — `lib/heavy-admission.ts`;
- *           a session's bare run, its drift-guard and carry-forward modes
- *           stay unadmitted, ADR 0158 § 2a),
+ *           itself here only when it will play — `lib/heavy-admission.ts`; its
+ *           drift-guard and carry-forward modes stay unadmitted),
  *           `verdicts:search` and `bot:reach`. Same mutex, same worker count,
  *           same heartbeat — but NOT refused in an issue worktree, because the
  *           guard below exists to stop a session re-paying the merge-train's

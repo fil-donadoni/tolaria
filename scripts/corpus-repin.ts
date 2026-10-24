@@ -8,8 +8,8 @@
  *   2. `oracle:corpus --repin`, then everything that follows from the pin:
  *      `oracle:compile --play-misses` (the whole Bot sweep, under the heavy
  *      mutex — a re-pin moves every definition, and a bare run would carry
- *      those verdicts stale past step 3's `ready` losses, issue #6688; exit
- *      77 is passed through as INFRA), `oracle:legality`, `oracle:index`,
+ *      those verdicts stale past step 3's `ready` losses; exit 77 is
+ *      passed through as INFRA), `oracle:legality`, `oracle:index`,
  *      `oracle:pool`, `catalogue:build`;
  *   3. settle what blocks the merge (`lib/corpus-repin.ts`): `ready` losses
  *      acknowledged, enforced-Target claims written — both pointing at ONE
