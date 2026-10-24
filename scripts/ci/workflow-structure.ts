@@ -153,6 +153,7 @@ export type RuleId =
     | "queue-superseded"
     | "host-pinned"
     | "pass-run-name"
+    | "pass-setup-record"
     | "owner-merge-trigger"
     | "local-action-unscanned"
     | "unparseable";
@@ -881,6 +882,53 @@ function checkPassRunName(workflows: SourceFile[], out: Violation[]): void {
     }
 }
 
+/** The pass workflow's failed-setup record (issue #6781): a pass run that ends
+ *  with no record holds the dispatcher (`records-unknown`) for the whole
+ *  budget window. A failed "Job worktree" can leave no `$GITHUB_WORKSPACE`,
+ *  the default working directory of every later step — then no step starts,
+ *  the record-writing one included. So that step must run from
+ *  `runner.temp` and recreate the workspace, which lets the upload start. */
+const PASS_SETUP_RECORD_STEP = "Record a failed setup";
+function checkPassSetupRecord(workflows: SourceFile[], out: Violation[]): void {
+    const f = workflows.find((w) => w.path === PASS_WORKFLOW_FILE);
+    if (!f) return;
+    let doc: unknown;
+    try {
+        doc = parse(f.text);
+    } catch {
+        return; // reported by checkWorkflow
+    }
+    const fail = (message: string): void => {
+        out.push({
+            file: f.path,
+            job: null,
+            rule: "pass-setup-record",
+            message,
+        });
+    };
+    const jobs = isObj(doc) && isObj(doc.jobs) ? Object.values(doc.jobs) : [];
+    const steps = jobs.flatMap((j) =>
+        isObj(j) && Array.isArray(j.steps) ? j.steps : []
+    );
+    const step = steps.find(
+        (s) => isObj(s) && s.name === PASS_SETUP_RECORD_STEP
+    ) as Record<string, unknown> | undefined;
+    if (!step)
+        return fail(
+            `no \`${PASS_SETUP_RECORD_STEP}\` step — a pass whose setup fails leaves no record and holds the dispatcher`
+        );
+    const wd = step["working-directory"];
+    if (typeof wd !== "string" || !/\$\{\{\s*runner\.temp\s*\}\}/.test(wd))
+        fail(
+            `\`${PASS_SETUP_RECORD_STEP}\` must run from \`\${{ runner.temp }}\`: a failed job worktree leaves no workspace to start in`
+        );
+    const run = typeof step.run === "string" ? step.run : "";
+    if (!/mkdir -p "?\$GITHUB_WORKSPACE"?/.test(run))
+        fail(
+            `\`${PASS_SETUP_RECORD_STEP}\` must \`mkdir -p "$GITHUB_WORKSPACE"\`: without a workspace the record upload cannot start`
+        );
+}
+
 export const OWNER_MERGE_WORKFLOW_FILE = ".github/workflows/owner-merge.yml";
 
 /** The hand-merge email (issue #6188) is one failed run per hand-off: the
@@ -939,6 +987,7 @@ export function checkStructure(input: StructureInput): Violation[] {
     for (const f of input.workflows) checkWorkflow(f, localActions, out);
     for (const f of input.actions) checkAction(f, out);
     checkPassRunName(input.workflows, out);
+    checkPassSetupRecord(input.workflows, out);
     checkOwnerMergeTrigger(input.workflows, out);
     checkDraftLanesRegenerateDerived(input.workflows, out);
     if (input.mergify) {
