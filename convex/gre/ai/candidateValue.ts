@@ -226,7 +226,7 @@ const LAND_NEED_BONUS = 120;
 const LAND_QUALITY_SCALE = 3;
 
 /** Colours a cost can demand and a land can supply (colourless excluded). */
-const NEEDABLE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
+const NEEDABLE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G", "C"];
 
 /** Worth of a land HELD in hand at zero lands in play (issue #4932): the same
  *  land-count shape as the fetch curve, but landing on the land's own flat
@@ -384,6 +384,11 @@ export type SearchPricing = {
      *  when the ids match and recomputes otherwise, so the optimisation can
      *  never change an answer. */
     recursionAccess?: { playerId: string; hasAccess: boolean };
+    /** The caller is the searcher choosing from its own library
+     *  (`search-library`), so its hand may be read for coloured need. Absent
+     *  for look-at-top / fateseal callers, whose "searcher" can be the
+     *  opponent, whose hand is never read (CR 402.3). */
+    handNeed?: boolean;
 };
 
 /** Rough latent worth of a card a library search could find (CR 701.23), used
@@ -437,7 +442,9 @@ export function libraryTargetWorth(
         curve +
         fade *
             (landSourceQuality(state, searcher, card) +
-                landHandNeed(state, searcher, card, ctx))
+                (pricing?.handNeed
+                    ? landHandNeed(state, searcher, card, ctx)
+                    : 0))
     );
 }
 
@@ -512,7 +519,10 @@ function landHandNeed(
         if (!supplied) continue;
         best = Math.max(best, prospectiveCardWorth(state, spell, ctx));
     }
-    return best >= LAND_NEED_MIN_SPELL_WORTH ? LAND_NEED_BONUS : 0;
+    // Never worth more than the spell it unlocks.
+    return best >= LAND_NEED_MIN_SPELL_WORTH
+        ? Math.min(LAND_NEED_BONUS, best)
+        : 0;
 }
 
 // --- Context-aware grounding for a live choice node (issue #1433 review) ---

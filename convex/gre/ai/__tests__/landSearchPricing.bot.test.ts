@@ -16,7 +16,7 @@ import {
     makeState,
 } from "../../../cards/__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../state";
-import { libraryTargetWorth } from "../candidateValue";
+import { libraryTargetWorth, prospectiveCardWorth } from "../candidateValue";
 import { sengirVampire } from "../../../cards/sets/lea/black.cards";
 import { hallowedFountain } from "../../../cards/sets/dis/colorless.cards";
 import { scaldingTarn } from "../../../cards/sets/zen/colorless.cards";
@@ -47,7 +47,9 @@ function position(opts: {
 }
 
 const worth = (state: GameState, id: string) =>
-    libraryTargetWorth(state, ME, makeInstance(id), undefined);
+    libraryTargetWorth(state, ME, makeInstance(id), undefined, {
+        handNeed: true,
+    });
 
 describe("land search pricing (CR 701.23)", () => {
     const coveredBoard = [plains().id, island().id];
@@ -117,3 +119,39 @@ describe("land search pricing (CR 701.23)", () => {
             expect(worth(loaded, id)).toBe(worth(bare, id));
     });
 });
+
+describe("land search pricing bounds (issue #3282)", () => {
+    it("never prices a land above the spell it unlocks", () => {
+        const s = position({
+            board: [plains().id, island().id, plains().id],
+            hand: [sengirVampire().id],
+        });
+        const before = libraryTargetWorth(s, ME, makeInstance(swamp().id));
+        const withNeed = worth(s, swamp().id);
+        const sengir = makeInstance(sengirVampire().id, { ownerId: ME });
+        expect(withNeed - before).toBeLessThanOrEqual(
+            prospectiveCardWorth(s, sengir)
+        );
+    });
+
+    it("reads no hand unless the caller is the searcher", () => {
+        const s = position({
+            board: coveredBoardIds(),
+            hand: [sengirVampire().id],
+        });
+        expect(
+            libraryTargetWorth(s, ME, makeInstance(swamp().id), undefined)
+        ).toBe(
+            libraryTargetWorth(
+                position({ board: coveredBoardIds() }),
+                ME,
+                makeInstance(swamp().id),
+                undefined
+            )
+        );
+    });
+});
+
+function coveredBoardIds(): string[] {
+    return [plains().id, island().id];
+}
