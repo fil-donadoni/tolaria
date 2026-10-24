@@ -14,9 +14,11 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    binRevealedTopCard,
     discardToGraveyard,
     getPlayer,
     recomputeContinuousEffects,
+    removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
@@ -27,6 +29,7 @@ import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { applyCopy, presentedDefId } from "../copy";
 import { turnFaceDown } from "../faceDown";
+import { transformPermanent } from "../transform";
 import { collectTriggers } from "../triggers";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
@@ -278,6 +281,34 @@ describe("full-text effect — re-evaluated at once (CR 611.3a)", () => {
         });
     });
 
+    it("presents a creature card the general mover puts on top (a library bin)", () => {
+        withShapeshifter(() => {
+            const state = board([inGraveyard(BOLT, "bolt")]);
+            getPlayer(state, "p1").library.push(
+                makeInstance(CRAW_WURM, { id: "wurm", zone: "library" })
+            );
+            binRevealedTopCard(state, getPlayer(state, "p1"));
+            expect(presentedDefId(find(state, "shifter"))).toBe(CRAW_WURM);
+        });
+    });
+
+    it("reverts when the top creature card is cast from the graveyard", () => {
+        withShapeshifter(() => {
+            const state = board([
+                inGraveyard(BOLT, "bolt"),
+                inGraveyard(CRAW_WURM, "wurm"),
+            ]);
+            removeFromZone(
+                state,
+                getPlayer(state, "p1"),
+                "wurm",
+                "graveyard",
+                "p1"
+            );
+            expect(presentedDefId(find(state, "shifter"))).toBe(SHAPESHIFTER);
+        });
+    });
+
     it("presents a creature that just died onto the top of the graveyard", () => {
         withShapeshifter(() => {
             const state = board(
@@ -413,6 +444,37 @@ describe("full-text effect — identity swaps and departures", () => {
             expect(shifter.faceDownOf).toBe(SHAPESHIFTER);
             expect(pt(state, "shifter")).toEqual([2, 2]);
         });
+    });
+
+    it("transforming it does nothing: it is not a double-faced card (CR 701.27c)", () => {
+        const dfc: CardDefinition = {
+            id: "test-full-text-dfc-front",
+            name: "Full Text Test Front",
+            rarity: "common",
+            manaCost: { G: 1 },
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+            backFace: {
+                name: "Full Text Test Back",
+                types: ["Creature"],
+                power: 5,
+                toughness: 5,
+                staticAbilities: [],
+            },
+        };
+        withShapeshifter(() =>
+            withTemporaryDefinition(dfc, () => {
+                const state = board([inGraveyard(dfc.id, "front")]);
+                const shifter = find(state, "shifter");
+                expect(presentedDefId(shifter)).toBe(dfc.id);
+                transformPermanent(state, shifter);
+                recomputeContinuousEffects(state);
+                expect(shifter.transformed).toBeUndefined();
+                expect(presentedDefId(shifter)).toBe(dfc.id);
+                expect(pt(state, "shifter")).toEqual([1, 1]);
+            })
+        );
     });
 
     it("dies with the presented card's dies trigger (CR 603.10 look-back)", () => {
