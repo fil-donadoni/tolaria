@@ -513,7 +513,13 @@ export function getActivatedManaMenuEntry(
     stateView?: TriggerStateView
 ): { id: string; oracleText: string } | null {
     if (isManaActivationRestricted(card, stateView)) return null;
-    const ability = findClientManaAbility(card);
+    // CR 605.1a — a card can list a cost-bearing mana ability BEFORE a free one;
+    // the plain tap toggle is the free one, so prefer it over the first listed.
+    const abilities = clientManaAbilities(card);
+    const ability =
+        abilities.find((a) => !needsExplicitManaMenuEntry(a)) ??
+        abilities[0] ??
+        null;
     if (!ability) return null;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -745,6 +751,13 @@ export function tapOtherCostCandidates(
         }));
 }
 
+/** CR 602.2b (issue #1179) — a mana ability whose activation cost must be paid
+ *  deliberately, so it must NOT be a silent left-click tap-for-mana: its cost
+ *  includes mana, or it has no {T}/sacrifice component to tap through at all. */
+function needsExplicitManaMenuEntry(a: ActivatedAbility): boolean {
+    return !!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice);
+}
+
 /** The NON-stack mana ability that gets its OWN entry in the ability context
  *  menu, or null (CR 605.1a / 601.2f / 605.3c, issue #1179). A mana ability
  *  must not be a silent left-click tap-for-mana when EITHER (a) its cost
@@ -782,7 +795,7 @@ export function getManaCostMenuAbility(
                 // Guide) is offered on the hand card, never the permanent.
                 functionsOnBattlefield(a) &&
                 a.oracleText &&
-                (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice)) &&
+                needsExplicitManaMenuEntry(a) &&
                 (!a.cost.tapOtherFilter ||
                     !stateView ||
                     canPayTapOtherCost(
