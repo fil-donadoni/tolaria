@@ -319,7 +319,8 @@ describeLockedCorpus(
             expect(
                 result.weights,
                 "DEFAULT_EVAL_WEIGHTS is not the fit of the committed verdicts — " +
-                    "run `bun run fit:weights` and paste the block it prints. " +
+                    "run `bun run bot:refit` (it writes the weights and re-records every " +
+                    "pin that derives from them; `fit:weights` only prints the block). " +
                     "A new blade `moves` entry is a new verdict and obliges a refit; " +
                     "a widened Verdict Lock moves the weights in the same change " +
                     "(`bun run verdicts:promote` writes both)."
