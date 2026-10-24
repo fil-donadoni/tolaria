@@ -112,7 +112,16 @@ export type CostAtomIR =
     /** CR 602.1a — "Return this enchantment to its owner's hand" as a cost
      *  (Attunement). Self only: a return cost naming any OTHER object is a
      *  different leg this grammar deliberately does not read. */
-    | { readonly kind: "return-self" };
+    | { readonly kind: "return-self" }
+    /** CR 602.1a / 118.1 — "Return an Elf you control to its owner's hand" as
+     *  a cost (Wirewood Symbiote): the payer picks ONE matching permanent they
+     *  control (CR 109.2 — the source may be it). Lowers to
+     *  `cost.returnToHandFilter`, which holds exactly one permanent, so a
+     *  count other than one is refused. */
+    | {
+          readonly kind: "return-other";
+          readonly filter: PermanentFilter;
+      };
 
 export interface ActivationCostIR {
     readonly atoms: readonly CostAtomIR[];
@@ -335,7 +344,32 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                 isSelfPhrase(object.slice(0, -suffix.length))
             )
                 return ok({ kind: "return-self" as const });
-            return fail("not a return cost this grammar knows", span);
+            if (!object.endsWith(suffix))
+                return fail("not a return cost this grammar knows", span);
+            const counted = splitCount(object.slice(0, -suffix.length));
+            if (counted === null)
+                return fail("return cost has no count word", span);
+            // `returnToHandFilter` returns exactly one permanent.
+            if (counted.count !== 1)
+                return fail(
+                    "a return cost of more than one permanent has no encoding",
+                    span
+                );
+            const descriptor = descriptorRule.run(counted.rest, ctx);
+            if (!descriptor.ok) return descriptor;
+            // CR 109.5 — a cost is paid with the payer's own permanents; the
+            // printed "you control" is that scope, so it is REQUIRED (an
+            // unscoped or opponent-scoped noun is a line we misread) and is
+            // not a field the permanent filter carries.
+            const { controller, ...scoped } = descriptor.value;
+            if (controller !== "you")
+                return fail(
+                    'a return cost names its permanent with "you control"',
+                    span
+                );
+            const filter = permanentFilterFromDescriptor(scoped);
+            if (!filter.ok) return filter;
+            return ok({ kind: "return-other" as const, filter: filter.value });
         }
 
         if (span.startsWith("Pay ")) {
@@ -573,6 +607,9 @@ export function lowerActivationCost(
                 break;
             case "return-self":
                 cost.returnThisToHand = true;
+                break;
+            case "return-other":
+                cost.returnToHandFilter = atom.filter;
                 break;
             default: {
                 const never: never = atom;

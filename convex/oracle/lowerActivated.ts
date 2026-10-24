@@ -98,7 +98,8 @@ function mayRemoveSource(atom: CostAtomIR): boolean {
         case "exile-self-from-hand":
         case "return-self":
             return true;
-        case "sacrifice-other": {
+        case "sacrifice-other":
+        case "return-other": {
             const { types, subtypes } = atom.filter;
             if (types === undefined)
                 return (
