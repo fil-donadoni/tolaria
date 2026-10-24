@@ -1698,6 +1698,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Amrou Scout",
+        "scryfallId": "ea3e05e5-1340-4010-b39b-3571a5829840",
+        "oracleId": "4c80112a-8ff5-4ca4-8737-b8d499d78982",
+        "firstSet": "tsp",
+        "firstPrintId": "ea3e05e5-1340-4010-b39b-3571a5829840",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Amugaba",
         "scryfallId": "8d73d1e7-79be-4b28-a480-b65b4f34f755",
         "oracleId": "73a1552e-bbfa-445e-8306-b347354c0364",
@@ -6476,6 +6486,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blightspeaker",
+        "scryfallId": "4ae24bc0-1217-4db9-a745-8860f23b6d57",
+        "oracleId": "0d16e52a-a7d0-4850-b49d-99f7978133e4",
+        "firstSet": "plc",
+        "firstPrintId": "4ae24bc0-1217-4db9-a745-8860f23b6d57",
+        "firstPrintSet": "plc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blightsteel Colossus",
         "scryfallId": "7928bb14-7631-4830-a756-26d1ea832ba2",
         "oracleId": "e80772e2-8623-4094-81a2-70828b2b151c",
@@ -9953,6 +9973,16 @@
         "firstPrintId": "2d293c51-714c-45b8-bfa4-fe35e8f3fbc1",
         "firstPrintSet": "mmq",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Cateran Summons",
+        "scryfallId": "af3de1f9-9038-4352-b4bf-2e9c5c27495a",
+        "oracleId": "910ff092-7c9d-49d3-a6df-497683e45bbd",
+        "firstSet": "mmq",
+        "firstPrintId": "af3de1f9-9038-4352-b4bf-2e9c5c27495a",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -14802,6 +14832,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dauthi Mindripper",
+        "scryfallId": "6fb990ee-f027-4c74-a67e-98ada6aa21e4",
+        "oracleId": "ecae5eba-8407-4c71-aeae-ab10fb1e5226",
+        "firstSet": "tmp",
+        "firstPrintId": "6fb990ee-f027-4c74-a67e-98ada6aa21e4",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dauthi Trapper",
         "scryfallId": "6d83770e-16ff-49c6-b4e7-eb7fc566eef8",
         "oracleId": "3aa64915-8b1b-4414-b11e-d2078c1732a5",
@@ -15670,6 +15710,16 @@
         "firstSet": "lgn",
         "firstPrintId": "3b7a0b8f-6942-40b0-8efc-234ae77855b4",
         "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Defiant Falcon",
+        "scryfallId": "4c80032b-daeb-4661-9a66-61abe9d12ddd",
+        "oracleId": "dc206e6a-e447-48d4-a91a-7c746320e2b4",
+        "firstSet": "nem",
+        "firstPrintId": "4c80032b-daeb-4661-9a66-61abe9d12ddd",
+        "firstPrintSet": "nem",
         "rarity": "common",
         "source": "compiled"
     },
@@ -17800,6 +17850,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dragonstorm",
+        "scryfallId": "4b9aa594-39e6-4824-aed9-75d1a301ac51",
+        "oracleId": "d74c3871-018a-4450-a613-f67703bb0d72",
+        "firstSet": "scg",
+        "firstPrintId": "4b9aa594-39e6-4824-aed9-75d1a301ac51",
+        "firstPrintSet": "scg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Drain Life",
         "scryfallId": "5d077a49-73d4-4958-b42a-31b814e110e8",
         "oracleId": "e75ba79f-4cc2-4ede-8641-559ab94e7e36",
@@ -19664,6 +19724,16 @@
         "firstSet": "fem",
         "firstPrintId": "40a9710e-b2f8-4746-8640-d450f58a6e49",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Elvish Harbinger",
+        "scryfallId": "de789231-8358-4cbd-b8eb-1da4ce5b34c0",
+        "oracleId": "28ddc23c-5b0b-4747-9a33-6845acf27bec",
+        "firstSet": "lrw",
+        "firstPrintId": "de789231-8358-4cbd-b8eb-1da4ce5b34c0",
+        "firstPrintSet": "lrw",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Elvish Healer",
@@ -42442,6 +42512,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moggcatcher",
+        "scryfallId": "9ba582d7-1dce-4664-8bd9-6b419596788c",
+        "oracleId": "4845dc21-7534-4896-b298-4d44cd7a3b27",
+        "firstSet": "nem",
+        "firstPrintId": "9ba582d7-1dce-4664-8bd9-6b419596788c",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mold Demon",
         "scryfallId": "649a33aa-7eac-4161-ae1a-fcbc758abccf",
         "oracleId": "7ce9513e-50f3-4d36-889b-b180a8a16252",
@@ -51540,6 +51620,56 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Ramosian Captain",
+        "scryfallId": "0e9d2e2a-c608-4787-bbd9-e1871f681b58",
+        "oracleId": "30255f36-2e26-4990-8b54-27f38130d45b",
+        "firstSet": "mmq",
+        "firstPrintId": "0e9d2e2a-c608-4787-bbd9-e1871f681b58",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ramosian Commander",
+        "scryfallId": "867f5d82-71c2-455f-ab16-5a32bba46986",
+        "oracleId": "05baf38c-677a-42e3-bb8c-a52a0a478984",
+        "firstSet": "mmq",
+        "firstPrintId": "867f5d82-71c2-455f-ab16-5a32bba46986",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ramosian Lieutenant",
+        "scryfallId": "debe840a-ebc9-43c4-9bf7-7eb292b65bf9",
+        "oracleId": "ddd2a87e-4020-4408-b4e6-a2120d485855",
+        "firstSet": "mmq",
+        "firstPrintId": "debe840a-ebc9-43c4-9bf7-7eb292b65bf9",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ramosian Sergeant",
+        "scryfallId": "ef2b036d-5721-4a6e-bf43-69148b90da10",
+        "oracleId": "9b0a14b9-977d-4e25-a519-eaddb0f94b6a",
+        "firstSet": "mmq",
+        "firstPrintId": "ef2b036d-5721-4a6e-bf43-69148b90da10",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ramosian Sky Marshal",
+        "scryfallId": "16638976-8a78-4233-8ebc-42ea9bb49e0a",
+        "oracleId": "52fcc5b6-6ada-457f-be76-fa674c74b4fd",
+        "firstSet": "mmq",
+        "firstPrintId": "16638976-8a78-4233-8ebc-42ea9bb49e0a",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Rampaging Hippo",
         "scryfallId": "4c97229f-2fc8-439a-a18b-efa09b366b70",
         "oracleId": "e48aa13b-7488-4644-9080-6c342a8ac463",
@@ -57204,6 +57334,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seahunter",
+        "scryfallId": "c375f65a-6d88-4d3c-a7a7-8c7a5cc5807f",
+        "oracleId": "59e1899f-a9e8-48aa-b3fb-0b7d9fd6859c",
+        "firstSet": "nem",
+        "firstPrintId": "c375f65a-6d88-4d3c-a7a7-8c7a5cc5807f",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Seal Away",
         "scryfallId": "8f8d6588-671d-4eb3-874f-f7139da2e05a",
         "oracleId": "c8909015-ea49-47cb-8d37-653904f965bb",
@@ -61209,6 +61349,16 @@
         "firstPrintId": "ba4106de-20c7-48cf-8a36-8c6913b46c89",
         "firstPrintSet": "m15",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Sliver Overlord",
+        "scryfallId": "3c16915b-c50d-4fb5-830f-9ca4597a9c0f",
+        "oracleId": "762d864b-69bc-43ac-af2f-e18186010169",
+        "firstSet": "scg",
+        "firstPrintId": "3c16915b-c50d-4fb5-830f-9ca4597a9c0f",
+        "firstPrintSet": "scg",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -67758,6 +67908,16 @@
         "firstPrintSet": "eoe"
     },
     {
+        "name": "Thalakos Deceiver",
+        "scryfallId": "ae4cc2f5-3a50-40c8-87ea-6b92f081f55c",
+        "oracleId": "c304777a-39a9-4a2a-8cec-8116afb34c5b",
+        "firstSet": "sth",
+        "firstPrintId": "ae4cc2f5-3a50-40c8-87ea-6b92f081f55c",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Thalakos Drifters",
         "scryfallId": "468e13d2-6bd7-403c-8e2e-e00917b39597",
         "oracleId": "1afa006b-1190-4047-a9fe-4215f20df8f2",
@@ -67823,6 +67983,16 @@
         "firstPrintId": "80226231-9e70-430e-aabc-f262f70b9226",
         "firstPrintSet": "fra",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thalia's Lancers",
+        "scryfallId": "9930d08d-5965-4c16-a84d-43c8ccf2ad0b",
+        "oracleId": "58b349ec-9987-4832-a8f3-8e92027ea75b",
+        "firstSet": "emn",
+        "firstPrintId": "9930d08d-5965-4c16-a84d-43c8ccf2ad0b",
+        "firstPrintSet": "emn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -76989,6 +77159,16 @@
         "oracleId": "4aab6794-506f-413c-91e0-d886e0019dce",
         "firstSet": "ons",
         "firstPrintId": "10a34e31-97f1-40e8-9d91-a8139af7f096",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wirewood Herald",
+        "scryfallId": "35724e9f-efa6-47e7-ab4d-7defe38ba576",
+        "oracleId": "7a838374-fc40-4fb6-9d38-a96f01e7038a",
+        "firstSet": "ons",
+        "firstPrintId": "35724e9f-efa6-47e7-ab4d-7defe38ba576",
         "firstPrintSet": "ons",
         "rarity": "common",
         "source": "compiled"
