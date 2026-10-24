@@ -68,6 +68,7 @@ import {
     optionalSentenceRule,
     sentenceRule,
     objectPronounListRule,
+    sourcePronounListRule,
     type SentenceIR,
 } from "../shared/effectClause";
 import {
@@ -151,6 +152,45 @@ const conditionalTailNoPronoun: Rule<TailIR> = rule(
 );
 
 /**
+ * CR 608.2h + CR 603.4 — "…, if this permanent is an enchantment, it becomes
+ * …": the condition's subject IS the source, so the effect's leading "it" is
+ * the source too, whatever object the head names (a spell cast by an
+ * opponent). Read ONLY behind that one condition and only for a sentence that
+ * opens on the pronoun; every other conditional tail keeps its rule above.
+ */
+const selfTypeConditionalTail: Rule<TailIR> = rule(
+    "self-type conditional trigger tail",
+    (span, ctx) => {
+        const parsed = pair(
+            "self-type conditional trigger tail",
+            ", ",
+            conditionRule,
+            sourcePronounListRule(
+                listOf("effect sentences", ". ", triggerSentence)
+            ),
+            (condition, tail) => ({ condition, tail })
+        ).run(span, ctx);
+        if (!parsed.ok) return parsed;
+        // A tail that does not open on "it" is `conditionalTail`'s.
+        if (!parsed.value.tail.boundPronoun)
+            return fail("the effect does not open on a pronoun", span);
+        if (parsed.value.condition.kind !== "self-has-type")
+            return fail("not a self-type condition", span);
+        // Only the one verb with a fixture reads the source here.
+        const first = parsed.value.tail.value[0];
+        if (first?.role !== "effect" || first.effect.kind !== "become-creature")
+            return fail("only a type-line replacement is read here", span);
+        return ok<TailIR>({
+            condition: parsed.value.condition,
+            sentences: parsed.value.tail.value,
+            // Bound to the SOURCE, not the head's referent: the head check on
+            // `boundPronoun` does not apply.
+            boundPronoun: false,
+        });
+    }
+);
+
+/**
  * The tail, with or without a condition.
  *
  * `oneOf`, not a cascade: a tail both readings accept would be a line whose
@@ -160,6 +200,7 @@ const conditionalTailNoPronoun: Rule<TailIR> = rule(
  * cheap to keep.
  */
 const triggerTail: Rule<TailIR> = oneOf("trigger tail", [
+    selfTypeConditionalTail,
     conditionalTailNoPronoun,
     plainTail,
 ]);
