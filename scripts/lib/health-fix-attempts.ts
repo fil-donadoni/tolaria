@@ -44,6 +44,10 @@ export interface FixAttempt {
     /** ISO time the record was written. */
     at?: string;
     pr?: number;
+    /** A `landed` record whose class guard was filed for the owner instead
+     *  of landed (issue #6552): the `ready-for-human` issue's number. The
+     *  ladder reads it exactly as `landed`. */
+    classGuard?: number;
     note?: string;
 }
 
@@ -70,12 +74,13 @@ const SEP = " · ";
 
 const RUNG_SEGMENT = /^(fix|revert|stop) (\d+)$/;
 
-/** `LANDED · machine · fix 2 · PR #N · note`, cut to the 140-character cap.
+/** `LANDED · machine · fix 2 · PR #N · guard #M · note`, cut to the 140-character cap.
  *  The rung segment is written only when the record names one. */
 export function encodeFixDescription(a: FixAttempt): string {
     const parts = [a.outcome.toUpperCase(), a.machine ?? "-"];
     if (a.rung !== undefined) parts.push(`${a.rung} ${a.attempt ?? 1}`);
     if (a.pr !== undefined) parts.push(`PR #${a.pr}`);
+    if (a.classGuard !== undefined) parts.push(`guard #${a.classGuard}`);
     if (a.note) parts.push(a.note.replace(/\s+/g, " "));
     const out = parts.join(SEP);
     return out.length <= DESCRIPTION_MAX
@@ -104,6 +109,11 @@ export function decodeFixStatus(input: {
     const pr = rest.length > 0 ? /^PR #(\d+)$/.exec(rest[0]) : null;
     if (pr) {
         a.pr = Number(pr[1]);
+        rest.shift();
+    }
+    const guard = rest.length > 0 ? /^guard #(\d+)$/.exec(rest[0]) : null;
+    if (guard) {
+        a.classGuard = Number(guard[1]);
         rest.shift();
     }
     if (rest.length > 0) a.note = rest.join(SEP);
