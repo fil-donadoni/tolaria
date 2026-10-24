@@ -160,8 +160,8 @@ import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 import {
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
-    DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
+    DERIVE_SYNC_PATHS,
 } from "./lib/derive-sync";
 
 /**
@@ -814,14 +814,15 @@ export const PRUNE_REGRESSIONS_COMMIT_SUBJECT =
 /** The THIRD push `VERIFY_MERGED_TIP` below does not count, beside the two
  *  its doc names (ADR 0157 § Option 1b, issue #6247): `housekeeping`'s
  *  `derive:sync`, by its subject AND a diff within the five derived paths
- *  alone — a non-empty one: an empty or merge commit under the subject is
- *  foreign. `lib/derive-sync.ts` is a leaf, so it is imported. */
+ *  — plus the card index its drift sweep may write (issue #6687) — alone, a
+ *  non-empty one: an empty or merge commit under the subject is foreign.
+ *  `lib/derive-sync.ts` is a leaf, so it is imported. */
 const filesOnly = (paths: readonly string[]): string =>
     `F="$(git diff-tree --no-commit-id --name-only -r "$C")"; [ -n "$F" ] && ` +
     `[ -z "$(printf %s "$F" | grep -vxF ` +
     paths.map((p) => `-e ${shQuote(p)}`).join(" ") +
     `)" ]`;
-const DERIVE_SYNC_FILES_ONLY = filesOnly(DERIVED_PATHS);
+const DERIVE_SYNC_FILES_ONLY = filesOnly(DERIVE_SYNC_PATHS);
 /** The FOURTH (issue #6463): `derive:sync --replay-bot`'s commit — the
  *  derived paths plus the card index, under its own subject. */
 const BOT_REPLAY_FILES_ONLY = filesOnly(BOT_REPLAY_PATHS);

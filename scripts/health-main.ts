@@ -102,8 +102,11 @@
 /*
  * THE DERIVED STATE (ADR 0157 § Option 1b, "Health"). After the
  * worktree's bootstrap and before any gate, a batch run asks `derive:sync
- * --fresh` whether the tip's lockfile header hashes and `data/catalogue/*`
- * are what the tree generates — a second, no corpus. A stale tip younger
+ * --settled` whether the tip's lockfile header hashes and `data/catalogue/*`
+ * are what the tree generates AND its Bot-play verdicts are current (ADR
+ * 0158 § 2b, issue #6687: no `ready` row without a verdict for the
+ * definition the tip compiles, the header's Bot hash the tree's) — a compile
+ * on the pinned corpus, seconds. A stale tip younger
  * than `DERIVED_GRACE_MS` (one housekeeping period) is `pending`: nothing
  * gated, `last.json` says so, no verdict stored, exit 0 — `derive:sync`'s
  * commit brings the tip health gates next. Stale past the grace is RED at
@@ -753,8 +756,10 @@ function finishPending(ctx: RunCtx, reason: string): never {
 }
 
 /**
- * `derive:sync --fresh` on the bootstrapped worktree, judged against the
- * tip's committer time (`derivedTipVerdict`). A run of the predicate that
+ * `derive:sync --settled` on the bootstrapped worktree, judged against the
+ * tip's committer time (`derivedTipVerdict`). Not `--fresh`, the
+ * deployment's predicate: a stale Bot verdict holds no deployment, but the
+ * writer that owes it is health's to watch (ADR 0158 § 2b). A run of the predicate that
  * fails for any reason reads as stale with that reason: an unjudged tip is
  * not a fresh one.
  */
@@ -763,7 +768,7 @@ function judgeDerivedTip(
     tip: string,
     root: string
 ): ReturnType<typeof derivedTipVerdict> {
-    const r = spawnSync("bun", ["run", "derive:sync", "--fresh"], {
+    const r = spawnSync("bun", ["run", "derive:sync", "--settled"], {
         cwd: wt,
         encoding: "utf8",
         timeout: 10 * 60_000,
@@ -777,7 +782,7 @@ function judgeDerivedTip(
     if (answer.kind === "broken")
         return {
             kind: "red",
-            reason: `derive:sync --fresh gave no verdict (${answer.why}) — the predicate itself is broken on this tip, not waited on`,
+            reason: `derive:sync --settled gave no verdict (${answer.why}) — the predicate itself is broken on this tip, not waited on`,
         };
     // The tip's committer time: every base commit is made at its landing —
     // the queue squashes, `derive:sync` / `gaps:sync` `commit-tree` — so it

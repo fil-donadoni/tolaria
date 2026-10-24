@@ -10,15 +10,26 @@
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
- *   1. `oracle:compile --carry-bot` and `catalogue:pack` on the tip — on a
- *      corpus cache matching the tip's pin: the primary checkout's when it
- *      matches, else the pinned bulk (`lib/corpus-cache.ts`);
- *   2. the five derived paths compared, blob by blob, with the tip's
- *      (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no commit;
- *   3. else ONE commit with exactly the changed paths, built on a scratch
+ *   1. the DRIFT SWEEP (ADR 0158 § 2b, issue #6687): the tip's misses —
+ *      `ready` rows whose Bot verdict was not played on the definition the
+ *      tip compiles (`staleVerdicts`, `check-oracle-lockfile.ts`) — counted
+ *      with no lock; zero → `oracle:compile --carry-bot`, seconds, as before;
+ *      else a bare `oracle:compile`, which plays exactly them (in place up
+ *      to `LOCK_FREE_MISSES`, under the heavy mutex past it) and keeps the
+ *      header's Bot hash. A card it took out of `ready` is committed — its
+ *      Bot Gap is `gaps:sync`'s to file; one it brought in gets its
+ *      `oracle:index` row. Misses, played and wall are logged and appended
+ *      to `$GITHUB_STEP_SUMMARY`;
+ *   2. `catalogue:pack` on the tip — every generator on a corpus cache
+ *      matching the tip's pin: the primary checkout's when it matches, else
+ *      the pinned bulk (`lib/corpus-cache.ts`);
+ *   3. the derived paths (and the card index) compared, blob by blob, with
+ *      the tip's (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no
+ *      commit;
+ *   4. else ONE commit with exactly the changed paths, built on a scratch
  *      index (`lib/commit-tree.ts`, the `gaps:sync` mechanics) and pushed
  *      to the base;
- *   4. COALESCING: a refused push is not rebuilt on the fetched tip and
+ *   5. COALESCING: a refused push is not rebuilt on the fetched tip and
  *      retried — if the base moved meanwhile, the newer tip's own post-merge
  *      run regenerates from scratch and this commit is dropped (exit 0, said);
  *      a refusal with the base unmoved is the run's red (exit 1). The hourly
@@ -31,7 +42,15 @@
  * pushed tip and fast-forwards the primary checkout (the local Convex
  * deployment) only on 0, so the deployment never serves a catalogue that
  * disagrees with its source; a stale tip leaves it on the previous fresh
- * one. `--dry-run` regenerates and prints the plan, commits nothing.
+ * one. `--dry-run` regenerates (the drift sweep included) and prints the
+ * plan, commits nothing.
+ *
+ * `--settled` is health's question (ADR 0158 § 2b): `--fresh`, AND every
+ * Bot verdict current — no stale row (the drift sweep's), the header's Bot
+ * hash the tree's (the replay's) unless this Bot's regression issue is open.
+ * A compile on the pinned corpus, seconds; the same exit and stale line, so
+ * health waits on it within the grace and reds past it. The deployment keeps
+ * asking `--fresh`: a stale verdict never holds it.
  *
  * Until the PR stops carrying derived paths (ADR 0157's last ticket), PRs
  * still carry fresh derived state, so the
@@ -63,10 +82,15 @@
  * The decisions are `lib/derive-sync.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    existsSync,
+    readFileSync,
+    writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { buildCatalogue } from "./catalogue-artifact";
-import { headerHashDrift } from "./check-oracle-lockfile";
+import { headerHashDrift, staleVerdicts } from "./check-oracle-lockfile";
 import { GIT_NET_TIMEOUT_MS } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "./lib/catalogue-merge";
@@ -77,14 +101,18 @@ import {
     BOT_REPLAY_PATHS,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
+    DERIVE_SYNC_PATHS,
     LOCKFILE_PATH,
     botRegressionTitle,
     botReplayOutcome,
     botReplayPlan,
     derivePlan,
     derivedFreshness,
+    derivedStaleLine,
     pushDerivedCommit,
     renderBotRegressionIssue,
+    runDriftSweep,
+    verdictCurrency,
     type CatalogueEntry,
     type DerivedEntry,
     type Freshness,
@@ -105,6 +133,7 @@ import {
     parseRegressionLedger,
 } from "./lib/oracle-state-regressions";
 import { overlayBranchVerdicts } from "./lib/oracle-verdict-overlay";
+import { readCorpus } from "./oracle-corpus";
 import { PACKED_CORPUS_PATH } from "./lib/packed-corpus";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { commitOnScratchIndex } from "./lib/commit-tree";
@@ -227,6 +256,26 @@ export function freshness(): Freshness {
     return derivedFreshness({ hashDrift, catalogue: catalogueEntries() });
 }
 
+/** Health's predicate (ADR 0158 § 2b): derived-fresh AND every Bot verdict
+ *  current. Null when the corpus cannot be had — an unjudged tree, which the
+ *  caller turns into no verdict, never into fresh. */
+export function settledness(): Freshness | null {
+    const fresh = freshness();
+    if (!fresh.fresh) return fresh;
+    if (!ensureCorpus()) return null;
+    const lock = readLockfile();
+    const treeBotHash = botHash(ROOT);
+    return verdictCurrency({
+        stale: staleVerdicts(lock, readCorpus()).map((c) => c.name),
+        headerBotHash: lock.header.botHash,
+        treeBotHash,
+        openRegression:
+            lock.header.botHash === treeBotHash
+                ? null
+                : openRegressionIssue(botRegressionTitle(treeBotHash)),
+    });
+}
+
 /** A corpus cache matching THIS tree's pin (gitignored; issue #6381): kept,
  *  copied from the primary checkout only when it matches, else the pinned
  *  bulk downloaded. false when none can be had — never a mismatched file,
@@ -297,21 +346,81 @@ function entries(
     return out;
 }
 
+/** Append to the job summary when there is one (`post-merge.yml`). */
+function appendSummary(markdown: string): void {
+    const path = process.env.GITHUB_STEP_SUMMARY;
+    if (path === undefined || path === "") return;
+    try {
+        appendFileSync(path, `${markdown}\n`);
+    } catch (error) {
+        complain(`could not write the job summary: ${String(error)}`);
+    }
+}
+
+/**
+ * Step 1 (ADR 0158 § 2b, issue #6687): play the tip's misses, or carry when
+ * there are none (`runDriftSweep`). The walls are the replay's
+ * (`SWEEP_WALL_MS`: a re-pin's misses are the whole catalogue);
+ * `housekeeping`'s `DERIVE_SYNC_TIMEOUT_MS` sits above them, so this run's
+ * own SIGTERM reaches the compile first and the gate reaps the sweep.
+ */
+function driftSweep(head: string): boolean {
+    return runDriftSweep({
+        head,
+        readRows: () => readLockfile().cards,
+        misses: () => {
+            const ids = new Set(
+                staleVerdicts(readLockfile(), readCorpus()).map(
+                    (c) => c.oracleId
+                )
+            );
+            if (ids.size > 0)
+                say(
+                    `${head.slice(0, 10)}: ${ids.size} \`ready\` row(s) carry no verdict for the definition the tip compiles — playing them`
+                );
+            return ids;
+        },
+        carry: () =>
+            generate("oracle:compile --carry-bot", [
+                "scripts/oracle-compile.ts",
+                "--carry-bot",
+            ]),
+        // Bare: carries every current verdict, plays exactly the misses,
+        // keeps the header's Bot hash (the replay alone moves it).
+        play: () =>
+            generate(
+                "oracle:compile",
+                ["scripts/oracle-compile.ts"],
+                SWEEP_WALL_MS,
+                "SIGTERM"
+            ),
+        index: () =>
+            generate(
+                "oracle:index",
+                ["scripts/oracle-index-backfill.ts"],
+                INDEX_WALL_MS
+            ),
+        acknowledged: acknowledgedRegressions(),
+        now: Date.now,
+        report: ({ line, summary }) => {
+            say(line);
+            appendSummary(summary);
+        },
+    });
+}
+
 /** Regenerate on HEAD, commit what changed, push once. Exit code. */
 function write(dryRun: boolean): number {
     const head = git(["rev-parse", "HEAD"]).stdout.trim();
     if (!ensureCorpus()) return 1;
     if (
-        !generate("oracle:compile --carry-bot", [
-            "scripts/oracle-compile.ts",
-            "--carry-bot",
-        ]) ||
+        !driftSweep(head) ||
         !generate("catalogue:pack", ["scripts/catalogue-artifact.ts"])
     )
         return 1;
-    const found = entries();
+    const found = entries(DERIVE_SYNC_PATHS);
     if (found === null) return 1;
-    const plan = derivePlan(found);
+    const plan = derivePlan(found, DERIVE_SYNC_PATHS);
     if (plan.kind === "no-op") {
         say(`${head.slice(0, 10)} is derived-fresh — nothing to commit`);
         return 0;
@@ -757,7 +866,20 @@ if (import.meta.main) {
             say("this tree is derived-fresh");
             process.exit(0);
         }
-        complain(`this tree is derived-stale — ${f.why}`);
+        console.error(derivedStaleLine(f.why));
+        process.exit(1);
+    }
+    if (argv.includes("--settled")) {
+        const f = settledness();
+        if (f === null) {
+            complain("--settled gave no verdict: no corpus cache for the pin");
+            process.exit(2);
+        }
+        if (f.fresh) {
+            say("this tree is derived-fresh and its Bot verdicts are current");
+            process.exit(0);
+        }
+        console.error(derivedStaleLine(f.why));
         process.exit(1);
     }
     if (argv.includes("--replay-bot")) {

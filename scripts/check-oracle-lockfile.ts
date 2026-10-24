@@ -75,7 +75,11 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { buildLockfile, poolOracleIds } from "./oracle-compile";
+import {
+    buildLockfile,
+    poolOracleIds,
+    type BuildLockfileOptions,
+} from "./oracle-compile";
 import {
     buildLegalityFile,
     legalityContentHash,
@@ -88,7 +92,7 @@ import {
     readPin,
     type CorpusCard,
 } from "./oracle-corpus";
-import { carriedBotReach } from "./lib/oracle-bot-reach";
+import { carriedBotReach, probingBotReach } from "./lib/oracle-bot-reach";
 import {
     compilerHash,
     LOCKFILE_INPUT_SUMMARY,
@@ -240,6 +244,31 @@ export function headerHashDrift(
         );
     }
     return null;
+}
+
+/**
+ * The STALE-VERDICT tier (ADR 0158 § 2b, issue #6687): every `ready` row of
+ * this tree's compile whose Bot-play verdict was not played on the definition
+ * it now compiles — no verdict, or one for a definition that moved — in
+ * corpus order. Not drift: tier 3 carries verdicts and never plays, so such a
+ * row regenerates byte-identical (ADR 0105 § 7.2). It is the base's to play:
+ * `derive:sync`'s write path plays exactly these rows, and health waits on
+ * them through `derive:sync --settled`, `pending` within the grace.
+ *
+ * The miss set is the probe's — the one `oracle:compile`'s sweep plays — so
+ * the two can never disagree about what is stale.
+ */
+export function staleVerdicts(
+    lock: Lockfile,
+    corpus: readonly CorpusCard[],
+    options: Omit<BuildLockfileOptions, "botReach"> = {}
+): { oracleId: string; name: string }[] {
+    const probe = probingBotReach(lock, lock.header.botHash);
+    const built = buildLockfile(corpus, { ...options, botReach: probe });
+    const missed = probe.misses();
+    return built.cards
+        .filter((row) => missed.has(row.oracleId))
+        .map((row) => ({ oracleId: row.oracleId, name: row.name }));
 }
 
 /** The tree's own answer to each of {@link headerHashDrift}'s three hashes. */

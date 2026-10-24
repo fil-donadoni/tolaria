@@ -4,7 +4,7 @@
  * that owns the Convex deployment seeds. Pure — the git, `gh` and spawn I/O
  * is the script's.
  */
-import { DERIVED_PATHS, DERIVE_SYNC_COMMIT_SUBJECT } from "./derive-sync";
+import { DERIVE_SYNC_COMMIT_SUBJECT, DERIVE_SYNC_PATHS } from "./derive-sync";
 import { issueOfBranch, issueWorktree } from "./issue-worktree";
 
 /** What `git` reports as the `before` of a push that created the branch. */
@@ -96,7 +96,8 @@ export interface BaseCommit {
 /**
  * The derive commit the seed waits for (ADR 0157, issue #6248): the first
  * commit after the pushed tip that is `derive:sync`'s — its subject, and
- * only derived paths among its files, at least one. Fresh by construction:
+ * only its paths among its files (the derived paths, and the card index its
+ * drift sweep may write, issue #6687), at least one. Fresh by construction:
  * the base's writer regenerated the whole tree it sits on, so the primary
  * may be fast-forwarded to it and the seed resolve names against its disk.
  * Null when the base holds none yet. A later commit under the subject with
@@ -109,7 +110,7 @@ export function deriveCommitAmong(
         (c) =>
             c.subject === DERIVE_SYNC_COMMIT_SUBJECT &&
             c.files.length > 0 &&
-            c.files.every((f) => DERIVED_PATHS.includes(f))
+            c.files.every((f) => DERIVE_SYNC_PATHS.includes(f))
     );
     return found?.sha ?? null;
 }
