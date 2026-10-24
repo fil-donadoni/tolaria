@@ -2068,9 +2068,10 @@ export type EffectSentenceIR =
            * `count` is the printed number and `upTo` its "up to" form. A plain
            * count is mandatory: a search for plain "cards" states no quality
            * (CR 701.23b), so the controller must find as many as the library
-           * holds. "up to N" is the optional range. A quality ("with
-           * flashback") is not read here — the line fails rather than
-           * searching wider than the card said.
+           * holds. "up to N" is the optional range. The one quality read is
+           * `flashback` ("with flashback", CR 702.34a), only behind "up to N";
+           * any other quality fails rather than searching wider than the card
+           * said.
            *
            * `shuffle` is the printed "then that player shuffles" — in the
            * sentence itself, or folded in from the sentence after it
@@ -2080,6 +2081,7 @@ export type EffectSentenceIR =
           readonly player: PlayerRefIR;
           readonly count: number;
           readonly upTo: boolean;
+          readonly flashback: boolean;
           readonly route: "exile" | "graveyard";
           readonly shuffle: boolean;
       }
@@ -4718,11 +4720,12 @@ const LIBRARY_SEARCH_TO_TOP = new Map<string, EffectCardFilter>([
 /**
  * CR 701.23a — "Search target player's library for <count> and exile them":
  * the library owner is a target. The count group is read by
- * `readTargetLibrarySearch`; anything between the count and the denial verb
- * (a quality such as "with flashback") fails the match.
+ * `readTargetLibrarySearch`; the one quality admitted between the count and
+ * the denial verb is "with flashback" (CR 702.34a), and only behind "up to N"
+ * (see `search-target-library`); any other quality fails the match.
  */
 const SEARCH_TARGET_LIBRARY =
-    /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
+    /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)( with flashback)?(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
 /** CR 701.24a — the sentence that shuffles the library a search just looked at. */
 const THEN_THAT_PLAYER_SHUFFLES =
     /^Then that player shuffles(?: their library)?$/;
@@ -6926,7 +6929,7 @@ function effectSentence(
     // CR 701.23a (search) + CR 701.23b (stated quality) + CR 701.24a (shuffle)
     const searchTarget = span.match(SEARCH_TARGET_LIBRARY);
     if (searchTarget !== null) {
-        const [, who, , upToWord, plainWord, verb, pronoun, shuffles] =
+        const [, who, , upToWord, plainWord, quality, verb, pronoun, shuffles] =
             searchTarget;
         const word = upToWord ?? plainWord;
         const count = word === undefined ? 1 : readNumberWord(word);
@@ -6937,6 +6940,14 @@ function effectSentence(
         if ((word === undefined) !== (pronoun === "it"))
             return fail(
                 `"${span}" pairs the count with the wrong pronoun`,
+                span
+            );
+        // CR 701.23b — a stated quality makes the find optional, which only
+        // the "up to N" range says; a plain count with a quality is a form
+        // no card prints, so it fails rather than compelling the find.
+        if (quality !== undefined && upToWord === undefined)
+            return fail(
+                `"${span}" states a quality behind a plain count`,
                 span
             );
         // CR 404.1 — "put them into that player's graveyard" is the other
@@ -6953,6 +6964,7 @@ function effectSentence(
             player,
             count,
             upTo: upToWord !== undefined,
+            flashback: quality !== undefined,
             route: intoGraveyard ? ("graveyard" as const) : ("exile" as const),
             shuffle: shuffles !== undefined,
         } satisfies EffectSentenceIR);

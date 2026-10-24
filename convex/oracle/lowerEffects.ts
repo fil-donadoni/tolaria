@@ -3383,9 +3383,10 @@ function lowerSentenceBody(
             if (!owner.ok) return owner;
             const bind = walk.nextBind("found");
             const noun =
-                sentence.count === 1
+                (sentence.count === 1
                     ? "a card"
-                    : `${countWord(sentence.count)} cards`;
+                    : `${countWord(sentence.count)} cards`) +
+                (sentence.flashback ? " with flashback" : "");
             return lowered([
                 {
                     op: "choice",
@@ -3393,6 +3394,11 @@ function lowerSentenceBody(
                     player: "controller",
                     zone: "library",
                     zoneOwnerId: owner.value,
+                    // CR 702.34a — "with flashback" narrows what the search
+                    // may find to cards carrying a flashback cost.
+                    ...(sentence.flashback
+                        ? { filter: { hasFlashback: true as const } }
+                        : {}),
                     count: sentence.upTo
                         ? { min: 0, max: sentence.count }
                         : sentence.count,
