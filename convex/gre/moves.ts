@@ -44,6 +44,10 @@ import {
     getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
     unrestrictedFloatingMana,
+    isUnrestrictedRiderUnit,
+    restrictedUnitAllowsSpell,
+    restrictionAllowsAbility,
+    restrictionAllowsSpell,
     type TargetCountAnnouncement,
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
@@ -172,6 +176,7 @@ import {
     mayHaveNonTapManaAbility,
     mayRemoveCountersForMana,
     pureGenericManaSubCost,
+    getManaTapOptionRestriction,
     type ManaTapPlanContext,
 } from "./constants";
 import {
@@ -1260,6 +1265,34 @@ export function planManaPayment(
             capacity++;
         }
     }
+    // CR 106.6 — floating RESTRICTED mana the spell being cast may legally
+    // spend (Workshop mana banked for an artifact spell) is a zero-tap source,
+    // the planner-side twin of the `restrictedMana` loop in
+    // `buildManaSourceUnits` (rules.ts), so the gate and this plan agree on
+    // when a cast is payable. Only a cast names a spell; an activation or morph
+    // plan takes none.
+    if (cast?.cardDef) {
+        for (const unit of player.restrictedMana ?? []) {
+            if (!(MANA_COLORS as readonly string[]).includes(unit.color))
+                continue;
+            // Already a source via `unrestrictedFloatingMana` above.
+            if (isUnrestrictedRiderUnit(unit)) continue;
+            if (
+                !restrictedUnitAllowsSpell(
+                    unit,
+                    cast.cardDef.types,
+                    cast.cardInstanceId,
+                    cast.cardDef.supertypes ?? []
+                )
+            )
+                continue;
+            const color = unit.color as Color;
+            for (let i = 0; i < unit.amount; i++) {
+                sources.push({ options: new Map([[color, { via: "tap" }]]) });
+                capacity++;
+            }
+        }
+    }
     // Issue #2420 — ONE cheap pass classifying every permanent (tapped ones
     // included: a `tapOtherFilter` ability carries no {T}, so a tapped Urza
     // is still a converter). `mayHaveNonTapManaAbility` reads the PRINTED
@@ -1346,6 +1379,34 @@ export function planManaPayment(
             for (let index = 0; index < view.detailed.length; index++) {
                 const opt = view.detailed[index];
                 const src = opt.source;
+                // CR 106.6 — an option whose own ability restricts what its
+                // mana may pay for is planned only for a cast that restriction
+                // permits; otherwise the tap would deposit into
+                // `restrictedMana` and strand (the cost stays unpaid). Same
+                // per-option predicate as the gate's census
+                // (`manaAvailability.ts`).
+                const optionRestriction = getManaTapOptionRestriction(
+                    perm,
+                    src
+                );
+                if (
+                    optionRestriction !== null &&
+                    !(cast?.cardDef
+                        ? restrictionAllowsSpell(
+                              optionRestriction,
+                              cast.cardDef.types,
+                              cast.cardDef.supertypes ?? []
+                          )
+                        : // CR 106.6 — an activation plan's mana may pay an
+                          // "artifact-ability" restriction (Soldevi Machinist)
+                          // for an artifact source's ability.
+                          abilitySource !== undefined &&
+                          restrictionAllowsAbility(
+                              optionRestriction,
+                              abilitySource.types
+                          ))
+                )
+                    continue;
                 // `undefined` = an intrinsic basic-land-subtype option
                 // (CR 305.6), which is always a plain {T} — as is every
                 // option at all when the prefilter said so.
