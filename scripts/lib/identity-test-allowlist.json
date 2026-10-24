@@ -1028,5 +1028,10 @@
         "file": "scripts/__tests__/generated-artifact-merge.test.ts",
         "test": "planResolution > the base-owned paths are derive:sync's five less the lockfile — one authority",
         "reason": "Pins two modules' path lists to each other (lib/generated-artifacts.ts restates lib/derive-sync.ts's DERIVED_PATHS, a leaf it must not import through): a cross-module drift guard, not a literal."
+    },
+    {
+        "file": "scripts/__tests__/base-drift.test.ts",
+        "test": "base-drift — the coupled artefacts come from their owners > every derived path the base writes is a coupled artefact",
+        "reason": "Partition check: relates the derive-sync owner's path list to the preflight's coupled set (a path the base writes that the preflight does not watch is a drift it cannot see); the list is the owner's, never a literal."
     }
 ]
