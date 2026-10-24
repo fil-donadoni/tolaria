@@ -496,7 +496,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Game of Chaos",
     "Gangrenous Zombies",
     "Garruk Wildspeaker",
-    "Gate to Phyrexia",
     "Gauntlet of Might",
     "Gaze of Pain",
     "General Jarkeld",
