@@ -1030,9 +1030,10 @@ export const dralnusCrusade = defineCard(() => ({
 //     it, which is why `type-add` (not `subtype-set`/a type replacement) is the
 //     right primitive. A land that is now also a creature still taps for mana
 //     and still counts for landfall/land-count effects.
-//   * layer 7a (characteristic-defining P/T) — `pt-cda` computes a flat 2/2.
-//     NOT `pt-buff`: a land's printed P/T is undefined, so an additive +2/+2
-//     modification has nothing to modify; a CDA SETS the values, the same shape
+//   * layer 7b (base P/T set, CR 613.4b) — `pt-set` of a flat 2/2. NOT
+//     `pt-buff`: a land's printed P/T is undefined, so an additive +2/+2
+//     modification has nothing to modify; and NOT `pt-cda`, since the ability
+//     is not printed on the lands it affects (CR 604.3a). The same shape
 //     Living Lands (`lea/green.cards.ts`) and Kormus Bell (`lea/colorless.cards.ts`) use for
 //     exactly this "lands are N/N creatures" template.
 //   * layer 6 (ability grant) — `keyword-grant` grants "first strike".
@@ -1071,11 +1072,12 @@ export const naturalEmergence = defineCard(() => ({
             types: ["Creature"],
         },
         {
-            kind: "pt-cda",
+            kind: "pt-set",
             applies: (target, source) =>
                 target.types.includes("Land") &&
                 target.controllerId === source.controllerId,
-            compute: () => ({ power: 2, toughness: 2 }),
+            power: 2,
+            toughness: 2,
         },
         {
             kind: "keyword-grant",

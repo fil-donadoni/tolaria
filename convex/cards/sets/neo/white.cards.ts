@@ -20,7 +20,7 @@ import {
 // shared `RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED` predicate.
 //
 // "Equipped creature gets +1/+1 for each +1/+1 counter on this Equipment" is
-// a characteristic-defining P/T ability (CR 604.3, `pt-cda`) reading counters
+// a P/T modification (CR 613.4c, `pt-buff` `computeFor`) reading counters
 // on the SOURCE (Lion Sash) and applying to its HOST via the canonical
 // `AURA_AFFECTS_HOST` predicate — the same attach plumbing an Aura's P/T buff
 // uses, generalized: `AURA_AFFECTS_HOST` only reads `source.attachedTo`, it
@@ -38,9 +38,9 @@ export const lionSash = defineCard(() => ({
     toughness: 1,
     staticEffects: [
         {
-            kind: "pt-cda",
+            kind: "pt-buff",
             applies: AURA_AFFECTS_HOST,
-            compute: (source) => {
+            computeFor: (source) => {
                 const n = source.counters?.["+1/+1"] ?? 0;
                 return { power: n, toughness: n };
             },

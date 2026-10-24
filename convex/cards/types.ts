@@ -8556,6 +8556,26 @@ export interface StaticEffectStateView {
     stack?: ReadonlyArray<PermanentView>;
 }
 
+/** The amount a `pt-buff` (CR 613.4c, the modification) or `pt-set` (CR
+ *  613.4b, the base value) carries: a literal pair, or a `computeFor` closure
+ *  for a magnitude that depends on the board or on the affected permanent
+ *  ("+1/+0 for each time counter", "base P/T equal to its mana value").
+ *  `computeFor` is read at every stat read with the AFFECTED `target`, the
+ *  shape `StaticSubtypeSet.subtypesFor` has (ADR 0050); the literal form is
+ *  the common case and stays a plain pair. */
+export type PTAmount =
+    | { power: number; toughness: number; computeFor?: undefined }
+    | {
+          computeFor: (
+              source: PermanentView,
+              state: StaticEffectStateView,
+              ctx: StaticEffectContext,
+              target: PermanentView
+          ) => { power: number; toughness: number };
+          power?: undefined;
+          toughness?: undefined;
+      };
+
 /** Read-only board snapshot for a `CardDefinition.entersTappedUnless`
  *  predicate (CR 614.1c) — deliberately narrower than `GameState`, mirroring
  *  `StaticEffectStateView` / `TriggerStateView`, so the same predicate stays
@@ -8644,7 +8664,7 @@ export interface StaticEffectContext {
     getCounterCount: (card: PermanentView, type: string) => number;
 }
 
-export interface StaticPTBuff {
+export type StaticPTBuff = {
     kind: "pt-buff";
     /** Predicate: does this buff apply to `target` given its `source`? */
     applies: (
@@ -8663,9 +8683,7 @@ export interface StaticPTBuff {
         state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
-    power: number;
-    toughness: number;
-}
+} & PTAmount;
 
 /** Characteristic-defining P/T ability (CR 604.3). Used when a creature's
  *  power and toughness are defined by a game-state lookup rather than a flat
@@ -8711,7 +8729,7 @@ export interface StaticPTCDA {
  *  the instance), and ordered against other 7b entries by the source's CR
  *  613.7a timestamp — a later `pt-set` wins, an earlier one loses, and every
  *  `pt-buff` still applies on top (CR 613.4c is a later sublayer). */
-export interface StaticPTSet {
+export type StaticPTSet = {
     kind: "pt-set";
     /** Predicate: does this set apply to `target` given its `source`? */
     applies: (
@@ -8719,11 +8737,7 @@ export interface StaticPTSet {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    /** The base power the effect sets (CR 613.4b). */
-    power: number;
-    /** The base toughness the effect sets (CR 613.4b). */
-    toughness: number;
-}
+} & PTAmount;
 
 /** Continuous static ability that grants a keyword to the enchanted
  *  permanent (CR 611, 113.1). Typical usage: an Aura grants "protection

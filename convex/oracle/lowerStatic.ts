@@ -496,7 +496,7 @@ export function lowerStaticClause(
                             types: clause.addTypes,
                         },
                         {
-                            kind: "pt-cda",
+                            kind: "pt-set",
                             filter: clause.filter,
                             count: { kind: "mana-value" },
                         },
