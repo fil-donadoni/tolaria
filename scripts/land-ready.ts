@@ -22,7 +22,7 @@
  * `pr-open` row; fix it here. The announced, logged escape for a red that is
  * base's, not the PR's: `TOLARIA_PREQUEUE_RED_OK=1`.
  *
- * Issue #6620: the cheap tier (offline scripts, `isCheapStep`) runs first and
+ * The cheap tier (offline scripts, `isCheapStep`) runs first and
  * ALL of it, the body/diff refusals beside it, and one run names every red;
  * the tests behind a red cheap tier never start. The hand-off push retries a
  * transient rejection (3 attempts, never a non-fast-forward).
