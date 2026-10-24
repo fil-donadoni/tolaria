@@ -62,6 +62,7 @@ import {
 import { manaConverterColors } from "./manaConverters";
 import { boardManaUnits, producesUncostedMana } from "./manaAvailability";
 import type { ManaTapOption } from "./constants";
+import { foldHybridGenericLegs, hybridGenericPipCount } from "./hybridGeneric";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -2497,6 +2498,42 @@ export function solvePhyrexianSplit(
     return best;
 }
 
+/** CR 107.4e / 601.2b — resolve the leg of every monocolour hybrid pip (`{2/W}`:
+ *  one `W` OR two generic) for a cast. Returns the cost with each pip folded
+ *  into ordinary pips (no `hybridGeneric` left), choosing the AFFORDABLE
+ *  combination with the most colour legs — a colour leg costs one mana against
+ *  the generic leg's N, so that is the cheapest line — or `null` when no
+ *  combination is payable. Feasibility is judged with the generic tail and the
+ *  other coloured pips, through `canPayNormalizedCost`, so the leg choice is
+ *  decided together with them. A cost with no such pip comes back unchanged.
+ *  The pip count is a handful (≤ 5 printed), so legs are enumerated. */
+export function solveHybridGenericLegs(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost,
+    chosenX?: number,
+    state?: GameState
+): ManaCost | null {
+    const pips = hybridGenericPipCount(rawCost);
+    if (pips === 0) return rawCost;
+    let best: ManaCost | null = null;
+    let bestColourLegs = -1;
+    for (let mask = 0; mask < 1 << pips; mask++) {
+        const legs = Array.from(
+            { length: pips },
+            (_, i) => (mask & (1 << i)) !== 0
+        );
+        const colourLegs = legs.filter(Boolean).length;
+        if (colourLegs <= bestColourLegs) continue;
+        const folded = foldHybridGenericLegs(rawCost, legs);
+        const cost = normalizeManaCost(folded, { chosenX: chosenX ?? 0 });
+        if (!canPayNormalizedCost(player, card, cost, state)) continue;
+        best = folded;
+        bestColourLegs = colourLegs;
+    }
+    return best;
+}
+
 /** CR 107.4f — the DISTINCT life-payment amounts (as a pip count) the caster can
  *  currently afford for this Phyrexian cost: every `lifePips` value in
  *  `[0, totalPips]` for which SOME colour-assignment of the remaining
@@ -2590,8 +2627,22 @@ function canPotentiallyPayCost(
         extraMana?: ManaCost;
     } = {}
 ): boolean {
-    const rawCost = costOverride ?? getInstanceManaCost(card);
+    let rawCost = costOverride ?? getInstanceManaCost(card);
     if (!rawCost) return true;
+    // CR 107.4e — a `{2/W}` pip is castable whenever SOME leg combination is
+    // affordable; the cheapest affordable legs are folded into the cost and the
+    // rest of the probe (modifiers, extra mana) runs on that.
+    if (hybridGenericPipCount(rawCost) > 0) {
+        const resolved = solveHybridGenericLegs(
+            player,
+            card,
+            rawCost,
+            undefined,
+            state
+        );
+        if (resolved === null) return false;
+        rawCost = resolved;
+    }
     // CR 107.4f — a cost with Phyrexian pips is castable whenever SOME mana-vs-
     // life split is affordable (each pip: its colour OR 2 life). Delegated to
     // the shared solver so the gate and the payment agree on the split space.

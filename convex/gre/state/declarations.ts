@@ -5655,6 +5655,9 @@ export type ManaCost = Record<
     | string
     | Partial<Record<Color, number>>
     | Array<[Color, Color]>
+    // CR 107.4e — `hybridGeneric` monocolour hybrid pips, ignored by
+    // `normalizeManaCost` (the cast path folds the chosen legs first).
+    | Array<{ generic: number; color: Color }>
     // CR 107.3a (issue #3811) — `xSpendColors`, folded by `normalizeManaCost`.
     | Color[]
     // CR 107.3a / 601.2h (issue #4506) — `xSpendDistinctColors: true`, folded

@@ -233,6 +233,10 @@ export function manaValue(cost?: ManaCost): number {
     // CR 202.3f — each guild-hybrid pip `{B/G}` is valued as 1 (issue #1338),
     // so Hogaak `{5}{B/G}{B/G}` has mana value 7.
     if (cost.hybrid) total += cost.hybrid.length;
+    // CR 202.3f — a monocolour hybrid pip `{2/W}` is valued at the LARGER of its
+    // halves (2), unlike a guild-hybrid pip; `{W/U}`-style pips above stay 1.
+    for (const pip of cost.hybridGeneric ?? [])
+        total += Math.max(pip.generic, 1);
     return total;
 }
 

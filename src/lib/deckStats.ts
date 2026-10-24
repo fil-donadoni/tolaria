@@ -109,6 +109,8 @@ function pipCountsForCost(
     const pips: Partial<Record<Color, number>> = {
         ...getPipCountsFromCost(cost),
     };
+    // `getPipCountsFromCost` already counts a monocolour-hybrid `{2/W}` pip once
+    // toward its colour (CR 105.2).
     for (const [a, b] of cost?.hybrid ?? []) {
         pips[a] = (pips[a] ?? 0) + 1;
         pips[b] = (pips[b] ?? 0) + 1;
