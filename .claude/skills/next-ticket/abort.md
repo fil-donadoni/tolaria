@@ -15,8 +15,12 @@ it and aborts again (issue #4752, issue #5564).
    `blocked-by` it in BOTH stores: the native edge
    (`gh issue edit N --add-blocked-by <M>`, read back) AND a `- #M — why`
    line under `## Blocked by` in the body. `bun run queue:lint N` must come
-   back clean (its `dependency-parity` rule compares the two). The wired edge
-   is also what lifts #M into this issue's priority band (`queue:plan`).
+   back clean (its `dependency-parity` rule compares the two). **#M's board
+   band is never lower than this issue's** (`triage-labels.md` § A blocker
+   never sits in a lower band than what it blocks): read both, and if #M is
+   lower, detach it from the lower-band parent and run
+   `bun run issue:inherit-band N M`. `queue:plan` lifts a blocker at pick time
+   too, but that is the fallback; the board is the record.
 2. **Owner work — handed back as `ready-for-human`.** When no agent can land
    the issue at all — a machine-local persistent install the classifier
    denies, a host this machine cannot reach, a product decision only the
