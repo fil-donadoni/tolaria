@@ -73,6 +73,21 @@ describe("spanHead reads the verb a frame would open", () => {
         expect(spanHead("You gain 3 life")).toMatchObject({ op: "gainLife" });
     });
 
+    it("a noun that is also a verb is not a head after a subject", () => {
+        expect(
+            spanHead("Target creature gets +1/+1 for each counter on it")
+        ).toBeNull();
+        expect(
+            spanHead("A creature with a +1/+1 counter on it can't block")
+        ).toBeNull();
+        expect(spanHead("Counter target spell")).toMatchObject({
+            op: "counter",
+        });
+        expect(spanHead("Players can't draw cards")).toMatchObject({
+            verb: "draw",
+        });
+    });
+
     it("an unread span has no head", () => {
         expect(spanHead("Zzz qqq")).toBeNull();
     });

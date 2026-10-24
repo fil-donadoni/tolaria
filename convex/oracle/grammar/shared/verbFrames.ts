@@ -24,6 +24,11 @@ export interface FrameHead {
      * "remove … counter", "gain … life". Absent: the verb alone decides.
      */
     readonly requires?: string;
+    /**
+     * The verb opens the span only as its FIRST word: "counter" after a
+     * subject is the noun ("for each counter on it"), not "counter target spell".
+     */
+    readonly leadOnly?: true;
 }
 
 /** Verb → Op, in match order: the first row whose `requires` holds wins. */
@@ -40,7 +45,7 @@ export const FRAME_HEADS: readonly FrameHead[] = [
     { verb: "discard", op: "discard" },
     { verb: "tap", op: "tapUntap" },
     { verb: "untap", op: "tapUntap" },
-    { verb: "counter", op: "counter" },
+    { verb: "counter", op: "counter", leadOnly: true },
     { verb: "create", op: "createToken" },
     { verb: "deal", op: "dealDamage" },
     { verb: "gain", op: "gainLife", requires: "life" },
@@ -95,7 +100,6 @@ export const COMPOSITION_HEADS: readonly string[] = [
     "threshold",
     "nonbasic",
     "lands",
-    "players",
     "your",
     "spells",
 ];

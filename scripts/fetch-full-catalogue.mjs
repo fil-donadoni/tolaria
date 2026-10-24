@@ -88,7 +88,9 @@ export const artifactFileName = (hash) => `full-catalogue-${hash}.json.gz`;
 export function committedArtifacts(dir = outDir) {
     if (!existsSync(dir)) return [];
     return readdirSync(dir)
-        .filter((f) => f.startsWith("full-catalogue-") && f.endsWith(".json.gz"))
+        .filter(
+            (f) => f.startsWith("full-catalogue-") && f.endsWith(".json.gz")
+        )
         .sort();
 }
 
@@ -423,7 +425,10 @@ async function main() {
 
 // Importable (`ensure-full-catalogue.mjs` reads the naming helpers) without
 // downloading a 200 MB bulk as a side effect.
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (
+    process.argv[1] &&
+    resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
+) {
     main().catch((err) => {
         console.error(err);
         process.exit(1);

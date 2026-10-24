@@ -11,12 +11,12 @@ Their rows are the before-numbers: `--frames --delta` after each pilot lands
 prints the movement.
 
 ```text
-Frame backlog — 390 of 1174 rows with ≥ 3 corpus cards
+Frame backlog — 389 of 1173 rows with ≥ 3 corpus cards
 touches = cards with a gap in the row; alone = cards EVERY gap of which is in the row
 (the cards that one construct unlocks); premodern first, then the corpus
 
 class             row                                           premodern t/a   corpus t/a  forms
-other             (no head) › effect clause                           503/421    4137/2546   2816
+other             (no head) › effect clause                           527/445    4359/2718   2976
                        53  It
                        41  Basic landcycling {…}
                        39  You become the monarch
@@ -40,7 +40,7 @@ cost              activation cost                                      118/90   
                       294  -N
                       282  +N
                        86  Sacrifice another creature
-frame             no Op › choose                                       111/74      925/693    681  [no Op]
+frame             no Op › choose                                       111/74      920/690    676  [no Op]
                        32  Choose a Background
                        32  Choose one
                        21  You may choose not to untap this creature during yo...
@@ -48,7 +48,7 @@ composition head  effect clause › this                                 104/82 
                        44  this card from your graveyard
                        37  This spell can't be countered
                        22  This spell costs {…} more to cast for each target b...
-frame             choice                                               101/95      624/473    482
+frame             choice                                                99/93      624/473    482
                        17  Search your library for a basic land card, put it o...
                        15  Search your library for a basic land card, put it o...
                        10  Search your library for a Mercenary permanent card ...
@@ -56,15 +56,15 @@ composition head  static clause › Enchanted                             86/63 
                        48  Enchanted creature doesn't untap during its control...
                        10  Enchanted creature can't attack or block, and its a...
                         7  Enchanted creature gets +N/+N and is goaded
-frame             moveZone                                              77/58      670/434    504
+frame             moveZone                                              74/55      641/416    489
                        17  Exile it
                        12  Put target card from a graveyard on the bottom of i...
-                       10  You get {…}, then you may put a sticker on a nonlan...
+                        8  Put a name sticker on it
 composition head  static clause › As                                    73/24      819/340    722
                        25  As this land enters, you may pay N life. If you don...
                        12  As this creature enters, choose a color
                        10  As this Aura enters, choose a color
-frame             sacrifice                                             68/55      287/176    188
+frame             sacrifice                                             68/55      284/174    185
                        24  Sacrifice another creature
                        20  Sacrifice a creature
                        11  Sacrifice a land
@@ -84,7 +84,7 @@ composition head  effect clause › if                                    54/49 
                        10  If a creature dealt damage this way would die this ...
                         8  If that spell is countered this way, exile it inste...
                         5  If that creature or planeswalker would die this tur...
-frame             reveal                                                53/53      314/237    242
+frame             reveal                                                53/53      313/236    241
                        17  Reveal the top card of your library
                        15  Reveal the top card of your library
                         6  You may reveal a creature card from among them and ...
@@ -96,14 +96,14 @@ argument class    effect clause > mass subject > object desc...         50/41   
                        15  Creatures your opponents control
                        14  Up to two target creatures each
                        10  Other creatures you control
-frame             draw                                                  49/45      365/246    292
-                        8  Target player draws two cards and loses N life
-                        7  Draw that many cards
-                        5  Draw a card for each +N/+N counter on it
 composition head  effect clause › each                                  48/42      384/275    246
                        17  each creature you control
                        15  each creature you control
                        10  each creature you control
+frame             draw                                                  46/42      350/233    280
+                        8  Target player draws two cards and loses N life
+                        7  Draw that many cards
+                        5  Draw a card for each +N/+N counter on it
 composition head  static clause › Threshold                             45/39        60/43     53
                         4  Threshold — As long as there are seven or more card...
                         4  Threshold — As long as there are seven or more card...
@@ -112,7 +112,7 @@ composition head  static clause › <type>                                43/33 
                         9  Creatures with power less than this creature's powe...
                         9  Creatures you control of the chosen type get +N/+N
                         7  Creatures your opponents control get -N/-N
-frame             libraryLook                                           41/40      264/162    150
+frame             libraryLook                                           41/40      261/160    147
                        47  You may look at the top card of your library any time
                        12  Look at the top card of your library
                        11  Look at the top card of your library
@@ -128,11 +128,11 @@ composition head  effect clause › enchanted                             38/28 
                        52  enchanted creature
                        40  enchanted creature
                        15  Enchanted creature
-frame             discard                                               36/31      183/126    129
+frame             discard                                               36/31      180/124    126
                        13  Discard your hand
                         7  You may discard a card
                         5  Discard your hand and draw two cards
-frame             createToken                                           31/21      909/479    663
+frame             createToken                                           31/21      900/475    654
                        47  Create a Treasure token
                        38  Create a Food token
                        17  Create a Treasure token
@@ -140,14 +140,14 @@ composition head  static clause › <colour>                              29/25 
                         2  Black spells you cast cost {…} more to cast
                         2  Blue creatures don't untap during their controllers...
                         2  Multicolored creatures you control get +N/+N
-composition head  static clause › <player>                              27/20      375/161    277
-                       21  You have no maximum hand size
-                       11  Players can't gain life
-                       10  You have hexproof
 composition head  effect clause › until                                 27/24      215/144    190
                        10  Until end of turn, target creature
                         5  Until end of turn, target creature you control
                         5  Until end of turn, this creature
+composition head  static clause › <player>                              25/19      356/153    269
+                       21  You have no maximum hand size
+                       10  You have hexproof
+                        8  You may have this creature assign its combat damage...
 argument class    effect clause > number of set > object des...         25/24      132/105     99
                         6  colors of mana spent to cast this spell
                         5  cards in that player's hand
@@ -164,32 +164,28 @@ other             mana-ability › mana ability rider                     24/18 
                        11  Spend this mana only to cast a creature spell
                        10  This artifact deals N damage to you
                        10  This land doesn't untap during your next untap step
-frame             tapUntap                                              22/18        78/59     52
+frame             tapUntap                                              22/17        76/57     49
                         7  That creature doesn't untap during its controller's...
                         6  You may tap or untap target creature
                         4  Target creature doesn't untap during its controller...
 keyword           keyword › buyback                                     22/17        32/21      1
                        32  Buyback {…}
-frame             no Op › pay                                           20/16       137/60     62  [no Op]
-                       17  Pay {E}{E}
-                       14  Pay {…}
-                       10  Pay N life
-frame             gainLife                                              19/13      154/108     91
+frame             gainLife                                              20/13      164/110     90
                        16  Gain N life
                        12  You gain N life and draw a card
-                       10  You gain N life and draw a card
+                       11  Players can't gain life
 composition head  triggered › condition › this                          19/11        45/21     34
                         5  this land is tapped
                         4  this card is suspended
                         2  this artifact is untapped
-frame             loseLife                                              18/12       112/72     85
+frame             no Op › pay                                           18/14       131/55     56  [no Op]
+                       17  Pay {E}{E}
+                       14  Pay {…}
+                       10  Pay N life
+frame             loseLife                                              18/12       108/70     81
                        16  Its controller loses N life
                         5  You don't lose the game for having N or less life
                         4  That player loses half their life, rounded up
-frame             gainControl                                           18/11        85/56     69
-                        7  Target creature you control gains protection from t...
-                        4  Target creature you control gains protection from t...
-                        3  You and permanents you control gain hexproof until ...
 composition head  static clause › Other                                 17/14      287/114    198
                        19  Other creatures you control get +N/+N
                         7  Other Elves you control get +N/+N
@@ -202,22 +198,22 @@ other             mana-ability › mana production                        16/11 
                        21  one mana of the chosen color
                        10  three mana of any one color
                        10  {…} or one mana of the chosen color
-frame             counter                                               16/16        66/50     44
-                       11  Counter target spell unless its controller pays {…}
-                        3  Counter target spell unless its controller pays {…}...
-                        3  Defending player gets a poison counter
 composition head  effect clause › for                                   14/12      153/113    146
                         5  For each player, choose friend or foe
                         2  For each color among permanents you control, add on...
                         2  For each kind of counter on target permanent, put a...
+composition head  static clause › Each                                   13/8       226/89    199
+                        9  Each creature you control with a +N/+N counter on i...
+                        6  Each creature you control assigns combat damage equ...
+                        6  Each player can't cast more than one spell each turn
 argument class    effect clause > target filter                         13/12        53/38     19
                        10  colors
                         7  colors
                         7  nontoken
-composition head  static clause › Each                                   12/8       225/89    198
-                        9  Each creature you control with a +N/+N counter on i...
-                        6  Each creature you control assigns combat damage equ...
-                        6  Each player can't cast more than one spell each turn
+frame             gainControl                                            13/6        40/21     38
+                        2  Target opponent gains control of this artifact
+                        2  Target opponent gains control of {self}
+                        1  Each player gains control of all creatures they own
 card-level        "each player" is not in grammar v0                    12/12      140/139      1
                       140  "each player" is not in grammar v0
 argument class    effect clause > counted set > object descr...         12/12        58/43     49
@@ -232,6 +228,10 @@ composition head  static clause › Until                                 11/11 
                         2  Until end of turn, target creature gains "When this...
                         2  Until end of turn, target creature gains "{T}: Retu...
                         2  Until end of turn, target creature gains deathtouch...
+frame             counter                                                 9/9        37/31     24
+                       11  Counter target spell unless its controller pays {…}
+                        3  Counter target spell unless its controller pays {…}...
+                        2  Counters remain on {self} as it moves to any zone o...
 composition head  static clause › Domain                                  9/9        28/23     24
                         5  Domain — This spell costs {…} less to cast for each...
                         2  Domain — This creature gets +N/+N for each basic la...
@@ -253,18 +253,14 @@ argument class    effect clause > zone reference                          7/5   
                        10  their owners' hands
                         7  the battlefield under your control
                         4  the battlefield tapped
-frame             dealDamage                                              7/6        69/55     36
-                        9  Target creature you control deals damage equal to i...
-                        8  Target creature you control deals damage equal to i...
-                        7  Target creature you control deals damage equal to i...
 composition head  static clause › Your                                    7/4        49/14     35
                         7  Your opponents can't gain life
                         4  Your opponents can't cast spells during your turn
                         3  Your opponents play with their hands revealed
-frame             addMana                                                 7/7        46/31     39
-                        5  Target land gains "{T}: Add {…}, {…}, or {…}" until...
+frame             addMana                                                 7/7        39/28     36
                         3  Add one mana of any color
                         2  Each player adds {…}
+                        1  Add X mana in any combination of colors, where X is...
 argument class    effect clause > object descriptor                       7/6        28/20     23
                         5  permanent of their choice unless they pay {…}
                         2  creature of their choice with flying
@@ -287,6 +283,10 @@ composition head  triggered › condition › there                           6/
                         1  there are N or more tower counters on this enchantment
 card-level        this verb acts on one object, and the sent...           6/6        26/26      1
                        26  this verb acts on one object, and the sentence anno...
+frame             dealDamage                                              6/5        20/16     12
+                        6  Target creature deals damage to itself equal to its...
+                        4  That creature deals damage equal to its power to th...
+                        1  Deal with the Black Guardian — When {self} enters, ...
 card-level        "library" is not a zone destination in gra...           6/6        17/16      1
                        17  "library" is not a zone destination in grammar v0
 composition head  static clause › Cumulative                              6/2         15/8     15
@@ -552,7 +552,7 @@ layout            layout "prepare" is not in grammar v0                   0/0   
 keyword           keyword › suspend                                       0/0        68/27      2
                        67  Suspend N—{…}
                         1  Suspend N — {…}
-frame             no Op › investigate                                     0/0        67/38     18  [no Op]
+frame             no Op › investigate                                     0/0        66/37     17  [no Op]
                        18  Investigate
                        18  Investigate
                        13  Investigate
@@ -594,7 +594,7 @@ composition head  static clause › Heroic                                  0/0 
                         3  Heroic — Whenever you cast a spell that targets thi...
 keyword           keyword › bestow                                        0/0        42/22      1
                        42  Bestow {…}
-frame             scryReorder                                             0/0        41/33     22
+frame             scryReorder                                             0/0        40/33     21
                         8  Scry N, then draw a card
                         8  Scry N, then draw two cards
                         3  Scry N, then reveal the top card of your library
@@ -1036,10 +1036,6 @@ composition head  triggered › condition › {self}                          0/
                         1  {self} has counters on it
 keyword           keyword › cycling                                       0/0          9/3      1
                         9  Cycling {…}
-composition head  effect clause › players                                 0/0          8/8      7
-                        2  Players can't gain life this turn
-                        1  Players can't cast spells until the Hydra's next turn
-                        1  Players can't search libraries this turn
 composition head  static clause › Infusion                                0/0          8/3      7
                         2  Infusion — This creature gets +N/+N as long as you ...
                         1  Infusion — At the beginning of your end step, if yo...
@@ -1327,12 +1323,12 @@ keyword           keyword › ward—{…}                                      
                         3  Ward—{…}
 
 Per-class subtotals (distinct cards touched):
-frame             premodern    780   corpus   6002
-composition head  premodern   1513   corpus  14613
+frame             premodern    758   corpus   5805
+composition head  premodern   1513   corpus  14596
 argument class    premodern    379   corpus   2460
 cost              premodern    118   corpus   1582
 keyword           premodern     50   corpus   2724
 layout            premodern      0   corpus   1166
 card-level        premodern     74   corpus    715
-other             premodern    550   corpus   4595
+other             premodern    574   corpus   4817
 ```

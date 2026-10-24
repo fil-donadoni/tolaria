@@ -69,12 +69,13 @@ function stems(word: string): string[] {
 }
 
 /** The frame head a word is, given the whole span text — or `undefined`. */
-function headOf(word: string, text: string) {
+function headOf(word: string, text: string, lead = true) {
     for (const stem of stems(word))
         for (const row of FRAME_HEADS)
             if (
                 row.verb === stem &&
-                (row.requires === undefined || text.includes(row.requires))
+                (row.requires === undefined || text.includes(row.requires)) &&
+                (lead || row.leadOnly !== true)
             )
                 return row;
     return undefined;
@@ -106,8 +107,8 @@ export function spanHead(span: string): SpanHead | null {
     if (COMPOSITION_HEADS.includes(lead) && !eachPlayer)
         return { kind: "composition", head: lead };
     if (SUBJECT_LEADS.has(lead) || eachPlayer)
-        for (const w of ws.slice(1, 8)) {
-            const row = headOf(w, text);
+        for (const w of ws.slice(1, 4)) {
+            const row = headOf(w, text, false);
             if (row !== undefined)
                 return { kind: "frame", verb: row.verb, op: row.op };
         }
