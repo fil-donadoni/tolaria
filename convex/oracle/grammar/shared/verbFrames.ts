@@ -1367,9 +1367,15 @@ function splitMembers(body: string): string[] {
         else pieces.push(piece);
     }
     // " and " joins two frames inside one member ("…for a card and reveal
-    // it"); an "and" inside a descriptor opens nothing.
+    // it"); an "and" inside a descriptor opens nothing. The Wish frame's
+    // "… and put it into your hand" is its OWN move (one Op), never a second
+    // member.
     const out: string[] = [];
     for (const [i, member] of pieces.entries()) {
+        if (frameOf(member) === "bringFromOutsideGame") {
+            out.push(member);
+            continue;
+        }
         const parts = (i === 0 ? member : member.replace(/^then /, "")).split(
             " and "
         );
