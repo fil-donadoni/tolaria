@@ -100,6 +100,27 @@ describe("computeDeckStats", () => {
             expect(stats.pips.B).toBe(2); // Dismember {B/P}{B/P}
         });
 
+        it("a monocolour-hybrid {2/W} pip counts once toward its colour and its MV is 2 (CR 202.3f)", () => {
+            const resolve: DeckCardDefinitionResolver = (cardId) =>
+                cardId === "fake-2w-spell"
+                    ? ({
+                          id: "fake-2w-spell",
+                          name: "Fake 2/W Spell",
+                          rarity: "common",
+                          manaCost: {
+                              hybridGeneric: [
+                                  { generic: 2, color: "W" },
+                                  { generic: 2, color: "W" },
+                              ],
+                          },
+                          types: ["Sorcery"],
+                      } as CardDefinition)
+                    : null;
+            const stats = computeDeckStats(deckOf("fake-2w-spell"), resolve);
+            expect(stats.pips).toEqual({ W: 2 });
+            expect(stats.curve[4]).toBe(1);
+        });
+
         it("generic and {X} contribute no pips", () => {
             // Dismember is {1}{B/P}{B/P} — the {1} must not leak into any pip.
             const stats = computeDeckStats(deckOf(DISMEMBER));

@@ -219,6 +219,7 @@ import {
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
+    solveHybridGenericLegs,
     solvePhyrexianSplit,
     siblingControllerIdFor,
     isAlreadySelectedTarget,
@@ -257,6 +258,10 @@ import {
     pendingTargetCountMaxReached,
     resolveDivideTotal,
 } from "./gre/pendingTargetOrigin";
+import {
+    foldHybridGenericLegs,
+    hybridGenericPipCount,
+} from "./gre/hybridGeneric";
 import {
     PHYREXIAN_LIFE_PER_PIP,
     phyrexianManaAdditions,
@@ -4815,6 +4820,30 @@ function resolvePhyrexianCastPayment(
     return { manaAdditions, payLife };
 }
 
+/** CR 107.4e / 601.2b — the cost a cast actually owes once each monocolour
+ *  hybrid pip (`{2/W}`) has taken its leg: the cheapest affordable combination
+ *  (`solveHybridGenericLegs`) folded into ordinary pips, so cost modifiers
+ *  (CR 601.2f) see the colour or generic mana the pip became. When none is
+ *  affordable (the castability gate should have blocked the cast) every pip
+ *  falls to its generic leg, so the payment fails closed. A cost with no such
+ *  pip comes back unchanged. */
+function resolveHybridGenericCastCost(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost | undefined,
+    chosenX: number | undefined,
+    state: GameState
+): ManaCost | undefined {
+    if (!rawCost || hybridGenericPipCount(rawCost) === 0) return rawCost;
+    return (
+        solveHybridGenericLegs(player, card, rawCost, chosenX, state) ??
+        foldHybridGenericLegs(
+            rawCost,
+            (rawCost.hybridGeneric ?? []).map(() => false)
+        )
+    );
+}
+
 export function finalizeTargetSelection(
     state: GameState,
     pt: PendingTarget,
@@ -5453,11 +5482,21 @@ export function finalizeTargetSelection(
               chosenXColors,
           })
         : rawCost
-          ? normalizeManaCost(rawCost, {
-                chosenX,
-                additionalGeneric,
-                chosenXColors,
-            })
+          ? // CR 107.4e — a `{2/W}` pip is folded into its chosen leg first.
+            normalizeManaCost(
+                resolveHybridGenericCastCost(
+                    player,
+                    cardInHand,
+                    rawCost,
+                    chosenX,
+                    state
+                ) ?? rawCost,
+                {
+                    chosenX,
+                    additionalGeneric,
+                    chosenXColors,
+                }
+            )
           : {};
     // CR 702.33a / 601.2f — a Kicker cast pays the kicker cost ON TOP of the
     // cost, as an ADDITIONAL cost. It composes with an ALTERNATIVE cost (CR
@@ -7616,7 +7655,17 @@ export const announceCast = mutation({
         const rawCost = castRawManaCost(state, cardInHand, castFromZone);
 
         const manaCost = rawCost
-            ? normalizeManaCost(rawCost, { chosenX, chosenXColors })
+            ? // CR 107.4e — a `{2/W}` pip is folded into its chosen leg first.
+              normalizeManaCost(
+                  resolveHybridGenericCastCost(
+                      player,
+                      cardInHand,
+                      rawCost,
+                      chosenX,
+                      state
+                  ) ?? rawCost,
+                  { chosenX, chosenXColors }
+              )
             : {};
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
         // modifiers, CR 601.2f). No-op when the caster didn't kick.
