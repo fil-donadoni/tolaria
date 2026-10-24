@@ -248,8 +248,17 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
         expect(slugs).not.toContain("deck-1");
     });
 
-    it("every list resolves through the registry and is legal Premodern", () => {
+    // A list with a card nobody has built yet is BLOCKED, never a failure: the
+    // deploy sweep re-tries it every build and it seeds itself once its last
+    // card lands. The count moves up as cards land, so it is never pinned.
+    const unresolvedOf = (deck: Tier1Deck): string[] =>
+        [
+            ...new Set([...deck.main, ...deck.sideboard].map((r) => r.name)),
+        ].filter((name) => resolve(name) === null);
+
+    it("every playable list builds a legal Premodern 60 + 15 payload", () => {
         for (const deck of file.decks) {
+            if (unresolvedOf(deck).length > 0) continue;
             const { payload, problems } = buildPresetPayload(
                 deck,
                 "premodern",
@@ -262,6 +271,16 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
             });
             expect(payload!.cards).toHaveLength(60);
             expect(payload!.sideboard).toHaveLength(15);
+        }
+    });
+
+    it("every other list is reported blocked, naming its unresolved cards", () => {
+        for (const deck of file.decks) {
+            const unresolved = unresolvedOf(deck);
+            if (unresolved.length === 0) continue;
+            const row = seedOne(deck, "mtgtop8.com", true);
+            expect(row.state).toBe("blocked");
+            expect(row.problems?.join("\n")).toContain(unresolved.join(", "));
         }
     });
 });
