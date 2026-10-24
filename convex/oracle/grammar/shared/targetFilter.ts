@@ -67,6 +67,7 @@ import {
 } from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
 import {
+    ARTIFACT_SUBTYPES,
     CREATURE_SUBTYPES,
     ENCHANTMENT_SUBTYPES,
     LAND_SUBTYPES,
@@ -404,10 +405,14 @@ function singleType(word: string): CardType | undefined {
 }
 
 function isSubtype(token: string): boolean {
-    return CREATURE_SUBTYPES.has(token) || LAND_SUBTYPES.has(token);
+    return (
+        CREATURE_SUBTYPES.has(token) ||
+        LAND_SUBTYPES.has(token) ||
+        ARTIFACT_SUBTYPES.has(token)
+    );
 }
 
-/** The card types a set of bare subtype nouns implies (CR 205.3i / 205.3m). */
+/** The card types a set of bare subtype nouns implies (CR 205.3g / 205.3i / 205.3m). */
 function impliedTypes(
     subtypes: readonly string[] | undefined
 ): CardType[] | undefined {
@@ -421,9 +426,10 @@ function impliedTypes(
     return [...types];
 }
 
-/** The card type a bare subtype noun implies (CR 205.3i / 205.3m). */
+/** The card type a bare subtype noun implies (CR 205.3g / 205.3i / 205.3m). */
 function typeOfSubtype(token: string): CardType | null {
     if (LAND_SUBTYPES.has(token)) return "Land";
+    if (ARTIFACT_SUBTYPES.has(token)) return "Artifact";
     if (CREATURE_SUBTYPES.has(token)) return "Creature";
     return null;
 }

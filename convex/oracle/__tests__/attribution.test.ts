@@ -181,21 +181,20 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("triggered: the effect, once the head has parsed (Rustspore Ram)", () => {
+    it("triggered: the effect, once the head has parsed (an enchantment type, CR 205.3h, still unread)", () => {
         expect(
             attributionOf({
                 name: "Rustspore Ram",
                 manaCost: "{4}",
                 typeLine: "Artifact Creature — Sheep",
-                oracleText:
-                    "When this creature enters, destroy target Equipment.",
+                oracleText: "When this creature enters, destroy target Aura.",
                 power: "1",
                 toughness: "3",
             })
         ).toEqual({
             slot: "triggered",
             path: [EFFECT_CLAUSE, TARGET_FILTER, DESCRIPTOR],
-            span: "Equipment",
+            span: "Aura",
         });
     });
 
@@ -233,21 +232,21 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("triggered: an intervening-if condition (Settlement Blacksmith)", () => {
+    it("triggered: an intervening-if condition (an enchantment type still unread)", () => {
         expect(
             attributionOf({
                 name: "Settlement Blacksmith",
                 manaCost: "{2}{W}",
                 typeLine: "Creature — Human Artificer",
                 oracleText:
-                    "When this creature enters, if you control an Equipment, draw a card.",
+                    "When this creature enters, if you control an Aura, draw a card.",
                 power: "3",
                 toughness: "3",
             })
         ).toEqual({
             slot: "triggered",
             path: [CONDITION, DESCRIPTOR],
-            span: "Equipment",
+            span: "Aura",
         });
     });
 
