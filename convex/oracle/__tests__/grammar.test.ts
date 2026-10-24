@@ -186,7 +186,7 @@ describe("mana ability slot (CR 605.1a)", () => {
         // (`manaBoardDerived.test.ts`). What stays is a count the descriptor
         // cannot carry — a number word, a keyword clause, a graveyard.
         for (const line of [
-            "{T}: Add three mana of any one color.",
+            "{T}: Add two mana of any one color.",
             "{T}: Add {G} for each creature you control with defender.",
             "{T}: Add {B} for each black creature card in your graveyard.",
         ]) {
