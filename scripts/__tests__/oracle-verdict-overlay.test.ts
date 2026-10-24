@@ -68,6 +68,30 @@ describe("overlayBranchVerdicts", () => {
         ]);
     });
 
+    // Issue #6688: a session's bare compile carries drift verdicts marked
+    // `botStale`. Such a theirs row measured nothing — substituting it would
+    // overwrite the verdict the base replayed since; a theirs replay that
+    // CLEARED the marker is a fresh verdict even with the same outcome.
+    it("never substitutes a carried (botStale) theirs row, and keeps a replay that cleared the marker", () => {
+        const stale = (id: string): CardRow => ({
+            ...row(id, "played"),
+            botStale: true,
+        });
+        const base = lock([row("bear", "played"), stale("elk")]);
+        const ours = lock([row("bear", "played"), stale("elk")], "ours");
+        const theirs = lock([stale("bear"), row("elk", "played")]);
+        const { lock: out, carried } = overlayBranchVerdicts(
+            base,
+            ours,
+            theirs
+        );
+        expect(carried).toBe(1);
+        expect(out.cards).toEqual([
+            row("bear", "played"),
+            row("elk", "played"),
+        ]);
+    });
+
     it("leaves OURS untouched where the commit changed no verdict", () => {
         // ours re-played bolt (base moved); theirs did not touch it.
         const base = lock([row("bolt", "ignored", GAP)]);

@@ -16,6 +16,9 @@ import type { CompiledDefinition } from "../../convex/oracle/types";
 import {
     buildLockfile as buildLockfileRaw,
     LOCK_FREE_MISSES,
+    sessionSweep,
+    sweepAdmits,
+    sweepMode,
     sweepWhenMissing,
     type BuildLockfileOptions,
 } from "../oracle-compile";
@@ -24,6 +27,8 @@ import {
     botGapKey,
     botSourceFiles,
     carriedBotReach,
+    carriedOrPlayed,
+    classifyVerdict,
     isBotSourceFile,
     playingBotReach,
     probingBotReach,
@@ -39,7 +44,7 @@ import {
 } from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
 import { deriveCounts, deriveFormats } from "../lib/oracle-tally";
-import { readyDelta } from "../lib/oracle-ready-delta";
+import { readyDelta, verdictDelta } from "../lib/oracle-ready-delta";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 
 const ROOT = join(import.meta.dirname, "..", "..");
@@ -227,14 +232,28 @@ describe("carriedBotReach — the drift guard's source never plays", () => {
         });
     });
 
-    it("has nothing for a changed definition — the lockfile is stale", () => {
+    // ADR 0158 § 2a (issue #6688): a drift row's verdict is carried marked
+    // stale — exactly what a session's bare run wrote, so tier 3 regenerates
+    // the PR's rows byte-identical.
+    it("carries a drift row's verdict marked stale onto a changed definition", () => {
         const source = carriedBotReach(lockWith([row({})], "sha256:x"));
         expect(
             source.verdictFor(BEAR_ID, {
                 ...BEAR_DEF,
                 power: 3,
             } as CompiledDefinition)
-        ).toBeUndefined();
+        ).toEqual({ outcome: "played", stale: true });
+    });
+
+    it("has nothing for a graduation — a card not `ready` with a verdict before", () => {
+        const source = carriedBotReach(
+            lockWith(
+                [row({ state: "quarantine", botReach: undefined })],
+                "sha256:x"
+            )
+        );
+        expect(source.verdictFor(BEAR_ID, BEAR_DEF)).toBeUndefined();
+        expect(source.verdictFor("absent", BEAR_DEF)).toBeUndefined();
     });
 });
 
@@ -503,7 +522,7 @@ describe("--carry-bot --replay-card: play only the named cards (issue #4957)", (
     });
 });
 
-describe("a bare run queues for the heavy mutex only on a cache miss (issue #6069)", () => {
+describe("the base's --play-misses queues for the heavy mutex only past a handful of misses (issues #6069, #6687)", () => {
     const previous = buildLockfile(CORPUS, {
         botReach: fixedSource({
             [BEAR_ID]: { outcome: "played" },
@@ -645,6 +664,195 @@ describe("a bare run queues for the heavy mutex only on a cache miss (issue #606
     });
 });
 
+describe("a session plays only its graduations; drift verdicts are carried (ADR 0158 § 2a, issue #6688)", () => {
+    /** A compiler change touching one field of every definition. */
+    const NEW_DEF = { ...BEAR_DEF, power: 3 } as CompiledDefinition;
+    const driftId = (n: number) => `drift-${String(n).padStart(4, "0")}`;
+    const DRIFT = Array.from({ length: 1000 }, (_, n) => driftId(n));
+    const GRADUATIONS = [
+        "graduation-absent",
+        "graduation-unparsed",
+        "graduation-unverdicted",
+    ];
+    /** 1,000 rows `ready` and played on the old definition; one unparsed,
+     *  one `ready` with no verdict; `graduation-absent` has no row. */
+    const committed = lockWith(
+        [
+            ...DRIFT.map((oracleId) => row({ oracleId })),
+            row({
+                oracleId: "graduation-unparsed",
+                state: "unparsed",
+                definition: undefined,
+                botReach: undefined,
+            }),
+            row({ oracleId: "graduation-unverdicted", botReach: undefined }),
+        ],
+        "sha256:committed-bot"
+    );
+    /** Walks this tree — every card `ready` on the new definition — as
+     *  `buildLockfile` does, and records each verdict. */
+    const build = (source: BotReachSource) =>
+        JSON.stringify(
+            [...DRIFT, ...GRADUATIONS].map((id) => [
+                id,
+                source.verdictFor(id, NEW_DEF) ?? null,
+            ])
+        );
+
+    it("1,000 drifted definitions and 3 graduations: the bare run plays exactly the 3 and carries the 1,000", async () => {
+        const asked: string[] = [];
+        const result = await sessionSweep({
+            previous: committed,
+            currentBotHash: "sha256:tree-bot",
+            build,
+            play: async (graduations) => {
+                asked.push(...graduations.keys());
+                return new Map(
+                    [...graduations.keys()].map((id) => [
+                        id,
+                        { outcome: "played" } as BotReachVerdict,
+                    ])
+                );
+            },
+        });
+        expect(asked.sort()).toEqual(GRADUATIONS);
+        expect(result.played).toBe(3);
+        expect(result.carried).toBe(1000);
+        const verdicts = new Map(
+            JSON.parse(result.text) as [string, unknown][]
+        );
+        expect(verdicts.get(driftId(0))).toEqual({
+            outcome: "played",
+            stale: true,
+        });
+        expect(verdicts.get("graduation-absent")).toEqual({
+            outcome: "played",
+        });
+    });
+
+    it("a frozen row is not `ready`: a moved definition graduates (played), an unchanged one is current", () => {
+        const frozen = row({
+            state: "quarantine",
+            botReach: "frozen",
+            botGap: "no-legal-move › Creature",
+        });
+        expect(classifyVerdict(frozen, NEW_DEF).kind).toBe("graduation");
+        expect(classifyVerdict(frozen, BEAR_DEF).kind).toBe("current");
+    });
+
+    it("the carried row is marked botStale, regenerates byte-identical under the gate's carry, and is a miss for the base", () => {
+        const previous = buildLockfile(CORPUS, {
+            botReach: fixedSource({
+                [BEAR_ID]: { outcome: "played" },
+                [BOLT_ID]: {
+                    outcome: "ignored",
+                    cause: "never-chosen",
+                    form: "Instant target:any",
+                },
+            }),
+        });
+        /** The committed Bear row was played on a definition the tree no
+         *  longer compiles. */
+        const moved: Lockfile = {
+            ...previous,
+            cards: previous.cards.map((c) =>
+                c.oracleId === BEAR_ID
+                    ? {
+                          ...c,
+                          definition: {
+                              ...c.definition!,
+                              name: "Old Bear",
+                          } as CompiledDefinition,
+                      }
+                    : c
+            ),
+        };
+        const spy = spyPlayer();
+        const session = buildLockfile(CORPUS, {
+            botReach: carriedOrPlayed(moved, "sha256:tree-bot", spy.play),
+        });
+        expect(spy.calls).toEqual([]);
+        const bear = session.cards.find((c) => c.oracleId === BEAR_ID)!;
+        expect(bear).toMatchObject({ botReach: "played", botStale: true });
+        // `check:oracle`'s tier 3 on the PR: the carry reproduces the rows.
+        expect(
+            serializeLockfile(
+                buildLockfile(CORPUS, { botReach: carriedBotReach(session) })
+            )
+        ).toBe(serializeLockfile(session));
+        // The probe (`staleVerdicts`) reads the marked row as a drift miss
+        // although its definition is the tree's …
+        const probe = probingBotReach(session, "sha256:tree-bot");
+        buildLockfile(CORPUS, { botReach: probe });
+        expect([...probe.misses()]).toEqual([BEAR_ID]);
+        expect([...probe.drift()]).toEqual([BEAR_ID]);
+        expect([...probe.graduations().keys()]).toEqual([]);
+        // … so the base's `--play-misses` plays it and drops the marker.
+        const base = spyPlayer();
+        const replayed = buildLockfile(CORPUS, {
+            botReach: playingBotReach(session, "sha256:tree-bot", base.play),
+        });
+        expect(base.calls).toEqual([BEAR_ID]);
+        expect(
+            replayed.cards.find((c) => c.oracleId === BEAR_ID)!.botStale
+        ).toBeUndefined();
+    });
+
+    it("oracle:report --delta reads the same classification: a frozen graduation is named, carried rows counted", () => {
+        const previous = buildLockfile(CORPUS, {
+            botReach: fixedSource({ [BEAR_ID]: { outcome: "played" } }),
+        });
+        const baseline: Lockfile = {
+            ...previous,
+            cards: previous.cards.map((c) =>
+                c.oracleId === BEAR_ID
+                    ? {
+                          ...c,
+                          definition: {
+                              ...c.definition!,
+                              name: "Old Bear",
+                          } as CompiledDefinition,
+                      }
+                    : c
+            ),
+        };
+        const session = buildLockfile(CORPUS, {
+            botReach: carriedOrPlayed(
+                baseline,
+                "sha256:tree-bot",
+                spyPlayer({
+                    outcome: "frozen",
+                    cause: "no-legal-move",
+                    form: "Instant target:any",
+                }).play
+            ),
+        });
+        expect(verdictDelta(baseline.cards, session.cards)).toEqual({
+            graduated: 1,
+            frozen: ["Test Bolt"],
+            carried: 1,
+        });
+    });
+
+    it("no bare run reaches the heavy mutex: only the base's two sweeps admit", () => {
+        expect(sweepMode([])).toBe("session");
+        expect(sweepAdmits("session")).toBe(false);
+        expect(sweepMode(["--play-misses"])).toBe("misses");
+        expect(sweepMode(["--replay-bot"])).toBe("replay");
+        expect(sweepAdmits("misses")).toBe(true);
+        expect(sweepAdmits("replay")).toBe(true);
+        const driver = readFileSync(
+            join(ROOT, "scripts", "oracle-compile.ts"),
+            "utf8"
+        );
+        // One admission call site, on the `sweepAdmits` branch only.
+        expect(driver.match(/runUnderHeavyAdmission\(/g)).toHaveLength(1);
+        expect(driver).toMatch(
+            /sweepAdmits\(mode\)\s*\?\s*await sweepWhenMissing\(\{[^}]*admit: \(\) => runUnderHeavyAdmission\(/
+        );
+    });
+});
+
 describe("a session's `ready` delta never carries a Bot-hash move it did not make (issue #6463)", () => {
     // The committed lockfile froze Bolt under one Bot; this tree's Bot would
     // play it — and the other way round. A bare build on either tree carries
@@ -771,12 +979,13 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
         );
         expect(lockfile?.script).toBe("oracle:compile");
         expect(lockfile?.args ?? []).toContain("--carry-bot");
+        expect(sweepMode(lockfile?.args ?? [])).toBe("carry");
         const driver = readFileSync(
             join(ROOT, "scripts", "oracle-compile.ts"),
             "utf8"
         );
         expect(driver).toMatch(
-            /check \|\| carry\s*\?\s*null\s*:\s*await sweepWhenMissing/
+            /mode === "check" \|\| mode === "carry"\s*\?\s*null\s*:/
         );
     });
 
