@@ -1355,6 +1355,37 @@ export type EffectSentenceIR =
            */
           readonly kind: "exile-graveyard";
           readonly player: PlayerRefIR;
+          /**
+           * CR 205.4a — "all cards from <player>'s graveyard other than basic
+           * land cards": every card EXCEPT one that is both a land and basic
+           * (a nonbasic land and a basic-typed nonland both go).
+           */
+          readonly exceptBasicLands?: true;
+      }
+    | {
+          /**
+           * CR 608.2c + CR 400.7 + CR 701.23a — "Exile all cards from target
+           * player's graveyard other than basic land cards. For each card
+           * exiled this way, search that player's library for all cards with
+           * the same name as that card and exile them.": the graveyard
+           * sentence, folded with the per-card library sweep that reads its
+           * result. Alone, the second sentence has no antecedent and fails.
+           * `shuffle` is the printed "Then that player shuffles" sentence,
+           * folded in the same way a search-target-library one is.
+           */
+          readonly kind: "exile-graveyard-and-library-copies";
+          readonly player: PlayerRefIR;
+          readonly shuffle: boolean;
+      }
+    | {
+          /**
+           * CR 608.2c — "For each card exiled this way, search that player's
+           * library for all cards with the same name as that card and exile
+           * them.": the sentence after an `exile-graveyard`, folded into
+           * `exile-graveyard-and-library-copies` by the sentence-list
+           * assembler. Alone it names no exiled cards and fails.
+           */
+          readonly kind: "exile-same-name-library-copies";
       }
     | {
           /**
@@ -3416,10 +3447,36 @@ export function assembleSentences(
             effects.push(...sentence.effects);
             continue;
         }
+        // CR 608.2c — "For each card exiled this way, search …" reads the
+        // graveyard exile of the sentence before it, and nothing else.
+        if (sentence.effect.kind === "exile-same-name-library-copies") {
+            const previous = effects[effects.length - 1];
+            if (
+                previous?.kind !== "exile-graveyard" ||
+                previous.exceptBasicLands !== true
+            )
+                return {
+                    ok: false,
+                    reason: '"For each card exiled this way, search … same name" follows no graveyard exile of the same player',
+                };
+            effects[effects.length - 1] = {
+                kind: "exile-graveyard-and-library-copies",
+                player: previous.player,
+                shuffle: false,
+            };
+            continue;
+        }
         // CR 701.24a — "Then that player shuffles." belongs to the target
         // library the sentence before searched; nothing else names it.
         if (sentence.effect.kind === "shuffle-searched-library") {
             const previous = effects[effects.length - 1];
+            if (
+                previous?.kind === "exile-graveyard-and-library-copies" &&
+                !previous.shuffle
+            ) {
+                effects[effects.length - 1] = { ...previous, shuffle: true };
+                continue;
+            }
             if (previous?.kind !== "search-target-library" || previous.shuffle)
                 return {
                     ok: false,
@@ -4521,6 +4578,12 @@ const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
 const TAP_TARGET_PLAYER_SWEEP_DRAIN =
     /^Tap (all .+) target player controls and that player loses all unspent mana$/;
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
+/** CR 205.4a — "Exile all cards from <player>'s graveyard other than basic land cards". */
+const EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS =
+    /^Exile all cards from (.+?)(?:'|’)s graveyard other than basic land cards$/;
+/** CR 608.2c — the per-card library sweep behind the graveyard exile. */
+const EXILE_SAME_NAME_LIBRARY_COPIES =
+    /^For each card exiled this way, search (.+?)(?:'|’)s library for all cards with the same name as that card and exile them$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
 const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
@@ -6894,6 +6957,18 @@ function effectSentence(
             shuffle: shuffles !== undefined,
         } satisfies EffectSentenceIR);
     }
+    // ── the per-card library sweep after a graveyard exile (CR 608.2c) ─────
+    const sameName = span.match(EXILE_SAME_NAME_LIBRARY_COPIES);
+    if (sameName !== null) {
+        // "that player" is anaphora (CR 109.5) for the player whose graveyard
+        // the sentence before exiled; the fold below binds it.
+        const player = playerSubject(sameName[1]!, ctx);
+        if (player === null || player.kind !== "that-player")
+            return fail(`"${sameName[1]}" is not the player just named`, span);
+        return ok({
+            kind: "exile-same-name-library-copies" as const,
+        } satisfies EffectSentenceIR);
+    }
     if (THEN_THAT_PLAYER_SHUFFLES.test(span))
         return ok({
             kind: "shuffle-searched-library" as const,
@@ -7729,6 +7804,20 @@ function effectSentence(
     if (span.startsWith("Exile ")) {
         // CR 404.1 — "Exile target player's graveyard": the whole pile of an
         // announced player (Tormod's Crypt). Only a target player is printed.
+        const exceptBasic = span.match(EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS);
+        if (exceptBasic !== null) {
+            const player = playerSubject(exceptBasic[1]!, ctx);
+            if (player === null || player.kind !== "target")
+                return fail(
+                    `"${exceptBasic[1]}" is not a target player whose graveyard is exiled`,
+                    span
+                );
+            return ok({
+                kind: "exile-graveyard" as const,
+                player,
+                exceptBasicLands: true as const,
+            } satisfies EffectSentenceIR);
+        }
         const graveyard = span.match(EXILE_GRAVEYARD);
         if (graveyard !== null) {
             const player = playerSubject(graveyard[1]!, ctx);
