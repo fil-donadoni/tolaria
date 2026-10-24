@@ -85,6 +85,7 @@
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
         "land": "bun scripts/land.ts",
         "land:ready": "bun scripts/land-ready.ts",
+        "base:drift": "bun scripts/base-drift.ts",
         "pr:checks": "bun scripts/pr-checks.ts",
         "pr-refresh": "bun scripts/pr-refresh.ts",
         "pr:fixup": "bun scripts/pr-fixup.ts",
