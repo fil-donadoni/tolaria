@@ -93,7 +93,7 @@ describe("source-damage exchange when the source leaves (CR 608.2h)", () => {
         state.players[0].battlefield.push({
             ...departed,
             zone: "battlefield",
-            damage: 0,
+            damageMarked: 0,
         });
         resolveTopOfStack(state);
         checkStateBasedActions(state);
@@ -101,7 +101,7 @@ describe("source-damage exchange when the source leaves (CR 608.2h)", () => {
         const returned = state.players[0].battlefield.find(
             (c) => c.id === "yeti"
         )!;
-        expect(returned.damage ?? 0).toBe(0);
+        expect(returned.damageMarked ?? 0).toBe(0);
     });
 
     it("the LKI power stays out of the client projection", () => {
