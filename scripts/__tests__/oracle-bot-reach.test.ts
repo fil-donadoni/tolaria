@@ -735,8 +735,8 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
             join(ROOT, "scripts", "lib", "bot-reach-player.ts"),
             "utf8"
         );
-        expect(player).toContain(
-            'await import("../../convex/gre/ai/botReach")'
+        expect(player).toMatch(
+            /await import\("\.\.\/\.\.\/convex\/gre\/ai\/botReach"\)/
         );
         expect(player).not.toMatch(
             /^import (?!type)[^;]*from "\.\.\/\.\.\/convex\/gre\/ai\//m
