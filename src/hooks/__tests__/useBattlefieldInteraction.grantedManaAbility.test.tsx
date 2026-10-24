@@ -292,6 +292,46 @@ describe("useBattlefieldInteraction — granted mana abilities reach the CLICK h
         expect(activateAbility).not.toHaveBeenCalled();
     });
 
+    // Issue #1908 — a permanent with BOTH a free and a cost-bearing mana
+    // ability must offer both rows; the free toggle used to be dropped when no
+    // stack ability co-existed. Both grant orders, since the toggle is derived
+    // from the first mana ability the card lists.
+    it.each([
+        ["free first", [...fixedGrant, ...costedGrant]],
+        ["costed first", [...costedGrant, ...fixedGrant]],
+    ])(
+        "a free AND a cost-bearing mana ability both get a menu entry (%s)",
+        (_label, grants) => {
+            const { card, me } = projectedBoard(VANILLA_ID, grants);
+            const { handle } = renderInteraction(me);
+
+            const entries = handle.current!.getActivatable(card);
+            expect(entries.map((a) => a.id).sort()).toEqual(
+                [FIXED_ID, COSTED_ID].sort()
+            );
+            // CR 601.2f / 605.3c — the costed entry stays explicit.
+            expect(entries.map((a) => a.id)).toContain(COSTED_ID);
+
+            // Two {T} mana options make `getManaChoices` open the picker (one
+            // row per ability, the costed one labelled) from EITHER entry: no
+            // mutation fires silently, and never `activateAbility`.
+            for (const id of [FIXED_ID, COSTED_ID]) {
+                cleanup();
+                const fresh = renderInteraction(me);
+                act(() => {
+                    fresh.handle.current!.handleActivateAbility(
+                        card.id,
+                        id,
+                        false
+                    );
+                });
+                expect(document.querySelectorAll("button")).toHaveLength(2);
+                expect(tapUntap).not.toHaveBeenCalled();
+                expect(activateAbility).not.toHaveBeenCalled();
+            }
+        }
+    );
+
     it("the ungranted control offers nothing and dispatches nothing", () => {
         const { card, me } = projectedBoard(VANILLA_ID, []);
         const { handle } = renderInteraction(me);
