@@ -56,6 +56,7 @@ import {
 } from "./lib/health-verdict-store";
 import {
     MANUAL_COMMAND,
+    isLanded,
     parseVerdict,
     verdictPath,
     type FixVerdict,
@@ -274,7 +275,7 @@ export function loopDecision(input: LoopInputs): LoopDecision {
     } = input;
 
     if (verdict !== null) {
-        if (verdict.outcome !== "landed") {
+        if (!isLanded(verdict)) {
             return {
                 kind: "stop",
                 reason: `the fixer is STUCK @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""} — ${verdict.note ?? "no note"}`,
@@ -282,7 +283,7 @@ export function loopDecision(input: LoopInputs): LoopDecision {
         }
         return {
             kind: "retry",
-            note: `round ${attempt}: the fixer LANDED${verdict.pr ? ` PR #${verdict.pr}` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`,
+            note: `round ${attempt}: the fixer LANDED${verdict.pr ? ` PR #${verdict.pr}` : ""}${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`,
         };
     }
 

@@ -209,6 +209,20 @@ describe("release — loopDecision", () => {
         expect(d.kind === "retry" && d.note).toMatch(/PR #3187/);
     });
 
+    it("a landed-partial verdict buys another round and names the class-guard issue (issue #6552)", () => {
+        const d = loopDecision({
+            ...gated(red),
+            verdict: {
+                sha: tip,
+                outcome: "landed-partial",
+                pr: 3187,
+                classGuardIssue: 6548,
+            },
+        });
+        expect(d.kind).toBe("retry");
+        expect(d.kind === "retry" && d.note).toMatch(/issue #6548/);
+    });
+
     it("a stuck verdict ends the loop and carries the fixer's note", () => {
         const d = loopDecision({
             ...gated(red),

@@ -141,11 +141,19 @@ export interface HealthRecord {
 export interface FixVerdict {
     /** The sha the session was asked about. */
     sha: string;
-    outcome: "landed" | "stuck";
+    /** `landed-partial` (issue #6552): the instance fix is merged, the class
+     *  guard needs the owner and was filed as `classGuardIssue`. */
+    outcome: "landed" | "landed-partial" | "stuck";
     /** The PR that carried the repair, when there is one. */
     pr?: number;
+    /** The `ready-for-human` class-guard issue; set with `landed-partial`. */
+    classGuardIssue?: number;
     note?: string;
 }
+
+/** Did the repair merge? `landed-partial` did: only its class guard is the
+ *  owner's. */
+export const isLanded = (v: FixVerdict): boolean => v.outcome !== "stuck";
 
 export type SpawnDecision =
     | { kind: "spawn"; sha: string; failedStep?: string }
@@ -264,6 +272,22 @@ export function parseVerdict(
             outcome: "stuck",
             pr,
             note: note ?? "the fixer declared itself stuck",
+        };
+    }
+    if (record.outcome === "landed-partial") {
+        const guard = record.classGuardIssue;
+        // Fail-closed: a partial landing owes the issue that carries the
+        // class guard; without a real number it is not provably filed.
+        if (typeof guard !== "number" || !Number.isInteger(guard) || guard <= 0)
+            return stuck(
+                "a 'landed-partial' verdict names no class-guard issue number"
+            );
+        return {
+            sha: expectedSha,
+            outcome: "landed-partial",
+            pr,
+            classGuardIssue: guard,
+            note,
         };
     }
     if (record.outcome !== "landed") {
@@ -503,7 +527,7 @@ function main(): void {
         headless,
         extra: extraClaudeArgs(argv),
     });
-    if (verdict === null || verdict.outcome !== "landed") process.exit(1);
+    if (verdict === null || !isLanded(verdict)) process.exit(1);
 }
 
 /** Where a job's quiet fixer writes its transcript: `run-quiet.sh`'s
@@ -555,7 +579,7 @@ function runFixer(input: {
     const attempts = fixAttemptStore(cwd);
     const record = (
         outcome: "attempting" | "landed" | "stuck",
-        extra: { pr?: number; note?: string } = {}
+        extra: { pr?: number; classGuard?: number; note?: string } = {}
     ): string | null => {
         try {
             attempts.write({
@@ -637,17 +661,22 @@ function runFixer(input: {
             ...verdict,
             note: `${verdict.note} (the session was ended: ${spawned.error.message})`,
         };
-    const unrecordedOutcome = record(verdict.outcome, {
-        pr: verdict.pr,
-        note: verdict.note,
-    });
+    const unrecordedOutcome = record(
+        // The pivot knows `landed`; the partial one is `landed` + its guard.
+        verdict.outcome === "stuck" ? "stuck" : "landed",
+        {
+            pr: verdict.pr,
+            classGuard: verdict.classGuardIssue,
+            note: verdict.note,
+        }
+    );
     if (unrecordedOutcome !== null)
         console.error(
             `health:fix: the fix outcome could not be recorded on the pivot — ${unrecordedOutcome}`
         );
-    if (verdict.outcome === "landed") {
+    if (isLanded(verdict)) {
         console.log(
-            `health:fix: LANDED @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
+            `health:fix: LANDED${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""} @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
         );
         return verdict;
     }
@@ -956,7 +985,7 @@ function ladderRun(argv: readonly string[]): number {
         // Not recorded: nothing changed on the pivot, so a re-dispatch
         // would take the same rung — health's next run asks again.
         if (verdict === null) return 0;
-        if (verdict.outcome !== "landed") {
+        if (!isLanded(verdict)) {
             withdrawRepairPrs(cwd, rung.attempt);
             redispatch(hop);
         }
