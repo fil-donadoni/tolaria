@@ -267,13 +267,19 @@ export function renderBotRegressionIssue(input: {
  *     this commit is dropped, never rebuilt or retried (the hourly cron is
  *     the backstop). Not a failure;
  *   - `failed`: the push was refused and the base did NOT move — the network,
- *     the credentials, a hook: the run's red.
+ *     the credentials, a hook: the run's red;
+ *   - `off-base`: the push was refused because the commit was not built on the
+ *     base tip but AHEAD of it — a feature branch's HEAD (issue #6765). A push
+ *     there would land the branch's own commits with the derive commit,
+ *     outside the queue and its lane. The run's red.
  */
 export function pushOutcome(input: {
     readonly pushed: boolean;
     readonly remoteMoved: boolean;
-}): "landed" | "coalesced" | "failed" {
+    readonly headAheadOfBase?: boolean;
+}): "landed" | "coalesced" | "failed" | "off-base" {
     if (input.pushed) return "landed";
+    if (input.headAheadOfBase) return "off-base";
     return input.remoteMoved ? "coalesced" : "failed";
 }
 
@@ -304,7 +310,13 @@ export function refusalLine(stderr: string, timedOutS?: number): string {
 /**
  * Push the derive commit `sha` (built on `head`) to the base and say what
  * happened — the I/O half of {@link pushOutcome}, over an injected runner so
- * a real bare remote can exercise it. On a refusal the base is fetched: a
+ * a real bare remote can exercise it.
+ *
+ * The push is a COMPARE-AND-SWAP (issue #6765): it lands only while the base
+ * tip is `head` itself. A plain push accepted any fast-forward, so a
+ * `derive:sync` run on a feature branch rebased onto the base pushed the
+ * branch's own commits with the derive commit — PR #6657 landed that way,
+ * unqueued, on a RED base. On a refusal the base is fetched: a
  * remote tip that IS `sha` is a push that landed while the client timed out
  * (landed, not coalesced); any other tip but `head` is a base that moved
  * (coalesced); `head` itself is a refusal with the base unmoved (failed).
@@ -319,12 +331,18 @@ export function pushDerivedCommit(
         readonly netTimeoutMs: number;
     }
 ): {
-    readonly outcome: "landed" | "coalesced" | "failed";
+    readonly outcome: "landed" | "coalesced" | "failed" | "off-base";
     readonly why: string;
     readonly remoteTip: string;
 } {
     const push = git(
-        ["push", "-q", "origin", `${input.sha}:refs/heads/${input.baseBranch}`],
+        [
+            "push",
+            "-q",
+            `--force-with-lease=refs/heads/${input.baseBranch}:${input.head}`,
+            "origin",
+            `${input.sha}:refs/heads/${input.baseBranch}`,
+        ],
         { timeout: input.netTimeoutMs }
     );
     const why = refusalLine(
@@ -341,10 +359,15 @@ export function pushDerivedCommit(
             ? git(["rev-parse", input.originBase]).stdout.trim()
             : input.head;
     if (remoteTip === input.sha) return { outcome: "landed", why, remoteTip };
+    const headAheadOfBase =
+        remoteTip !== input.head &&
+        git(["merge-base", "--is-ancestor", remoteTip, input.head]).status ===
+            0;
     return {
         outcome: pushOutcome({
             pushed: false,
             remoteMoved: remoteTip !== input.head,
+            headAheadOfBase,
         }),
         why,
         remoteTip,
