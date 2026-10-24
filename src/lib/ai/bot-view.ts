@@ -387,6 +387,14 @@ function readChoiceZone(
     const owner = state.players.find((p) => p.id === ownerId);
     if (!owner) return [];
 
+    // CR 400.11b — a Wish pick names no zone (outside the game is not one);
+    // the projection hands the chooser exactly its candidates. Picking for
+    // ANOTHER seat's pool (a controlled cast, ADR 0037) only ever hands that
+    // seat a card, so no candidate is worth taking: the empty answer.
+    if (head.kind === "choose-outside-game-card") {
+        return ownerId === botId ? (owner.outsideGamePeek ?? []) : [];
+    }
+
     let cards: SlimCardInstance[];
     switch (head.zone) {
         case "library":

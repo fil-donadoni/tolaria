@@ -544,6 +544,10 @@ export function buildStateFromScenario(
     p2.exile = [];
     p1.companion = undefined;
     p2.companion = undefined;
+    // CR 400.11a — and the sideboard holder, for the same reason;
+    // `spec.outsideGame` (below) re-seeds it.
+    delete p1.outsideGame;
+    delete p2.outsideGame;
     // CR 121.1 / 400.7 (issue #3240) — the PER-TURN player tallies go with the
     // zones, for the same reason: a scenario PLACES a position, it does not
     // replay the turn that reached it, so nothing has been drawn and nothing
@@ -1118,6 +1122,32 @@ export function buildStateFromScenario(
             },
             used: spec.companion.used ?? false,
         };
+    }
+
+    // CR 400.11a — the cards each seat owns outside the game (the Wish pool),
+    // instantiated as game init's `buildOutsideGameHolder` does: a real
+    // instance id, the same nominal "exile" tag (outside the game is not a
+    // zone, CR 400.11).
+    for (const entry of spec.outsideGame ?? []) {
+        const holderOwner = entry.owner === "opp" ? p2 : p1;
+        // CR 712.8a — outside the game a double-faced card is its front face.
+        const { def } = placedCard(entry.name, "exile");
+        holderOwner.outsideGame = [
+            ...(holderOwner.outsideGame ?? []),
+            {
+                id: allocInstanceId(state),
+                card: { id: def.id },
+                types: def.types,
+                subtypes: def.subtypes ?? [],
+                power: def.power,
+                toughness: def.toughness,
+                staticAbilities: def.staticAbilities ?? [],
+                controllerId: holderOwner.id,
+                ownerId: holderOwner.id,
+                zone: "exile" as const,
+                isTapped: false,
+            },
+        ];
     }
 
     // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's
@@ -4344,6 +4374,8 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     // pair, named for the mechanic the way `stormCount` is.
     "permanentYouControlledLeftThisTurn",
     "companion",
+    // CR 400.11a — lowered into the spec's `outsideGame` list.
+    "outsideGame",
     "lastDrawnCardId",
     // CR 121.1 (issue #3240) — the spec CAN express this, but only in the one
     // shape `markLastDrawn` lowers and rebuilds: the single most recently drawn
@@ -4356,6 +4388,7 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "librarySearch",
     "libraryPeek",
     "revealedHand",
+    "outsideGamePeek",
 ]);
 
 /** CR 106.6 (issue #3460) — how `specFromState` treats every field of a
@@ -5183,6 +5216,16 @@ export function specFromState(
             );
         }
     }
+
+    // CR 400.11a — each seat's cards outside the game.
+    const outsideGame = [
+        ...(me.outsideGame ?? []).map((c) => ({ owner: "me" as const, c })),
+        ...(opp.outsideGame ?? []).map((c) => ({ owner: "opp" as const, c })),
+    ].map(({ owner, c }) => ({
+        name: displayNameForDefId((c.card as { id?: string }).id ?? "", false),
+        owner,
+    }));
+    if (outsideGame.length > 0) spec.outsideGame = outsideGame;
 
     // ---- global state the table in buildStateFromScenario doesn't cover --
 

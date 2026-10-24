@@ -65,6 +65,13 @@ export interface Player {
      *  stays the sparse ADR 0026 shape) so the wire shape is stable for all other
      *  consumers; the `RevealHandView` pile reads it. */
     revealedHand?: CardInstance[];
+    /** Set only on the pick owner's player, in the CHOOSER's view, while a
+     *  `choose-outside-game-card` pick is active (the Wish cards): the cards
+     *  they own from outside the game that the pick may bring in. */
+    outsideGamePeek?: CardInstance[];
+    /** The viewer's OWN outside-the-game holder (CR 400.11a — their
+     *  sideboard), set only on the viewer's player; never another's. */
+    outsideGame?: CardInstance[];
     graveyard: CardInstance[];
     exile: CardInstance[];
     battlefield: CardInstance[];

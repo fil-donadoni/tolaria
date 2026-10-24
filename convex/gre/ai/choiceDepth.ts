@@ -64,6 +64,7 @@ export const MAX_CHOICE_BRANCH_WORK = 128;
  *  instead. */
 export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // --- raises a choice -------------------------------------------------
+    bringFromOutsideGame: true,
     castDuringResolution: true,
     // CR 702.85a (issue #3216) — cascade runs `runCastDuringResolution` for
     // its middle clause, so it raises that Op's Cast/Decline (plus the cast

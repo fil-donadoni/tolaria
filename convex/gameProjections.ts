@@ -28,6 +28,7 @@ import {
 } from "./gre/rules";
 import { PLACEHOLDER_CARD_ID } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
+import { outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
 import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
@@ -284,12 +285,21 @@ export type PublicPlayer = Omit<
     | "battlefield"
     | "grantedAbilities"
     | "companion"
+    | "outsideGame"
 > & {
     hand: (SlimHandCard | null)[];
     library: PublicLibrary;
     librarySearch?: SlimCardInstance[];
     libraryPeek?: SlimCardInstance[];
     revealedHand?: SlimCardInstance[];
+    /** The CR 400.11b pick — set only on the pick owner's player, in the CHOOSER's
+     *  view, while a `choose-outside-game-card` pick is head-of-queue: the
+     *  candidates it may bring in (`outsideGamePeek`). The holder itself
+     *  crosses the wire to its owner alone (`outsideGame`). */
+    outsideGamePeek?: SlimCardInstance[];
+    /** CR 400.11a — the viewer's OWN outside-the-game holder (their
+     *  sideboard), set only on the viewer's player; never another's. */
+    outsideGame?: SlimCardInstance[];
     graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
     battlefield: SlimBattlefieldCard[];
@@ -307,6 +317,7 @@ export type FullPlayer = Omit<
     | "battlefield"
     | "grantedAbilities"
     | "companion"
+    | "outsideGame"
 > & {
     hand: SlimHandCard[];
     library: SlimCardInstance[];
@@ -323,6 +334,11 @@ export type FullPlayer = Omit<
     /** Mirrors `PublicPlayer.revealedHand` — the zone owner's hand during an
      *  active `reveal-hand` choice (CR 401.4), for the full debug view (#262). */
     revealedHand?: SlimCardInstance[];
+    /** The CR 400.11b pick — set only on the pick owner's player, in the CHOOSER's
+     *  view, while a `choose-outside-game-card` pick is head-of-queue: the
+     *  candidates it may bring in (`outsideGamePeek`). The holder itself
+     *  crosses the wire to its owner alone (`outsideGame`). */
+    outsideGamePeek?: SlimCardInstance[];
     graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
     battlefield: SlimBattlefieldCard[];
@@ -1090,6 +1106,12 @@ interface ChoiceExposure {
     peekCandidateIds: string[] | undefined;
     /** `reveal-hand`: hand owner whose hand is shown to the chooser. */
     revealZoneOwner: string | undefined;
+    /** `choose-outside-game-card` (the CR 400.11b pick): the player whose
+     *  outside-the-game candidates (`candidateIds`) are shown to the chooser
+     *  on `outsideGamePeek`. The holder is hidden information (CR 400.11a —
+     *  the sideboard): beyond this pick, only its owner ever sees it. */
+    outsideGamePeekOwner: string | undefined;
+    outsideGamePeekIds: string[] | undefined;
     /** ANY cross-player hand-zone pick (issue #1698, widened by #1719 review
      *  finding 1): hand owner whose hand is exposed, face-up, on the
      *  ORDINARY `hand` wire field (not `revealedHand` — that's
@@ -1141,6 +1163,32 @@ function projectLibraryPeek(
             .map(slimCard);
     }
     return library.slice(0, peekCount).map(slimCard);
+}
+
+/** CR 400.11 — the outside-the-game holder is hidden information: the
+ *  `...player` spread would otherwise carry it onto the wire whole, to every
+ *  viewer. The public projection re-adds it for its owner alone. */
+function withoutOutsideGame(
+    player: PlayerState
+): Omit<PlayerState, "outsideGame"> {
+    const { outsideGame: _hidden, ...rest } = player;
+    void _hidden;
+    return rest;
+}
+
+/** The chooser's view of a pending CR 400.11b pick from outside the game: the
+ *  candidates (in `candidateIds` order) that are still in the pool. */
+function projectOutsideGamePeek(
+    player: PlayerState,
+    ownerId: string | undefined,
+    candidateIds: string[] | undefined
+): SlimCardInstance[] | undefined {
+    if (ownerId === undefined || player.id !== ownerId) return undefined;
+    const byId = new Map(outsideGamePool(player).map((c) => [c.id, c]));
+    return (candidateIds ?? [])
+        .map((id) => byId.get(id))
+        .filter((c): c is CardInstanceState => c !== undefined)
+        .map(slimCard);
 }
 
 /** Computes the peek/reveal exposure for the chooser `chooserId` from the head
@@ -1273,7 +1321,16 @@ function computeChoiceExposure(
         head.zoneOwnerId !== head.playerId;
     const handPickZoneOwner = exposeHandPick ? head.zoneOwnerId : undefined;
 
+    // The CR 400.11b pick shows its CHOOSER the matching cards they
+    // own from outside the game, and nothing else of the holder.
+    const exposeOutsideGame =
+        isChooser && head.kind === "choose-outside-game-card";
+
     return {
+        outsideGamePeekOwner: exposeOutsideGame
+            ? (head.zoneOwnerId ?? head.playerId)
+            : undefined,
+        outsideGamePeekIds: exposeOutsideGame ? head.candidateIds : undefined,
         searchZoneOwner,
         peekZoneOwner: pickPeekOwner ?? peekZoneOwner,
         peekCount: pickPeekIds ? pickPeekIds.length : peekCount,
@@ -1342,6 +1399,8 @@ export function projectPublicState(
         peekCandidateIds,
         revealZoneOwner,
         handPickZoneOwner,
+        outsideGamePeekOwner,
+        outsideGamePeekIds,
     } = computeChoiceExposure(state, viewerId);
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
     // pins each exiled card to its permanent (Arena treatment).
@@ -1394,7 +1453,7 @@ export function projectPublicState(
         // graveyard card below instead of re-scanning per card.
         const graveyardLandPlayable = canPlayLandsFromGraveyard(state, player);
         const common = {
-            ...player,
+            ...withoutOutsideGame(player),
             // CR 702.34 / 702.138 / 305.1-analog — the viewer's own graveyard
             // cards carry `legalActions` when they have a Flashback cost, an
             // Escape cost, or (for a LAND) an active play-from-graveyard
@@ -1465,6 +1524,18 @@ export function projectPublicState(
             librarySearch,
             libraryPeek,
             revealedHand,
+            outsideGamePeek: projectOutsideGamePeek(
+                player,
+                outsideGamePeekOwner,
+                outsideGamePeekIds
+            ),
+            // CR 400.11a — a player knows their own sideboard: the holder
+            // crosses the wire to its OWNER only (the Bot's search needs it
+            // to value a Wish at all), never to anyone else.
+            outsideGame:
+                player.id === viewerId && player.outsideGame?.length
+                    ? player.outsideGame.map(slimCard)
+                    : undefined,
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
             // CR 702.139c (ADR 0064) — the companion slot is revealed to BOTH
             // players; only the viewer's own slot carries the `canSummon`
@@ -1651,6 +1722,14 @@ export function projectPublicState(
         pendingReveals: state.pendingReveals?.filter((r) =>
             r.audience.includes(viewerId)
         ),
+        // CR 400.11a — a Wish pick's allow-list counts the matching cards in
+        // its owner's sideboard: hidden information, so a viewer who is not
+        // the chooser gets the pick without it.
+        pendingChoices: state.pendingChoices?.map((c) =>
+            c.kind === "choose-outside-game-card" && c.playerId !== viewerId
+                ? { ...c, candidateIds: undefined }
+                : c
+        ),
         // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry
         // crosses the wire. It is PUBLIC by construction: every entry describes
         // a characteristic-changing effect applying to objects in public zones,
@@ -1697,6 +1776,8 @@ export function projectFullState(
         peekCount,
         peekCandidateIds,
         revealZoneOwner,
+        outsideGamePeekOwner,
+        outsideGamePeekIds,
     } = computeChoiceExposure(state, head?.playerId);
     const exileAssoc = buildExileAssociation(state);
     // CR 613 (ADR 0082, PRD #2064 S5) — see `projectPublicState`.
@@ -1704,7 +1785,7 @@ export function projectFullState(
 
     const players = state.players.map(
         (player): FullPlayer => ({
-            ...player,
+            ...withoutOutsideGame(player),
             hand: player.hand.map(
                 (card): SlimHandCard => ({
                     ...slimCard(card),
@@ -1733,6 +1814,11 @@ export function projectFullState(
                 revealZoneOwner !== undefined && player.id === revealZoneOwner
                     ? player.hand.map(slimCard)
                     : undefined,
+            outsideGamePeek: projectOutsideGamePeek(
+                player,
+                outsideGamePeekOwner,
+                outsideGamePeekIds
+            ),
             // Full debug view has no single viewer — attach Flashback / Escape
             // / graveyard-land-Play legalActions for the graveyard owner so
             // every affordance gates the same way as the public projection

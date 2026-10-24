@@ -5,7 +5,7 @@
  *
  * A Verb Frame is ONE Effect Script Op spelled as Oracle text, its arguments
  * filled by the leaf sub-grammars (object descriptor, quantity, zone
- * reference) rather than by a table of whole printed sentences. Four frames
+ * reference) rather than by a table of whole printed sentences. Five frames
  * ship here, one per Op:
  *
  *  - `search`   — the `choice` Op over the controller's library:
@@ -44,6 +44,12 @@
  *                 <payment>" rider on the source (CR 118.12a). Quantity,
  *                 descriptor, player and payment are each the shared leaf
  *                 sub-grammar's; the frame reads no word of them itself.
+ *  - `bringFromOutsideGame` — "You may reveal <description> you own from
+ *                 outside the game and put it into your hand" (the Wish
+ *                 cards, CR 400.11b + CR 701.20a): ONE Op owns the optional
+ *                 pick, the reveal and the move, because outside the game is
+ *                 not a zone (CR 400.11) and no `choice`/`moveZone` pair can
+ *                 name it. It produces no referent for a later frame.
  *
  * The `moveZone` frame's OBJECT argument classes (issue #6631), each a
  * fixture in `verbFrames.test.ts`:
@@ -253,6 +259,13 @@ export type FrameIR =
            *  on the source (or the pronoun for it) only: the payer and the
            *  owner of the loss are the same player. */
           readonly unless?: UnlessPaymentIR;
+      }
+    | {
+          readonly frame: "bringFromOutsideGame";
+          /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
+          readonly filter: EffectCardFilter;
+          /** The description as printed, kept for the prompt. */
+          readonly phrase: string;
       };
 
 /**
@@ -334,6 +347,10 @@ export const VERB_FRAMES: readonly {
             "i"
         ),
     },
+    {
+        name: "bringFromOutsideGame",
+        opens: /^you may reveal an? [^,]+? card you own from outside the game /i,
+    },
 ];
 
 /** A chain piece that opens a member: a frame, its "then", a reveal, a shuffle. */
@@ -378,6 +395,18 @@ const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 const THAT_PLAYER_SHUFFLES =
     /^(?:that|the) player shuffles(?: their library)?$/;
+/** CR 400.11b + CR 701.20a — the Wish cards' whole member. */
+const BRING_FROM_OUTSIDE_GAME =
+    /^you may reveal (.+?) you own from outside the game and put it into your hand$/;
+/**
+ * What a Wish may bring in from outside the game, as an `EffectCardFilter`.
+ * Fail-closed by construction: a description with no row is one this grammar
+ * has no fixture for, and the member is refused. A row is earned by a printed
+ * form.
+ */
+const OUTSIDE_GAME_FILTERS = new Map<string, EffectCardFilter>([
+    ["a sorcery card", { type: "Sorcery" }],
+]);
 
 /** The three spellings of the zone-change verb and their destination joins. */
 const MOVE_VERB = /^(put|exile|return) (.+)$/;
@@ -1282,7 +1311,37 @@ function readMember(
         // pronoun rule binds the LAST find, and this is not one.
         return { frames: [sacrifice.value], referent };
     }
-    if (VERB_FRAMES[2]!.opens.test(lower))
+    const fromOutside = lower.match(BRING_FROM_OUTSIDE_GAME);
+    if (fromOutside !== null) {
+        // CR 608.2c — the member's own "it" is the Wish card; a find an
+        // earlier search left unmoved would leave a later pronoun two
+        // antecedents.
+        if (referent !== null && !referent.consumed)
+            return {
+                refused:
+                    "a card from outside the game is brought in while a found card is still put nowhere",
+            };
+        const phrase = fromOutside[1]!;
+        const filter = OUTSIDE_GAME_FILTERS.get(phrase);
+        if (filter === undefined)
+            return {
+                refused: `"${phrase}" is not a description of a card from outside the game`,
+            };
+        return {
+            frames: [{ frame: "bringFromOutsideGame", filter, phrase }],
+            referent,
+        };
+    }
+    // A member a frame opens but reads no form of: the shuffle and the Wish
+    // frames refuse it; a move or sacrifice member is the table's to read.
+    if (
+        VERB_FRAMES.some(
+            (frame) =>
+                (frame.name === "shuffle" ||
+                    frame.name === "bringFromOutsideGame") &&
+                frame.opens.test(lower)
+        )
+    )
         return { refused: `"${member}" is not a form of the frame it opens` };
     return null;
 }

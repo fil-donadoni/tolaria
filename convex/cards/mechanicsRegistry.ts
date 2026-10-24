@@ -3640,6 +3640,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Flip a SERIES of coins and bind its results as numbers (CR 705.1\u2013705.2, issue #3813, ADR 0144) \u2014 "flip a coin that many times or until you lose a flip" (Squee\'s Revenge), "flip a coin until you lose a flip", "flip X coins". The bounded loop lives INSIDE this Op, never in the grammar: ADR 0045\'s four structural constructs stay frozen, and the payoff is written with them (`if` over a comparison on the bound counts, a `scaled` value reading them). A thin declarative skin over the single SpellContext primitive `flipCoin` (the SAME seeded-PRNG bit `coinFlipSync` draws), one execution path (ADR 0045). Ends after `count` flips or, with `untilLoss`, at the first lost flip; binds `bindFlips` / `bindWins` / `bindLosses` as NUMBER bindings (the `chooseNumber` family). A leaf: a re-walk skips it by position, so it never re-flips (the engine runs each instruction once; CR 608.2c orders them). Deliberately NOT: a per-flip body, a voluntary stop (Fiery Gambit), a no-call heads flip (CR 705.2), a reveal overlay.',
     },
     {
+        op: "bringFromOutsideGame",
+        status: "implemented",
+        cr: "400.11b",
+        binding:
+            "SpellContext.getOutsideGameCards / requestOutsideGameCard / bringFromOutsideGameToHand / markKnownToAll / notifyReveal",
+        note: "Bring a card in from outside the game (CR 400.11b) and reveal it (CR 701.20a) — \"You may reveal a sorcery card you own from outside the game and put it into your hand.\" (the Wish cards; Burning Wish). The pool is `outsideGamePool` (`gre/outsideGame.ts`): the `PlayerState.outsideGame` holder built at game init from the Match deck's sideboard snapshot (CR 400.11a), plus the companion while its slot is unspent (taking it spends the slot, as the summon special action does). CR 400.11 — outside the game is NOT a zone, which is why this is an Op and not `choice` + `reveal` + `moveZone`: each of those is keyed on a zone, and the pool's hidden-information exposure (`outsideGamePeek`, the chooser alone) and its submit check are its own. `filter` is precomputed into the `choose-outside-game-card` pick's `candidateIds` through the shared `matchesCardFilter` over the registry characteristics, exactly as a hidden library search's is. Optional by construction (count 0..1: every printed form says \"you may\"); a pool with no match still raises the pick with an empty allow-list, and the projection hides the allow-list from non-choosers, so neither the pick nor its size tells the other players what the hidden sideboard holds. The pick suspends once; on the replay the card moves to hand and is then revealed to every player (`markKnownToAll` stamps hand/library cards only, so the reveal follows the move).",
+    },
+    {
         op: "reveal",
         status: "implemented",
         cr: "701.20",

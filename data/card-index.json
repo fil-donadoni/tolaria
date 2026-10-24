@@ -8766,6 +8766,16 @@
         "source": "compiled"
     },
     {
+        "name": "Burning Wish",
+        "scryfallId": "1c9b692a-e832-4612-a6ec-93b52f6a0410",
+        "oracleId": "13a884b5-8970-4d71-9082-a8b6c8db9a01",
+        "firstSet": "jud",
+        "firstPrintId": "1c9b692a-e832-4612-a6ec-93b52f6a0410",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Burning-Fist Minotaur",
         "scryfallId": "52f191fb-eaf6-432f-a668-37ad48ffabaf",
         "oracleId": "5460c76f-39dc-4db0-acf7-146d533d822b",

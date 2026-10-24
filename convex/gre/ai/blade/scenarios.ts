@@ -15037,4 +15037,48 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5703. Reap is the first card whose target count is a quantity read at announcement (`TargetCountQuantity`, issue #6526); `enumerateMoves` enumerates the graveyard group once per prefix of the earlier picks. A reachability guard on the legal set — the choice itself is a preference no entry here asserts.",
     },
+    {
+        // CR 400.11b (issue #6523) — the Wish pick. The pick is optional
+        // ("you may", `count.min` 0), and a minimal-legal answer to an
+        // optional pick is the empty one: before the
+        // `choose-outside-game-card` generator and resolver, the bot paid
+        // for Burning Wish and fetched nothing. The sideboard also holds a
+        // creature the filter refuses, so the only legal card is the sorcery.
+        label: "wish: brings the sorcery in from outside the game rather than declining",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Burning Wish", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            outsideGame: [{ name: "Mind Twist" }, { name: "Craw Wurm" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Burning Wish", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Mind Twist" }],
+        },
+        note: "Issue #6523 — the root decision is the live `choose-outside-game-card` pick (CR 400.11b), reached by really casting and resolving Burning Wish. Declining leaves the bot a card down for the two mana it already spent.",
+    },
 ];
