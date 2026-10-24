@@ -85,10 +85,11 @@ import {
     rankBotGaps,
     replayingCardsBotReach,
     resolveReplayCards,
-    type BotPlayer,
     type BotReachSource,
 } from "./lib/oracle-bot-reach";
 import { runUnderHeavyAdmission } from "./lib/heavy-admission";
+import { createBotPlayer, harnessErrorVerdict } from "./lib/bot-reach-player";
+import { playMisses, sweepWorkerCount } from "./lib/bot-reach-shard";
 import {
     emptyRetirementLedger,
     parseRetirementLedger,
@@ -415,58 +416,41 @@ export function readCommittedLockfile(): Lockfile | null {
 }
 
 /**
- * The Bot-play player (ADR 0105 § 7.2). The Bot is imported HERE,
- * dynamically, and nowhere else in this file: `buildLockfile` is also
- * the drift guard's regenerator (`check-oracle-lockfile.ts`, inside
- * `check:pr` / `land`), and a static import would put the whole search in
- * the gate's module graph for a path that must never play.
+ * The write path's sweep (issue #6686, ADR 0158 § 1): a collecting pass
+ * learns which definitions miss the cache, the shard pool plays them over `W`
+ * worker threads, and the source handed back reads their verdicts — through
+ * {@link playingBotReach}, so the cache rules, the header hash and the
+ * `played` count are the in-process sweep's own. The lockfile is built by
+ * walking the corpus, never the verdict map: its bytes do not depend on `W`.
  */
-async function botPlayer(): Promise<BotPlayer> {
-    const { playBotReach } = await import("../convex/gre/ai/botReach");
-    const { preloadDefinitions } = await import("../convex/cards/registry");
-    return (oracleId, definition) => {
-        // A compiled definition is not a catalogue card: registered by id
-        // for the play, through the batch seam so an inset or split
-        // card's twins are registered with it.
-        const def = {
-            ...definition,
-            id: `oracle-bot-reach:${oracleId}`,
-            rarity: "common",
-        } as CardDefinition;
-        preloadDefinitions([def]);
-        try {
-            return playBotReach(def);
-        } catch (error) {
-            // A throw here is the SWEEP failing, never the card: without
-            // this catch it unwinds through `buildLockfile` to `main`,
-            // nothing is written, and the whole 21-minute run is lost
-            // with every verdict it had already earned (review of
-            // PR #4057, finding 7). Ship the card, rank the shape.
-            return {
-                outcome: "ignored",
-                cause: "harness-error",
-                form:
-                    error instanceof Error
-                        ? error.message.slice(0, 120)
-                        : String(error).slice(0, 120),
-            };
-        }
-    };
-}
-
-/** The write path's sweep: the incremental cache over {@link botPlayer}. */
 async function sweepingBotReach(
     previous: Lockfile | null,
-    replay: boolean
+    replay: boolean,
+    build: (source: BotReachSource) => unknown,
+    options: { workers?: number; playerModule?: string } = {}
 ): Promise<ReturnType<typeof playingBotReach>> {
     const started = Date.now();
-    return playingBotReach(previous, botHash(ROOT), await botPlayer(), {
-        replay,
+    const currentBotHash = botHash(ROOT);
+    const probe = probingBotReach(previous, currentBotHash, replay);
+    build(probe);
+    const verdicts = await playMisses(probe.missDefinitions(), {
+        workers: options.workers ?? sweepWorkerCount(process.env),
+        playerModule: options.playerModule,
         onPlay: () => {
             const s = Math.round((Date.now() - started) / 1000);
             process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
         },
     });
+    return playingBotReach(
+        previous,
+        currentBotHash,
+        (oracleId) =>
+            verdicts.get(oracleId) ??
+            harnessErrorVerdict(
+                "sweep: no verdict for a card the probe missed"
+            ),
+        { replay }
+    );
 }
 
 /**
@@ -538,7 +522,11 @@ async function replayingNamedCards(
         );
         process.exit(1);
     }
-    const source = replayingCardsBotReach(previous, ids, await botPlayer());
+    const source = replayingCardsBotReach(
+        previous,
+        ids,
+        await createBotPlayer()
+    );
     const nameOf = new Map(corpus.map((c) => [c.oracleId, c.name]));
     return {
         source,
@@ -628,7 +616,10 @@ async function main(): Promise<void> {
                           process.argv[1],
                           process.argv.slice(2)
                       ),
-                  sweep: () => sweepingBotReach(previous, replay),
+                  sweep: () =>
+                      sweepingBotReach(previous, replay, (source) =>
+                          buildLockfile(corpus(), { botReach: source })
+                      ),
               });
     if (swept !== null && "exit" in swept) process.exit(swept.exit);
     const narrowed =

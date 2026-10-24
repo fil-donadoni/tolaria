@@ -193,16 +193,23 @@ export function playingBotReach(
  */
 export function probingBotReach(
     previous: Lockfile | null,
-    currentBotHash: string
-): BotReachSource & { readonly misses: () => ReadonlySet<string> } {
-    const cache = sweepCache(previous, currentBotHash);
-    const misses = new Set<string>();
+    currentBotHash: string,
+    replay = false
+): BotReachSource & {
+    readonly misses: () => ReadonlySet<string>;
+    /** Each miss with the definition to play — the sharded sweep's work list
+     *  (issue #6686). `replay` makes every card a miss, as the sweep does. */
+    readonly missDefinitions: () => ReadonlyMap<string, CompiledDefinition>;
+} {
+    const cache = sweepCache(previous, currentBotHash, replay);
+    const misses = new Map<string, CompiledDefinition>();
     return {
         hash: cache.hash,
-        misses: () => misses,
+        misses: () => new Set(misses.keys()),
+        missDefinitions: () => misses,
         verdictFor(oracleId, definition) {
             const hit = cachedVerdict(cache.rows, oracleId, definition);
-            if (hit === undefined) misses.add(oracleId);
+            if (hit === undefined) misses.set(oracleId, definition);
             return hit;
         },
     };
