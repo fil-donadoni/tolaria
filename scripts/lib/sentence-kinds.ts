@@ -9,9 +9,10 @@
  * the table only SHRINKS: a kind may leave — absorbed by frames — and never
  * enter.
  *
- * There is NO committed list. The kinds are types, so there is nothing at
- * runtime to census: the source text of `effectClause.ts` is the authority,
- * and the census is a relation between two revisions of it —
+ * There is NO committed list. The authority is the `EFFECT_SENTENCE_KINDS`
+ * array in `effectClause.ts` (issue #6621), which a type-level assertion
+ * there ties to the union both ways; the census is a relation between two
+ * revisions of its source text —
  *
  *   - on a branch: the kinds at HEAD must be a subset of the kinds at the
  *     merge-base with the base branch (the whole branch is one change);
@@ -28,7 +29,9 @@
  *
  * The baseline tree is read through `lib/base-artifact.ts`, so its three
  * outcomes apply: `text` is checked, `unavailable` (no base ref, a root
- * commit) is a declared skip, `broken` (git failed) is a red.
+ * commit) is a declared skip, `broken` (git failed) is a red. A baseline
+ * that predates the array is a declared skip too (once: the landing of
+ * issue #6621 itself).
  */
 import {
     baseArtifact,
@@ -40,64 +43,50 @@ import {
 export const EFFECT_CLAUSE_PATH =
     "convex/oracle/grammar/shared/effectClause.ts";
 
-/**
- * The member types the union may carry WITHOUT a `kind`: the Verb Frame
- * layer (`kind?: undefined`, `verbFrames.ts`), by design not a row of the
- * table. Any other member must declare its kind, or the census throws — a
- * parser that skipped what it did not recognise would let a kind enter
- * unseen, and an empty set is a subset of anything (review of PR #6562).
- */
-const KINDLESS_MEMBERS: ReadonlySet<string> = new Set(["FrameChainIR"]);
+const KIND_ARRAY_OPEN = "export const EFFECT_SENTENCE_KINDS = [";
 
 /**
- * The kinds `EffectSentenceIR` declares, read off the grammar's source: one
- * per top-level `    | ` member between `export type EffectSentenceIR =` and
- * the next line at column 0 — `readonly kind: "<name>"` at the member's own
- * indentation (ten spaces for a multi-line member, inline for a one-line
- * `| { readonly kind: "…" }`). Nested object types sit deeper and are not
- * kinds. STRICT: a member that yields no kind and is not a `KINDLESS_MEMBERS`
- * alias throws, as does a union that yields none at all; the kinds are types,
- * so the source text is the only authority and it must be read whole.
+ * The kinds `EFFECT_SENTENCE_KINDS` declares in `source`, or `null` when the
+ * source predates the array (the baseline tree of the change that introduced
+ * it). The array is the one authority (issue #6621); a type-level assertion
+ * in `effectClause.ts` ties it to the `EffectSentenceIR` union, so reading
+ * the literal is exact and no prettier reflow of the union can move it.
+ * STRICT: comments are dropped, then the body must be string literals and
+ * commas ONLY — a spread, an identifier or an empty array throws, because a
+ * reader that skipped what it did not recognise would let a kind enter
+ * unseen, and an empty set is a subset of anything (review of PR #6562).
  */
-export function effectSentenceKinds(source: string): string[] {
-    const start = source.indexOf("export type EffectSentenceIR =");
-    if (start === -1)
-        throw new Error(`${EFFECT_CLAUSE_PATH}: no \`EffectSentenceIR\` union`);
-    const rest = source.slice(start + "export type EffectSentenceIR =".length);
-    const end = rest.search(/\n(?=\S)/);
-    const body = end === -1 ? rest : rest.slice(0, end);
-    const kinds: string[] = [];
-    // Members start at four spaces with `| `; whatever follows up to the next
-    // such line (doc comments included) is the member's text.
-    const members = body.split(/^(?= {4}\| )/m).slice(1);
-    for (const member of members) {
-        const text = member.slice(6);
-        // The next member's doc comment rides along; it is not the member.
-        const code = text
-            .split("\n")
-            .filter((line) => !/^\s*(?:\/\*\*|\*|\/\/)/.test(line))
-            .join("\n")
-            .trim()
-            .replace(/;$/, "");
-        const alias = /^([A-Za-z_]\w*)$/.exec(code);
-        if (alias !== null) {
-            if (KINDLESS_MEMBERS.has(alias[1]!)) continue;
-            throw new Error(
-                `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` member \`${alias[1]}\` is an alias the kind census cannot read — inline its kind, or add it to KINDLESS_MEMBERS if it carries none by design`
-            );
-        }
-        const m =
-            /^\{ readonly kind: "([^"]+)"/.exec(text) ??
-            /^ {10}readonly kind: "([^"]+)";/m.exec(text);
-        if (m === null)
-            throw new Error(
-                `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` member without a readable \`kind\` — ${text.split("\n")[0]?.trim()}`
-            );
-        kinds.push(m[1]!);
-    }
+export function readKindArray(source: string): string[] | null {
+    const start = source.indexOf(KIND_ARRAY_OPEN);
+    if (start === -1) return null;
+    const rest = source.slice(start + KIND_ARRAY_OPEN.length);
+    const end = rest.indexOf("] as const");
+    if (end === -1)
+        throw new Error(
+            `${EFFECT_CLAUSE_PATH}: \`EFFECT_SENTENCE_KINDS\` is not closed by \`] as const\``
+        );
+    const body = rest
+        .slice(0, end)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+    const kinds = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+    if (body.replace(/"[^"]+"/g, "").replace(/[\s,]/g, "") !== "")
+        throw new Error(
+            `${EFFECT_CLAUSE_PATH}: \`EFFECT_SENTENCE_KINDS\` holds something other than string literals — the census cannot read it`
+        );
     if (kinds.length === 0)
         throw new Error(
-            `${EFFECT_CLAUSE_PATH}: \`EffectSentenceIR\` yields no kinds — the union moved or was respelled; the census cannot read it`
+            `${EFFECT_CLAUSE_PATH}: \`EFFECT_SENTENCE_KINDS\` yields no kinds`
+        );
+    return kinds;
+}
+
+/** The kinds at a revision that must carry the array (HEAD): absent is a red. */
+export function effectSentenceKinds(source: string): string[] {
+    const kinds = readKindArray(source);
+    if (kinds === null)
+        throw new Error(
+            `${EFFECT_CLAUSE_PATH}: no \`EFFECT_SENTENCE_KINDS\` array — the census reads the kinds from it (issue #6621)`
         );
     return kinds;
 }
@@ -198,11 +187,13 @@ export function baselineFromOutcome(
         );
     if (outcome.kind === "unavailable")
         return { kind: "none", why: outcome.why };
-    return {
-        kind: "tree",
-        kinds: effectSentenceKinds(outcome.text),
-        at: outcome.at,
-    };
+    const kinds = readKindArray(outcome.text);
+    if (kinds === null)
+        return {
+            kind: "none",
+            why: `${outcome.at} predates \`EFFECT_SENTENCE_KINDS\` (issue #6621) — nothing to shrink against once`,
+        };
+    return { kind: "tree", kinds, at: outcome.at };
 }
 
 export function renderSentenceKinds(result: KindCensusResult): string {

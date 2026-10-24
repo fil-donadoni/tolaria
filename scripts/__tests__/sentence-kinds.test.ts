@@ -37,35 +37,26 @@ import {
     baselineSentenceKinds,
     EFFECT_CLAUSE_PATH,
     effectSentenceKinds,
+    readKindArray,
     renderSentenceKinds,
 } from "../lib/sentence-kinds";
 
 const SOURCE = `
 export type AmountIR = { readonly kind: "flat" };
 
-export type EffectSentenceIR =
-    /**
-     * The frame layer: no kind, by design.
-     */
-    | FrameChainIR
-    /** A doc comment riding ahead of the member it documents. */
-    | {
-          /** doc */
-          readonly kind: "draw";
-          readonly nested: { readonly kind: "not-a-sentence-kind" };
-      }
-    | {
-          readonly kind: "pump";
-      }
-    | { readonly kind: "regenerate" }
-    | { readonly kind: "forced-block"; readonly count: number };
+/** Docs may mention "not-a-kind" in prose. */
+export const EFFECT_SENTENCE_KINDS = [
+    "draw",
+    // a comment with "quoted" text
+    "pump", "regenerate",
+    /* block */ "forced-block",
+] as const;
 
-type Later = { readonly kind: "later" };
-export type LibraryRouteIR = { readonly kind: "elsewhere" };
+export type EffectSentenceIR = FrameChainIR | { readonly kind: "later" };
 `;
 
-describe("effectSentenceKinds reads the union off the source — strictly", () => {
-    it("takes one kind per member at the union's indentation, multi-line and one-line, and nothing deeper or past the union's end", () => {
+describe("effectSentenceKinds reads EFFECT_SENTENCE_KINDS off the source — strictly", () => {
+    it("takes the array's string literals, comments dropped, and nothing outside the array", () => {
         expect(effectSentenceKinds(SOURCE)).toEqual([
             "draw",
             "pump",
@@ -74,34 +65,45 @@ describe("effectSentenceKinds reads the union off the source — strictly", () =
         ]);
     });
 
-    it("throws on an alias member it cannot read — a kind cannot enter behind a type name", () => {
-        expect(() =>
-            effectSentenceKinds(
-                SOURCE.replace("| FrameChainIR", "| FrameChainIR\n    | NewIR")
-            )
-        ).toThrow(/member `NewIR` is an alias/);
+    it("survives any spelling of the array body — one line, trailing comma or none", () => {
+        const oneLine = SOURCE.replace(
+            /\[[\s\S]*?\] as const/,
+            '["draw", "pump", "regenerate", "forced-block"] as const'
+        );
+        expect(effectSentenceKinds(oneLine)).toEqual(
+            effectSentenceKinds(SOURCE)
+        );
     });
 
-    it("throws on a member without a readable kind — a parenthesised or intersected spelling", () => {
+    it("throws on an element that is not a string literal — a kind cannot enter behind a spread or a name", () => {
         expect(() =>
-            effectSentenceKinds(
-                SOURCE.replace(
-                    '| { readonly kind: "regenerate" }',
-                    '| (Base & { readonly kind: "regenerate" })'
-                )
-            )
-        ).toThrow(/member without a readable `kind`/);
+            effectSentenceKinds(SOURCE.replace('"pump",', '...MORE, "pump",'))
+        ).toThrow(/something other than string literals/);
+        expect(() =>
+            effectSentenceKinds(SOURCE.replace('"pump",', 'PUMP, "pump",'))
+        ).toThrow(/something other than string literals/);
     });
 
-    it("throws when the union yields no kinds at all — an empty set is a subset of anything", () => {
+    it("throws on an empty array — an empty set is a subset of anything", () => {
         expect(() =>
             effectSentenceKinds(
-                "export type EffectSentenceIR =\n    | FrameChainIR;\n"
+                SOURCE.replace(/\[[\s\S]*?\] as const/, "[] as const")
             )
         ).toThrow(/yields no kinds/);
-        expect(() => effectSentenceKinds("export type Other = 1;")).toThrow(
-            /no `EffectSentenceIR` union/
+    });
+
+    it("throws when the array is not closed by `] as const`", () => {
+        expect(() =>
+            effectSentenceKinds(SOURCE.replace("] as const", "]"))
+        ).toThrow(/not closed/);
+    });
+
+    it("throws at HEAD with no array; readKindArray says null, so a baseline predating it can be skipped", () => {
+        const none = "export type EffectSentenceIR = FrameChainIR;\n";
+        expect(() => effectSentenceKinds(none)).toThrow(
+            /no `EFFECT_SENTENCE_KINDS` array/
         );
+        expect(readKindArray(none)).toBeNull();
     });
 
     it("the real tree: the pilot's four retired kinds are gone, and HEAD's kinds are a subset of the baseline tree's", () => {
@@ -246,6 +248,16 @@ describe("baselineKindsSource — which tree is the baseline", () => {
         expect(baselineKindsSource(git).kind).toBe("unavailable");
     });
 
+    it("a baseline tree that predates the array is a declared skip, not a red", () => {
+        const old = baselineFromOutcome({
+            kind: "text",
+            text: "export type EffectSentenceIR = FrameChainIR;\n",
+            at: "base123:x.ts",
+        });
+        expect(old.kind).toBe("none");
+        expect(old.kind === "none" && old.why).toContain("predates");
+    });
+
     it("git failing on the comparison is broken, and baselineFromOutcome throws it", () => {
         const git = runner({ "merge-base": () => no("fatal: boom") });
         const out = baselineKindsSource(git);
@@ -254,18 +266,10 @@ describe("baselineKindsSource — which tree is the baseline", () => {
     });
 });
 
-/** A union of kinds, each member wide enough that two edits far apart rebase without a conflict. */
+/** The array, one kind per line, so two edits far apart rebase without a conflict. */
 function union(kinds: readonly string[]): string {
-    const members = kinds
-        .map(
-            (k) => `    | {
-          /** ${k}: a whole-sentence shape of the table. */
-          readonly kind: "${k}";
-          readonly text: string;
-      }`
-        )
-        .join("\n");
-    return `export type EffectSentenceIR =\n    | FrameChainIR\n${members};\n\nexport type Other = { readonly kind: "x" };\n`;
+    const members = kinds.map((k) => `    "${k}",`).join("\n\n\n");
+    return `export const EFFECT_SENTENCE_KINDS = [\n${members}\n] as const;\n\nexport type Other = { readonly kind: "x" };\n`;
 }
 
 describe("sentence-kinds — a real git rebase through the shipped path (issue #6714)", () => {
