@@ -1,4 +1,4 @@
-// CR 106.6 / 601.2f (issue #1733) — `planManaPayment` agrees with the
+// CR 106.6 (issue #1733) — `planManaPayment` agrees with the
 // castability gate about restricted mana: it counts floating restricted mana
 // the cast may spend, and never taps a restricted option the cast cannot use.
 

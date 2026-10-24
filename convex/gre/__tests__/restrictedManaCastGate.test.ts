@@ -1,4 +1,4 @@
-// CR 106.6 / 601.2f (issue #1733) — the castability gate counts a mana
+// CR 106.6 (issue #1733) — the castability gate counts a mana
 // source's output only when that option's own spend restriction permits the
 // spell being probed.
 
