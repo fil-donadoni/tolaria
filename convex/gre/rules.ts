@@ -132,6 +132,7 @@ import {
     siblingControllerIdFor,
     isAlreadySelectedTarget,
     requirementAdmitsSpellTarget,
+    shorthandArray,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -2999,8 +3000,6 @@ export function intrinsicPermanentTargetViolation(
     card: CardInstanceState,
     f: IntrinsicPermanentTargetFilters
 ): string | null {
-    const arr = <T>(v: T | T[] | undefined): T[] | undefined =>
-        v === undefined ? undefined : Array.isArray(v) ? v : [v];
     const ctx: TargetFilterCtx = {
         state,
         sourceColors: [],
@@ -3009,33 +3008,30 @@ export function intrinsicPermanentTargetViolation(
         activePlayerId: state.activePlayerId,
     };
     const values: PermanentFilterValues = {
-        subtypeFilter: arr(f.subtypeFilter),
-        supertypeFilter: arr(f.supertypeFilter),
-        excludeSubtypes: arr(f.excludeSubtypes),
-        excludeSupertypes: arr(f.excludeSupertypes),
-        excludeTypes: arr(f.excludeTypes),
-        excludeColors: arr(f.excludeColors),
+        subtypeFilter: shorthandArray(f.subtypeFilter),
+        supertypeFilter: shorthandArray(f.supertypeFilter),
+        excludeSubtypes: shorthandArray(f.excludeSubtypes),
+        excludeSupertypes: shorthandArray(f.excludeSupertypes),
+        excludeTypes: shorthandArray(f.excludeTypes),
+        excludeColors: shorthandArray(f.excludeColors),
         colorFilter: f.colorFilter,
-        colorFilterAny: f.colorFilterAny,
+        colorFilterAny: shorthandArray(f.colorFilterAny),
         tappedFilter: f.tappedFilter,
-        combatRoleFilter: f.combatRoleFilter,
+        combatRoleFilter:
+            shorthandArray(f.combatRoleFilter) === undefined
+                ? undefined
+                : f.combatRoleFilter,
         requireAbility: f.requireAbility,
-        requireAbilityAny:
-            f.requireAbilityAny && f.requireAbilityAny.length > 0
-                ? f.requireAbilityAny
-                : undefined,
+        requireAbilityAny: shorthandArray(f.requireAbilityAny),
         excludeAbility: f.excludeAbility,
-        excludeInstanceIds:
-            f.excludeInstanceIds && f.excludeInstanceIds.length > 0
-                ? f.excludeInstanceIds
-                : undefined,
+        excludeInstanceIds: shorthandArray(f.excludeInstanceIds),
         powerFilter: f.powerFilter,
         toughnessFilter: f.toughnessFilter,
         mvFilter: f.mvFilter,
         isToken: f.isToken,
         attachedToFilter: f.attachedToFilter
             ? {
-                  types: arr(f.attachedToFilter.types),
+                  types: shorthandArray(f.attachedToFilter.types),
                   controlledBy: f.attachedToFilter.controlledBy,
               }
             : undefined,

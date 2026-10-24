@@ -2990,15 +2990,10 @@ describe("matchesSpellPendingTarget (spellTypeFilter dimension)", () => {
                 ctx
             )
         ).toBe(true);
-        // The absent case again, for a second stack item shape. NOT an empty
-        // ARRAY: `spellTypeFilterDescriptor.lower` is a bare `arr(...)` with no
-        // length guard (unlike its sibling `stackSourceTypeFilterDescriptor`,
-        // which does `v.length > 0 ? v : undefined`), so a
-        // `spellTypeFilter: []` WOULD be carried and would reject everything —
-        // `value.some(...)` over an empty array is `false`. That is unreachable
-        // (no requirement authors `[]`) and both sides of the wire read it
-        // identically, so it is not a client/server divergence — but "the
-        // registry normalizes it away" is not why.
+        // The absent case again, for a second stack item shape. An empty
+        // ARRAY is the same case: `shorthandArray` lowers `[]` to `undefined`,
+        // so the descriptor is skipped (see the `[]` parity block in
+        // `target-filter-client-parity.test.ts`).
         expect(
             matchesSpellPendingTarget(
                 { id: "s5", card: { id: "x" }, types: ["Instant"] },
