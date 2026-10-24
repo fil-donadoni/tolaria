@@ -591,7 +591,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Hunding Gjornersen",
     "Hunting Drake",
     "Hunting Kavu",
-    "Hurkyl's Recall",
     "Hurricane",
     "Hyalopterous Lemure",
     "Hyperion Blacksmith",
