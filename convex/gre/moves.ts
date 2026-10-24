@@ -44,7 +44,9 @@ import {
     getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
     unrestrictedFloatingMana,
+    isUnrestrictedRiderUnit,
     restrictedUnitAllowsSpell,
+    restrictionAllowsAbility,
     restrictionAllowsSpell,
     type TargetCountAnnouncement,
 } from "./state";
@@ -1273,6 +1275,8 @@ export function planManaPayment(
         for (const unit of player.restrictedMana ?? []) {
             if (!(MANA_COLORS as readonly string[]).includes(unit.color))
                 continue;
+            // Already a source via `unrestrictedFloatingMana` above.
+            if (isUnrestrictedRiderUnit(unit)) continue;
             if (
                 !restrictedUnitAllowsSpell(
                     unit,
@@ -1387,14 +1391,20 @@ export function planManaPayment(
                 );
                 if (
                     optionRestriction !== null &&
-                    !(
-                        cast?.cardDef &&
-                        restrictionAllowsSpell(
-                            optionRestriction,
-                            cast.cardDef.types,
-                            cast.cardDef.supertypes ?? []
-                        )
-                    )
+                    !(cast?.cardDef
+                        ? restrictionAllowsSpell(
+                              optionRestriction,
+                              cast.cardDef.types,
+                              cast.cardDef.supertypes ?? []
+                          )
+                        : // CR 106.6 — an activation plan's mana may pay an
+                          // "artifact-ability" restriction (Soldevi Machinist)
+                          // for an artifact source's ability.
+                          abilitySource !== undefined &&
+                          restrictionAllowsAbility(
+                              optionRestriction,
+                              abilitySource.types
+                          ))
                 )
                     continue;
                 // `undefined` = an intrinsic basic-land-subtype option

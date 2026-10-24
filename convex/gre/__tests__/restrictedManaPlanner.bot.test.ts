@@ -15,6 +15,7 @@ import type { GameState } from "../state";
 const SOL_RING = getDefinition(getCardByName("Sol Ring").id);
 const UNSUMMON = getDefinition(getCardByName("Unsummon").id);
 const WORKSHOP = getCardByName("Mishra's Workshop").id;
+const MACHINIST = getCardByName("Soldevi Machinist").id;
 const HALFLING = getCardByName("Delighted Halfling").id;
 
 const castOf = (def: typeof SOL_RING) => ({
@@ -79,6 +80,24 @@ describe("planManaPayment and restricted mana (CR 106.6)", () => {
         // The any-colour option is restricted: {U} for a non-legendary is out.
         expect(
             planManaPayment(state, state.players[0], { U: 1 }, castOf(UNSUMMON))
+        ).toBeNull();
+    });
+
+    it("lets an artifact-ability option fund an artifact's activation only", () => {
+        const state = board([MACHINIST]);
+        const ring = makeInstance(SOL_RING.id, { id: "ring" });
+        expect(
+            planManaPayment(state, state.players[0], { C: 1 }, undefined, ring)
+        ).toEqual([{ cardInstanceId: "src0" }]);
+        expect(
+            planManaPayment(state, state.players[0], { C: 1 }, castOf(UNSUMMON))
+        ).toBeNull();
+    });
+
+    it("counts a floating rider unit once", () => {
+        const state = board([], [{ color: "C", amount: 1, hasteRider: true }]);
+        expect(
+            planManaPayment(state, state.players[0], { C: 2 }, castOf(SOL_RING))
         ).toBeNull();
     });
 });
