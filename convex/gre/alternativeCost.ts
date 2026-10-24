@@ -271,11 +271,13 @@ export function handCardMatchesFilter(
     }
     // CR 202.3 — exact mana value, on the same printed-cost sum as the ceiling
     // above. A dynamic `{ X: true }` has no resolving spell here to read X
-    // from, so it is refused rather than skipped: skipping falls through to
-    // `return true` and would match the whole hand.
-    if (filter.manaValueEquals !== undefined) {
-        if (typeof filter.manaValueEquals !== "number") return false;
-        if (printedManaValue(def) !== filter.manaValueEquals) return false;
+    // from, so it never equals a number and the card is refused rather than
+    // skipped (skipping falls through to `return true`, the whole hand).
+    if (
+        filter.manaValueEquals !== undefined &&
+        printedManaValue(def) !== filter.manaValueEquals
+    ) {
+        return false;
     }
     // CR 205.4 — the negative of `supertype`: a card with ANY listed supertype
     // is refused ("nonbasic").
