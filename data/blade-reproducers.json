@@ -1770,6 +1770,48 @@
     },
     "madness-cast-when-affordable": null,
     "madness-decline-when-unaffordable": null,
+    "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield": {
+        "cards": [
+            {
+                "name": "Tinker",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Juggernaut",
+                "owner": "me",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
     "morph: casts Exalted Angel face down for {3} on three lands": {
         "cards": [
             {
