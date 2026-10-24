@@ -33,7 +33,7 @@ import {
 } from "./usage-window";
 import { claimFate, type JudgedClaim, type PickResult } from "./picker";
 import type { PassRunState } from "../loop-doctor";
-import type { HealthMarker } from "./queue-plan";
+import type { HealthMarker, RepairItem } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL } from "./land-labels";
 
@@ -113,6 +113,17 @@ export function parseWorkflowRuns(text: string): WorkflowRun[] {
 }
 
 const isActive = (r: WorkflowRun): boolean => r.status !== "completed";
+
+/** Issues a not-yet-finished `afk-pass` run holds: a repair already under way
+ *  is not dispatched again (issue #6795). */
+export function livePassIssues(passRuns: readonly WorkflowRun[]): Set<number> {
+    const live = new Set<number>();
+    for (const r of passRuns) {
+        const n = passRunIssue(r.title);
+        if (n !== null && isActive(r)) live.add(n);
+    }
+    return live;
+}
 const isWaiting = (r: WorkflowRun): boolean =>
     isActive(r) && r.status !== "in_progress";
 const ms = (iso: string): number => Date.parse(iso);
@@ -674,13 +685,19 @@ export interface DispatchPlan {
  * The dispatches for this run. Dead passes' work first, in the picker's band
  * order: pinned to the host of their last run while that host is online and
  * has a free slot (its worktree may hold unpushed work), unpinned when the
- * host is offline (the branch is pushed). Then the picker's batch, one slot
- * each. Never more dispatches than free slots.
+ * host is offline (the branch is pushed). Then the `land-failed` repairs
+ * (issue #6795), oldest PR first, on any host: a repaired PR's pass ENDED,
+ * so its claim reads `pr-open` and the picker never offers it again — nothing
+ * but this slot repairs it. Then the picker's batch, one slot each. Never more
+ * dispatches than free slots.
  */
 export function planDispatch(
     picked: PickResult,
     slots: Slots,
-    hostOf: (issue: number) => string | null
+    hostOf: (issue: number) => string | null,
+    /** `repairItems`' picks: the caller has already left out an issue a live
+     *  pass holds, a closed one and an HITL one. */
+    repairs: readonly RepairItem[] = []
 ): DispatchPlan {
     const free = [...slots.free];
     const take = (host: string | null): boolean => {
@@ -703,6 +720,18 @@ export function planDispatch(
                 pr: r.pr,
             });
         else waiting.push(r.number);
+    }
+    const resumed = new Set(picked.resume.map((r) => r.number));
+    for (const r of repairs) {
+        if (resumed.has(r.number)) continue;
+        if (!take(null)) break;
+        dispatch.push({
+            issue: r.number,
+            model: r.model,
+            resume: true,
+            host: null,
+            pr: r.pr,
+        });
     }
     for (const p of picked.plan.batch) {
         if (!take(null)) break;

@@ -43,7 +43,11 @@ import {
     withClaimTimes,
     type ClaimedIssue,
 } from "./loop-doctor";
-import type { PlanConfig } from "./lib/queue-plan";
+import {
+    repairItems,
+    type PlanConfig,
+    type RepairItem,
+} from "./lib/queue-plan";
 import {
     DEFAULTS,
     liveQueuePort,
@@ -70,6 +74,7 @@ import {
     holdReleases,
     hostOfRunnerName,
     lastPassRun,
+    livePassIssues,
     mayClaim,
     parseAfkDispatchConfig,
     parsePassRecord,
@@ -295,6 +300,55 @@ function repairPicks(slug: string): RepairPick[] {
         }
         return { pr: r.number, failedAt, createdAt: r.createdAt };
     });
+}
+
+/** The `land-failed` PRs a pass can repair (issue #6795): `repairItems` over
+ *  the open ones, minus an issue a live pass holds; a closed issue (its PR
+ *  outlived it) or an unreadable one is left to its human. */
+function repairDispatchables(
+    passRuns: readonly WorkflowRun[],
+    config: PlanConfig
+): RepairItem[] {
+    const prs = JSON.parse(
+        gh([
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--label",
+            FAILED_LABEL,
+            "--limit",
+            "100",
+            "--json",
+            "number,headRefName",
+        ])
+    ) as { number: number; headRefName: string }[];
+    return repairItems(
+        prs,
+        (issue) => {
+            try {
+                const d = JSON.parse(
+                    gh([
+                        "issue",
+                        "view",
+                        String(issue),
+                        "--json",
+                        "state,labels,body",
+                    ])
+                ) as {
+                    state: string;
+                    labels: { name: string }[];
+                    body: string;
+                };
+                if (d.state !== "OPEN") return null;
+                return { labels: d.labels.map((l) => l.name), body: d.body };
+            } catch {
+                return null;
+            }
+        },
+        config,
+        livePassIssues(passRuns)
+    );
 }
 
 /** Who opened each queued issue; who applied `ready-for-agent` is read only
@@ -569,16 +623,34 @@ async function main(): Promise<void> {
         ),
         claims: judgeClaims(slug, claimed, passRuns),
     });
-    const plan = planDispatch(picked, slots, (issue) => {
-        const last = lastPassRun(passRuns, issue);
-        return last ? hostOfRun(slug, last.id) : null;
-    });
+    // An unreadable repair list costs the repairs this run, never the batch.
+    let repairs: RepairItem[] = [];
+    try {
+        repairs = repairDispatchables(passRuns, config);
+    } catch (err) {
+        say(
+            `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no repair this run`
+        );
+    }
+    const plan = planDispatch(
+        picked,
+        slots,
+        (issue) => {
+            const last = lastPassRun(passRuns, issue);
+            return last ? hostOfRun(slug, last.id) : null;
+        },
+        repairs
+    );
+    const resumed = new Set(picked.resume.map((r) => r.number));
+    const repairing = new Set(
+        repairs.map((r) => r.number).filter((n) => !resumed.has(n))
+    );
 
     const lines = [
         // Counts and issue numbers only: host names stay off a public log.
         `free pass slots: ${slots.free.length}`,
         `release: ${plan.release.map((n) => `#${n}`).join(", ") || "none"}`,
-        `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
+        `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${repairing.has(d.issue) ? ` repair PR #${d.pr}` : d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
         budgetLine,
