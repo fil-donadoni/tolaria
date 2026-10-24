@@ -68378,6 +68378,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thawing Glaciers",
+        "scryfallId": "6411a8c6-010f-4863-a0fa-bbebe09d5c34",
+        "oracleId": "c6792d9f-8b74-43c4-814f-ba4adab2fdea",
+        "firstSet": "all",
+        "firstPrintId": "6411a8c6-010f-4863-a0fa-bbebe09d5c34",
+        "firstPrintSet": "all",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "The Abyss",
         "scryfallId": "86a27d68-3e58-4ade-976d-36381beed451",
         "oracleId": "a02a7816-c967-4503-bb08-f8db44915250",

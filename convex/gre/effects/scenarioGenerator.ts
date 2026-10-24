@@ -713,6 +713,10 @@ function analyseOwnArguments(op: EffectOp, req: Requirements): void {
     };
     for (const [key, value] of Object.entries(op)) {
         if (key === "op" || isEffectOp(value)) continue;
+        // CR 603.7: a delayed trigger's `capture` only records the objects its
+        // future body refers to; nothing acts on them at resolution, so a
+        // `$source` there is not a subject the canned scenario must seed.
+        if (op.op === "delayedTrigger" && key === "capture") continue;
         walk(value, key);
     }
 }
