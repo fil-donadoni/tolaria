@@ -1,11 +1,13 @@
-# /next-ticket — a repair pick: the land-runner's `land` went red
+# /next-ticket — a repair pick: the queue's lane went red
 
 Reached from `SKILL.md` § 0 when the pick is `repair` (`queue:plan`'s
-`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses (its pre-queue check red: the PR's own
-error, fixed in the authoring session, never handed to the runner). The
-land-runner (issue #5469) ran `land` on the PR, it exited red, and the runner
-relabelled the PR `ready-to-land` → `land-failed` with a comment carrying the
-lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
+`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses (its
+preflight or pre-queue check red: the PR's own error, fixed in the authoring
+session, never handed to the queue). The Mergify queue (the land-runner is
+retired, issue #5643) rebased the PR in a draft, ran `check:lane` there, it
+went red or the rebase conflicted, and the queue relabelled the PR
+`ready-to-land` → `land-failed` with a comment carrying the reason. The
+issue's claim still stands; `queue:claim N` takes it over.
 
 ## Read the failure first
 
@@ -13,16 +15,15 @@ lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
 § A repair pick (`gh run view --log-failed`).
 
 `gh pr view <PR#> --comments --json comments --jq '.comments[-1].body'` — the
-runner's comment: `land`'s exit code, its refusal line when it refused, and
-the last lines of the lane. The full log is on the MacBook, at the path the
-comment names.
+queue's comment: the failing check or the dequeue reason; the lane's log is
+the check run it links.
 
 ## What each failure asks of the repair
 
 - **A red lane.** The rebased tree fails a check. Fix it on the PR's branch
   (`wt:new N --resume` checked it out), re-run the failing tests targeted,
   commit, push.
-- **A rebase conflict.** `land` printed the conflicted paths and aborted.
+- **A rebase conflict.** The queue could not rebase the PR onto the base.
   `git fetch origin && git rebase origin/<base>`, resolve, re-run the touched
   tests, `git push --force-with-lease`.
 - **A regenerable artefact** (an oracle lockfile, a catalogue hash). Run the
@@ -36,6 +37,20 @@ comment names.
       to fix in the PR: the runner never labels this `land-failed` (it HOLDS
       the PR until AMBER/GREEN); if you see it, the lineage changed under the
       run — re-queue as below.
+
+## Before the push: did the base move? (issue #6647)
+
+A repair verifies for 20–60 min; 8 of them re-failed within 2 h because the
+base moved under the verify. After the verification and BEFORE `git push`:
+`bun run base:drift --pr <PR#>`.
+
+- Exit 0 (base unmoved): push.
+- Exit 3 (moved, nothing shared): `bun run base:drift --rebase` (a dirty
+  tree exits 2: commit first), re-run the touched tests, then
+  `git push --force-with-lease`. Re-verifying only what the base changed is
+  a separate issue.
+- Exit 4 (moved, an overlap or a coupled artefact): start the repair round
+  again on the rebased tree — never push a tree known stale.
 
 ## Re-queue
 

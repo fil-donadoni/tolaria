@@ -18,7 +18,7 @@ this file and nothing else.
   or hand owner work back as `ready-for-human`; release the claim as one act.
   Read it when: this issue cannot land in this pass — never end the pass with
   only a suggestion in chat.
-- → `land-failures.md` — a REPAIR pick: the runner labelled the PR
+- → `land-failures.md` — a REPAIR pick: the queue labelled the PR
   `land-failed` (a red lane, a regenerable-artefact red, a RED refusal, a
   wrong base). Read it when: the pick is `repair`, or `land:ready` refuses.
 - → `filing.md` — the band-inheritance procedure for an issue you file by
@@ -76,7 +76,7 @@ with the turn and takes the gate's verdict with it.
 <!-- <<<END GATE-RULE>>> -->
 
 **A pass never ends its turn waiting** (issue #4763) — at ANY point: on a
-gate, a regenerator (`oracle:compile`), a test suite or the land-runner.
+gate, a regenerator (`oracle:compile`), a test suite or the merge queue.
 Whatever the pass needs the result of runs in the FOREGROUND (`gate:run`, or
 a foreground call with `timeout` up to 600000ms); the turn ends only on a
 verdict — handed off, or a failure reported as a failure.
@@ -100,7 +100,7 @@ replace §§ 0–2's commands.
 - **`/next-ticket N --resume`** — a dead pass's claim: stranded (pushed a
   branch or opened a PR) or recoverable (local branch, maybe uncommitted WIP
   in its worktree) — or a **repair** pick (`queue:plan`'s `repair[0]`, first
-  of all picks: the land-runner labelled its PR `land-failed`). Do not start
+  of all picks: the queue labelled its PR `land-failed`). Do not start
   over: `queue:claim N`, then `cd "$(bun run --silent wt:new N --resume)"`;
   `git status` shows the WIP. Repair → `land-failures.md`. Open PR → read it
   against the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
@@ -164,13 +164,20 @@ The short path is keyed on the LANE, never on how simple the card reads.
 - Touching the Bot (`convex/gre/{search,evaluate,moves,applyMove,ai}`,
   `src/lib/ai/`, `convex/limited/botDrafter`) → `/bot-change` FIRST, find
   your row in its Seams table.
+- **Rebase first, verify after** (issue #6647): targeted tests green →
+  commit → `bun run base:drift --rebase` BEFORE the §4 review,
+  `oracle:compile` or `check:ui`. Exit 0: current or rebased (a pushed
+  branch: `git push --force-with-lease`); exit 4: overlap — rebase by
+  hand, run the regenerators it names, re-run the touched tests. Queued PRs
+  it names sharing files: say so in the PR, prefer waiting for them.
 - **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure = break → run →
   revert against a committed baseline; `git checkout <file>` on uncommitted
   work discards the implementation. **Assert the patch applied** (`grep -c`
   the broken text) before believing a red — or a green.
 
-**Done when:** the work is committed, targeted tests pass, and every new
-guarding test has been seen red.
+**Done when:** the work is committed, targeted tests pass, `base:drift`
+exited 0 on the committed head, and every new guarding test has been seen
+red.
 
 ## 4. Review — ONE round, routed by risk
 
@@ -204,7 +211,8 @@ nor wait.
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the
   heading; write "none owed" there when it is not. The runner seeds it.
-- Hand off: `bun run land:ready <PR#>` — PR labelled `ready-to-land`, claim
+- Hand off: `bun run land:ready <PR#>` (step 0 = the preflight: behind →
+  rebases for you, overlap → refuses) — PR labelled `ready-to-land`, claim
   `pr-open` (stands, no cap slot; released at merge).
   Refused → `land-failures.md`.
 - **Gap issue**: `gap-holes.md` before the report.
