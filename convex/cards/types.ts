@@ -155,12 +155,23 @@ export type ManaCost = {
      *  payWith / convoke path (`convex/gre/payWith.ts`) alike.
      *  `manaValue` counts each pip as 1 (CR 202.3f), and `getColorsFromCost`
      *  includes BOTH colours of each pip in the card's colour (CR 105.2 / 202.2).
-     *  NARROW scope: only two-colour guild hybrid — MONOCOLOUR
-     *  hybrid ({2/B}) is still unmodelled (issue #1743). Shipped hybrid cards
+     *  TWO-colour guild hybrid only — a MONOCOLOUR hybrid pip ({2/B}) is not a
+     *  colour pair and lives in {@link hybridGeneric}. Shipped hybrid cards
      *  pay these pips with real mana (Figure of Fable, the ECL Elemental
      *  Incarnations, Carnage Interpreter); Hogaak is the exception only because
      *  it forbids spending mana, so its pips are always convoked. */
     hybrid?: Array<[Color, Color]>;
+    /** CR 107.4e / 202.3f — MONOCOLOUR hybrid pips (`{2/W}`: "pay one white OR
+     *  two generic"). Each entry is one pip: `generic` mana OR one mana of
+     *  `color`. Spectral Procession `{2/W}{2/W}{2/W}` →
+     *  `[{generic:2,color:"W"} ×3]`. NOT a colour pair, so never in `hybrid`.
+     *  Like `phyrexian`, `normalizeManaCost` IGNORES this field: the leg each
+     *  pip is paid with depends on the mana the caster has, so the cast path
+     *  resolves it (`solveHybridGenericLegs`, `convex/gre/rules.ts`) and folds
+     *  the chosen legs into ordinary pips. `manaValue` counts each pip at the
+     *  HIGHER half (CR 202.3f — `{2/W}` is 2), and `getColorsFromCost`
+     *  includes the colour half (CR 105.2). */
+    hybridGeneric?: Array<{ generic: number; color: Color }>;
     /** CR 107.3a / 601.2h (issue #3811, #1330) — "Spend only [colour(s)] mana
      *  on X.": the colours permitted to pay the VARIABLE `{X}`. X is announced
      *  before payment (CR 107.3a), so by CR 601.2h the restriction is a fixed

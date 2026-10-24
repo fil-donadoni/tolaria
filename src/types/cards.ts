@@ -34,6 +34,11 @@ export type ManaCost = {
      *  `ManaCost.hybrid` in `convex/cards/types.ts` (the source of truth);
      *  rendered by `manaCostToString` as `{R/W}` tokens. */
     hybrid?: Array<[Color, Color]>;
+    /** CR 107.4e / 202.3f — monocolour hybrid pips (`{2/W}`); one entry per pip,
+     *  paid with `generic` mana OR one mana of `color`. Mirrors
+     *  `ManaCost.hybridGeneric` in `convex/cards/types.ts` (the source of
+     *  truth); rendered by `manaCostToString` as `{2/W}` tokens. */
+    hybridGeneric?: Array<{ generic: number; color: Color }>;
 };
 
 export type CardType =

@@ -22,6 +22,8 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     for (const pip of cost.hybrid ?? []) {
         for (const c of pip) hybridColors.add(c);
     }
+    // CR 105.2 — a monocolour hybrid pip `{2/W}` is a white mana symbol.
+    for (const pip of cost.hybridGeneric ?? []) hybridColors.add(pip.color);
     const colors: Color[] = [];
     for (const c of MANA_COLORS) {
         if (c === "C") continue;
@@ -58,7 +60,12 @@ export function getPipCountsFromCost(
     const pips: Partial<Record<Color, number>> = {};
     for (const c of MANA_COLORS) {
         if (c === "C") continue;
-        const count = (cost[c] ?? 0) + (cost.phyrexian?.[c] ?? 0);
+        // CR 105.2 — a monocolour hybrid pip `{2/W}` counts once toward its
+        // colour, like a Phyrexian pip.
+        const count =
+            (cost[c] ?? 0) +
+            (cost.phyrexian?.[c] ?? 0) +
+            (cost.hybridGeneric ?? []).filter((p) => p.color === c).length;
         if (count > 0) pips[c] = count;
     }
     return pips;

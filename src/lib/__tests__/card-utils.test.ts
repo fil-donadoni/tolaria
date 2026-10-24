@@ -5703,6 +5703,17 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
         expect(manaCostToString({ generic: 2, R: 1 })).toBe("{2}{R}");
     });
 
+    it("renders monocolour hybrid pips as {2/W} tokens (CR 107.4e)", () => {
+        expect(
+            manaCostToString({
+                hybridGeneric: [
+                    { generic: 2, color: "W" },
+                    { generic: 2, color: "W" },
+                ],
+            })
+        ).toBe("{2/W}{2/W}");
+    });
+
     it("still renders the numeric-X fixed-generic convention ({X:1, G:1} → {1}{G})", () => {
         expect(manaCostToString({ X: 1, G: 1 })).toBe("{1}{G}");
     });
