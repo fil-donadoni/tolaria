@@ -22,6 +22,11 @@
  * `pr-open` row; fix it here. The announced, logged escape for a red that is
  * base's, not the PR's: `TOLARIA_PREQUEUE_RED_OK=1`.
  *
+ * The cheap tier (offline scripts, `isCheapStep`) runs first and
+ * ALL of it, the body/diff refusals beside it, and one run names every red;
+ * the tests behind a red cheap tier never start. The hand-off push retries a
+ * transient rejection (3 attempts, never a non-fast-forward).
+ *
  * It also runs `land`'s body/diff refusals FIRST (`pr-checks.ts`
  * — the same functions `land` calls, never a copy): a missing `check:ui`
  * receipt or preset scenario refuses here, with `land`'s own words, while the
@@ -112,7 +117,7 @@ import {
     type GateStatus,
     type RestPr,
 } from "./lib/pr-gate";
-import { preQueueSteps } from "./lib/pre-queue-steps";
+import { isCheapStep, preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { buildPrOpenRow } from "./lib/queue-claim";
 import { claimLedgerPath } from "./loop-doctor";
@@ -141,17 +146,32 @@ export interface PreQueueDeps {
     regenerate: () => boolean;
     /** Put the derived paths back to `HEAD`, so the worktree stays clean. */
     restore: () => void;
+    /** A body/diff refusal already stands (no escape): the tests cannot change
+     *  the outcome, so the costly tier is not run (issue #6620). */
+    skipCostly?: boolean;
 }
 
 /** The step id reported when the derived state could not be rebuilt. */
 export const REGENERATE_STEP = "derive:regenerate";
 
+/** What a red `derive:regenerate` asks of the session (issue #6620). */
+export const REGENERATE_FIX =
+    "if its output names `ready` rows without a card-index entry: `bun run oracle:index`, then `bun run derive:regenerate`, commit, push";
+
 /**
- * Run the pre-queue steps. Returns the failing step's id, or null when green.
- * Fail-fast, like the lane (`runPlan`).
+ * Run the pre-queue steps. `failed` is the first red step's id (null when
+ * green); `failedAll` every red of the cheap tier, in order (issue #6620).
+ *
+ * The cheap tier (`isCheapStep`: offline scripts, seconds each) runs FIRST and
+ * runs ALL of it — a session fixes every finding once. A red there skips the
+ * expensive tier (the tests) outright; a green cheap tier runs the rest
+ * fail-fast, like the lane (`runPlan`). A failed `derive:regenerate` is the
+ * first red, and the cheap tier still runs behind it: its findings do not
+ * depend on the rebuilt bytes, and one run must name every error.
  */
 export function runPreQueue(deps: PreQueueDeps): {
     failed: string | null;
+    failedAll: string[];
     result: RunResult;
 } {
     const { run, skip } = preQueueSteps(deps.plan, deps.added, deps.present);
@@ -159,30 +179,51 @@ export function runPreQueue(deps: PreQueueDeps): {
         `land:ready: pre-queue check — lane ${deps.plan.lane}, ${run.length} step(s): ${run.map((c) => c.id).join(", ")}`
     );
     for (const s of skip) deps.log(`  skip ${s.id}: ${s.reason}`);
+    const cheap = run.filter(isCheapStep);
+    const costly = run.filter((c) => !isCheapStep(c));
+    const failedAll: string[] = [];
+    const outcomes: RunResult["outcomes"] = [];
+    let totalMs = 0;
     // Issue #6491: the lane was classified on the PR's own diff; the steps
     // run on a tree whose derived state is rebuilt, like the queue's draft
     // (`check:lane --regenerate-derived`) — never the merge-base's bytes.
     try {
         if (!deps.regenerate()) {
             deps.log(
-                "land:ready: derive:regenerate failed — the derived state could not be rebuilt"
+                `land:ready: derive:regenerate failed — the derived state could not be rebuilt (${REGENERATE_FIX})`
             );
-            return {
-                failed: REGENERATE_STEP,
-                result: {
-                    ok: false,
-                    outcomes: [{ id: REGENERATE_STEP, status: "fail", ms: 0 }],
-                    totalMs: 0,
-                },
-            };
+            failedAll.push(REGENERATE_STEP);
+            outcomes.push({ id: REGENERATE_STEP, status: "fail", ms: 0 });
         }
-        const result = runPlan(
-            { ...deps.plan, run },
-            deps.exec,
-            () => undefined
-        );
-        const failed = result.outcomes.find((o) => o.status === "fail");
-        return { failed: failed?.id ?? null, result };
+        for (const check of cheap) {
+            const r = deps.exec(check.command);
+            totalMs += r.ms;
+            outcomes.push({
+                id: check.id,
+                status: r.ok ? "pass" : "fail",
+                ms: r.ms,
+            });
+            if (!r.ok) failedAll.push(check.id);
+        }
+        if (failedAll.length > 0 || deps.skipCostly === true) {
+            for (const check of costly)
+                outcomes.push({ id: check.id, status: "not-run", ms: 0 });
+        } else {
+            const rest = runPlan(
+                { ...deps.plan, run: costly },
+                deps.exec,
+                () => undefined
+            );
+            outcomes.push(...rest.outcomes);
+            totalMs += rest.totalMs;
+            for (const o of rest.outcomes)
+                if (o.status === "fail") failedAll.push(o.id);
+        }
+        return {
+            failed: failedAll[0] ?? null,
+            failedAll,
+            result: { ok: failedAll.length === 0, outcomes, totalMs },
+        };
     } finally {
         // A restore that throws must not replace the step's verdict.
         try {
@@ -268,6 +309,46 @@ function assertPrWorktree(pr: number, headOid: string): void {
             "working tree is dirty — commit and push first, so the check describes the tree the runner will land"
         );
     }
+}
+
+/** A push stderr that is a transient server-side rejection, not a diverged
+ *  branch: retrying cannot fix a non-fast-forward (issue #6620). */
+export function isTransientPushFailure(stderr: string): boolean {
+    if (
+        /non-fast-forward|\(fetch first\)|stale info|\(already exists\)/i.test(
+            stderr
+        )
+    )
+        return false;
+    return /remote rejected|failed to push some refs|unexpected disconnect|timed out|could not read from remote/i.test(
+        stderr
+    );
+}
+
+/** Backoff between the 3 hand-off push attempts, ms (~7 s in all). */
+export const PUSH_BACKOFF_MS: readonly number[] = [2000, 5000];
+
+/**
+ * Push with retries on a transient rejection. A non-fast-forward (or any
+ * non-transient failure) returns at once with its stderr, so the caller's
+ * refusal message stays what it was.
+ */
+export function pushWithRetry(
+    push: () => { status: number | null; stderr: string },
+    sleep: (ms: number) => void,
+    log: (line: string) => void,
+    backoffMs: readonly number[] = PUSH_BACKOFF_MS
+): { status: number | null; stderr: string } {
+    let r = push();
+    for (const wait of backoffMs) {
+        if (r.status === 0 || !isTransientPushFailure(r.stderr)) return r;
+        log(
+            `land:ready: transient push rejection — retrying in ${wait / 1000}s`
+        );
+        sleep(wait);
+        r = push();
+    }
+    return r;
 }
 
 /** The git this restore needs — a seam for the test. */
@@ -393,15 +474,22 @@ function restoreAndPush(
         return { head: headOid, role: decision.role };
     }
     const head = git(["rev-parse", "HEAD"]).trim();
-    const pushed = spawnSync(
-        "git",
-        ["push", "-q", "origin", `HEAD:refs/heads/${branch}`],
-        { encoding: "utf8" }
+    const pushed = pushWithRetry(
+        () => {
+            const r = spawnSync(
+                "git",
+                ["push", "-q", "origin", `HEAD:refs/heads/${branch}`],
+                { encoding: "utf8" }
+            );
+            return { status: r.status, stderr: r.stderr ?? "" };
+        },
+        (ms) => void spawnSync("sleep", [String(ms / 1000)]),
+        console.log
     );
     if (pushed.status !== 0)
         throw new Error(
             `the restore commit ${head.slice(0, 10)} could not be pushed to ${branch} (${
-                (pushed.stderr ?? "")
+                pushed.stderr
                     .trim()
                     .split("\n")
                     .find((l) => l.startsWith("!") || l.startsWith("error")) ??
@@ -446,14 +534,9 @@ function preQueueGate(
 ): void {
     assertPrWorktree(pr, headOid);
     const cwd = process.cwd();
+    // Body/diff refusals are cheap: collected, not exited on, so one run names
+    // them beside the pre-queue reds (issue #6620).
     const refusals = landRefusals({ cwd, prBody }, console.log);
-    if (refusals.length > 0) {
-        for (const r of refusals) console.error(`✗ ${r}`);
-        console.error(
-            `✗ land:ready: PR #${pr} NOT queued — \`land\` would refuse it. Fix the PR body or diff, push, re-run.`
-        );
-        process.exit(1);
-    }
     const all = changedPaths(ORIGIN_BASE, cwd, true);
     const present = changedPaths(ORIGIN_BASE, cwd, false);
     const plan = classifyLane(
@@ -463,7 +546,8 @@ function preQueueGate(
         contentClasses(all, ORIGIN_BASE, cwd)
     );
     const t0 = Date.now();
-    const { failed, result } = runPreQueue({
+    const { failed, failedAll, result } = runPreQueue({
+        skipCostly: refusals.length > 0,
         plan,
         present,
         added: addedPaths(ORIGIN_BASE, cwd),
@@ -476,19 +560,33 @@ function preQueueGate(
         },
     });
     const seconds = Math.round((Date.now() - t0) / 1000);
+    if (refusals.length > 0) {
+        for (const r of refusals) console.error(`✗ ${r}`);
+        if (failedAll.length > 0)
+            console.error(
+                `✗ land:ready: red steps: ${failedAll.map((id) => `\`${id}\``).join(", ")} (${result.outcomes.map((o) => `${o.id}:${o.status}`).join(" ")}, ${seconds}s)`
+            );
+        console.error(
+            `✗ land:ready: PR #${pr} NOT queued — \`land\` would refuse it. Fix the PR body or diff, push, re-run.`
+        );
+        process.exit(1);
+    }
     if (failed === null) {
         console.log(`land:ready: pre-queue check green in ${seconds}s`);
         return;
     }
     if (process.env[PREQUEUE_ESCAPE_ENV] === "1") {
-        const note = `land:ready: pre-queue check OVERRIDDEN (${PREQUEUE_ESCAPE_ENV}=1) — \`${failed}\` is red and was queued anyway`;
+        const note = `land:ready: pre-queue check OVERRIDDEN (${PREQUEUE_ESCAPE_ENV}=1) — ${failedAll.map((id) => `\`${id}\``).join(", ")} red and queued anyway`;
         console.error(note);
         gh(["pr", "comment", String(pr), "--body", note]);
         return;
     }
     console.error(
-        `✗ land:ready: \`${failed}\` is red after ${seconds}s (${result.outcomes.map((o) => `${o.id}:${o.status}`).join(" ")}) — PR #${pr} NOT queued.\n` +
-            `  Fix it in this session, commit, push, re-run. Only a red you KNOW is base's: ${PREQUEUE_ESCAPE_ENV}=1 bun run land:ready ${pr} (announced, commented on the PR).`
+        `✗ land:ready: ${failedAll.length} red step(s): ${failedAll.map((id) => `\`${id}\``).join(", ")} after ${seconds}s (${result.outcomes.map((o) => `${o.id}:${o.status}`).join(" ")}) — PR #${pr} NOT queued.\n` +
+            (failedAll.includes(REGENERATE_STEP)
+                ? `  ${REGENERATE_STEP}: ${REGENERATE_FIX}.\n`
+                : "") +
+            `  Fix them all in this session, commit, push, re-run. Only a red you KNOW is base's: ${PREQUEUE_ESCAPE_ENV}=1 bun run land:ready ${pr} (announced, commented on the PR).`
     );
     process.exit(1);
 }
