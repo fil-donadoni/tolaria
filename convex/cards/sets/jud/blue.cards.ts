@@ -40,7 +40,7 @@ export const flashOfInsight = defineCard(() => ({
             take: 1,
         },
     ],
-    flashback: { U: 1, generic: 1 },
+    flashback: { X: 1, U: 1 },
     additionalCosts: {
         flashbackExileFromGraveyard: { color: "U" },
     },
