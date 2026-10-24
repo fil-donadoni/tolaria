@@ -421,7 +421,7 @@ function isCardFilter(
         allowLiveState?: boolean;
         allowControlledSinceTurnStart?: boolean;
         allowExcludeSource?: boolean;
-        rejectManaCostEquals?: boolean;
+        rejectHiddenZoneFields?: boolean;
     }
 ): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -442,7 +442,7 @@ function isCardFilter(
     // validate cleanly and then silently match EVERY permanent at runtime
     // (fail OPEN), inverted from `hasAbility`/`isAttacking`'s opt-IN gate:
     // this field opt-OUTs at exactly those same battlefield-guaranteed sites.
-    const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
+    const rejectHiddenZoneFields = opts?.rejectHiddenZoneFields ?? false;
     const entries = Object.entries(value);
     // CR 205.3m (issue #6618) — `sharesCreatureTypeWith` and a `subtype` in the
     // same clause are an AND of two subtype sets, which `PermanentFilter`'s
@@ -543,10 +543,10 @@ function isCardFilter(
         // hidden-zone card shape (`matchesCardFilter` fails CLOSED for a card
         // shape with no `cost` slot) but NOT on a live battlefield permanent
         // (`toPermanentFilter` has no mapping for it, issue #1898 finding 3)
-        // — `rejectManaCostEquals` opts a battlefield-guaranteed site OUT,
+        // — `rejectHiddenZoneFields` opts a battlefield-guaranteed site OUT,
         // the inverse of `hasAbility`/`isAttacking`'s opt-IN gate above.
         if (k === "manaCostEquals") {
-            if (rejectManaCostEquals) return false;
+            if (rejectHiddenZoneFields) return false;
             return isValueOrArray(v, isManaCostFilterValue);
         }
         // CR 702.34a — "with flashback", a hidden-zone quality read off the
@@ -554,7 +554,7 @@ function isCardFilter(
         // `toPermanentFilter` has no mapping for it, so a battlefield site
         // would match every permanent (fail OPEN). Only `true` is a form.
         if (k === "hasFlashback") {
-            if (rejectManaCostEquals) return false;
+            if (rejectHiddenZoneFields) return false;
             return v === true;
         }
         if (k === "isToken") {
@@ -595,6 +595,10 @@ function isCardFilter(
         // non-empty counter type string; optional `min` is a positive integer
         // (default 1 when omitted).
         if (k === "hasCounter") {
+            // `toPermanentFilter` has no mapping for it (`PermanentFilter`
+            // carries no counters slot): a battlefield site would match every
+            // permanent, so it is hidden-zone-only like `manaCostEquals`.
+            if (rejectHiddenZoneFields) return false;
             if (typeof v !== "object" || v === null || Array.isArray(v)) {
                 return false;
             }
@@ -625,7 +629,7 @@ function isCardFilter(
                         allowLiveState,
                         allowControlledSinceTurnStart,
                         allowExcludeSource,
-                        rejectManaCostEquals,
+                        rejectHiddenZoneFields,
                     })
                 )
             );
@@ -783,7 +787,11 @@ function filterUsesManaCostEquals(value: unknown): boolean {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (f.manaCostEquals !== undefined || f.hasFlashback !== undefined) {
+    if (
+        f.manaCostEquals !== undefined ||
+        f.hasFlashback !== undefined ||
+        f.hasCounter !== undefined
+    ) {
         return true;
     }
     return (
@@ -1438,7 +1446,7 @@ function isCountValue(value: unknown): boolean {
             allowHasAbility: s.zone === "battlefield",
             allowLiveState: s.zone === "battlefield",
             allowControlledSinceTurnStart: s.zone === "battlefield",
-            rejectManaCostEquals: s.zone === "battlefield",
+            rejectHiddenZoneFields: s.zone === "battlefield",
             // issue #2713 — "for each OTHER attacking Goblin" (Goblin
             // Piledriver). Same battlefield-only honesty rule as the three
             // above, and honest for the SAME reason: the battlefield branch
@@ -3428,7 +3436,7 @@ function isPredicate(value: unknown): boolean {
                 allowHasAbility: true,
                 allowLiveState: true,
                 allowControlledSinceTurnStart: true,
-                rejectManaCostEquals: true,
+                rejectHiddenZoneFields: true,
             })
         );
     }
@@ -3626,7 +3634,7 @@ function isForEachSelector(value: unknown): boolean {
             allowHasAbility: true,
             allowLiveState: true,
             allowControlledSinceTurnStart: true,
-            rejectManaCostEquals: true,
+            rejectHiddenZoneFields: true,
         })
     ) {
         return false;
@@ -3740,14 +3748,14 @@ function isPileObjectSelector(value: unknown): boolean {
         if (!isPlayerRef(s.controller)) return false;
         // `zone` is confirmed "battlefield" above — see the matching
         // `isForEachSelector` permanents-branch comment (issue #1097, and
-        // issue #1898 finding 3 for `rejectManaCostEquals`).
+        // issue #1898 finding 3 for `rejectHiddenZoneFields`).
         if (
             "filter" in s &&
             !isCardFilter(s.filter, {
                 allowHasAbility: true,
                 allowLiveState: true,
                 allowControlledSinceTurnStart: true,
-                rejectManaCostEquals: true,
+                rejectHiddenZoneFields: true,
             })
         ) {
             return false;
@@ -5413,7 +5421,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     allowHasAbility: true,
                     allowLiveState: true,
                     allowControlledSinceTurnStart: true,
-                    rejectManaCostEquals: true,
+                    rejectHiddenZoneFields: true,
                 }),
         },
     },
@@ -6150,7 +6158,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesManaCostEquals(entry.filter)
             ) {
                 errors.push(
-                    '"filter.manaCostEquals" / "filter.hasFlashback" is not valid with zone: "battlefield" — a live permanent has no printed-cost or flashback slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
+                    '"filter.manaCostEquals" / "filter.hasFlashback" / "filter.hasCounter" is not valid with zone: "battlefield" — a live permanent has no printed-cost, flashback or counter slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
                 );
             }
             if (

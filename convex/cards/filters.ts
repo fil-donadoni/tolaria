@@ -192,6 +192,13 @@ export interface PermanentFilter {
      *  CLOSED like `powerAtLeast`: a caller that cannot supply `manaValue`
      *  (an event payload predating the field) does not match. */
     manaValueAtLeast?: number;
+    /** Inclusive upper bound on MANA VALUE (CR 202.3). Same source and
+     *  fail-CLOSED convention as `manaValueAtLeast`. Resolved to a number by
+     *  `toPermanentFilter` (a dynamic `{ X: true }` ceiling is read there). */
+    manaValueAtMost?: number;
+    /** Exact MANA VALUE (CR 202.3). Same source and fail-CLOSED convention as
+     *  `manaValueAtLeast`; resolved to a number by `toPermanentFilter`. */
+    manaValueEquals?: number;
     /** Inclusive lower bound on effective toughness. Matches only if
      *  `card.toughness !== undefined` and `card.toughness >= toughnessAtLeast`. */
     toughnessAtLeast?: number;
@@ -537,6 +544,14 @@ export function matchesPermanentFilter(
     if (filter.manaValueAtLeast !== undefined) {
         if (card.manaValue === undefined) return false;
         if (card.manaValue < filter.manaValueAtLeast) return false;
+    }
+    if (filter.manaValueAtMost !== undefined) {
+        if (card.manaValue === undefined) return false;
+        if (card.manaValue > filter.manaValueAtMost) return false;
+    }
+    if (filter.manaValueEquals !== undefined) {
+        if (card.manaValue === undefined) return false;
+        if (card.manaValue !== filter.manaValueEquals) return false;
     }
     if (filter.toughnessAtLeast !== undefined) {
         if (card.toughness === undefined) return false;
