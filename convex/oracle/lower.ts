@@ -185,6 +185,10 @@ function censusGrantedKeywords(
         // changing what it grants, so the census reads through it — a grant
         // behind "If this spell was kicked," is still a grant.
         let sentence = outer;
+        // An "If you do" behind an optional (`optional.then`, CR 118.12) is a
+        // sentence of its own, censused on its own.
+        if (sentence.kind === "optional" && sentence.then !== undefined)
+            censusGrantedKeywords([sentence.then], acc);
         while (
             sentence.kind === "optional" ||
             sentence.kind === "kicked" ||

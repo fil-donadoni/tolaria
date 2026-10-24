@@ -30,7 +30,7 @@ class` (a leaf sub-grammar shared by every frame), `cost`, `keyword`, `layout`,
   derived artefact in a PR (it would collide in the queue, ADR 0157).
 
 The only declared authority is `FRAME_HEADS` in
-`convex/oracle/grammar/shared/verbFrames.ts` (verb → Op, with the companion
+`convex/oracle/grammar/shared/frameHeads.ts` (verb → Op, with the companion
 word a verb needs: "remove … counter", "gain … life"); the classifier is
 `scripts/lib/frame-backlog.ts`. Compare `--families`, which groups by the raw
 opening words of the unconsumed span.

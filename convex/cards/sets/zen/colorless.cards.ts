@@ -34,7 +34,8 @@ export const mistyRainforest = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { subtype: ["Forest", "Island"] },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for a Forest or Island card.",
                     bind: "$picked",
                 },
@@ -72,7 +73,8 @@ export const aridMesa = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { subtype: ["Mountain", "Plains"] },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for a Mountain or Plains card.",
                     bind: "$picked",
                 },
@@ -110,7 +112,8 @@ export const scaldingTarn = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { subtype: ["Island", "Mountain"] },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for an Island or Mountain card.",
                     bind: "$picked",
                 },
@@ -148,7 +151,8 @@ export const marshFlats = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { subtype: ["Plains", "Swamp"] },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for a Plains or Swamp card.",
                     bind: "$picked",
                 },
@@ -186,7 +190,8 @@ export const verdantCatacombs = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { subtype: ["Swamp", "Forest"] },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for a Swamp or Forest card.",
                     bind: "$picked",
                 },

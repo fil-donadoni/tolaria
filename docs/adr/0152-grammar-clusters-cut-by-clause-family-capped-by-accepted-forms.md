@@ -44,7 +44,9 @@ a signature as wide as a family would never close.
    No compiler change is required to deepen attribution.
 3. **The cap is ~10 accepted forms, not ~10 keys.** A Grammar Cluster may
    claim a whole Clause Family, any number of keys, while its rule reads them
-   with about ten golden fixtures; past that it is split by sub-form.
+   with about ten golden fixtures; past that it is split by sub-form. For a
+   **Verb Frame** (issue #6557) an accepted form is an **argument class** the
+   frame accepts — one fixture per class, not per card.
 4. **The Target chooses, the corpus sizes.** Ranking Targets keep choosing
    which family is cut and its band. The cut covers the family across the
    corpus: forms ordered by corpus cards, up to the cap.

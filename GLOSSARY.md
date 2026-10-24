@@ -1031,7 +1031,7 @@ A subject that names every permanent a descriptor matches without announcing a t
 _Avoid_: Mass removal, board wipe, sweeper (those name the card's role, not the phrase the grammar reads), target set
 
 **Verb Frame**:
-One **Effect Script** Op read as a clause: the Op's name decides the verb, and each of its arguments is filled by a shared leaf sub-grammar (object descriptor, quantity, zone, duration, player reference, keyword) rather than by words the frame reads itself. The unit the effect-clause grammar is built from under the compositional design decided 2026-10-23: a clause is a chain of frames joined by composition rules, never a whole-sentence shape of its own, and a clause that no frame reads names a missing Op. One frame per Op, never per printed verb or per idiom.
+One **Effect Script** Op read as a clause: the Op's name decides the verb, and each of its arguments is filled by a shared leaf sub-grammar (object descriptor, quantity, zone, duration, player reference, keyword) rather than by words the frame reads itself. The unit the effect-clause grammar is built from under the compositional design decided 2026-10-23: a clause is a chain of frames joined by composition rules, never a whole-sentence shape of its own, and a clause that no frame reads names a missing Op. One frame per Op, never per printed verb or per idiom. The table of whole-sentence kinds only shrinks as frames absorb it (`scripts/lib/sentence-kinds.ts`: the kinds at HEAD are a subset of those at the merge-base, no committed list).
 _Avoid_: Sentence kind, verb template, idiom frame, sentence shape, whole-clause rule
 
 **Composition Rule**:

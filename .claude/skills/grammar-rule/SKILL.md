@@ -25,8 +25,8 @@ once, the evidence is still paid per form.
 Family, capped at **~10 accepted forms**, ordered by corpus cards. Forms past
 the cap are outside the cluster: **do not grow them into the PR** — name them
 in the Grammar Gaps table as `past cap`. Keys still live at close are re-homed
-by the next `gaps:sync` (ADR 0146 § 5) into a matching open cluster, else
-singles; nothing to move by hand. A member gap out of reach (step 3) is refused
+by the next `gaps:sync` (ADR 0146 § 5); nothing to move by hand. A member gap
+out of reach (step 3) is refused
 and named in the PR with why — it does not hold the rest back, and the same
 re-home takes its claim. **Do not widen a cluster mid-ticket** to a gap not in
 its list without saying so in the PR and adding its claim row — the claim, not
@@ -129,8 +129,8 @@ Every Op and keyword the lowering emits must be `implemented` in
 
 ## 4. Golden fixtures — one per accepted form, each proven to fail
 
-A fixture is a REAL corpus card's Oracle row (copy it from the gap log — never
-an invented line) and the WHOLE Compiled Definition the rule must produce for
+A fixture is a REAL corpus card's Oracle row (from the gap log, never
+invented) and the WHOLE Compiled Definition the rule must produce for
 it, compared with `sortKeys` equality. It lives in one of two places, and the
 form decides which:
 
@@ -139,20 +139,21 @@ form decides which:
   equal to the full expected definition. Beside it, one refusal test per
   refused neighbour form (`state: "unparsed"`), so fail-closed is pinned, not
   assumed. `kickerLine.test.ts` is the worked example (goldens, gold over the
-  catalogue, refusals, lowering invariants).
+  catalogue, refusals, lowering invariants). A **Verb Frame**'s form is an
+  **argument class** (ADR 0152 § 3; `verbFrames.test.ts`).
 - **Additionally, a form whose Compiled Definition the smoke generator cannot
   scenario-ize** (a card-dependent skip, ADR 0105 § 7.1): a `GOLDEN_FIXTURES`
   row in `convex/oracle/grammar/fixtures.ts`, `rule` = the rule's label. That
-  row is what clears the form's quarantine for every corpus card that prints
-  it. The registry REFUSES a fixture exhibiting no card-dependent form
-  (`goldenFixtures.test.ts`: "it clears nothing") — so a form that reaches
-  `ready` without one gets the test golden only. Say which in the PR.
+  row is what clears the form's quarantine for every corpus card printing it.
+  The registry REFUSES a fixture exhibiting no card-dependent form
+  (`goldenFixtures.test.ts`: "it clears nothing"): a form reaching `ready`
+  without one gets the test golden only. Say which in the PR.
 
 **Proof of failure, per fixture.** Commit first (`/next-ticket` § 3: a revert on
-uncommitted work discards the implementation). Then break the rule — drop the
-alternative that reads the form, or the lowering branch — watch that form's
-golden go red, revert. **Assert the break applied** (`grep -c` the broken text
-≥ 1) before believing either colour. List every break in the PR.
+uncommitted work discards the implementation). Break the rule — drop the
+alternative reading the form, or the lowering branch — watch that golden go
+red, revert. **Assert the break applied** (`grep -c` the broken text ≥ 1)
+before believing either colour. List every break in the PR.
 
 ## 5. Gold precision over the hand-written catalogue
 
