@@ -92,9 +92,54 @@ describe('"defending player controls" is read only behind the source\'s own atta
 
 describe("the fixed payment keeps refusing neighbouring shapes", () => {
     it.each([
-        "Whenever this creature attacks, you may pay {R/G}. If you do, draw a card.",
         "Whenever this creature attacks, you may pay {R} to draw a card.",
     ])("refuses %s", (text) => {
         expect(compileCard(creature(text)).state).toBe("unparsed");
+    });
+});
+
+describe("hybrid pips in a fixed mana payment (CR 107.4e + CR 118.12)", () => {
+    it("keeps each {W/B} pip as a hybrid pair on the mayPay cost", () => {
+        const ability = effectsOf(
+            "Whenever this creature attacks, you may pay {W/B}{W/B}. If you do, draw a card."
+        );
+        expect(ability.effects[0]).toMatchObject({
+            op: "mayPay",
+            cost: {
+                hybrid: [
+                    ["W", "B"],
+                    ["W", "B"],
+                ],
+            },
+        });
+    });
+
+    it("reads generic beside hybrid (Yasova Dragonclaw's {1}{U/R}{U/R})", () => {
+        const ability = effectsOf(
+            "At the beginning of combat on your turn, you may pay {1}{U/R}{U/R}. If you do, draw a card."
+        );
+        expect(ability.effects[0]).toMatchObject({
+            op: "mayPay",
+            cost: {
+                X: 1,
+                hybrid: [
+                    ["U", "R"],
+                    ["U", "R"],
+                ],
+            },
+        });
+    });
+
+    it.each([
+        ["a monocolour hybrid pip", "{2/W}"],
+        ["a Phyrexian pip", "{R/P}"],
+        ["a three-way hybrid", "{W/U/B}"],
+    ])("keeps refusing %s", (_label, pip) => {
+        const outcome = compileCard(
+            creature(
+                `Whenever this creature attacks, you may pay ${pip}. If you do, draw a card.`
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
     });
 });
