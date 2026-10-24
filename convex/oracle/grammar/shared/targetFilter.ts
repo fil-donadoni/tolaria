@@ -1073,7 +1073,12 @@ export function targetRequirementFromDescriptor(
     // one variable count whose noun is still decidable: it can name more than
     // one object, so the noun must be plural. `"X"` and `max: "X"` stay
     // refused — those widths are facts about the cast.
-    const openEnded = typeof count === "object" && count.max === undefined;
+    // CR 601.2c — a text-defined bound (`TargetCountQuantity`, "up to X …,
+    // where X is the number of …") ranges from zero like an open end: the
+    // noun is plural, the width a fact about the cast.
+    const openEnded =
+        typeof count === "object" &&
+        (count.max === undefined || typeof count.max === "object");
     if (
         (slots === null && !openEnded) ||
         (descriptor.plural === true) !== (openEnded || slots! > 1)

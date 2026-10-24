@@ -4069,6 +4069,66 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "any", count: "X" },
         },
     },
+    // CR 601.2c + CR 107.3 — "Return up to X target cards from your graveyard
+    // …, where X is the number of <permanents> target opponent controls as you
+    // cast this spell": a sweep over the announced graveyard cards
+    // (`forEach { set: "targets", zone: "graveyard" }`), which the canned smoke
+    // scenario refuses (a runtime-selected set).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7fcb8472-1e77-4dcd-b18f-8abf8806da08",
+            name: "Reap",
+            manaCost: "{1}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Return up to X target cards from your graveyard to your hand, where X is the number of black permanents target opponent controls as you cast this spell.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Reap",
+            types: ["Instant"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "Return up to X target cards from your graveyard to your hand, where X is the number of black permanents target opponent controls as you cast this spell.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets", zone: "graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            from: "graveyard",
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            additionalTargetRequirements: [
+                {
+                    type: "card",
+                    count: {
+                        min: 0,
+                        max: {
+                            count: {
+                                zone: "battlefield",
+                                controller: { target: 0 },
+                                filter: { color: "B" },
+                            },
+                        },
+                    },
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            ],
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).

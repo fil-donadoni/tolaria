@@ -858,6 +858,21 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 601.2c + CR 107.3 — "Return up to X target cards from your
+           * graveyard to your hand, where X is the number of <permanents>
+           * target opponent controls as you cast this spell": the spell's TEXT
+           * defines how many cards it targets ("in some cases, the number of
+           * targets will be defined by the spell's text"). Two announced
+           * groups — the opponent first, so the count can read their board,
+           * then the graveyard cards, `cards` bounded by the number of
+           * `counted` permanents that opponent controls when the spell is cast.
+           */
+          readonly kind: "return-up-to-x-bounded-targets";
+          readonly cards: DescriptorIR;
+          readonly counted: DescriptorIR;
+      }
+    | {
+          /**
            * CR 615.12 — "Damage can't be prevented this turn."
            *
            * A one-shot instruction with no subject at all: it names no source,
@@ -4344,6 +4359,15 @@ const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const DRAW_EQUAL_COUNT = /^Draw cards equal to (the number of .+)$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 /**
+ * CR 601.2c + CR 107.3 — "Return up to X target <cards> from your graveyard to
+ * your hand, where X is the number of <permanents> target opponent controls as
+ * you cast this spell". Whole sentence: the bound's tail names the opponent
+ * the count reads and the moment it is read, and a tail that differs is a
+ * different count.
+ */
+const RETURN_UP_TO_X_BOUNDED =
+    /^Return up to X target (cards) from your graveyard to your hand, where X is the number of (.+) target opponent controls as you cast this spell$/;
+/**
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
  * tail defines it. The tail is one of two counts: "the number of <plural
  * descriptor>" and "the number of cards in your hand minus N".
@@ -6279,6 +6303,27 @@ function effectSentence(
         return ok({
             kind: "effect-and-assigns-no-combat-damage" as const,
             effect: head.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── "up to X target …, where X is the number of …" (CR 601.2c) ─────────
+    // Before the generic "where X is" tail below: that one binds an X the head
+    // PRINTS as an amount, whereas this X is a target count.
+    const boundedReturn = span.match(RETURN_UP_TO_X_BOUNDED);
+    if (boundedReturn !== null) {
+        const cards = descriptorRule.run(
+            `${boundedReturn[1]} from your graveyard`,
+            ctx
+        );
+        if (!cards.ok) return cards;
+        const counted = descriptorRule.run(boundedReturn[2]!, ctx);
+        if (!counted.ok) return counted;
+        if (counted.value.plural !== true)
+            return fail('"the number of" counts a plural descriptor', span);
+        return ok({
+            kind: "return-up-to-x-bounded-targets" as const,
+            cards: cards.value,
+            counted: counted.value,
         } satisfies EffectSentenceIR);
     }
 

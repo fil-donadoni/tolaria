@@ -3601,7 +3601,13 @@ function isForEachSelector(value: unknown): boolean {
     // member set is already exactly what the TargetRequirement picked).
     // `exiledWithSource` (CR 607.2a) — the linked exile pile; exactly
     // `{ set }`, the link alone names the members.
-    if (s.set === "targets" || s.set === "exiledWithSource") {
+    if (s.set === "targets") {
+        // CR 400.7 — the one optional narrowing: the announced graveyard cards.
+        const tAllowed = new Set(["set", "zone"]);
+        if (!Object.keys(s).every((k) => tAllowed.has(k))) return false;
+        return !("zone" in s) || s.zone === "graveyard";
+    }
+    if (s.set === "exiledWithSource") {
         return Object.keys(s).length === 1;
     }
     if (s.set !== "permanents") return false;

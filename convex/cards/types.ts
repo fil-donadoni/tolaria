@@ -15225,7 +15225,15 @@ export type EffectForEachSelector =
      *  this selector reads the targets already chosen. No fixed size — it
      *  spans however many targets were actually announced (0 for a declined
      *  "any number", up to X for a variable-count spell). */
-    | { set: "targets" }
+    | {
+          set: "targets";
+          /** CR 601.2c + CR 400.7 — narrow the sweep to the announced
+           *  GRAVEYARD cards ("Return up to X target cards from your
+           *  graveyard"): an earlier group's player pick (the opponent whose
+           *  permanents bound X) is not a member. Absent = the permanent and
+           *  player members above. */
+          zone?: "graveyard";
+      }
     /** CR 607.2a — every card in any exile zone linked to the resolving
      *  ability's OWN source (`getCardsExiledWith`, stamped by an exile
      *  instruction's `linkToSource`): "all cards exiled with it". Each member

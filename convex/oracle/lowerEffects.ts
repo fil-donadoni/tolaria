@@ -55,7 +55,11 @@ import {
     type EffectSentenceIR,
     type SubjectIR,
 } from "./grammar/shared/effectClause";
-import { announcedSlots } from "./grammar/shared/targetFilter";
+import {
+    announcedSlots,
+    targetRequirementFromDescriptor,
+    type DescriptorIR,
+} from "./grammar/shared/targetFilter";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
@@ -370,6 +374,31 @@ const SECOND_CHOSEN_LAND_TYPE_BINDING = "$secondChosenType";
 const NAMED_CARD_BINDING = "$named";
 /** The picks binding of a card revealed at random from hand (CR 701.20a). */
 const REVEALED_CARD_BINDING = "$revealed";
+
+/**
+ * CR 107.3 — the permanents a "where X is the number of <descriptor> target
+ * opponent controls" tail counts, as the `count` construct's filter. Only a
+ * colour (one) and a card type are read; any other clause is refused, never
+ * dropped, because a dropped clause counts permanents the card does not mean.
+ */
+function boundCountFilter(descriptor: DescriptorIR): Lowered<EffectCardFilter> {
+    const filter: EffectCardFilter = {};
+    for (const [key, value] of Object.entries(descriptor)) {
+        if (value === undefined || key === "plural") continue;
+        if (key === "types") {
+            // "permanents" names every permanent type, which is no narrowing.
+            const types = value as readonly CardType[];
+            if (types.length !== PERMANENT_TYPES.length)
+                filter.type = [...types];
+        } else if (key === "colors" && (value as Color[]).length === 1)
+            filter.color = (value as Color[])[0]!;
+        else
+            return unlowerable(
+                `a "${key}" clause has no cast-time count here (CR 601.2c)`
+            );
+    }
+    return lowered(filter);
+}
 
 function lowerCountedSet(
     set: CountedSetIR,
@@ -831,7 +860,7 @@ export class TargetSlots {
     allocate(
         requirement: TargetRequirement,
         another: boolean = false,
-        sweptSet: boolean = false
+        sweptSet: boolean | "narrowed" = false
     ): Lowered<number> {
         const slots = announcedSlots(requirement.count);
         // CR 601.2d — a divide group's op reads the announced split, not a
@@ -849,7 +878,10 @@ export class TargetSlots {
         // `forEach { set: "targets" }`, which iterates whatever was announced,
         // so like a divided group it needs no positional slot; it too must be
         // the ONLY group, since the sweep spans the whole flat target list.
-        if (sweptSet && this.groups.length > 0)
+        // A "narrowed" sweep (`forEach { set: "targets", zone }`) reads only
+        // its own group's picks, so an earlier group (the opponent whose board
+        // bounds it) does not enter the set.
+        if (sweptSet === true && this.groups.length > 0)
             return unlowerable(
                 "a swept target group after another target group would sweep both (CR 601.2c)"
             );
@@ -2246,6 +2278,55 @@ function lowerSentenceBody(
                                 },
                             },
                             to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ]);
+        }
+        case "return-up-to-x-bounded-targets": {
+            // CR 107.3 — the count the "where X is" tail defines, over the
+            // permanents the announced opponent controls.
+            const filter = boundCountFilter(sentence.counted);
+            if (!filter.ok) return filter;
+            // CR 601.2c — the opponent is announced FIRST so the graveyard
+            // group's bound can read their board (`{ target: slot }`).
+            const opponent = slots.allocate({
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            });
+            if (!opponent.ok) return opponent;
+            const requirement = targetRequirementFromDescriptor(
+                sentence.cards,
+                {
+                    min: 0,
+                    max: {
+                        count: {
+                            zone: "battlefield",
+                            controller: { target: opponent.value },
+                            filter: filter.value,
+                        },
+                    },
+                }
+            );
+            if (!requirement.ok) return requirement;
+            // The width is a fact about the cast: the group takes no
+            // positional slot and the move reads the announced graveyard set.
+            const index = slots.allocate(requirement.value, false, "narrowed");
+            if (!index.ok) return index;
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "targets", zone: "graveyard" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            // A graveyard-card member names a card that is
+                            // not a battlefield object: `from` re-derives it
+                            // in the graveyard when the move runs.
+                            from: "graveyard",
+                            to: "hand",
                         },
                     ],
                 },
