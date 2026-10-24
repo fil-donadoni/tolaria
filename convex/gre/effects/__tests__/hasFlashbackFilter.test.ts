@@ -1,5 +1,6 @@
-// `EffectCardFilter.hasFlashback` (CR 702.34a — Quiet Speculation's "up to
-// three cards with flashback", CR 701.23b stated quality):
+// `EffectCardFilter.hasFlashback`, the quality of Quiet Speculation's "up to
+// three cards with flashback" (CR 702.34a). The search it narrows leaves the
+// find optional:
 //
 //  1. SEARCH — a filtered `search-library` choice offers exactly the library
 //     cards carrying a flashback cost, through the real `getLibraryCards`
@@ -53,7 +54,7 @@ const searchOps: EffectOp[] = [
     },
 ];
 
-describe("EffectCardFilter.hasFlashback — library search (CR 702.34a)", () => {
+describe("EffectCardFilter.hasFlashback — library search (CR 701.23a)", () => {
     const setup = () => {
         const script = "test-hasflashback-search";
         registerTokenDefinition({

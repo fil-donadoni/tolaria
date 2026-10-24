@@ -109,7 +109,7 @@ describe("Search a target library — accepted forms (CR 701.23a, CR 701.24a)", 
     });
 });
 
-describe("Search a target library — a stated quality (CR 702.34a, CR 701.23b)", () => {
+describe("Search a target library — a stated quality (CR 701.23b)", () => {
     // Quiet Speculation's Oracle row, whole: the find is the optional
     // "up to three" range narrowed to cards that carry a flashback cost.
     it("up to N cards with flashback → graveyard, then shuffle", () => {

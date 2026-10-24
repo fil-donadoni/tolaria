@@ -49274,6 +49274,16 @@
         "source": "compiled"
     },
     {
+        "name": "Quiet Speculation",
+        "scryfallId": "71a314fa-293b-486f-95d8-267d340e4d8e",
+        "oracleId": "938f48a9-766e-41d3-a425-9c3a6adf675b",
+        "firstSet": "jud",
+        "firstPrintId": "71a314fa-293b-486f-95d8-267d340e4d8e",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Quilled Slagwurm",
         "scryfallId": "12c597b9-5024-42bd-b500-5ef6a3accda6",
         "oracleId": "5114f3e0-339d-46d6-9d44-97fa0afbd7c5",
