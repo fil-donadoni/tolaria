@@ -43,6 +43,7 @@ import {
     SEVEN_POISON,
     answersRaisedTargetLegally,
     submitsSoleTarget,
+    boundedGraveyardCastIsOffered,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -14956,5 +14957,53 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe: "exiles both Grizzly Bears, never declines",
         },
         note: "Issue #6671. The size of the exiled pile is the Ghoul's power and toughness, so declining leaves a 0/0 that dies to state-based actions (CR 704.5f). Proof-of-failure: the same unregistering reds this entry.",
+    },
+    {
+        // TEXT-DEFINED TARGET COUNT reachability (CR 601.2c / 107.3). Reap:
+        // "Return up to X target cards from your graveyard to your hand, where
+        // X is the number of black permanents target opponent controls as you
+        // cast this spell." The opponent controls two black permanents and the
+        // bot's graveyard holds three cards, so the bound (2) is the limit: the cast must be
+        // offered with the opponent announced first and up to two cards, and
+        // never with a third.
+        //
+        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1): a legal-set assertion, not a
+        // preference — whether to cast Reap now is a matter of opinion, whether
+        // the enumerator can express its announcement is not.
+        label: "text-defined target count: Reap is offered with the opponent first and at most X graveyard cards (CR 601.2c)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Reap", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 3,
+                },
+                {
+                    name: "Black Knight",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: boundedGraveyardCastIsOffered,
+            describe:
+                "Reap is enumerated with the opponent announced first and exactly the bound's worth of graveyard cards at most",
+        },
+        note: "Issue #5703. Reap is the first card whose target count is a quantity read at announcement (`TargetCountQuantity`, issue #6526); `enumerateMoves` enumerates the graveyard group once per prefix of the earlier picks. A reachability guard on the legal set — the choice itself is a preference no entry here asserts.",
     },
 ];

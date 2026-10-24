@@ -620,3 +620,36 @@ export function submitsSoleTarget(
         move.targets[0].id === seatPlayerId(state, seat)
     );
 }
+
+/** "A text-bounded 'up to X' graveyard cast is OFFERED at exactly its bound" —
+ *  the reachability guard for a target group whose size the spell's TEXT
+ *  defines (CR 601.2c: "the number of targets will be defined by the spell's
+ *  text"), here the number of black permanents the opponent controls.
+ *
+ *  Asserted on the LEGAL SET, not as a preference: whether casting it now is the
+ *  best play is a matter of opinion, whether the enumerator can express the
+ *  announcement is not. The position offers a cast naming the opponent and as
+ *  many graveyard cards as the bound allows, and never one naming more. */
+export function boundedGraveyardCastIsOffered(
+    _move: Move | null,
+    state: Parameters<typeof enumerateMoves>[0]
+): boolean {
+    const pid = state.players[0].id;
+    const reap = instanceIdsForName(state, "Reap");
+    const casts = enumerateMoves(state, pid).filter(
+        (m): m is Extract<Move, { kind: "cast-spell" }> =>
+            m.kind === "cast-spell" && reap.has(m.cardInstanceId)
+    );
+    const picks = (m: (typeof casts)[number]) =>
+        m.targets.filter((t) => t.type === "graveyard-card").length;
+    const opponentFirst = casts.every(
+        (m) => m.targets[0]?.type === "player" && m.targets[0].id !== pid
+    );
+    // The bound is the opponent's black permanents; the position gives two.
+    return (
+        casts.length > 0 &&
+        opponentFirst &&
+        casts.some((m) => picks(m) === 2) &&
+        casts.every((m) => picks(m) <= 2)
+    );
+}

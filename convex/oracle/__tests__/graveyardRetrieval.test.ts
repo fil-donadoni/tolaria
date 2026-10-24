@@ -378,8 +378,9 @@ describe("graveyard retrieval — refused neighbours (fail-closed)", () => {
         "Return the middle creature card of your graveyard to the battlefield.",
         // CR 400.7 — a sweep of ANOTHER graveyard.
         "Return all enchantment cards from a graveyard to the battlefield.",
-        // CR 107.3 — a count read off a runtime quantity.
-        "Return up to X target cards from your graveyard to your hand, where X is the number of black permanents target opponent controls as you cast this spell.",
+        // CR 107.3 — an X-sized count whose X the text never defines (the
+        // defined form is `boundedTargetCount.test.ts`'s).
+        "Return up to X target cards from your graveyard to your hand.",
     ])("refuses %s", (line) => {
         expect(sorcery(line).state).toBe("unparsed");
     });

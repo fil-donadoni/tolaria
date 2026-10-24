@@ -3601,7 +3601,13 @@ function isForEachSelector(value: unknown): boolean {
     // member set is already exactly what the TargetRequirement picked).
     // `exiledWithSource` (CR 607.2a) — the linked exile pile; exactly
     // `{ set }`, the link alone names the members.
-    if (s.set === "targets" || s.set === "exiledWithSource") {
+    if (s.set === "targets") {
+        // CR 400.7 — the one optional narrowing: the announced graveyard cards.
+        const tAllowed = new Set(["set", "zone"]);
+        if (!Object.keys(s).every((k) => tAllowed.has(k))) return false;
+        return !("zone" in s) || s.zone === "graveyard";
+    }
+    if (s.set === "exiledWithSource") {
         return Object.keys(s).length === 1;
     }
     if (s.set !== "permanents") return false;
@@ -4625,15 +4631,20 @@ const OP_SCHEMAS: OpSchemaTable = {
                             'field "from" with "target" accepts only "graveyard", "exile" or "hand"'
                         );
                     }
-                    // CR 603.7a + CR 700.4 — the one non-reanimating move: a
-                    // card that died exiled out of the graveyard by the
-                    // delayed trigger that watched it die.
+                    // CR 603.7a + CR 700.4 — a card that died exiled out of
+                    // the graveyard by the delayed trigger that watched it
+                    // die. CR 400.7 — and a graveyard card a sweep over the
+                    // announced set (`forEach { set: "targets", zone:
+                    // "graveyard" }`) returns to its owner's hand.
                     if (
                         entry.to !== "battlefield" &&
-                        !(entry.from === "graveyard" && entry.to === "exile")
+                        !(
+                            entry.from === "graveyard" &&
+                            (entry.to === "exile" || entry.to === "hand")
+                        )
                     ) {
                         errors.push(
-                            'field "from" is only valid with "target" and to: "battlefield", or from: "graveyard" with to: "exile"'
+                            'field "from" is only valid with "target" and to: "battlefield", or from: "graveyard" with to: "exile" or "hand"'
                         );
                     }
                     const sel = entry.target as
