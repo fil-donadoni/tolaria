@@ -238,6 +238,14 @@ jq -n --arg sha "$1" --argjson pr <PR#> --arg note '<one line>' \
   > <primary>/.claude/telemetry/health/fix-verdict.json
 ```
 
+`landed-partial` (headless only) adds the class-guard issue's number:
+
+```bash
+jq -n --arg sha "$1" --argjson pr <PR#> --argjson guard <ISSUE#> --arg note '<one line>' \
+  '{sha:$sha, outcome:"landed-partial", pr:$pr, classGuardIssue:$guard, note:$note}' \
+  > <primary>/.claude/telemetry/health/fix-verdict.json
+```
+
 `outcome` is `landed`, `landed-partial` (headless only, below) or `stuck`, and nothing else — `parseVerdict` in
 `scripts/health-fix.ts` is fail-closed: an absent file, unparsable JSON, an
 unknown outcome or another sha all read as `stuck`.
