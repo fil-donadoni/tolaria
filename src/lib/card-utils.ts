@@ -3719,6 +3719,11 @@ export function manaCostToString(cost?: ManaCost): string {
     ]) {
         parts.push(`{${hybridCostKey(pip[0], pip[1])}}`);
     }
+    // CR 107.4e — monocolour hybrid pips render as `{2/W}`; the oracle-text
+    // tokenizer maps them to the `2_W.svg` asset (slash → underscore).
+    for (const pip of cost.hybridGeneric ?? []) {
+        parts.push(`{${pip.generic}/${pip.color}}`);
+    }
     return parts.join("");
 }
 

@@ -127,6 +127,7 @@ function toContribution(cost: {
         | string
         | Partial<Record<Color, number>>
         | Array<[Color, Color]>
+        | Array<{ generic: number; color: Color }>
         | Color[]
         | boolean
         | undefined;
