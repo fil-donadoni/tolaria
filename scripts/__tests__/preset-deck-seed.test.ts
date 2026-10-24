@@ -11,6 +11,7 @@ import { buildPresetPayload, deckColors } from "../lib/preset-deck-seed";
 import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
+import { buildSeedPresetRow } from "../../convex/decks";
 import { parseArgs, seedOne } from "../seed-preset-deck";
 import { readMetagameDecks } from "../premodern-metagame-import";
 
@@ -281,6 +282,18 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
             const row = seedOne(deck, "mtgtop8.com", true);
             expect(row.state).toBe("blocked");
             expect(row.problems?.join("\n")).toContain(unresolved.join(", "));
+        }
+    });
+});
+
+describe("seed row slug (issue #6675)", () => {
+    it("keeps the canonical slug when the archetype name slugifies elsewhere", () => {
+        for (const [slug, name] of [
+            ["goblin", "Goblins"],
+            ["burn", "Sligh/Burn"],
+            ["oath-ponza", "Oath of Druids"],
+        ]) {
+            expect(buildSeedPresetRow({ name }, slug).slug).toBe(slug);
         }
     });
 });

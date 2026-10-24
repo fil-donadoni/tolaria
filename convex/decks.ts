@@ -368,6 +368,20 @@ export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
     };
 }
 
+/**
+ * Row for a canonical-list seed: `buildNewPresetRow` with the slug replaced by
+ * the canonical one. The canonical file owns the slug, not the name — an
+ * mtgtop8 archetype name ("Goblins", "Sligh/Burn") does not slugify to the slug
+ * the lobby and debug scenarios already key off ("goblin", "burn"), so
+ * deriving it would refuse the very lists that must replace them.
+ */
+export function buildSeedPresetRow(
+    input: PresetCreateInput,
+    expectedSlug: string
+): PresetInsert {
+    return { ...buildNewPresetRow(input), slug: expectedSlug };
+}
+
 // Validator for the full create payload of a preset. The `slug` is intentionally
 // absent: it is derived from the name server-side and immutable (ADR 0033).
 const presetCreateValidator = v.object({
@@ -604,10 +618,11 @@ export function presetSeedDecision(
  *
  * The row is built by `buildNewPresetRow` — the SAME builder `createPreset`
  * calls — so a seeded preset and an Admin-authored one are the same shape by
- * construction rather than by review. `expectedSlug` is then checked against
- * the slug that builder DERIVES from the name: the canonical data owns the
- * slug (external references key off it), and a name whose slugification drifts
- * from it must fail loudly here rather than quietly create a second preset.
+ * construction rather than by review. `expectedSlug` then OVERRIDES the slug
+ * that builder derives from the name: the canonical data owns the slug
+ * (external references key off it) and its archetype names do not slugify to
+ * it, so the upsert-by-slug below is what keeps a re-seed from creating a
+ * second preset.
  *
  * Fails closed before the write, like `seedScenarioDirect`'s loadability
  * guard: a deck the Format rejects is refused with its reasons. A preset that
@@ -627,15 +642,10 @@ export const seedPresetDirect = internalMutation({
         slug: v.string(),
     }),
     handler: async (ctx, args) => {
-        const row = buildNewPresetRow(
-            await withPrintDefinitionIds(ctx, args.input)
+        const row = buildSeedPresetRow(
+            await withPrintDefinitionIds(ctx, args.input),
+            args.expectedSlug
         );
-        if (row.slug !== args.expectedSlug) {
-            throw new Error(
-                `slug mismatch: canonical list says "${args.expectedSlug}", ` +
-                    `the name "${row.name}" derives "${row.slug}"`
-            );
-        }
 
         const banlist = await loadBanlistOverrides(ctx, row.format);
         const legality = validateDeck(
