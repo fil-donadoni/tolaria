@@ -227,6 +227,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "damage-taken": () => true,
     // CR 509.1h — the attacker is still attacking when the block graph is final.
     "attacks-unblocked": () => true,
+    // CR 708.8 — the source was turned face up where it stands.
+    "turned-face-up": () => true,
     // CR 603.8 — the source is on the battlefield with the power that triggers.
     "power-reached": () => true,
     // CR 701.26a — the source just became tapped and is still on the battlefield.
