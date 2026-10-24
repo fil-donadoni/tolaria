@@ -64208,6 +64208,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sutured Ghoul",
+        "scryfallId": "f769536f-def1-40b8-863f-ba12c7cb0d87",
+        "oracleId": "8b4715b0-63d9-4ff8-a667-21a762518687",
+        "firstSet": "jud",
+        "firstPrintId": "f769536f-def1-40b8-863f-ba12c7cb0d87",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Svyelunite Priest",
         "scryfallId": "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b",
         "oracleId": "fb7adbee-a3b0-42bf-988f-9d4faf6bd006",
