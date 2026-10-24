@@ -1,5 +1,5 @@
 import { CORPUS_CACHE_REL } from "./corpus-cache";
-import { LEDGER_PATH } from "./cr-ledger";
+import { LEDGER_PATH } from "./cr-ledger-path";
 
 /**
  * The class of generated, committed `data/` artifacts that must be
@@ -333,7 +333,8 @@ export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
         script: "scripts/merge-driver-append-only.ts",
         why:
             "hand-written input, not an artifact, but an append-only list — a hunk where " +
-            "both sides only inserted is concatenated, anything else stays a conflict",
+            "both sides only inserted is concatenated, one where both only deleted distinct " +
+            "lines keeps what both kept (issue #6648), anything else stays a conflict",
     })),
 ] as const;
 

@@ -10,6 +10,7 @@
 // that had been accidentally disabled.
 
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getAllCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
@@ -26,6 +27,7 @@ import { readManaCost } from "../manaCost";
 /** The committed set of incomparable card names (issue #6648), kept sorted
  *  and merged by the `key-set` driver (`scripts/lib/generated-artifacts.ts`). */
 const GOLD_INCOMPARABLE_PATH = "data/gold-incomparable.json";
+const REPO_ROOT = resolve(__dirname, "..", "..", "..");
 
 const CARDS = getAllCards();
 const REPORT = runGoldHarness(CARDS);
@@ -145,13 +147,14 @@ describe("gold round-trip — precision", () => {
         // vacuity guard, and if Onulet is ever retired it must be replaced by
         // the next survivor, not deleted.
         const committed = JSON.parse(
-            readFileSync(GOLD_INCOMPARABLE_PATH, "utf8")
+            readFileSync(resolve(REPO_ROOT, GOLD_INCOMPARABLE_PATH), "utf8")
         ) as string[];
         const names = [...new Set(REPORT.incomparable.map((i) => i.name))];
+        // Compared as sets: the order is the merge driver's to keep.
         expect(
             names.sort(),
             `${GOLD_INCOMPARABLE_PATH} must list exactly the incomparable cards — add each new one, delete each drained one`
-        ).toEqual(committed);
+        ).toEqual([...committed].sort());
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
