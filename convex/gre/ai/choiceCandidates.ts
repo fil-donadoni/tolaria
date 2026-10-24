@@ -1008,6 +1008,12 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *    a find has a price the empty answer does not pay;
  *  - the best find is worth something.
  *
+ *  The horizon is `DEFAULT_EVAL_WEIGHTS`', the weights `libraryTargetWorth`
+ *  prices finds with, not a variant's. The accepted narrowing: a find can
+ *  still lose on entry (a legend-rule duplicate, an entry drawback the worth
+ *  does not read), and then the bot must find. Every find stays in the tree,
+ *  so it still chooses AMONG them.
+ *
  *  Search-side only, like every other pruning: the empty submission stays
  *  LEGAL, the engine still accepts it, and a human is still offered it. */
 function failToFindIsDominated(

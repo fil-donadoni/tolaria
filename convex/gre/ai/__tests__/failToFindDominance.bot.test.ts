@@ -151,6 +151,45 @@ describe("fail to find is pruned where finding is a strict gain (CR 701.23b)", (
         expect(keys(state, choice)).toContain(NONE);
     });
 
+    it("keeps the empty branch when the move re-binds what entered for a later clause", () => {
+        // "Put it onto the battlefield. Sacrifice it at the beginning of the
+        // next end step": the moveZone's own `bind` hands the find on.
+        const id = "test-6761-may-search-rebind";
+        registerTokenDefinition({
+            id,
+            name: "Test May-Search Rebind",
+            rarity: "common",
+            manaCost: { U: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                    bind: "$entered",
+                },
+            ],
+        } as CardDefinition);
+        const { state, choice } = openSearchChoice(
+            id,
+            Array.from({ length: ROOMY }, () => juggernaut().id)
+        );
+        expect(choicePicksOnlyMoved(state, choice)).toBe(false);
+        expect(keys(state, choice)).toContain(NONE);
+    });
+
     it("keeps the empty branch when the script reads the find beyond moving it", () => {
         // Eladamri's Call reveals the find before it moves it to hand: the
         // binding has a second reader.
