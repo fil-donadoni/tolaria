@@ -126,7 +126,7 @@ export function buildPresetPayload(
     const payload: PresetPayload = {
         name: deck.name,
         format,
-        description: `Premodern Tier 1 — list supplied ${suppliedOn}.`,
+        description: `Premodern metagame — list from ${suppliedOn}.`,
         colors: deckColors(defs),
         cards: main.cards,
         sideboard: side.cards,

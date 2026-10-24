@@ -1,14 +1,15 @@
 #!/usr/bin/env bun
 /**
- * `bun run seed:preset <slug|--all> [--dry-run]` — register Premodern Tier 1
- * lists from `data/premodern-tier1-decks.json` as Preset Decks (issue #3168;
- * `--all` is issue #3254).
+ * `bun run seed:preset <slug|--all> [--dry-run]` — register the 25 Premodern
+ * metagame lists from `data/premodern-metagame-decks.json` as Preset Decks
+ * (the source is the metagame file, issue #6675 — ONE source for Preset Decks — where an archetype also had a
+ * hand-curated Tier 1 list the mtgtop8 list replaces it on the same slug).
  *
  * Why this exists: Preset Decks are rows in the `presetDecks` table (ADR 0033
  * / PRD #466), and the only writer was `createPreset`, driven by a human in
  * the Admin deck editor. `convex/decks.ts` points at a `seedPresets` migration
  * as the seed path; that migration appears in two comments and no code. So
- * "seed the Preset Decks" (issue #2719) named work with no tool, and six
+ * "seed the Preset Decks" named work with no tool, and six
  * 75-card lists were going to be retyped by hand.
  *
  * Two constraints inherited from `seed-scenario.ts`, for the same reasons:
@@ -22,8 +23,8 @@
  *     card slice lands is the normal way to use this.
  *
  * NOT A GATE, and it cannot be one: the written row is DEPLOYMENT-LOCAL
- * (#770/#1455, like a debug scenario). `data/premodern-tier1-decks.json` stays
- * the source of truth; this is the reproducible bridge to a deployment. A
+ * (#770/#1455, like a debug scenario). `data/premodern-metagame-decks.json`
+ * stays the source of truth; this is the reproducible bridge to a deployment. A
  * developer with no local deployment is not failing anything.
  *
  * `--dry-run` builds and validates the payload and prints it, touching no
@@ -42,8 +43,8 @@
  * **The canonical file wins on every deploy.** `seedPresetDirect` is
  * upsert-by-slug and deliberately overwriting (`convex/decks.ts` §
  * `presetSeedDecision`), and the sweep uses it unchanged: after a deploy every
- * seedable Tier 1 row MATCHES `data/premodern-tier1-decks.json`. The cost is
- * stated rather than discovered — Admin edits to a CANONICAL Tier 1 slug are
+ * seedable metagame row MATCHES `data/premodern-metagame-decks.json`. The
+ * cost is stated rather than discovered — Admin edits to a CANONICAL slug are
  * not durable, and curating one of those lists means editing the canonical
  * file. The opposite contract exists for the opposite job (`presetsToSeed`
  * skips a slug already present); this entry point is not it.
@@ -80,7 +81,8 @@ import {
     seedPreset,
     type SeedTarget,
 } from "./lib/seed-preset-run";
-import { readTier1Decks } from "./lib/tier1-decks";
+import { readMetagameDecks } from "./premodern-metagame-import";
+import type { Tier1Deck } from "./lib/tier1-decks";
 
 // This checkout's root. The canonical list and the card registry are
 // git-tracked, so they are read from HERE — from a worktree, the primary's
@@ -92,7 +94,10 @@ const GREEN = "\x1b[32m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
-/** Every Tier 1 list is a Premodern deck; the format is not a CLI choice. */
+/** Where the lists come from, as the preset description names it. */
+const ORIGIN = "mtgtop8.com";
+
+/** Every metagame list is a Premodern deck; the format is not a CLI choice. */
 const FORMAT = "premodern" as const;
 
 export interface SeedPresetArgs {
@@ -145,7 +150,7 @@ export interface SweepRow {
  *  registry resolving every name plus the offline legality check inside
  *  `buildPresetPayload`. */
 export function seedOne(
-    deck: ReturnType<typeof readTier1Decks>["decks"][number],
+    deck: Tier1Deck,
     suppliedOn: string,
     dryRun: boolean,
     target: SeedTarget = "local"
@@ -197,7 +202,7 @@ function main(): void {
     // The canonical file and the registry both live in the repo, so they are
     // read from wherever this runs; only the DEPLOYMENT write needs the
     // primary checkout, whose `.env.local` names the deployment.
-    const file = readTier1Decks(ROOT);
+    const file = readMetagameDecks(ROOT);
 
     // A deploy-time run has no env file and no operator watching it: the build
     // log is the only place the chosen deployment is ever visible, and a
@@ -217,7 +222,7 @@ function main(): void {
 
     if (args.all) {
         const rows = file.decks.map((d) =>
-            seedOne(d, file.source.suppliedOn, args.dryRun, args.target)
+            seedOne(d, ORIGIN, args.dryRun, args.target)
         );
         for (const row of rows) {
             if (row.state === "blocked") continue;
@@ -269,7 +274,7 @@ function main(): void {
     const { payload, problems } = buildPresetPayload(
         deck,
         FORMAT,
-        file.source.suppliedOn,
+        ORIGIN,
         (name) => tryGetCardByName(name)
     );
     if (!payload) {
