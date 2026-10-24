@@ -1102,9 +1102,10 @@ export function lowerCard(
                       ],
                   }
                 : {}),
-            // CR 614.1a — Mox Diamond's declined-discard-goes-to-graveyard and
-            // Heart of Yavimaya's sacrifice-or-graveyard, the shapes the
-            // hand-written cards declare.
+            // CR 614.1a — Mox Diamond's declined-discard-goes-to-graveyard,
+            // Heart of Yavimaya's sacrifice-or-graveyard and CR 614.12a —
+            // Sutured Ghoul's graveyard exile, the shapes the hand-written
+            // cards declare.
             ...(acc.asEntersCosts.length > 0
                 ? { asEnters: [acc.asEntersCosts[0]!] }
                 : {}),
