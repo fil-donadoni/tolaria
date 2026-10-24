@@ -2196,6 +2196,7 @@ export function buildManaSourceUnits(
             converters: converterColors,
             controllerId: boardControllerId,
             battlefields: boardBattlefields,
+            spell: { types: card.types, supertypes: spellSupertypes },
         })) {
             sources.push(unit);
         }
