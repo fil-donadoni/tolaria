@@ -143,6 +143,9 @@ bun run oracle:corpus  >"$SCRATCHPAD/corpus.log"  2>&1; echo "exit=$?"
 bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"
 ```
 
+It plays only what it graduates to `ready`; drift verdicts (definition
+moved) are carried `botStale` and arrive post-merge (ADR 0158 § 2a).
+
 A corpus bump moves every state in the lockfile, so it is its own PR, on its
 own issue — never a side effect of one card. If the card is absent and the pin
 is current, the name is wrong: check it against the Scryfall response of §1.
@@ -168,8 +171,8 @@ bun run catalogue:pack >"$SCRATCHPAD/pack.log"  2>&1; echo "exit=$?"
 bun run check:oracle && bun run catalogue:check && bun run check:index
 ```
 
-**Bot read-back.** ADR 0137 says reachability is computed, but the Bot-play
-sweep is issue #3830, open — nothing writes `botReach` today. So walk the three
+**Bot read-back.** ADR 0137 says reachability is computed (the row's
+`botReach`), but a verdict is not the walk: walk the three
 seams by hand over the card's `opsUsed` from §2
 (`.claude/rules/gre-development.md` § Bot reachability): `enumerateMoves`
 (reachable?), the choice surface (can it answer?), `OP_VALUERS` +

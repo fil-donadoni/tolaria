@@ -255,13 +255,12 @@ export function headerHashDrift(
  * `derive:sync`'s write path plays exactly these rows, and health waits on
  * them through `derive:sync --settled`, `pending` within the grace.
  *
- * The miss set is the probe's — the one `oracle:compile`'s sweep plays — so
- * the two can never disagree about what is stale. The CONTRACT a writer of
- * carried verdicts owes (issue #6688): a row whose verdict was played on
- * another definition must be a probe miss here — today the probe keys on
- * `row.definition`, so a row that pairs a NEW definition with an OLD
- * verdict reads current and is never replayed; such a writer marks the row
- * and teaches this probe the marker, under a test here.
+ * The miss set is the probe's — the one `oracle:compile --play-misses`
+ * plays — so the two can never disagree about what is stale. A session's
+ * bare compile pairs a NEW definition with an OLD verdict on every drift row
+ * (issue #6688); it marks that row `botStale`, and the probe reads a marked
+ * row as a miss whatever its definition (`classifyVerdict`), so a carried
+ * verdict is stale here, never current.
  */
 export function staleVerdicts(
     lock: Lockfile,

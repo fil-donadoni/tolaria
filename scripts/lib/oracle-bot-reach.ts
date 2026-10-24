@@ -10,22 +10,28 @@
  * header the Bot hash they were played under — so the cache travels with the
  * branch, needs no gitignored side file, and a clean checkout has it.
  *
- * ── Two sources, and why the gate only ever uses one ───────────────────
+ * ── The sources, and why the gate only ever uses one ───────────────────
  *
- *  - {@link playingBotReach} (`oracle:compile`, the write path): a cache hit
- *    needs the definition to match; a miss PLAYS the card. Bare, it is
- *    SESSION-SCOPED (issue #6463): it carries every committed verdict whose
- *    definition is unchanged whatever the Bot hash says, plays only the
- *    definition misses — a changed Compiled Definition, a card newly
- *    `ready`, a `ready` card with no verdict — and keeps the committed Bot
- *    hash in the header, the honesty rule of `--carry-bot --replay-card`: a
+ * Every source reads a card through {@link classifyVerdict}: `current` (the
+ * verdict was played on this definition), `drift` (`ready` with a verdict
+ * before and after, the definition moved) or `graduation` (not `ready` with
+ * a verdict before). They differ in what a miss does.
+ *
+ *  - {@link carriedOrPlayed} (bare `oracle:compile`, a SESSION — ADR 0158
+ *    § 2a): plays the graduations only, and CARRIES a drift
+ *    row's committed verdict marked `botStale` — stale, never missing. It
+ *    keeps the committed Bot hash in the header, whatever the tree's Bot
+ *    (issue #6463), the honesty rule of `--carry-bot --replay-card`: a
  *    partial play never claims the whole lockfile was played under this
- *    tree's Bot. `--replay-bot` is the one whole replay: it ignores the
- *    cache and writes the tree's Bot hash.
- *  - {@link carriedBotReach} (`oracle:compile --check`, `check:oracle`'s
- *    tier 3): never plays. It carries the committed verdict forward on a
- *    matching definition whatever the Bot hash says, and the header's Bot
- *    hash with it.
+ *    tree's Bot.
+ *  - {@link playingBotReach} (`--play-misses`, the BASE's drift sweep after
+ *    each merge, ADR 0158 § 2b): plays every miss, drift and graduation, and
+ *    so clears every `botStale` marker; same header rule. `--replay-bot` is
+ *    the one whole replay: it ignores the cache and writes the tree's Bot
+ *    hash.
+ *  - {@link carriedBotReach} (`oracle:compile --check`, `--carry-bot`,
+ *    `check:oracle`'s tier 3): never plays. It carries `current` and drift
+ *    verdicts exactly as a session wrote them, and the header's Bot hash.
  *
  * The drift guard asks "does the compiler still produce this file?", and a
  * Bot edit does not change what the compiler produces — it changes what the
@@ -106,6 +112,21 @@ export type BotPlayer = (
     definition: CompiledDefinition
 ) => BotReachVerdict;
 
+/**
+ * A verdict as a source hands it to `buildLockfile`. `stale` marks a DRIFT
+ * row's committed verdict carried onto a definition it was not played on
+ * (ADR 0158 § 2a, issue #6688): the row records `botStale`, so the probe —
+ * and with it `staleVerdicts` and the base's drift sweep — reads it as a
+ * miss, never as a verdict for the definition it now sits beside.
+ */
+export type SourcedVerdict = BotReachVerdict & {
+    readonly stale?: true;
+    /** A stale verdict's Bot Gap key AS COMMITTED — never recomputed from a
+     *  definition the verdict was not played on, so a carried row names no
+     *  gap that no play produced (`check:gaps`, `gaps:sync` read it). */
+    readonly gap?: string;
+};
+
 /** What `buildLockfile` asks for a card that compiled `ready`. */
 export interface BotReachSource {
     /** The Bot hash the header records. */
@@ -114,23 +135,82 @@ export interface BotReachSource {
     verdictFor(
         oracleId: string,
         definition: CompiledDefinition
-    ): BotReachVerdict | undefined;
+    ): SourcedVerdict | undefined;
 }
 
-/** The committed verdict of a row whose definition is unchanged. */
+/** A row's verdict rebuilt from `botReach` / `botGap` — `undefined` when it
+ *  has none, or one whose cause this tree does not produce. */
+function rowVerdict(row: CardRow): BotReachVerdict | undefined {
+    if (row.botReach === undefined) return undefined;
+    if (row.botGap === undefined) return { outcome: row.botReach };
+    const split = splitGapKey(row.botGap);
+    return split === null ? undefined : { outcome: row.botReach, ...split };
+}
+
+/**
+ * How a card that compiles `ready` here stands against its committed row
+ * (ADR 0158 § 2a, issue #6688) — ONE classification for the session's sweep,
+ * the drift guard's carry and `oracle:report --delta`:
+ *
+ *  - `current`: the row's verdict was played on this very definition —
+ *    reused, nothing to play;
+ *  - `drift`: the BASELINE row was `ready` WITH a verdict, the row still
+ *    carries one, but it was not played on this definition (the definition
+ *    moved, or the verdict was already carried) — the verdict is CARRIED,
+ *    marked stale, and the base replays it after the merge (issue #6687);
+ *  - `graduation`: the baseline row was not `ready` with a verdict — absent,
+ *    unparsed, quarantined (a `frozen` row included), or `ready` with none.
+ *    This tree brings the card to `ready`, so a session PLAYS it: its verdict
+ *    belongs to the PR that graduates it (`gre-development.md` § Bot
+ *    reachability).
+ *
+ * `row` is the cache — the lockfile on disk, what this tree last wrote;
+ * `baseline.row` is what the card was BEFORE this change (`undefined`: no
+ * row there), by default the same row. A session passes the base's row (`sessionBaseline`): after its first
+ * run the disk already holds its graduations `ready` with a verdict, and a
+ * rule fixed between two runs must replay them, not carry them stale.
+ */
+export type VerdictClass =
+    | { readonly kind: "current"; readonly verdict: BotReachVerdict }
+    | { readonly kind: "drift"; readonly verdict: SourcedVerdict }
+    | { readonly kind: "graduation" };
+
+export function classifyVerdict(
+    row: CardRow | undefined,
+    definition: CompiledDefinition,
+    baseline: { readonly row: CardRow | undefined } = { row }
+): VerdictClass {
+    const verdict = row === undefined ? undefined : rowVerdict(row);
+    if (row === undefined || verdict === undefined)
+        return { kind: "graduation" };
+    if (
+        row.botStale !== true &&
+        row.definition !== undefined &&
+        JSON.stringify(row.definition) === JSON.stringify(definition)
+    )
+        return { kind: "current", verdict };
+    const was = baseline.row;
+    const wasReady = was?.state === "ready" && rowVerdict(was) !== undefined;
+    if (!wasReady || row.state !== "ready") return { kind: "graduation" };
+    return {
+        kind: "drift",
+        verdict: {
+            ...verdict,
+            stale: true,
+            ...(row.botGap !== undefined ? { gap: row.botGap } : {}),
+        },
+    };
+}
+
+/** The committed verdict of a row whose verdict was played on this very
+ *  definition — {@link classifyVerdict}'s `current`. */
 function cachedVerdict(
     previous: ReadonlyMap<string, CardRow>,
     oracleId: string,
     definition: CompiledDefinition
 ): BotReachVerdict | undefined {
-    const row = previous.get(oracleId);
-    if (row?.botReach === undefined || row.definition === undefined)
-        return undefined;
-    if (JSON.stringify(row.definition) !== JSON.stringify(definition))
-        return undefined;
-    if (row.botGap === undefined) return { outcome: row.botReach };
-    const split = splitGapKey(row.botGap);
-    return split === null ? undefined : { outcome: row.botReach, ...split };
+    const known = classifyVerdict(previous.get(oracleId), definition);
+    return known.kind === "current" ? known.verdict : undefined;
 }
 
 function rowsById(lock: Lockfile | null): Map<string, CardRow> {
@@ -156,11 +236,12 @@ function sweepCache(
 }
 
 /**
- * The write path's source: reuse a verdict when the definition is unchanged,
- * play the card otherwise — the definition misses only, never the whole
- * catalogue for a Bot hash that moved (issue #6463). `replay` ignores the
- * cache and is the one path that writes the tree's Bot hash. `onPlay` is
- * told about every card actually played, for progress output.
+ * The base's source (`oracle:compile --play-misses`, `derive:sync`'s drift
+ * sweep, issue #6687): reuse a `current` verdict, PLAY every miss — drift
+ * and graduation alike — never the whole catalogue for a Bot hash that
+ * moved (issue #6463). `replay` (`--replay-bot`) ignores the cache and is
+ * the one path that writes the tree's Bot hash. `onPlay` is told about every
+ * card actually played, for progress output.
  */
 export function playingBotReach(
     previous: Lockfile | null,
@@ -184,48 +265,125 @@ export function playingBotReach(
 }
 
 /**
- * The sweep's dry run (issue #6069): the same cache as
- * {@link playingBotReach}, but a miss is RECORDED, never played — so the
- * write path learns whether the sweep has anything to play before it queues
- * for the heavy mutex. With no miss, the lockfile it builds is the one the
- * sweep would write: every verdict a hit, the header on the committed Bot
- * hash — byte-identical to `--carry-bot`'s (issue #6463).
+ * A SESSION's source — the bare `oracle:compile` (ADR 0158 § 2a, issue
+ * #6688): reuse a `current` verdict, CARRY a drift row's verdict marked
+ * stale, PLAY a graduation — classified against `baseline`, the base's
+ * lockfile (default: `previous`, when there is none to read). A compiler
+ * change touching one field of every definition is then thousands of carried
+ * rows plus the handful of cards the PR actually graduates — never a
+ * whole-catalogue sweep inside the PR. The header keeps the committed Bot
+ * hash (`sweepCache`).
  */
-export function probingBotReach(
+export function carriedOrPlayed(
     previous: Lockfile | null,
     currentBotHash: string,
-    replay = false
+    play: BotPlayer,
+    options: {
+        baseline?: Lockfile | null;
+        onPlay?: (oracleId: string) => void;
+    } = {}
 ): BotReachSource & {
-    readonly misses: () => ReadonlySet<string>;
-    /** Each miss with the definition to play — the sharded sweep's work list
-     *  (issue #6686). `replay` makes every card a miss, as the sweep does. */
-    readonly missDefinitions: () => ReadonlyMap<string, CompiledDefinition>;
+    readonly played: () => number;
+    readonly carried: () => number;
 } {
-    const cache = sweepCache(previous, currentBotHash, replay);
-    const misses = new Map<string, CompiledDefinition>();
+    const cache = sweepCache(previous, currentBotHash);
+    const before =
+        options.baseline === undefined
+            ? cache.rows
+            : rowsById(options.baseline);
+    let played = 0;
+    let carried = 0;
     return {
         hash: cache.hash,
-        misses: () => new Set(misses.keys()),
-        missDefinitions: () => misses,
+        played: () => played,
+        carried: () => carried,
         verdictFor(oracleId, definition) {
-            const hit = cachedVerdict(cache.rows, oracleId, definition);
-            if (hit === undefined) misses.set(oracleId, definition);
-            return hit;
+            const known = classifyVerdict(
+                cache.rows.get(oracleId),
+                definition,
+                { row: before.get(oracleId) }
+            );
+            if (known.kind === "drift") carried += 1;
+            if (known.kind !== "graduation") return known.verdict;
+            played += 1;
+            options.onPlay?.(oracleId);
+            return play(oracleId, definition);
         },
     };
 }
 
 /**
- * The gate's source: carry the committed verdicts forward, never play. The
- * header keeps the committed Bot hash, so a regeneration that changes no
- * definition reproduces the committed bytes whatever the Bot looks like now.
+ * The sweep's dry run (issue #6069): the same cache as
+ * {@link playingBotReach}, but a miss is RECORDED, never played — so the
+ * write path learns what it has to play before it plays anything. With no
+ * miss, the lockfile it builds is the one the sweep would write: every
+ * verdict a hit, the header on the committed Bot hash — byte-identical to
+ * `--carry-bot`'s (issue #6463).
+ *
+ * Each miss is classified by {@link classifyVerdict} (ADR 0158 § 2a),
+ * against `baseline` (default: `previous`): a session plays the
+ * `graduations`, carries the `drift`. A row marked `botStale` is a miss
+ * whatever its definition, so the base's drift sweep — `staleVerdicts` reads
+ * this set — replays it.
+ */
+export function probingBotReach(
+    previous: Lockfile | null,
+    currentBotHash: string,
+    replay = false,
+    baseline?: Lockfile | null
+): BotReachSource & {
+    readonly misses: () => ReadonlySet<string>;
+    /** Each miss with the definition to play — the base's sharded work list
+     *  (issue #6686). `replay` makes every card a miss, as the sweep does. */
+    readonly missDefinitions: () => ReadonlyMap<string, CompiledDefinition>;
+    /** The graduations among the misses, with their definitions — a
+     *  session's whole work list. */
+    readonly graduations: () => ReadonlyMap<string, CompiledDefinition>;
+    /** The drift misses: carried by a session, replayed by the base. */
+    readonly drift: () => ReadonlySet<string>;
+} {
+    const cache = sweepCache(previous, currentBotHash, replay);
+    const before = baseline === undefined ? cache.rows : rowsById(baseline);
+    const misses = new Map<string, CompiledDefinition>();
+    const graduations = new Map<string, CompiledDefinition>();
+    const drift = new Set<string>();
+    return {
+        hash: cache.hash,
+        misses: () => new Set(misses.keys()),
+        missDefinitions: () => misses,
+        graduations: () => graduations,
+        drift: () => drift,
+        verdictFor(oracleId, definition) {
+            const known = classifyVerdict(
+                cache.rows.get(oracleId),
+                definition,
+                { row: before.get(oracleId) }
+            );
+            if (known.kind === "current") return known.verdict;
+            misses.set(oracleId, definition);
+            if (known.kind === "drift") drift.add(oracleId);
+            else graduations.set(oracleId, definition);
+            return undefined;
+        },
+    };
+}
+
+/**
+ * The gate's source: carry the committed verdicts forward, never play — a
+ * `current` verdict as is, a drift row's marked stale, exactly as a
+ * session's bare run wrote it (ADR 0158 § 2a), so a PR's carried rows
+ * regenerate byte-identical. A graduation has nothing to carry. The header
+ * keeps the committed Bot hash, so a regeneration that changes no definition
+ * reproduces the committed bytes whatever the Bot looks like now.
  */
 export function carriedBotReach(previous: Lockfile | null): BotReachSource {
     const cache = rowsById(previous);
     return {
         hash: previous?.header.botHash ?? "",
-        verdictFor: (oracleId, definition) =>
-            cachedVerdict(cache, oracleId, definition),
+        verdictFor(oracleId, definition) {
+            const known = classifyVerdict(cache.get(oracleId), definition);
+            return known.kind === "graduation" ? undefined : known.verdict;
+        },
     };
 }
 

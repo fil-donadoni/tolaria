@@ -14,9 +14,10 @@
  *      `ready` rows whose Bot verdict was not played on the definition the
  *      tip compiles (`staleVerdicts`, `check-oracle-lockfile.ts`) — counted
  *      with no lock; zero → `oracle:compile --carry-bot`, seconds, as before;
- *      else a bare `oracle:compile`, which plays exactly them (in place up
- *      to `LOCK_FREE_MISSES`, under the heavy mutex past it) and keeps the
- *      header's Bot hash. A card it took out of `ready` is committed — its
+ *      else `oracle:compile --play-misses`, which plays exactly them — the
+ *      drift rows a session's bare compile carried (`botStale`, issue
+ *      #6688) and any graduation — in place up to `LOCK_FREE_MISSES`, under
+ *      the heavy mutex past it, and keeps the header's Bot hash. A card it took out of `ready` is committed — its
  *      Bot Gap is `gaps:sync`'s to file; one it brought in gets its
  *      `oracle:index` row. Misses, played and wall are logged and appended
  *      to `$GITHUB_STEP_SUMMARY`;
@@ -71,7 +72,7 @@
  *     meanwhile is not a dropped sweep: the swept verdicts are laid over the
  *     new tip's lockfile through the merge driver's overlay
  *     (`lib/oracle-verdict-overlay.ts`), the tree moved to that
- *     tip and a bare compile plays its definition misses, and the commit is
+ *     tip and `oracle:compile --play-misses` plays its misses, and the commit is
  *     built there; a second Bot-hash move in the meantime simply leaves a
  *     mismatch for the next run;
  *   - a card left `ready` → nothing committed; one `bug` issue
@@ -386,12 +387,13 @@ function driftSweep(head: string): DriftSweepResult {
                 "scripts/oracle-compile.ts",
                 "--carry-bot",
             ]),
-        // Bare: carries every current verdict, plays exactly the misses,
+        // `--play-misses`: carries every current verdict, plays exactly the
+        // misses — a bare run would carry the drift ones (issue #6688) —
         // keeps the header's Bot hash (the replay alone moves it).
         play: () =>
             generate(
-                "oracle:compile",
-                ["scripts/oracle-compile.ts"],
+                "oracle:compile --play-misses",
+                ["scripts/oracle-compile.ts", "--play-misses"],
                 SWEEP_WALL_MS,
                 "SIGTERM"
             ),
@@ -733,11 +735,12 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     say(
         `${carried} swept verdict(s) laid over ${newTip.slice(0, 10)}'s lockfile`
     );
-    // Bare: carries every overlaid verdict on its definition, plays the
-    // definition misses the new tip brought, keeps the swept Bot hash.
+    // `--play-misses`: carries every overlaid verdict on its definition,
+    // plays every miss the new tip brought (drift included, issue #6688),
+    // keeps the swept Bot hash.
     return generate(
-        "oracle:compile",
-        ["scripts/oracle-compile.ts"],
+        "oracle:compile --play-misses",
+        ["scripts/oracle-compile.ts", "--play-misses"],
         SWEEP_WALL_MS,
         "SIGTERM"
     );
