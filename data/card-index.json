@@ -29404,6 +29404,16 @@
         "source": "compiled"
     },
     {
+        "name": "Heart of Yavimaya",
+        "scryfallId": "40c59cb9-559b-4716-9bd7-c818b3f46f1d",
+        "oracleId": "6c9a854c-0509-4ed4-9d94-c45b823b65e5",
+        "firstSet": "all",
+        "firstPrintId": "40c59cb9-559b-4716-9bd7-c818b3f46f1d",
+        "firstPrintSet": "all",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Heart Sliver",
         "scryfallId": "27a83ab6-0d15-49e4-90e3-b3a2a095c632",
         "oracleId": "6dd1f375-e8f2-4725-8fbd-9750c4860820",
@@ -34902,6 +34912,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Kjeldoran Outpost",
+        "scryfallId": "e0769fc7-50b5-4b49-8aff-af04536288fb",
+        "oracleId": "8b370db5-dfb9-4ea0-9017-bae3e767b041",
+        "firstSet": "all",
+        "firstPrintId": "e0769fc7-50b5-4b49-8aff-af04536288fb",
+        "firstPrintSet": "all",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kjeldoran Outrider",
         "scryfallId": "bd641b1d-dab8-415b-9655-09e033df761d",
         "oracleId": "7b8559a7-e11f-430d-8a7a-785a7005c4c4",
@@ -35729,6 +35749,16 @@
         "firstPrintId": "68b9df54-e78e-4a86-a8b1-b735ec08a812",
         "firstPrintSet": "ths",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lake of the Dead",
+        "scryfallId": "aee806ce-effa-4244-9659-43246e944d80",
+        "oracleId": "bdf476e5-1d57-4b17-b45b-d52fd75aadeb",
+        "firstSet": "all",
+        "firstPrintId": "aee806ce-effa-4244-9659-43246e944d80",
+        "firstPrintSet": "all",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

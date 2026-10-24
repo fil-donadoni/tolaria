@@ -1853,6 +1853,31 @@ export interface ActivatedAbility {
             cardType?: CardType;
             owner?: "you";
         };
+        /** "Exile the top card of your library" as an activation cost (CR 118.1
+         *  — a cost is an action necessary to take another action; CR 701.13a —
+         *  exiling moves the card to the exile zone). The ACTIVATING player's
+         *  own top library card moves library → exile, face up, as the ability
+         *  goes on the stack. No choice: the card is fixed by the library's
+         *  order, so it belongs with `discardAtRandom`, never with a picker.
+         *
+         *  Unaffordable with an EMPTY library (CR 118.3 — a player can't pay a
+         *  cost without the resources to pay it fully), gated by the single
+         *  authority `canPayExileTopOfLibrary` (`gre/state.ts`) on every
+         *  surface: the announcement throw, the Move enumerator and the UI hint.
+         *
+         *  Paid at activation COMMIT, never at announcement (CR 601.2h via
+         *  CR 602.2b), and LAST among the legs — CR 601.2h pays every cost that
+         *  does not move an object from the library to a public zone first.
+         *  `PendingActivation.exileTopOfLibrary` carries the intent across the
+         *  mana-payment phase; every commit path pays through
+         *  `payExileTopOfLibraryCost` (`gre/state.ts`).
+         *
+         *  The exiled card's last-known characteristics ride on the stack item
+         *  as `additionalSacrificeSnapshot` (CR 608.2h — the additional-cost
+         *  victim snapshot every cost departure writes), so "where X is the
+         *  exiled card's mana value" reads it back through the existing
+         *  `{ sacrificed: { read: "manaValue" } }` value. */
+        exileTopOfLibrary?: boolean;
         /** Derives the value of X in this ability's mana cost from the targeted
          *  spell instead of asking the player to choose it (CR 107.3 — "X is
          *  twice the mana value of that spell"). Only meaningful when
@@ -3819,6 +3844,19 @@ export type AsEntersChoice =
      *  in the same simultaneous batch may already have exiled a card. The
      *  matcher reads it as a GRAVEYARD card (CR 113.6b). */
     | { kind: "exileFromGraveyard"; filter?: EffectCardFilter }
+    /** CR 614.1a + CR 701.21a — "if this permanent would enter, sacrifice a
+     *  <filter> instead. If you do, put it onto the battlefield. If you don't,
+     *  put it into `ifDeclined`" (Heart of Yavimaya).
+     *
+     *  The MANDATORY sibling of `discard`: no "may", so a controller holding a
+     *  matching permanent must name one — the prompt's `count` floor is 1 — and
+     *  only a board with no legal victim sends the object to `ifDeclined`
+     *  (the card's own "If you don't" sentence, CR 614.1a). The victim is read
+     *  from the controller's battlefield as the choice is OFFERED, so a
+     *  sibling entry already answered is gone from it; prompts queued
+     *  together are NOT re-narrowed (CR 614.12b, `renarrowSiblingCostChoices`
+     *  covers `payLife` only) — no card enters two of these at once. */
+    | { kind: "sacrifice"; filter: PermanentFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
      *  marked with an anchor word". No shipped card uses anchor words; the kind
@@ -21230,6 +21268,14 @@ export interface CardDefinition {
      *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
      *  and REMOVES the field — no engine read ever sees it. */
     damagePreventionCounterRemoval?: boolean;
+    /** CR 615 — "Prevent all damage that would be dealt to you." The Oracle
+     *  compiler's JSON-pure declaration of the clause:
+     *  `expandControllerDamagePrevention`
+     *  (`abilities/controllerDamagePrevention.ts`) rebuilds it at the
+     *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
+     *  scoped to the source's controller and REMOVES the field — no engine
+     *  read ever sees it. */
+    preventsDamageToController?: boolean;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

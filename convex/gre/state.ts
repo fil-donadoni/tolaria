@@ -229,7 +229,10 @@ import { modeInstances, soleChosenModeId } from "./modeSelection";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
 // pay through, so a return-to-hand cost has ONE execution path in the engine.
-import { applySacrificeSelection } from "./sacrificeChoice";
+import {
+    applySacrificeSelection,
+    costVictimTypeFields,
+} from "./sacrificeChoice";
 import {
     declaresAsEntersMode,
     getActivatedManaColor,
@@ -10186,6 +10189,26 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "sacrifice": {
+            // CR 614.1a / 701.21a (Heart of Yavimaya) — REUSES the shipped
+            // `sacrifice-permanents` battlefield pick. `min: 1` is what makes
+            // it mandatory: unlike the `discard` leg there is no decline, and
+            // `forcedAsEntersAnswer` has already routed an empty candidate set
+            // to the graveyard branch without a prompt.
+            pending = {
+                ...base,
+                kind: "sacrifice-permanents",
+                zone: "battlefield",
+                candidateIds: asEntersSacrificeCandidates(
+                    state,
+                    entry,
+                    choice.filter
+                ),
+                count: { min: 1, max: 1 },
+                prompt: `Sacrifice a permanent as ${subject} enters. If you can't, it's put into its owner's graveyard instead.`,
+            };
+            break;
+        }
         case "pay": {
             // ADR 0100 D6 — the shipped `entersTappedUnlessPay` park (ADR 0051)
             // owns every CR 614.12 pay-to-enter card (shock lands); no card
@@ -10241,6 +10264,21 @@ function asEntersGraveyardExileCandidates(
             (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
         )
         .map((c) => c.id);
+}
+
+/** CR 701.21a / 614.1a — the permanents the entering object's controller can
+ *  sacrifice for an as-enters `sacrifice` cost, read LIVE (never carried on the
+ *  declaration) so a sibling staged entry's committed sacrifice is gone from the
+ *  set (CR 614.12b). The shared `sacrificeCandidates` matcher is the one the
+ *  may-pay permanent leg reads — snow supertypes and colours resolve live. */
+function asEntersSacrificeCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: PermanentFilter
+): string[] {
+    return sacrificeCandidates(state, entry.controllerId, filter).map(
+        (c) => c.id
+    );
 }
 
 /** CR 508.4 — what a creature entering attacking may attack: the defending
@@ -10354,6 +10392,12 @@ function forcedAsEntersAnswer(
         // Nothing to exile: the only answer is "zero cards", and the
         // permanent enters with an empty pile.
         return asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            .length === 0
+            ? []
+            : undefined;
+    }
+    if (choice?.kind === "sacrifice") {
+        return asEntersSacrificeCandidates(state, entry, choice.filter)
             .length === 0
             ? []
             : undefined;
@@ -10666,6 +10710,32 @@ function applyAsEntersAnswer(
             // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
             emitCardsExiled(state, exiled);
             return {};
+        }
+        case "sacrifice": {
+            // CR 701.21a — re-derived against the LIVE board, fail-closed as
+            // `discard` is: an id that is no longer a legal victim means the
+            // "instead" is never applied, so the permanent never enters.
+            const victimId = selected[0];
+            const candidates = asEntersSacrificeCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            if (victimId !== undefined && candidates.includes(victimId)) {
+                // CR 609.1 — the sacrifice IS the permanent's own replacement
+                // effect, paid by the entering permanent's controller; routed
+                // through the unified permanent-cost layer so sacrifice
+                // replacements and "dies" triggers see it like any other.
+                applySacrificeSelection(state, {
+                    playerId: entry.controllerId,
+                    reason: "as-enters sacrifice",
+                    requirements: [{ filter: choice.filter, count: 1 }],
+                    picked: [victimId],
+                });
+                return {};
+            }
+            abortStagedEntryTo(state, entry, choice.ifDeclined);
+            return { aborted: true };
         }
         case "pay":
             throw new Error(
@@ -20577,6 +20647,67 @@ export function payDiscardAtRandomCost(
 ): void {
     // CR 118 — a cost payment, not an effect (issue #3814).
     discardCardsAtRandom(state, playerId, count, { kind: "cost" });
+}
+
+/** CR 118.1 / 608.2h — the additional-cost-victim snapshot of a CARD a cost is
+ *  about to move out of its zone (a graveyard card exiled to pay
+ *  `cost.exileFromGraveyard`, a library card exiled to pay
+ *  `cost.exileTopOfLibrary`). The card is gone by the time the ability
+ *  resolves, so "the exiled card's mana value" must read this snapshot, never
+ *  the live zone. MUST be called BEFORE the card moves. */
+export function costCardSnapshot(
+    card: CardInstanceState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> {
+    const defId = (card.card as { id?: string }).id;
+    const def = defId ? tryGetDefinition(defId) : undefined;
+    return {
+        cardInstanceId: card.id,
+        mv: manaValue(def?.manaCost),
+        ...(card.subtypes && card.subtypes.length > 0
+            ? { subtypes: [...card.subtypes] }
+            : {}),
+        ...costVictimTypeFields(card),
+    };
+}
+
+/** CR 118.3 — the `cost.exileTopOfLibrary` leg is payable only while the payer
+ *  has a card in their library. SINGLE AUTHORITY for its affordability: the
+ *  announcement throw, `enumerateAbilityMoves`, the search-side cost payer and
+ *  the client's `getStackAbilities` hint all ask this question. */
+export function canPayExileTopOfLibrary(player: {
+    library: { length: number } | { count: number };
+}): boolean {
+    const lib = player.library;
+    return ("length" in lib ? lib.length : lib.count) > 0;
+}
+
+/** SINGLE AUTHORITY for paying the `cost.exileTopOfLibrary` activation cost —
+ *  "Exile the top card of your library" (CR 118.1; CR 701.13a — the card moves
+ *  to exile; CR 406.3 — face up, as no face-down instruction is printed).
+ *  Emits ONE `CARDS_EXILED` (the choke point every "whenever a card is put
+ *  into exile" trigger watches).
+ *
+ *  Returns the exiled card's CR 608.2h snapshot for the resulting stack item,
+ *  or undefined when the library is empty — the vanished-resource policy every
+ *  deferred cost leg shares: the caller drops the activation rather than
+ *  paying a phantom cost. */
+export function payExileTopOfLibraryCost(
+    state: GameState,
+    player: PlayerState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> | undefined {
+    const top = player.library[0];
+    if (!top) return undefined;
+    const snapshot = costCardSnapshot(top);
+    moveCard(player, top.id, "library", "exile");
+    emitCardsExiled(state, [
+        {
+            cardInstanceId: top.id,
+            cardId: (top.card as { id?: string }).id,
+            fromZone: "library",
+            ownerId: player.id,
+        },
+    ]);
+    return snapshot;
 }
 
 /** Deducts mana cost from pool. Colored first, then generic. When

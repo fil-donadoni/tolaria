@@ -10115,4 +10115,68 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2c + CR 400.7 + CR 701.23a — "Exile all cards from target
+    // player's graveyard other than basic land cards. For each card exiled this
+    // way, search that player's library for all cards with the same name …":
+    // the three sentences fold into one `forEach` over the graveyard. Exhibits
+    // the `forEach` construct over a runtime-selected set and `moveZone` by
+    // name, which the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3abd345a-69a5-486e-ada9-dd1ca0decc28",
+            name: "Haunting Echoes",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Exile all cards from target player's graveyard other than basic land cards. For each card exiled this way, search that player's library for all cards with the same name as that card and exile them. Then that player shuffles.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Haunting Echoes",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 2 },
+            oracleText:
+                "Exile all cards from target player's graveyard other than basic land cards. For each card exiled this way, search that player's library for all cards with the same name as that card and exile them. Then that player shuffles.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: { target: 0 },
+                        filter: {
+                            any: [
+                                { excludeType: "Land" },
+                                { excludeSupertype: "Basic" },
+                            ],
+                        },
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: { target: 0 },
+                            fromZones: ["graveyard"],
+                            filter: {
+                                name: { ref: "$each.name" },
+                                any: [
+                                    { excludeType: "Land" },
+                                    { excludeSupertype: "Basic" },
+                                ],
+                            },
+                            to: "exile",
+                        },
+                        {
+                            op: "moveZone",
+                            player: { target: 0 },
+                            fromZones: ["library"],
+                            filter: { name: { ref: "$each.name" } },
+                            to: "exile",
+                        },
+                    ],
+                },
+                { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
 ]);

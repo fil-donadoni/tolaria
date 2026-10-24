@@ -126,6 +126,42 @@ describe("health:fix — parseVerdict", () => {
         expect(v.pr).toBeUndefined();
     });
 
+    it("reads a landed-partial verdict that names its class-guard issue (issue #6552)", () => {
+        expect(
+            parseVerdict(
+                json({
+                    sha,
+                    outcome: "landed-partial",
+                    pr: 6600,
+                    classGuardIssue: 6548,
+                    note: "guard placement is the owner's",
+                }),
+                sha
+            )
+        ).toEqual({
+            sha,
+            outcome: "landed-partial",
+            pr: 6600,
+            classGuardIssue: 6548,
+            note: "guard placement is the owner's",
+        });
+    });
+
+    it("a landed-partial verdict without a valid class-guard issue is stuck — fail-closed", () => {
+        for (const guard of [undefined, 0, -3, 1.5, "6548", null]) {
+            const v = parseVerdict(
+                json({
+                    sha,
+                    outcome: "landed-partial",
+                    classGuardIssue: guard,
+                }),
+                sha
+            );
+            expect(v.outcome).toBe("stuck");
+            expect(v.note).toMatch(/class-guard issue/);
+        }
+    });
+
     it("reads an explicit stuck verdict and keeps the fixer's note", () => {
         const v = parseVerdict(
             json({ sha, outcome: "stuck", note: "cause not established" }),

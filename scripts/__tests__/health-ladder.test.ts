@@ -19,13 +19,16 @@ import {
     TRANSIENT_NOTE,
     walkEpisode,
     escalationTitle,
+    FOREIGN_REPAIR_MAX_MS,
     hostOfRunnerName,
+    ownRepairPrs,
     ladderRung,
     MAX_FIX_ATTEMPTS,
     parseCulprit,
     revertBranch,
     revertPrBody,
     type EpisodeRed,
+    type ForeignRepair,
     type LadderFacts,
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
@@ -55,6 +58,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         laddered: true,
         episode: [{ sha: RED, attempt: null, culprit: CULPRIT }],
         revertPr: null,
+        foreignRepairs: [],
         escalated: null,
         now: NOW,
         ...over,
@@ -172,6 +176,54 @@ describe("ladderRung — rung 4, fix forward, at most two attempts", () => {
                 })
             )
         ).toMatchObject({ kind: "wait", why: expect.stringContaining("5800") });
+    });
+
+    it("a partial landing (class guard filed for the owner) waits for health — no fix, no revert (issue #6552)", () => {
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        outcome: "landed",
+                        pr: 5800,
+                        classGuard: 6548,
+                    }),
+                })
+            )
+        ).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("issue #6548"),
+        });
+    });
+
+    it("a second RED after a partial landing follows the existing second-RED rule", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprit: null },
+            ...withAttempt(
+                { outcome: "landed", pr: 5800, classGuard: 6548 },
+                OLD_RED
+            ),
+        ];
+        expect(ladderRung(facts({ episode }))).toMatchObject({
+            kind: "revert",
+            why: expect.stringContaining("second RED"),
+        });
+    });
+
+    it("a stuck attempt (instance fix not defensible) still reaches the revert rung", () => {
+        expect(
+            ladderRung(
+                facts({
+                    episode: withAttempt({
+                        attempt: MAX_FIX_ATTEMPTS,
+                        note: "no reproduction at the tip",
+                    }),
+                })
+            )
+        ).toMatchObject({
+            kind: "revert",
+            culprit: CULPRIT,
+            why: expect.stringContaining("stuck"),
+        });
     });
 });
 
@@ -458,6 +510,31 @@ describe("the ladder's facts and texts", () => {
         ).toEqual(a);
     });
 
+    it("a partial landing's class-guard issue round-trips through the commit status", () => {
+        const a: FixAttempt = {
+            sha: RED,
+            outcome: "landed",
+            rung: "fix",
+            attempt: 1,
+            machine: "macbook",
+            pr: 6600,
+            classGuard: 6548,
+            note: "re-recorded",
+        };
+        const description = encodeFixDescription(a);
+        expect(description).toBe(
+            "LANDED · macbook · fix 1 · PR #6600 · guard #6548 · re-recorded"
+        );
+        expect(
+            decodeFixStatus({
+                sha: RED,
+                state: "success",
+                description,
+                createdAt: null,
+            })
+        ).toEqual(a);
+    });
+
     it("the revert PR closes its repair issue — what `base-health` admits it by", () => {
         const body = revertPrBody({
             issue: 6001,
@@ -626,5 +703,99 @@ describe("walkEpisode — the REDs since the last GREEN", () => {
         const { standingEvidence } = walkEpisode(["s2", "s1"], read);
         expect(standingEvidence).toBe("ev s2");
         expect(walkEpisode(["x", "s2"], read).standingEvidence).toBeNull();
+    });
+});
+
+describe("ladderRung — a repair declared outside the ladder (issue #6554)", () => {
+    const repair = (
+        over: Partial<NonNullable<ForeignRepair["pr"]>> | null
+    ): ForeignRepair[] => [
+        {
+            issue: 6545,
+            pr:
+                over === null
+                    ? null
+                    : {
+                          number: 6546,
+                          state: "open",
+                          landFailed: false,
+                          createdAt: NOW - 60_000,
+                          ...over,
+                      },
+        },
+    ];
+
+    it("an open PR waits, naming it — no fixer is spawned", () => {
+        expect(ladderRung(facts({ foreignRepairs: repair({}) }))).toMatchObject(
+            {
+                kind: "wait",
+                why: expect.stringContaining("PR #6546"),
+            }
+        );
+    });
+
+    it("waits instead of the revert too (both fixer attempts stuck)", () => {
+        expect(
+            ladderRung(
+                facts({
+                    foreignRepairs: repair({}),
+                    episode: [
+                        {
+                            sha: RED,
+                            attempt: {
+                                sha: RED,
+                                outcome: "stuck",
+                                attempt: 2,
+                                at: RECENT,
+                            },
+                            culprit: CULPRIT,
+                        },
+                    ],
+                })
+            ).kind
+        ).toBe("wait");
+    });
+
+    it("merged with the tip un-gated waits as today", () => {
+        expect(
+            ladderRung(
+                facts({
+                    tip: "d".repeat(40),
+                    foreignRepairs: repair({ state: "merged" }),
+                })
+            ).kind
+        ).toBe("wait");
+    });
+
+    it.each([
+        ["closed unmerged", { state: "closed" as const }],
+        ["land-failed", { landFailed: true }],
+        ["past the bound", { createdAt: NOW - FOREIGN_REPAIR_MAX_MS - 1 }],
+    ])("a PR %s releases the ladder to its own rung", (_n, over) => {
+        expect(
+            ladderRung(facts({ foreignRepairs: repair(over) }))
+        ).toMatchObject({ kind: "fix", attempt: 1 });
+    });
+
+    it("a declared repair with no PR yet does not hold the ladder", () => {
+        expect(ladderRung(facts({ foreignRepairs: repair(null) })).kind).toBe(
+            "fix"
+        );
+    });
+});
+
+describe("ownRepairPrs — a stuck attempt withdraws only its own", () => {
+    const prs = [
+        { number: 6546, closes: [6545] },
+        { number: 6550, closes: [6548] },
+        { number: 6551, closes: [] },
+    ];
+
+    it("closes the PR closing the attempt's issue, never another session's", () => {
+        expect(ownRepairPrs(prs, [6548])).toEqual([6550]);
+    });
+
+    it("an interactive-only pivot withdraws nothing", () => {
+        expect(ownRepairPrs(prs, [])).toEqual([]);
     });
 });
