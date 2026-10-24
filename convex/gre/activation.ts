@@ -53,7 +53,7 @@ import { exileCastPermission } from "./castCost";
 import type { CastFromZone } from "./castCost";
 import {
     isTapLockedBySummoningSickness,
-    manaValue,
+    permanentGiveUpCostLegs,
     stackManaValue,
 } from "./constants";
 import { findEscapeCastable } from "./escape";
@@ -93,7 +93,6 @@ import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
-    costVictimTypeFields,
     sacrificeSourceSnapshot,
     canAffordSacrifice,
     isSacrificeSelectionComplete,
@@ -105,6 +104,8 @@ import {
     addRestrictedManaToPool,
     applyCostModifiers,
     canPayDiscardLastDrawn,
+    canPayExileTopOfLibrary,
+    costCardSnapshot,
     commitLandsForCost,
     discardToGraveyard,
     emitBecameTargetEvents,
@@ -125,8 +126,10 @@ import {
     moveCard,
     normalizeManaCost,
     payDiscardAtRandomCost,
+    payExileTopOfLibraryCost,
     payDiscardLastDrawn,
     payExileThisCost,
+    exileThisSourceZone,
     payManaCostForAbility,
     payManaCostForSpell,
     payRemoveCounterCost,
@@ -141,6 +144,7 @@ import {
     spendablePoolForSpell,
     tapPermanent,
     type CardInstanceState,
+    type TargetCountAnnouncement,
     type GameState,
     type ManaSubstitution,
     type PendingActivation,
@@ -630,35 +634,48 @@ export function assertDiscardFilterCostAffordable(
     }
 }
 
-/** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" is unpayable
- *  unless the activator controls enough matching permanents. The twin of
+/** CR 602.1 / 118.3 — a filtered give-up-a-permanent leg ("Sacrifice
+ *  a permanent matching <filter>", "Return a permanent matching <filter> you
+ *  control to its owner's hand") is unpayable unless the activator controls
+ *  enough matching permanents. The twin of
  *  {@link assertDiscardFilterCostAffordable}, extracted for the same reason
- *  (issue #3455). Throws; no-op when the ability has no such leg. */
-export function assertSacrificeFilterCostAffordable(
+ *  (issue #3455): the stack path, the NON-STACK mana path and the targeted
+ *  `finalizeTargetSelection` path all gate on this one predicate. Which keys
+ *  are such legs, and how many each owes, is `permanentGiveUpCostLegs`'s.
+ *  Throws; no-op when the ability has no such leg. */
+export function assertPermanentGiveUpCostAffordable(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     ability: ActivatedAbility
 ): void {
-    const leg = ability.cost.sacrificeFilter;
-    if (!leg) return;
-    const candidates = player.battlefield.filter((c) =>
-        // Layered view, matching `sacrificeCandidates` (issue #1209).
-        matchesPermanentFilter(effectivePermanentView(state, c), leg, {
-            selfControllerId: player.id,
-            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
-            // source is not a legal payment for its own cost.
-            selfInstanceId: card.id,
-            // "Sacrifice enchanted creature" (`hostOfSource`
-            // fails closed without the host).
-            selfAttachedToId: card.attachedTo,
-            supertypesOf: liveSupertypesOf,
-        })
-    );
-    // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland permanents"
-    // (Bolas's Citadel): the gate is a COUNT, not mere existence.
-    if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-        throw new Error("No legal permanent to pay the sacrifice cost");
+    for (const leg of permanentGiveUpCostLegs(ability.cost)) {
+        const candidates = player.battlefield.filter((c) =>
+            // Layered view, matching `sacrificeCandidates` (issue #1209).
+            matchesPermanentFilter(
+                effectivePermanentView(state, c),
+                leg.filter,
+                {
+                    selfControllerId: player.id,
+                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
+                    // source is not a legal payment for its own cost.
+                    selfInstanceId: card.id,
+                    // "Sacrifice enchanted creature" (`hostOfSource` fails closed
+                    // without the host).
+                    selfAttachedToId: card.attachedTo,
+                    supertypesOf: liveSupertypesOf,
+                }
+            )
+        );
+        // CR 602.1 / 118.3 — "Sacrifice TEN nonland permanents" (Bolas's
+        // Citadel): the gate is a COUNT, not mere existence.
+        if (candidates.length < leg.count) {
+            throw new Error(
+                leg.action === "return"
+                    ? "No legal permanent to pay the return-to-hand cost"
+                    : "No legal permanent to pay the sacrifice cost"
+            );
+        }
     }
 }
 
@@ -739,6 +756,10 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.discardAtRandom
             ? { discardAtRandomCount: ability.cost.discardAtRandom }
             : {}),
+        // CR 118.1 / 601.2h — "Exile the top card of your library". Deferred
+        // to commit like every other leg so a cancelled mana payment leaves
+        // the library untouched.
+        ...(ability.cost.exileTopOfLibrary ? { exileTopOfLibrary: true } : {}),
         // CR 702.49a — mark the selection above as a ninjutsu RETURN leg, so
         // the commit path knows to capture CR 702.49c's defender before the
         // bounce takes the returned creature out of combat.
@@ -948,6 +969,14 @@ export function tryAutoCommitPendingActivation(
         state.pendingActivation = undefined;
         return null;
     }
+    // CR 118.3 / 601.2h — re-check at commit, BEFORE any leg (mana included)
+    // is paid: the library may have emptied while mana was being tapped. The
+    // leg itself is paid LAST (CR 601.2h, below), so its affordability is
+    // settled here, where dropping the activation spends nothing.
+    if (pa.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
+        state.pendingActivation = undefined;
+        return null;
+    }
 
     // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the
     // activator's choice of which mana pays the generic cost. Evaluated once
@@ -1091,7 +1120,12 @@ export function tryAutoCommitPendingActivation(
     // tapped, mirroring the vanished-source policy above). Runs BEFORE the
     // stack-item clone below so the ability's source is captured while valid.
     if (pa.exileThisSource) {
-        if (!payExileThisCost(state, player, card.id, !!pa.fromGraveyard)) {
+        const from = pa.fromGraveyard
+            ? "graveyard"
+            : pa.fromHand
+              ? "hand"
+              : "battlefield";
+        if (!payExileThisCost(state, player, card.id, from)) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -1191,6 +1225,21 @@ export function tryAutoCommitPendingActivation(
             tapPermanent(state, perm);
         }
     }
+    // CR 601.2h — a cost that moves an object from the LIBRARY to a public
+    // zone is paid after every other cost: "Exile the top card of your
+    // library" (Phyrexian Devourer). Its snapshot is the "exiled card" the
+    // ability reads back (CR 608.2h).
+    let activationLibraryExileSnapshot: StackItem["additionalSacrificeSnapshot"];
+    if (pa.exileTopOfLibrary) {
+        activationLibraryExileSnapshot = payExileTopOfLibraryCost(
+            state,
+            player
+        );
+        if (!activationLibraryExileSnapshot) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+    }
 
     // CR 605.3b (issue #3455) — a MANA ability does not use the stack. Every
     // cost leg above has now been paid exactly as it is for a stack ability;
@@ -1225,11 +1274,13 @@ export function tryAutoCommitPendingActivation(
         // (Priest of Yawgmoth, Freyalise Supplicant) reads back.
         ...((activationSacrificeSnapshot ??
         activationExileSnapshot ??
+        activationLibraryExileSnapshot ??
         selfSacrificeSnapshot)
             ? {
                   additionalSacrificeSnapshot:
                       activationSacrificeSnapshot ??
                       activationExileSnapshot ??
+                      activationLibraryExileSnapshot ??
                       selfSacrificeSnapshot,
               }
             : {}),
@@ -1881,10 +1932,14 @@ export function minTargetCount(
  *  consumer that must reject an X-bearing count with no announced X
  *  (activated abilities without X in their cost never carry one). */
 export function resolveTargetCount(
-    count: number | "X" | { min: number; max?: number | "X" },
-    chosenX: number | undefined
+    count: TargetRequirement["count"],
+    chosenX: number | undefined,
+    announcement?: TargetCountAnnouncement
 ): number | { min: number; max?: number } {
-    return resolveTargetRequirementCount(count, chosenX, { requireX: true });
+    return resolveTargetRequirementCount(count, chosenX, {
+        requireX: true,
+        announcement,
+    });
 }
 
 /** CR 601.2f / 118.5 — affordability gate for board-wide static NON-mana
@@ -1966,17 +2021,7 @@ export function exileCostSnapshot(
 ): StackItem["additionalSacrificeSnapshot"] | undefined {
     if (pickedCardIds.length !== 1) return undefined;
     const exiled = owner.graveyard.find((c) => c.id === pickedCardIds[0]);
-    if (!exiled) return undefined;
-    const defId = (exiled.card as { id?: string }).id;
-    const def = defId ? tryGetDefinition(defId) : undefined;
-    return {
-        cardInstanceId: exiled.id,
-        mv: manaValue(def?.manaCost),
-        ...(exiled.subtypes && exiled.subtypes.length > 0
-            ? { subtypes: [...exiled.subtypes] }
-            : {}),
-        ...costVictimTypeFields(exiled),
-    };
+    return exiled ? costCardSnapshot(exiled) : undefined;
 }
 
 /** CR 602.1 / 118.5 / 701.21a — assemble every filtered sacrifice an activation
@@ -2379,7 +2424,14 @@ export function activateAbilityOnState(
         );
         let abilityCount = resolveTargetCount(
             effectiveTargetReq.count,
-            targetChosenX
+            targetChosenX,
+            // CR 601.2c via CR 602.2b — the primary group has no earlier picks.
+            {
+                state,
+                controllerId: args.playerId,
+                sourceInstanceId: card.id,
+                priorTargets: [],
+            }
         );
         // CR 602.2b / 601.2c — mirrors the cast path's identical check
         // (`legalTargets.length < required` above): activating with a
@@ -2571,6 +2623,11 @@ export function activateAbilityOnState(
     if (ability.cost.discardAtRandom && player.hand.length === 0) {
         throw new Error("No card in hand to discard");
     }
+    // CR 118.3 — "Exile the top card of your library": illegal with an empty
+    // library. Validated up-front.
+    if (ability.cost.exileTopOfLibrary && !canPayExileTopOfLibrary(player)) {
+        throw new Error("No card in library to exile");
+    }
     // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
     // (Survival of the Fittest): illegal unless at least `count` matching
     // cards are in the activating player's hand. Validated up-front so we
@@ -2583,11 +2640,12 @@ export function activateAbilityOnState(
     if (ability.cost.life !== undefined && player.life < ability.cost.life) {
         throw new Error("Not enough life");
     }
-    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
+    // CR 602.1 / 118.3 — "sacrifice a permanent matching <filter>" / "return a
+    // permanent matching <filter> you control to its owner's hand": the
     // activation is illegal if no matching permanent is on the activating
     // player's battlefield. Validated up-front so we never enter a
     // pendingActivation that can't be paid.
-    assertSacrificeFilterCostAffordable(state, player, card, ability);
+    assertPermanentGiveUpCostAffordable(state, player, card, ability);
     // CR 702.49a — Ninjutsu's "Return an unblocked attacking creature you
     // control to its owner's hand" leg: illegal unless such a creature exists.
     // This gate is ALSO the keyword's timing rule — a creature is neither
@@ -2827,12 +2885,7 @@ export function activateAbilityOnState(
     // persists after the move, so the item keeps CR 608.2h last-known
     // information).
     if (ability.cost.exileThis) {
-        payExileThisCost(
-            state,
-            player,
-            card.id,
-            !!ability.activateFromGraveyard
-        );
+        payExileThisCost(state, player, card.id, exileThisSourceZone(ability));
     }
     // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
     // activation cost, paid as the ability commits (Attunement). Runs BEFORE
@@ -2862,6 +2915,16 @@ export function activateAbilityOnState(
         activationSac,
         state
     );
+    // CR 601.2h — the library-to-exile leg is paid LAST. Affordability was
+    // asserted at announcement; FAIL CLOSED all the same (CR 601.2h —
+    // "Unpayable costs can't be paid"), so the ability never reaches the stack
+    // with this leg silently unpaid.
+    const immediateLibraryExileSnapshot = ability.cost.exileTopOfLibrary
+        ? payExileTopOfLibraryCost(state, player)
+        : undefined;
+    if (ability.cost.exileTopOfLibrary && !immediateLibraryExileSnapshot) {
+        throw new Error("No card in library to exile");
+    }
 
     // Put ability on stack (clone card state as a virtual stack item)
     const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
@@ -2871,10 +2934,14 @@ export function activateAbilityOnState(
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-        ...((immediateSacSnapshot ?? selfSacrificeSnapshot)
+        ...((immediateSacSnapshot ??
+        immediateLibraryExileSnapshot ??
+        selfSacrificeSnapshot)
             ? {
                   additionalSacrificeSnapshot:
-                      immediateSacSnapshot ?? selfSacrificeSnapshot,
+                      immediateSacSnapshot ??
+                      immediateLibraryExileSnapshot ??
+                      selfSacrificeSnapshot,
               }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),

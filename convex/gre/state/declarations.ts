@@ -1923,6 +1923,14 @@ export type PlayerState = {
      *  "a card left your graveyard this turn" is `> 0`, and a future "for each
      *  card that left your graveyard this turn" reads the same field. */
     leftGraveyardThisTurn?: number;
+    /** Count of NONTOKEN creatures put into THIS player's graveyard from the
+     *  battlefield this turn (CR 700.4 — "dies"; a token is not a card
+     *  and CR 111.7 has it cease to exist in the graveyard, so it is not
+     *  counted). Keyed by the OWNER, the player whose graveyard the card
+     *  lands in (CR 404.1). Written at the one battlefield-departure funnel
+     *  (`removePermanentTo`) beside the global `deathsThisTurn`, reset at turn
+     *  start. Read by the `{ nontokenCreaturesToGraveyardThisTurn: { of } }` EffectValue. */
+    nontokenCreaturesToGraveyardThisTurn?: number;
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
@@ -2993,6 +3001,10 @@ export type PendingActivation = {
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
+    /** CR 118.1 / 701.13a — the `cost.exileTopOfLibrary` leg's intent, carried
+     *  to commit so a cancelled mana payment leaves the library untouched
+     *  (CR 601.2h). Paid LAST at commit by `payExileTopOfLibraryCost`. */
+    exileTopOfLibrary?: boolean;
     /** In-progress "discard a card matching <filter>" cost picker (CR 602.1 /
      *  118.3 — Survival of the Fittest "Discard a creature card"). Set when
      *  the ability has `cost.discardFilter`. `pickedCardIds` is undefined
@@ -3815,8 +3827,9 @@ export type PendingTarget = {
      *  propagated from `TargetRequirement.divideAsChosen.kind`. `"prevent"`
      *  for Pollen Remedy's divided damage prevention; the frontend's divide
      *  banner reads this to label the finalize button correctly instead of
-     *  always saying "Deal damage". */
-    divideKind?: "deal" | "prevent";
+     *  always saying "Deal damage". `"counters"` for a distributed-counters
+     *  budget (CR 601.2d). */
+    divideKind?: "deal" | "prevent" | "counters";
     /** Per-target amounts assigned during divide-as-you-choose selection,
      *  keyed by `${type}:${id}` (parallels `selected`). Each entry is ≥ 1.
      *  Written to the stack item as `targetAmounts` at finalization. Undefined

@@ -111,8 +111,22 @@ const ANOTHER_HEAD = "another target ";
 
 /** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+/** CR 601.2c — the damage recipient "each of X targets", read as one exact
+ *  phrase: a descriptor after it ("each of X target creatures") is a different
+ *  announcement and is not read. */
+const EACH_OF_X_TARGETS = "each of X targets";
 /** CR 400.3 — the plural destination of a sweep bounce. */
 const THEIR_OWNERS_HANDS = "their owners' hands";
+/**
+ * CR 400.3 — the singular-owner spelling of a sweep bounce: "Return
+ * all artifacts target player owns to their hand" (Hurkyl's Recall). The
+ * announced player is the sweep's whole scope, so the zone is "their hand".
+ * The sweep is scoped by the announced player's battlefield (the selector has
+ * no owner axis), the same reading the hand-written card carries
+ * (tracked-by: #2785).
+ */
+const TARGET_PLAYER_OWNS = / target player owns$/;
+const THEIR_HAND = "their hand";
 /** CR 120.3 — the player half of a creature sweep that is not the exact phrase. */
 const AND_EACH_PLAYER = " and each player";
 
@@ -774,6 +788,50 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 601.2d / 122.1 — "Distribute N <kind> counters among <count
+           * phrase> <targets>": the counters twin of `deal-damage-divided`.
+           * ONE announced group whose count is a range (`among`), and a budget
+           * of counters the caster splits across whoever they chose, each at
+           * least one. The budget is a printed number or the announced {X};
+           * "X …, where X is …" and every other magnitude are other sentences.
+           */
+          readonly kind: "distribute-counters";
+          readonly amount: AmountIR;
+          readonly counter: string;
+          readonly among: TargetRequirement;
+      }
+    | {
+          /**
+           * CR 603.7a / 603.7c — "For each <kind> counter you put on a
+           * creature this way, remove a <kind> counter from that creature at
+           * the beginning of the next cleanup step" (or end step): a delayed
+           * triggered ability created now, whose body takes back, creature by
+           * creature, the counters an EARLIER `distribute-counters` sentence
+           * of the same ability put on. "This way" is anaphora (CR 608.2c),
+           * so the sentence carries no subject: the lowering binds it to that
+           * sentence and refuses every other site. Both counter words must
+           * name the same kind.
+           */
+          readonly kind: "delayed-remove-distributed-counters";
+          readonly counter: string;
+          readonly timing: "next-cleanup-step" | "next-end-step";
+      }
+    | {
+          /**
+           * CR 601.2c + CR 120.3 — "{self} deals N damage to each of X
+           * targets": ONE announced group of exactly X targets of any kind
+           * ("any target"), each dealt the full amount (unlike the divided
+           * form, nothing is split). The group's width is the cast's X, so
+           * the lowering reads it as a sweep over the announced set rather
+           * than a positional slot. `sourceIsPronoun` is the CR 608.2h marker
+           * `deal-damage` carries, refused on the same condition.
+           */
+          readonly kind: "deal-damage-each-of-x-targets";
+          readonly amount: AmountIR;
+          readonly sourceIsPronoun?: true;
+      }
+    | {
+          /**
            * CR 615.12 — "Damage can't be prevented this turn."
            *
            * A one-shot instruction with no subject at all: it names no source,
@@ -1123,6 +1181,26 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.12a — "Exchange control of <this object> and up to one
+           * target <permanent>": the source and the announced permanent swap
+           * controllers, or neither does. `subject` is the announced
+           * permanent; only the OPTIONAL announcement ("up to one") is read,
+           * because the rider below makes the empty announcement meaningful.
+           * Both flags are set by `assembleSentences` from the two sentences
+           * that follow it, never by the exchange rule:
+           * `sacrificeUnlessExchanged` is "If you don't or can't make an
+           * exchange, sacrifice <this object>" (CR 701.21a) and
+           * `resolvesIfTargetIllegal` is "This ability still resolves if its
+           * target becomes illegal" (CR 608.2b), an ability-level fact the
+           * triggered slot lifts onto the ability.
+           */
+          readonly kind: "exchange-control";
+          readonly subject: SubjectIR;
+          readonly sacrificeUnlessExchanged?: true;
+          readonly resolvesIfTargetIllegal?: true;
+      }
+    | {
+          /**
            * CR 701.3a — "Attach <this object> to target <permanent>": the
            * source moves onto the announced permanent without leaving the
            * battlefield. Only the SOURCE is ever the attached object — the
@@ -1277,6 +1355,37 @@ export type EffectSentenceIR =
            */
           readonly kind: "exile-graveyard";
           readonly player: PlayerRefIR;
+          /**
+           * CR 205.4a — "all cards from <player>'s graveyard other than basic
+           * land cards": every card EXCEPT one that is both a land and basic
+           * (a nonbasic land and a basic-typed nonland both go).
+           */
+          readonly exceptBasicLands?: true;
+      }
+    | {
+          /**
+           * CR 608.2c + CR 400.7 + CR 701.23a — "Exile all cards from target
+           * player's graveyard other than basic land cards. For each card
+           * exiled this way, search that player's library for all cards with
+           * the same name as that card and exile them.": the graveyard
+           * sentence, folded with the per-card library sweep that reads its
+           * result. Alone, the second sentence has no antecedent and fails.
+           * `shuffle` is the printed "Then that player shuffles" sentence,
+           * folded in the same way a search-target-library one is.
+           */
+          readonly kind: "exile-graveyard-and-library-copies";
+          readonly player: PlayerRefIR;
+          readonly shuffle: boolean;
+      }
+    | {
+          /**
+           * CR 608.2c — "For each card exiled this way, search that player's
+           * library for all cards with the same name as that card and exile
+           * them.": the sentence after an `exile-graveyard`, folded into
+           * `exile-graveyard-and-library-copies` by the sentence-list
+           * assembler. Alone it names no exiled cards and fails.
+           */
+          readonly kind: "exile-same-name-library-copies";
       }
     | {
           /**
@@ -1444,6 +1553,23 @@ export type EffectSentenceIR =
            */
           readonly kind: "delayed-removal";
           readonly verb: "exile" | "sacrifice";
+      }
+    | {
+          /**
+           * CR 603.7a — "Return it / that card / this land to its owner's
+           * hand at the beginning of the next end step" (or cleanup step), and
+           * "Return it / that card to the battlefield under its owner's control
+           * at the beginning of the next end step": a delayed triggered ability
+           * whose body is one zone move of the object an earlier sentence (or
+           * the source itself) names. The referent is anaphora (CR 608.2h), so
+           * the sentence carries no subject: the lowering binds it or refuses.
+           * Riders ("with a +1/+1 counter on it", "and you skip your next draw
+           * step") are neighbours, refused here.
+           */
+          readonly kind: "delayed-return";
+          readonly referent: "it" | `this ${string}`;
+          readonly destination: "hand" | "battlefield";
+          readonly timing: "next-end-step" | "next-cleanup-step";
       }
     | {
           /**
@@ -1753,6 +1879,22 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23d (search) + CR 701.20a (reveal) — a searched pile another
+           * player picks from: "Search your library for three cards and reveal
+           * them. Target opponent chooses one. Put that card into your hand
+           * and the rest into your graveyard. Then shuffle." The search is for
+           * a bare QUANTITY, so the searcher must find that many (CR 701.23d); the
+           * reveal is what lets the chooser see the pile at all. The four
+           * printed sentences are one effect, folded by `assembleSentences`;
+           * none is an effect alone.
+           */
+          readonly kind: "search-reveal-pile-pick";
+          readonly count: number;
+          /** Who picks from the revealed pile. */
+          readonly chooser: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 401.4 — "Look at the top N cards of <player>'s library, then
            * put them back in any order." One sentence: no card leaves the
            * top of the library, the looker only re-arranges it.
@@ -2036,6 +2178,13 @@ export type ModifierIR =
      * ability, folded onto the `counter` in front of it by `assembleSentences`.
      */
     | { readonly kind: "destroy-countered-source" }
+    /** CR 701.12a — "If you don't or can't make an exchange, sacrifice
+     *  <this object>." (the sacrifice is CR 701.21a), folded onto the
+     *  exchange in front of it. */
+    | { readonly kind: "exchange-fallback-sacrifice" }
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal.", folded onto the exchange in front of it. */
+    | { readonly kind: "resolves-if-target-illegal" }
     /** CR 205.1b — "They're still lands.": the animated set keeps its types. */
     | {
           readonly kind: "still-types";
@@ -2171,6 +2320,18 @@ export type SentenceIR =
     | { readonly role: "pile-split-window"; readonly count: AmountIR }
     | { readonly role: "pile-opponent-picks" }
     | { readonly role: "pile-route"; readonly pronoun: "one" | "that" }
+    /**
+     * CR 701.23d + CR 701.20a — the sentences of a `search-reveal-pile-pick`
+     * (see there): the searched and revealed pile (`search-reveal-pile`), the
+     * other player's pick from it (`search-pile-pick`), where the pick and
+     * the rest go (the `reveal-until-route` words "Put that card into your
+     * hand and the rest into your graveyard", read here against the pile),
+     * and the closing shuffle (`search-pile-shuffle`). Each names an
+     * antecedent only the next reads.
+     */
+    | { readonly role: "search-reveal-pile"; readonly count: number }
+    | { readonly role: "search-pile-pick"; readonly chooser: PlayerRefIR }
+    | { readonly role: "search-pile-shuffle" }
     /**
      * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
      * replacement half of an `upgrade-if-controls`, folded onto the effect in
@@ -2373,6 +2534,16 @@ export function assembleSentences(
         readonly stage: "needs-picker" | "ready";
         readonly form: "separates" | "chooses";
     } | null = null;
+    // CR 701.23d — a searched, revealed pile waits for who picks from it,
+    // then for where the pick and the rest go, then for the shuffle.
+    let searchPile:
+        | { readonly stage: "needs-chooser"; readonly count: number }
+        | {
+              readonly stage: "needs-route" | "needs-shuffle";
+              readonly count: number;
+              readonly chooser: PlayerRefIR;
+          }
+        | null = null;
     // CR 701.20a — a revealed hand waits for the card chosen from it, and the
     // chosen card for where it goes.
     let handReveal: {
@@ -2506,6 +2677,57 @@ export function assembleSentences(
             optionalHandCost = null;
             continue;
         }
+        if (searchPile !== null) {
+            if (searchPile.stage === "needs-chooser") {
+                if (sentence.role !== "search-pile-pick")
+                    return {
+                        ok: false,
+                        reason: "a searched and revealed pile is not followed by who picks from it",
+                    };
+                searchPile = {
+                    stage: "needs-route",
+                    count: searchPile.count,
+                    chooser: sentence.chooser,
+                };
+                continue;
+            }
+            if (searchPile.stage === "needs-route") {
+                // "that card" is the pick, "the rest" the pile's other cards.
+                if (
+                    sentence.role !== "reveal-until-route" ||
+                    sentence.match !== "hand" ||
+                    sentence.rest !== "graveyard"
+                )
+                    return {
+                        ok: false,
+                        reason: "a pick from a searched pile is not followed by where its cards go",
+                    };
+                searchPile = { ...searchPile, stage: "needs-shuffle" };
+                continue;
+            }
+            // CR 701.24a — the search ends in a shuffle; a pile routed with no
+            // shuffle after it is a different card.
+            if (sentence.role !== "search-pile-shuffle")
+                return {
+                    ok: false,
+                    reason: "a searched pile is not followed by the shuffle that ends the search",
+                };
+            effects.push({
+                kind: "search-reveal-pile-pick",
+                count: searchPile.count,
+                chooser: searchPile.chooser,
+            });
+            searchPile = null;
+            continue;
+        }
+        if (
+            sentence.role === "search-pile-pick" ||
+            sentence.role === "search-pile-shuffle"
+        )
+            return {
+                ok: false,
+                reason: '"chooses one" / "Then shuffle" follows no searched and revealed pile',
+            };
         if (handReveal !== null) {
             if (handReveal.pick === undefined) {
                 if (sentence.role !== "hand-pick")
@@ -2990,6 +3212,10 @@ export function assembleSentences(
             handReveal = { player: sentence.player };
             continue;
         }
+        if (sentence.role === "search-reveal-pile") {
+            searchPile = { stage: "needs-chooser", count: sentence.count };
+            continue;
+        }
         if (sentence.role === "hand-reveal-pick") {
             handReveal = { player: sentence.player, pick: sentence.pick };
             continue;
@@ -3126,6 +3352,32 @@ export function assembleSentences(
         }
         if (
             sentence.role === "modifier" &&
+            (sentence.modifier.kind === "exchange-fallback-sacrifice" ||
+                sentence.modifier.kind === "resolves-if-target-illegal")
+        ) {
+            const previous = effects[effects.length - 1];
+            const isFallback =
+                sentence.modifier.kind === "exchange-fallback-sacrifice";
+            if (
+                previous === undefined ||
+                previous.kind !== "exchange-control" ||
+                (isFallback
+                    ? previous.sacrificeUnlessExchanged === true
+                    : previous.resolvesIfTargetIllegal === true)
+            )
+                return {
+                    ok: false,
+                    reason: isFallback
+                        ? "\"If you don't or can't make an exchange\" follows no exchange of control"
+                        : '"This ability still resolves" follows no exchange of control',
+                };
+            effects[effects.length - 1] = isFallback
+                ? { ...previous, sacrificeUnlessExchanged: true }
+                : { ...previous, resolvesIfTargetIllegal: true };
+            continue;
+        }
+        if (
+            sentence.role === "modifier" &&
             sentence.modifier.kind === "destroy-countered-source"
         ) {
             const previous = effects[effects.length - 1];
@@ -3195,10 +3447,36 @@ export function assembleSentences(
             effects.push(...sentence.effects);
             continue;
         }
+        // CR 608.2c — "For each card exiled this way, search …" reads the
+        // graveyard exile of the sentence before it, and nothing else.
+        if (sentence.effect.kind === "exile-same-name-library-copies") {
+            const previous = effects[effects.length - 1];
+            if (
+                previous?.kind !== "exile-graveyard" ||
+                previous.exceptBasicLands !== true
+            )
+                return {
+                    ok: false,
+                    reason: '"For each card exiled this way, search … same name" follows no graveyard exile of the same player',
+                };
+            effects[effects.length - 1] = {
+                kind: "exile-graveyard-and-library-copies",
+                player: previous.player,
+                shuffle: false,
+            };
+            continue;
+        }
         // CR 701.24a — "Then that player shuffles." belongs to the target
         // library the sentence before searched; nothing else names it.
         if (sentence.effect.kind === "shuffle-searched-library") {
             const previous = effects[effects.length - 1];
+            if (
+                previous?.kind === "exile-graveyard-and-library-copies" &&
+                !previous.shuffle
+            ) {
+                effects[effects.length - 1] = { ...previous, shuffle: true };
+                continue;
+            }
             if (previous?.kind !== "search-target-library" || previous.shuffle)
                 return {
                     ok: false,
@@ -3258,6 +3536,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a revealed hand is not followed by the card chosen from it and where it goes",
+        };
+    if (searchPile !== null)
+        return {
+            ok: false,
+            reason: "a searched and revealed pile is not followed by who picks from it, where its cards go and the shuffle",
         };
     if (optionalHandCost !== null)
         return {
@@ -3591,6 +3874,8 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+/** The optional spelling of "it deals", up to the damage amount. */
+const HAVE_IT_DEAL = /^have it deal (.+ damage to .+)$/;
 /** CR 701.13a — the optional move of one of the controller's hand cards. */
 const OPTIONAL_HAND_COSTS = {
     "exile a card from your hand": "exile",
@@ -3670,7 +3955,20 @@ export function optionalSentenceRule(
                 count,
             });
         }
-        const parsed = inner.run(clause, ctx);
+        // CR 608.2h — "you may have it deal X damage to …": "have it deal" is
+        // the optional spelling of "it deals", the pronoun naming the object
+        // the trigger head names. Rewritten to the marker the leading-"It"
+        // sentence uses, so ONE damage rule reads both and the lowering's
+        // referent check (`pronounIsSource`) refuses a head naming no source.
+        // Only the damage verb: "have it <other verb>" is a form nobody here
+        // has shown a fixture for.
+        const haveItDeal = clause.match(HAVE_IT_DEAL);
+        const parsed = inner.run(
+            haveItDeal === null
+                ? clause
+                : `${PRONOUN_MARKER} deals ${haveItDeal[1]}`,
+            ctx
+        );
         if (!parsed.ok) return parsed;
         if (parsed.value.role !== "effect")
             return fail(
@@ -3935,6 +4233,14 @@ const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =
     /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
+/** CR 601.2d / 122.1a — "Distribute N +X/+Y counters among <targets>". The
+ *  kind is a P/T counter only: a stun, shield or oil counter is a different
+ *  mechanic the corpus distributes under other wording, and stays unread. */
+const DISTRIBUTE_COUNTERS =
+    /^Distribute (\S+) ([+-]\d+\/[+-]\d+) counters among (.+)$/;
+/** CR 603.7a — the delayed take-back of the counters distributed this way. */
+const REMOVE_DISTRIBUTED_COUNTERS =
+    /^For each ([+-]\d+\/[+-]\d+) counter you put on a creature this way, remove a ([+-]\d+\/[+-]\d+) counter from that creature at the beginning of the next (cleanup|end) step$/;
 /**
  * CR 613.1e — "<subject> becomes the color of your choice[ <duration>]".
  *
@@ -4146,6 +4452,13 @@ const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
 const DELAYED_DRAW_NEXT_UPKEEP =
     /^(?:You draw (\S+) cards?|Draw (a) card) at the beginning of the next turn(?:'|’)s upkeep$/;
+/**
+ * CR 603.7a — "Return it to its owner's hand at the beginning of the next end
+ * step" / "… cleanup step" and "Return that card to the battlefield under its
+ * owner's control at the beginning of the next end step".
+ */
+const DELAYED_RETURN =
+    /^Return (it|that card|this (?:land|artifact|creature|permanent|enchantment)) to (?:its owner(?:'|’)s hand at the beginning of the next (end|cleanup) step|the battlefield under its owner(?:'|’)s control at the beginning of the next (end) step)$/;
 /** CR 603.7a — "Exile it at the beginning of the next end step" / "Sacrifice it …". */
 const DELAYED_REMOVAL_NEXT_END_STEP =
     /^(Exile|Sacrifice) it at the beginning of the next end step$/;
@@ -4265,6 +4578,12 @@ const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
 const TAP_TARGET_PLAYER_SWEEP_DRAIN =
     /^Tap (all .+) target player controls and that player loses all unspent mana$/;
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
+/** CR 205.4a — "Exile all cards from <player>'s graveyard other than basic land cards". */
+const EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS =
+    /^Exile all cards from (.+?)(?:'|’)s graveyard other than basic land cards$/;
+/** CR 608.2c — the per-card library sweep behind the graveyard exile. */
+const EXILE_SAME_NAME_LIBRARY_COPIES =
+    /^For each card exiled this way, search (.+?)(?:'|’)s library for all cards with the same name as that card and exile them$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
 const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
@@ -4299,6 +4618,15 @@ const EXILE_WHEN_DIES = "When the creature dies this turn, exile the creature";
 /** CR 608.2n — "Exile {self}" (the resolving spell exiles itself). */
 const EXILE_SELF = `Exile ${SELF_MARKER}`;
 const GAIN_CONTROL_VERB = "Gain control of ";
+/** CR 701.12a — "Exchange control of <this object> and <target>". */
+const EXCHANGE_CONTROL =
+    /^Exchange control of (.+?) and (up to one target .+)$/;
+/** CR 701.12a — the fallback sentence. */
+const EXCHANGE_FALLBACK_SACRIFICE =
+    /^If you don't or can't make an exchange, sacrifice (.+)$/;
+/** CR 608.2b — the ability-level opt-out of the all-targets-illegal fizzle. */
+const RESOLVES_IF_TARGET_ILLEGAL =
+    "This ability still resolves if its target becomes illegal";
 const WHILE_YOU_CONTROL = " for as long as you control ";
 const ATTACH_SELF = /^Attach (.+?) to (.+)$/;
 const ENCHANT_HEAD = "Enchant ";
@@ -4428,6 +4756,16 @@ const PILE_SPLIT_WINDOW =
 const PILE_OPPONENT_PICKS = /^An opponent chooses one of those piles$/;
 const PILE_ROUTE =
     /^Put (one|that) pile into your hand and the other into your graveyard$/;
+/** CR 701.23d (search) + CR 701.20a (reveal) — a searched pile: "Search your
+ *  library for three cards and reveal them". A bare QUANTITY only; a
+ *  described search ("three creature cards", "with different names") is not
+ *  this window. */
+const SEARCH_REVEAL_PILE =
+    /^Search your library for (\S+) cards and reveal them$/;
+/** The other player's pick from the pile: "Target opponent chooses one". */
+const SEARCH_PILE_PICK = /^Target opponent chooses one$/;
+/** CR 701.24a — the shuffle that ends the search. */
+const SEARCH_PILE_SHUFFLE = /^Then shuffle$/;
 
 const REVEAL_UNTIL_FILTERS = new Map<string, EffectCardFilter>([
     ["a basic land card", { type: "Land", supertype: "Basic" }],
@@ -4904,6 +5242,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
+            });
+        // CR 701.12a — the fallback; the sacrificed object (CR 701.21a)
+        // must be the source the exchange moves.
+        const exchangeFallback = span.match(EXCHANGE_FALLBACK_SACRIFICE);
+        if (exchangeFallback !== null) {
+            if (!isSelfPhrase(exchangeFallback[1]!))
+                return fail(
+                    `"${exchangeFallback[1]}" is not the object the exchange moves`,
+                    span
+                );
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "exchange-fallback-sacrifice" as const },
+            });
+        }
+        if (span === RESOLVES_IF_TARGET_ILLEGAL)
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "resolves-if-target-illegal" as const },
             });
         if (span === DESTROY_COUNTERED_SOURCE)
             return ok({
@@ -5638,6 +5995,23 @@ function libraryHalf(span: string) {
     }
     if (PILE_OPPONENT_PICKS.test(span))
         return ok({ role: "pile-opponent-picks" as const });
+    const searchPile = span.match(SEARCH_REVEAL_PILE);
+    if (searchPile !== null) {
+        const count = readNumberWord(searchPile[1]!);
+        if (count === null || count < 2)
+            return fail(`"${searchPile[1]}" is not a pile's count`, span);
+        return ok({
+            role: "search-reveal-pile" as const,
+            count,
+        } satisfies SentenceIR);
+    }
+    if (SEARCH_PILE_PICK.test(span))
+        return ok({
+            role: "search-pile-pick" as const,
+            chooser: { kind: "target", opponent: true },
+        } satisfies SentenceIR);
+    if (SEARCH_PILE_SHUFFLE.test(span))
+        return ok({ role: "search-pile-shuffle" as const });
     const pileRoute = span.match(PILE_ROUTE);
     if (pileRoute !== null)
         return ok({
@@ -5726,6 +6100,10 @@ function bindWhereX(
             return sentence.amount.kind === "x"
                 ? { ...sentence, amount }
                 : null;
+        case "deal-damage":
+            return sentence.amount.kind === "x"
+                ? { ...sentence, amount }
+                : null;
         case "conjunction": {
             const effects = sentence.effects.map((e) => bindWhereX(e, amount));
             return effects.every((e) => e !== null)
@@ -5789,6 +6167,24 @@ function effectSentence(
                 delayedRemoval[1] === "Exile"
                     ? ("exile" as const)
                     : ("sacrifice" as const),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── delayed return at the next end / cleanup step (CR 603.7a) ──────────
+    // Before every verb branch for the same reason as the removal above.
+    const delayedReturn = span.match(DELAYED_RETURN);
+    if (delayedReturn !== null) {
+        const toHand = delayedReturn[2] !== undefined;
+        return ok({
+            kind: "delayed-return" as const,
+            referent: delayedReturn[1]!.startsWith("this ")
+                ? (delayedReturn[1]! as `this ${string}`)
+                : ("it" as const),
+            destination: toHand ? ("hand" as const) : ("battlefield" as const),
+            timing:
+                (delayedReturn[2] ?? delayedReturn[3]) === "cleanup"
+                    ? ("next-cleanup-step" as const)
+                    : ("next-end-step" as const),
         } satisfies EffectSentenceIR);
     }
 
@@ -6327,6 +6723,38 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── counters distributed as you choose (CR 601.2d) ─────────────────────
+    const distributed = span.match(DISTRIBUTE_COUNTERS);
+    if (distributed !== null) {
+        const amount = readAmount(distributed[1]!);
+        if (amount === null)
+            return fail(`"${distributed[1]}" is not a counter count`, span);
+        const among = dividedTargetsRule.run(distributed[3]!, ctx);
+        if (!among.ok) return among;
+        return ok({
+            kind: "distribute-counters" as const,
+            amount,
+            counter: distributed[2]!,
+            among: among.value,
+        } satisfies EffectSentenceIR);
+    }
+    const takeBack = span.match(REMOVE_DISTRIBUTED_COUNTERS);
+    if (takeBack !== null) {
+        if (takeBack[1] !== takeBack[2])
+            return fail(
+                `"${takeBack[2]}" counters are not the "${takeBack[1]}" counters put on this way`,
+                span
+            );
+        return ok({
+            kind: "delayed-remove-distributed-counters" as const,
+            counter: takeBack[1]!,
+            timing:
+                takeBack[3] === "cleanup"
+                    ? ("next-cleanup-step" as const)
+                    : ("next-end-step" as const),
+        } satisfies EffectSentenceIR);
+    }
+
     // ── damage, then the controller's gain (CR 608.2c) ─────────────────────
     const damageThenGain = span.match(DAMAGE_THEN_GAIN);
     if (damageThenGain !== null) {
@@ -6357,6 +6785,14 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
+        // CR 601.2c — "to each of X targets": the announced group is X wide
+        // and every member takes the whole amount.
+        if (damage[3] === EACH_OF_X_TARGETS)
+            return ok({
+                kind: "deal-damage-each-of-x-targets" as const,
+                amount,
+                ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+            } satisfies EffectSentenceIR);
         // CR 120.3 + CR 702.9a — "to each creature", "to each creature without
         // flying", "to each creature target opponent controls": a creature
         // sweep as the damage recipient. Tried by its own rule so the general
@@ -6519,6 +6955,18 @@ function effectSentence(
             upTo: upToWord !== undefined,
             route: intoGraveyard ? ("graveyard" as const) : ("exile" as const),
             shuffle: shuffles !== undefined,
+        } satisfies EffectSentenceIR);
+    }
+    // ── the per-card library sweep after a graveyard exile (CR 608.2c) ─────
+    const sameName = span.match(EXILE_SAME_NAME_LIBRARY_COPIES);
+    if (sameName !== null) {
+        // "that player" is anaphora (CR 109.5) for the player whose graveyard
+        // the sentence before exiled; the fold below binds it.
+        const player = playerSubject(sameName[1]!, ctx);
+        if (player === null || player.kind !== "that-player")
+            return fail(`"${sameName[1]}" is not the player just named`, span);
+        return ok({
+            kind: "exile-same-name-library-copies" as const,
         } satisfies EffectSentenceIR);
     }
     if (THEN_THAT_PLAYER_SHUFFLES.test(span))
@@ -6901,6 +7349,34 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── exchange control (CR 701.12a) ──────────────────────────────────────
+    const exchange = span.match(EXCHANGE_CONTROL);
+    if (exchange !== null) {
+        // The source is the object that moves; the exchange of two announced
+        // permanents is a different instruction (no fixture).
+        if (!isSelfPhrase(exchange[1]!))
+            return fail(`"${exchange[1]}" is not the source object`, span);
+        const subject = subjectRule.run(exchange[2]!, ctx);
+        if (!subject.ok) return subject;
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.zone !== undefined ||
+            typeof subject.value.requirement.count !== "object" ||
+            subject.value.requirement.controller !== "opponent" ||
+            !requirementTypes(subject.value.requirement).every((t) =>
+                (PERMANENT_TYPES as readonly string[]).includes(t)
+            )
+        )
+            return fail(
+                `"${exchange[2]}" is not an optional target permanent`,
+                span
+            );
+        return ok({
+            kind: "exchange-control" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── gain control (CR 613.1b, CR 611.2b) ────────────────────────────────
     if (span.startsWith(GAIN_CONTROL_VERB)) {
         const rest = span.slice(GAIN_CONTROL_VERB.length);
@@ -7194,6 +7670,28 @@ function effectSentence(
                 to: { zone: "hand" as const, owner: "its-owner" as const },
             } satisfies EffectSentenceIR);
         }
+        if (
+            objectSpan.startsWith("all ") &&
+            TARGET_PLAYER_OWNS.test(objectSpan) &&
+            span.slice(toAt + " to ".length) === THEIR_HAND
+        ) {
+            const mass = massSubjectRule.run(
+                objectSpan.replace(TARGET_PLAYER_OWNS, ""),
+                ctx
+            );
+            if (!mass.ok) return mass;
+            if (mass.value.select.controller !== undefined)
+                return fail("two owner clauses", span);
+            return ok({
+                kind: "move-zone" as const,
+                subject: {
+                    kind: "mass" as const,
+                    ...mass.value,
+                    targetPlayerControls: true as const,
+                } as SubjectIR,
+                to: { zone: "hand" as const, owner: "its-owner" as const },
+            } satisfies EffectSentenceIR);
+        }
         const subject = subjectRule.run(objectSpan, ctx);
         if (!subject.ok) return subject;
         const zone = zoneRefRule.run(span.slice(toAt + " to ".length), ctx);
@@ -7306,6 +7804,20 @@ function effectSentence(
     if (span.startsWith("Exile ")) {
         // CR 404.1 — "Exile target player's graveyard": the whole pile of an
         // announced player (Tormod's Crypt). Only a target player is printed.
+        const exceptBasic = span.match(EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS);
+        if (exceptBasic !== null) {
+            const player = playerSubject(exceptBasic[1]!, ctx);
+            if (player === null || player.kind !== "target")
+                return fail(
+                    `"${exceptBasic[1]}" is not a target player whose graveyard is exiled`,
+                    span
+                );
+            return ok({
+                kind: "exile-graveyard" as const,
+                player,
+                exceptBasicLands: true as const,
+            } satisfies EffectSentenceIR);
+        }
         const graveyard = span.match(EXILE_GRAVEYARD);
         if (graveyard !== null) {
             const player = playerSubject(graveyard[1]!, ctx);

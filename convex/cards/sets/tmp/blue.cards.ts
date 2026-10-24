@@ -112,10 +112,8 @@ export const shimmeringWings = defineCard(() => ({
 // is put into its owner's graveyard: no search, no reveal, no shuffle. Nothing
 // is encoded for it here because that is the stack's job, not the script's.
 //
-// hand-tail: "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle." (#4195)
-// The ENGINE capability is what this issue built; teaching the grammar to read
-// a four-clause search/reveal/foreign-choose/split-destination sentence is the
-// Oracle-compiler PRD's own scope, not this one's.
+// The compiler reads the line to this same definition (`search-reveal-pile-pick`,
+// issue #5254).
 export const intuition = defineCard(() => ({
     id: "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
     rarity: "rare",

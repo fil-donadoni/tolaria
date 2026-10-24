@@ -79,6 +79,7 @@ import type {
     EffectLibraryPosition,
     EffectMode,
     EffectCountSpec,
+    TargetCountQuantity,
     EffectDifferenceTallyOperand,
     EffectExiledWithSourceSelector,
     EffectForEachSelector,
@@ -1038,6 +1039,18 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getCardsDrawnThisTurn(playerId);
     }
+    // nontokenCreaturesToGraveyardThisTurn (CR 700.4) — nontoken creatures put into a PLAYER's graveyard from
+    // the battlefield this turn, a thin skin over the per-owner tally. `of`
+    // names the graveyard's owner (CR 404.1), resolved through the SAME
+    // resolvePlayerRef path; undefined when it cannot be resolved (CR 608.2b).
+    if ("nontokenCreaturesToGraveyardThisTurn" in value) {
+        const playerId = resolvePlayerRef(
+            ctx,
+            value.nontokenCreaturesToGraveyardThisTurn.of
+        );
+        if (playerId === undefined) return undefined;
+        return ctx.getNontokenCreaturesToGraveyardThisTurn(playerId);
+    }
     // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
     // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
     // sibling of `counters` above: `of` is a PLAYER selector resolved through
@@ -1653,6 +1666,19 @@ function resolvePileObjectSet(
     return { ids, zone: "graveyard", zoneOwnerId };
 }
 
+/** CR 601.2c / 107.3 — a {@link TargetCountQuantity} evaluated at
+ *  ANNOUNCEMENT, through the same `countSet` an Effect Script's `count` reads
+ *  at resolution, so a quantity bounding a target count and the same quantity
+ *  in an Op can never disagree. `ctx` is built over the announcement: its
+ *  `targets` are the earlier groups' picks. The one caller is
+ *  `resolveTargetRequirementCount` (`gre/state.ts`). */
+export function evaluateTargetCountQuantity(
+    ctx: SpellContext,
+    quantity: TargetCountQuantity
+): number {
+    return countSet(ctx, quantity.count);
+}
+
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
  *  CR 122 counting). Returns 0 when the controlling player cannot be resolved. */
 function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
@@ -2043,6 +2069,9 @@ function resolveObjectRef(
     if (ctx.getOwnerId(id) !== undefined) {
         return { type: "permanent", id };
     }
+    // CR 115.4 — a `forEach { set: "targets" }` member that is a PLAYER target
+    // binds its player id; a player never leaves the game mid-resolution here.
+    if (ctx.apNapOrder().includes(id)) return { type: "player", id };
     // CR 608.2h (issue #1101) — a `lookDistribute` `bind` snapshots the KEPT card
     // right after it moves library → hand: it never becomes a permanent, so
     // the battlefield check above always misses for it. Fall back to a
@@ -3052,6 +3081,31 @@ export const OP_EXECUTORS: {
         // is unchanged (each entry keeps the amount announced against its own
         // object, read back by id inside the primitive).
         ctx.dealDamageDividedAsChosen(legalTargetSlots(ctx.targets), total);
+    },
+    // CR 601.2d / 122.1 — put `total` counters distributed as chosen among the
+    // announced target group, the split read back off the stack item's
+    // `targetAmounts` inside the primitive. `bind` records one entry per
+    // counter actually put on a creature (its id repeated), the set "each
+    // counter you put on a creature this way" iterates.
+    distributeCountersAsChosen(ctx, op) {
+        const total =
+            op.total === "X"
+                ? ctx.getX()
+                : op.total === "X+1"
+                  ? ctx.getX() + 1
+                  : op.total;
+        // CR 608.2b — a slot the legality gate blanked gets no counters; the
+        // survivors keep the amounts announced against them.
+        const placed = ctx.distributeCountersAsChosen(
+            legalTargetSlots(ctx.targets),
+            total,
+            op.counter
+        );
+        if (op.bind === undefined) return;
+        const each = Object.entries(placed).flatMap(([id, n]) =>
+            Array.from({ length: n }, () => id)
+        );
+        if (each.length > 0) ctx.noteChoice(op.bind, each);
     },
     // CR 121.1 — draw from the top of the library, one card at a time, through
     // the unified suspend-capable draw seam (ADR 0061). A DETERMINISTIC draw
@@ -7499,15 +7553,16 @@ function selectForEachMembers(
     // `targets` (issue #1083) — iterate the currently-resolving spell/
     // ability's WHOLE announced target set (Distorting Wake's "X target
     // nonland permanents", Sway of Illusion's "any number of target
-    // creatures"), instead of one fixed `{ target: N }` slot. Only permanent
-    // entries are iterable (CR 608.2b — a non-permanent entry is unreachable
-    // for the shipped target types this selector pairs with, skipped rather
-    // than erroring); each member is snapshotted as a permanent by the
-    // generic (non-"players"/"graveyard") branch of `execForEach`'s per-member
-    // loop below, exactly like the `permanents` set.
+    // creatures"), instead of one fixed `{ target: N }` slot. Permanent and
+    // player entries are iterable (any other entry kind is skipped rather
+    // than erroring); a permanent is snapshotted by the generic branch of
+    // `execForEach`'s per-member loop below, exactly like the `permanents`
+    // set, a player by the `targets`-specific player branch.
     if (select.set === "targets") {
+        // CR 115.4 — "any target" also announces players, who are members of
+        // the set like any other target (Meteor Blast's "each of X targets").
         return legalTargetSlots(ctx.targets)
-            .filter((t) => t.type === "permanent")
+            .filter((t) => t.type === "permanent" || t.type === "player")
             .map((t) => t.id);
     }
     // CR 607.2a — "all cards exiled with it": the pile stamped with the
@@ -7733,6 +7788,18 @@ function execForEach(
                         playerId: owner,
                     });
                 }
+            } else if (
+                op.select.set === "targets" &&
+                legalTargetSlots(ctx.targets).some(
+                    (t) => t.type === "player" && t.id === members[k]
+                )
+            ) {
+                // A player target of the announced set: snapshot it as a
+                // player so `{ ref: "$each" }` resolves to it (`resolveObjectRef`).
+                bindSnapshot(ctx, eachId, {
+                    type: "player",
+                    id: members[k],
+                });
             } else if (ctx.getOwnerId(members[k]) !== undefined) {
                 // Snapshot BEFORE the body acts on the member (CR 608.2h).
                 bindSnapshot(ctx, eachId, {

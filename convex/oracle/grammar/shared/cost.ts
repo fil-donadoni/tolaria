@@ -104,6 +104,11 @@ export type CostAtomIR =
       }
     /** CR 701.13a — exile: "Exile this artifact" as a cost (CR 118.1). */
     | { readonly kind: "exile-self" }
+    /** CR 113.6m — "Exile this card from your hand" (Elvish Spirit Guide): the
+     *  cost moves the card out of the HAND, so the ability functions only
+     *  there. Lowers to `cost.exileThis` + `activateFromHand`, which only the
+     *  slot can set — `lowerActivationCost` emits the leg, the slot the zone. */
+    | { readonly kind: "exile-self-from-hand" }
     /** CR 602.1a — "Return this enchantment to its owner's hand" as a cost
      *  (Attunement). Self only: a return cost naming any OTHER object is a
      *  different leg this grammar deliberately does not read. */
@@ -294,6 +299,12 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
         if (span.startsWith("Exile ")) {
             if (isSelfPhrase(span.slice("Exile ".length)))
                 return ok({ kind: "exile-self" as const });
+            const fromHand = " from your hand";
+            if (
+                span.endsWith(fromHand) &&
+                isSelfPhrase(span.slice("Exile ".length, -fromHand.length))
+            )
+                return ok({ kind: "exile-self-from-hand" as const });
             const match = span.match(EXILE_GRAVEYARD);
             if (match === null)
                 return fail("not an exile cost this grammar knows", span);
@@ -458,6 +469,20 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
                 return fail(`cost atom "${atom.kind}" appears twice`, span);
             seen.add(atom.kind);
         }
+        // CR 113.6m — with the card in hand, the rest of the cost is paid
+        // without it: mana is the one companion leg this grammar reads (a tap,
+        // a counter or another self-move names a permanent the card is not).
+        if (
+            seen.has("exile-self-from-hand") &&
+            atoms.value.some(
+                (atom) =>
+                    atom.kind !== "exile-self-from-hand" && atom.kind !== "mana"
+            )
+        )
+            return fail(
+                "a cost paid from the hand reads only mana beside exiling the card (CR 113.6m)",
+                span
+            );
         // CR 118.3 — with `{T}` in the cost the source is already tapped, so it
         // cannot also be one of the untapped permanents it taps. Without it the
         // source may pay with itself, which the engine's pool cannot express.
@@ -543,6 +568,7 @@ export function lowerActivationCost(
                 break;
             }
             case "exile-self":
+            case "exile-self-from-hand":
                 cost.exileThis = true;
                 break;
             case "return-self":

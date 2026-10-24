@@ -74,6 +74,7 @@ import {
     canPayMayPayCost,
     discardToGraveyard,
     payExileThisCost,
+    exileThisSourceZone,
     moveCard,
     normalizeManaCost,
     applyCostModifiers,
@@ -86,6 +87,9 @@ import {
     canPayLifeCost,
     canPayDiscardLastDrawn,
     canPayDiscardAtRandom,
+    canPayExileTopOfLibrary,
+    costCardSnapshot,
+    payExileTopOfLibraryCost,
     assignMayPayHandCards,
     getPlayer,
     emitSpellCastEvent,
@@ -827,7 +831,7 @@ export function applyActivationCostsForSearch(
               )?.activatedAbilities?.find((a) => a.id === move.abilityId)
             : undefined;
         if (owner && gvAbility?.cost.exileThis) {
-            payExileThisCost(state, owner, move.cardInstanceId, true);
+            payExileThisCost(state, owner, move.cardInstanceId, "graveyard");
         }
         // CR 113.6 / 702.29a — a HAND-source activation (Cycling, Harvester of
         // Misery's `activateFromHand` discard ability). Its one board-changing
@@ -865,6 +869,12 @@ export function applyActivationCostsForSearch(
                 { kind: "cost" },
                 handAbility.cost.cyclingCost ? "cycling" : undefined
             );
+        }
+        // CR 113.6m / 118.1 — "Exile this card from your hand": the hand twin
+        // of the graveyard leg above, through the same `payExileThisCost`
+        // authority the mutation pays it with.
+        if (handOwner && handAbility?.cost.exileThis) {
+            payExileThisCost(state, handOwner, move.cardInstanceId, "hand");
         }
         // CR 702.49a — the NINJUTSU return leg, the other board-changing cost a
         // hand-source ability can carry. Paid through the same
@@ -945,6 +955,13 @@ export function applyActivationCostsForSearch(
     ) {
         return false;
     }
+    // CR 118.3 — "Exile the top card of your library" with an empty library.
+    if (
+        ability.cost.exileTopOfLibrary &&
+        (!payer || !canPayExileTopOfLibrary(payer))
+    ) {
+        return false;
+    }
     // CR 606.3 / 606.6 (issue #2491) — the LOYALTY leg's affordability, through
     // the same authority the enumerator and the mutation read. Fail-closed
     // backstop for the hand-built moves this exported function also accepts
@@ -1018,9 +1035,12 @@ export function applyActivationCostsForSearch(
     // ability is ever on the stack. Applied in the search slice for the same
     // reason the sacrifice leg above is — a line that kept the permanent (or
     // banked it as a graveyard resource) would evaluate a position live play
-    // never reaches. The GRAVEYARD leg of the same flag is paid in the `!src`
-    // branch above, where the source is not on any battlefield.
-    if (ability.cost.exileThis && !ability.activateFromGraveyard) {
+    // never reaches. The GRAVEYARD and HAND legs of the same flag are paid in
+    // the `!src` branch above, where the source is not on any battlefield.
+    if (
+        ability.cost.exileThis &&
+        exileThisSourceZone(ability) === "battlefield"
+    ) {
         removePermanentTo(state, src.id, "exile");
     }
     // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
@@ -1089,7 +1109,16 @@ export function applyActivationCostsForSearch(
     // may still replace it.
     if (out && selfSacrificeSnapshot && !out.additionalSacrificeSnapshot)
         out.additionalSacrificeSnapshot = selfSacrificeSnapshot;
-    if (!picks) return true;
+    if (!picks) {
+        payExileTopOfLibraryInSearch(
+            state,
+            owner,
+            ability,
+            out,
+            selfSacrificeSnapshot
+        );
+        return true;
+    }
     for (const id of picks.tapOtherIds ?? []) {
         const perm = owner.battlefield.find((c) => c.id === id);
         if (perm) tapPermanent(state, perm);
@@ -1126,20 +1155,7 @@ export function applyActivationCostsForSearch(
             const snap = gyOwner?.graveyard.find(
                 (c) => c.id === exile.cardInstanceIds[0]
             );
-            if (snap) {
-                const snapDefId = (snap.card as { id?: string }).id;
-                const snapDef = snapDefId
-                    ? tryGetDefinition(snapDefId)
-                    : undefined;
-                out.additionalSacrificeSnapshot = {
-                    cardInstanceId: snap.id,
-                    mv: manaValue(snapDef?.manaCost),
-                    ...(snap.subtypes && snap.subtypes.length > 0
-                        ? { subtypes: [...snap.subtypes] }
-                        : {}),
-                    ...costVictimTypeFields(snap),
-                };
-            }
+            if (snap) out.additionalSacrificeSnapshot = costCardSnapshot(snap);
         }
         for (const id of exile.cardInstanceIds) {
             // Through the shared `exileCardFromGraveyard` primitive the live
@@ -1153,7 +1169,44 @@ export function applyActivationCostsForSearch(
     for (const id of picks.discardIds ?? []) {
         discardToGraveyard(state, owner.id, id, { kind: "cost" });
     }
+    payExileTopOfLibraryInSearch(
+        state,
+        owner,
+        ability,
+        out,
+        selfSacrificeSnapshot
+    );
     return true;
+}
+
+/** CR 601.2h — the `cost.exileTopOfLibrary` leg in the search slice, paid LAST
+ *  as every mutation commit site pays it, through the same
+ *  `payExileTopOfLibraryCost`. Left unpaid, the tree would keep the payoff and
+ *  the library card both. Its snapshot takes the mutation path's precedence:
+ *  it replaces only an empty slot or the self-sacrifice snapshot, never a
+ *  filtered-sacrifice or graveyard-exile victim's. Affordability was settled
+ *  before any leg was paid (`applyActivationCostsForSearch`'s guard block). */
+function payExileTopOfLibraryInSearch(
+    state: GameState,
+    owner: PlayerState,
+    ability: ActivatedAbility,
+    out:
+        | {
+              additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+          }
+        | undefined,
+    selfSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"]
+): void {
+    if (!ability.cost.exileTopOfLibrary) return;
+    const snapshot = payExileTopOfLibraryCost(state, owner);
+    if (
+        out &&
+        snapshot &&
+        (!out.additionalSacrificeSnapshot ||
+            out.additionalSacrificeSnapshot === selfSacrificeSnapshot)
+    ) {
+        out.additionalSacrificeSnapshot = snapshot;
+    }
 }
 
 /** Resolve all combat damage for a fully-declared combat to a stable point,

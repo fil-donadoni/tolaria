@@ -47,6 +47,7 @@ import {
     type SpellContext,
     type SpellStackDestination,
     type StaticEffect,
+    type TargetCountQuantity,
     type TargetRequirement,
     type TargetSelection,
     type TextChange,
@@ -195,6 +196,7 @@ import {
 import {
     INLINE_DELAYED_TRIGGER_ID,
     compileEffectScript,
+    evaluateTargetCountQuantity,
     runDelayedTriggerBody,
     runModeInstanceScripts,
 } from "./effects/interpreter";
@@ -227,7 +229,10 @@ import { modeInstances, soleChosenModeId } from "./modeSelection";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
 // pay through, so a return-to-hand cost has ONE execution path in the engine.
-import { applySacrificeSelection } from "./sacrificeChoice";
+import {
+    applySacrificeSelection,
+    costVictimTypeFields,
+} from "./sacrificeChoice";
 import {
     declaresAsEntersMode,
     getActivatedManaColor,
@@ -999,6 +1004,10 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *     to X" — Pest Infestation's future "destroy up to X target artifacts
  *     and/or enchantments"), which resolves to a live `{ min, max: chosenX }`
  *     range.
+ *   - `{ min, max: TargetCountQuantity }` — a bound DEFINED BY THE SPELL'S
+ *     TEXT (CR 601.2c, Reap), read off the board over `options.announcement`
+ *     (the earlier groups' picks); without one it stays open (`{ min }`),
+ *     see the branch below.
  *
  *  `requireX: true` throws when an X-bearing count reaches this with no
  *  `chosenX` (the cast/activated-ability paths in `game.ts`, where a missing
@@ -1034,9 +1043,16 @@ export function getPendingChoiceMin(count: PendingChoice["count"]): number {
  *  it collapses `"X"` to 0 locally rather than calling this resolver with a
  *  synthetic `chosenX`. */
 export function resolveTargetRequirementCount(
-    count: number | "X" | { min: number; max?: number | "X" },
+    count: TargetRequirement["count"],
     chosenX: number | undefined,
-    options: { requireX?: boolean } = {}
+    options: {
+        requireX?: boolean;
+        announcement?: TargetCountAnnouncement;
+        /** A text-defined bound ALREADY determined for this object — a copy
+         *  or a retargeted spell keeps the number of targets its cast fixed
+         *  (CR 707.10, CR 601.2c), so the board is never read again. */
+        determinedMax?: number;
+    } = {}
 ): number | { min: number; max?: number } {
     const resolveX = (): number => {
         if (chosenX !== undefined) return Math.max(0, chosenX);
@@ -1053,10 +1069,71 @@ export function resolveTargetRequirementCount(
     // narrows a discriminant on a union, so a bare `return count` still
     // carries the `"X"` possibility in `max`'s type. `Math.max(count.min, …)`
     // clamps a below-min resolved X up to `min` — see the doc comment above.
-    return {
-        min: count.min,
-        max: count.max === "X" ? Math.max(count.min, resolveX()) : count.max,
-    };
+    const max = count.max;
+    if (max === undefined || typeof max === "number") {
+        return { min: count.min, max };
+    }
+    if (max === "X")
+        return { min: count.min, max: Math.max(count.min, resolveX()) };
+    // CR 601.2c — a text-defined bound, read off the board at announcement.
+    // With no announcement in hand the bound is not known YET (it may name a
+    // target an earlier group has not picked), so it stays open: the callers
+    // that pass none read only `min` (castability, deferral) or ask whether
+    // the group takes targets at all, and folding it to `min` would answer
+    // "no" for an "up to X" group. Every site that OPENS a selection passes
+    // the announcement.
+    if (options.determinedMax !== undefined) {
+        return {
+            min: count.min,
+            max: Math.max(count.min, options.determinedMax),
+        };
+    }
+    if (!options.announcement) return { min: count.min };
+    const quantity = evaluateAnnouncedQuantity(
+        options.announcement,
+        max,
+        chosenX
+    );
+    return { min: count.min, max: Math.max(count.min, quantity) };
+}
+
+/** The announcement a {@link TargetCountQuantity} is read against (CR 601.2c):
+ *  who announces, what is announced, and the targets the EARLIER groups of the
+ *  same announcement already chose, flat and in declaration order — the slots
+ *  a `{ target: N }` inside the quantity names. */
+export interface TargetCountAnnouncement {
+    state: GameState;
+    /** The announcing player — "you" / `"controller"` in the quantity. */
+    controllerId: string;
+    /** The spell card or ability source being announced. */
+    sourceInstanceId: string;
+    priorTargets: readonly TargetSelection[];
+}
+
+/** CR 601.2c / 107.3 — evaluates a text-defined target bound over the
+ *  announcement through the interpreter's own `count` reader. The context is a
+ *  `SpellContext` over a synthetic stack item carrying the earlier picks as
+ *  `targets`; the read is pure (a count touches no state). A source that is
+ *  nowhere in the game reads 0. */
+function evaluateAnnouncedQuantity(
+    announcement: TargetCountAnnouncement,
+    quantity: TargetCountQuantity,
+    chosenX: number | undefined
+): number {
+    const { state, controllerId, sourceInstanceId, priorTargets } =
+        announcement;
+    const source =
+        state.stack.find((s) => s.id === sourceInstanceId) ??
+        findCardInAnyZone(state, sourceInstanceId);
+    if (!source) return 0;
+    const ctx = buildSpellContext(state, {
+        ...source,
+        zone: "stack",
+        castById: controllerId,
+        targets: [...priorTargets],
+        chosenX,
+    } as StackItem);
+    return Math.max(0, evaluateTargetCountQuantity(ctx, quantity));
 }
 
 /** Every target-filter-registry key that is ALSO a `PendingTarget` field — the
@@ -2282,6 +2359,16 @@ function isTargetStillLegal(
     }
 }
 
+/** CR 608.2b — "This ability still resolves if its target becomes illegal":
+ *  the triggered ability opts out of the all-targets-illegal fizzle. */
+function resolvesDespiteIllegal(item: StackItem): boolean {
+    if (!item.triggeredAbilityId) return false;
+    return (
+        findTriggeredAbility(item, item.triggeredAbilityId)
+            ?.resolvesIfTargetsIllegal === true
+    );
+}
+
 /** Global target-legality gate run before any `resolve()` dispatch (CR
  *  608.2b). Returns one of:
  *   - `"fizzle"`  — the item has one or more targets and EVERY target is now
@@ -2321,7 +2408,8 @@ function targetLegalityGate(
     targets.forEach((t, i) => {
         if (!isTargetStillLegal(state, t, item)) illegal.push(i);
     });
-    if (illegal.length === targets.length) return "fizzle"; // CR 608.2b
+    if (illegal.length === targets.length && !resolvesDespiteIllegal(item))
+        return "fizzle"; // CR 608.2b
 
     // CR 608.2b — record the illegal slots; the list keeps its positions and
     // the spell does as much as possible.
@@ -3754,8 +3842,12 @@ function finalizeSpellResolution(
         // held the battlefield before (bounced-then-recast), any exile link
         // its previous incarnation stamped is stale on THIS new object —
         // see `clearExileLinksToEnteringSource`'s doc. A first-ever cast is a
-        // no-op (no prior incarnation ever stamped this id).
-        clearExileLinksToEnteringSource(state, item.id);
+        // no-op (no prior incarnation ever stamped this id). A parked entry
+        // had it at park time (`stageAsEntersEntry`): clearing again would
+        // erase its own as-enters exile pile.
+        if (!entryOpts?.asEntersResolved) {
+            clearExileLinksToEnteringSource(state, item.id);
+        }
         dropDelayedCapturesOfEnteringObject(state, item.id, {
             resolvingItemPopped: true,
         });
@@ -6936,6 +7028,12 @@ export function removePermanentTo(
         // turn"). Reset at turn start (CR 514.2 — strictly speaking this is
         // bookkeeping derived from the event log, not an SBA).
         state.deathsThisTurn = (state.deathsThisTurn ?? 0) + 1;
+        // CR 700.4 + CR 111.7 — per-owner tally of NONTOKEN creatures that
+        // reached a graveyard ("put into your graveyard from the battlefield").
+        if (creature.isToken !== true) {
+            owner.nontokenCreaturesToGraveyardThisTurn =
+                (owner.nontokenCreaturesToGraveyardThisTurn ?? 0) + 1;
+        }
     }
     // CR 607.2a + CR 113.7a — the pile this object's linked exile ability
     // exiled, read as it leaves: a return of the same id before its leaves
@@ -8170,14 +8268,15 @@ export function markDeathtouchDamage(
  *  counter type's matching keyword on the 0 → present transition (CR
  *  122.1c / 613.4d, issue #1194) and emits COUNTER_ADDED (issue #1319) so
  *  "whenever one or more counters are put on ~" triggers fire regardless of
- *  which caller added them. */
+ *  which caller added them. Returns the number actually put on (0 when a
+ *  replacement rewrote it away). */
 export function addCounterToCard(
     state: GameState,
     card: CardInstanceState,
     type: string,
     count: number
-): void {
-    if (count <= 0) return;
+): number {
+    if (count <= 0) return 0;
     // CR 122.1 / 614 (issue #3230) — counter-placement replacement chokepoint
     // (Michelangelo, Weirdness to 11: "that many plus one +1/+1 counters are
     // put on it instead"). This mutator is ONE of the two seams that put
@@ -8195,7 +8294,7 @@ export function addCounterToCard(
         counterType: type,
         count,
     }).count;
-    if (placed <= 0) return;
+    if (placed <= 0) return 0;
     const wasZero = (card.counters?.[type] ?? 0) === 0;
     const next = { ...(card.counters ?? {}) };
     next[type] = (next[type] ?? 0) + placed;
@@ -8219,6 +8318,7 @@ export function addCounterToCard(
             subtypes: [...card.subtypes],
         },
     ];
+    return placed;
 }
 
 /** CR 716.2a (issue #3234) — set a permanent's LEVEL and emit the
@@ -9378,8 +9478,12 @@ function stageReanimatedOnBattlefield(
     // battlefield (the land-blocked and exile-redirect branches above return
     // before this point), so any exile link a PREVIOUS incarnation of this
     // same instance id stamped is now stale — drop it before anything can
-    // read it as this new object's own pile.
-    clearExileLinksToEnteringSource(state, card.id);
+    // read it as this new object's own pile. Skipped on the as-enters resume:
+    // `stageAsEntersEntry` cleared at park time, and the pile linked since is
+    // this object's own (CR 614.12a).
+    if (!entryOpts?.asEntersResolved) {
+        clearExileLinksToEnteringSource(state, card.id);
+    }
     dropDelayedCapturesOfEnteringObject(state, card.id, {
         resolvingItemPopped: false,
     });
@@ -9838,6 +9942,18 @@ export function stageAsEntersEntry(
         delete card.colorOverride;
         delete card.grantedTriggeredAbilities;
     }
+    // CR 400.7 / 607.2b — a previous incarnation's exile links are stale on
+    // the object about to enter. Dropped HERE, at park time, for every origin,
+    // rather than in the entry tail: an `exileFromGraveyard` answer links its
+    // pile to this id BEFORE the permanent enters (CR 614.12a), and the
+    // tail's own clear would erase it. Every entry funnel therefore skips its
+    // clear on the `asEntersResolved` resume — a parked entry has had it.
+    // The price: an entry its answer then ABORTS (a declined `discard`, an
+    // `aura-host` with no legal host) never enters, yet its previous
+    // incarnation's links are gone — an ability of that incarnation still on
+    // the stack reads an empty pile. No card pairs an abortable as-enters
+    // choice with a linked exile.
+    clearExileLinksToEnteringSource(state, card.id);
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
         card,
@@ -10051,6 +10167,48 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             };
             break;
         }
+        case "exileFromGraveyard": {
+            // CR 614.1c / 607.2b — "exile any number of …": REUSES the shipped
+            // `choose-graveyard-card` shape (the graveyard grid + Done footer
+            // and the `chooseResolution` arm the bot already dispatches on).
+            // `min: 0` because zero is a legal number; `max` is every
+            // candidate. Read HERE, as the choice is offered, so a sibling's
+            // already-committed exile is gone from it.
+            const candidateIds = asEntersGraveyardExileCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            pending = {
+                ...base,
+                kind: "choose-graveyard-card",
+                zone: "graveyard",
+                candidateIds,
+                count: { min: 0, max: candidateIds.length },
+                prompt: `Choose any number of cards to exile from your graveyard as ${subject} enters.`,
+            };
+            break;
+        }
+        case "sacrifice": {
+            // CR 614.1a / 701.21a (Heart of Yavimaya) — REUSES the shipped
+            // `sacrifice-permanents` battlefield pick. `min: 1` is what makes
+            // it mandatory: unlike the `discard` leg there is no decline, and
+            // `forcedAsEntersAnswer` has already routed an empty candidate set
+            // to the graveyard branch without a prompt.
+            pending = {
+                ...base,
+                kind: "sacrifice-permanents",
+                zone: "battlefield",
+                candidateIds: asEntersSacrificeCandidates(
+                    state,
+                    entry,
+                    choice.filter
+                ),
+                count: { min: 1, max: 1 },
+                prompt: `Sacrifice a permanent as ${subject} enters. If you can't, it's put into its owner's graveyard instead.`,
+            };
+            break;
+        }
         case "pay": {
             // ADR 0100 D6 — the shipped `entersTappedUnlessPay` park (ADR 0051)
             // owns every CR 614.12 pay-to-enter card (shock lands); no card
@@ -10087,6 +10245,40 @@ function asEntersDiscardCandidates(
     return getPlayer(state, entry.controllerId)
         .hand.filter((c) => !filter || handCardMatchesFilter(c, filter))
         .map((c) => c.id);
+}
+
+/** CR 614.1c / 607.2b — the cards in the chooser's OWN graveyard an as-enters
+ *  `exileFromGraveyard` may exile, read LIVE (the `asEntersDiscardCandidates`
+ *  reason: a sibling staged entry may already have exiled one). Read by the
+ *  offer, the zero-candidate auto-answer, the applier's fail-closed re-check
+ *  and the sibling re-narrow — one derivation, so they cannot disagree. */
+function asEntersGraveyardExileCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: EffectCardFilter | undefined
+): string[] {
+    return getPlayer(state, entry.controllerId)
+        .graveyard.filter(
+            // CR 113.6b — matched as a GRAVEYARD card, so an ability that
+            // functions from the graveyard applies.
+            (c) => !filter || handCardMatchesFilter(c, filter, "graveyard")
+        )
+        .map((c) => c.id);
+}
+
+/** CR 701.21a / 614.1a — the permanents the entering object's controller can
+ *  sacrifice for an as-enters `sacrifice` cost, read LIVE (never carried on the
+ *  declaration) so a sibling staged entry's committed sacrifice is gone from the
+ *  set (CR 614.12b). The shared `sacrificeCandidates` matcher is the one the
+ *  may-pay permanent leg reads — snow supertypes and colours resolve live. */
+function asEntersSacrificeCandidates(
+    state: GameState,
+    entry: StagedEntry,
+    filter: PermanentFilter
+): string[] {
+    return sacrificeCandidates(state, entry.controllerId, filter).map(
+        (c) => c.id
+    );
 }
 
 /** CR 508.4 — what a creature entering attacking may attack: the defending
@@ -10194,6 +10386,20 @@ function forcedAsEntersAnswer(
     if (choice?.kind === "payLife") {
         return asEntersPayLifeMax(state, entry, choice.cap) === 0
             ? ["0"]
+            : undefined;
+    }
+    if (choice?.kind === "exileFromGraveyard") {
+        // Nothing to exile: the only answer is "zero cards", and the
+        // permanent enters with an empty pile.
+        return asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            .length === 0
+            ? []
+            : undefined;
+    }
+    if (choice?.kind === "sacrifice") {
+        return asEntersSacrificeCandidates(state, entry, choice.filter)
+            .length === 0
+            ? []
             : undefined;
     }
     if (choice?.kind !== "discard") return undefined;
@@ -10475,6 +10681,62 @@ function applyAsEntersAnswer(
             abortStagedEntryTo(state, entry, choice.ifDeclined);
             return { aborted: true };
         }
+        case "exileFromGraveyard": {
+            // CR 614.12a — exiled BEFORE the permanent enters, so the linked
+            // pile (CR 607.2b) is complete the moment it exists. Re-derived
+            // against the LIVE graveyard rather than trusted off the prompt:
+            // a card a sibling entry already exiled is skipped, never moved
+            // twice. An empty answer exiles nothing; the permanent still
+            // enters.
+            const legal = new Set(
+                asEntersGraveyardExileCandidates(state, entry, choice.filter)
+            );
+            const player = getPlayer(state, entry.controllerId);
+            const exiled: Parameters<typeof emitCardsExiled>[1][number][] = [];
+            for (const id of selected) {
+                if (!legal.has(id)) continue;
+                if (!exileCardFromGraveyard(player, id)) continue;
+                const moved = player.exile.find((c) => c.id === id);
+                if (!moved) continue;
+                moved.exiledBySourceId = card.id;
+                exiled.push({
+                    cardInstanceId: moved.id,
+                    cardId: (moved.card as { id?: string }).id,
+                    fromZone: "graveyard",
+                    ownerId: player.id,
+                });
+            }
+            // CR 603.2c — one instruction is ONE event with several
+            // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
+            emitCardsExiled(state, exiled);
+            return {};
+        }
+        case "sacrifice": {
+            // CR 701.21a — re-derived against the LIVE board, fail-closed as
+            // `discard` is: an id that is no longer a legal victim means the
+            // "instead" is never applied, so the permanent never enters.
+            const victimId = selected[0];
+            const candidates = asEntersSacrificeCandidates(
+                state,
+                entry,
+                choice.filter
+            );
+            if (victimId !== undefined && candidates.includes(victimId)) {
+                // CR 609.1 — the sacrifice IS the permanent's own replacement
+                // effect, paid by the entering permanent's controller; routed
+                // through the unified permanent-cost layer so sacrifice
+                // replacements and "dies" triggers see it like any other.
+                applySacrificeSelection(state, {
+                    playerId: entry.controllerId,
+                    reason: "as-enters sacrifice",
+                    requirements: [{ filter: choice.filter, count: 1 }],
+                    picked: [victimId],
+                });
+                return {};
+            }
+            abortStagedEntryTo(state, entry, choice.ifDeclined);
+            return { aborted: true };
+        }
         case "pay":
             throw new Error(
                 "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
@@ -10732,9 +10994,10 @@ export function advanceStagedEntry(
  *  one site that parks several entries at once: their prompts are all queued
  *  BEFORE any of them is answered, so the second entry's candidate set has to be
  *  re-narrowed the moment the first commits, not merely computed once at park
- *  time. Only cost-bearing kinds have a set to narrow (today `payLife`; the
- *  #1980 pay-2-life joins it). Ships as an engine capability — no shipped card
- *  pairs a cost-bearing as-enters choice with a simultaneous entry. */
+ *  time. Only kinds that spend a shared resource have a set to narrow:
+ *  `payLife` (the #1980 pay-2-life joins it) and `exileFromGraveyard`, whose
+ *  siblings draw on one graveyard. Ships as an engine capability — no shipped
+ *  card pairs such an as-enters choice with a simultaneous entry. */
 function renarrowSiblingCostChoices(
     state: GameState,
     answered: StagedEntry
@@ -10742,6 +11005,28 @@ function renarrowSiblingCostChoices(
     const queued = state.pendingChoices;
     if (!queued || queued.length === 0) return;
     for (const pending of queued) {
+        // CR 614.1c — a sibling's queued graveyard-exile prompt was offered
+        // against a graveyard the answered entry may just have exiled from;
+        // shrink its allow-list (and its `max`) to what is still there.
+        if (pending.asEntersKind === "exileFromGraveyard") {
+            const sibling = findStagedEntry(state, pending.asEntersCardId);
+            const declared = sibling?.owed[0];
+            if (
+                !sibling ||
+                sibling === answered ||
+                declared?.kind !== "exileFromGraveyard"
+            ) {
+                continue;
+            }
+            const candidateIds = asEntersGraveyardExileCandidates(
+                state,
+                sibling,
+                declared.filter
+            );
+            pending.candidateIds = candidateIds;
+            pending.count = { min: 0, max: candidateIds.length };
+            continue;
+        }
         if (pending.asEntersKind !== "payLife") continue;
         if (pending.playerId !== answered.controllerId) continue;
         const sibling = findStagedEntry(state, pending.asEntersCardId);
@@ -10998,7 +11283,11 @@ export function requestCopyRetargetOn(
     // the single shared resolver. `requireX` stays false (the default): a
     // copy's `chosenX` is read defensively off already-resolved state, so a
     // missing X here folds to 0 instead of throwing mid-resolve.
-    const count = resolveTargetRequirementCount(req.count, copy.chosenX);
+    // CR 707.10 — the copy copies "all decisions made for it, including …
+    // targets": a text-defined bound keeps the number its cast fixed.
+    const count = resolveTargetRequirementCount(req.count, copy.chosenX, {
+        determinedMax: copy.targets?.length ?? 0,
+    });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = req.subtypeFilter
@@ -12674,6 +12963,14 @@ export function buildSpellContext(
             // carries the flag (e.g. read during its own ETB resolution).
             if (target.id === item.id) return item.escaped === true;
             return false;
+        },
+        // CR 700.4 — nontokens put into `playerId`'s graveyard from the
+        // battlefield this turn; reads the per-owner tally, 0 when none.
+        getNontokenCreaturesToGraveyardThisTurn(playerId: string): number {
+            return (
+                state.players.find((p) => p.id === playerId)
+                    ?.nontokenCreaturesToGraveyardThisTurn ?? 0
+            );
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
@@ -14598,13 +14895,16 @@ export function buildSpellContext(
         // CR 601.2d / 120.4 — distribute counters AS YOU CHOOSE, each chosen
         // target getting at least 1. Same announcement-time split / fallback
         // rules as `dealDamageDividedAsChosen`. Non-permanent targets are
-        // skipped (counters live on permanents, CR 122).
+        // skipped (counters live on permanents, CR 122). Returns what each
+        // permanent actually received through the shared `addCounterToCard`
+        // chokepoint (a CR 614 replacement may change the count).
         distributeCountersAsChosen(
             targets: TargetSelection[],
             totalAmount: number,
             type: string
-        ): void {
-            if (targets.length === 0 || totalAmount <= 0) return;
+        ): Record<string, number> {
+            const placed: Record<string, number> = {};
+            if (targets.length === 0 || totalAmount <= 0) return placed;
             const split = resolveChosenDivision(
                 item.targetAmounts,
                 targets,
@@ -14613,8 +14913,13 @@ export function buildSpellContext(
             for (const target of targets) {
                 if (target.type !== "permanent") continue;
                 const amount = split.get(targetKey(target)) ?? 0;
-                if (amount > 0) this.addCounter(target, type, amount);
+                if (amount <= 0) continue;
+                const found = findOnBattlefield(state, target.id);
+                if (!found) continue;
+                const n = addCounterToCard(state, found.card, type, amount);
+                if (n > 0) placed[target.id] = (placed[target.id] ?? 0) + n;
             }
+            return placed;
         },
         // CR 615.1 / 601.2d / 120.4 — install a prevent-the-next-N shield on
         // each announced target, sized by the split the caster assigned at
@@ -16368,7 +16673,10 @@ export function buildSpellContext(
             // distinct from the copy-retarget `kind`).
             const count = resolveTargetRequirementCount(
                 requirement.count,
-                item.chosenX
+                item.chosenX,
+                // CR 601.2c — the spell keeps the number of targets its
+                // cast fixed; only the targets change.
+                { determinedMax: spell.targets?.length ?? 0 }
             );
             const minNeeded = typeof count === "number" ? count : count.min;
             if (minNeeded <= 0) return; // no targets to choose
@@ -19497,12 +19805,14 @@ export function exileCardFromGraveyard(
  *  action; CR 601.2h via CR 602.2b — the cost is paid at ACTIVATION, while the
  *  ability is being put on the stack, never at resolution).
  *
- *  Two source zones, one flag, dispatched on the ability's OWN declared source
- *  zone (`activateFromGraveyard`) rather than on where the card happens to be
- *  found — a declared discriminator cannot fail open the way "look for it
- *  somewhere" would:
+ *  Three source zones, one flag, dispatched on the ability's OWN declared
+ *  source zone ({@link exileThisSourceZone}) rather than on where the card
+ *  happens to be found — a declared discriminator cannot fail open the way
+ *  "look for it somewhere" would:
  *   - graveyard source (Eternalize CR 702.129a / Embalm CR 702.128a) → the
  *     plain graveyard → exile move;
+ *   - hand source (Elvish Spirit Guide's "Exile this card from your hand") →
+ *     the plain hand → exile move;
  *   - battlefield source (Feldon's Cane) → `removePermanentTo(…, "exile")`,
  *     the same leave-the-battlefield funnel `cost.sacrifice` uses, so aura
  *     cleanup, PERMANENT_LEFT and a CR 614 leave-replacement all apply.
@@ -19514,10 +19824,34 @@ export function payExileThisCost(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string,
-    fromGraveyard: boolean
+    from: ExileThisSourceZone
 ): boolean {
-    if (fromGraveyard) return exileCardFromGraveyard(player, cardInstanceId);
+    if (from === "graveyard")
+        return exileCardFromGraveyard(player, cardInstanceId);
+    if (from === "hand") {
+        if (!player.hand.some((c) => c.id === cardInstanceId)) return false;
+        moveCard(player, cardInstanceId, "hand", "exile");
+        return true;
+    }
     return removePermanentTo(state, cardInstanceId, "exile") !== null;
+}
+
+/** The zone an "Exile this card" cost moves its source OUT of. */
+export type ExileThisSourceZone = "battlefield" | "graveyard" | "hand";
+
+/** CR 113.6m — an ability whose cost moves the object it is on out of a zone
+ *  functions only in that zone, so the zone is the one the ability DECLARES it
+ *  is activated from (`activateFromGraveyard` / `activateFromHand`), and the
+ *  battlefield otherwise. */
+export function exileThisSourceZone(
+    ability: Pick<
+        ActivatedAbility,
+        "activateFromGraveyard" | "activateFromHand"
+    >
+): ExileThisSourceZone {
+    if (ability.activateFromGraveyard) return "graveyard";
+    if (ability.activateFromHand) return "hand";
+    return "battlefield";
 }
 
 /** SINGLE AUTHORITY for the `cost.returnThisToHand` activation cost — "Return
@@ -20313,6 +20647,67 @@ export function payDiscardAtRandomCost(
 ): void {
     // CR 118 — a cost payment, not an effect (issue #3814).
     discardCardsAtRandom(state, playerId, count, { kind: "cost" });
+}
+
+/** CR 118.1 / 608.2h — the additional-cost-victim snapshot of a CARD a cost is
+ *  about to move out of its zone (a graveyard card exiled to pay
+ *  `cost.exileFromGraveyard`, a library card exiled to pay
+ *  `cost.exileTopOfLibrary`). The card is gone by the time the ability
+ *  resolves, so "the exiled card's mana value" must read this snapshot, never
+ *  the live zone. MUST be called BEFORE the card moves. */
+export function costCardSnapshot(
+    card: CardInstanceState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> {
+    const defId = (card.card as { id?: string }).id;
+    const def = defId ? tryGetDefinition(defId) : undefined;
+    return {
+        cardInstanceId: card.id,
+        mv: manaValue(def?.manaCost),
+        ...(card.subtypes && card.subtypes.length > 0
+            ? { subtypes: [...card.subtypes] }
+            : {}),
+        ...costVictimTypeFields(card),
+    };
+}
+
+/** CR 118.3 — the `cost.exileTopOfLibrary` leg is payable only while the payer
+ *  has a card in their library. SINGLE AUTHORITY for its affordability: the
+ *  announcement throw, `enumerateAbilityMoves`, the search-side cost payer and
+ *  the client's `getStackAbilities` hint all ask this question. */
+export function canPayExileTopOfLibrary(player: {
+    library: { length: number } | { count: number };
+}): boolean {
+    const lib = player.library;
+    return ("length" in lib ? lib.length : lib.count) > 0;
+}
+
+/** SINGLE AUTHORITY for paying the `cost.exileTopOfLibrary` activation cost —
+ *  "Exile the top card of your library" (CR 118.1; CR 701.13a — the card moves
+ *  to exile; CR 406.3 — face up, as no face-down instruction is printed).
+ *  Emits ONE `CARDS_EXILED` (the choke point every "whenever a card is put
+ *  into exile" trigger watches).
+ *
+ *  Returns the exiled card's CR 608.2h snapshot for the resulting stack item,
+ *  or undefined when the library is empty — the vanished-resource policy every
+ *  deferred cost leg shares: the caller drops the activation rather than
+ *  paying a phantom cost. */
+export function payExileTopOfLibraryCost(
+    state: GameState,
+    player: PlayerState
+): NonNullable<StackItem["additionalSacrificeSnapshot"]> | undefined {
+    const top = player.library[0];
+    if (!top) return undefined;
+    const snapshot = costCardSnapshot(top);
+    moveCard(player, top.id, "library", "exile");
+    emitCardsExiled(state, [
+        {
+            cardInstanceId: top.id,
+            cardId: (top.card as { id?: string }).id,
+            fromZone: "library",
+            ownerId: player.id,
+        },
+    ]);
+    return snapshot;
 }
 
 /** Deducts mana cost from pool. Colored first, then generic. When

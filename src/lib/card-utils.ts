@@ -68,12 +68,14 @@ import {
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
     canPayRemoveCounterCost,
+    functionsOnBattlefield,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
     getManaTapOptions,
     getManaTapOptionsDetailed,
     hasBasicLandMana,
+    canPayPermanentGiveUpCostLegs,
     hasFilteredGiveUpCost,
     hybridCostKey,
     isSpellStackItem,
@@ -87,6 +89,7 @@ import type {
 } from "@convex/gre/state";
 import {
     assignMayPayHandCards,
+    canPayExileTopOfLibrary,
     manaBalanceForRestrictionAnyRider,
     mayPayGraveyardCandidates,
 } from "@convex/gre/state";
@@ -385,6 +388,9 @@ function clientManaAbilities(
             .filter(
                 ({ ability: a }) =>
                     !a.useStack &&
+                    // CR 113.6m — a hand-source mana ability (Elvish Spirit
+                    // Guide) is not one the permanent has.
+                    functionsOnBattlefield(a) &&
                     (a.manaProduced ||
                         a.manaChoices ||
                         a.getManaChoices ||
@@ -683,6 +689,7 @@ export function getNonTapManaChoices(
     ).find(
         ({ ability: a }) =>
             !a.useStack &&
+            functionsOnBattlefield(a) &&
             !a.cost.tap &&
             !a.cost.sacrifice &&
             (a.manaChoices || a.getManaChoices || a.manaColorSource)
@@ -771,6 +778,9 @@ export function getManaCostMenuAbility(
         getEffectiveClientAbilities(card).find(
             (a) =>
                 !a.useStack &&
+                // CR 113.6m — a hand-source mana ability (Elvish Spirit
+                // Guide) is offered on the hand card, never the permanent.
+                functionsOnBattlefield(a) &&
                 a.oracleText &&
                 (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice)) &&
                 (!a.cost.tapOtherFilter ||
@@ -792,7 +802,7 @@ export function getManaCostMenuAbility(
 /** CR 118.3 / 118.5 (issue #3455) — can the controller pay this ability's
  *  FILTERED give-up leg ("Sacrifice a creature", "Discard a card")? The menu
  *  affordability gate for the shape {@link getManaCostMenuAbility} offers, and
- *  the belt to the server's own `assertSacrificeFilterCostAffordable` /
+ *  the belt to the server's own `assertPermanentGiveUpCostAffordable` /
  *  `assertDiscardFilterCostAffordable` braces: an unpayable cost must withhold
  *  the entry, never dispatch a doomed activation that parks and throws.
  *
@@ -816,25 +826,25 @@ export function canPayFilteredGiveUpCost(
 ): boolean {
     if (!stateView) return true;
     const mine = stateView.players.find((p) => p.id === card.controllerId);
-    const sac = ability.cost.sacrificeFilter;
-    if (sac) {
-        const candidates = (mine?.battlefield ?? []).filter((c) =>
-            matchesEnginePermanentFilter(c, sac, {
-                selfControllerId: card.controllerId,
-                // CR 109.2 (issue #2367) — honoured ONLY by an `excludeSource`
-                // filter, exactly as the server's own gate passes it: Skirk
-                // Prospector IS a Goblin and may eat itself, so a blanket
-                // self-exclusion here would hide a legal payment.
-                selfInstanceId: card.id,
-                // "Sacrifice enchanted creature": the host, or
-                // `hostOfSource` fails closed and hides the ability.
-                selfAttachedToId: card.attachedTo,
-            })
-        );
-        if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-            return false;
-        }
-    }
+    const payable = canPayPermanentGiveUpCostLegs(
+        ability.cost,
+        (filter) =>
+            (mine?.battlefield ?? []).filter((c) =>
+                matchesEnginePermanentFilter(c, filter, {
+                    selfControllerId: card.controllerId,
+                    // CR 109.2 (issue #2367) — honoured ONLY by an
+                    // `excludeSource` filter, exactly as the server's own gate
+                    // passes it: Skirk Prospector IS a Goblin and may eat
+                    // itself, so a blanket self-exclusion here would hide a
+                    // legal payment.
+                    selfInstanceId: card.id,
+                    // "Sacrifice enchanted creature": the host, or
+                    // `hostOfSource` fails closed and hides the ability.
+                    selfAttachedToId: card.attachedTo,
+                })
+            ).length
+    );
+    if (!payable) return false;
     const discard = ability.cost.discardFilter;
     if (discard && (mine?.hand.length ?? 0) < discard.count) return false;
     return true;
@@ -1246,9 +1256,7 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  *  affordability HINT undercounting a genuinely larger X only risks a false
  *  "unaffordable" READ if X ends up 0, which the server's own `hasEnoughLegalTargets`
  *  gate has final say over regardless). */
-function minTargetCountHint(
-    count: number | "X" | { min: number; max?: number | "X" }
-): number {
+function minTargetCountHint(count: TargetRequirement["count"]): number {
     if (count === "X") return 1;
     return typeof count === "number" ? count : count.min;
 }
@@ -2222,7 +2230,14 @@ export function getStackAbilities(
      *  controller of the enchanted creature may activate this ability") divorces
      *  the two: the Aura's controller and the activator can be different
      *  players. Omit for the ordinary controller-activates listing. */
-    activatorId?: string
+    activatorId?: string,
+    /** Card count of the PAYER's own library (`PublicLibrary.count` on the
+     *  wire). Gates the CR 118.3 `exileTopOfLibrary` activation cost ("Exile
+     *  the top card of your library") as a UI hint: with an empty library the
+     *  ability is unpayable and hidden, mirroring the server throw ("No card
+     *  in library to exile"). Omit to skip the gate — same fail-open
+     *  discipline as `payerLife`. */
+    payerLibraryCount?: number
 ): { id: string; oracleText: string }[] {
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
@@ -2236,6 +2251,7 @@ export function getStackAbilities(
             loyalty?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
+            exileTopOfLibrary?: boolean;
             discardFilter?: { filter: EffectCardFilter; count: number };
             exileFromGraveyard?: {
                 count: number;
@@ -2262,6 +2278,11 @@ export function getStackAbilities(
              *  the cost gives up ("Sacrifice ten nonland permanents", Bolas's
              *  Citadel). Omitted = 1. */
             sacrificeFilterCount?: number;
+            /** CR 602.1a — "return a permanent matching <filter> you control
+             *  to its owner's hand" (Wirewood Symbiote's "Return an Elf you
+             *  control"). Like `sacrificeFilter`, the source itself is a legal
+             *  candidate when it matches. */
+            returnToHandFilter?: PermanentFilter;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -2419,39 +2440,45 @@ export function getStackAbilities(
         // server uses, off the viewer-visible `stateView` board; without it
         // the ability stays offered and the server rejects it (fail-open,
         // same discipline as every other board-dependent gate here).
-        if (a.cost.sacrificeFilter && stateView) {
-            // CR 602.1 / 118.5 — the sacrifice is paid by the ACTIVATOR, not
+        // CR 602.1a — the `returnToHandFilter` leg ("Return an Elf you control
+        // to its owner's hand") is gated by the same count, through the one
+        // leg list `permanentGiveUpCostLegs`.
+        if (stateView) {
+            // CR 602.1a — the cost is paid by the ACTIVATOR, not
             // necessarily the source's controller ("any player may
             // activate"/enchanted-controller abilities, `activatorId` above):
             // `activateAbilityOnState` (`convex/gre/activation.ts`) scans
             // `getPlayer(state, args.playerId).battlefield` — the activator's
-            // own board — for the sacrifice candidate. Latent today (no
-            // shipped card combines `sacrificeFilter` with either shape), but
-            // mirroring the server exactly here is what keeps it that way.
+            // own board — for the candidate. Latent today (no shipped card
+            // combines a give-up leg with either shape), but mirroring the
+            // server exactly here is what keeps it that way.
             const payerId = activatorId ?? card.controllerId;
             const mine = stateView.players.find((p) => p.id === payerId);
-            const candidateCount = (mine?.battlefield ?? []).filter((c) =>
-                matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
-                    selfControllerId: payerId,
-                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact"
-                    // (Legion Extruder) / "another Orc or Goblin" (Orc
-                    // General): the source is never a legal payment for its own
-                    // cost, so it must not count toward this gate. Without the
-                    // id an `excludeSource` filter matches nothing here
-                    // (fail-closed) and the ability is simply never offered —
-                    // wrong, but never an illegal click.
-                    selfInstanceId: card.id,
-                    // "Sacrifice enchanted creature".
-                    selfAttachedToId: card.attachedTo,
-                })
-            ).length;
             // CR 602.1 / 118.5 (issue #2398) — a multi-permanent sacrifice cost
             // ("Sacrifice ten nonland permanents", Bolas's Citadel) needs the
             // COUNT, not mere existence; otherwise the ability is offered with
             // three permanents out and the server throws on click.
-            if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
-                return false;
-            }
+            const payable = canPayPermanentGiveUpCostLegs(
+                a.cost,
+                (filter) =>
+                    (mine?.battlefield ?? []).filter((c) =>
+                        matchesEnginePermanentFilter(c, filter, {
+                            selfControllerId: payerId,
+                            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER
+                            // artifact" (Legion Extruder) / "another Orc or
+                            // Goblin" (Orc General): the source is never a
+                            // legal payment for its own cost, so it must not
+                            // count toward this gate. Without the id an
+                            // `excludeSource` filter matches nothing here
+                            // (fail-closed) and the ability is simply never
+                            // offered — wrong, but never an illegal click.
+                            selfInstanceId: card.id,
+                            // "Sacrifice enchanted creature".
+                            selfAttachedToId: card.attachedTo,
+                        })
+                    ).length
+            );
+            if (!payable) return false;
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`
@@ -2501,6 +2528,15 @@ export function getStackAbilities(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
+        // CR 118.3 — "Exile the top card of your library" is unpayable with an
+        // empty library, through the engine's own affordability authority.
+        if (
+            a.cost.exileTopOfLibrary &&
+            payerLibraryCount !== undefined &&
+            !canPayExileTopOfLibrary({ library: { count: payerLibraryCount } })
+        ) {
+            return false;
+        }
         // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
         // (Survival of the Fittest) is unpayable unless at least `count`
         // cards in the controller's OWN hand match the filter. UI hint
@@ -2658,30 +2694,29 @@ export function getGraveyardStackAbilities(
             // have been offered unconditionally regardless of board state,
             // hitting the server's "No legal permanent to pay the sacrifice
             // cost" throw on click.
-            if (a.cost.sacrificeFilter) {
-                const mine = stateView.players.find(
-                    (p) => p.id === card.ownerId
-                );
-                const candidateCount = (mine?.battlefield ?? []).filter((c) =>
-                    matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
-                        selfControllerId: card.ownerId,
-                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER <filter>".
-                        // A graveyard-source ability's own card isn't on the
-                        // battlefield at all, so this can never exclude a real
-                        // candidate; threaded anyway because an `excludeSource`
-                        // filter fails CLOSED without it (the ability would be
-                        // permanently hidden rather than wrongly offered).
-                        selfInstanceId: card.id,
-                        // "Sacrifice enchanted creature".
-                        selfAttachedToId: card.attachedTo,
-                    })
-                ).length;
-                // CR 602.1 / 118.5 (issue #2398) — counted, not merely
-                // existence-checked (see the battlefield gate above).
-                if (candidateCount < (a.cost.sacrificeFilterCount ?? 1)) {
-                    return false;
-                }
-            }
+            const mine = stateView.players.find((p) => p.id === card.ownerId);
+            // CR 602.1 / 118.5 (issue #2398) — counted, not merely
+            // existence-checked (see the battlefield gate above).
+            const payable = canPayPermanentGiveUpCostLegs(
+                a.cost,
+                (filter) =>
+                    (mine?.battlefield ?? []).filter((c) =>
+                        matchesEnginePermanentFilter(c, filter, {
+                            selfControllerId: card.ownerId,
+                            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER
+                            // <filter>". A graveyard-source ability's own card
+                            // isn't on the battlefield at all, so this can
+                            // never exclude a real candidate; threaded anyway
+                            // because an `excludeSource` filter fails CLOSED
+                            // without it (the ability would be permanently
+                            // hidden rather than wrongly offered).
+                            selfInstanceId: card.id,
+                            // "Sacrifice enchanted creature".
+                            selfAttachedToId: card.attachedTo,
+                        })
+                    ).length
+            );
+            if (!payable) return false;
             // CR 602.1b — the shared precondition authority (data condition
             // and closure alike), see `getStackAbilities`.
             if (
@@ -2793,6 +2828,43 @@ export function getHandStackAbilities(
             return true;
         })
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+}
+
+/** CR 113.6m / 605.3a — the MANA abilities the viewer may activate on a card in
+ *  their OWN hand ("Exile this card from your hand: Add {G}.", Elvish Spirit
+ *  Guide): `activateFromHand` + `useStack: false`. The twin of
+ *  {@link getHandStackAbilities}, gated on the same timing and precondition
+ *  predicates; WHEN the mana window is open (priority, or paying a cost) is
+ *  the caller's, and `activateManaAbility` in game.ts is authoritative. No
+ *  Abeyance gate: that lock spares mana abilities (CR 605.1a). */
+export function getHandManaAbilities(
+    card: CardInstance,
+    phase: Phase | undefined,
+    stateView: TriggerStateView
+): { id: string; oracleText: string }[] {
+    const cardDef = tryGetDefinition(card.card.id);
+    return (cardDef?.activatedAbilities ?? [])
+        .filter(
+            (a) =>
+                a.activateFromHand &&
+                !a.useStack &&
+                !!a.oracleText &&
+                isActivationTimingAllowed(
+                    a,
+                    card.ownerId,
+                    phase,
+                    stateView.activePlayerId,
+                    card.activationsThisTurn,
+                    card.hasAttackedThisTurn,
+                    card.classLevel
+                ) &&
+                activationPreconditionViolation(
+                    stateView,
+                    card as unknown as PermanentView,
+                    a
+                ) === null
+        )
+        .map((a) => ({ id: a.id, oracleText: a.oracleText! }));
 }
 
 /** Filters `getStackAbilities` to those a NON-controller may activate on an

@@ -271,6 +271,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [flying] › gainControl+if+sacrifice",
+            "issue": 6578
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flying] › pump",
             "issue": 4275
         },
@@ -558,6 +563,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery target:Sorcery › grantFlashback",
             "issue": 6175
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:card › moveZone",
+            "issue": 6592
         },
         {
             "kind": "bot",
@@ -2271,6 +2281,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › {…} doesn't untap during your next untap step",
+            "issue": 6574
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › sentence assembly › At the beginning of your upkeep, if this card is in your graveyard, you may discard a card. If you do, return this card to your hand",
             "issue": 5295
         },
@@ -3816,6 +3831,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"delayedTrigger\" acts on $source — covered by the card's own per-card test",
+            "issue": 6598
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
             "issue": 4172
         },
@@ -3916,6 +3936,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set spans all players' zones — not faithfully sizable in a canned scenario",
+            "issue": 6586
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › numeric ref \"$event.amount\" — amount depends on a runtime snapshot",
             "issue": 5216
         },
@@ -3923,6 +3948,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › numeric ref \"$that1.toughness\" — amount depends on a runtime snapshot",
             "issue": 5716
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › object ref \"$each\" — recipient depends on a forEach iteration",
+            "issue": 6587
         },
         {
             "kind": "scenario",

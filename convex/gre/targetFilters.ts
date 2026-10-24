@@ -966,6 +966,17 @@ const sameControllerDescriptor = defineFilter<boolean>({
                 ? null
                 : "Must target a creature controlled by the same player as the other chosen target";
         },
+        // CR 108.4a + CR 404.1 — a card in a graveyard has no controller; the
+        // pile it sits in belongs to its OWNER. "Cards from a single
+        // graveyard" is therefore the same cross-slot relation read on
+        // `ownerId`: every pick shares the first pick's graveyard.
+        card: (card, value, ctx) => {
+            if (!value) return null;
+            if (ctx.siblingControllerId === undefined) return null;
+            return card.ownerId === ctx.siblingControllerId
+                ? null
+                : "Must target a card in the same graveyard as the other chosen targets";
+        },
     },
 });
 
@@ -981,9 +992,19 @@ const sameControllerDescriptor = defineFilter<boolean>({
 export function siblingControllerIdFor(
     state: GameState,
     sameController: boolean | undefined,
-    selected: ReadonlyArray<{ type: string; id: string }>
+    selected: ReadonlyArray<{ type: string; id: string; playerId?: string }>
 ): string | undefined {
     if (!sameController) return undefined;
+    // CR 404.1 — a graveyard pick pins the graveyard's owner (the `playerId`
+    // a `graveyard-card` selection carries), not a battlefield controller.
+    const pile = selected.find((t) => t.type === "graveyard-card");
+    if (pile) {
+        return (
+            pile.playerId ??
+            state.players.find((p) => p.graveyard.some((c) => c.id === pile.id))
+                ?.id
+        );
+    }
     const sibling = selected.find((t) => t.type === "permanent");
     if (!sibling) return undefined;
     for (const player of state.players) {
@@ -1951,6 +1972,7 @@ export const CARD_FILTER_KEYS = [
     "subtypeFilter",
     "excludeSubtypes",
     "colorFilterAny",
+    "sameController",
 ] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
@@ -1965,6 +1987,7 @@ export type CardFilterValues = Partial<{
     subtypeFilter: string[];
     excludeSubtypes: string[];
     colorFilterAny: ReadonlyArray<Color>;
+    sameController: boolean;
 }>;
 
 /** Builds `CardFilterValues` directly off a `PendingTarget` (or the client's

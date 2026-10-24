@@ -38,6 +38,7 @@ import {
     emitCardDrawn,
     discardToGraveyard,
     payExileThisCost,
+    exileThisSourceZone,
     payReturnThisToHandCost,
     matchesPermanentFilter,
     moveCard,
@@ -61,6 +62,8 @@ import {
     addCounterToCard,
     applyKeywordCounterGrant,
     payDiscardAtRandomCost,
+    canPayExileTopOfLibrary,
+    payExileTopOfLibraryCost,
     commitLandsForCost,
     resolveTopOfStack,
     normalizeManaCost,
@@ -368,7 +371,6 @@ import {
 // throwing wrapper does. `payLoyaltyCost` is re-exported below, unchanged, for
 // the callers (and tests) that have always imported it from here.
 import { payLoyaltyCost } from "./gre/loyalty";
-import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase } from "./gre/types";
@@ -395,6 +397,7 @@ import {
     declaresAsEntersMode,
     hybridCostKey,
     getActivatedManaAbility,
+    functionsOnBattlefield,
     manaAbilityPaidWithoutTapping,
     getActivatedManaColor,
     getActivatedManaRestriction,
@@ -520,7 +523,7 @@ export {
     assertActivationTimingLegal,
     assertDiscardFilterCostAffordable,
     assertLoyaltyActivationLegal,
-    assertSacrificeFilterCostAffordable,
+    assertPermanentGiveUpCostAffordable,
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     castZoneOwner,
@@ -542,7 +545,7 @@ import {
     assertGameNotOver,
     assertLoyaltyActivationLegal,
     assertNoPendingChoices,
-    assertSacrificeFilterCostAffordable,
+    assertPermanentGiveUpCostAffordable,
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     canPayExileFromGraveyard,
@@ -2579,6 +2582,30 @@ function filterCostManaAbilityForTap(
     return withFilterCost(getFixedSacrificeManaAbility(card) ?? first);
 }
 
+/** The cost legs `activateManaAbility` pays before its direct deposit of a
+ *  body-less fixed output: mana, the tap-other pick, a placed counter and the
+ *  self-exile. */
+const DIRECT_DEPOSIT_PAID_COST_LEGS: ReadonlySet<string> = new Set([
+    "mana",
+    "tapOtherFilter",
+    "addCounter",
+    "exileThis",
+]);
+
+/** CR 608.2 — whether resolving this ability runs anything: an Effect Script,
+ *  an imperative `resolve` / `effect`, a stepped body or modes. A mana ability
+ *  with none of them is pure `manaProduced` data, which only a direct deposit
+ *  turns into mana. */
+function hasResolutionBody(ability: ActivatedAbility): boolean {
+    return !!(
+        ability.effect ||
+        ability.resolve ||
+        (ability.effects && ability.effects.length > 0) ||
+        (ability.resolveSteps && ability.resolveSteps.length > 0) ||
+        (ability.modes && ability.modes.length > 0)
+    );
+}
+
 /** CR 605.1a / 601.2b (issue #3455) — the mana a non-stack activation will add
  *  at commit, resolved at ANNOUNCEMENT. A chooser (Orcish Lumberjack) resolves
  *  the activator's pick against the same `getEffectiveManaChoices` list every
@@ -2695,7 +2722,7 @@ export function beginNonStackFilterCostActivation(
     // predicates the stack path uses so neither mutation admits what the other
     // refuses.
     assertDiscardFilterCostAffordable(player, ability);
-    assertSacrificeFilterCostAffordable(state, player, card, ability);
+    assertPermanentGiveUpCostAffordable(state, player, card, ability);
     const manaCost = normalizeManaCost(ability.cost.mana ?? {});
     // CR 601.2g / 605.3a — float the mana this ability's own cost needs from the
     // player's other sources (Bog Witch's {B}), the same convenience
@@ -4438,12 +4465,22 @@ export { payLoyaltyCost };
 // the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
 // `PendingTarget` without importing `game.ts`. Imported above; same behavior.
 function applyRequirementToPendingTarget(
+    state: GameState,
     pt: PendingTarget,
     req: TargetRequirement,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    priorTargets: readonly TargetSelection[]
 ): void {
     pt.targetType = req.type;
-    pt.count = resolveTargetCount(req.count, chosenX);
+    // CR 601.2c — a text-defined bound is read HERE, once, against the picks
+    // the earlier groups made (the slots its `{ target: N }` names); the
+    // stored number is what the rest of the cast reads, never the board again.
+    pt.count = resolveTargetCount(req.count, chosenX, {
+        state,
+        controllerId: pt.playerId,
+        sourceInstanceId: pt.cardInstanceId,
+        priorTargets,
+    });
     pt.selected = [];
     // Clear every optional filter so a prior group's constraint never leaks,
     // then re-apply from the shared builder. The key set is COMPILE-FORCED —
@@ -4547,18 +4584,31 @@ export function advanceTargetGroupOrFinalize(
         recordModeTargetGroup(pt, pt.selected.length);
         pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
         pt.remainingRequirements = rest.length > 0 ? rest : undefined;
-        applyRequirementToPendingTarget(
+        // ADR 0094 — with several mode instances, the earlier picks a group
+        // sees are its own instance's: the slots its script reads at
+        // resolution.
+        const instancePrior = priorTargetsOfSameModeInstance(
             pt,
-            excludingPriorTargets(
-                next,
-                priorTargetsOfSameModeInstance(pt, pt.priorSelected)
-            ),
-            pt.chosenX
+            pt.priorSelected
+        );
+        applyRequirementToPendingTarget(
+            state,
+            pt,
+            excludingPriorTargets(next, instancePrior),
+            pt.chosenX,
+            instancePrior
         );
         // CR 601.2c — one announcement, one set of targets: a requirement the
         // earlier groups left unobeyed follows the walk into this one, and the
         // ids it narrows to are this group's, not the previous group's.
         refreshRequiredTargetChoiceIds(state, pt);
+        // CR 601.2c — a group whose count resolved to no targets at all (an
+        // "up to X" whose X came out 0) has nothing to announce: move on
+        // rather than rest on a selection no pick can enter. The announcement
+        // side of the same rule is `announcedTargetCount`'s `undefined`.
+        if (pendingTargetCountMaxReached(pt.count, 0)) {
+            advanceTargetGroupOrFinalize(state, pt, playerId);
+        }
         return;
     }
     finalizeTargetSelection(state, pt, playerId);
@@ -4898,37 +4948,12 @@ export function finalizeTargetSelection(
             ability
         );
         if (precondition !== null) throw new Error(precondition);
-        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": illegal
-        // if no matching permanent is on the activating player's battlefield.
-        if (ability.cost.sacrificeFilter) {
-            const candidates = player.battlefield.filter((c) =>
-                // Same layered view as `sacrificeCandidates`, the scan that
-                // later builds the picker. Matching the RAW instance here made
-                // this gate disagree with it on every colour-filtered cost
-                // (issue #1209).
-                matchesPermanentFilter(
-                    effectivePermanentView(state, c),
-                    ability.cost.sacrificeFilter!,
-                    {
-                        selfControllerId: player.id,
-                        // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
-                        // the source is not a legal payment for its own cost.
-                        selfInstanceId: card.id,
-                        // "Sacrifice enchanted creature"
-                        // (`hostOfSource` fails closed without the host).
-                        selfAttachedToId: card.attachedTo,
-                        supertypesOf: liveSupertypesOf,
-                    }
-                )
-            );
-            // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland
-            // permanents" (Bolas's Citadel): the cost gives up
-            // `sacrificeFilterCount` matching permanents (default 1), so the
-            // gate is a COUNT, not mere existence.
-            if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-                throw new Error("No legal permanent to pay the sacrifice cost");
-            }
-        }
+        // CR 602.1 / 118.3 — the filtered give-up legs ("sacrifice a permanent
+        // matching <filter>", "return a permanent matching <filter> you
+        // control to its owner's hand"): illegal unless the activating player
+        // controls enough matching permanents. The SAME predicate the
+        // untargeted stack path and the non-stack mana path gate on.
+        assertPermanentGiveUpCostAffordable(state, player, card, ability);
         // CR 602.1 / 118.5 — "exile N cards from a single graveyard": illegal
         // unless one graveyard holds enough matching cards.
         if (ability.cost.exileFromGraveyard) {
@@ -4971,6 +4996,14 @@ export function finalizeTargetSelection(
         // that can't be paid.
         if (ability.cost.discardAtRandom && player.hand.length === 0) {
             throw new Error("No card in hand to discard");
+        }
+        // CR 118.3 — "Exile the top card of your library": illegal with an
+        // empty library. Validated up-front.
+        if (
+            ability.cost.exileTopOfLibrary &&
+            !canPayExileTopOfLibrary(player)
+        ) {
+            throw new Error("No card in library to exile");
         }
         // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
         // (Survival of the Fittest): illegal unless at least `count` matching
@@ -5193,7 +5226,7 @@ export function finalizeTargetSelection(
                 state,
                 player,
                 card.id,
-                !!ability.activateFromGraveyard
+                exileThisSourceZone(ability)
             );
         }
         // CR 602.1a / 601.2h — the "Return this permanent to its owner's
@@ -5224,6 +5257,15 @@ export function finalizeTargetSelection(
             activationSac,
             state
         );
+        // CR 601.2h — the library-to-exile leg is paid LAST, and FAILS CLOSED
+        // ("Unpayable costs can't be paid") so the ability never reaches the
+        // stack with it silently unpaid; the throw rolls the mutation back.
+        const targetedLibraryExileSnapshot = ability.cost.exileTopOfLibrary
+            ? payExileTopOfLibraryCost(state, player)
+            : undefined;
+        if (ability.cost.exileTopOfLibrary && !targetedLibraryExileSnapshot) {
+            throw new Error("No card in library to exile");
+        }
 
         const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
             castById: playerId,
@@ -5238,10 +5280,14 @@ export function finalizeTargetSelection(
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
-            ...((targetedSacSnapshot ?? selfSacrificeSnapshot)
+            ...((targetedSacSnapshot ??
+            targetedLibraryExileSnapshot ??
+            selfSacrificeSnapshot)
                 ? {
                       additionalSacrificeSnapshot:
-                          targetedSacSnapshot ?? selfSacrificeSnapshot,
+                          targetedSacSnapshot ??
+                          targetedLibraryExileSnapshot ??
+                          selfSacrificeSnapshot,
                   }
                 : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
@@ -7035,9 +7081,19 @@ export const announceCast = mutation({
         const resolvedCount = announcedTargetCount(
             activeTargetRequirement,
             chosenX,
-            // The cast path is the consumer that must REJECT an X-bearing count
-            // with no announced X — see `resolveTargetCount`'s doc comment.
-            { requireX: true }
+            {
+                // The cast path is the consumer that must REJECT an X-bearing
+                // count with no announced X — see `resolveTargetCount`'s doc
+                // comment.
+                requireX: true,
+                // CR 601.2c — the opening group has no earlier picks.
+                announcement: {
+                    state,
+                    controllerId: args.playerId,
+                    sourceInstanceId: args.cardInstanceId,
+                    priorTargets: [],
+                },
+            }
         );
         const requiresTargets = resolvedCount !== undefined;
 
@@ -9940,6 +9996,13 @@ export function applyOneTargetSelection(
             sourceSubtypes: [],
             chooserId: playerId,
             activePlayerId: state.activePlayerId,
+            // CR 601.2c + CR 404.1 — "from a single graveyard": later picks
+            // must share the first pick's graveyard owner.
+            siblingControllerId: siblingControllerIdFor(
+                state,
+                pt.sameController,
+                pt.selected
+            ),
         };
         const cardFilterViolation = checkCardTargetFilters(
             cardFilterCtx,
@@ -14274,11 +14337,20 @@ export const activateManaAbility = mutation({
             throw new Error("Cannot activate mana ability without priority");
         }
 
-        const card = player.battlefield.find(
+        // CR 113.6m — a mana ability whose cost moves its card out of the HAND
+        // ("Exile this card from your hand: Add {G}.", Elvish Spirit Guide)
+        // functions only there, and only the card's owner holds it (CR
+        // 602.2). The battlefield is searched first; the hand only when the
+        // card is on no battlefield of this player.
+        const onBattlefield = player.battlefield.find(
             (c) => c.id === args.cardInstanceId
         );
+        const inHand = onBattlefield
+            ? undefined
+            : player.hand.find((c) => c.id === args.cardInstanceId);
+        const card = onBattlefield ?? inHand;
         if (!card) throw new Error("Card not on battlefield");
-        if (card.controllerId !== args.playerId) {
+        if (onBattlefield && card.controllerId !== args.playerId) {
             throw new Error("You do not control this permanent");
         }
 
@@ -14287,6 +14359,22 @@ export const activateManaAbility = mutation({
         const ability = resolved.ability;
         if (ability.useStack) {
             throw new Error("Use activateAbility for stack abilities");
+        }
+        // CR 113.6m — the ability functions only in the zone its cost moves
+        // the card out of: a hand-source ability is illegal on the
+        // battlefield, and a battlefield ability is illegal from the hand.
+        if (inHand && !ability.activateFromHand) {
+            throw new Error("This ability can't be activated from your hand");
+        }
+        // CR 601.2a — a card being cast is on the stack while its costs are
+        // paid, though the engine keeps it in hand until the cast commits.
+        if (inHand && state.pendingCast?.cardInstanceId === card.id) {
+            throw new Error("This card is being cast");
+        }
+        if (onBattlefield && !functionsOnBattlefield(ability)) {
+            throw new Error(
+                "This ability can't be activated from the battlefield"
+            );
         }
         // This path is for non-tap mana abilities only — a mana-cost ability
         // (Farrelite Priest "{1}: Add {W}") or a free "{0}:" ability (Vivi
@@ -14397,6 +14485,21 @@ export const activateManaAbility = mutation({
                 ability.cost.addCounter.count
             );
         }
+        // CR 118.1 / 601.2h — "Exile this card from your hand": paid with the
+        // rest of the cost, before the ability resolves. The card object we
+        // hold persists through the move, so the resolution below keeps its
+        // last known information (CR 113.7a).
+        if (
+            ability.cost.exileThis &&
+            !payExileThisCost(
+                state,
+                player,
+                card.id,
+                exileThisSourceZone(ability)
+            )
+        ) {
+            throw new Error("Cannot pay the exile cost");
+        }
 
         // CR 605.1a / 613.4 (issue #1179) — a non-tap mana ability that
         // declares `manaChoices` / `getManaChoices` (Vivi Ornitier's runtime
@@ -14424,6 +14527,48 @@ export const activateManaAbility = mutation({
             // a silent bot freeze (CLAUDE.md "Bot never freezes a game").
             // Both are no-ops when the corresponding pending record is absent
             // or not yet covered.
+            tryAutoCommitPendingCast(state, args.playerId);
+            tryAutoCommitPendingActivation(state, args.playerId);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
+
+        // CR 605.3b / 106.6 — a FIXED output with no resolution body (a
+        // compiled "{R}: Add {B}." or "Exile this card from your hand: Add
+        // {G}.") is the mana itself: deposited directly, restriction- and
+        // rider-aware, as every tap path deposits it. A transient stack item
+        // would resolve nothing — `resolveTopOfStack` reads a body, never
+        // `manaProduced`.
+        if (ability.manaProduced && !hasResolutionBody(ability)) {
+            // Fail closed on a leg this route has not paid above: the deposit
+            // must never hand out mana for an unpaid cost (CR 601.2h).
+            const unpaid = Object.keys(ability.cost).filter(
+                (leg) => !DIRECT_DEPOSIT_PAID_COST_LEGS.has(leg)
+            );
+            if (unpaid.length > 0) {
+                throw new Error(
+                    `Mana ability cost leg "${unpaid[0]}" cannot be paid here`
+                );
+            }
+            recordActivation(state, card, args.abilityId, false);
+            depositTappedMana(
+                player,
+                replaceProducedManaColor(
+                    state,
+                    player.id,
+                    ability.manaProduced
+                ),
+                ability.manaRestriction,
+                manaRidersForAbility(ability)
+            );
+            applyManaAbilityEffects(state, ability, card, player.id);
+            processPendingActionTriggers(state);
             tryAutoCommitPendingCast(state, args.playerId);
             tryAutoCommitPendingActivation(state, args.playerId);
             await saveGameState(

@@ -622,6 +622,28 @@ export interface EnchantRestriction {
     hostId?: string;
 }
 
+/** A target-count bound read off the game state AT ANNOUNCEMENT (CR 601.2c /
+ *  107.3) — the `count` construct of the Effect Script value grammar, reused
+ *  verbatim, never a new value member: "the number of black permanents target
+ *  opponent controls" is `{ count: { zone: "battlefield", controller:
+ *  { target: 0 }, filter: { color: "B" } } }`.
+ *
+ *  `{ target: N }` inside it names a target chosen by an EARLIER group of the
+ *  same announcement (CR 601.2c announces groups in order, so a later group's
+ *  count can depend on an earlier group's pick); the group carrying the
+ *  quantity is never itself in scope. The value is evaluated ONCE, when the
+ *  target walk reaches that group, and stored as a plain number on the
+ *  pending selection — CR 601.2c: "once the number of targets the spell has
+ *  is determined, that number doesn't change, even if the information used to
+ *  determine the number of targets does". It is never re-read at resolution.
+ *
+ *  Narrowed to `EffectCount` rather than the whole `EffectValue` on purpose:
+ *  every other member reads resolution state (bindings, kicker counts, the
+ *  resolving trigger) that does not exist yet at announcement, so it would
+ *  type-check and then read nothing. Widening it is a type-level change.
+ *  Resolved by `resolveTargetRequirementCount` (`gre/state.ts`). */
+export type TargetCountQuantity = EffectCount;
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -660,8 +682,18 @@ export interface TargetRequirement {
      *  string above. Resolved the same way, against `chosenX`, into a live
      *  `{ min, max }` range — `convex/gre/state.ts`'s
      *  `resolveTargetRequirementCount` is the single resolver every count
-     *  consumer calls (issue #2365). */
-    count: number | "X" | { min: number; max?: number | "X" };
+     *  consumer calls (issue #2365).
+     *
+     *  The object form's `max` may finally be a {@link TargetCountQuantity}:
+     *  an "up to X" whose X is DEFINED BY THE SPELL'S TEXT rather than
+     *  announced (CR 601.2c — "in some cases, the number of targets will be
+     *  defined by the spell's text"). Reap: "Return up to X target cards from
+     *  your graveyard to your hand, where X is the number of black permanents
+     *  target opponent controls as you cast this spell". */
+    count:
+        | number
+        | "X"
+        | { min: number; max?: number | "X" | TargetCountQuantity };
     /** If set, restricts legal targets to permanents and stack spells of the
      *  given color (CR 202.2). Used by Circle of Protection's "source of your
      *  choice of color W/U/B/R/G" choice. */
@@ -951,8 +983,13 @@ export interface TargetRequirement {
      *  divide-as-chosen card deals damage except Pollen Remedy, which
      *  PREVENTS it (CR 615.1); the frontend's divide banner/buttons read this
      *  to say "Prevent damage" instead of the default "Deal damage" (QA — the
-     *  banner hard-coded "Deal damage" for every divide spell regardless). */
-    divideAsChosen?: { total: number | "X" | "X+1"; kind?: "deal" | "prevent" };
+     *  banner hard-coded "Deal damage" for every divide spell regardless).
+     *  `"counters"` — the budget is counters distributed by a
+     *  `distributeCountersAsChosen` Op (CR 601.2d). */
+    divideAsChosen?: {
+        total: number | "X" | "X+1";
+        kind?: "deal" | "prevent" | "counters";
+    };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
      *  destroy a land the activating player controls (CR 114.1 + 701.8). A
      *  spell qualifies when either:
@@ -1116,8 +1153,13 @@ export interface TargetRequirement {
      *  first pick's LIVE controller (`siblingControllerIdFor`). The FIRST
      *  pick is unconstrained by itself (nothing to compare against yet) —
      *  legal like any other candidate. Meaningful only for `count >= 2`
-     *  permanent-kind requirements; ignored for player/spell/graveyard
-     *  targets and a `count: 1` requirement (nothing to compare). */
+     *  permanent-kind or graveyard-card requirements; ignored for
+     *  player/spell targets and a `count: 1` requirement (nothing to compare).
+     *
+     *  On a `zone: "graveyard"` requirement the relation is the graveyard's
+     *  OWNER instead (CR 108.4a — a card in a graveyard has no controller):
+     *  every pick shares the first pick's graveyard, "up to three target
+     *  cards from a single graveyard". */
     sameController?: boolean;
     /** Restricts legal permanent targets by token-ness (CR 111.5, issue
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY NONTOKEN
@@ -1524,6 +1566,32 @@ export interface ActivatedAbility {
          *  (`getAdditionalSacrificeMv()`) is taken only for a count of 1,
          *  since "the sacrificed permanent" is ambiguous above that. */
         sacrificeFilterCount?: number;
+        /** "Return a permanent matching <filter> you control to its owner's
+         *  hand" as an activation cost (CR 602.1a — the activation cost is
+         *  everything before the colon; CR 118.1 — a cost is an action
+         *  necessary to take another action): Wirewood Symbiote's "Return an
+         *  Elf you control to its owner's hand", Meloku's "Return a land you
+         *  control to its owner's hand". The bounce twin of `sacrificeFilter`.
+         *
+         *  A cost that GIVES UP a chosen permanent, so the activator picks it
+         *  through the ONE selection layer every sacrifice and return-to-hand
+         *  cost uses (`gre/sacrificeChoice.ts`, a requirement with
+         *  `action: "return"`), built by `buildActivationSacrificeSelection`.
+         *  The pick is applied at COMMIT, never at announcement, so a cancelled
+         *  mana payment leaves the permanent on the battlefield (CR 601.2h via
+         *  CR 602.2b — an aborted activation is rewound).
+         *
+         *  The activation is illegal unless the activator controls a matching
+         *  permanent (CR 118.3). The source itself is a legal payment when it
+         *  matches — CR 109.2 reads "an Elf you control" as any Elf permanent —
+         *  unless the filter says `excludeSource` ("another"). Always ONE
+         *  permanent: no shipped activation returns more than one.
+         *
+         *  Distinct from `returnThisToHand` (the source, no choice) and
+         *  `returnUnblockedAttacker` (Ninjutsu's combat-scoped candidate set,
+         *  not expressible as a filter). Every gate reads it through
+         *  `permanentGiveUpCostLegs` (`gre/constants.ts`), never directly. */
+        returnToHandFilter?: PermanentFilter;
         /** "Return an unblocked attacking creature you control to its owner's
          *  hand" as an activation cost (CR 702.49a — the Ninjutsu cost's
          *  non-mana component, alongside its mana leg and the reveal).
@@ -1785,6 +1853,31 @@ export interface ActivatedAbility {
             cardType?: CardType;
             owner?: "you";
         };
+        /** "Exile the top card of your library" as an activation cost (CR 118.1
+         *  — a cost is an action necessary to take another action; CR 701.13a —
+         *  exiling moves the card to the exile zone). The ACTIVATING player's
+         *  own top library card moves library → exile, face up, as the ability
+         *  goes on the stack. No choice: the card is fixed by the library's
+         *  order, so it belongs with `discardAtRandom`, never with a picker.
+         *
+         *  Unaffordable with an EMPTY library (CR 118.3 — a player can't pay a
+         *  cost without the resources to pay it fully), gated by the single
+         *  authority `canPayExileTopOfLibrary` (`gre/state.ts`) on every
+         *  surface: the announcement throw, the Move enumerator and the UI hint.
+         *
+         *  Paid at activation COMMIT, never at announcement (CR 601.2h via
+         *  CR 602.2b), and LAST among the legs — CR 601.2h pays every cost that
+         *  does not move an object from the library to a public zone first.
+         *  `PendingActivation.exileTopOfLibrary` carries the intent across the
+         *  mana-payment phase; every commit path pays through
+         *  `payExileTopOfLibraryCost` (`gre/state.ts`).
+         *
+         *  The exiled card's last-known characteristics ride on the stack item
+         *  as `additionalSacrificeSnapshot` (CR 608.2h — the additional-cost
+         *  victim snapshot every cost departure writes), so "where X is the
+         *  exiled card's mana value" reads it back through the existing
+         *  `{ sacrificed: { read: "manaValue" } }` value. */
+        exileTopOfLibrary?: boolean;
         /** Derives the value of X in this ability's mana cost from the targeted
          *  spell instead of asking the player to choose it (CR 107.3 — "X is
          *  twice the mana value of that spell"). Only meaningful when
@@ -3730,6 +3823,40 @@ export type AsEntersChoice =
      *  as-enters `name` filter use — so it reads 10 of `EffectCardFilter`'s
      *  fields and treats the rest as "matches". */
     | { kind: "discard"; filter?: EffectCardFilter; ifDeclined: "graveyard" }
+    /** CR 614.1c + CR 607.2b — "as this enters, exile any number of <filter>
+     *  cards from your graveyard" (Sutured Ghoul). The chooser picks ANY number
+     *  of their own graveyard cards matching `filter`, zero included — an
+     *  empty answer is a real one, never an abort: the permanent always
+     *  enters. The picked cards are exiled linked to the entering permanent
+     *  (`exiledBySourceId`), the pile `{ exiledWithSource: true }` and every
+     *  "cards exiled with this" reader see.
+     *
+     *  CR 614.12a puts the exile BEFORE the permanent exists, so the pile is
+     *  already complete when it enters: a characteristic-defining ability
+     *  reading it has its value on arrival, not after an ETB window. The CR
+     *  400.7 drop of a previous incarnation's links therefore runs when the
+     *  entry is PARKED (`stageAsEntersEntry`), never in the entry tail, which
+     *  would erase the pile this answer just made.
+     *
+     *  `filter` is matched with the shared `handCardMatchesFilter`, the same
+     *  matcher the `discard` leg uses, and the candidate set is read LIVE as
+     *  the choice is offered and re-derived as it is applied: a sibling staged
+     *  in the same simultaneous batch may already have exiled a card. The
+     *  matcher reads it as a GRAVEYARD card (CR 113.6b). */
+    | { kind: "exileFromGraveyard"; filter?: EffectCardFilter }
+    /** CR 614.1a + CR 701.21a — "if this permanent would enter, sacrifice a
+     *  <filter> instead. If you do, put it onto the battlefield. If you don't,
+     *  put it into `ifDeclined`" (Heart of Yavimaya).
+     *
+     *  The MANDATORY sibling of `discard`: no "may", so a controller holding a
+     *  matching permanent must name one — the prompt's `count` floor is 1 — and
+     *  only a board with no legal victim sends the object to `ifDeclined`
+     *  (the card's own "If you don't" sentence, CR 614.1a). The victim is read
+     *  from the controller's battlefield as the choice is OFFERED, so a
+     *  sibling entry already answered is gone from it; prompts queued
+     *  together are NOT re-narrowed (CR 614.12b, `renarrowSiblingCostChoices`
+     *  covers `payLife` only) — no card enters two of these at once. */
+    | { kind: "sacrifice"; filter: PermanentFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
      *  battlefield with its controller's choice of one of two abilities, each
      *  marked with an anchor word". No shipped card uses anchor words; the kind
@@ -5445,6 +5572,11 @@ export interface SpellContext {
      *  you later discarded. Used by the `{ cardsDrawnThisTurn: { of } }`
      *  EffectValue grammar member (Proft's Eidetic Memory). */
     getCardsDrawnThisTurn: (playerId: string) => number;
+    /** CR 700.4 — how many NONTOKEN creatures were put into `playerId`'s
+     *  graveyard from the battlefield this turn (CR 111.7: tokens never
+     *  count). Reads `PlayerState.nontokenCreaturesToGraveyardThisTurn`. Used by the
+     *  `{ nontokenCreaturesToGraveyardThisTurn: { of } }` EffectValue member. */
+    getNontokenCreaturesToGraveyardThisTurn: (playerId: string) => number;
     /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
      *  `attackerId` is attacking RIGHT NOW: the planeswalker its
      *  `combat.attackTargets` entry names, else the defending player. A
@@ -5507,12 +5639,15 @@ export interface SpellContext {
      *  Same announcement-time split / fallback rules as
      *  `dealDamageDividedAsChosen`. Used by Spoils of War ("Distribute X +1/+1
      *  counters among any number of target creatures"). No-op for non-permanent
-     *  targets, empty `targets`, or `totalAmount <= 0`. */
+     *  targets, empty `targets`, or `totalAmount <= 0`. Returns, per permanent
+     *  instance id, the number of counters actually PUT on it — after any
+     *  CR 614 counter-placement replacement — so "each counter put on a
+     *  creature this way" can be read back; a target that got none is absent. */
     distributeCountersAsChosen: (
         targets: TargetSelection[],
         totalAmount: number,
         type: string
-    ) => void;
+    ) => Record<string, number>;
     /** Installs a prevent-the-next-N damage shield on each of the given
      *  targets, with `totalAmount` DIVIDED AS YOU CHOOSE among them — each
      *  chosen target getting at least 1 (CR 615.1 / 601.2d / 120.4). The third
@@ -8341,6 +8476,12 @@ export interface StaticEffectStateView {
             readonly id: string;
             readonly exiledBySourceId?: string;
             readonly card: Readonly<Record<string, unknown>>;
+            /** The exiled card's printed power / toughness, for a CDA that
+             *  totals a linked pile (CR 604.3, 607.2a). Both survive the wire
+             *  projection (`slimCard` is a spread), so the total is identical
+             *  server-side and client-side. */
+            readonly power?: number;
+            readonly toughness?: number;
         }>;
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
@@ -12302,6 +12443,14 @@ export interface TriggeredAbility {
      *  some of them is a static validation failure (`validate.ts`), never a
      *  runtime skip. */
     event: GameEventType | GameEventType[];
+    /** CR 608.2b — "This ability still resolves if its target becomes
+     *  illegal." Without it an ability whose every target went illegal is
+     *  removed from the stack and does nothing; with it the ability resolves
+     *  regardless, each illegal slot blanked exactly as in the partially-legal
+     *  case (so a script reading `{ target: 0 }` finds nothing there). Opt-in
+     *  per ability; the legality gate (`targetLegalityGate`) is the only
+     *  reader. */
+    resolvesIfTargetsIllegal?: boolean;
     /** Issue #4758 — is this an **ETB Ability** (GLOSSARY.md): "When [this
      *  object] enters, …" (CR 603.6a), fired by its OWN permanent entering and
      *  by nothing else? `true` means it is SPENT on entering: the Bot's value
@@ -14565,6 +14714,7 @@ export type EffectValue =
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
     | EffectCardsDrawnThisTurnValue
+    | EffectNontokenCreaturesToGraveyardThisTurnValue
     | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
@@ -14644,6 +14794,22 @@ export type EffectLifeGainedThisTurnValue = {
  *  never reaches the interpreter. */
 export type EffectCardsDrawnThisTurnValue = {
     cardsDrawnThisTurn: { of: EffectPlayerRef };
+};
+
+/** nontokenCreaturesToGraveyardThisTurn — how many NONTOKEN creatures were put into a PLAYER's graveyard from
+ *  the battlefield so far this turn (CR 700.4 "dies", tokens are excluded —
+ *  CR 111.7 has them cease to exist off the battlefield), a thin JSON-pure skin over
+ *  `SpellContext.getNontokenCreaturesToGraveyardThisTurn`. Like
+ *  `cardsDrawnThisTurn` it is NOT an Op and NOT a structural construct.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`) naming the graveyard's OWNER
+ *  (CR 404.1); it resolves through `resolvePlayerRef`, an unresolvable player
+ *  yields undefined (CR 608.2b). The count reads the per-owner tally
+ *  `PlayerState.nontokenCreaturesToGraveyardThisTurn`, so a creature that was replaced into exile or another
+ *  zone never raises it. It is the retrospective "for each nontoken creature
+ *  put into your graveyard from the battlefield this turn" count. */
+export type EffectNontokenCreaturesToGraveyardThisTurnValue = {
+    nontokenCreaturesToGraveyardThisTurn: { of: EffectPlayerRef };
 };
 
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a
@@ -15200,6 +15366,31 @@ export type EffectOp =
      *  `divideAsChosen.total` — the two are the announcement/resolution halves of
      *  the same value. No-op if there are no targets or the total is ≤0. */
     | { op: "dealDamageDividedAsChosen"; total: number | "X" | "X+1" }
+    /** CR 601.2d / 122.1 — put `total` counters of `counter` kind DISTRIBUTED
+     *  AS YOU CHOOSE among the spell/ability's announced targets ("Distribute
+     *  three +1/+1 counters among one, two, or three target creatures"). The
+     *  counters twin of `dealDamageDividedAsChosen`: the split is chosen at
+     *  ANNOUNCEMENT (`targetRequirement.divideAsChosen`, `kind: "counters"`,
+     *  each target ≥1) and snapshotted onto the stack item's `targetAmounts`;
+     *  this Op reads it back at resolution through the single
+     *  `SpellContext.distributeCountersAsChosen` primitive (ADR 0045). `total`
+     *  reuses — and must MIRROR — the card's `divideAsChosen.total`
+     *  vocabulary. A target that is not a permanent, or has left, gets none
+     *  (CR 608.2b); the rest keep the amounts announced against them.
+     *
+     *  `bind` declares a PICKS binding holding one entry per counter actually
+     *  put on a creature this way — a creature's id repeated as many times as
+     *  it received counters, after any CR 614 counter-placement replacement —
+     *  so "for each counter you put on a creature this way, … that creature"
+     *  is a `forEach` over it (a `delayedTrigger` freezes it with a
+     *  `{ select: { set: "bound", ref } }` list capture). Uncaptured when no
+     *  counter was placed. Does NOT itself schedule anything. */
+    | {
+          op: "distributeCountersAsChosen";
+          counter: string;
+          total: number | "X" | "X+1";
+          bind?: string;
+      }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3 — `player` gains `amount` life. */
@@ -21077,6 +21268,14 @@ export interface CardDefinition {
      *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
      *  and REMOVES the field — no engine read ever sees it. */
     damagePreventionCounterRemoval?: boolean;
+    /** CR 615 — "Prevent all damage that would be dealt to you." The Oracle
+     *  compiler's JSON-pure declaration of the clause:
+     *  `expandControllerDamagePrevention`
+     *  (`abilities/controllerDamagePrevention.ts`) rebuilds it at the
+     *  `expandDefinition` seam into a `replacementEffects[]` prevention entry
+     *  scoped to the source's controller and REMOVES the field — no engine
+     *  read ever sees it. */
+    preventsDamageToController?: boolean;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

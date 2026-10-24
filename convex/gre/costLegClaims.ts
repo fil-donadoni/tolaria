@@ -161,6 +161,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 406.2 / 602.1 — the enumerator counts matching graveyard cards, and the picks enumerator produces the named victims.",
         autoPayable: false,
     },
+    exileTopOfLibrary: {
+        paidBy: {
+            file: "convex/gre/state.ts",
+            symbol: "canPayExileTopOfLibrary",
+        },
+        why: "CR 118.3 / 701.13a — the enumerator gates on a non-empty library through this predicate, and `applyActivationCostsForSearch` pays the leg through `payExileTopOfLibraryCost`, the helper every mutation commit site calls, stamping the same CR 608.2h snapshot onto the pushed item. No pick: the card is fixed by the library's order. Paid on the battlefield-source branch only, like every leg but `exileThis`/`discardThis`; no hand- or graveyard-source ability carries it.",
+        autoPayable: false,
+    },
     manaEqualToEnchantedCreatureCost: {
         paidBy: {
             file: "convex/gre/moves.ts",
@@ -208,6 +216,14 @@ export const COST_LEG_CLAIMS = {
         why: "CR 701.21 — the count modifier on `sacrificeFilter`; the same gate and the same pick builder read it, never separately.",
         autoPayable: false,
     },
+    returnToHandFilter: {
+        paidBy: {
+            file: "convex/gre/activationCostPicks.ts",
+            symbol: "buildActivationSacrificeSelection",
+        },
+        why: 'CR 602.1a / 118.3 — the bounce twin of `sacrificeFilter`: the enumerator gates on a matching permanent existing through the shared `canPayPermanentGiveUpCostLegs`, and this helper turns the leg into an `action: "return"` requirement on the same selection, so the picks ride `sacrificeIds` and `applySacrificeSelection` bounces the named permanent exactly as the mutation does.',
+        autoPayable: false,
+    },
     returnUnblockedAttacker: {
         paidBy: {
             file: "convex/gre/applyMove.ts",
@@ -229,7 +245,7 @@ export const COST_LEG_CLAIMS = {
             file: "convex/gre/applyMove.ts",
             symbol: "applyActivationCostsForSearch",
         },
-        why: "CR 118.1 / 601.2h — always payable, so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only HALF the Bot path: the graveyard leg delegates to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over.",
+        why: "CR 118.1 / 601.2h / 113.6m — always payable from the zone the ability declares (`exileThisSourceZone`), so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only PART of the Bot path: the graveyard and hand legs delegate to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over. The hand leg on a MANA ability (Elvish Spirit Guide) is outside this surface: `isAutoPayableManaAbilityCost` refuses `exileThis`, so the planner never spends the card for mana.",
         autoPayable: false,
     },
     exertThis: {

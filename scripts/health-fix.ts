@@ -89,17 +89,24 @@ import {
     escalationTitle,
     FIX_ATTEMPT_TIMEOUT_MS,
     hostOfRunnerName,
+    inFlightForeignRepair,
     ladderRung,
+    ownRepairPrs,
     MAX_HOPS,
     mayRedispatch,
     revertRecordOf,
     REVERT_UNRECORDED,
     walkEpisode,
+    type ForeignRepair,
     type LadderFacts,
     type RevertPr,
 } from "./lib/health-ladder";
 import { closingIssueRefs } from "./lib/red-land-gate";
-import { pivotRepairIssues, recordPivotRepairIssue } from "./lib/health-pivot";
+import {
+    LADDER_ATTEMPT_ENV,
+    pivotRepairOrigins,
+    recordPivotRepairIssue,
+} from "./lib/health-pivot";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
@@ -134,11 +141,19 @@ export interface HealthRecord {
 export interface FixVerdict {
     /** The sha the session was asked about. */
     sha: string;
-    outcome: "landed" | "stuck";
+    /** `landed-partial` (issue #6552): the instance fix is merged, the class
+     *  guard needs the owner and was filed as `classGuardIssue`. */
+    outcome: "landed" | "landed-partial" | "stuck";
     /** The PR that carried the repair, when there is one. */
     pr?: number;
+    /** The `ready-for-human` class-guard issue; set with `landed-partial`. */
+    classGuardIssue?: number;
     note?: string;
 }
+
+/** Did the repair merge? `landed-partial` did: only its class guard is the
+ *  owner's. */
+export const isLanded = (v: FixVerdict): boolean => v.outcome !== "stuck";
 
 export type SpawnDecision =
     | { kind: "spawn"; sha: string; failedStep?: string }
@@ -257,6 +272,22 @@ export function parseVerdict(
             outcome: "stuck",
             pr,
             note: note ?? "the fixer declared itself stuck",
+        };
+    }
+    if (record.outcome === "landed-partial") {
+        const guard = record.classGuardIssue;
+        // Fail-closed: a partial landing owes the issue that carries the
+        // class guard; without a real number it is not provably filed.
+        if (typeof guard !== "number" || !Number.isInteger(guard) || guard <= 0)
+            return stuck(
+                "a 'landed-partial' verdict names no class-guard issue number"
+            );
+        return {
+            sha: expectedSha,
+            outcome: "landed-partial",
+            pr,
+            classGuardIssue: guard,
+            note,
         };
     }
     if (record.outcome !== "landed") {
@@ -384,7 +415,10 @@ function repairIssueMain(args: readonly string[], cwd: string): number {
         );
         return 2;
     }
-    const note = recordPivotRepairIssue(cwd, issue);
+    // The ladder's headless fixer carries the env; a hand session does not.
+    const note = recordPivotRepairIssue(cwd, issue, {
+        ladder: Boolean(process.env[LADDER_ATTEMPT_ENV]),
+    });
     console.log(
         note ??
             `health:fix: issue #${issue} not recorded — no RED stands on the pivot`
@@ -493,7 +527,7 @@ function main(): void {
         headless,
         extra: extraClaudeArgs(argv),
     });
-    if (verdict === null || verdict.outcome !== "landed") process.exit(1);
+    if (verdict === null || !isLanded(verdict)) process.exit(1);
 }
 
 /** Where a job's quiet fixer writes its transcript: `run-quiet.sh`'s
@@ -545,7 +579,7 @@ function runFixer(input: {
     const attempts = fixAttemptStore(cwd);
     const record = (
         outcome: "attempting" | "landed" | "stuck",
-        extra: { pr?: number; note?: string } = {}
+        extra: { pr?: number; classGuard?: number; note?: string } = {}
     ): string | null => {
         try {
             attempts.write({
@@ -602,6 +636,10 @@ function runFixer(input: {
             env: {
                 ...process.env,
                 [OVER_CAP_ENV]: "1",
+                // `repair-issue` run by this fixer records the ladder's own.
+                ...(input.rung
+                    ? { [LADDER_ATTEMPT_ENV]: String(input.rung.attempt) }
+                    : {}),
                 // `claude -p` must not end its turn waiting on background
                 // work, as the loop's own passes (`loop-drain.sh`).
                 ...(headless
@@ -623,17 +661,22 @@ function runFixer(input: {
             ...verdict,
             note: `${verdict.note} (the session was ended: ${spawned.error.message})`,
         };
-    const unrecordedOutcome = record(verdict.outcome, {
-        pr: verdict.pr,
-        note: verdict.note,
-    });
+    const unrecordedOutcome = record(
+        // The pivot knows `landed`; the partial one is `landed` + its guard.
+        verdict.outcome === "stuck" ? "stuck" : "landed",
+        {
+            pr: verdict.pr,
+            classGuard: verdict.classGuardIssue,
+            note: verdict.note,
+        }
+    );
     if (unrecordedOutcome !== null)
         console.error(
             `health:fix: the fix outcome could not be recorded on the pivot — ${unrecordedOutcome}`
         );
-    if (verdict.outcome === "landed") {
+    if (isLanded(verdict)) {
         console.log(
-            `health:fix: LANDED @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
+            `health:fix: LANDED${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""} @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
         );
         return verdict;
     }
@@ -694,6 +737,74 @@ function revertPrState(cwd: string, pr: number): RevertPr {
     };
 }
 
+/** The open and closed PRs of the base branch, with the issues each closes. */
+function listPrs(cwd: string, state: "open" | "all"): PrRow[] {
+    const r = gh(
+        [
+            "pr",
+            "list",
+            "--state",
+            state,
+            "--base",
+            BASE_BRANCH,
+            "--json",
+            "number,body,state,labels,createdAt",
+            "--limit",
+            "300",
+        ],
+        cwd
+    );
+    if (!r.ok) throw new Error(`gh pr list failed: ${r.out}`);
+    const rows = JSON.parse(r.out || "[]") as {
+        number: number;
+        body: string | null;
+        state: string;
+        labels: { name: string }[];
+        createdAt: string | null;
+    }[];
+    return rows.map((p) => {
+        const state = p.state.toLowerCase();
+        const created = p.createdAt ? Date.parse(p.createdAt) : NaN;
+        return {
+            number: p.number,
+            closes: closingIssueRefs(p.body ?? ""),
+            pr: {
+                number: p.number,
+                state:
+                    state === "merged" || state === "closed" ? state : "open",
+                landFailed: p.labels.some((l) => l.name === FAILED_LABEL),
+                createdAt: Number.isFinite(created) ? created : null,
+            },
+        };
+    });
+}
+
+interface PrRow {
+    number: number;
+    closes: number[];
+    pr: NonNullable<ForeignRepair["pr"]>;
+}
+
+/** The repairs declared on the pivot by someone other than the ladder, each
+ *  with its newest PR (issue #6554). Throws when GitHub cannot answer. */
+function readForeignRepairs(cwd: string): ForeignRepair[] {
+    const { foreign } = pivotRepairOrigins(cwd);
+    if (foreign.length === 0) return [];
+    const prs = listPrs(cwd, "all");
+    return foreign.map((issue) => ({
+        issue,
+        pr:
+            prs
+                .filter((p) => p.closes.includes(issue))
+                // An open PR beats a newer closed or land-failed one.
+                .sort(
+                    (a, b) =>
+                        Number(b.pr.state === "open") -
+                            Number(a.pr.state === "open") || b.number - a.number
+                )[0]?.pr ?? null,
+    }));
+}
+
 /**
  * The facts `ladderRung` decides on, read off the pivot. Every read that
  * fails lands in `error`, which waits: an outage never files an escalation.
@@ -708,6 +819,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         laddered: false,
         episode: [],
         revertPr: null,
+        foreignRepairs: [],
         escalated: null,
         now,
     };
@@ -740,6 +852,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             episode,
             revertPr:
                 revert?.pr !== undefined ? revertPrState(cwd, revert.pr) : null,
+            foreignRepairs: readForeignRepairs(cwd),
             escalated: escalationIssue(cwd, red),
         };
     } catch (e) {
@@ -776,41 +889,25 @@ function redispatch(hop: number): void {
  * rung (attempt 2, the revert) must not land beside it. Never fatal.
  */
 function withdrawRepairPrs(cwd: string, attempt: number): void {
-    const issues = pivotRepairIssues(cwd);
-    if (issues.length === 0) return;
-    const list = gh(
-        [
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--base",
-            BASE_BRANCH,
-            "--json",
-            "number,body",
-            "--limit",
-            "100",
-        ],
-        cwd
-    );
-    if (!list.ok) {
+    // Only what THIS attempt recorded: an interactive session's declared
+    // repair is its own, and may be the one that lands (issue #6554).
+    const { ladder } = pivotRepairOrigins(cwd);
+    if (ladder.length === 0) return;
+    let prs: PrRow[];
+    try {
+        prs = listPrs(cwd, "open");
+    } catch (e) {
         console.error(
-            `health:fix ladder: the repair PRs could not be listed — ${list.out}`
+            `health:fix ladder: the repair PRs could not be listed — ${(e as Error).message}`
         );
         return;
     }
-    const prs = JSON.parse(list.out || "[]") as {
-        number: number;
-        body: string | null;
-    }[];
-    for (const pr of prs) {
-        if (!closingIssueRefs(pr.body ?? "").some((n) => issues.includes(n)))
-            continue;
+    for (const number of ownRepairPrs(prs, ladder)) {
         const closed = gh(
             [
                 "pr",
                 "close",
-                String(pr.number),
+                String(number),
                 "--comment",
                 `Closed by the RED ladder: fixer attempt ${attempt} ended stuck, and the next rung must not land beside this repair.`,
             ],
@@ -818,8 +915,8 @@ function withdrawRepairPrs(cwd: string, attempt: number): void {
         );
         console.log(
             closed.ok
-                ? `health:fix ladder: withdrew PR #${pr.number} from the queue`
-                : `health:fix ladder: PR #${pr.number} could not be closed — ${closed.out}`
+                ? `health:fix ladder: withdrew PR #${number} from the queue`
+                : `health:fix ladder: PR #${number} could not be closed — ${closed.out}`
         );
     }
 }
@@ -865,6 +962,18 @@ function ladderRun(argv: readonly string[]): number {
     }
     const red = facts.red as string;
     if (rung.kind === "fix") {
+        // Belt and braces: a repair declared since the facts were read
+        // (issue #6554) — read again, fresh, before a fixer is spawned.
+        const declared = inFlightForeignRepair(
+            readForeignRepairs(cwd),
+            Date.now()
+        );
+        if (declared !== null) {
+            console.log(
+                `health:fix ladder: attempt ${rung.attempt} refuses to start — PR #${declared.pr} (issue #${declared.issue}) is a declared repair in flight`
+            );
+            return 0;
+        }
         const verdict = runFixer({
             cwd,
             sha: red,
@@ -876,7 +985,7 @@ function ladderRun(argv: readonly string[]): number {
         // Not recorded: nothing changed on the pivot, so a re-dispatch
         // would take the same rung — health's next run asks again.
         if (verdict === null) return 0;
-        if (verdict.outcome !== "landed") {
+        if (!isLanded(verdict)) {
             withdrawRepairPrs(cwd, rung.attempt);
             redispatch(hop);
         }

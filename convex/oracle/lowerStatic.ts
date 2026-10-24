@@ -48,7 +48,11 @@ import {
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
 import { PERMANENT_TYPES } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
-import type { CardDefinition, CardType, KickerCost } from "../cards/types";
+import type {
+    AsEntersChoice,
+    CardDefinition,
+    KickerCost,
+} from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
@@ -98,8 +102,12 @@ export interface LoweredStatic {
     };
     /** CR 305.2 — additional land plays each turn. */
     readonly extraLandDrops?: number;
-    /** CR 614.1a — "you may discard a <type> card instead" as it enters. */
-    readonly asEntersDiscard?: { readonly filter: { readonly type: CardType } };
+    /** CR 401.5 — the controller plays with their library top revealed. */
+    readonly revealsLibraryTop?: "controller";
+
+    /** CR 614.1a — the "instead" cost an entering permanent pays (discard a
+     *  card, sacrifice a permanent), as the `entersWith.asEnters` member. */
+    readonly asEntersCost?: AsEntersCost;
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
     /** CR 702.8a — "You may cast this spell as though it had flash." */
@@ -108,6 +116,8 @@ export interface LoweredStatic {
     readonly triggeredAbilities?: readonly CompiledTriggeredAbility[];
     /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
     readonly damagePreventionCounterRemoval?: true;
+    /** CR 615 — "Prevent all damage that would be dealt to you". */
+    readonly preventsDamageToController?: true;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -147,6 +157,12 @@ export interface LoweredStatic {
     /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
     readonly ungrantableKeywords?: readonly string[];
 }
+
+/** The as-enters members that are a COST the entering permanent pays. */
+export type AsEntersCost = Extract<
+    AsEntersChoice,
+    { kind: "discard" | "sacrifice" }
+>;
 
 export type LowerStaticResult =
     | { readonly ok: true; readonly lowered: LoweredStatic }
@@ -500,6 +516,20 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "self-pt-cda-exiled-totals":
+            return {
+                ok: true,
+                lowered: {
+                    definesPowerToughness: true,
+                    effects: [
+                        {
+                            kind: "pt-cda",
+                            appliesTo: "self",
+                            count: { kind: "exiled-with-source-totals" },
+                        },
+                    ],
+                },
+            };
         case "as-enters-choose-creature-type":
             return { ok: true, lowered: { asEntersCreatureType: true } };
         case "as-enters-choose-card-name":
@@ -651,12 +681,33 @@ export function lowerStaticClause(
                     optionalDrawSkip: { effects: clause.effects },
                 },
             };
+        // CR 401.5 / 604.2 — a flat scope `computeLibraryTopRevealedPlayers`
+        // reads live off the battlefield; never stored state.
+        case "reveal-library-top":
+            return { ok: true, lowered: { revealsLibraryTop: "controller" } };
         case "extra-land-drop":
             return { ok: true, lowered: { extraLandDrops: clause.count } };
         case "as-enters-discard":
             return {
                 ok: true,
-                lowered: { asEntersDiscard: { filter: clause.filter } },
+                lowered: {
+                    asEntersCost: {
+                        kind: "discard",
+                        filter: clause.filter,
+                        ifDeclined: "graveyard",
+                    },
+                },
+            };
+        case "as-enters-sacrifice":
+            return {
+                ok: true,
+                lowered: {
+                    asEntersCost: {
+                        kind: "sacrifice",
+                        filter: clause.filter,
+                        ifDeclined: "graveyard",
+                    },
+                },
             };
         // CR 702.18a — the player-scoped guard is already the engine's own
         // JSON-pure effect (`StaticPlayerGuard` carries no predicate).
@@ -687,6 +738,11 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: { damagePreventionCounterRemoval: true },
+            };
+        case "controller-damage-prevention":
+            return {
+                ok: true,
+                lowered: { preventsDamageToController: true },
             };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);

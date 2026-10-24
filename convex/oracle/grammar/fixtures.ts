@@ -1404,6 +1404,62 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 700.4 + CR 111.1 — "Create a 2/2 green Bear creature token for each
+    // nontoken creature put into your graveyard from the battlefield this
+    // turn": the count is the controller's per-turn tally, a runtime amount the
+    // canned smoke scenario cannot size (no death precedes the resolution).
+    {
+        rule: "create token",
+        card: {
+            oracleId: "ec79255f-4b4d-4a0a-89d8-c59ba640275b",
+            name: "Caller of the Claw",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Elf",
+            oracleText:
+                "Flash\nWhen this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Caller of the Claw",
+            types: ["Creature"],
+            subtypes: ["Elf"],
+            manaCost: { X: 2, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flash\nWhen this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+            staticAbilities: ["flash"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "caller-of-the-claw-trigger",
+                    oracleText:
+                        "When this creature enters, create a 2/2 green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Bear",
+                                types: ["Creature"],
+                                subtypes: ["Bear"],
+                                power: 2,
+                                toughness: 2,
+                                colors: ["G"],
+                            },
+                            controller: "controller",
+                            count: {
+                                nontokenCreaturesToGraveyardThisTurn: {
+                                    of: "controller",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 603.4 + CR 608.2c — Ceta Sanctuary: exhibits the loot (draw, choose-hand-card, discard) and the red/green colour counts (issue #4126).
     {
         rule: "instead if you control",
@@ -3798,6 +3854,221 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 601.2d / 603.7a — "Distribute three +1/+1 counters among one, two,
+    // or three target creatures", then the delayed take-back of each counter
+    // put on a creature this way at the next cleanup step. The smoke planner
+    // can scenario-ize neither the announced division nor the delayed body
+    // (a list-captured binding walked by `forEach`, a `counters` remove of
+    // counters it never seeded), so this row is the evidence for every card
+    // printing a +1/+1 division (Elven Rite, Wurmskin Forger, …) and for the
+    // cleanup-step take-back. Resolution: `__tests__/distributedCounters.test.ts`.
+    {
+        rule: "distributed counters",
+        card: {
+            oracleId: "77a43c24-398f-42c6-a0d3-b28b33a0ce12",
+            name: "Bounty of the Hunt",
+            manaCost: "{3}{G}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "You may exile a green card from your hand rather than pay this spell's mana cost.\nDistribute three +1/+1 counters among one, two, or three target creatures. For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Bounty of the Hunt",
+            types: ["Instant"],
+            manaCost: { X: 3, G: 2 },
+            oracleText:
+                "You may exile a green card from your hand rather than pay this spell's mana cost.\nDistribute three +1/+1 counters among one, two, or three target creatures. For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+            effects: [
+                {
+                    op: "distributeCountersAsChosen",
+                    counter: "+1/+1",
+                    total: 3,
+                    bind: "$placed1",
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-cleanup-step",
+                    oracleText:
+                        "For each +1/+1 counter you put on a creature this way, remove a +1/+1 counter from that creature at the beginning of the next cleanup step.",
+                    capture: {
+                        $placed: { select: { set: "bound", ref: "$placed1" } },
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$placed" },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "remove",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 1 },
+                divideAsChosen: { total: 3, kind: "counters" },
+            },
+            alternativeCosts: [
+                {
+                    id: "pitch-exile-green",
+                    description: "Exile a green card from your hand",
+                    hand: {
+                        action: "exile",
+                        requirements: [{ filter: { color: "G" }, count: 1 }],
+                    },
+                },
+            ],
+        },
+    },
+    // The same family with −1/−1 counters and an END-step take-back, on a
+    // dies trigger. A distinct form from the row above: the skeleton keeps
+    // the counter kind and the timing (`opSkeleton`), so Bounty of the Hunt's
+    // row does not clear it — and this one clears Splendid Agony's −1/−1
+    // division.
+    {
+        rule: "distributed counters",
+        card: {
+            oracleId: "7807122e-917f-4a79-876e-d1c10f7a38ed",
+            name: "Shambling Swarm",
+            manaCost: "{1}{B}{B}{B}",
+            typeLine: "Creature — Horror",
+            oracleText:
+                "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Shambling Swarm",
+            types: ["Creature"],
+            subtypes: ["Horror"],
+            manaCost: { X: 1, B: 3 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "shambling-swarm-trigger",
+                    oracleText:
+                        "When this creature dies, distribute three -1/-1 counters among one, two, or three target creatures. For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+                    head: { kind: "died", scope: "self" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: { min: 1 },
+                        divideAsChosen: { total: 3, kind: "counters" },
+                    },
+                    effects: [
+                        {
+                            op: "distributeCountersAsChosen",
+                            counter: "-1/-1",
+                            total: 3,
+                            bind: "$placed1",
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "For each -1/-1 counter you put on a creature this way, remove a -1/-1 counter from that creature at the beginning of the next end step.",
+                            capture: {
+                                $placed: {
+                                    select: { set: "bound", ref: "$placed1" },
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "forEach",
+                                    select: { set: "bound", ref: "$placed" },
+                                    effects: [
+                                        {
+                                            op: "counters",
+                                            action: "remove",
+                                            counter: "-1/-1",
+                                            target: { ref: "$each" },
+                                            count: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 601.2c + CR 120.3 — "deals N damage to each of X targets": a sweep
+    // over the announced set (`forEach { set: "targets" }`), which the canned
+    // smoke scenario refuses (a runtime-selected set). The fixed amount and the
+    // X amount are two forms: the gate keys a skip on the Op's skeleton.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0ba1837b-67a1-40d1-b617-8c94834d02ba",
+            name: "Meteor Blast",
+            manaCost: "{X}{R}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText: "Meteor Blast deals 4 damage to each of X targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Meteor Blast",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 3 },
+            oracleText: "Meteor Blast deals 4 damage to each of X targets.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        { op: "dealDamage", amount: 4, to: { ref: "$each" } },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "any", count: "X" },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "157813c8-af83-41b5-9ffb-4abd167c1bfc",
+            name: "Firestorm",
+            manaCost: "{R}",
+            typeLine: "Instant",
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nFirestorm deals X damage to each of X targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Firestorm",
+            types: ["Instant"],
+            additionalCosts: { discard: { count: "X" } },
+            manaCost: { R: 1 },
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nFirestorm deals X damage to each of X targets.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "any", count: "X" },
+        },
+    },
     // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
     // turn" on an Aura's own activated ability: the host is named by the text,
     // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).
@@ -4092,6 +4363,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     player: "controller",
                 },
             ],
+        },
+    },
+    // CR 701.23d (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+    // "Search your library for three cards and reveal them. Target opponent
+    // chooses one. Put that card into your hand and the rest into your
+    // graveyard. Then shuffle.": a quantity search, the opponent's pick from
+    // the revealed pile, the split, the shuffle (issue #5254). Exhibits the
+    // tutor's card-dependent forms: the opponent's `choice` reads a binding
+    // only the search writes, and both `moveZone`s change zones on objects
+    // the generator does not model. Intuition is the one printing.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3c9faba7-f2d3-4978-be94-020dc8003dc0",
+            name: "Intuition",
+            manaCost: "{2}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Intuition",
+            types: ["Instant"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: 3,
+                    prompt: "Search your library for three cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: { target: 0 },
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: "$found1" }],
+                    count: 1,
+                    prompt: "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard.",
+                    bind: "$picked2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked2" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
         },
     },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
@@ -6468,6 +6817,45 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     ],
                 },
             ],
+        },
+    },
+    // CR 400.3 — "Return all artifacts target player owns to their hand": a bounce sweep scoped to an announced player's battlefield, one `moveZone` to the hand per artifact. Exhibits the sweep `moveZone` of `$each` under a target-player controller the canned smoke scenario cannot model (issue #5701).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ed1e5d24-c8a8-48fe-a88f-1003ad432477",
+            name: "Hurkyl's Recall",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Return all artifacts target player owns to their hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hurkyl's Recall",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Return all artifacts target player owns to their hand.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Artifact" },
+                        controller: { target: 0 },
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
         },
     },
     // CR 202.3 + CR 122.1 — "Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact": an `if` over the iterated permanent's mana value against the source's live counter tally. Exhibits the mana-value-versus-counters comparison (issue #4557).
@@ -9365,6 +9753,430 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     ],
                 },
             ],
+        },
+    },
+    // CR 701.12a + CR 608.2b — "exchange control of this creature
+    // and up to one target creature an opponent controls. If you don't or can't
+    // make an exchange, sacrifice this creature. This ability still resolves if
+    // its target becomes illegal.": the three sentences are one ability. Exhibits
+    // `gainControl` and `sacrifice` of `$source`, which the canned smoke scenario
+    // does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7f06c098-6482-4bf3-a9a1-110d6d5b5703",
+            name: "Gilded Drake",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Drake",
+            oracleText:
+                "Flying\nWhen this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gilded Drake",
+            types: ["Creature"],
+            subtypes: ["Drake"],
+            manaCost: {
+                X: 1,
+                U: 1,
+            },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Flying\nWhen this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "gilded-drake-trigger",
+                    oracleText:
+                        "When this creature enters, exchange control of this creature and up to one target creature an opponent controls. If you don't or can't make an exchange, sacrifice this creature. This ability still resolves if its target becomes illegal.",
+                    head: {
+                        kind: "entered",
+                        scope: "self",
+                    },
+                    resolvesIfTargetsIllegal: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: {
+                            min: 0,
+                            max: 1,
+                        },
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                objectMatchesFilter: {
+                                    ref: "$source",
+                                },
+                                filter: {},
+                                controlledBy: "controller",
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        targetIsAnother: {
+                                            target: 0,
+                                        },
+                                    },
+                                    then: [
+                                        {
+                                            op: "gainControl",
+                                            target: {
+                                                ref: "$source",
+                                            },
+                                            controller: {
+                                                controllerOf: {
+                                                    target: 0,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            op: "gainControl",
+                                            target: {
+                                                target: 0,
+                                            },
+                                            controller: "controller",
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "sacrifice",
+                                            target: {
+                                                ref: "$source",
+                                            },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 608.2h + CR 702.29c — "When you cycle this card, you may have it deal
+    // X damage to target creature, where X is the number of Goblins on the
+    // battlefield": "have it deal" is "it deals" behind a head whose "it" is
+    // the source, and the count carries no controller (CR 109.2). Exhibits a
+    // `count` over every player's battlefield, a set the canned smoke scenario
+    // cannot size (issue #5709).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "467ea3e3-7767-405a-9d1a-8fa5de696376",
+            name: "Gempalm Incinerator",
+            manaCost: "{2}{R}",
+            typeLine: "Creature — Goblin",
+            oracleText:
+                "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)\nWhen you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gempalm Incinerator",
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            manaCost: {
+                X: 2,
+                R: 1,
+            },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)\nWhen you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+            activatedAbilities: [
+                {
+                    id: "cycling",
+                    oracleText:
+                        "Cycling {1}{R} ({1}{R}, Discard this card: Draw a card.)",
+                    cost: {
+                        mana: {
+                            generic: 1,
+                            R: 1,
+                        },
+                        discardThis: true,
+                        cyclingCost: true,
+                    },
+                    activateFromHand: true,
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "gempalm-incinerator-trigger",
+                    oracleText:
+                        "When you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield.",
+                    head: {
+                        kind: "cycled",
+                    },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                    },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Have it deal X damage to target creature, where X is the number of Goblins on the battlefield?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                binding: "$may1",
+                            },
+                            then: [
+                                {
+                                    op: "dealDamage",
+                                    amount: {
+                                        count: {
+                                            zone: "battlefield",
+                                            acrossAllPlayers: true,
+                                            filter: {
+                                                subtype: "Goblin",
+                                            },
+                                        },
+                                    },
+                                    to: {
+                                        target: 0,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.7a — "Return this artifact / it / that card to … at the beginning
+    // of the next end step": a delayed trigger whose body is one zone move.
+    // Rakalite exhibits the `$source` capture, Liberate the capture of an
+    // exiled card's binding, Dragon Mask the capture of the announced target.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0fd7c711-3ff4-4691-914f-242e6737066c",
+            name: "Rakalite",
+            manaCost: "{6}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rakalite",
+            types: ["Artifact"],
+            manaCost: { X: 6 },
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+            activatedAbilities: [
+                {
+                    id: "rakalite-ability",
+                    oracleText:
+                        "{2}: Prevent the next 1 damage that would be dealt to any target this turn. Return this artifact to its owner's hand at the beginning of the next end step.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { target: 0 },
+                            amount: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Return this artifact to its owner's hand at the beginning of the next end step.",
+                            capture: { $self: { ref: "$source" } },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$self" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: { type: "any", count: 1 },
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "96794470-31ea-478f-b11c-dc8342a508e2",
+            name: "Liberate",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Exile target creature you control. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Liberate",
+            types: ["Instant"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Exile target creature you control. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+            effects: [
+                { op: "exile", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+                    capture: { $c: { ref: "$that1" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$c" },
+                            from: "exile",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b5109270-b052-489c-951c-d4b21a41ff6f",
+            name: "Dragon Mask",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dragon Mask",
+            types: ["Artifact"],
+            manaCost: { X: 3 },
+            oracleText:
+                "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+            activatedAbilities: [
+                {
+                    id: "dragon-mask-ability",
+                    oracleText:
+                        "{3}, {T}: Target creature you control gets +2/+2 until end of turn. Return it to its owner's hand at the beginning of the next end step.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { target: 0 },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Return it to its owner's hand at the beginning of the next end step.",
+                            capture: { $c: { target: 0 } },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$c" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                },
+            ],
+        },
+    },
+    // CR 608.2c + CR 400.7 + CR 701.23a — "Exile all cards from target
+    // player's graveyard other than basic land cards. For each card exiled this
+    // way, search that player's library for all cards with the same name …":
+    // the three sentences fold into one `forEach` over the graveyard. Exhibits
+    // the `forEach` construct over a runtime-selected set and `moveZone` by
+    // name, which the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3abd345a-69a5-486e-ada9-dd1ca0decc28",
+            name: "Haunting Echoes",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Exile all cards from target player's graveyard other than basic land cards. For each card exiled this way, search that player's library for all cards with the same name as that card and exile them. Then that player shuffles.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Haunting Echoes",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 2 },
+            oracleText:
+                "Exile all cards from target player's graveyard other than basic land cards. For each card exiled this way, search that player's library for all cards with the same name as that card and exile them. Then that player shuffles.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: { target: 0 },
+                        filter: {
+                            any: [
+                                { excludeType: "Land" },
+                                { excludeSupertype: "Basic" },
+                            ],
+                        },
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: { target: 0 },
+                            fromZones: ["graveyard"],
+                            filter: {
+                                name: { ref: "$each.name" },
+                                any: [
+                                    { excludeType: "Land" },
+                                    { excludeSupertype: "Basic" },
+                                ],
+                            },
+                            to: "exile",
+                        },
+                        {
+                            op: "moveZone",
+                            player: { target: 0 },
+                            fromZones: ["library"],
+                            filter: { name: { ref: "$each.name" } },
+                            to: "exile",
+                        },
+                    ],
+                },
+                { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+            ],
+            targetRequirement: { type: "player", count: 1 },
         },
     },
 ]);

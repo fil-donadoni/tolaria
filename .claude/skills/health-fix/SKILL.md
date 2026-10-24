@@ -235,7 +235,7 @@ jq -n --arg sha "$1" --argjson pr <PR#> --arg note '<one line>' \
   > <primary>/.claude/telemetry/health/fix-verdict.json
 ```
 
-`outcome` is `landed` or `stuck`, and nothing else — `parseVerdict` in
+`outcome` is `landed` or `stuck` (`landed-partial`: `headless.md`), nothing else — `parseVerdict` in
 `scripts/health-fix.ts` is fail-closed: an absent file, unparsable JSON, an
 unknown outcome or another sha all read as `stuck`.
 

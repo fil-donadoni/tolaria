@@ -906,6 +906,19 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // nontokenCreaturesToGraveyardThisTurn (CR 700.4): the amount reads how many nontoken
+    // creatures went to a player's graveyard this turn. The canned generator
+    // opens a fresh turn with no deaths, so it cannot size a declared outcome;
+    // skip-with-reason — the value member's own interpreter test is the
+    // behavioural guarantor (new-construct regime).
+    if ("nontokenCreaturesToGraveyardThisTurn" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads nontoken creatures put into a graveyard this turn — the canned generator kills nothing before resolving`
+        );
+        return;
+    }
     // playerCounters (CR 122.1, issue #1969): the amount reads how many
     // counters of one kind a PLAYER has. The canned generator builds a fresh
     // board and never seeds poison / energy / experience on either player, so
@@ -1283,6 +1296,13 @@ const SCENARIO_SKIPS = {
     dealDamageDividedAsChosen: {
         code: "target-slot-shape",
         reason: "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized",
+    },
+    // CR 601.2d — the counters twin of the row above: the same announced
+    // multi-target split the scenario cannot populate. Covered by the Op's
+    // hand-written interpreter test.
+    distributeCountersAsChosen: {
+        code: "target-slot-shape",
+        reason: "distributeCountersAsChosen — announced multi-target division cannot be scenario-ized",
     },
     // CR 500.7 (issue #686) — scheduling an extra turn mutates
     // `state.extraTurns`, a queue the turn-advance machinery (not the
@@ -2972,6 +2992,7 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
     if ("cardsDrawnThisTurn" in value) return null; // skipped earlier
+    if ("nontokenCreaturesToGraveyardThisTurn" in value) return null; // skipped earlier
     if ("playerCounters" in value) return null; // skipped earlier — defensive
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive

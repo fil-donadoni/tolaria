@@ -81,6 +81,7 @@ import {
     animateManaValueRule,
     chosenTypePumpRule,
     selfPtCdaGraveyardsRule,
+    selfPtCdaExiledTotalsRule,
     type CharacteristicStaticIR,
 } from "./characteristicStatic";
 import {
@@ -245,6 +246,8 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /** CR 401.5 — "Play with the top card of your library revealed". */
+    | { readonly kind: "reveal-library-top" }
     /**
      * CR 509.1b — "This creature can't block": the source's own printed
      * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
@@ -318,6 +321,17 @@ export type StaticClauseIR =
           readonly kind: "as-enters-discard";
           readonly filter: { readonly type: CardType };
       }
+    /**
+     * CR 614.1a / 701.21a — "If <self> would enter, sacrifice a <basic land
+     * type> instead. If you do, put <self> onto the battlefield. If you
+     * don't, put it into its owner's graveyard": the mandatory sibling of
+     * `as-enters-discard`, sending the permanent to the graveyard only when
+     * the controller has nothing to sacrifice.
+     */
+    | {
+          readonly kind: "as-enters-sacrifice";
+          readonly filter: PermanentFilter;
+      }
     /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
@@ -335,6 +349,9 @@ export type StaticClauseIR =
      *  Remove a +1/+1 counter from <self>". Lowered to
      *  `damagePreventionCounterRemoval`. */
     | { readonly kind: "damage-prevention-counter-removal" }
+    /** CR 615 — "Prevent all damage that would be dealt to you". Lowered to
+     *  `preventsDamageToController`. */
+    | { readonly kind: "controller-damage-prevention" }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -1774,6 +1791,25 @@ const damagePreventionCounterRemovalRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: the controller's damage-prevention shield (CR 615) ───────────────
+
+/**
+ * "Prevent all damage that would be dealt to you." (Solitary Confinement,
+ * Glacial Chasm.) CR 615.1a: "prevent" makes it a prevention effect; "you" is
+ * the permanent's controller. The anchored text refuses every neighbour: a
+ * duration ("… this turn"), a source filter ("… by sources you don't
+ * control"), and extra recipients ("… and permanents you control").
+ */
+const CONTROLLER_DAMAGE_PREVENTION =
+    /^Prevent all damage that would be dealt to you$/;
+
+const controllerDamagePreventionRule: Rule<StaticClauseIR> = pattern(
+    "controller damage prevention",
+    CONTROLLER_DAMAGE_PREVENTION,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "controller-damage-prevention" as const })
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -2112,6 +2148,26 @@ const extraLandDropRule: Rule<StaticClauseIR> = pattern(
         ok({ kind: "extra-land-drop" as const, count: 1 })
 );
 
+// ── Frame: the library-top reveal (CR 401.5) ──────────────────────────────
+
+/**
+ * "Play with the top card of your library revealed." (Goblin Spy, Courser of
+ * Kruphix.) CR 401.5: an effect tells a player to play with the top card of
+ * their library revealed. The sentence is the whole clause; the opponent
+ * variants ("Your opponents play with…") and the companion "you may look at"
+ * permission name a different audience or effect and stay refused by the
+ * anchored match.
+ */
+const REVEAL_LIBRARY_TOP = "Play with the top card of your library revealed";
+
+const revealLibraryTopRule: Rule<StaticClauseIR> = rule(
+    "library top reveal",
+    (span): RuleResult<StaticClauseIR> =>
+        span === REVEAL_LIBRARY_TOP
+            ? ok({ kind: "reveal-library-top" as const })
+            : fail("not the library-top reveal template", span)
+);
+
 // ── Frame: the as-enters discard (CR 614.1a) ────────────────────────────────
 
 /**
@@ -2140,6 +2196,35 @@ const asEntersDiscardRule: Rule<StaticClauseIR> = pattern(
         return ok({
             kind: "as-enters-discard" as const,
             filter: { type: "Land" as const },
+        });
+    }
+);
+
+/**
+ * "If this land would enter, sacrifice a Forest instead. If you do, put this
+ * land onto the battlefield. If you don't, put it into its owner's
+ * graveyard." (Heart of Yavimaya.) CR 614.1a makes the "instead" a
+ * replacement effect of the entry and CR 701.21a defines the sacrifice. Only
+ * a basic land type names the victim: that is the whole printed family, and a
+ * broader noun ("a land", "a creature") differs from the anchored text and
+ * stays refused. As with the discard form, a rider other than the graveyard
+ * on the decline branch stays refused.
+ */
+const AS_ENTERS_SACRIFICE =
+    /^If (.+) would enter, sacrifice an? (Plains|Island|Swamp|Mountain|Forest) instead\. If you do, put (.+) onto the battlefield\. If you don't, put it into its owner's graveyard$/;
+
+const asEntersSacrificeRule: Rule<StaticClauseIR> = pattern(
+    "as-enters sacrifice",
+    AS_ENTERS_SACRIFICE,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(match[1]!) || !isSelfPhrase(match[3]!))
+            return fail(
+                "the sacrificing permanent is not this object",
+                match[0]
+            );
+        return ok({
+            kind: "as-enters-sacrifice" as const,
+            filter: { subtypes: match[2]! },
         });
     }
 );
@@ -2222,16 +2307,20 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         skipDrawStepRule,
         optionalDrawSkipRule,
         extraLandDropRule,
+        revealLibraryTopRule,
         asEntersDiscardRule,
+        asEntersSacrificeRule,
         playerShroudRule,
         flashCastCleanupSacrificeRule,
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
+        controllerDamagePreventionRule,
         selfConditionalPumpRule,
         abilityLossPtSetRule,
         chosenTypePumpRule,
         animateManaValueRule,
         selfPtCdaGraveyardsRule,
+        selfPtCdaExiledTotalsRule,
         enchantedHostRule,
         youControlHostRule,
     ])

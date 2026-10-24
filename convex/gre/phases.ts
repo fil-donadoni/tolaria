@@ -3703,6 +3703,9 @@ function advanceTurn(state: GameState): void {
     // again as it resolves, so a mid-turn clear would answer "no" on the
     // second check for a departure that really happened.
     for (const p of state.players) p.leftGraveyardThisTurn = undefined;
+    // CR 700.4 — turn-scoped like the global deaths tally below.
+    for (const p of state.players)
+        p.nontokenCreaturesToGraveyardThisTurn = undefined;
     // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
     // consumed by a draw expires when the next turn begins.
     state.drawLookReplacements = undefined;

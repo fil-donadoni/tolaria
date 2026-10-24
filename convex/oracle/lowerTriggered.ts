@@ -19,6 +19,7 @@ import type { PermanentFilter } from "../cards/filters";
 import type {
     CompiledTriggerCondition,
     CompiledTriggerHead,
+    ControlsSubject,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
 import type {
@@ -27,7 +28,10 @@ import type {
     KickerCost,
     TargetRequirement,
 } from "../cards/types";
-import type { TriggerConditionIR } from "./grammar/shared/condition";
+import type {
+    ControlsSubjectIR,
+    TriggerConditionIR,
+} from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import {
     headPronounReferent,
@@ -258,6 +262,18 @@ function pronounAntecedent(head: TriggerHeadIR): {
     };
 }
 
+/**
+ * CR 603.4 — the subject of a "controls no" count, as the engine reads it.
+ * CR 506.2 — in a two-player game the defending player is the nonactive
+ * player, the attacking source controller's one opponent: the same collapse
+ * {@link headAntecedents} makes for the body's "defending player".
+ */
+const CONTROLS_SUBJECT: Record<ControlsSubjectIR, ControlsSubject> = {
+    you: "you",
+    "defending-player": "opponent",
+    "a-player": "any-player",
+};
+
 /** CR 603.4 — the condition IR to the engine's shape. */
 function lowerCondition(
     condition: TriggerConditionIR,
@@ -280,12 +296,28 @@ function lowerCondition(
                 return "a named kicker reads its own payment record";
             return { kind: "kicker-paid", kickerId: paid.additionalCostPaid };
         }
-        case "controls":
+        case "controls": {
+            if (!("atMost" in condition))
+                return {
+                    kind: "controls",
+                    filter: condition.filter,
+                    atLeast: condition.atLeast,
+                };
+            // CR 506.2 — "defending player" exists only behind the source's
+            // own attack; the head's antecedents are the one authority on
+            // that, as they are for the body's "defending player".
+            if (
+                condition.player === "defending-player" &&
+                headAntecedents(head).defendingPlayer === undefined
+            )
+                return '"defending player" in the condition names no player the head introduced';
             return {
                 kind: "controls",
+                player: CONTROLS_SUBJECT[condition.player],
                 filter: condition.filter,
-                atLeast: condition.atLeast,
+                atMost: condition.atMost,
             };
+        }
         case "self-has-type":
             return { kind: "self-has-type", type: condition.type };
         case "controls-more": {
@@ -412,6 +444,15 @@ export function lowerTriggeredAbility(input: {
             : {}),
     };
     delete (laterAntecedents as { object?: unknown }).object;
+    // CR 608.2b — "This ability still resolves if its target becomes
+    // illegal" is the ability's, whichever sentence carries it. Only an
+    // entered head's factory forwards it.
+    const resolvesIfTargetsIllegal =
+        input.head.kind === "enters" &&
+        input.head.scope === "self" &&
+        input.effects.some(
+            (e) => e.kind === "exchange-control" && e.resolvesIfTargetIllegal
+        );
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const [index, sentence] of input.effects.entries()) {
@@ -420,6 +461,9 @@ export function lowerTriggeredAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             functionsFromGraveyard: fromGraveyard,
+            ...(resolvesIfTargetsIllegal
+                ? { resolvesIfTargetsIllegal: true as const }
+                : {}),
             selfName: input.cardName,
             antecedents: index === 0 ? antecedents : laterAntecedents,
             ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
@@ -461,6 +505,9 @@ export function lowerTriggeredAbility(input: {
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
             ...(fromGraveyard ? { zone: "graveyard" as const } : {}),
+            ...(resolvesIfTargetsIllegal
+                ? { resolvesIfTargetsIllegal: true as const }
+                : {}),
             ...(declared.targetRequirement !== undefined
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),

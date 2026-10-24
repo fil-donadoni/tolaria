@@ -27,6 +27,7 @@ import type {
     EffectCountSpec,
     EffectPlayerRef,
     EffectPredicate,
+    EffectCaptureSource,
     EffectSignedValue,
     EffectTokenSpec,
     EffectValue,
@@ -60,6 +61,14 @@ import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
+
+/**
+ * CR 205.4a — "other than basic land cards": a card matches unless it is BOTH
+ * a land and basic, which an AND-of-fields filter cannot spell on its own.
+ */
+const NOT_A_BASIC_LAND: EffectCardFilter = {
+    any: [{ excludeType: "Land" }, { excludeSupertype: "Basic" }],
+};
 
 /**
  * A lowering step's outcome.
@@ -167,6 +176,13 @@ export interface SiteOptions {
      * card, and the sentence is refused rather than lowered into a no-op.
      */
     readonly resolvingSpell?: true;
+    /**
+     * CR 608.2b — the site can carry "This ability still resolves if its
+     * target becomes illegal" (`TriggeredAbility.resolvesIfTargetsIllegal`).
+     * Absent = it cannot (a spell, an activated ability), and a sentence
+     * asking for it is refused rather than lowered into a fizzle.
+     */
+    readonly resolvesIfTargetsIllegal?: true;
 }
 
 /** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
@@ -367,7 +383,9 @@ function lowerCountedSet(
     const inGraveyard = descriptor.zone === "graveyard";
     if (inGraveyard && descriptor.zoneOwner !== "you")
         return unlowerable('a counted graveyard must be "your graveyard"');
-    if (!inGraveyard && descriptor.controller !== "you")
+    // CR 109.2 — the whole-board scope carries no controller clause.
+    const wholeBoard = set.wholeBoard === true;
+    if (!inGraveyard && !wholeBoard && descriptor.controller !== "you")
         return unlowerable('a counted set must be permanents "you control"');
     const filter: EffectCardFilter = {};
     for (const [key, value] of Object.entries(descriptor)) {
@@ -402,6 +420,12 @@ function lowerCountedSet(
                 `a "${key}" clause has no resolution-time count here`
             );
     }
+    if (wholeBoard)
+        return lowered({
+            zone: "battlefield",
+            acrossAllPlayers: true,
+            filter,
+        });
     return lowered({
         zone: inGraveyard ? "graveyard" : "battlefield",
         controller: "controller",
@@ -792,7 +816,8 @@ export class TargetSlots {
      */
     allocate(
         requirement: TargetRequirement,
-        another: boolean = false
+        another: boolean = false,
+        sweptSet: boolean = false
     ): Lowered<number> {
         const slots = announcedSlots(requirement.count);
         // CR 601.2d — a divide group's op reads the announced split, not a
@@ -806,7 +831,15 @@ export class TargetSlots {
             return unlowerable(
                 "a divided group after another target group would share its budget (CR 601.2d)"
             );
-        if (slots === null && !divided)
+        // CR 601.2c — a swept group ("each of X targets") is read through
+        // `forEach { set: "targets" }`, which iterates whatever was announced,
+        // so like a divided group it needs no positional slot; it too must be
+        // the ONLY group, since the sweep spans the whole flat target list.
+        if (sweptSet && this.groups.length > 0)
+            return unlowerable(
+                "a swept target group after another target group would sweep both (CR 601.2c)"
+            );
+        if (slots === null && !divided && !sweptSet)
             return unlowerable(
                 "a variable target count has no positional slot (CR 601.2c)"
             );
@@ -1105,8 +1138,8 @@ export class SentenceWalk {
      * nothing it was not written for.
      */
     actedOn: {
-        /** A `destroy` or announced-target `moveZone` — both carry `bind`. */
-        readonly op: { bind?: string };
+        /** A `destroy`, `exile` or announced-target `moveZone` — each carries `bind`. */
+        readonly op: { op: string; bind?: string };
         readonly requirement: TargetRequirement;
     } | null = null;
 
@@ -1125,6 +1158,18 @@ export class SentenceWalk {
         readonly op: { bind?: string };
         readonly creature: boolean;
         readonly slots: number;
+    } | null = null;
+
+    /**
+     * CR 608.2c — the `distributeCountersAsChosen` Op the LAST sentence
+     * lowered to, with the counter kind it put on: the antecedent of "each
+     * counter you put on a creature this way". The Op is kept so the reader
+     * can give it the `bind` that records the counters actually placed; any
+     * other sentence in between forgets it (`lowerSentence`).
+     */
+    distributed: {
+        readonly op: { bind?: string };
+        readonly counter: string;
     } | null = null;
 
     /**
@@ -1658,6 +1703,7 @@ export function lowerSentence(
     const announced = walk.targets.requirements().length;
     const actedOn = walk.actedOn;
     const introduced = walk.introduced;
+    const distributed = walk.distributed;
     const out = lowerSentenceBody(
         sentence,
         walk,
@@ -1689,6 +1735,13 @@ export function lowerSentence(
             !readsIntroduced(sentence, introduced))
     )
         walk.introduced = null;
+    // CR 608.2c — "this way" names the distribution of the sentence right
+    // before; any other sentence in between makes the reference stale.
+    if (
+        walk.distributed === distributed &&
+        sentence.kind !== "delayed-remove-distributed-counters"
+    )
+        walk.distributed = null;
     return out;
 }
 
@@ -2155,6 +2208,44 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "deal-damage-each-of-x-targets": {
+            // CR 120.1 / 608.2h — the same dealer rule as `deal-damage`.
+            if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
+                return unlowerable(
+                    '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
+                );
+            const amount = lowerAmount(sentence.amount, site);
+            if (!amount.ok) return amount;
+            // CR 601.2c — the group's width IS the announced X, so the site
+            // must announce one; the same gate the amount's "X" passes.
+            if (!site.allowX)
+                return unlowerable(
+                    "an effect reads X but its source announces no {X} (CR 107.3)"
+                );
+            // The width is a fact about the cast: the group takes no
+            // positional slot and the damage reads the announced set.
+            const index = slots.allocate(
+                { type: "any", count: "X" },
+                false,
+                true
+            );
+            if (!index.ok) return index;
+            // CR 120.3 — each member of the announced set is dealt the whole
+            // amount, one `dealDamage` per member.
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: amount.value,
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+            ]);
+        }
         case "deal-damage-divided": {
             // CR 120.1 / 608.2h — the same dealer rule as `deal-damage`.
             if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
@@ -2181,6 +2272,78 @@ function lowerSentenceBody(
             });
             if (!index.ok) return index;
             return lowered([{ op: "dealDamageDividedAsChosen", total }]);
+        }
+        case "distribute-counters": {
+            // CR 601.2d — the counters twin of `deal-damage-divided`, the same
+            // single divided group. The budget is a printed number: every
+            // corpus "Distribute X …" defines X in a clause this sentence does
+            // not read ("where X is …", a cast-time count), so X is refused.
+            if (sentence.amount.kind !== "fixed")
+                return unlowerable(
+                    "a distributed budget is a printed number (CR 601.2d)"
+                );
+            const total = sentence.amount.value;
+            const index = slots.allocate({
+                ...sentence.among,
+                count: dividedCount(sentence.among.count, total),
+                divideAsChosen: { total, kind: "counters" },
+            });
+            if (!index.ok) return index;
+            const op: Extract<EffectOp, { op: "distributeCountersAsChosen" }> =
+                {
+                    op: "distributeCountersAsChosen",
+                    counter: sentence.counter,
+                    total,
+                };
+            walk.distributed = { op, counter: sentence.counter };
+            return lowered([op]);
+        }
+        case "delayed-remove-distributed-counters": {
+            // CR 603.7a — the delayed trigger is created now; "this way"
+            // (CR 608.2c) names the counters the sentence before put on, which
+            // its Op records one entry per counter placed. The list is frozen
+            // at scheduling and walked at fire time, one counter off each
+            // entry's creature; a creature gone by then is skipped (CR 603.7c).
+            const distributed = walk.distributed;
+            if (distributed === null)
+                return unlowerable(
+                    '"put on a creature this way" names no counters an earlier sentence distributed (CR 608.2c)'
+                );
+            if (distributed.counter !== sentence.counter)
+                return unlowerable(
+                    `"${sentence.counter}" counters were not the ones distributed this way (CR 608.2c)`
+                );
+            const bind = distributed.op.bind ?? walk.nextBind("placed");
+            distributed.op.bind = bind;
+            const step =
+                sentence.timing === "next-cleanup-step"
+                    ? "cleanup step"
+                    : "end step";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: sentence.timing,
+                    oracleText: `For each ${sentence.counter} counter you put on a creature this way, remove a ${sentence.counter} counter from that creature at the beginning of the next ${step}.`,
+                    capture: {
+                        $placed: { select: { set: "bound", ref: bind } },
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$placed" },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "remove",
+                                    counter: sentence.counter,
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ]);
         }
         // CR 615.12 — the game-scoped anti-prevention lock. No fields, no
         // target, no duration argument: the Op is turn-scoped by construction
@@ -2694,6 +2857,73 @@ function lowerSentenceBody(
                     ...(sentence.whileYouControlSource
                         ? { duration: "while-you-control-source" as const }
                         : {}),
+                },
+            ]);
+        }
+        // CR 701.12a — control of the source and of the announced permanent is
+        // exchanged, or neither moves: both `gainControl` Ops sit behind one
+        // gate that needs the source in play and the announced slot filled
+        // and legal (a blanked or never-filled slot reads false, CR 608.2b).
+        // CR 701.21a — otherwise the source is sacrificed. No new Op: the
+        // pair is the decomposition the Mechanics Registry's `exchange` row
+        // prescribes.
+        case "exchange-control": {
+            if (
+                sentence.sacrificeUnlessExchanged !== true ||
+                sentence.resolvesIfTargetIllegal !== true
+            )
+                return {
+                    ok: false,
+                    reason: "an exchange of control is read only with its sacrifice fallback and its resolves-if-illegal rider",
+                };
+            if (site.resolvesIfTargetsIllegal !== true)
+                return {
+                    ok: false,
+                    reason: "only a triggered ability can still resolve with an illegal target (CR 608.2b)",
+                };
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            if (!("target" in target.value))
+                return {
+                    ok: false,
+                    reason: "an exchange of control names an announced target slot",
+                };
+            const source = { ref: "$source" } as const;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: source,
+                        filter: {},
+                        controlledBy: "controller",
+                    },
+                    then: [
+                        {
+                            op: "if",
+                            predicate: {
+                                targetIsAnother: {
+                                    target: target.value.target,
+                                },
+                            },
+                            then: [
+                                {
+                                    op: "gainControl",
+                                    target: source,
+                                    controller: {
+                                        controllerOf: {
+                                            target: target.value.target,
+                                        },
+                                    },
+                                },
+                                {
+                                    op: "gainControl",
+                                    target: target.value,
+                                    controller: "controller",
+                                },
+                            ],
+                            else: [{ op: "sacrifice", target: source }],
+                        },
+                    ],
                 },
             ]);
         }
@@ -3327,11 +3557,71 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "exile-same-name-library-copies":
+            return unlowerable(
+                '"For each card exiled this way, search … same name" follows no graveyard exile'
+            );
+        case "exile-graveyard-and-library-copies": {
+            // CR 608.2c + CR 608.2h + CR 400.7 + CR 701.23a — one `forEach`
+            // over the player's graveyard (member set frozen at entry), each
+            // member's graveyard copies and then its library copies leaving by
+            // the member's last-known name; one shuffle after the sweep.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: player.value,
+                        filter: structuredClone(NOT_A_BASIC_LAND),
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: player.value,
+                            fromZones: ["graveyard"],
+                            filter: {
+                                name: { ref: "$each.name" },
+                                ...structuredClone(NOT_A_BASIC_LAND),
+                            },
+                            to: "exile",
+                        },
+                        {
+                            op: "moveZone",
+                            player: player.value,
+                            fromZones: ["library"],
+                            filter: { name: { ref: "$each.name" } },
+                            to: "exile",
+                        },
+                    ],
+                },
+                ...(sentence.shuffle
+                    ? [
+                          {
+                              op: "libraryLook" as const,
+                              action: "shuffle" as const,
+                              player: player.value,
+                          },
+                      ]
+                    : []),
+            ]);
+        }
         case "exile-graveyard": {
             // CR 404.1 + CR 701.13a — the whole-zone `moveZone` shape: every
             // card in the announced player's graveyard goes to exile.
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
+            if (sentence.exceptBasicLands)
+                return lowered([
+                    {
+                        op: "moveZone",
+                        player: player.value,
+                        fromZones: ["graveyard"],
+                        filter: structuredClone(NOT_A_BASIC_LAND),
+                        to: "exile",
+                    },
+                ]);
             return lowered([
                 {
                     op: "moveZone",
@@ -3619,6 +3909,81 @@ function lowerSentenceBody(
                     capture: { $captured: { ref: bind } },
                     effects: [
                         { op: sentence.verb, target: { ref: "$captured" } },
+                    ],
+                },
+            ]);
+        }
+        case "delayed-return": {
+            // CR 603.7a — the delayed trigger is created now; its body moves
+            // the one object the sentence names, carried across by `capture`
+            // (gone or moved by then, the body skips, CR 608.2b).
+            let capture: EffectCaptureSource;
+            if (sentence.referent !== "it") {
+                capture = { ref: "$source" };
+            } else {
+                // CR 608.2h — "it" / "that card" is the ONE announced object.
+                const announced = slots.requirements();
+                const actedOn = walk.actedOn;
+                if (
+                    announced.length !== 1 ||
+                    walk.gatedRemoval ||
+                    headNamesAnObject(site)
+                )
+                    return unlowerable(
+                        '"it" names no single object announced before it (CR 608.2h)'
+                    );
+                if (sentence.destination === "battlefield") {
+                    // A card returned from exile: the exile sentence's object.
+                    if (
+                        actedOn === null ||
+                        actedOn.op.op !== "exile" ||
+                        actedOn.requirement !== announced[0]
+                    )
+                        return unlowerable(
+                            '"it" returned to the battlefield names no object exiled by the sentence before it (CR 608.2h)'
+                        );
+                    const bind = actedOn.op.bind ?? walk.nextBind("that");
+                    actedOn.op.bind = bind;
+                    capture = { ref: bind };
+                } else {
+                    if (actedOn !== null)
+                        return unlowerable(
+                            '"it" may name the object an earlier sentence moved or the announced target (CR 608.2h)'
+                        );
+                    capture = { target: 0 };
+                }
+            }
+            const when =
+                sentence.timing === "next-end-step" ? "end" : "cleanup";
+            const where =
+                sentence.destination === "hand"
+                    ? "its owner's hand"
+                    : "the battlefield under its owner's control";
+            const what =
+                sentence.referent !== "it"
+                    ? sentence.referent
+                    : sentence.destination === "battlefield"
+                      ? "that card"
+                      : "it";
+            // The capture name follows the hand-written delayed-return
+            // convention: `$self` for the source, `$c` for a bound object.
+            const name =
+                "ref" in capture && capture.ref === "$source" ? "$self" : "$c";
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: sentence.timing,
+                    oracleText: `Return ${what} to ${where} at the beginning of the next ${when} step.`,
+                    capture: { [name]: capture },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: name },
+                            ...(sentence.destination === "battlefield"
+                                ? { from: "exile" as const }
+                                : {}),
+                            to: sentence.destination,
+                        },
                     ],
                 },
             ]);
@@ -3915,6 +4280,57 @@ function lowerSentenceBody(
                         },
                     ],
                 },
+            ]);
+        }
+        case "search-reveal-pile-pick": {
+            // CR 701.23d — a search for a bare quantity must find that many
+            // (or as many as the library holds: the exact `count` clamps).
+            // CR 701.20a — the reveal makes the pile public, which is what
+            // lets the chooser pick from a hidden zone (`choose-library-card`
+            // is refused without it). The pick goes to hand; moving the whole
+            // pile to the graveyard after it moves only "the rest", since the
+            // pick has already left the library. CR 701.24a — then shuffle.
+            const chooser = playerRef(sentence.chooser, slots, site);
+            if (!chooser.ok) return chooser;
+            const found = walk.nextBind("found");
+            const picked = walk.nextBind("picked");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: sentence.count,
+                    prompt: `Search your library for ${countWord(sentence.count)} cards.`,
+                    bind: found,
+                },
+                { op: "reveal", player: "controller", cards: { ref: found } },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: chooser.value,
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: found }],
+                    count: 1,
+                    prompt: "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard.",
+                    bind: picked,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: picked },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: found },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);
         }
         case "divide-library-piles": {
@@ -4867,6 +5283,14 @@ function lowerCreateToken(
         const x = lowerAmount({ kind: "x" }, site);
         if (!x.ok) return x;
         op.count = x.value;
+        return lowered([op]);
+    }
+    if (count.kind === "nontoken-creatures-to-your-graveyard-this-turn") {
+        // CR 700.4 — the controller's own per-turn tally: "your graveyard" is
+        // the graveyard of the player who controls the ability.
+        op.count = {
+            nontokenCreaturesToGraveyardThisTurn: { of: "controller" },
+        };
         return lowered([op]);
     }
     const actedOn = walk.actedOn;

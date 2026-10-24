@@ -37,6 +37,7 @@ import {
 import {
     isDefinitionLevelKeyword,
     lowerStaticClause,
+    type AsEntersCost,
     type LoweredStatic,
 } from "./lowerStatic";
 import type { HostNoun } from "./grammar/shared/staticClause";
@@ -45,7 +46,6 @@ import { lowerTriggeredAbility } from "./lowerTriggered";
 import { linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
-import type { CardType } from "../cards/types";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
@@ -85,10 +85,14 @@ interface Accumulator {
     /** CR 702.8a — "You may cast this spell as though it had flash." */
     castAsThoughFlash: boolean;
     damagePreventionCounterRemoval: boolean;
+    preventsDamageToController: boolean;
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
-    /** CR 614.1a — the "you may discard a <type> card instead" lines read. */
-    asEntersDiscards: { filter: { type: CardType } }[];
+    /** CR 401.5 — a "play with the top card of your library revealed" line. */
+    revealsLibraryTop: boolean;
+
+    /** CR 614.1a — the "instead" cost lines read (discard / sacrifice). */
+    asEntersCosts: AsEntersCost[];
     /** CR 614.12a — the "as this enters, choose a creature type" lines read. */
     asEntersCreatureTypeLines: string[];
     /** CR 614.12a — the "as this enters, choose a nonland card name" lines. */
@@ -568,10 +572,15 @@ function lowerLine(
             );
             if (out.damagePreventionCounterRemoval === true)
                 acc.damagePreventionCounterRemoval = true;
+            if (out.preventsDamageToController === true)
+                acc.preventsDamageToController = true;
             if (out.extraLandDrops !== undefined)
                 acc.extraLandDrops += out.extraLandDrops;
-            if (out.asEntersDiscard !== undefined)
-                acc.asEntersDiscards.push(out.asEntersDiscard);
+            if (out.revealsLibraryTop !== undefined)
+                acc.revealsLibraryTop = true;
+
+            if (out.asEntersCost !== undefined)
+                acc.asEntersCosts.push(out.asEntersCost);
             if (out.asEntersCreatureType === true) {
                 // Two such lines are two choices; `entersWith.asEnters` would
                 // ask both, but "the chosen type" (CR 607.2d) could no longer
@@ -831,8 +840,11 @@ export function lowerCard(
         shuffleFromAnywhere: false,
         castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
+        preventsDamageToController: false,
         extraLandDrops: 0,
-        asEntersDiscards: [],
+        revealsLibraryTop: false,
+
+        asEntersCosts: [],
         asEntersCreatureTypeLines: [],
         asEntersCardNameLines: [],
         readsChosenNameLines: [],
@@ -977,6 +989,9 @@ export function lowerCard(
     // CR 615 — likewise a closure pair; `expandDefinition` rebuilds it.
     if (acc.damagePreventionCounterRemoval)
         definition.damagePreventionCounterRemoval = true;
+    // CR 615 — likewise a closure; `expandDefinition` rebuilds it.
+    if (acc.preventsDamageToController)
+        definition.preventsDamageToController = true;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second
@@ -1036,10 +1051,10 @@ export function lowerCard(
             fragment: acc.asEntersCardNameLines[0]!,
         };
     // CR 614.12b — two as-enters choices on one card would be staged together
-    // and the discard is cost-bearing; the compiler reads exactly one choice.
+    // and the cost is cost-bearing; the compiler reads exactly one choice.
     if (
-        acc.asEntersDiscards.length > 1 ||
-        (acc.asEntersDiscards.length > 0 &&
+        acc.asEntersCosts.length > 1 ||
+        (acc.asEntersCosts.length > 0 &&
             (acc.asEntersCardNameLines.length > 0 ||
                 acc.asEntersCreatureTypeLines.length > 0))
     )
@@ -1050,11 +1065,13 @@ export function lowerCard(
         };
     // CR 305.2 — additional land plays are a count on the definition.
     if (acc.extraLandDrops > 0) definition.extraLandDrops = acc.extraLandDrops;
+    // CR 401.5 — the reveal scope is a flat field read live off the battlefield.
+    if (acc.revealsLibraryTop) definition.revealsLibraryTop = "controller";
     if (
         acc.entersWithCounters.length > 0 ||
         acc.asEntersCreatureTypeLines.length > 0 ||
         acc.asEntersCardNameLines.length > 0 ||
-        acc.asEntersDiscards.length > 0
+        acc.asEntersCosts.length > 0
     )
         definition.entersWith = {
             ...(acc.entersWithCounters.length > 0
@@ -1073,18 +1090,11 @@ export function lowerCard(
                       ],
                   }
                 : {}),
-            // CR 614.1a — Mox Diamond's declined-discard-goes-to-graveyard,
-            // the shape the hand-written card declares.
-            ...(acc.asEntersDiscards.length > 0
-                ? {
-                      asEnters: [
-                          {
-                              kind: "discard" as const,
-                              filter: acc.asEntersDiscards[0]!.filter,
-                              ifDeclined: "graveyard" as const,
-                          },
-                      ],
-                  }
+            // CR 614.1a — Mox Diamond's declined-discard-goes-to-graveyard and
+            // Heart of Yavimaya's sacrifice-or-graveyard, the shapes the
+            // hand-written cards declare.
+            ...(acc.asEntersCosts.length > 0
+                ? { asEnters: [acc.asEntersCosts[0]!] }
                 : {}),
             // CR 614.12a / 201.4a — "nonland card name", enforced exactly by
             // the filter (the shape Meddling Mage is hand-written with).

@@ -71,7 +71,13 @@ export type TokenCountIR =
      * announced (Decree of Justice). The lowering gates it on the site
      * announcing an {X}, exactly as every other effect magnitude is.
      */
-    | { readonly kind: "announced-x" };
+    | { readonly kind: "announced-x" }
+    /**
+     * CR 700.4 + CR 111.7 — "Create a … token for each nontoken creature put
+     * into your graveyard from the battlefield this turn": one token per
+     * nontoken creature that died into the controller's graveyard this turn.
+     */
+    | { readonly kind: "nontoken-creatures-to-your-graveyard-this-turn" };
 
 export interface CreateTokenIR {
     readonly count: TokenCountIR;
@@ -95,6 +101,10 @@ const CREATE_X_THAT =
 /** The announced-X form: plural by construction, X is the spell's own {X}. */
 const CREATE_X_ANNOUNCED =
     /^Create X (\d+)\/(\d+) (.+) creature tokens(?: with (.+))?$/;
+
+/** The per-death form: singular by construction ("a … token for each …"). */
+const CREATE_FOR_EACH_NONTOKEN_DEATH =
+    /^Create a (\d+)\/(\d+) (.+) creature token for each nontoken creature put into your graveyard from the battlefield this turn$/;
 
 const KEYWORDS = keywordVocabulary();
 
@@ -197,6 +207,29 @@ export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
             if (token.artifact)
                 return fail('"artifact" is not read on an X-count token', span);
             return ok({ count: { kind: "announced-x" as const }, token });
+        }
+        const perDeath = span.match(CREATE_FOR_EACH_NONTOKEN_DEATH);
+        if (perDeath !== null) {
+            const token = readToken(
+                perDeath[1]!,
+                perDeath[2]!,
+                perDeath[3]!,
+                undefined
+            );
+            if (typeof token === "string") return fail(token, span);
+            // No corpus card prints an artifact token in this shape, so none
+            // is read.
+            if (token.artifact)
+                return fail(
+                    '"artifact" is not read on a per-death token count',
+                    span
+                );
+            return ok({
+                count: {
+                    kind: "nontoken-creatures-to-your-graveyard-this-turn" as const,
+                },
+                token,
+            });
         }
         const fixed = span.match(CREATE_FIXED);
         if (fixed === null) return fail("not a token creation", span);

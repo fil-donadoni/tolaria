@@ -3222,6 +3222,7 @@ export function getLegalTargets(
             chooserId: casterId,
             activePlayerId: state.activePlayerId,
             sourceIsSpell,
+            siblingControllerId,
         };
         for (const player of state.players) {
             for (const card of player.graveyard) {
@@ -3786,7 +3787,15 @@ function triggerTargetMinMax(
         count.max === undefined && divideTotal !== undefined
             ? divideTotal
             : Number.MAX_SAFE_INTEGER;
-    const max = count.max === "X" ? count.min : (count.max ?? openCap);
+    // A text-defined bound (`TargetCountQuantity`) collapses like `"X"`: the
+    // trigger walk carries no announcement to read it against, and the
+    // catalogue guard keeps the shape off every shipped trigger.
+    const max =
+        count.max === undefined
+            ? openCap
+            : typeof count.max === "number"
+              ? count.max
+              : count.min;
     return { min: count.min, max };
 }
 

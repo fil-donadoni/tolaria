@@ -822,6 +822,14 @@ function resolveValueAgainstBoard(
                   ?.drawnThisTurn?.length ?? 0)
             : CF_ASSUMED_REF_FALLBACK;
     }
+    // nontokenCreaturesToGraveyardThisTurn (CR 700.4) — the controller's per-turn tally is a live board fact;
+    // any other selector needs an announcement that doesn't exist yet.
+    if ("nontokenCreaturesToGraveyardThisTurn" in v) {
+        return v.nontokenCreaturesToGraveyardThisTurn.of === "controller"
+            ? (state.players.find((p) => p.id === perspectivePlayerId)
+                  ?.nontokenCreaturesToGraveyardThisTurn ?? 0)
+            : CF_ASSUMED_REF_FALLBACK;
+    }
     // difference (issue #2006) — both operands are terminals (a literal or a
     // `count`), and a `count` is exactly the member this function already
     // resolves genuinely against the live board, so the whole difference is

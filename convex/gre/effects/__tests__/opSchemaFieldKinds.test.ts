@@ -35,6 +35,7 @@ const DECLARATIONS = [
     "destroy.bind:snapshot",
     "digMatchingToHand.bind:snapshot",
     "discardAtRandom.bind:snapshot",
+    "distributeCountersAsChosen.bind:picks",
     "divideIntoPiles.chosenBind:list@chosenEffect",
     "divideIntoPiles.otherBind:list@otherEffect",
     "exile.bind:snapshot",

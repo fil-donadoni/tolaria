@@ -1203,6 +1203,11 @@ function normalize(
         // for a non-creature source, which never moves it at all.
         if (spent.wasCreature) {
             delete (state as unknown as Record<string, unknown>).deathsThisTurn;
+            // The same departure bumps the per-owner nontoken-creature tally
+            // on the mover (CR 700.4): the spent creature is the mover's own,
+            // so drop the mover's copy on both sides. The opponent's copy is
+            // untouched and still compared.
+            delete mover.nontokenCreaturesToGraveyardThisTurn;
         }
     }
     if (spentCardId === undefined) return state;
@@ -1393,6 +1398,10 @@ export function isProbeEligibleMove(
         // graveyard filler, a loyalty tick) is out of scope for the probe.
         return !(
             cost.sacrificeFilter ||
+            // CR 602.1a — "Return an Elf you control to its owner's hand"
+            // names a separate permanent the probe never gives back, and
+            // re-buying its enters-the-battlefield effect can BE the point.
+            cost.returnToHandFilter ||
             cost.tapOtherFilter ||
             cost.discardFilter ||
             cost.discardThis ||
@@ -1409,6 +1418,10 @@ export function isProbeEligibleMove(
             cost.discardLastDrawn ||
             cost.discardAtRandom !== undefined ||
             cost.exileFromGraveyard ||
+            // CR 118.1 / 701.13a — the probe does not pay "Exile the top card
+            // of your library", and the exiled card can BE the payoff (its mana
+            // value read back as X).
+            cost.exileTopOfLibrary ||
             cost.removeCounter ||
             cost.addCounter ||
             cost.life !== undefined ||

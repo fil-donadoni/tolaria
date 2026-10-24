@@ -40,6 +40,7 @@ import {
     hasNonManaActivatedAbility,
     untapRestriction,
 } from "./abilities/static/untapRestriction";
+import { getCardsExiledWith } from "../gre/exileLinks";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
 import { AURA_AFFECTS_HOST } from "./types";
@@ -227,7 +228,11 @@ export type CompiledCdaCount =
           readonly types: readonly CardType[];
       }
     /** "its mana value" — the AFFECTED permanent's (CR 202.3). */
-    | { readonly kind: "mana-value" };
+    | { readonly kind: "mana-value" }
+    /** "the total power of the exiled cards … their total toughness": the one
+     *  member whose power and toughness differ — the sums of the printed
+     *  power / toughness of the cards exiled with the source (CR 607.2a). */
+    | { readonly kind: "exiled-with-source-totals" };
 
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
@@ -688,7 +693,21 @@ export function resolveCompiledStatic(
             return {
                 kind: "pt-cda",
                 applies: scopePredicate(descriptor),
-                compute: (_source, state, ctx, target) => {
+                compute: (source, state, ctx, target) => {
+                    if (count.kind === "exiled-with-source-totals") {
+                        // CR 607.2a — only the pile the linked as-enters
+                        // exile put there; an empty or unseen zone totals 0.
+                        let power = 0;
+                        let toughness = 0;
+                        for (const { card } of getCardsExiledWith(
+                            state,
+                            source.id
+                        )) {
+                            power += card.power ?? 0;
+                            toughness += card.toughness ?? 0;
+                        }
+                        return { power, toughness };
+                    }
                     const n =
                         count.kind === "mana-value"
                             ? ctx.getManaValue(target)

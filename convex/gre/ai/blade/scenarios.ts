@@ -823,6 +823,95 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Free damage: no possible blocker, no crackback in the position.",
     },
     {
+        // MUST (issue #3376), the anchor of the risk-free-attack pair.
+        label: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the untapped opposing Hill Giant removed — an empty board",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 2 },
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // Real cards, not `hiddenHand`: a blade position must load
+                // into a live game (issue #1432); basic lands stand in as
+                // slots whose value no board changes.
+                { name: "Forest", owner: "opp", zone: "hand", count: 5 },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Walking Ballista" },
+            ],
+        },
+        note: 'Issue #3376, the anchor of the risk-free-attack pair: a 2/2 Walking Ballista facing one untapped 3/3 the opponent blocks with. The block kills the Ballista and survives it, so the attack is a loss and holding it back is right. Its right-hand half, "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board", removes the Hill Giant; the pair is what proves the #3376 fix bought discrimination rather than a blanket bias toward attacking (this half is green before and after the fix, before on `wasteful-attack`).',
+    },
+    {
+        // MUST (issue #3376). The risk-free attack, on a body whose counters
+        // ARE its toughness: a 2/2 Walking Ballista, four lands, the
+        // opponent's board empty. Nothing can block it and nothing in the
+        // position punishes the tap, so declining the attack throws away two
+        // damage. The vanilla twin of this position (Hill Giant / Grizzly
+        // Bears) attacked on every seed; the Ballista did not.
+        label: "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board",
+        pairOf: {
+            anchor: "discriminating pair: does NOT attack with Walking Ballista into an untapped Hill Giant",
+            discriminant: {
+                kind: "card",
+                detail: "the untapped opposing Hill Giant removed — an empty board",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 2 },
+                },
+                // Real cards, not `hiddenHand`: a blade position must load
+                // into a live game (issue #1432); basic lands stand in as
+                // slots whose value no board changes.
+                { name: "Forest", owner: "opp", zone: "hand", count: 5 },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Walking Ballista" }],
+        },
+        note: "Issue #3376. MEASURED before the fix, 400 iterations: the attack on 2 of 12 seeds, every pick `material-tiebreak` inside `outcomeEps`, the declined attack ahead by up to 8 margin points. The root leaves of the two edges are identical (no damage is dealt at the declaration); the gap came from below. The rollout's ε draw and the tree's own children kept firing the shoot ability — one variant per player and creature against one `pass` — and each shot spends a +1/+1 counter, i.e. a slice of the body (`costShrinksSource`). A declared attack opens three more bot windows (blocks, damage, end of combat) than a declined one, so the attack edge's subtree lost the Ballista more often and its own two damage drowned in that. `isSourceBodyDamageConversion` drops those shots from both sites below the root; attack on 12 of 12 seeds at 1, 2 and 3 counters, 0 to 6 lands, with or without hands.",
+    },
+    {
         // CHARTER SCENARIO 1 (issue #1487, PRD #1423, charter gate #1434).
         //
         // Phyrexian Dreadnought is on the battlefield and its own self-ETB
@@ -2803,7 +2892,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #3192, the FIRE half — the identical board with the opponent at 1, and the reason the hold half is not satisfied by a blanket \"never remove the last counter\" prune. The counter buys the game here, so the hold tie-break must never see it: MEASURED at 400 iterations, seed 0xb1ade, BOTH before and after the fix, the shot wins on `mechanism: mean-reward` with `exploredSize: 1` / `contenderCount: 1` at mean 0.9150 and meanMargin 160.00, against `pass` at visits 68 / mean 0.7621 / meanMargin 152.44 — a gap of 0.153 against the 0.05 outcome-equality band, so the tie-break is never consulted at all. Deleting the hold half's clause leaves this entry green, and deleting the clause's board-awareness (promoting `removeCounter` wholesale) leaves it green too; only the pair pins both directions.",
+        note: "Issue #3192, the FIRE half — the identical board with the opponent at 1, and the reason the hold half is not satisfied by a blanket \"never remove the last counter\" prune. The counter buys the game here, so the hold tie-break must never see it: MEASURED at 400 iterations, seed 0xb1ade, BOTH before and after the fix, the shot wins on `mechanism: mean-reward` with `exploredSize: 1` / `contenderCount: 1` at mean 0.9150 and meanMargin 160.00, against `pass` at visits 68 / mean 0.7621 / meanMargin 152.44 — a gap of 0.153 against the 0.05 outcome-equality band, so the tie-break is never consulted at all. Deleting the hold half's clause leaves this entry green, and deleting the clause's board-awareness (promoting `removeCounter` wholesale) leaves it green too; only the pair pins both directions. Re-measured by issue #3376: `pass`'s 0.76 was rollout noise — its subtree shot the Ballista away before the lethal attack in a quarter of its lines. With that noise gone (`isSourceBodyDamageConversion`) `pass` reads as the lethal attack a combat later with the Ballista alive, a richer win than the shot, and took the pick (0.938 against 0.915); the shot is back on `mean-reward` because a won leaf now pays for the game time it took (`scoreLeaf`'s `since`), which puts the win now more than `outcomeEps` above the win a combat later.",
     },
     {
         label: "activation timing: does not shoot away its own last counter at the opponent's end step",

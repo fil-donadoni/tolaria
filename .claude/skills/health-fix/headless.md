@@ -12,6 +12,24 @@ reverts the culprit.
   headless answer is **`stuck`**: write the analysis in the repair issue (or,
   before one is opened, in the verdict's `note`). A guess is never the
   answer to an ambiguity.
+- **Certain instance fix, class guard for the owner → `landed-partial`**
+  (issue #6552). When the instance fix is reproduced (red at the tip, green
+  after), understood and defensible, but the class guard turns on a design
+  call only the owner can make (e.g. its placement trades the lane's 10 s
+  budget against the bot-suite boundary), do not end `stuck`: land the
+  instance fix through the usual proof, review and `land` path, then file the
+  class guard as its own issue labelled `ready-for-human` (`area:*` + type;
+  options weighed, each with its measured cost) and write the verdict
+  `{sha, outcome:"landed-partial", pr, classGuardIssue, note}`. The ladder
+  (write it with `jq -n --arg sha "$1" --argjson pr <PR#> --argjson guard
+<ISSUE#> --arg note '<one line>'
+'{sha:$sha,outcome:"landed-partial",pr:$pr,classGuardIssue:$guard,note:$note}'`
+  into the same `fix-verdict.json` as SKILL.md § verdict; `parseVerdict` reads
+  a partial without the number as `stuck`). The ladder reads it as `landed`: it waits for health on the new tip, no revert rung.
+  **No reproduction, two plausible causes, or a fix that trades a correctness
+  invariant is still `stuck`** — the revert answers "we do not know how to
+  fix this". A guard you simply did not try to write is not an owner
+  decision.
 - **Unchanged:** the four prohibitions, the class guard, the one review
   round, the fail-closed verdict file.
 - **`land` is a gate that outlives the Bash tool's cap**, and under `claude -p`
