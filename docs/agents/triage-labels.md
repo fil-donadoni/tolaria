@@ -91,6 +91,10 @@ copies the band. A blocker that blocks issues of several bands takes the
 strongest. The lift in `queue:plan` stays as the fallback for an edge wired
 without this step; it is not a reason to leave the board lower.
 
+`bun run queue:lint` checks it: the advisory rule `blocker-band` names every
+open blocker whose effective band is weaker than the blocked issue's, with the
+`issue:inherit-band` fix (issue #6709).
+
 The stamp is two `--label` flags and, for a standalone, one body section:
 
 ```sh
