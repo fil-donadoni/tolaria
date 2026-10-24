@@ -12,7 +12,13 @@
 // The classic board's existing behavior is unchanged — it now flows through the
 // same hook.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, cleanup, within } from "@testing-library/react";
+import {
+    render,
+    fireEvent,
+    cleanup,
+    within,
+    waitFor,
+} from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 
@@ -124,13 +130,16 @@ vi.mock("@convex/cards", () => ({
               : LAND_DEF,
 }));
 
-// The buffer is only used by the choice path (not exercised here).
+// The buffer's choice path is not exercised here; `reportError` is the shared
+// toast seam a rejected mutation routes to (issue #1849).
+const { reportError } = vi.hoisted(() => ({ reportError: vi.fn() }));
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     usePendingChoiceBuffer: () => ({
         buffer: [],
         toggle: vi.fn(),
         clear: vi.fn(),
         submit: vi.fn(),
+        reportError,
     }),
 }));
 
@@ -364,7 +373,8 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
         expect(tapUntap).toHaveBeenCalledTimes(1);
     });
 
-    it("surfaces the validation toast on the spatial board when a tap is rejected", async () => {
+    it("routes a rejected tap to the board's shared error toast (issue #1849)", async () => {
+        reportError.mockClear();
         tapUntap.mockReturnValueOnce(
             Promise.reject(
                 new Error(
@@ -373,14 +383,14 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
             )
         );
         const me = makePlayer([land("forest1")]);
-        const { container, findByText } = renderSpatial(me);
+        const { container } = renderSpatial(me);
         fireEvent.click(
             container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
         );
-        // The extracted hook's `overlays` (mounted by BoardBattlefield)
-        // includes the ErrorToast; the rejected mutation surfaces its inner
-        // message as the toast title.
-        expect(await findByText("It's not your turn")).toBeTruthy();
+        // The hook mounts no toast of its own: the rejection goes to the
+        // board-level buffer, whose single ErrorToast renders it.
+        await waitFor(() => expect(reportError).toHaveBeenCalledTimes(1));
+        expect(container.querySelector('[role="alert"]')).toBeNull();
     });
 });
 
