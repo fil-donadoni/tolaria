@@ -55,6 +55,7 @@ import {
     type EffectSentenceIR,
     type SubjectIR,
 } from "./grammar/shared/effectClause";
+import type { FrameChainIR } from "./grammar/shared/verbFrames";
 import { announcedSlots } from "./grammar/shared/targetFilter";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
@@ -1891,6 +1892,9 @@ function lowerSentenceBody(
     site: SiteOptions
 ): Lowered<EffectOp[]> {
     const slots = walk.targets;
+    // The Verb Frame layer (`verbFrames.ts`): a sentence read as frames
+    // carries no kind and lowers frame by frame, one Op each.
+    if (sentence.kind === undefined) return lowerFrameChain(sentence, walk);
     switch (sentence.kind) {
         case "pump": {
             if (sentence.perOtherAttacking !== undefined) {
@@ -3158,10 +3162,46 @@ function lowerSentenceBody(
             // the "may" (declining picks nothing), the shape every
             // hand-written hand→battlefield drop writes.
             if (sentence.effect.kind === "put-subtype-from-hand")
-                return lowerOptionalPutFromHand(sentence.effect);
+                return sentence.then === undefined
+                    ? lowerOptionalPutFromHand(sentence.effect)
+                    : unlowerable(
+                          '"If you do" behind an optional put from the hand is not a printed form'
+                      );
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");
+            // CR 118.12 — "[A player] may [do something]. If [that player]
+            // does, [effect]": the optional action is a COST paid as the
+            // ability resolves, and the effect happens only if it was paid in
+            // full (CR 118.3 — a cost the resources do not cover is not paid:
+            // a source already gone cannot be sacrificed). Saying yes is not
+            // paying, so the gate reads the EVIDENCE the action left — the
+            // bind of the Op that moved or sacrificed something (the same gate
+            // `sacrifice-source` keeps) — and an action that leaves none
+            // (a draw, a life change) is refused rather than gated on the
+            // answer alone.
+            let paid = inner.value;
+            let then: EffectOp[] = [];
+            if (sentence.then !== undefined) {
+                const evidence = paidEvidence(inner.value, walk);
+                if (evidence === null)
+                    return unlowerable(
+                        '"If you do" reads an optional action that leaves no evidence it was paid (CR 118.12)'
+                    );
+                const gated = gatedSentence(sentence.then, walk, site);
+                if (!gated.ok) return gated;
+                paid = evidence.ops;
+                then = [
+                    {
+                        op: "if",
+                        predicate: {
+                            boundMatchesFilter: { ref: evidence.bind },
+                            filter: {},
+                        },
+                        then: gated.value,
+                    },
+                ];
+            }
             return lowered([
                 {
                     op: "mayPay",
@@ -3174,7 +3214,7 @@ function lowerSentenceBody(
                 {
                     op: "if",
                     predicate: { binding: bind },
-                    then: inner.value,
+                    then: [...paid, ...then],
                 },
             ]);
         }
@@ -3321,104 +3361,6 @@ function lowerSentenceBody(
                 },
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);
-        case "search-library-to-hand": {
-            // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — look through the library
-            // for a card the description matches, show it to every player,
-            // take it, shuffle. The find is OPTIONAL (CR 701.23b — a search of
-            // a hidden zone for cards with a stated quality never compels it),
-            // which `count: { min: 0, max: 1 }` says; a search that finds
-            // nothing binds nothing, so the reveal and the move are no-ops
-            // (CR 101.3) and only the shuffle happens — as printed.
-            //
-            // The reveal precedes the move, while the card is still in the
-            // library: it keeps its all-players knowledge through the move to
-            // hand, and the trailing shuffle clears knowledge only of the
-            // cards still in the library (CR 701.20a, `EffectOp.reveal`).
-            const bind = walk.nextBind("found");
-            return lowered([
-                {
-                    op: "choice",
-                    kind: "search-library",
-                    player: "controller",
-                    zone: "library",
-                    filter: sentence.filter,
-                    count: { min: 0, max: 1 },
-                    prompt: `Search your library for ${sentence.phrase}.`,
-                    bind,
-                },
-                { op: "reveal", player: "controller", cards: { ref: bind } },
-                {
-                    op: "moveZone",
-                    cards: { ref: bind },
-                    player: "controller",
-                    from: "library",
-                    to: "hand",
-                },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
-            ]);
-        }
-        case "search-library-to-top": {
-            // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
-            // — look through the library for a card the description
-            // matches (OPTIONAL, CR 701.23b), show it, shuffle, THEN put the
-            // find on top. The shuffle precedes the placement: a shuffle after
-            // it would bury the card, and the `moveZone` library-top shape
-            // keeps the reveal's all-players knowledge across the shuffle
-            // (`putLibraryCardsOnTop`). A search that finds nothing binds
-            // nothing, so the reveal and the move are no-ops (CR 101.3) and
-            // only the shuffle happens.
-            const bind = walk.nextBind("found");
-            return lowered([
-                {
-                    op: "choice",
-                    kind: "search-library",
-                    player: "controller",
-                    zone: "library",
-                    filter: sentence.filter,
-                    count: { min: 0, max: 1 },
-                    prompt: `Search your library for ${sentence.phrase}.`,
-                    bind,
-                },
-                { op: "reveal", player: "controller", cards: { ref: bind } },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
-                {
-                    op: "moveZone",
-                    cards: { ref: bind },
-                    player: "controller",
-                    from: "library",
-                    to: "library-top",
-                },
-            ]);
-        }
-        case "search-library-to-battlefield": {
-            // CR 701.23a (search) + CR 110.5b (enters tapped) + CR 701.24a
-            // (shuffle) — as the hand route, minus the reveal the line does not
-            // print. The find is OPTIONAL (CR 701.23b); a search that finds
-            // nothing binds nothing, so the move is a no-op (CR 101.3) and only
-            // the shuffle happens.
-            const bind = walk.nextBind("found");
-            return lowered([
-                {
-                    op: "choice",
-                    kind: "search-library",
-                    player: "controller",
-                    zone: "library",
-                    filter: sentence.filter,
-                    count: { min: 0, max: 1 },
-                    prompt: `Search your library for ${sentence.phrase}.`,
-                    bind,
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: bind },
-                    player: "controller",
-                    from: "library",
-                    to: "battlefield",
-                    ...(sentence.tapped ? { tapped: true } : {}),
-                },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
-            ]);
-        }
         case "search-target-library": {
             // CR 701.23a (search) + CR 701.24a (shuffle) — the CONTROLLER
             // looks through the TARGET player's library (`zoneOwnerId`), the
@@ -3472,10 +3414,6 @@ function lowerSentenceBody(
                     : []),
             ]);
         }
-        case "shuffle-searched-library":
-            return unlowerable(
-                '"Then that player shuffles." follows no search of a target library'
-            );
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "mill": {
@@ -4997,6 +4935,118 @@ function lowerSentenceBody(
  * no antecedent for a "That player" after the gate: the walk's referent is
  * restored to what it was before the gated sentence.
  */
+/**
+ * The Verb Frame chain (`verbFrames.ts`, issue #6557), one Op per frame in
+ * printed order (CR 608.2c). The chain's referent — the find of the last
+ * `search` — is the binding the `moveZone` frames and the search's own reveal
+ * read; the grammar refused every pronoun with no referent, so a frame that
+ * reads one here and finds none is a bug in the reader, not a card.
+ *
+ *  - `search` (CR 701.23a): the `choice` over the controller's library. The
+ *    find is OPTIONAL when the description states a quality (CR 701.23b — a
+ *    search of a hidden zone for cards with a stated quality never compels
+ *    it) or the quantity is "up to N"; a search for plain "a card" states no
+ *    quality and MUST find one, clamped by what the library holds (CR 609.3).
+ *    The reveal (CR 701.20a) comes right after the choice, while the card is
+ *    still in the library: it keeps its all-players knowledge through the
+ *    move, and a later shuffle clears knowledge only of the cards still in
+ *    the library. A search that finds nothing binds nothing, so every frame
+ *    reading the binding is a no-op (CR 101.3).
+ *  - `moveZone` (CR 400.7): the found cards leave the library for the printed
+ *    destination, tapped when the line says so (CR 110.5b).
+ *  - `shuffle` (CR 701.24a): the controller's library. "That player
+ *    shuffles" is legal only folded onto the `search-target-library` kind by
+ *    sentence assembly; reaching it here means the fold did not happen.
+ */
+function lowerFrameChain(
+    sentence: FrameChainIR,
+    walk: SentenceWalk
+): Lowered<EffectOp[]> {
+    const ops: EffectOp[] = [];
+    let found: string | null = null;
+    for (const frame of sentence.frames) {
+        switch (frame.frame) {
+            case "search": {
+                const bind = walk.nextBind("found");
+                const statedQuality = Object.keys(frame.filter).length > 0;
+                ops.push({
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    ...(statedQuality ? { filter: frame.filter } : {}),
+                    count:
+                        statedQuality || frame.upTo
+                            ? { min: 0, max: frame.count }
+                            : frame.count,
+                    prompt: `Search your library for ${frame.phrase}.`,
+                    bind,
+                });
+                if (frame.reveal !== undefined)
+                    ops.push({
+                        op: "reveal",
+                        player: "controller",
+                        cards: { ref: bind },
+                    });
+                found = bind;
+                break;
+            }
+            case "moveZone": {
+                if (found === null)
+                    return unlowerable(
+                        `"put ${frame.pronoun} …" names a card no frame found`
+                    );
+                ops.push({
+                    op: "moveZone",
+                    cards: { ref: found },
+                    player: "controller",
+                    from: "library",
+                    to: frame.to,
+                    ...(frame.tapped ? { tapped: true } : {}),
+                });
+                break;
+            }
+            case "shuffle":
+                if (frame.player === "that-player")
+                    return unlowerable(
+                        '"Then that player shuffles." follows no search of a target library'
+                    );
+                ops.push({
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                });
+                break;
+        }
+    }
+    return lowered(ops);
+}
+
+/**
+ * CR 118.12 — the evidence an optional action leaves when it is paid: the bind
+ * of the LAST Op that sacrificed or moved something, given one here when the
+ * lowering wrote none. An action with no such Op (a draw, a life change, a
+ * tap) has nothing an `If you do` can read, and `null` says so.
+ */
+function paidEvidence(
+    ops: readonly EffectOp[],
+    walk: SentenceWalk
+): { readonly ops: EffectOp[]; readonly bind: string } | null {
+    for (let i = ops.length - 1; i >= 0; i--) {
+        const op = ops[i]!;
+        if (op.op !== "sacrifice" && op.op !== "moveZone") continue;
+        if (!("target" in op) && !("cards" in op)) continue;
+        const existing = (op as { bind?: string }).bind;
+        const bind = existing ?? walk.nextBind("did");
+        const stamped = existing === undefined ? { ...op, bind } : op;
+        return {
+            ops: [...ops.slice(0, i), stamped as EffectOp, ...ops.slice(i + 1)],
+            bind,
+        };
+    }
+    return null;
+}
+
 function gatedSentence(
     sentence: EffectSentenceIR,
     walk: SentenceWalk,

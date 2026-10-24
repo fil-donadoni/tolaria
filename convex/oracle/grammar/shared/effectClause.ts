@@ -40,6 +40,7 @@ import type { CardType, NameRestriction } from "../../../cards/types";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import {
+    compareTraces,
     fail,
     ok,
     rule,
@@ -48,6 +49,7 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import { readFrameChain, type FrameChainIR } from "./verbFrames";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { readQuotedAbilityOf } from "./quotedAbilityReader";
 import type { QuotedAbilityIR } from "./staticClause";
@@ -439,6 +441,13 @@ export type CounterTaxIR =
       };
 
 export type EffectSentenceIR =
+    /**
+     * The Verb Frame layer (`verbFrames.ts`, issue #6557): a sentence read as
+     * a chain of Op-shaped frames, beside the table of whole-sentence kinds
+     * below. Not a kind — it carries no `kind` — so the shrink-only kind
+     * census counts the table alone.
+     */
+    | FrameChainIR
     /** CR 205.3m (issue #3721) — "Choose a creature type." made as the spell
      *  or ability RESOLVES, the head of a line whose later sentences read the
      *  answer back through a `chosenType` descriptor ("of that type" / "of the
@@ -1807,6 +1816,14 @@ export type EffectSentenceIR =
            */
           readonly clause: string;
           readonly effect: EffectSentenceIR;
+          /**
+           * CR 118.12 — the "If you do, <effect>." sentence behind the
+           * optional one, folded in by `assembleSentences` (the `If you do`
+           * Composition Rule, issue #6557): the optional action is a cost
+           * paid as the ability resolves, and `then` runs only if it was
+           * paid (the lowering gates on the evidence the action left).
+           */
+          readonly then?: EffectSentenceIR;
       }
     | {
           /**
@@ -2044,70 +2061,6 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a
-           * basic land card, reveal it, put it into your hand, then shuffle.":
-           * the controller looks through their OWN library, may find one card
-           * the description matches, shows it to every player, takes it, and
-           * shuffles. One sentence, four actions in printed order.
-           *
-           * The find is optional (CR 701.23b — a search of a hidden zone for
-           * cards with a stated quality never compels it), which is what makes
-           * the reveal worth printing: it is how the other players learn what
-           * was taken, and lowering keeps it in front of the move for the
-           * reason `EffectOp`'s own `reveal` doc gives.
-           *
-           * `filter` is what the search may find, `phrase` the noun phrase
-           * that named it, kept for the prompt. The accepted descriptions are
-           * a closed vocabulary (`LIBRARY_SEARCH_FILTERS`): one this grammar
-           * cannot turn into an `EffectCardFilter` fails the line rather than
-           * searching wider than the card said.
-           */
-          readonly kind: "search-library-to-hand";
-          readonly filter: EffectCardFilter;
-          readonly phrase: string;
-      }
-    | {
-          /**
-           * CR 701.23a (search) + CR 701.24a (shuffle) + CR 110.5b — "Search
-           * your library for a Forest or Plains card, put it onto the
-           * battlefield, then shuffle.": the controller looks through their OWN
-           * library, may find one card the description matches, puts it onto
-           * the battlefield (tapped when the line says so) and shuffles. No
-           * reveal: the line prints none, so the card is not shown to the
-           * other players. The find is optional (CR 701.23b).
-           *
-           * `filter` and `phrase` are as `search-library-to-hand`'s; the
-           * accepted whole clauses are a closed table
-           * (`LIBRARY_SEARCH_TO_BATTLEFIELD`), so a description, pronoun or
-           * tapped state with no printed form fails the line.
-           */
-          readonly kind: "search-library-to-battlefield";
-          readonly filter: EffectCardFilter;
-          readonly phrase: string;
-          readonly tapped: boolean;
-      }
-    | {
-          /**
-           * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
-           * "Search your library for a creature card, reveal it,
-           * then shuffle and put the card on top.": the controller looks
-           * through their OWN library, may find one card the description
-           * matches, shows it to every player, shuffles, and puts the found
-           * card on top of the library. One sentence, four actions in printed
-           * order: the shuffle comes BEFORE the placement (the shuffle would
-           * otherwise bury the card it just placed), and the find is optional
-           * (CR 701.23b).
-           *
-           * `filter` and `phrase` are as `search-library-to-hand`'s; the
-           * accepted whole clauses are a closed table (`LIBRARY_SEARCH_TO_TOP`)
-           * so a description or pronoun with no printed form fails the line.
-           */
-          readonly kind: "search-library-to-top";
-          readonly filter: EffectCardFilter;
-          readonly phrase: string;
-      }
-    | {
-          /**
            * CR 701.23a (search) + CR 701.23b (stated quality) + CR 406.1 /
            * CR 404.1 (the denial routes) — "Search target player's library for
            * three cards and exile them [, then that player shuffles]": the
@@ -2125,8 +2078,9 @@ export type EffectSentenceIR =
            * said.
            *
            * `shuffle` is the printed "then that player shuffles" — in the
-           * sentence itself, or folded in from the sentence after it
-           * (`shuffle-searched-library`).
+           * sentence itself, or folded in from the sentence after it (the
+           * `shuffle` Verb Frame's "Then that player shuffles.",
+           * `verbFrames.ts`).
            */
           readonly kind: "search-target-library";
           readonly player: PlayerRefIR;
@@ -2135,14 +2089,6 @@ export type EffectSentenceIR =
           readonly flashback: boolean;
           readonly route: "exile" | "graveyard";
           readonly shuffle: boolean;
-      }
-    | {
-          /**
-           * CR 701.24a — "Then that player shuffles.": the sentence after a
-           * `search-target-library`, folded into its `shuffle` flag by the
-           * sentence-list assembler. Alone it names no library and fails.
-           */
-          readonly kind: "shuffle-searched-library";
       }
     | {
           /**
@@ -2859,9 +2805,20 @@ export function assembleSentences(
             continue;
         }
         if (sentence.role === "if-you-do") {
-            // CR 608.2c — "Sacrifice this enchantment. If you do, <effect>."
+            // CR 118.12 — the `If you do` Composition Rule (issue #6557):
+            // the sentence gates the member before it, whose action is a
+            // COST paid as the ability resolves — "Sacrifice this
+            // enchantment." or "you may <effect>" — and the effect happens
+            // only if that cost was paid in full (the lowering reads the
+            // evidence the action left). A member that is not such an action
+            // has no "do" to read, and a member already gated has no second
+            // gate.
             const last = effects[effects.length - 1];
-            if (last?.kind === "sacrifice-source" && last.then === undefined) {
+            if (
+                (last?.kind === "sacrifice-source" ||
+                    last?.kind === "optional") &&
+                last.then === undefined
+            ) {
                 effects[effects.length - 1] = {
                     ...last,
                     then: sentence.effect,
@@ -2870,7 +2827,7 @@ export function assembleSentences(
             }
             return {
                 ok: false,
-                reason: '"If you do, …" follows no "You may pay {X}"',
+                reason: '"If you do, …" follows no optional effect or "You may pay {X}"',
             };
         }
         if (landTypePick) {
@@ -2949,7 +2906,7 @@ export function assembleSentences(
                 };
             effects[effects.length - 1] = {
                 ...previous,
-                creatureDamageLock: true,
+                creatureDamageLock: true as const,
             };
             continue;
         }
@@ -3370,7 +3327,7 @@ export function assembleSentences(
                     };
                 effects[effects.length - 1] = {
                     ...previous,
-                    retainsTypes: true,
+                    retainsTypes: true as const,
                 };
                 continue;
             }
@@ -3400,7 +3357,10 @@ export function assembleSentences(
                     ok: false,
                     reason: '"They\'re still <types>." follows no animation of those types',
                 };
-            effects[effects.length - 1] = { ...previous, retainsTypes: true };
+            effects[effects.length - 1] = {
+                ...previous,
+                retainsTypes: true as const,
+            };
             continue;
         }
         if (
@@ -3425,8 +3385,8 @@ export function assembleSentences(
                         : '"This ability still resolves" follows no exchange of control',
                 };
             effects[effects.length - 1] = isFallback
-                ? { ...previous, sacrificeUnlessExchanged: true }
-                : { ...previous, resolvesIfTargetIllegal: true };
+                ? { ...previous, sacrificeUnlessExchanged: true as const }
+                : { ...previous, resolvesIfTargetIllegal: true as const };
             continue;
         }
         if (
@@ -3452,7 +3412,7 @@ export function assembleSentences(
                 };
             effects[effects.length - 1] = {
                 ...previous,
-                destroysCounteredSource: true,
+                destroysCounteredSource: true as const,
             };
             continue;
         }
@@ -3519,18 +3479,33 @@ export function assembleSentences(
             };
             continue;
         }
-        // CR 701.24a — "Then that player shuffles." belongs to the target
-        // library the sentence before searched; nothing else names it.
-        if (sentence.effect.kind === "shuffle-searched-library") {
+        // CR 701.24a — "Then that player shuffles." (the `shuffle` frame on
+        // the target player, opened by the ". Then" connector) belongs to the
+        // target library the sentence before searched; nothing else names it.
+        if (
+            sentence.effect.kind === undefined &&
+            sentence.effect.frames.some(
+                (f) => f.frame === "shuffle" && f.player === "that-player"
+            )
+        ) {
             const previous = effects[effects.length - 1];
+            const bareShuffle =
+                sentence.effect.frames.length === 1 &&
+                sentence.effect.continuation === true;
+            // CR 608.2c — or to the same-name library sweep before it.
             if (
+                bareShuffle &&
                 previous?.kind === "exile-graveyard-and-library-copies" &&
                 !previous.shuffle
             ) {
                 effects[effects.length - 1] = { ...previous, shuffle: true };
                 continue;
             }
-            if (previous?.kind !== "search-target-library" || previous.shuffle)
+            if (
+                !bareShuffle ||
+                previous?.kind !== "search-target-library" ||
+                previous.shuffle
+            )
                 return {
                     ok: false,
                     reason: '"Then that player shuffles." follows no search of a target library',
@@ -4704,83 +4679,6 @@ const SHUFFLE_HAND_REDRAW =
     /^Shuffle the cards from your hand into your library, then draw that many cards$/;
 /** CR 701.24a + CR 404.1 — "Shuffle your graveyard into your library". */
 const SHUFFLE_OWN_GRAVEYARD = "Shuffle your graveyard into your library";
-/** CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for <what>,
- *  reveal it, put it into your hand, then shuffle". */
-const SEARCH_LIBRARY_TO_HAND =
-    /^Search your library for (.+?), reveal (it|that card), put it into your hand, then shuffle$/;
-/**
- * What a library search may be told to find (CR 701.23a — "a card that matches
- * the given description"), as an `EffectCardFilter`. Fail-closed by
- * construction: a description with no row here is one this grammar has no
- * fixture for, and the sentence fails rather than searching wider than the
- * card said. A row is earned by a printed form, never by symmetry.
- */
-const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
-    ["a basic land card|it", { type: "Land", supertype: "Basic" }],
-    ["a land card|it", { type: "Land" }],
-    ["a creature card|that card", { type: "Creature" }],
-    ["a Goblin card|that card", { subtype: "Goblin" }],
-    ["a Forest card|that card", { subtype: "Forest" }],
-]);
-/**
- * CR 701.23a (search) + CR 110.5b — "Search your library for <what>, put <it>
- * onto the battlefield[ tapped], then shuffle". A closed table of the whole
- * printed middle of the clause, so the pronoun and the tapped state are part of
- * what is accepted (the basic-land fetch prints "that card ... tapped", the
- * dual-land fetch "it" untapped); a pairing no card prints has no row and fails
- * the line.
- */
-const SEARCH_LIBRARY_TO_BATTLEFIELD =
-    /^Search your library for (.+?), put (it|that card) onto the battlefield( tapped)?, then shuffle$/;
-const DUAL_LAND_FETCHES: readonly (readonly [string, string])[] = [
-    ["Forest", "Plains"],
-    ["Mountain", "Forest"],
-    ["Plains", "Island"],
-    ["Swamp", "Mountain"],
-    ["Island", "Swamp"],
-];
-const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
-    string,
-    { filter: EffectCardFilter; tapped: boolean }
->([
-    [
-        "a basic land card|that card|tapped",
-        { filter: { type: "Land", supertype: "Basic" }, tapped: true },
-    ],
-    [
-        "an Elf permanent card|it|",
-        {
-            filter: { type: [...PERMANENT_TYPES], subtype: "Elf" },
-            tapped: false,
-        },
-    ],
-    ...DUAL_LAND_FETCHES.map(
-        ([first, second]): [
-            string,
-            { filter: EffectCardFilter; tapped: boolean },
-        ] => [
-            `${/^[AEIOU]/.test(first!) ? "an" : "a"} ${first} or ${second} card|it|`,
-            { filter: { subtype: [first!, second!] }, tapped: false },
-        ]
-    ),
-]);
-/**
- * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
- * "Search your library for <what>, reveal it, then shuffle and put <the|that>
- * card on top". A closed table of the printed middle of the clause (phrase and
- * pronoun together): the instant tutors print "the card" / "that card" by
- * card, so a pairing no card prints has no row and fails the line.
- */
-const SEARCH_LIBRARY_TO_TOP =
-    /^Search your library for (.+?), reveal it, then shuffle and put (the|that) card on top$/;
-const LIBRARY_SEARCH_TO_TOP = new Map<string, EffectCardFilter>([
-    ["a creature card|the", { type: "Creature" }],
-    [
-        "an artifact or enchantment card|that",
-        { type: ["Artifact", "Enchantment"] },
-    ],
-    ["an enchantment card|that", { type: "Enchantment" }],
-]);
 /**
  * CR 701.23a — "Search target player's library for <count> and exile them":
  * the library owner is a target. The count group is read by
@@ -4790,9 +4688,6 @@ const LIBRARY_SEARCH_TO_TOP = new Map<string, EffectCardFilter>([
  */
 const SEARCH_TARGET_LIBRARY =
     /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)( with flashback)?(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
-/** CR 701.24a — the sentence that shuffles the library a search just looked at. */
-const THEN_THAT_PLAYER_SHUFFLES =
-    /^Then (?:that|the) player shuffles(?: their library)?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -5485,19 +5380,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         );
         if (recoloured !== null) return recoloured;
 
-        const chained = readThenChain(span, ctx, (tail) =>
-            sentenceRule.run(capitalise(tail), ctx)
-        );
-        if (chained !== null) return chained;
-
         const counterChain = readCounterAndChain(span, (sentence) =>
             sentenceRule.run(sentence, ctx)
         );
         if (counterChain !== null) return counterChain;
 
-        const effect = effectSentence(span, ctx);
-        if (!effect.ok) return effect;
-        return ok({ role: "effect" as const, effect: effect.value });
+        // The whole sentence, by exactly one of its three readers (a frame
+        // chain, the sentence table, a leading duration over a member list);
+        // only when none reads it whole is it split at ", then" into two
+        // sentences (CR 608.2c), so an exact shape with its own ", then"
+        // (the loot, the library look) is never re-read as a chain.
+        const { result: whole, frameOpened } = wholeSentence(span, ctx);
+        // A sentence that opened a frame chain owns its connectors: its
+        // refusal is final, never re-read as two sentences.
+        if (whole.ok || frameOpened) return whole;
+        const chained = readThenChain(span, ctx, (tail) =>
+            sentenceRule.run(capitalise(tail), ctx)
+        );
+        if (chained === null || chained.ok) return chained ?? whole;
+        return deeperFailure(whole, chained);
     })
 );
 
@@ -5509,6 +5410,161 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
  * shape every printed card of this family has, and "and" between two
  * singular "you control a …" clauses is the only conjunction read here.
  */
+/**
+ * CR 608.2c — a whole sentence, by exactly one of its three readers: the Verb
+ * Frame chain (`verbFrames.ts`), the table of whole-sentence kinds
+ * (`effectSentence`), or a leading duration over a member list
+ * (`readLeadingDuration`). `oneOf` semantics, not first-match (`rule.ts`
+ * guarantee 3): a sentence two readers accept is an ambiguity of the GRAMMAR
+ * and fails the card — which is what makes a kind and a frame chain that read
+ * the same sentence impossible to keep side by side (issue #6557).
+ *
+ * The frame and duration readers answer `null` when the sentence never opened
+ * them (no frame verb, no duration at its head), and then the table's own
+ * refusal is the one reported — so a sentence neither layer touches keeps the
+ * gap key it had. A reader the sentence DID open reports its own refusal: it
+ * is the nearer diagnosis, and the member it names is what the Clause Family
+ * report groups by.
+ */
+function wholeSentence(
+    span: string,
+    ctx: unknown
+): { readonly result: RuleResult<SentenceIR>; readonly frameOpened: boolean } {
+    const frames = readFrameChain(span, ctx);
+    return {
+        result: wholeSentenceBy(span, ctx, frames),
+        frameOpened: frames !== null,
+    };
+}
+
+function wholeSentenceBy(
+    span: string,
+    ctx: unknown,
+    frames: ReturnType<typeof readFrameChain>
+): RuleResult<SentenceIR> {
+    const duration = readLeadingDuration(span, ctx);
+    const table = effectSentence(span, ctx);
+    const readers: readonly {
+        readonly label: string;
+        readonly result: RuleResult<SentenceIR> | null;
+    }[] = [
+        {
+            label: "a verb frame chain",
+            result:
+                frames === null
+                    ? null
+                    : frames.ok
+                      ? ok({ role: "effect" as const, effect: frames.value })
+                      : frames,
+        },
+        { label: "a leading duration", result: duration },
+        {
+            label: "a sentence kind",
+            result: table.ok
+                ? ok({ role: "effect" as const, effect: table.value })
+                : table,
+        },
+    ];
+    const hits = readers.filter((r) => r.result !== null && r.result.ok);
+    if (hits.length === 1) return hits[0]!.result!;
+    if (hits.length > 1)
+        return fail(
+            `ambiguous sentence: ${hits
+                .map((h) => h.label)
+                .sort()
+                .join(" and ")} both read it`,
+            span
+        );
+    const opened = readers.filter(
+        (r) => r.label !== "a sentence kind" && r.result !== null
+    );
+    if (opened.length === 0) return readers[2]!.result!;
+    return opened.map((r) => r.result!).reduce((a, b) => deeperFailure(a, b));
+}
+
+/** Of two refusals, the one whose trace got further (`compareTraces`). */
+function deeperFailure(
+    a: RuleResult<SentenceIR>,
+    b: RuleResult<SentenceIR>
+): RuleResult<SentenceIR> {
+    if (a.ok) return a;
+    if (b.ok) return b;
+    if (a.trace !== undefined && b.trace !== undefined)
+        return compareTraces(a.trace, b.trace) >= 0 ? a : b;
+    if (a.trace !== undefined) return a;
+    return b;
+}
+
+/**
+ * CR 611.2a — the LEADING DURATION Composition Rule (issue #6557): "Until end
+ * of turn, <member>[, then <member>]" is the members with that duration on
+ * EVERY one of them, exactly as each would read with the duration printed at
+ * its own tail. A member with no duration slot (a draw, a search), or one
+ * that already carries a duration, has nothing the leading phrase can govern
+ * and refuses the sentence rather than let the duration fall off silently.
+ *
+ * `null` when the sentence opens no duration this grammar knows; the exact
+ * shapes that spell their own leading duration out ("Until end of turn, you
+ * may play lands and cast spells from your graveyard") stay the table's,
+ * because their member list is not one the sentence grammar reads.
+ */
+const LEADING_DURATION = /^(Until [^,]+|This turn), (.+)$/;
+function readLeadingDuration(
+    span: string,
+    ctx: unknown
+): RuleResult<SentenceIR> | null {
+    const lead = span.match(LEADING_DURATION);
+    if (lead === null) return null;
+    const duration = durationRule.run(uncapitalise(lead[1]!), ctx);
+    if (!duration.ok) return null;
+    const rest = sentenceRule.run(capitalise(lead[2]!), ctx);
+    if (!rest.ok) return rest;
+    const members =
+        rest.value.role === "effect"
+            ? [rest.value.effect]
+            : rest.value.role === "then-chain"
+              ? rest.value.effects
+              : null;
+    if (members === null)
+        return fail(
+            `a leading duration governs effects, not a ${rest.value.role}`,
+            span
+        );
+    const governed: EffectSentenceIR[] = [];
+    for (const member of members) {
+        const timed = withLeadingDuration(member, duration.value);
+        if (typeof timed === "string") return fail(timed, lead[2]!);
+        governed.push(timed);
+    }
+    return ok(
+        governed.length === 1
+            ? { role: "effect" as const, effect: governed[0]! }
+            : { role: "then-chain" as const, effects: governed }
+    );
+}
+
+/**
+ * One member with the leading duration on it, or why it cannot take one. The
+ * kinds with an OPEN duration slot — printed with or without a duration, as
+ * `set-color-choice` is (CR 611.2a: without one the effect lasts
+ * indefinitely) — are the only ones a leading phrase can govern; a kind whose
+ * duration is mandatory already read it at its tail, and a kind with none is
+ * not a continuous effect.
+ */
+function withLeadingDuration(
+    member: EffectSentenceIR,
+    duration: DurationIR
+): EffectSentenceIR | string {
+    switch (member.kind) {
+        case "set-color-choice":
+            return member.duration === undefined
+                ? { ...member, duration }
+                : "a member of a leading-duration sentence already carries its own duration";
+        default:
+            return `"${member.kind ?? "a verb frame chain"}" has no duration slot a leading duration can govern`;
+    }
+}
+
 export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
     "instead if you control",
     (span, ctx) => {
@@ -5959,7 +6015,8 @@ const HAND_PICK_ROUTES: ReadonlyMap<string, HandPickRoute> = new Map([
 ]);
 /**
  * What the controller may choose from a revealed hand, as an
- * `EffectCardFilter`. A closed table, as `LIBRARY_SEARCH_FILTERS` is: a
+ * `EffectCardFilter`. A closed table (unlike the `search` Verb Frame's
+ * descriptor, `verbFrames.ts`): a
  * description with no row ("a card from it with mana value 4 or greater", "a
  * nonlegendary, nonland card") fails the sentence rather than letting the pick
  * range wider than the card said. A row is earned by a printed form.
@@ -6983,65 +7040,6 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── search the library, reveal the find, take it, shuffle ──────────────
-    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
-    const searchToHand = span.match(SEARCH_LIBRARY_TO_HAND);
-    if (searchToHand !== null) {
-        const phrase = searchToHand[1]!;
-        // The reveal pronoun is part of the printed form: each description is
-        // earned with the wording a card prints it in, so a pairing no card
-        // prints has no row and fails the line.
-        const filter = LIBRARY_SEARCH_FILTERS.get(
-            `${phrase}|${searchToHand[2]}`
-        );
-        if (filter === undefined)
-            return fail(`"${span}" is not a library search description`, span);
-        return ok({
-            kind: "search-library-to-hand" as const,
-            filter,
-            phrase,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── search the library, reveal the find, shuffle, put it on top ─────────
-    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
-    const searchToTop = span.match(SEARCH_LIBRARY_TO_TOP);
-    if (searchToTop !== null) {
-        const [, phrase, pronoun] = searchToTop;
-        const filter = LIBRARY_SEARCH_TO_TOP.get(`${phrase}|${pronoun}`);
-        if (filter === undefined)
-            return fail(
-                `"${span}" is not a library search to the top of the library`,
-                span
-            );
-        return ok({
-            kind: "search-library-to-top" as const,
-            filter,
-            phrase: phrase!,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── search the library, put the find onto the battlefield, shuffle ─────
-    // CR 701.23a (search) + CR 110.5b (tapped) + CR 701.24a (shuffle)
-    const searchToBattlefield = span.match(SEARCH_LIBRARY_TO_BATTLEFIELD);
-    if (searchToBattlefield !== null) {
-        const [, phrase, pronoun, tapped] = searchToBattlefield;
-        const row = LIBRARY_SEARCH_TO_BATTLEFIELD.get(
-            `${phrase}|${pronoun}|${tapped === undefined ? "" : "tapped"}`
-        );
-        if (row === undefined)
-            return fail(
-                `"${span}" is not a library search onto the battlefield`,
-                span
-            );
-        return ok({
-            kind: "search-library-to-battlefield" as const,
-            filter: row.filter,
-            phrase: phrase!,
-            tapped: row.tapped,
-        } satisfies EffectSentenceIR);
-    }
-
     // ── search a TARGET player's library, exile or mill the find ───────────
     // CR 701.23a (search) + CR 701.23b (stated quality) + CR 701.24a (shuffle)
     const searchTarget = span.match(SEARCH_TARGET_LIBRARY);
@@ -7098,10 +7096,6 @@ function effectSentence(
             kind: "exile-same-name-library-copies" as const,
         } satisfies EffectSentenceIR);
     }
-    if (THEN_THAT_PLAYER_SHUFFLES.test(span))
-        return ok({
-            kind: "shuffle-searched-library" as const,
-        } satisfies EffectSentenceIR);
 
     // ── draw, and lose life / and the opponent discards (CR 608.2c) ────────
     const drawAnd =

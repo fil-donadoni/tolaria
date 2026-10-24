@@ -642,7 +642,42 @@ function readNoun(
     tokens: readonly string[],
     into: DescriptorState
 ): string | null {
-    const phrase = tokens.join(" ");
+    let phrase = tokens.join(" ");
+    // CR 205.3 — "Forest or Plains card": a subtype or-list sharing ONE
+    // "card" noun. The noun is peeled off before the split so each element is
+    // the one word the loop below reads; "artifact or enchantment card" never
+    // reaches here (its types were joined as one adjective) and a list whose
+    // elements are not all single words still fails as such.
+    const sharedCard = phrase.match(/^(\S+(?: or \S+)+) (cards?)$/);
+    if (sharedCard !== null) {
+        // A disjunction of TYPES before "card" is the one adjective
+        // `joinTypeDisjunctions` already made of it; reading it here too would
+        // give the descriptor two whole readings (the unique-split guarantee).
+        const elements = sharedCard[1]!.split(" or ");
+        if (elements.every((w) => TYPE_NOUNS.has(w.toLowerCase())))
+            return 'a type disjunction before "card" is one adjective';
+        // A list mixing a type and a subtype ("Elf or land card") has no OR
+        // filter shape — the consumers AND types with subtypes — so only an
+        // all-subtype list is read here.
+        if (!elements.every((w) => isSubtype(w)))
+            return `"${sharedCard[1]}" mixes card types and subtypes in one or-list`;
+        phrase = sharedCard[1]!;
+        into.card = true;
+        if (sharedCard[2] === "cards") into.plural = true;
+    }
+    // CR 110.4 — "permanent card": every permanent type, the noun the tutors
+    // print ("an Elf permanent card", the Elf read as the adjective before
+    // it). "permanent" is a noun, never an adjective, so it is read here.
+    const permanentCard = phrase.match(/^permanent (cards?)$/);
+    if (permanentCard !== null) {
+        // "artifact permanent card" would be an intersection no card prints.
+        if (into.typeAdjectives.length > 0)
+            return '"permanent card" takes no card-type adjective';
+        into.card = true;
+        if (permanentCard[1] === "cards") into.plural = true;
+        into.types = [...PERMANENT_TYPES];
+        return null;
+    }
     const parts = phrase.includes(", or ")
         ? phrase.replace(", or ", ", ").split(", ")
         : phrase.split(" or ");
@@ -651,6 +686,8 @@ function readNoun(
     }
     const types: CardType[] = [];
     const subtypes: string[] = [];
+    if (sharedCard !== null) types.push(...into.typeAdjectives);
+    if (sharedCard !== null) into.typeAdjectives = [];
     for (const part of parts) {
         const lower = part.toLowerCase();
         const singular = plural(lower);
@@ -1471,6 +1508,76 @@ export function ownPermanentChoiceFilterFromDescriptor(
         type: types.length === 1 ? types[0]! : [...types],
     };
     if (descriptor.colors !== undefined) filter.color = [...descriptor.colors];
+    return ok(filter);
+}
+
+/**
+ * Descriptor → what a library search may find (CR 701.23a — "a card that
+ * matches the given description"), as an `EffectCardFilter`.
+ *
+ * The argument classes the `search` Verb Frame accepts (`verbFrames.ts`):
+ * card types, subtypes, one supertype, colours and a numeric mana-value
+ * ceiling, always on a CARD noun — a library holds cards, so "a creature"
+ * without "card" is a phrase we have misread. Every other descriptor clause
+ * (a chosen type, an exclusion, a controller, a P/T bound, "X") fails the
+ * frame by name rather than searching wider or narrower than the card said.
+ * `plural` is the caller's to check against its quantity.
+ *
+ * Field order is the Compiled Definition's: `type`, `subtype`, `supertype`,
+ * `color`, `manaValueAtMost` — the lockfile serialises keys as built.
+ */
+export function librarySearchFilterFromDescriptor(
+    descriptor: DescriptorIR
+): RuleResult<EffectCardFilter> {
+    if (descriptor.card !== true)
+        return fail("a library search finds cards", "card");
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined) continue;
+        if (
+            ![
+                "types",
+                "subtypes",
+                "supertypes",
+                "colors",
+                "mvFilter",
+                "card",
+                "plural",
+            ].includes(field)
+        )
+            return fail(
+                `"${field}" is not an argument class the search frame reads`,
+                field
+            );
+    }
+    const filter: EffectCardFilter = {};
+    const types = descriptor.types;
+    if (types !== undefined)
+        filter.type = types.length === 1 ? types[0]! : [...types];
+    const subtypes = descriptor.subtypes;
+    if (subtypes !== undefined)
+        filter.subtype = subtypes.length === 1 ? subtypes[0]! : [...subtypes];
+    const supertypes = descriptor.supertypes;
+    if (supertypes !== undefined) {
+        if (supertypes.length !== 1)
+            return fail("a library search names one supertype", "supertypes");
+        filter.supertype = supertypes[0]!;
+    }
+    const colors = descriptor.colors;
+    if (colors !== undefined)
+        filter.color = colors.length === 1 ? colors[0]! : [...colors];
+    const mv = descriptor.mvFilter;
+    if (mv !== undefined) {
+        if (
+            mv.min !== undefined ||
+            mv.equals !== undefined ||
+            typeof mv.max !== "number"
+        )
+            return fail(
+                'a library search reads "with mana value N or less" only',
+                "mvFilter"
+            );
+        filter.manaValueAtMost = mv.max;
+    }
     return ok(filter);
 }
 

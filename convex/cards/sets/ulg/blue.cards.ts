@@ -183,7 +183,8 @@ export const tinker = defineCard(() => ({
             player: "controller",
             zone: "library",
             filter: { type: "Artifact" },
-            count: 1,
+            // CR 701.23b — a stated quality never compels the find.
+            count: { min: 0, max: 1 },
             prompt: "Search your library for an artifact card.",
             bind: "$picked",
         },

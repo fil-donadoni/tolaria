@@ -28,7 +28,9 @@ export const vampiricTutor = defineCard(() => ({
             kind: "search-library",
             player: "controller",
             zone: "library",
-            count: { min: 0, max: 1 },
+            // CR 701.23b — "a card" states no quality, so the search must
+            // find one (clamped by the library, CR 609.3).
+            count: 1,
             prompt: "Search your library for a card.",
             bind: "$picked",
         },

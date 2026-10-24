@@ -311,6 +311,23 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
         );
     });
 
+    it("names the Verb Frame a span opens, whatever its arguments (issue #6557)", () => {
+        expect(clauseHead("Search your library for a card named Avarax")).toBe(
+            "frame search"
+        );
+        expect(
+            clauseHead("search your library for any number of land cards")
+        ).toBe("frame search");
+        expect(clauseHead("put that card into its owner's hand")).toBe(
+            "frame moveZone"
+        );
+        expect(clauseHead("Then that player shuffles")).toBe("frame shuffle");
+        // A span opening no frame keeps the opening-words head.
+        expect(clauseHead("Shuffle your graveyard into your library")).toBe(
+            "Shuffle your graveyard into"
+        );
+    });
+
     it("maps a card-level gap to itself, and folds an unentered line's head", () => {
         expect(family(TRANSFORM)).toBe(gapOf(TRANSFORM).key);
         expect(family(UNENTERED)).toBe(

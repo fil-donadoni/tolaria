@@ -46,6 +46,7 @@ import {
     type Lockfile,
 } from "./oracle-lockfile";
 import { indexFragments, type FragmentIndex } from "./oracle-fragments";
+import { frameOf } from "../../convex/oracle/grammar/shared/verbFrames";
 
 /** The frame of a line no slot entered any sub-grammar for. */
 export const NO_SLOT = "(no slot)";
@@ -228,8 +229,15 @@ function foldLead(raw: string): string {
     return folded.startsWith("<") ? folded : word;
 }
 
-/** A span's head: its leading keyword literal, the rest folded, clipped. */
+/**
+ * A span's head: the Verb Frame it opens when it opens one (issue #6557 —
+ * the gap is then grouped under the frame the unconsumed span needs,
+ * `moveZone`, `search`, `shuffle`, whatever its arguments say), else its
+ * leading keyword literal, the rest folded, clipped.
+ */
 export function clauseHead(shape: string): string {
+    const frame = frameOf(shape);
+    if (frame !== null) return `frame ${frame}`;
     const words = shape.split(/\s+/).filter((w) => w.length > 0);
     const [lead, ...rest] = words;
     if (lead === undefined) return "";
