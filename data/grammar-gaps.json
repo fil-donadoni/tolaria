@@ -476,6 +476,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:player › forEach+moveZone",
+            "issue": 6737
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant target:spell › counter+destroy+draw",
             "issue": 5044
         },
