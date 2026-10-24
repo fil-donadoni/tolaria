@@ -930,25 +930,41 @@ export function deriveLayer6(
                 }
                 break;
             case "keyword-remove": {
-                const idx = staticAbilities.indexOf(action.keyword);
-                if (idx === -1) break;
-                staticAbilities.splice(idx, 1);
-                // Keep the provenance record in step with the multiset: the
-                // occurrence a removal takes is the one a consumer must no
-                // longer see attributed to a source (`defensiveGrants.ts`
-                // documents exactly this hazard).
-                const grantIdx = grantedStatic.findIndex(
-                    (g) => g.ability === action.keyword
+                // CR 613.1f — the removal applies to the OBJECT, not to one
+                // grant of it: every occurrence on the multiset at this point
+                // of the timestamp walk (CR 613.7) goes, whatever its source,
+                // so "loses flying" never degrades to "loses one flying". A
+                // grant strictly later than the removal is pushed after this
+                // point and survives. One row per occurrence taken, as
+                // `ability-loss` records.
+                const taken = staticAbilities.filter(
+                    (kw) => kw === action.keyword
+                ).length;
+                if (taken === 0) break;
+                const kept = staticAbilities.filter(
+                    (kw) => kw !== action.keyword
                 );
-                if (grantIdx !== -1) grantedStatic.splice(grantIdx, 1);
-                removedKeywords.push({
-                    keyword: action.keyword,
-                    sourceId:
-                        entry.expiry.kind === "source"
-                            ? entry.expiry.sourceId
-                            : INDEFINITE_SOURCE_ID,
-                    seq: entry.timestamp,
-                });
+                staticAbilities.length = 0;
+                staticAbilities.push(...kept);
+                // Keep the provenance record in step with the multiset: an
+                // occurrence a removal takes is one a consumer must no longer
+                // see attributed to a source (`defensiveGrants.ts` documents
+                // exactly this hazard).
+                const keptGrants = grantedStatic.filter(
+                    (g) => g.ability !== action.keyword
+                );
+                grantedStatic.length = 0;
+                grantedStatic.push(...keptGrants);
+                for (let i = 0; i < taken; i++) {
+                    removedKeywords.push({
+                        keyword: action.keyword,
+                        sourceId:
+                            entry.expiry.kind === "source"
+                                ? entry.expiry.sourceId
+                                : INDEFINITE_SOURCE_ID,
+                        seq: entry.timestamp,
+                    });
+                }
                 break;
             }
             case "ability-loss":
