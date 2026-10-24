@@ -63,7 +63,6 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import {
-    declaresFullTextEffect,
     declaresLingeringStaticEffect,
     getInstanceManaCost,
 } from "../cards/registry";
@@ -4770,11 +4769,7 @@ export function beginApplyingStaticEffects(
     const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-    // CR 612.6 — a full-text effect is a static ability too, and the text it
-    // presents carries static abilities of its own (CR 613.7a: they take this
-    // object's timestamp), so its source is stamped like any other.
-    if (effects.length === 0 && !declaresFullTextEffect(copiableDefId(source)))
-        return;
+    if (effects.length === 0) return;
     const seq =
         options?.preserveTimestamp && source.staticSeq !== undefined
             ? source.staticSeq

@@ -187,6 +187,19 @@ describe("full-text effect — presenting (CR 612.6 / 613.1c)", () => {
         });
     });
 
+    it("a creature TOKEN on top is not a creature card (CR 108.2b)", () => {
+        withShapeshifter(() => {
+            const state = board([
+                makeInstance(CRAW_WURM, {
+                    id: "token",
+                    zone: "graveyard",
+                    isToken: true,
+                }),
+            ]);
+            expect(presentedDefId(find(state, "shifter"))).toBe(SHAPESHIFTER);
+        });
+    });
+
     it("reads the CONTROLLER's graveyard, not an opponent's", () => {
         withShapeshifter(() => {
             const state = board([]);
