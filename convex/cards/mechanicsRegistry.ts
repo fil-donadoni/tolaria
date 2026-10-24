@@ -89,7 +89,13 @@ export type MechanicKind =
      *  engine primitive (`SpellContext.getDomain`) and a NINTH `EffectValue`
      *  grammar member (`{ domain: { of } }`, issue #1066) — the row documents
      *  that binding, it does not gate anything a card declares. */
-    | "ability-word";
+    | "ability-word"
+    /** A named CHARACTERISTIC-CHANGING continuous effect (CR 613) with no
+     *  CR 701/702 keyword name, modelled as a dedicated `CardDefinition`
+     *  field the engine branches on. Censused for the same reason as
+     *  `cast-rider`: the registry is the NAME authority for the field. See
+     *  `CHARACTERISTIC_EFFECTS`. */
+    | "characteristic-effect";
 export type MechanicStatus = "implemented" | "planned" | "out-of-scope";
 
 export interface MechanicRow {
@@ -2739,6 +2745,21 @@ const RULES_MODIFIERS: MechanicRow[] = [
     },
 ];
 
+/** CR 613 characteristic-changing effects declared through a dedicated
+ *  `CardDefinition` field rather than a `StaticEffect` kind. */
+const CHARACTERISTIC_EFFECTS: MechanicRow[] = [
+    {
+        id: "full-text",
+        name: "Full Text",
+        kind: "characteristic-effect",
+        cr: "612.6",
+        status: "implemented",
+        binding:
+            "CardDefinition.fullText (cards/types.ts FullTextEffect) + gre/fullText.ts (syncFullTextEffects / withdrawFullText / copiableDefId / installFullText) + gre/state.ts (syncFullText at every layer recompute and graveyard funnel) + gre/copy.ts (copy sources and lookBackSelf) + CardInstanceState.fullTextAnchor",
+        note: 'CR 612.6: "One card (Volrath\'s Shapeshifter) states that an object has the "full text" of another object. This changes not just the text that appears in the object\'s text box and type line, but also changes the text that represents its name, mana cost, color indicator, power, and toughness." A layer-3 effect (CR 613.1c), MATERIALISED like a copy effect: `card.id` / `imagePrintId` are overwritten with the presented card\'s and layer 1 is rebuilt by `rebuildCopiableValuesAndReplayOverlays`, so every definition reader sees the presented card, while layers 4-7 (anthems, counters, grants, "loses all abilities") keep applying on top. `fullTextAnchor` holds the layer-1 identity: copy sources and the departure LKI read it (`copiableDefId`), because CR 707.2 excludes text-changing effects from the copiable values — a copy of the permanent gets its printed text, shapeshifting ability included. Every identity swap (copy, face-down, transform) withdraws the effect first and the next sync re-applies it; a face-down permanent has no text (CR 708.2). Re-evaluated (CR 611.3a) at the front of every layer recompute — every SBA pass and every save — and at the graveyard funnels that hold a GameState. No zone change (CR 400.7) and no event, so a change of form fires no "enters" ability. Retained text ("and has the text \'{2}: Discard a card.\'") rides the ability-copy grant row (`origin: "card-abilities"`). The CR 613.8a self-dependency is read the Forge way: the effect is read from the layer-1 text, so it keeps functioning while overwritten. Issue #6741; first card: Volrath\'s Shapeshifter (issue #6704).',
+    },
+];
+
 export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...KEYWORD_ACTIONS,
     ...KEYWORD_ABILITIES,
@@ -2746,6 +2767,7 @@ export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...SET_KEYWORDS,
     ...CAST_RIDERS,
     ...RULES_MODIFIERS,
+    ...CHARACTERISTIC_EFFECTS,
 ];
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702

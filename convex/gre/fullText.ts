@@ -106,7 +106,7 @@ function layer1Values(
 
 /** A retained-text row ("… and has the text '{2}: Discard a card.'"): the
  *  permanent's own layer-1 ability, re-offered through the ability-copy grant
- *  shape (`origin: "card-abilities"`, CR 607.2a) because `card.id` no longer
+ *  shape (`origin: "card-abilities"`) because `card.id` no longer
  *  names the card that prints it. It carries no `auraId`, no `duration` and no
  *  `seq`, which is what tells it apart from every other grant: a seq-less row
  *  is outranked by any "loses all abilities" (`grantOutrankedByAbilityLoss`),
@@ -167,7 +167,7 @@ export function withdrawFullText(
 
 /** The object whose full text `card` has right now, or undefined when the
  *  effect's condition is false. CR 404.3: the top of a graveyard is the LAST
- *  element. A token is not a card (CR 111.1), so a creature token that has
+ *  element. "Tokens aren't considered cards" (CR 108.2b), so a creature token that has
  *  just died and not yet ceased to exist (CR 704.5d) does not qualify. */
 function fullTextObject(
     state: GameState,
