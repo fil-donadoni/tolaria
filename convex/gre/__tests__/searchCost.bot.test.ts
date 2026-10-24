@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterAll, afterEach, describe, it, expect, vi } from "vitest";
 import {
     bladeDeckKnowledge,
     buildBladeState,
@@ -11,9 +11,12 @@ import * as evaluate from "../evaluate";
 import * as moves from "../moves";
 import * as rng from "../rng";
 import * as sba from "../sba";
+import { join } from "node:path";
 import { searchWithTrace } from "../search";
 import * as registry from "../../cards/registry";
 import * as manaAvailability from "../manaAvailability";
+import { RECORDING_BOT_PINS, pinRecorder } from "./botPinRecorder.fixture";
+import pins from "./fixtures/searchCost.pins.json";
 
 /**
  * Load-INDEPENDENT search-cost fixture (issue #4458, PRD #4454), GATED
@@ -95,27 +98,34 @@ import * as manaAvailability from "../manaAvailability";
  * clones and SBA sweeps (clones / sweeps over a `vi.mock` run on the same
  * tree: medium +34 / +24, large +144 / +96), which the `vi.mock` never counted — that module was already
  * loaded unmocked through the setup file's catalogue import.
+ *
+ * The expected counters are `fixtures/searchCost.pins.json` (issue #6690): a
+ * derived figure is regenerated, not hand-edited — `bun run bot:refit`
+ * re-records it with the weights, `bun run bot:refit --check` reds when it lags.
  */
 
 const ITERATIONS = 100;
 const SEED = 0xb1ade;
+const recorder = pinRecorder(join(__dirname, "fixtures/searchCost.pins.json"));
 
 type Position = {
     name: string;
     /** Label prefix of the blade entry — unique, resolved below. */
     labelPrefix: string;
     legalMoves: number;
-    expected: {
-        iterationsCompleted: number;
-        clones: number;
-        enumerations: number;
-        evaluations: number;
-        sbaSweeps: number;
-        ptWalkVisits: number;
-        censuses: number;
-        rngDraws: number;
-        searchDraws: number;
-    };
+};
+
+/** The counters one position pays — the shape of `fixtures/searchCost.pins.json`. */
+type CostCounters = {
+    iterationsCompleted: number;
+    clones: number;
+    enumerations: number;
+    evaluations: number;
+    sbaSweeps: number;
+    ptWalkVisits: number;
+    censuses: number;
+    rngDraws: number;
+    searchDraws: number;
 };
 
 // Three blade positions by legal-move count: a small board, a medium one and
@@ -125,49 +135,16 @@ const POSITIONS: Position[] = [
         name: "small (4 moves)",
         labelPrefix: "adventure: casts Stomp to kill the blocker",
         legalMoves: 4,
-        expected: {
-            iterationsCompleted: 98,
-            clones: 363,
-            enumerations: 2166,
-            evaluations: 342,
-            sbaSweeps: 2811,
-            ptWalkVisits: 8057,
-            censuses: 1028,
-            rngDraws: 0,
-            searchDraws: 6100,
-        },
     },
     {
         name: "medium (13 moves)",
         labelPrefix: "depletion land: spends the last charge because it",
         legalMoves: 13,
-        expected: {
-            iterationsCompleted: 96,
-            clones: 391,
-            enumerations: 620,
-            evaluations: 294,
-            sbaSweeps: 2175,
-            ptWalkVisits: 0,
-            censuses: 739,
-            rngDraws: 0,
-            searchDraws: 5679,
-        },
     },
     {
         name: "large (49 moves)",
         labelPrefix: "redirection shield: shields ITS OWN side and point",
         legalMoves: 49,
-        expected: {
-            iterationsCompleted: 100,
-            clones: 1251,
-            enumerations: 489,
-            evaluations: 888,
-            sbaSweeps: 4073,
-            ptWalkVisits: 40565,
-            censuses: 2507,
-            rngDraws: 0,
-            searchDraws: 7040,
-        },
     },
 ];
 
@@ -183,6 +160,12 @@ function callCount(spy: { mock: { calls: unknown[] } }): () => number {
 }
 
 describe("search cost counters (issue #4458, gated by issue #5001)", () => {
+    // Record mode (`bun run bot:refit`, issue #6690): the run writes the
+    // fixture instead of asserting it.
+    afterAll(() => {
+        if (RECORDING_BOT_PINS) recorder.flush(POSITIONS.map((p) => p.name));
+    });
+
     // Every spy restored, even when the search throws: the worker is shared.
     afterEach(() => {
         vi.restoreAllMocks();
@@ -251,7 +234,7 @@ describe("search cost counters (issue #4458, gated by issue #5001)", () => {
             const completed = trace?.iterationsCompleted ?? 0;
             expect(completed).toBeGreaterThan(0);
 
-            expect({
+            const observed: CostCounters = {
                 iterationsCompleted: completed,
                 clones: clones(),
                 enumerations: enumerations(),
@@ -264,7 +247,14 @@ describe("search cost counters (issue #4458, gated by issue #5001)", () => {
                     0
                 ),
                 searchDraws,
-            }).toEqual(position.expected);
+            };
+            if (RECORDING_BOT_PINS) {
+                recorder.set(position.name, observed);
+                return;
+            }
+            expect(observed).toEqual(
+                (pins as Record<string, CostCounters>)[position.name]
+            );
         });
     }
 });

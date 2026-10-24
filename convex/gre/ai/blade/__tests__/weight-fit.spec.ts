@@ -26,6 +26,7 @@ import { BLADE_SCENARIOS } from "../registry";
 import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../../evalWeights";
 import {
+    EVAL_WEIGHTS_PATH,
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
     fitInputPairs,
@@ -37,6 +38,7 @@ import {
     formatWeightFitReport,
     improvesOnIncumbent,
     pasteInstruction,
+    rewriteDefaultEvalWeights,
     scoreVerdictReport,
     sideReportOf,
     testPositionKeysOf,
@@ -230,6 +232,34 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             pasteInstruction(upToDate, better),
         ].join("\n");
         console.log(`\n${text}`);
+
+        // `BLADE_FIT_WRITE=1` (`bun run bot:refit`, issue #6690): the fit IS
+        // the committed literal, written in place. Only the guard's own fit may
+        // be written — a tier filter or a sweep knob fits a corpus or options
+        // the reproducibility guard never reads.
+        if (ENV.BLADE_FIT_WRITE === "1") {
+            const swept = [
+                "BLADE_FIT_TIER",
+                "BLADE_FIT_LAMBDA",
+                "BLADE_FIT_MARGIN",
+                "BLADE_FIT_TRUST",
+                "BLADE_FIT_STEPS",
+            ].filter((name) => (ENV[name] ?? "") !== "");
+            if (swept.length > 0) {
+                throw new Error(
+                    `BLADE_FIT_WRITE=1 writes the guard's fit; ${swept.join(", ")} would change it`
+                );
+            }
+            const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as {
+                readFileSync: (p: string, enc: string) => string;
+                writeFileSync: (p: string, d: string) => void;
+            };
+            const path = `${__dirname}/../../../../../${EVAL_WEIGHTS_PATH}`;
+            fs.writeFileSync(
+                path,
+                rewriteDefaultEvalWeights(fs.readFileSync(path, "utf8"), result)
+            );
+        }
 
         const outPath = ENV.BLADE_FIT_OUT;
         if (outPath) {

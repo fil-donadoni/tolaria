@@ -1,5 +1,4 @@
-import { describe, it, expect } from "vitest";
-import { writeFileSync } from "node:fs";
+import { afterAll, describe, it, expect } from "vitest";
 import { join } from "node:path";
 import {
     bladeDeckKnowledge,
@@ -14,6 +13,7 @@ import type { GameState } from "../state";
 import { evaluate, materialMargin } from "../evaluate";
 import { makeRng } from "../rng";
 import { reward, rollout, searchWithTrace } from "../search";
+import { RECORDING_BOT_PINS, pinRecorder } from "./botPinRecorder.fixture";
 import snapshot from "./fixtures/searchLeafScore.snapshot.json";
 
 /**
@@ -36,8 +36,9 @@ import snapshot from "./fixtures/searchLeafScore.snapshot.json";
  *
  * Positions: the three of the cost fixture (`searchCost.bot.test.ts`, issue #4458).
  * Floats round-trip exactly through JSON (shortest round-trip repr), so
- * `toEqual` is a bit-for-bit comparison. `RECORD_LEAF_SNAPSHOT=1` rewrites the
- * file — only ever on a change that is MEANT to move the evaluation.
+ * `toEqual` is a bit-for-bit comparison. `bun run bot:refit` rewrites the file
+ * (`RECORD_BOT_PINS=1`, issue #6690) — only ever on a change that is MEANT to
+ * move the evaluation.
  */
 
 const ITERATIONS = 100;
@@ -136,15 +137,21 @@ function record(prefix: string) {
     };
 }
 
-const RECORDING = process.env.RECORD_LEAF_SNAPSHOT === "1";
-const recorded: Record<string, unknown> = {};
+const recorder = pinRecorder(
+    join(__dirname, "fixtures/searchLeafScore.snapshot.json")
+);
 
 describe("search leaf scoring is byte-identical (issue #4459)", () => {
+    // Record mode (`bun run bot:refit`, issue #6690): writes, asserts nothing.
+    afterAll(() => {
+        if (RECORDING_BOT_PINS) recorder.flush(POSITIONS);
+    });
+
     for (const position of POSITIONS) {
         it(`${position}: root, terminal and rollout leaves and search means unchanged`, () => {
             const actual = record(position);
-            if (RECORDING) {
-                recorded[position] = actual;
+            if (RECORDING_BOT_PINS) {
+                recorder.set(position, actual);
                 return;
             }
             expect(actual).toEqual(
@@ -152,13 +159,4 @@ describe("search leaf scoring is byte-identical (issue #4459)", () => {
             );
         });
     }
-
-    // Record mode writes the file and asserts nothing: re-run without it.
-    it.runIf(RECORDING)("records the snapshot", () => {
-        expect(Object.keys(recorded)).toHaveLength(POSITIONS.length);
-        writeFileSync(
-            join(__dirname, "fixtures/searchLeafScore.snapshot.json"),
-            JSON.stringify(recorded, null, 4) + "\n"
-        );
-    });
 });
