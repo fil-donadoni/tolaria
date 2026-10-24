@@ -612,11 +612,17 @@ that is offline or broken therefore costs exactly its own `sync` leg.
 files summarise the whole tree, so every PR that changed any row moved them
 and two queued PRs collided on them textually. `housekeeping` runs
 `derive:sync` (`scripts/derive-sync.ts`) on EVERY run, after `gaps:sync` and
-`oracle:prune-regressions` so it builds on their commits: `oracle:compile
---carry-bot` and `catalogue:pack` on the tip in its worktree (the corpus
-cache is copied from the primary checkout when the worktree lacks it), the
-five paths compared blob by blob with the tip's, and ONE commit with exactly
-the changed paths — none when the bytes agree — built on a scratch index
+`oracle:prune-regressions` so it builds on their commits: the **drift sweep**
+(ADR 0158 § 2b, issue #6687) — the tip's `ready` rows whose Bot verdict was
+not played on the definition the tip compiles (`staleVerdicts`), counted with
+no lock; none → `oracle:compile --carry-bot` as before, else a bare
+`oracle:compile` plays exactly them (in place up to `LOCK_FREE_MISSES`, the
+heavy mutex past it), `oracle:index` for a card it brought into `ready`, the
+miss count, played count and wall in the job summary — then `catalogue:pack`
+on the tip in its worktree (the corpus cache is copied from the primary
+checkout when the worktree lacks it), the five paths (plus the card index)
+compared blob by blob with the tip's, and ONE commit with exactly the changed
+paths — none when the bytes agree — built on a scratch index
 (`lib/commit-tree.ts`, the `gaps:sync` mechanics) and pushed once. A push
 the base outran is **coalesced**: not rebuilt on the fetched tip, not
 retried — the newer tip's own post-merge run regenerates from scratch, and
@@ -661,8 +667,11 @@ of regenerating it, and puts the base's header back over a regenerated
 lockfile. So a card or grammar PR's diff is rows, sources and tests, GitHub
 merges it without our drivers, and every merge is a derived-stale tip until
 `derive:sync`'s commit lands: `health-early` and `health` judge such a tip
-`pending` — `derive:sync --fresh` after the worktree's bootstrap, before any
-gate; nothing gated, no verdict stored, exit 0 — for one housekeeping period
+`pending` — `derive:sync --settled` after the worktree's bootstrap, before
+any gate: `--fresh` plus current Bot verdicts (no stale row, the header's Bot
+hash the tree's unless that Bot's regression issue is open; ~18 s with the
+corpus, ADR 0158 § 2b); nothing gated, no verdict stored, exit 0 — for one
+housekeeping period
 (`DERIVED_GRACE_MS`, an hour), and RED at step `derive:sync` past it;
 `release` does not ask and gates the exact tip whole.
 
