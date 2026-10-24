@@ -21,9 +21,10 @@
 // Exit 0 = every named check passed, 1 = at least one refused (one line each).
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
+import { corpusExcluded, readsLockedCorpus } from "./lib/corpus-exclusion";
 import { ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
@@ -67,6 +68,10 @@ export interface PrCheckContext {
     lineage?: () => Lineage & { error?: string };
     repairIssues?: () => number[];
     runTests?: (tests: readonly string[], cwd: string) => number;
+    /** Whether the hosted corpus exclusion is on (no reader key here). */
+    corpusExcluded?: () => boolean;
+    /** Whether a test file reads the locked verdict corpus. */
+    readsCorpus?: (file: string, cwd: string) => boolean;
 }
 
 /** A check's answer: null = pass, a string = the refusal, `note` = passed but
@@ -118,12 +123,31 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
             refusal: null,
             note: `repair proof: no failing test the RED verdict names exists here — unproved, the RED stands until health`,
         };
-    const status = (ctx.runTests ?? vitestRun)(tests, ctx.cwd);
+    // Hosted, no reader key (issue #6563): a test over the locked corpus
+    // cannot be proved here, and a skip must not read as green — so it is
+    // not run at all, and named in the note. `land`, or a keyed self-hosted
+    // run, stays the authority on it.
+    const hosted = (ctx.corpusExcluded ?? corpusExcluded)();
+    const readsCorpus = ctx.readsCorpus ?? fileReadsCorpus;
+    const unprovable = hosted
+        ? tests.filter((t) => readsCorpus(t, ctx.cwd))
+        : [];
+    const provable = tests.filter((t) => !unprovable.includes(t));
+    const unprovableNote =
+        unprovable.length > 0
+            ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus and this check holds no reader key — not provable here; \`land\` runs them`
+            : undefined;
+    if (provable.length === 0) return { refusal: null, note: unprovableNote };
+    const status = (ctx.runTests ?? vitestRun)(provable, ctx.cwd);
     return status === 0
-        ? { refusal: null }
+        ? { refusal: null, ...(unprovableNote ? { note: unprovableNote } : {}) }
         : {
-              refusal: `repair of RED @ ${proof.redSha.slice(0, 8)}: its failing tests still fail on this PR (${tests.join(", ")}) — a repair that leaves them red repairs nothing`,
+              refusal: `repair of RED @ ${proof.redSha.slice(0, 8)}: its failing tests still fail on this PR (${provable.join(", ")}) — a repair that leaves them red repairs nothing`,
           };
+}
+
+function fileReadsCorpus(file: string, cwd: string): boolean {
+    return readsLockedCorpus(readFileSync(resolve(cwd, file), "utf8"));
 }
 
 function defaultLineage(cwd: string): () => Lineage & { error?: string } {
