@@ -55,6 +55,7 @@
 
 import {
     PERMANENT_TYPES,
+    type Color,
     type ManaCost,
     type PermanentFilter,
 } from "../../../cards/types";
@@ -268,6 +269,7 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         mana?: ManaCost;
         sacrifice?: PermanentFilter;
         life?: number;
+        exileXFromGraveyard?: { color?: Color };
     } = {};
     for (const atom of parsed.value.atoms as readonly CostAtomIR[]) {
         if (atom.kind === "mana") {
@@ -289,6 +291,13 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         // life total cannot cover (`FlashbackCost.life`).
         if (atom.kind === "pay-life") {
             out.life = atom.amount;
+            continue;
+        }
+        // CR 702.34a / 107.3a — "Exile X blue cards from your graveyard"
+        // (Flash of Insight): the cast path announces X and exiles that many.
+        if (atom.kind === "exile-x-from-graveyard") {
+            out.exileXFromGraveyard =
+                atom.color === undefined ? {} : { color: atom.color };
             continue;
         }
         return fail(
