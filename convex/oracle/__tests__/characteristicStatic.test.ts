@@ -148,6 +148,38 @@ describe("characteristic-setting statics — goldens (CR 613)", () => {
         });
     });
 
+    it("Sutured Ghoul's total clause: power and toughness are separate exiled-pile sums (CR 604.3, 607.2a)", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Sutured Ghoul",
+                    manaCost: "{4}{B}{B}{B}",
+                    typeLine: "Creature — Zombie",
+                    power: "*",
+                    toughness: "*",
+                    oracleText:
+                        "Sutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness.",
+                })
+            ).definition
+        ).toEqual({
+            name: "Sutured Ghoul",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 4, B: 3 },
+            power: 0,
+            toughness: 0,
+            oracleText:
+                "Sutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness.",
+            compiledStaticEffects: [
+                {
+                    kind: "pt-cda",
+                    appliesTo: "self",
+                    count: { kind: "exiled-with-source-totals" },
+                },
+            ],
+        });
+    });
+
     it("Skyshroud Elite: +1/+2 while an opponent controls a nonbasic land (CR 611.3a)", () => {
         expect(compiled(SKYSHROUD_ELITE).definition).toEqual({
             name: "Skyshroud Elite",
@@ -270,7 +302,27 @@ describe("characteristic-setting statics — refusals (fail-closed)", () => {
         ).toBe(true);
     });
 
-    it("REFUSES Sutured Ghoul's exiled-cards total — no engine surface reads it", () => {
+    it("REFUSES an exiled-cards total whose halves are not power then toughness", () => {
+        for (const text of [
+            "Sutured Ghoul's power and toughness are each equal to the total power of the exiled cards.",
+            "Sutured Ghoul's power is equal to the total toughness of the exiled cards and its toughness is equal to their total power.",
+            "Sutured Ghoul's power is equal to the total power of the exiled cards.",
+            "Sutured Ghoul's power is equal to the total mana value of the exiled cards and its toughness is equal to their total toughness.",
+        ]) {
+            expect(
+                unparsed({
+                    name: "Sutured Ghoul",
+                    manaCost: "{4}{B}{B}{B}",
+                    typeLine: "Creature — Zombie",
+                    power: "*",
+                    toughness: "*",
+                    oracleText: text,
+                })
+            ).toBe(true);
+        }
+    });
+
+    it("REFUSES the exiled-cards total on a subject that is not the permanent", () => {
         expect(
             unparsed({
                 name: "Sutured Ghoul",
@@ -279,7 +331,7 @@ describe("characteristic-setting statics — refusals (fail-closed)", () => {
                 power: "*",
                 toughness: "*",
                 oracleText:
-                    "Sutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness.",
+                    "Another Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness.",
             })
         ).toBe(true);
     });
