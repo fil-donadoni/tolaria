@@ -12,8 +12,16 @@
  * hunk whole (no common-line reduction), and resolves exactly ONE shape: a hunk
  * whose BASE section is empty. That is two pure insertions at the same point,
  * and the resolution is ours, whole, followed by theirs, whole. A hunk with a
- * non-empty base edits or deletes existing lines — a real disagreement — and is
- * left as a conflict for a human, exactly as the default merge would.
+ * non-empty base edits or deletes existing lines, and is left as a conflict
+ * for a human, exactly as the default merge would — with ONE exception.
+ *
+ * A hunk where both sides only DELETED (issue #6648): each side is the base
+ * with lines dropped, in order, and the base's lines are distinct. That is the
+ * shrink-only list's shape — Guard C's round-trip baseline, where every PR
+ * deletes the rows it graduates and two PRs graduating adjacent names
+ * conflict as text — and the resolution is the base lines BOTH sides kept.
+ * Distinct lines make it unambiguous which lines each side dropped; a hunk
+ * with a repeated line (`},` in a list of objects) stays a conflict.
  */
 
 /** Longer than any run of `<`/`=`/`>` a source file plausibly holds, so the
@@ -32,12 +40,34 @@ export interface AppendOnlyResolution {
     /** The merged text: pure-insertion hunks concatenated, every other hunk
      *  left in diff3 conflict form. */
     text: string;
-    /** Hunks left as conflicts (non-empty base, or a hunk that did not parse). */
+    /** Hunks left as conflicts (a side edited a line, or the hunk did not parse). */
     unresolved: number;
 }
 
+/** Is `side` the distinct-lined `base` with lines dropped, order kept? */
+function deletesOnly(
+    base: readonly string[],
+    side: readonly string[]
+): boolean {
+    let j = 0;
+    for (const line of base) if (j < side.length && side[j] === line) j++;
+    return j === side.length;
+}
+
+function isPureDeletion(
+    base: readonly string[],
+    ours: readonly string[],
+    theirs: readonly string[]
+): boolean {
+    return (
+        new Set(base).size === base.length &&
+        deletesOnly(base, ours) &&
+        deletesOnly(base, theirs)
+    );
+}
+
 /**
- * Resolve the pure-insertion hunks of a `git merge-file --diff3
+ * Resolve the pure-insertion (and pure-deletion) hunks of a `git merge-file --diff3
  * --marker-size=APPEND_ONLY_MARKER_SIZE` output.
  */
 export function resolveAppendOnly(diff3: string): AppendOnlyResolution {
@@ -77,6 +107,10 @@ export function resolveAppendOnly(diff3: string): AppendOnlyResolution {
         }
         if (closed && base.length === 0) {
             out.push(...ours, ...theirs);
+        } else if (closed && isPureDeletion(base, ours, theirs)) {
+            out.push(
+                ...base.filter((l) => ours.includes(l) && theirs.includes(l))
+            );
         } else {
             unresolved++;
             out.push(...lines.slice(start, i));

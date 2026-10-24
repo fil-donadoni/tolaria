@@ -64,6 +64,12 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/source-control-bytes.test.ts",
         admits: /./,
     },
+    // data/** and .gitattributes — every tracked artefact has ONE merge
+    // classification across the registry, git and the planner (issue #6648)
+    {
+        test: "scripts/__tests__/artefact-classification.test.ts",
+        admits: /^data\/|^\.gitattributes$/,
+    },
     // docs/adr/ — every ADR has its index row
     { test: "scripts/__tests__/adr-index.test.ts", admits: /^docs\/adr\// },
     // scripts/**/*.ts — no module but the lockfile's own reads the fragment table
