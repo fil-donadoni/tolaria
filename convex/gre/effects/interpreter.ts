@@ -8461,10 +8461,9 @@ function runCastDuringResolution(
         // The decoy's other half: "cast"/"play" was picked, but the land may
         // still be UNPLAYABLE right now (CR 305.3 wrong turn, CR 305.2b drop
         // spent, CR 614 lock) — legality was never checked before the offer,
-        // only the type. `playLandForPlayer` is deliberately TIMING-AGNOSTIC
-        // (it has to be, for Word of Command's controlled play), so an
-        // illegal-turn pick is caught HERE, not inside it, or the land would
-        // actually enter on the opponent's turn.
+        // only the type. `playLandForPlayer` re-checks CR 305.3 itself; this
+        // up-front gate additionally lets the Op report "pass" rather than a
+        // failed play.
         if (!ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)) {
             finish(false, "pass");
             return;
