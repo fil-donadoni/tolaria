@@ -412,7 +412,7 @@ export default function CardPreview({
         const onEnter = (e: PointerEvent) => {
             if (e.pointerType !== "mouse" || sawTouchRef.current) return;
             window.clearTimeout(dwellRef.current);
-            window.clearTimeout(graceRef.current);
+            cancelHoverClose();
             dwellRef.current = window.setTimeout(() => {
                 // A pinned anchored preview supersedes hover — stay out.
                 if (anchoredOpenRef.current) return;
@@ -452,9 +452,9 @@ export default function CardPreview({
             cardEl.removeEventListener("pointerenter", onEnter);
             cardEl.removeEventListener("pointerleave", onLeave);
             window.clearTimeout(dwellRef.current);
-            window.clearTimeout(graceRef.current);
+            cancelHoverClose();
         };
-    }, [onBoard, scheduleHoverClose]);
+    }, [onBoard, scheduleHoverClose, cancelHoverClose]);
 
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();

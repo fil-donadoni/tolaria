@@ -401,6 +401,21 @@ describe("CardPreview — Arena click model (#332)", () => {
             expect(dock()).toBeNull();
         });
 
+        it("re-entering the card mid-grace does not leave a stale pending close that mutes the watchdog", () => {
+            const { root, panel } = openDock();
+            hoverLeave(root);
+            hoverEnter(root);
+            act(() => {
+                fireEvent.pointerLeave(root, {
+                    pointerType: "mouse",
+                    relatedTarget: panel,
+                });
+            });
+            moveTo(document.body);
+            gracePast();
+            expect(dock()).toBeNull();
+        });
+
         it("the pointer leaving the window closes it", () => {
             const { panel } = openDock();
             act(() => {
