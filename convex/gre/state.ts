@@ -13454,13 +13454,12 @@ export function buildSpellContext(
         // if not able (not in the source zone, not a Land, or the land drop is
         // spent — honoring "if able").
         //
-        // Deliberately TIMING-AGNOSTIC: CR 305.3 ("a player can't play a land if
-        // it isn't their turn") is NOT checked here, because Word of Command's
-        // own resolution plays a land under the NON-active player's control.
-        // The CR 305.3 gate belongs to the caller's legality lookup
-        // (`getChosenLandPlayable`), which the CR 608.2g Op consults before it
-        // even offers the play. (Word of Command's own CR 305.3 divergence
-        // predates this and is tracked separately — tracked-by: #1981.)
+        // CR 305.3 — "A player can't play a land, for any reason, if it isn't
+        // their turn. Ignore any part of an effect that instructs a player to
+        // do so." The gate lives HERE, at the shared seam: Word of Command
+        // resolved on its controller's turn instructs the (non-active)
+        // opponent to play the land, so nothing enters and no drop is spent.
+        // Cast on the opponent's own turn, the same play is legal.
         playLandForPlayer(
             playerId: string,
             cardInstanceId: string,
@@ -13483,6 +13482,8 @@ export function buildSpellContext(
             // choice belongs to the played player, not to this call site.
             const faces = card ? landPlayFaces(card) : [];
             if (!card || faces.length === 0) return false;
+            // CR 305.3 — not the player's turn: ignore the instruction.
+            if (state.activePlayerId !== playerId) return false;
             // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
             if (landPlayLockActive(state)) return false;
             // CR 305.1 / 101.2 — a per-player "can't play lands" restriction.

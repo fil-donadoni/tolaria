@@ -1496,7 +1496,8 @@ export const willOTheWisp = defineCard(() => ({
 //      controller). Suspends until submitted.
 //   3. If the chosen card is a LAND: the opponent PLAYS it under their control
 //      "if able" — `playLandForPlayer` consumes the opponent's one-land-per-turn
-//      drop (CR 305.2). Land drop already spent → not played.
+//      drop (CR 305.2). Land drop already spent, or not the opponent's turn
+//      (CR 305.3: the instruction is ignored) → not played.
 //   4. Otherwise (a non-land card): the opponent CASTS it as their spell via
 //      `castChosenSpell` (castById = opponent, actingPlayerId = controller, CR
 //      601), mana auto-tapped only from the opponent's lands; unpayable → not
