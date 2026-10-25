@@ -490,7 +490,10 @@ function landHandNeed(
         state.players.map((p) => ({
             playerId: p.id,
             battlefield: p.battlefield,
-        }))
+        })),
+        0,
+        false,
+        state
     );
     const spare = [...offered].some((c) => !boardColors.has(c));
     if (!spare) return 0;

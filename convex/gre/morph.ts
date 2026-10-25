@@ -160,7 +160,9 @@ export function morphTurnUpPaymentPlan(
     const subs = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(
         player.battlefield,
-        manaGateBattlefields(state)
+        manaGateBattlefields(state),
+        undefined,
+        state
     );
     // CR 106.6 (issue #3354) — the payment (`applyTurnPermanentFaceUp`) admits
     // a bare-rider unit, so the PLAN must count it or "the button is offered"

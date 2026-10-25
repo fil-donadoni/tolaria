@@ -28,7 +28,7 @@ import {
     NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
     type NeverAutoPayableCostLeg,
 } from "./costLegClaims";
-import { getDefinition, tryGetDefinition } from "../cards";
+import { tryGetDefinition } from "../cards";
 // CR 611.2a / 613.1f (issue #1880) — the POST-LAYER activated-ability set
 // (native + granted, minus a "loses all abilities" suppression). Every mana
 // probe below reads it instead of `cardDef.activatedAbilities` so a GRANTED
@@ -1183,9 +1183,12 @@ export function getProducibleColorsOnBoard(
     /** CR 106.7 / 106.1b — read every TYPE of mana, colourless {C} included
      *  ("any type that a land you control could produce"), instead of the
      *  colours alone. */
-    includeColorless = false
+    includeColorless = false,
+    /** CR 106.7 — the per-turn replacements (Deep Water, False Dawn, Chaos
+     *  Moon); the battlefield-borne ones are read off `battlefields`. */
+    replacements?: ManaReplacementView
 ): Set<Color> {
-    return getProducibleColors(
+    const printed = getProducibleColors(
         card,
         depth < MAX_NESTED_MANA_COLOR_SOURCE_DEPTH
             ? (source) =>
@@ -1197,7 +1200,9 @@ export function getProducibleColorsOnBoard(
                       depth + 1
                   )
             : undefined,
-        includeColorless,
+        // Read every TYPE, {C} included: a Wastes under Infernal Darkness
+        // could produce {B}. Filtered back to colours below.
+        true,
         // CR 106.7 — a scaled ability is read at its count on THIS board.
         (ability) =>
             getAbilityDynamicManaProduced(
@@ -1209,6 +1214,24 @@ export function getProducibleColorsOnBoard(
                 battlefields
             )
     );
+    // CR 106.7 — "could produce" takes applicable replacement effects into
+    // account: each type the card could add is run through the same rewrite
+    // the tap applies (Forest under Infernal Darkness → {B}).
+    const out = new Set<Color>();
+    for (const color of printed) {
+        const replaced = replaceLandManaType(
+            replacements,
+            battlefields,
+            card.controllerId,
+            card,
+            { [color]: 1 }
+        );
+        for (const c of MANA_COLORS) {
+            if ((replaced[c] ?? 0) > 0 && (includeColorless || c !== "C"))
+                out.add(c);
+        }
+    }
+    return out;
 }
 
 /** Board-conditional mana CHOICES for a card's tap mana ability (CR 106.1 /
@@ -2238,7 +2261,11 @@ export function getManaTapOptionsDetailed(
     opts?: { requireTap?: boolean },
     /** CR 613 (PRD #2064 S6) — the Continuous Effects Registry, for the layer-7
      *  read behind a board-conditional `manaAmount`. See `manaLayerView`. */
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    /** CR 106.7 / 614 — the per-turn replacements (Deep Water, False Dawn,
+     *  Chaos Moon). The battlefield-borne ones (Infernal Darkness) are read off
+     *  `battlefields` regardless. See {@link replaceLandManaType}. */
+    replacements?: ManaReplacementView
 ): ManaTapOption[] {
     // CR 602.5 / 605.1a — an `activation-restriction` static (Cursed Totem)
     // prohibits this permanent's mana abilities, intrinsic basic-land mana
@@ -2483,7 +2510,45 @@ export function getManaTapOptionsDetailed(
     if (!requireTap && primary !== sacrifice) {
         out.push(...dedupByProducedMana(sacrifice));
     }
-    return out;
+    return substituteTapOptionMana(
+        out,
+        card,
+        controllerId,
+        battlefields,
+        replacements
+    );
+}
+
+/** CR 106.7 / 614 — rewrite each option's `mana` to what tapping it would
+ *  actually add under the active type replacements. Runs AFTER the dedup so the
+ *  index space (`manaChoiceIndex`) is identical for a caller that cannot see a
+ *  replacement and one that can; two options may then read equal, which the
+ *  pool-time funnel (idempotent on type) tolerates. Additive riders are left to
+ *  `applyLandManaReplacement`. */
+function substituteTapOptionMana(
+    options: ManaTapOption[],
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    replacements: ManaReplacementView | undefined
+): ManaTapOption[] {
+    if (!controllerId || options.length === 0) return options;
+    const board = battlefields ?? [];
+    return options.map((o) => {
+        const mana = replaceLandManaType(
+            replacements,
+            board,
+            controllerId,
+            card,
+            o.mana
+        );
+        return mana === o.mana ? o : { ...o, mana };
+    });
 }
 
 /** Dedup by produced `ManaCost`, keeping the first occurrence's provenance. */
@@ -2560,14 +2625,15 @@ export function totalManaCount(produced: ManaCost): number {
  *  so battlefield order is sufficient — CR 614.1 fine-grained replacement
  *  layering is not needed here). */
 function getContinuousLandManaOverride(
-    state: GameState,
+    battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>,
     card: CardInstanceState
 ): Color | null {
     if (!isLand(card)) return null;
-    for (const player of state.players) {
+    for (const player of battlefields) {
         for (const source of player.battlefield) {
-            const def = getDefinition(source.card.id as string);
-            const sub = def.landManaSubstitution;
+            const sub = tryGetDefinition(
+                source.card.id as string
+            )?.landManaSubstitution;
             if (!sub) continue;
             if ("color" in sub) return sub.color;
             for (const subtype of card.subtypes) {
@@ -2578,6 +2644,15 @@ function getContinuousLandManaOverride(
     }
     return null;
 }
+
+/** The per-turn slice of `GameState` the land-mana replacements read, so a
+ *  pre-tap reader without a whole state (the planner, the Bot) can pass it. */
+export type ManaReplacementView = Pick<
+    GameState,
+    | "landManaReplacedToBlueThisTurn"
+    | "landManaRidersThisTurn"
+    | "manaProductionColorThisTurn"
+>;
 
 /** CR 614.1a / 106.3 (issue #3811) — the until-end-of-turn replacement on
  *  the mana `controllerId`'s spells and abilities PRODUCE (False Dawn: "spells
@@ -2613,69 +2688,88 @@ export function replaceProducedManaColor(
     return result;
 }
 
-/** Applies the active land-mana colour substitutions (CR 614) to the mana a
- *  source is about to add to a pool. Three families compose, in order:
+/** The TYPE half of the land-mana replacements (CR 614, CR 106.7): everything
+ *  that changes WHICH mana a source adds, never how much. Three families
+ *  compose, in order:
  *
  *  1. Continuous battlefield substitution (Infernal Darkness — all lands →
  *     {B}; Naked Singularity — per-basic-subtype permutation). Rewrites a
  *     LAND's whole output to the same TOTAL quantity of the override colour.
  *  2. Per-turn override (Deep Water — controller's lands → {U} until end of
  *     turn). Same all-or-nothing type rewrite, scoped to the controller.
- *  3. Per-turn riders (FEM High Tide — Island +{U}; Chaos Moon — Mountain +{R}
- *     additional, or Mountain → {C} override). Keyed to a land subtype, global.
+ *  3. Per-turn "override" riders (Chaos Moon's Mountain → {C}). Keyed to a land
+ *     subtype, global.
+ *  4. The production-colour replacement (False Dawn), keyed on the tapping
+ *     player.
  *
- *  Non-land sources (mana rocks, Birds) and lands with no active effect are
- *  returned unchanged. Pure — the single funnel every tap path routes its
- *  produced mana through so the rewrite can't desync across sites. */
+ *  Idempotent and keyed on the SOURCE card, never on the mana it is handed, so
+ *  the pre-tap readers (tap options, planner, "could produce") apply it to the
+ *  mana a tap WOULD add and the pool-time funnel
+ *  {@link applyLandManaReplacement} re-applies it without a double rewrite.
+ *  Non-land sources keep their output except under (4). Pure. */
+export function replaceLandManaType(
+    view: ManaReplacementView | undefined,
+    battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>,
+    controllerId: string,
+    card: CardInstanceState,
+    produced: ManaCost
+): ManaCost {
+    let result = produced;
+    const onLand = isLand(card);
+    const override = getContinuousLandManaOverride(battlefields, card);
+    if (override) {
+        const total = totalManaCount(result);
+        if (total > 0) result = { [override]: total };
+    }
+    if (
+        view?.landManaReplacedToBlueThisTurn?.includes(controllerId) &&
+        onLand
+    ) {
+        const total = totalManaCount(result);
+        if (total > 0) result = { U: total };
+    }
+    if (onLand) {
+        for (const rider of view?.landManaRidersThisTurn ?? []) {
+            if (rider.mode !== "override") continue;
+            if (!card.subtypes.includes(rider.subtype)) continue;
+            const total = totalManaCount(result);
+            if (total > 0) result = { [rider.color]: total };
+        }
+    }
+    // CR 614.1a / 106.3 — runs on the source's own (possibly overridden)
+    // output, BEFORE the additive riders of {@link applyLandManaReplacement}.
+    return view ? replaceProducedManaColor(view, controllerId, result) : result;
+}
+
+/** Applies the active land-mana replacements (CR 614) to the mana a source is
+ *  about to add to a pool: the type half ({@link replaceLandManaType}, already
+ *  applied by the pre-tap readers and idempotent), then the ADDITIVE riders
+ *  (FEM High Tide — Island +{U}; Chaos Moon — Mountain +{R}), which change the
+ *  quantity and so are applied here only, never to a pre-tap option list: the
+ *  planner under-counts them rather than double-count (CR 106.7 concerns the
+ *  type of mana a permanent could produce, which they leave unchanged).
+ *
+ *  Pure — the single funnel every tap path routes its produced mana through so
+ *  the rewrite can't desync across sites. */
 export function applyLandManaReplacement(
     state: GameState,
     controllerId: string,
     card: CardInstanceState,
     produced: ManaCost
 ): ManaCost {
-    let result = produced;
-    // (1) Continuous battlefield substitution (Infernal Darkness / Naked
-    // Singularity) — replaces the land's whole output with the override colour.
-    const override = getContinuousLandManaOverride(state, card);
-    if (override) {
-        const total = totalManaCount(result);
-        if (total > 0) result = { [override]: total };
-    }
-    // (2) Deep Water's per-turn "lands produce {U} instead" override.
-    if (
-        state.landManaReplacedToBlueThisTurn?.includes(controllerId) &&
-        isLand(card)
-    ) {
-        const total = totalManaCount(result);
-        if (total > 0) result = { U: total };
-    }
-    // (3a) Turn-scoped parametrized riders (Chaos Moon's Mountain rider). An
-    // "override" rider rewrites the land's whole output to that colour; an
-    // "additional" rider adds one more of that colour per matching arm. Keyed to
-    // a land subtype, global. Overrides run before additionals so the override
-    // colour is what the additional then increments.
-    const riders = state.landManaRidersThisTurn ?? [];
-    const onLand = isLand(card);
-    if (riders.length > 0 && onLand) {
-        for (const rider of riders) {
-            if (!card.subtypes.includes(rider.subtype)) continue;
-            if (rider.mode === "override") {
-                const total = totalManaCount(result);
-                if (total > 0) result = { [rider.color]: total };
-            }
-        }
-    }
-    // (4) CR 614.1a / 106.3 (issue #3811) — the production-colour replacement
-    // (False Dawn) applies to what the TAPPED source produces, keyed on the
-    // tapping player who controls that mana ability — so it runs here, on the
-    // source's own (possibly overridden) output, BEFORE the additive riders.
-    result = replaceProducedManaColor(state, controllerId, result);
-    // The additive riders below are mana a DIFFERENT effect adds (CR 106.3:
-    // its source is the rider's spell, controlled by whoever cast it), so each
-    // unit is replaced under ITS controller, never the tapper's. The order
-    // among replacements is fixed rather than chosen by the affected player
-    // (CR 616.1): no legal board makes the colour depend on it except via
-    // two opposing production replacements, which no printed card pairs.
+    let result = replaceLandManaType(
+        state,
+        state.players,
+        controllerId,
+        card,
+        produced
+    );
+    // The additive riders are mana a DIFFERENT effect adds (CR 106.3: its
+    // source is the rider's spell, controlled by whoever cast it), so each unit
+    // is replaced under ITS controller, never the tapper's. The order among
+    // replacements is fixed rather than chosen by the affected player
+    // (CR 616.1): no legal board makes the colour depend on it except via two
+    // opposing production replacements, which no printed card pairs.
     const addUnit = (color: Color, producerId: string) => {
         const unit = replaceProducedManaColor(state, producerId, {
             [color]: 1,
@@ -2685,18 +2779,16 @@ export function applyLandManaReplacement(
             if (n > 0) result = { ...result, [c]: (result[c] ?? 0) + n };
         }
     };
-    if (riders.length > 0 && onLand) {
-        for (const rider of riders) {
+    if (isLand(card)) {
+        for (const rider of state.landManaRidersThisTurn ?? []) {
+            if (rider.mode !== "additional") continue;
             if (!card.subtypes.includes(rider.subtype)) continue;
-            if (rider.mode === "additional") {
-                addUnit(rider.color, rider.controllerId ?? controllerId);
-            }
+            addUnit(rider.color, rider.controllerId ?? controllerId);
         }
     }
-    // (3b) FEM High Tide (CR 614-style additive rider): "Until end of turn,
-    // whenever a player taps an Island for mana, that player adds an additional
-    // {U}." Global, one extra {U} per active High Tide, each produced by ITS
-    // caster's effect (the list holds one caster id per resolution).
+    // FEM High Tide: "Until end of turn, whenever a player taps an Island for
+    // mana, that player adds an additional {U}." One extra {U} per active High
+    // Tide, each produced by ITS caster's effect.
     if (card.subtypes.includes("Island")) {
         for (const casterId of state.highTideThisTurn ?? []) {
             addUnit("U", casterId);

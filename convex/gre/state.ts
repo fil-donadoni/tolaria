@@ -18585,7 +18585,9 @@ export function buildSpellContext(
             const subs = getManaSubstitutions(state, controllerId);
             const sources = buildAutoTapSources(
                 owner.battlefield,
-                manaGateBattlefields(state)
+                manaGateBattlefields(state),
+                undefined,
+                state
             );
             // Upper bound: floating pool + every land's max output. X can't
             // exceed this (the generic portion alone would exhaust the mana).
@@ -18778,7 +18780,9 @@ export function buildSpellContext(
                 const subs = getManaSubstitutions(state, controllerId);
                 const sources = buildAutoTapSources(
                     owner.battlefield,
-                    manaGateBattlefields(state)
+                    manaGateBattlefields(state),
+                    undefined,
+                    state
                 );
                 const plan = solveSmartAutoTap(
                     owner.manaPool,
