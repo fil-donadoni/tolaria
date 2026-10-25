@@ -85,9 +85,17 @@ beforeEach(() => {
     routeSlug = "mono-red-burn";
     useQueryMock.mockImplementation(() => [PRESET_DECK]);
     localStorage.clear();
+    // The manual-deck branch is catalogue-backed (`useFullCatalogue`), which
+    // issues a real catalogue request; one still in flight at window teardown
+    // is aborted by happy-dom and prints an AbortError. Never settle it: these
+    // tests assert on the Play click, not on the loaded catalogue.
+    vi.stubGlobal("fetch", () => new Promise<Response>(() => {}));
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+});
 
 describe("DeckDetailRoute Edit wiring (issue #2591)", () => {
     it("routes Edit to the user-deck editor for a user deck", () => {
