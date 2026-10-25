@@ -129,7 +129,9 @@ import {
     evaluateBreakdown,
     evaluateWithMargin,
     declaredBlockDelta,
+    declaredBlockOutcome,
     declaredCombatDelta,
+    evaluateCreature,
     lethalUnblockedDelta,
     hasCastableInstant,
     hasCastableFlashPermanent,
@@ -3841,6 +3843,77 @@ export function blockDeltaOf(
     );
 }
 
+/** The axes of a declared block's exchange the dominance comparison reads:
+ *  the attackers it kills, the blocker value it loses, and what still reaches
+ *  the defending player. */
+export type BlockExchange = {
+    killed: ReadonlySet<string>;
+    lostValue: number;
+    faceDamage: number;
+    facePoison: number;
+};
+
+/** `move`'s declared exchange read off `state` (`declaredBlockOutcome`, the
+ *  same arithmetic `declaredBlockDelta` prices), the lost blockers valued as
+ *  `declaredBlockDelta` values them. `null` for a move that is not a block
+ *  declaration. */
+export function blockExchangeOf(
+    state: GameState,
+    move: Move,
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): BlockExchange | null {
+    if (move.kind !== "declare-blockers") return null;
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, botId, move);
+    const outcome = declaredBlockOutcome(probe);
+    if (!outcome) return null;
+    return {
+        killed: new Set(outcome.deadAttackers.map((c) => c.id)),
+        lostValue: outcome.deadBlockers.reduce(
+            (sum, c) =>
+                sum +
+                evaluateCreature(
+                    probe,
+                    c,
+                    weights.latent,
+                    outcome.pass,
+                    weights
+                ),
+            0
+        ),
+        faceDamage: outcome.faceDamage,
+        facePoison: outcome.facePoison,
+    };
+}
+
+/** Whether exchange `a` is no worse than `b` on every axis — it kills every
+ *  attacker `b` kills, lets through no more damage or poison, loses no more
+ *  blocker value — and strictly better on at least one. Throwing a 4/4 in
+ *  front of a 6/6 is dominated by throwing a 1/1 there: both kill nothing and
+ *  stop the same damage, one loses less. */
+export function blockOutcomeDominates(
+    a: BlockExchange,
+    b: BlockExchange
+): boolean {
+    for (const id of b.killed) if (!a.killed.has(id)) return false;
+    // Values are float sums in assignment order: equal within a rounding ulp.
+    const VALUE_EPS = 1e-6;
+    if (
+        a.faceDamage > b.faceDamage ||
+        a.facePoison > b.facePoison ||
+        a.lostValue > b.lostValue + VALUE_EPS
+    ) {
+        return false;
+    }
+    return (
+        a.killed.size > b.killed.size ||
+        a.faceDamage < b.faceDamage ||
+        a.facePoison < b.facePoison ||
+        a.lostValue < b.lostValue - VALUE_EPS
+    );
+}
+
 // --- Block quality under the opponent model (issue #2876) ------------------
 //
 // `blockDeltaOf` above is a pure reading of whatever state it is handed, and
@@ -5101,6 +5174,41 @@ export function selectRootMove(
                 (mean(e) >= bestMean - weights.outcomeEps ||
                     isEmptyBlockDeclaration(e.move))
         );
+        // A block whose exchange DOMINATES a contender's is a contender too
+        // (`blockOutcomeDominates`), whatever its mean reward. The reward band
+        // is only as good as the subtrees under it: a time-capped search gives
+        // each declaration a handful of visits, and the opponent's node below
+        // each one is still an average over its untried replies, so one block
+        // can out-reward a strictly better one by more than `outcomeEps` for
+        // reasons that have nothing to do with the block. Admission only — the
+        // pick below is still the best `deltaOf`, trick caution included.
+        const exchanges = new Map<Edge, BlockExchange | null>();
+        const exchangeOf = (e: Edge) => {
+            if (!exchanges.has(e)) {
+                exchanges.set(
+                    e,
+                    blockExchangeOf(rootState, e.move, botId, weights)
+                );
+            }
+            return exchanges.get(e)!;
+        };
+        // The empty declaration is never a base: it is admitted without any
+        // reward evidence, and a block the exchange arithmetic misreads (an
+        // on-block trigger, a first striker) would otherwise "dominate" it
+        // for free. One pass suffices — dominance is transitive.
+        const bases = blocks.filter((e) => !isEmptyBlockDeclaration(e.move));
+        const outside = pool.filter(
+            (e) => e.move.kind === "declare-blockers" && !blocks.includes(e)
+        );
+        for (const e of outside) {
+            const x = exchangeOf(e);
+            if (!x) continue;
+            const dominates = bases.some((b) => {
+                const y = exchangeOf(b);
+                return y !== null && blockOutcomeDominates(x, y);
+            });
+            if (dominates) blocks.push(e);
+        }
         if (blocks.length > 0) {
             const prev = best;
             // The determinized lens when the caller had a sampler (issue
