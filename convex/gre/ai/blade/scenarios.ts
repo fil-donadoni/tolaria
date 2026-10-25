@@ -15105,4 +15105,40 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5703. Reap is the first card whose target count is a quantity read at announcement (`TargetCountQuantity`, issue #6526); `enumerateMoves` enumerates the graveyard group once per prefix of the earlier picks. A reachability guard on the legal set — the choice itself is a preference no entry here asserts.",
     },
+    {
+        // LAND-MANA SUBSTITUTION reachability (CR 106.7 / 614). The bot's main
+        // phase, Infernal Darkness on its side, two Forests and a Black Knight
+        // ({B}{B}) in hand. Every land taps for {B} instead of its type, so the
+        // Forests pay the Knight; read off the unreplaced option list they are
+        // two {G} sources, the black pips are uncovered, and the cast is never
+        // enumerated — the bot holds the Knight forever with every suite green.
+        //
+        // A reachability claim, kept a `predicate` out of the weight fit for the
+        // reason the depletion-land entry above gives.
+        label: "land-mana substitution: casts a {B}{B} creature off two Forests under Infernal Darkness",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Infernal Darkness", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Black Knight", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.tapPlan?.length === 2,
+            describe: "casts Black Knight, paying {B}{B} with the two Forests",
+        },
+        note: "CR 106.7 / 614: the planner and the castability census read the mana a tap would add (`getManaTapOptionsDetailed` under `replaceLandManaType`). Issue #3744.",
+    },
 ];

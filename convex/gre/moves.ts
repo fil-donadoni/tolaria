@@ -1342,7 +1342,8 @@ export function planManaPayment(
         const view = getProducibleManaSourceView(
             perm,
             player.id,
-            boardBattlefields
+            boardBattlefields,
+            state
         );
         // CR 302.1 / 302.6 (issue #2420) — summoning sickness restricts only
         // a {T}/{Q}-in-cost ability, never a source's activation in general.
