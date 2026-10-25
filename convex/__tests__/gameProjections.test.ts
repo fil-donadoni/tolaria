@@ -1114,6 +1114,76 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
         expect(p2Card.toughness).toBeUndefined();
     });
 
+    // issue #2178 — the non-knower leg is an ALLOW-LIST: a graveyard-origin
+    // instance carries identity-bearing fields (counters, granted*, textChanges,
+    // copiedFrom, …) the library/hand origins never do, and none may survive.
+    it("hides every identity-bearing field of a graveyard-origin face-down exile (issue #2178, CR 406.3)", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.graveyard = [
+            makeCard("p1-g1", {
+                zone: "graveyard",
+                types: ["Creature"],
+                power: 4,
+                toughness: 4,
+                counters: { "+1/+1": 2 },
+                colorOverride: ["R"],
+                printedSubtypes: ["Dragon"],
+                grantedTypes: ["Artifact"],
+                grantedSubtypes: ["Dragon"],
+                grantedColors: ["R"],
+                grantedSupertypes: ["Legendary"],
+                grantedStaticAbilities: ["flying"],
+                textChanges: [{ from: "Island", to: "Swamp" }],
+                chosenName: "Shivan Dragon",
+                copiedFrom: "shivan-dragon",
+                grantedFlashback: { mana: { R: 1 } },
+                damageMarked: 3,
+                isToken: true,
+                exiledBySourceId: "src-1",
+                castableFromExileBy: "p1",
+            } as never),
+        ];
+        exileFaceDownCard(
+            p1,
+            p1.graveyard[0].id,
+            "graveyard",
+            "p1",
+            "face-down-exile"
+        );
+
+        const forP2 = projectPublicState(state, 1, "p2");
+        const p2Card = forP2.players.find((p) => p.id === "p1")!
+            .exile[0] as Record<string, unknown>;
+        for (const key of [
+            "counters",
+            "colorOverride",
+            "printedSubtypes",
+            "grantedTypes",
+            "grantedSubtypes",
+            "grantedColors",
+            "grantedSupertypes",
+            "grantedStaticAbilities",
+            "textChanges",
+            "chosenName",
+            "copiedFrom",
+            "grantedFlashback",
+            "damageMarked",
+            "isToken",
+            "power",
+            "toughness",
+        ]) {
+            expect(p2Card[key], key).toBeUndefined();
+        }
+        expect(p2Card.faceDown).toBe(true);
+        expect((p2Card.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
+        expect(p2Card.ownerId).toBe("p1");
+        // The allow-listed optional fields still cross the wire.
+        expect(p2Card.faceDownBy).toBe("face-down-exile");
+        expect(p2Card.exiledBySourceId).toBe("src-1");
+        expect(p2Card.castableFromExileBy).toBe("p1");
+    });
+
     it("does NOT mask characteristics from the knower/controller (issue #2092)", () => {
         const state = makeState();
         const p1 = state.players.find((p) => p.id === "p1")!;
