@@ -7781,7 +7781,7 @@ function selectForEachMembers(
     const members = select.excludeSource
         ? ids.filter((id) => id !== ctx.sourceInstanceId)
         : ids;
-    // CR 120.3 — "each planeswalker it has dealt damage to this game": only
+    // CR 120.1 — "each planeswalker it has dealt damage to this game": only
     // the members on the source's damage history (CR 400.7 keeps a returned
     // permanent off it, `forgetDamageToEnteringObject`).
     if (!select.damagedBySourceThisGame) return members;

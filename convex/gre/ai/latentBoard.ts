@@ -1117,7 +1117,7 @@ function sweptNetLoss(
     weights: EvalWeights
 ): number | undefined {
     if (select.set !== "permanents") return undefined;
-    // CR 120.3 — a member set narrowed by the source's damage history is not
+    // CR 120.1 — a member set narrowed by the source's damage history is not
     // one this lens can read off the board alone.
     if (select.damagedBySourceThisGame) return undefined;
     const filter = sweepPermanentFilter(select.filter);

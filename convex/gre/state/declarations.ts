@@ -459,7 +459,7 @@ export type CardInstanceState = {
      *  triggers (Sengir Vampire) can inspect the victim post-death. Cleared
      *  at CLEANUP (CR 514.2). */
     damagedBySources?: string[];
-    /** CR 120.3 — the SOURCE-side, game-long twin of `damagedBySources`:
+    /** CR 120.1 — the SOURCE-side, game-long twin of `damagedBySources`:
      *  instance ids of the permanents this permanent has dealt damage to
      *  since it last entered the battlefield, each id once
      *  (`recordSourceDamagedPermanent`). Read by a `forEach` permanents

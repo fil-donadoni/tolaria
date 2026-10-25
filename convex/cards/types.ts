@@ -7617,7 +7617,7 @@ export interface SpellContext {
         counters: Record<string, number>;
     }>;
 
-    /** CR 120.3 / 608.2h — the instance ids of the permanents the resolving
+    /** CR 120.1 / 608.2h — the instance ids of the permanents the resolving
      *  ability's source has dealt damage to this game (its
      *  `damagedPermanentsThisGame` history). Read live while the source is on
      *  the battlefield; once it has left, from the ability's own snapshot of
@@ -15269,7 +15269,7 @@ export type EffectForEachSelector =
            *  composes with either. A no-op when the source is not itself a
            *  member of the selected set. */
           excludeSource?: boolean;
-          /** CR 120.3 / 400.7 — "each planeswalker it has dealt damage to
+          /** CR 120.1 / 400.7 — "each planeswalker it has dealt damage to
            *  this game" (The Fallen): when `true`, keeps only the members the
            *  resolving ability's SOURCE has dealt damage to as the object it
            *  now is, read off the source's `damagedPermanentsThisGame`
