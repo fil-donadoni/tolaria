@@ -99,6 +99,7 @@ import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { blinkPose } from "./botReachBlink";
 import { creatureSweepPose } from "./botReachCreatureSweep";
 import { libraryPutPose } from "./botReachLibraryPut";
+import { outsideGamePose } from "./botReachOutsideGame";
 import { costAlternativesPose } from "./botReachCostAlternatives";
 import { handRefillSpell } from "./botReachHandRefill";
 export { castShape } from "./botReachForm";
@@ -1064,8 +1065,10 @@ export function botReachSpec(
         ? (stackPose(def, cycle[0]!) ?? DEFAULT_STACK_POSE)
         : undefined;
     if (stack) cards.push(...stack.cards);
+    const outsideGame = outsideGamePose(def);
     return {
         cards,
+        ...(outsideGame.length > 0 ? { outsideGame } : {}),
         phase:
             window === TRICK_WINDOW ||
             window === AMBUSH_WINDOW ||

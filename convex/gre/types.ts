@@ -178,7 +178,14 @@ export type ZonePickKind =
     // attaches it and finishes the entry. Auto-resolved (no prompt) when exactly
     // one legal host exists; a zero-host Aura never enters (CR 303.4g). NOT a
     // target — bypasses hexproof/shroud (CR 303.4f). `count` is always 1.
-    | "choose-aura-host";
+    | "choose-aura-host"
+    // A card the chooser OWNS from outside the game (CR 400.11 — "Outside the
+    // game is not a zone"; CR 400.11a — the sideboard), raised by the
+    // `bringFromOutsideGame` Op (the Wish cards). Carries NO `zone`: the pool
+    // is `outsideGamePool` (`gre/outsideGame.ts`), never a zone array, and
+    // `candidateIds` is the filtered allow-list. Hidden: the projection
+    // exposes the candidates to the CHOOSER alone (`outsideGamePeek`).
+    | "choose-outside-game-card";
 
 /** Where the un-kept cards of an `order-top` choice go (the SECOND zone of the
  *  drag picker). `library-bottom` = scry (CR 701.22), `graveyard` = surveil

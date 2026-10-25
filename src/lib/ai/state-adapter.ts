@@ -442,6 +442,20 @@ export function projectedToGameState(
                     viewerId,
                     state.pendingChoices?.[0] as PendingChoice | undefined
                 ),
+            // CR 400.11a — the viewer's OWN outside-the-game holder rides the
+            // `...p` spread (the projection sends it to its owner alone).
+            // A chooser picking from ANOTHER seat's pool (a controlled cast)
+            // sees only that pick's candidates (`outsideGamePeek`), and the
+            // search's pick names THOSE ids, so they become the pool — minus
+            // the companion, which `outsideGamePool` already adds from the
+            // public slot. Absent otherwise: hidden, not empty.
+            ...(p.outsideGame === undefined && p.outsideGamePeek
+                ? {
+                      outsideGame: p.outsideGamePeek.filter(
+                          (c) => c.id !== p.companion?.instance.id
+                      ),
+                  }
+                : {}),
         })),
         stack: state.stack,
         // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry.

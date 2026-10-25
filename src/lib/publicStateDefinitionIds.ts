@@ -80,6 +80,11 @@ export function publicStateDefinitionIds(state: {
             for (const k of p.library.known ?? []) add(k.card);
         }
         add(p.companion?.instance);
+        // CR 400.11a — the viewer's own outside-the-game holder, and a Wish
+        // pick's candidates (which may be ANOTHER seat's, under a controlled
+        // cast — so never in this seat's Manifest).
+        for (const c of p.outsideGame ?? []) add(c);
+        for (const c of p.outsideGamePeek ?? []) add(c);
     }
     for (const c of state.stack ?? []) add(c);
     for (const bundle of state.phasedOut ?? []) {
