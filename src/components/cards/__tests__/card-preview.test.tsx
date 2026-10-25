@@ -405,6 +405,8 @@ describe("CardPreview — Arena click model (#332)", () => {
             const { root, panel } = openDock();
             hoverLeave(root);
             hoverEnter(root);
+            dwellPast();
+            expect(dock()).toBeTruthy();
             act(() => {
                 fireEvent.pointerLeave(root, {
                     pointerType: "mouse",
