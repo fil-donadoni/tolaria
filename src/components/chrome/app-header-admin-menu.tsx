@@ -4,7 +4,6 @@
 // behind those pages gates on `assertIsAdmin` server-side. Hiding the menu just
 // keeps the chrome honest about what the viewer can reach.
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import {
     Popover,
@@ -14,6 +13,7 @@ import {
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canViewAdminSection } from "@/lib/adminGating";
 import { ADMIN_NAV } from "@/lib/adminNav";
+import OverflowNavLink from "./overflow-nav-link";
 
 export default function AppHeaderAdminMenu() {
     const user = useCurrentUser();
@@ -28,17 +28,16 @@ export default function AppHeaderAdminMenu() {
                 <ChevronDown className="h-3 w-3" />
             </PopoverTrigger>
             <PopoverContent side="bottom" align="end" className="p-1">
-                <nav className="flex min-w-44 flex-col">
+                <nav className="flex min-w-44 flex-col gap-[var(--menu-row-gap)]">
                     {ADMIN_NAV.map((entry) => (
-                        <Link
+                        <OverflowNavLink
                             key={entry.to}
                             to={entry.to}
                             onClick={() => setOpen(false)}
-                            className="rounded-sm px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-parchment"
-                            activeProps={{ className: "text-accent-strong" }}
+                            activeClassName="text-accent-strong"
                         >
                             {entry.label}
-                        </Link>
+                        </OverflowNavLink>
                     ))}
                 </nav>
             </PopoverContent>
