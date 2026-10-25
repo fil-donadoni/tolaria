@@ -19632,6 +19632,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Elder Spawn",
+        "scryfallId": "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
+        "oracleId": "363b2213-4c70-4cb0-b895-81393c1082a7",
+        "firstSet": "leg",
+        "firstPrintId": "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "Elderleaf Mentor",
         "scryfallId": "5e8bded3-46c3-474f-9d09-978df8705ad1",
         "oracleId": "3795fc31-2369-47d0-b9c9-120f44b8f114",
@@ -24858,6 +24866,14 @@
         "firstPrintSet": "ptk",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Forethought Amulet",
+        "scryfallId": "700f53d3-0a84-4c55-8495-786f0f0783db",
+        "oracleId": "0edf0988-9ed8-4fe6-aa47-4921870f05a8",
+        "firstSet": "leg",
+        "firstPrintId": "700f53d3-0a84-4c55-8495-786f0f0783db",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Forgotten Cave",
