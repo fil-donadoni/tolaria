@@ -560,6 +560,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "replace-if-kicked",
     "look-distribute",
     "reveal-top-to-hand",
+    "reveal-top-route",
     "reveal-until",
     "first-player-may-reveal-until",
     "divide-library-piles",
@@ -1986,6 +1987,19 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.20a / CR 400.7 — "Reveal the top card of your library. If
+           * it's a <type> card, put it <where>. Otherwise, put it <elsewhere>."
+           * Three printed sentences, one effect, folded by `assembleSentences`;
+           * a window with no "Otherwise" (the card stays on top) or a route
+           * with no window is refused.
+           */
+          readonly kind: "reveal-top-route";
+          readonly filter: EffectCardFilter;
+          readonly to: UntilRouteDestination;
+          readonly fallback: UntilRouteDestination;
+      }
+    | {
+          /**
            * CR 701.20a / CR 400.7 — "Reveal cards from the top of your library
            * until you reveal a <card>. Put that card <where> and the rest
            * <elsewhere>." Two printed sentences, one effect: the first names
@@ -2425,6 +2439,19 @@ export type SentenceIR =
     /** CR 205.2a — the per-card-type pick of a revealed window (see
      *  `LibraryRouteIR` `pick-per-type`). */
     | { readonly role: "type-pick" }
+    /** CR 701.20a — "Reveal the top card of your library", the window of a `reveal-top-route`. */
+    | { readonly role: "reveal-top-window" }
+    /** CR 400.7 — "If it's a <type> card, put it <where>", its matching route. */
+    | {
+          readonly role: "reveal-top-if";
+          readonly filter: EffectCardFilter;
+          readonly to: UntilRouteDestination;
+      }
+    /** CR 400.7 — "Otherwise, put it <where>", its fallback route. */
+    | {
+          readonly role: "reveal-top-otherwise";
+          readonly to: UntilRouteDestination;
+      }
     /** CR 701.20a — the window half of a `reveal-until` (see there). */
     | { readonly role: "reveal-until"; readonly filter: EffectCardFilter }
     /** The routing half of a `reveal-until` (see there). */
@@ -2668,6 +2695,16 @@ export function assembleSentences(
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
+    // CR 701.20a — a revealed top card waits for its "If it's …" route, then
+    // its "Otherwise" route.
+    let revealTop:
+        | { readonly stage: "window" }
+        | {
+              readonly stage: "routed";
+              readonly filter: EffectCardFilter;
+              readonly to: UntilRouteDestination;
+          }
+        | null = null;
     // CR 603.3d — the head player's choice waits for the optional reveal and
     // its routing: "chosen" → "window" (holding the filter).
     let firstPlayerReveal:
@@ -3266,6 +3303,56 @@ export function assembleSentences(
                 nameRead = true;
             }
         }
+        if (revealTop !== null) {
+            if (revealTop.stage === "window") {
+                if (sentence.role !== "reveal-top-if")
+                    return {
+                        ok: false,
+                        reason: 'a revealed top card is not followed by "If it\'s a <type> card, put it …"',
+                    };
+                revealTop = {
+                    stage: "routed",
+                    filter: sentence.filter,
+                    to: sentence.to,
+                };
+                continue;
+            }
+            if (sentence.role !== "reveal-top-otherwise")
+                return {
+                    ok: false,
+                    reason: 'a revealed top card\'s route is not followed by "Otherwise, put it …"',
+                };
+            effects.push({
+                kind: "reveal-top-route",
+                filter: revealTop.filter,
+                to: revealTop.to,
+                fallback: sentence.to,
+            });
+            revealTop = null;
+            continue;
+        }
+        if (sentence.role === "reveal-top-window") {
+            if (
+                restrictions.length > 0 ||
+                window !== null ||
+                piles !== null ||
+                revealUntil !== null
+            )
+                return {
+                    ok: false,
+                    reason: "a top-card reveal follows an unfinished sentence run",
+                };
+            revealTop = { stage: "window" };
+            continue;
+        }
+        if (
+            sentence.role === "reveal-top-if" ||
+            sentence.role === "reveal-top-otherwise"
+        )
+            return {
+                ok: false,
+                reason: "a top-card route follows no revealed top card",
+            };
         if (revealUntil !== null) {
             if (sentence.role !== "reveal-until-route")
                 return {
@@ -3805,7 +3892,7 @@ export function assembleSentences(
             ok: false,
             reason: "a player's choice of an opposing player is not followed by their optional reveal and its routing",
         };
-    if (revealUntil !== null || piles !== null)
+    if (revealUntil !== null || revealTop !== null || piles !== null)
         return {
             ok: false,
             reason: "a library reveal is not followed by where its cards go",
@@ -4962,6 +5049,19 @@ const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
 /** CR 701.20a — "Reveal the top card of your library and put that card into your hand". */
 const REVEAL_TOP_TO_HAND =
     /^Reveal the top card of your library and put that card into your hand$/;
+/** CR 701.20a — the window of a `reveal-top-route`. */
+const REVEAL_TOP_WINDOW = /^Reveal the top card of your library$/;
+/** CR 400.7 — its matching route: only the card types the corpus prints. */
+const REVEAL_TOP_IF =
+    /^If it's (?:a land|an artifact) card, put it (into your hand|onto the battlefield|into your graveyard)$/;
+/** CR 400.7 — its fallback route. */
+const REVEAL_TOP_OTHERWISE =
+    /^Otherwise, put it (into your hand|onto the battlefield|into your graveyard)$/;
+const REVEAL_TOP_DESTINATIONS = new Map<string, UntilRouteDestination>([
+    ["into your hand", "hand"],
+    ["onto the battlefield", "battlefield"],
+    ["into your graveyard", "graveyard"],
+]);
 /** CR 701.20a — the reveal-until window: what ends the reveal. */
 const REVEAL_UNTIL =
     /^Reveal cards from the top of your library until you reveal (a basic land card|a land card|a creature card|a white card)$/;
@@ -6376,6 +6476,21 @@ function libraryHalf(span: string, ctx: unknown) {
             count,
         } satisfies SentenceIR);
     }
+    if (REVEAL_TOP_WINDOW.test(span))
+        return ok({ role: "reveal-top-window" as const } satisfies SentenceIR);
+    const topIf = span.match(REVEAL_TOP_IF);
+    if (topIf !== null)
+        return ok({
+            role: "reveal-top-if" as const,
+            filter: { type: span.includes("a land") ? "Land" : "Artifact" },
+            to: REVEAL_TOP_DESTINATIONS.get(topIf[1]!)!,
+        } satisfies SentenceIR);
+    const topOtherwise = span.match(REVEAL_TOP_OTHERWISE);
+    if (topOtherwise !== null)
+        return ok({
+            role: "reveal-top-otherwise" as const,
+            to: REVEAL_TOP_DESTINATIONS.get(topOtherwise[1]!)!,
+        } satisfies SentenceIR);
     const until = span.match(REVEAL_UNTIL);
     if (until !== null) {
         return ok({

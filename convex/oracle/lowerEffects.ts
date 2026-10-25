@@ -4254,6 +4254,17 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "reveal-top-route":
+            // CR 701.20a + CR 400.7 — "your library": the controller's; one
+            // card, so the Op's default window.
+            return lowered([
+                {
+                    op: "revealTopAndRoute",
+                    player: "controller",
+                    routes: [{ filter: sentence.filter, to: sentence.to }],
+                    fallback: sentence.fallback,
+                },
+            ]);
         case "reveal-until":
             // CR 701.20a — "your library": the controller's.
             return lowered([
