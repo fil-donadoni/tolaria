@@ -6883,6 +6883,9 @@ export function removePermanentTo(
     const wasCreature = creature.types.includes("Creature");
     const snapshotControllerId = creature.controllerId;
     const snapshotDamagedBy = creature.damagedBySources ?? [];
+    // CR 603.10 — counters as it left, for Persist's "if it had no -1/-1
+    // counters on it" (CR 702.79a); the graveyard object has none (CR 400.7).
+    const lkiCounters = { ...(creature.counters ?? {}) };
     // CR 603.10 last known information — capture effective P/T before the
     // card leaves play so death triggers ("damage equal to that creature's
     // toughness") read the moment-of-death values. Layered buffs from sources
@@ -7141,6 +7144,9 @@ export function removePermanentTo(
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
                 combatPartnerIds: snapshotCombatPartners,
+                ...(Object.values(lkiCounters).some((n) => n > 0)
+                    ? { creatureCounters: lkiCounters }
+                    : {}),
                 ...(lkiAttachments.length > 0
                     ? { attachmentsBeforeLeave: lkiAttachments }
                     : {}),
