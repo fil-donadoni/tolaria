@@ -2895,6 +2895,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'CR 601.2d / 120.4 divide-as-you-choose damage over the WHOLE announced target group (ctx.targets), unlike the single-`to` dealDamage Op. A thin declarative skin over the single SpellContext.dealDamageDividedAsChosen primitive (one execution path, ADR 0045). The per-target split is chosen at ANNOUNCEMENT (targetRequirement.divideAsChosen, each target ≥1) and snapshotted onto the stack item\'s targetAmounts, which the primitive reads back at resolution via resolveChosenDivision (gre/state.ts); `total` is the fallback cap and mirrors the card\'s divideAsChosen.total. `total` reuses the exact divideAsChosen.total vocabulary (number | "X" | "X+1"): a fixed amount, the announced {X} (getX() — Fire Covenant\'s pay-X-life), or X+1 (Meteor Shower\'s "X plus 1 damage"). Powers Arc Lightning, Fiery Justice, Meteor Shower, Fury (ETB trigger), Arc Mage (activated), Fire Covenant.',
     },
     {
+        op: "dealDamageToEach",
+        status: "implemented",
+        cr: "120.3",
+        binding: "SpellContext.dealDamageToEach",
+        mechanicId: "dealDamage",
+        note: 'CR 120.3 simultaneous no-target mass damage ("deals N damage to each opponent and each creature they control"). A thin declarative skin over the single SpellContext.dealDamageToEach primitive (one execution path, ADR 0045): the whole recipient set is fixed before any damage is dealt and handed out in ONE primitive call, unlike a forEach over permanents with a dealDamage body, which sequentialises. `creatures` ({ controller?: "controller" | "opponent", filter?: EffectCardFilter }) selects creatures; `players` ("each" | "controller" | "opponent") selects players; at least one half is required. Controller scope maps onto the primitive\'s controller-relative vocabulary (PermanentFilter.controllerRelation "you"/"opponents", player scope "you"/"opponents"). The migration path for the Earthquake / Pyroclasm / Hurricane sweeper family.',
+    },
+    {
         op: "distributeCountersAsChosen",
         status: "implemented",
         cr: "601.2d",
