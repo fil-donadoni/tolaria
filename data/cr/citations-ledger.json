@@ -18848,7 +18848,6 @@
         {"id":"509.1h","line":"* CR 509.1h pair complement, \"the OTHER creature in the attacker/blocker","sites":1,"status":"confirmed","ruleHash":"1d5b46d3eb4e26ed"},
         {"id":"509.1h","line":"* Gated on `blockersConfirmed` because CR 509.1h makes an attacker neither","sites":1,"status":"baseline"},
         {"id":"509.1h","line":"* Records which attackers became blocked this combat (CR 509.1h). Call once","sites":1,"status":"baseline"},
-        {"id":"509.1h","line":"* `blockedAttackerIds` is what `combatRoleFilter: \"blocked\"` (CR 509.1h,","sites":1,"status":"confirmed","ruleHash":"1d5b46d3eb4e26ed"},
         {"id":"509.1h","line":"* `blockedIds` are the attackers that got blocked (CR 509.1h). Fallen Shinobi","sites":1,"status":"baseline"},
         {"id":"509.1h","line":"* `recordBlockedAttackers` from the assignments — CR 509.1h). Anything else","sites":1,"status":"baseline"},
         {"id":"509.1h","line":"* a card's filter can gate on it (CR 509.1h). `toughness` is the effective","sites":1,"status":"baseline"},
