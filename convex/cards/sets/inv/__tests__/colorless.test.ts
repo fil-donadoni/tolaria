@@ -230,7 +230,7 @@ describe("Tsabo's Web untap lock (CR 502.1, dynamicMatch)", () => {
 // Free tranche (issue #1074) — the remaining 11 of 13 colourless cards.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe("Alloy Golem (as-enters colour pick; CR 614.1c / 614.12a / 603.6d, CR 613.1d)", () => {
+describe("Alloy Golem (as-enters colour pick; CR 614.1c / 614.12a / 603.6d, CR 613.1e)", () => {
     it("declares the pick as an as-enters mode, not a trigger", () => {
         const def = getDefinition(alloyGolem.id)!;
         expect(def.entersWith?.asEnters).toEqual([{ kind: "mode" }]);

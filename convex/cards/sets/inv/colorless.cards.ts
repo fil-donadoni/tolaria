@@ -123,7 +123,7 @@ export const powerArmor = defineCard(() => ({
 
 // Alloy Golem — {6} Artifact Creature — Golem 4/4. "As this creature enters,
 // choose a color. This creature is the chosen color. (It's still an
-// artifact.)" (CR 105.2 / 613.1d layer 5 colour; CR 614.1c / 614.12a "as ~
+// artifact.)" (CR 105.2 / 613.1e layer 5 colour; CR 614.1c / 614.12a "as ~
 // enters, choose" is a replacement effect, not a trigger, CR 603.6d.)
 export const alloyGolem = defineCard(() => ({
     id: "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
@@ -140,7 +140,7 @@ export const alloyGolem = defineCard(() => ({
     // color" is a replacement effect (CR 603.6d: not a trigger), so the pick is
     // declared on `entersWith.asEnters` (ADR 0100 D3) and made before the Golem
     // enters. The answer lands on `chosenModeId`, which selects the mode whose
-    // `color-grant` static the layer system applies (CR 613.1d, layer 5; the
+    // `color-grant` static the layer system applies (CR 613.1e, layer 5; the
     // Golem is colourless, so the grant IS its colour).
     entersWith: { asEnters: [{ kind: "mode" }] },
     modes: COLOR_OPTIONS.map(({ id, label }) => ({
