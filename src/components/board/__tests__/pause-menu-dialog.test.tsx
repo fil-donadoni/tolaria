@@ -216,3 +216,148 @@ describe("PauseMenuDialog bug-report entry (issue #3419)", () => {
         expect(requested).toHaveBeenCalledTimes(1);
     });
 });
+
+// Issue #2241: read-only registered decklist from the Game Menu.
+describe("PauseMenuDialog Decklist entry (issue #2241)", () => {
+    const card = (cardId: string, cardName: string) => ({ cardId, cardName });
+
+    function withDecks(
+        bestOf: 1 | 3,
+        mine: {
+            maindeck: ReturnType<typeof card>[];
+            sideboard: ReturnType<typeof card>[];
+        },
+        theirs?: {
+            maindeck: ReturnType<typeof card>[];
+            sideboard: ReturnType<typeof card>[];
+        }
+    ): PublicMatch {
+        const m = bo(bestOf);
+        m.players[0].deck = {
+            id: "d1",
+            name: "Mine",
+            format: "standard",
+            ...mine,
+        };
+        if (theirs)
+            m.players[1].deck = {
+                id: "d2",
+                name: "Theirs",
+                format: "standard",
+                ...theirs,
+            };
+        return m;
+    }
+
+    const mine = {
+        maindeck: [
+            card("bolt", "Lightning Bolt"),
+            card("bolt", "Lightning Bolt"),
+            card("mtn", "Mountain"),
+        ],
+        sideboard: [card("pyro", "Pyroblast")],
+    };
+
+    const renderMenu = (match: PublicMatch | null) =>
+        render(
+            <PauseMenuDialog
+                open
+                onOpenChange={() => {}}
+                gameId={gameId}
+                playerId="me"
+                match={match}
+            />
+        );
+
+    it.each([1, 3] as const)(
+        "Bo%i: shows Maindeck and Sideboard with counts and quantities, read-only",
+        (bestOf) => {
+            const { getByRole, getByLabelText, queryAllByRole, getByText } =
+                renderMenu(withDecks(bestOf, mine));
+            fireEvent.click(getByRole("button", { name: "Decklist" }));
+            const main = getByLabelText("Maindeck");
+            expect(main.textContent).toContain("Maindeck (3)");
+            expect(main.textContent).toContain("2×");
+            expect(main.textContent).toContain("Lightning Bolt");
+            expect(getByLabelText("Sideboard").textContent).toContain(
+                "Sideboard (1)"
+            );
+            expect(getByText("Pyroblast")).toBeTruthy();
+            // Only the Back control — no card-moving buttons.
+            expect(
+                queryAllByRole("button").map((b) => b.textContent)
+            ).not.toContain("→ Side");
+            expect(
+                queryAllByRole("button").map((b) => b.textContent)
+            ).not.toContain("→ Main");
+        }
+    );
+
+    it("reflects a sideboarding swap on re-render", () => {
+        const swapped = {
+            maindeck: [
+                card("bolt", "Lightning Bolt"),
+                card("pyro", "Pyroblast"),
+            ],
+            sideboard: [
+                card("bolt", "Lightning Bolt"),
+                card("mtn", "Mountain"),
+            ],
+        };
+        const { getByRole, getByLabelText, rerender } = renderMenu(
+            withDecks(3, mine)
+        );
+        rerender(
+            <PauseMenuDialog
+                open
+                onOpenChange={() => {}}
+                gameId={gameId}
+                playerId="me"
+                match={withDecks(3, swapped)}
+            />
+        );
+        fireEvent.click(getByRole("button", { name: "Decklist" }));
+        expect(getByLabelText("Maindeck").textContent).toContain("Pyroblast");
+        expect(getByLabelText("Sideboard").textContent).toContain("Mountain");
+    });
+
+    it("never renders another seat's deck", () => {
+        const theirs = { maindeck: [card("x", "Opp Secret")], sideboard: [] };
+        const m = withDecks(3, mine, theirs);
+        m.players[0].deck = undefined;
+        const { queryByRole } = renderMenu(m);
+        expect(queryByRole("button", { name: "Decklist" })).toBeNull();
+        expect(document.body.textContent).not.toContain("Opp Secret");
+    });
+
+    it("is not offered for a null Match, and Concede still renders", () => {
+        const { queryByRole, getByRole } = renderMenu(null);
+        expect(queryByRole("button", { name: "Decklist" })).toBeNull();
+        expect(getByRole("button", { name: "Concede" })).toBeTruthy();
+    });
+
+    it("Back returns to the menu root, and closing resets to the root", () => {
+        const onOpenChange = vi.fn();
+        const el = (open: boolean) => (
+            <PauseMenuDialog
+                open={open}
+                onOpenChange={onOpenChange}
+                gameId={gameId}
+                playerId="me"
+                match={withDecks(1, mine)}
+            />
+        );
+        const { getByRole, queryByRole, rerender } = render(el(true));
+        fireEvent.click(getByRole("button", { name: "Decklist" }));
+        fireEvent.click(getByRole("button", { name: "Back" }));
+        expect(getByRole("button", { name: "Concede" })).toBeTruthy();
+        fireEvent.click(getByRole("button", { name: "Decklist" }));
+        fireEvent.keyDown(document.activeElement ?? document.body, {
+            key: "Escape",
+        });
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+        rerender(el(true));
+        expect(queryByRole("button", { name: "Back" })).toBeNull();
+        expect(getByRole("button", { name: "Concede" })).toBeTruthy();
+    });
+});
