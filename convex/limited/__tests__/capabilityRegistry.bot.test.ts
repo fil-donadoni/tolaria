@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
     CAPABILITY_REGISTRY,
+    capabilitySatisfiedBy,
     isRegisteredCapability,
 } from "../capabilityRegistry";
 import {
@@ -189,5 +190,41 @@ describe("Catalogue-wide sweep — every checked-in Card Profile file (issue #16
         // is non-empty is what stops the guard silently reverting to a
         // vacuous pass if a future refactor drops a file from the registry.
         expect(getAllCheckedInCardProfileFiles().length).toBeGreaterThan(0);
+    });
+});
+
+describe("mana-value-bounded rows (issue #1677)", () => {
+    const bounded = CAPABILITY_REGISTRY.filter((row) => row.bound);
+
+    it("every bound names a registered, non-bounded base capability", () => {
+        expect(bounded.length).toBeGreaterThan(0);
+        for (const row of bounded) {
+            const base = CAPABILITY_REGISTRY.find(
+                (r) => r.id === row.bound!.capability
+            );
+            expect(base, row.id).toBeDefined();
+            expect(base!.bound, row.id).toBeUndefined();
+        }
+    });
+
+    it("satisfied by the base capability at or below the ceiling, never above, never by the bounded id itself", () => {
+        for (const row of bounded) {
+            const { capability, maxManaValue } = row.bound!;
+            expect(
+                capabilitySatisfiedBy(row.id, [capability], maxManaValue)
+            ).toBe(true);
+            expect(
+                capabilitySatisfiedBy(row.id, [capability], maxManaValue + 1)
+            ).toBe(false);
+            expect(capabilitySatisfiedBy(row.id, [], 0)).toBe(false);
+            expect(capabilitySatisfiedBy(row.id, [row.id], 0)).toBe(false);
+        }
+    });
+
+    it("a plain row is still matched by plain membership", () => {
+        expect(capabilitySatisfiedBy("self-mills", ["self-mills"], 9)).toBe(
+            true
+        );
+        expect(capabilitySatisfiedBy("self-mills", [], 0)).toBe(false);
     });
 });

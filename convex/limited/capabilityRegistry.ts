@@ -156,12 +156,15 @@ export function capabilitySatisfiedBy(
     providerCapabilities: readonly string[],
     providerManaValue: number
 ): boolean {
-    if (providerCapabilities.includes(requiredCapability)) return true;
     const bound = CAPABILITY_REGISTRY.find(
         (row) => row.id === requiredCapability
     )?.bound;
+    // A bounded row is never satisfied by listing it: only the base
+    // capability within the ceiling counts, so a profile cannot dodge it.
+    if (bound === undefined) {
+        return providerCapabilities.includes(requiredCapability);
+    }
     return (
-        bound !== undefined &&
         providerCapabilities.includes(bound.capability) &&
         providerManaValue <= bound.maxManaValue
     );
