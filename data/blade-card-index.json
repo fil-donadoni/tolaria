@@ -13,6 +13,13 @@
             "needsSetup": false
         }
     ],
+    "All Aboard": [
+        {
+            "label": "preparation: casts the prepare spell's exiled copy to re-buy an enters trigger",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Armageddon": [
         {
             "label": "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands",
