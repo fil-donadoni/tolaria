@@ -20,6 +20,7 @@ import type {
     RestrictionIR,
 } from "./grammar/shared/effectClause";
 import type { ManaProductionIR } from "./grammar/ir";
+import { printManaCost } from "./manaCost";
 import {
     declareTargets,
     lowerSentence,
@@ -308,15 +309,111 @@ const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
- * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
- * which is the same ability printed inside quotation marks.
+ * CR 605.1a — "[Cost]: Add <mana>. Draw a card." (Chromatic Sphere, the
+ * Invasion eggs). Its effect moves a card from a library, so it is not a mana
+ * ability: CR 602.2a puts it on the stack, the mana is added when it resolves,
+ * and it cannot be activated mid-payment (only CR 605.3a's mana abilities can).
+ * Lowered to `useStack: true` with the production as an Effect Script — a
+ * fixed production is one `addMana`, a choice one `optionChoice` whose modes
+ * are its options — followed by the draw. "Activate only as an instant" lowers
+ * to nothing: CR 117.1b already lets an activated ability be activated any
+ * time its controller has priority.
  */
+const POOL_KEYS: ReadonlySet<string> = new Set(["W", "U", "B", "R", "G", "C"]);
+
+function lowerDrawingManaShape(
+    input: {
+        readonly id: string;
+        readonly oracleText: string;
+        readonly cost: ActivationCostIR;
+        readonly produces: ManaProductionIR;
+    },
+    cost: ActivatedAbility["cost"]
+): LowerAbilityResult {
+    if (input.cost.atoms.some(isHandExile))
+        return {
+            ok: false,
+            reason: "a stack ability activated from the hand is not in grammar v0 (CR 113.6m)",
+        };
+    const others = (input.produces.riders ?? []).filter(
+        (r) => r.kind !== "draw-card" && r.kind !== "instant-only"
+    );
+    if (others.length > 0)
+        return {
+            ok: false,
+            reason: `mana rider "${others[0]!.kind}" beside a draw has no stack lowering`,
+        };
+    // `addMana` adds coloured and colourless units only (`EffectManaPool`):
+    // a production carrying any other symbol would add nothing.
+    const options =
+        input.produces.kind === "fixed"
+            ? [input.produces.mana]
+            : input.produces.kind === "choice"
+              ? input.produces.options
+              : [];
+    const unpoolable = options.find((mana) =>
+        Object.keys(mana).some((k) => !POOL_KEYS.has(k))
+    );
+    if (unpoolable !== undefined)
+        return {
+            ok: false,
+            reason: `mana production ${printManaCost(unpoolable)} beside a draw has no addMana pool`,
+        };
+    let production: EffectOp;
+    switch (input.produces.kind) {
+        case "fixed":
+            production = { op: "addMana", mana: input.produces.mana };
+            break;
+        case "choice":
+            if (
+                input.produces.dealsDamageToControllerOnColoredTap !== undefined
+            )
+                return {
+                    ok: false,
+                    reason: "a coloured-tap ping beside a draw has no stack lowering",
+                };
+            production = {
+                op: "optionChoice",
+                player: "controller",
+                prompt: "Choose the mana to add",
+                modes: input.produces.options.map((mana) => ({
+                    label: `Add ${printManaCost(mana)}`,
+                    effects: [{ op: "addMana", mana: { ...mana } }],
+                })),
+            };
+            break;
+        default:
+            return {
+                ok: false,
+                reason: `mana production "${input.produces.kind}" beside a draw has no stack lowering`,
+            };
+    }
+    return {
+        ok: true,
+        ability: {
+            id: input.id,
+            oracleText: input.oracleText,
+            cost,
+            // CR 602.2a — not a mana ability (CR 605.1a), so it uses the stack.
+            useStack: true,
+            effects: [
+                production,
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    };
+}
+
 /** CR 113.6m — the "Exile this card from your hand" cost atom. */
 function isHandExile(atom: CostAtomIR): boolean {
     return atom.kind === "exile-self-from-hand";
 }
 
+/**
+ * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
+ * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
+ * which is the same ability printed inside quotation marks.
+ */
 export function lowerManaAbility(input: {
     readonly id: string;
     readonly oracleText: string;
@@ -327,6 +424,11 @@ export function lowerManaAbility(input: {
     // (CR 602.1a draws no distinction); only the EFFECT half differs.
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
+    // CR 605.1a — "its cost and effect don't move any card to or from a
+    // library": a draw rider fails that criterion, so the ability is NOT a mana
+    // ability and is lowered as an ordinary one on the stack.
+    if ((input.produces.riders ?? []).some((r) => r.kind === "draw-card"))
+        return lowerDrawingManaShape(input, cost.value);
     // CR 113.6m — "Exile this card from your hand: Add {G}." functions only in
     // the hand. A FIXED production only: `activateManaAbility` deposits it
     // directly, while a chosen colour is resolved off the permanent's
@@ -514,10 +616,13 @@ export function lowerManaAbility(input: {
                     };
                 ability.dealsDamageToControllerOnTap = rider.amount;
                 break;
-            // CR 121.1 / 605.1a — the draw rides the same stackless resolution.
+            // CR 605.1a — a draw moves a card from a library; routed to
+            // `lowerDrawingManaShape` above, never a stackless rider.
             case "draw-card":
-                ability.drawsCardOnTap = 1;
-                break;
+                return {
+                    ok: false,
+                    reason: "a draw disqualifies a mana ability (CR 605.1a)",
+                };
             // CR 502.3 / 605.3b (issue #5509) — the stackless script arms the
             // return; the activator's next untap step performs it.
             case "return-source-at-next-untap":
