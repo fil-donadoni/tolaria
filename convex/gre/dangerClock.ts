@@ -105,12 +105,15 @@ export function predictUnblockedThreat(
     return threat;
 }
 
-/** The predicted result of a DECLARED combat: the face damage that gets through
+/** The predicted result of a DECLARED combat: the damage that gets through —
+ *  to the defending player and, separately, to each attacked planeswalker —
  *  and the creatures that die on each side. Pure and valuation-free — the leaf
  *  evaluation (ADR 0020 §3) values the dead creatures itself, keeping this
  *  module free of the `evaluate` valuation it would otherwise depend on. */
 export type CombatOutcome = {
-    /** Combat damage reaching the defender's life. */
+    /** Combat damage reaching the defender's life — never an attacker
+     *  declared against a planeswalker (CR 508.1b), whose damage is
+     *  `walkerDamage`'s. */
     faceDamage: number;
     /** Combat damage from infect attackers reaching the defender, which lands
      *  as poison counters instead of life loss (CR 702.90b). */
@@ -119,6 +122,11 @@ export type CombatOutcome = {
     deadAttackerIds: string[];
     /** Ids of the defending player's blockers expected to die. */
     deadBlockerIds: string[];
+    /** Combat damage reaching each attacked planeswalker, by its id: removed
+     *  loyalty, not life (CR 510.1b, CR 120.3c). An id that has since left the
+     *  battlefield is still keyed here; its attacker deals nothing (CR 510.1b),
+     *  which the consumer reads by not finding the walker. */
+    walkerDamage: Record<string, number>;
 };
 
 /** Crude, pure prediction of how the combat ALREADY DECLARED in `state.combat`
@@ -147,6 +155,7 @@ export function predictCombatOutcome(
         facePoison: 0,
         deadAttackerIds: [],
         deadBlockerIds: [],
+        walkerDamage: {},
     };
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id === defenderId);
@@ -180,6 +189,7 @@ export function predictCombatOutcome(
         facePoison: 0,
         deadAttackerIds: [],
         deadBlockerIds: [],
+        walkerDamage: {},
     };
 
     for (const atk of declared) {
@@ -235,9 +245,15 @@ export function predictCombatOutcome(
             continue;
         }
 
-        // 4. Unblocked — its power reaches the defender's life, or their
-        // poison counters for an infect attacker (CR 702.90b).
-        if (hasInfect(atk)) out.facePoison += atkP;
+        // 4. Unblocked — CR 510.1b: its power reaches what it is attacking. A
+        // planeswalker loses that much loyalty (CR 120.3c, infect or not);
+        // the player takes it as life, or as poison counters for an infect
+        // attacker (CR 702.90b).
+        const walkerId = combat.attackTargets?.[atk.id];
+        if (walkerId !== undefined) {
+            out.walkerDamage[walkerId] =
+                (out.walkerDamage[walkerId] ?? 0) + atkP;
+        } else if (hasInfect(atk)) out.facePoison += atkP;
         else out.faceDamage += atkP;
     }
 

@@ -291,6 +291,11 @@
     ],
     "Hill Giant": [
         {
+            "label": "attack target: kills the planeswalker rather than chipping the player",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "informed opponent: DOES attack when the deck cannot hold the trick",
             "tier": "must",
             "needsSetup": false
