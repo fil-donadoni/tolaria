@@ -861,7 +861,7 @@ describe("cast off sorcery timing — a COPY is not cast, so it clears the flag 
     // CR 707.10: "To copy a spell ... means to put a copy of it onto the
     // stack; a copy of a spell isn't cast." The flag is cast provenance by
     // definition, so `cloneSpellOntoStack` must delete it exactly as it
-    // already deletes `escaped` / `castFromGraveyard` (round-1 review finding
+    // already deletes `escaped` / `castFromZone` (round-1 review finding
     // 3).
     it("a Fork/storm copy of an off-timing instant does not inherit the flag", () => {
         const state = makeState({

@@ -592,6 +592,17 @@ export const scenarioStackItemValidator = v.object({
      *  instant cast into a response window carries it, so a residue rule that
      *  refused it would refuse exactly the class this field exists for. */
     castOffSorceryTiming: v.optional(v.boolean()),
+    /** `kind: "spell"` only — CR 601.2a Cast Provenance
+     *  (`StackItem.castFromZone`), read by "if this spell was cast from …".
+     *  Absent means cast from HAND, the ordinary case; the rebuild stamps it
+     *  either way, as every cast commit does. */
+    castFromZone: v.optional(
+        v.union(
+            v.literal("exile"),
+            v.literal("graveyard"),
+            v.literal("library")
+        )
+    ),
     /** `nth` for the ability's SOURCE permanent, read exactly as a target's is:
      *  the 0-based position among same-named permanents on `sourceSeat`'s
      *  battlefield. Omitted means 0. */
@@ -1149,6 +1160,7 @@ export type ScenarioStackItem = {
     targets?: ScenarioStackTarget[];
     x?: number;
     castOffSorceryTiming?: boolean;
+    castFromZone?: "exile" | "graveyard" | "library";
     sourceNth?: number;
 };
 
