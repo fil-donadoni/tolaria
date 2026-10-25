@@ -11,7 +11,7 @@
 // sits in a definition (a granted ability included), must be built only from
 // pieces this file has reviewed as library-free:
 //
-//   - its FIELDS — a closed list, so a new rider (a `drawsCardOnTap`-shaped
+//   - its FIELDS — a closed list, so a new rider (a "draws a card on tap"
 //     field) reds here until someone decides which side of the criterion it is
 //     on. A closure is opaque to a static sweep: `effect` is safe by its type
 //     (`ActivatedAbilityContext` exposes `addMana` only), `getManaChoices` and
@@ -220,13 +220,13 @@ describe("CR 605.1a — no stackless ability moves a card to or from a library",
             cost: { tap: true, exileTopOfLibrary: true },
             useStack: false,
             manaProduced: { G: 1 },
-            drawsCardOnTap: 1,
+            drawOnTapRider: 1,
             manaAbilityEffects: [
                 { op: "moveZone", from: "library", to: "graveyard" },
             ],
         });
         expect(offences.map((o) => o.what)).toEqual([
-            'unreviewed field "drawsCardOnTap"',
+            'unreviewed field "drawOnTapRider"',
             'unreviewed cost leg "exileTopOfLibrary"',
             'library Op "moveZone"',
         ]);
