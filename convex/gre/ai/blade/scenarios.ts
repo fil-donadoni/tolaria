@@ -729,6 +729,52 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #2798 — the declared attack target, end to end in the search: `applyMoveInSearch` carries `attackTargets` (shared `declaredAttackTargets`), and `predictCombatOutcome` routes an unblocked walker attacker's damage to `walkerDamage` (loyalty, CR 120.3c) instead of `faceDamage`. Without either, an attack at the walker and the same attack at the player are one position to the search and the pick is seed noise.",
     },
     {
+        // MUST. The other half of the attack-target pair: the SAME board, the
+        // opponent at 3 life. Now the 3/3 at the player is lethal (CR 704.5a)
+        // and Garruk is irrelevant — swing at the face.
+        //
+        // MEASURED at 400 iterations across all five seeds: with the fix the
+        // bot attacks the player on every seed; before it, it sent the lethal
+        // attacker at Garruk on every seed — the in-tree declaration played
+        // the walker attack as a face attack, so it "won" in the search too.
+        label: "attack target: takes the lethal swing at the player over the planeswalker",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Garruk Wildspeaker",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { loyalty: 3 },
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "declare-attackers" &&
+                move.attackerIds.length > 0 &&
+                Object.keys(move.attackTargets ?? {}).length === 0,
+            describe:
+                "declare-attackers with the Hill Giant at the player — no attacker aimed at the planeswalker",
+        },
+        note: "Issue #2798 — discriminating pair with the entry above (only the opponent's life differs): it pins that the walker preference comes from the walker's worth, not from a bias toward walker targets. Before the fix every seed attacked Garruk with lethal on the table.",
+    },
+    {
         // MUST. The CR 508.1g optional-attack-cost seam (issue #3214, exert).
         // Glorybringer 4/4 flier swings into an untapped Serra Angel, the one
         // creature on the board that can block it — and trades with it exactly.
