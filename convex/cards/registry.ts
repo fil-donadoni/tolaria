@@ -120,6 +120,10 @@ const combatRestrictionStaticIds = new Set<string>();
  *  `declaresLingeringStaticEffect`. */
 const lingeringStaticIds = new Set<string>();
 
+/** Ids whose definition declares a CR 612.6 full-text effect. Derived by
+ *  `setRegistryEntry`; see `declaresFullTextEffect`. */
+const fullTextIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
@@ -136,6 +140,7 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
         castPermissionIds.add(key);
     }
     if (declaresLingeringStatic(def)) lingeringStaticIds.add(key);
+    if (def.fullText) fullTextIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -286,6 +291,15 @@ const declaresIndexedStatic = (
  *  goes through `setRegistryEntry`. */
 export const declaresLingeringStaticEffect = (cardId: string): boolean =>
     declaresIndexedStatic(cardId, lingeringStaticIds);
+
+/** CR 612.6 — does `cardId`'s definition declare a full-text effect? The
+ *  precheck `syncFullTextEffects` (`gre/fullText.ts`) asks of every
+ *  battlefield permanent at every layer recompute, so a board with no such
+ *  card costs one `Set.has` per permanent. Same derived-membership discipline
+ *  and fail-slow trade as its twins: a stale TRUE costs one lookup, a stale
+ *  FALSE is impossible. */
+export const declaresFullTextEffect = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, fullTextIds);
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in

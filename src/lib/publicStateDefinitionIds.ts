@@ -15,13 +15,16 @@ type GrantHolder = {
 /** The printed cards an instance stands in for (issue #5617), which the
  *  engine reads back when the stand-in ends: a copy's original
  *  (`copiedFrom`), a transformed permanent's front
- *  (`transformedFrom`), an Adventure's or split half's parent. The server's
+ *  (`transformedFrom`), an Adventure's or split half's parent, the card under
+ *  a full-text effect (`fullTextAnchor`). The server's
  *  Manifest walker (`convex/definitionManifest.ts`) names the same ones. */
 type StandInHolder = {
     copiedFrom?: string;
     transformedFrom?: string;
     adventureOf?: string;
     splitHalfOf?: string;
+    /** CR 612.6 — the card under a full-text effect. */
+    fullTextAnchor?: { underlyingDefId: string };
 };
 
 /**
@@ -54,6 +57,7 @@ export function publicStateDefinitionIds(state: {
             c.transformedFrom,
             c.adventureOf,
             c.splitHalfOf,
+            c.fullTextAnchor?.underlyingDefId,
         ]) {
             if (standIn !== undefined) ids.add(standIn);
         }

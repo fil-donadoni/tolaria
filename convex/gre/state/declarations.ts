@@ -1160,6 +1160,19 @@ export type CardInstanceState = {
      *  The materialised fields (`types`, `colorOverride`, …) cannot answer
      *  that: they already carry every overlay a later effect added. */
     copyOptions?: CopyEffectOptions;
+    /** CR 612.6 / 613.1c — the LAYER-1 identity behind a full-text effect.
+     *  Present only while this permanent presents another card's full text
+     *  (`gre/fullText.ts`): `card.id` and `imagePrintId` then name the card
+     *  whose text it has, and this anchor holds what they were underneath —
+     *  the printed card, or the object a copy effect made it (CR 613.1a).
+     *
+     *  The anchor is what CR 707.2 copies ("text-changing effects … are not
+     *  copied", `copiableDefId`) and what the effect restores when it stops
+     *  applying. Written and cleared only by `gre/fullText.ts`. */
+    fullTextAnchor?: {
+        underlyingDefId: string;
+        underlyingImagePrintId?: string;
+    };
     /** CR 611.2a / 613.7 (issue #3236) — copy effects with a stated duration
      *  ("becomes a copy of … until end of turn", Saheeli, Sublime Artificer).
      *
@@ -4184,6 +4197,12 @@ export type LastKnownCopiable = {
      *  made from this record shows the same art. Omitted for a face-down
      *  permanent (CR 708.5: the print would name the hidden card). Cosmetic. */
     imagePrintId?: string;
+    /** CR 612.6 / 603.10 — the definition whose full text the permanent
+     *  PRESENTED as it left, when that differs from its copiable `defId`
+     *  (a full-text effect is not a copiable value, CR 707.2). Read only by
+     *  the leaves-the-battlefield look-back (`lookBackSelf`, `gre/copy.ts`),
+     *  never by a copy made from this record. */
+    fullTextDefId?: string;
     /** `GameState.turn` at departure — the key the CR 514 cleanup prune reads.
      *  Not information about the object. */
     turn: number;
