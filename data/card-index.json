@@ -8124,6 +8124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Braids, Cabal Minion",
+        "scryfallId": "4dcdcad5-e4fb-480e-984f-1ac5cdc986b9",
+        "oracleId": "d85aa59b-c6aa-4b2f-885c-59d6e5e6e8b9",
+        "firstSet": "ody",
+        "firstPrintId": "4dcdcad5-e4fb-480e-984f-1ac5cdc986b9",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Braidwood Cup",
         "scryfallId": "c2e783b7-9bd1-4f82-bf20-5d201413f5e8",
         "oracleId": "d52b72ff-a82d-430e-94c7-675c83b43e50",
@@ -19181,6 +19191,16 @@
         "firstPrintId": "2a25a472-495e-4062-b66f-c37f148b494f",
         "firstPrintSet": "uds",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dystopia",
+        "scryfallId": "5f8bb451-706d-44ff-bbad-9ddc6f9f786a",
+        "oracleId": "d0e6203b-cef2-470f-8c79-7b139290e2d5",
+        "firstSet": "all",
+        "firstPrintId": "5f8bb451-706d-44ff-bbad-9ddc6f9f786a",
+        "firstPrintSet": "all",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -42928,6 +42948,16 @@
         "source": "compiled"
     },
     {
+        "name": "Molder Slug",
+        "scryfallId": "ee355d1b-5d64-4328-94d6-7a58889b99bc",
+        "oracleId": "d7c8b636-b7ff-446d-aa51-516e2cfe2730",
+        "firstSet": "mrd",
+        "firstPrintId": "ee355d1b-5d64-4328-94d6-7a58889b99bc",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Moldering Karok",
         "scryfallId": "70c2ef30-0db5-4ef5-999c-7ffa48769421",
         "oracleId": "5d95db27-53bb-4a20-9fb8-24998b03e767",
@@ -44617,6 +44647,16 @@
         "firstPrintId": "4f707119-ede9-4697-b723-d6cea96e6f2b",
         "firstPrintSet": "som",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Necrogen Mists",
+        "scryfallId": "18291514-9ffb-4032-9c77-cec0200bf1b6",
+        "oracleId": "db25d48e-e5eb-4364-9d7a-f9757ee4ccbe",
+        "firstSet": "mrd",
+        "firstPrintId": "18291514-9ffb-4032-9c77-cec0200bf1b6",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
