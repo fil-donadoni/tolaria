@@ -4282,6 +4282,16 @@ export type GameState = {
      *  batch is pushed onto the stack in one shot and the field is cleared.
      *  Undefined at every fully-resolved point. */
     pendingTriggerBatch?: StackItem[];
+    /** CR 116.3 — the player who receives priority once a SUSPENDED trigger
+     *  announcement lands (CR 603.3b ordering, 603.3c mode, 603.3d targets),
+     *  when the triggers were raised by a special action the NON-active player
+     *  took (a morph turned face up on the opponent's turn): that player
+     *  receives priority afterward, where every other trigger landing hands it
+     *  to the active player. Set by `checkStateBasedActionsAfterSpecialAction`
+     *  only while such an announcement is pending (a stable save point, so it
+     *  is persisted); read and cleared by `landTriggerAnnouncementPriority`.
+     *  Undefined everywhere else. */
+    priorityAfterTriggerAnnouncement?: string;
     /** CR 603.12 — REFLEXIVE triggered abilities created by an effect that is
      *  still resolving ("Sacrifice a creature. When you do, …"), queued by
      *  `SpellContext.pushReflexiveTrigger` and placed on the stack by the

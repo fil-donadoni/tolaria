@@ -6,8 +6,7 @@
 //     compared with `sortKeys` equality.
 //  2. REFUSALS — the neighbours the heads must NOT read: a tap whose subject is
 //     another permanent ("enchanted land is tapped for mana" needs the tapped
-//     land's controller from the event), a cycle of ANOTHER card, and the
-//     face-up head (no engine event exists for it).
+//     land's controller from the event) and a cycle of ANOTHER card.
 //
 // The engine half (does the rebuilt ability FIRE on the right event?) is the
 // generated smoke test over the lockfile plus the factories' own tests.
@@ -156,20 +155,6 @@ describe("tap and cycle trigger heads — refusals (issue #4547)", () => {
                     typeLine: "Creature — Goblin",
                     oracleText:
                         "Cycling {R}\nWhen you cycle this card, if you control a Goblin, draw a card.",
-                })
-            )
-        ).toBe(true);
-    });
-
-    it("refuses 'turned face up': the engine has no face-up event", () => {
-        expect(
-            refused(
-                oracleCard({
-                    name: "Nantuko Vigilante",
-                    manaCost: "{3}{G}",
-                    typeLine: "Creature — Insect Druid Mutant",
-                    oracleText:
-                        "Morph {1}{G}\nWhen this creature is turned face up, destroy target artifact or enchantment.",
                 })
             )
         ).toBe(true);

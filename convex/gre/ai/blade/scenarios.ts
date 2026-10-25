@@ -5172,6 +5172,57 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.37e special action: 2/2 vanilla → 4/5 lifegain flier for {2}{W}{W}, with no competing use for the mana.",
     },
     {
+        // MORPH — the face-up TRIGGER (CR 708.8, issue #5227). The bot controls
+        // a face-down Skirk Marauder and three untapped Mountains; the opponent
+        // is at 2 life behind a Wall of Stone that blocks the 2/2 all day.
+        // Turning the Marauder up for {2}{R} is lethal ONLY through "When this
+        // creature is turned face up, it deals 2 damage to any target": the
+        // face-up 2/1 body gains nothing over the face-down 2/2. So the entry
+        // discriminates: a search whose turn-up fires no trigger sees a
+        // worthless special action and passes (measured: it does, on the
+        // entry's seed, with the event withheld).
+        //
+        // Like the entry above, the matcher names no card: the face-down
+        // permanent presents the sentinel, and it is the only one in play.
+        label: "morph: turns a face-down Skirk Marauder face up so its trigger deals the last 2 damage",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the opponent at 2 life, within reach of the face-up trigger's damage",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Skirk Marauder",
+                    owner: "me",
+                    zone: "battlefield",
+                    faceDown: true,
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Wall of Stone",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+            life: { opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { moves: [{ kind: "turn-face-up" }] },
+        note: "CR 708.8 face-up trigger: the turn-up is lethal only through 'it deals 2 damage to any target'; the opponent's wall stops the attack.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2491).
         // PAIRED WITH: "loyalty: does NOT reach for a −2 it cannot pay".
         // NEITHER ENTRY PROVES ANYTHING ALONE — a bot that never activates a

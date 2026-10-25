@@ -36,7 +36,10 @@ import { findCardInAnyZone } from "./lookup";
 import { tryGetDefinition } from "../cards";
 import { damageSourceChoicePool } from "./damageSourceChoice";
 import { applyMulliganBottomChoice } from "./mulligan";
-import { raiseTriggerTargetSelection } from "./rules";
+import {
+    landTriggerAnnouncementPriority,
+    raiseTriggerTargetSelection,
+} from "./rules";
 import {
     commitChoiceAnswer,
     dequeueHead,
@@ -518,7 +521,7 @@ export function submitTriggerMode(
     // ends "Then the appropriate player gets priority", once the triggers
     // are on the stack — the trigger has NOT resolved, it is on the stack.
     if (!raiseTriggerTargetSelection(state)) {
-        state.priorityPlayerId = state.activePlayerId;
+        landTriggerAnnouncementPriority(state);
         state.passCount = 0;
     }
     checkStateBasedActions(state);
@@ -578,7 +581,7 @@ export function submitTriggerOrder(
     // player's priority window. Despite its name the same call also runs
     // the CR 603.3c MODE announcement first (issue #2461).
     if (!raiseTriggerTargetSelection(state)) {
-        state.priorityPlayerId = state.activePlayerId;
+        landTriggerAnnouncementPriority(state);
         state.passCount = 0;
     }
     checkStateBasedActions(state);
