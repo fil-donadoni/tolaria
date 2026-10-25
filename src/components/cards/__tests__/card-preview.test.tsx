@@ -402,15 +402,18 @@ describe("CardPreview — Arena click model (#332)", () => {
         });
 
         it("re-entering the card mid-grace does not leave a stale pending close that mutes the watchdog", () => {
-            const { root, panel } = openDock();
+            const { root } = openDock();
             hoverLeave(root);
             hoverEnter(root);
             dwellPast();
             expect(dock()).toBeTruthy();
+            const livePanel = document.querySelector(
+                "[data-card-preview-dock] .card-preview-dock"
+            ) as HTMLElement;
             act(() => {
                 fireEvent.pointerLeave(root, {
                     pointerType: "mouse",
-                    relatedTarget: panel,
+                    relatedTarget: livePanel,
                 });
             });
             moveTo(document.body);
