@@ -548,6 +548,27 @@
         "turn": 4,
         "libraryCount": 20
     },
+    "counter count: draws with an Etched Oracle that keeps a counter after paying": {
+        "cards": [
+            {
+                "name": "Etched Oracle",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false,
+                "counters": {
+                    "+1/+1": 5
+                }
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 3,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
     "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor": {
         "cards": [
             {
