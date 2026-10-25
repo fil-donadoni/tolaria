@@ -1024,7 +1024,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Soldevi Golem",
     "Soldevi Machinist",
     "Solitude",
-    "Songs of the Damned",
     "Sorceress Queen",
     "Sorin, Lord of Innistrad",
     "Sorrow's Path",
