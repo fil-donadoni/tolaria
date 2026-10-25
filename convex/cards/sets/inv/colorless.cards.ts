@@ -173,8 +173,9 @@ export const alloyGolem = defineCard(() => ({
 // one mana of any color. Draw a card." CR 605.1a: an activated ability is a
 // mana ability only if "its cost and effect don't move any card to or from a
 // library" — the draw moves one, so this is an ordinary activated ability.
-// CR 602.2a puts it on the stack, the opponent gets priority, and the colour
-// is chosen, the mana added and the card drawn when it resolves; it cannot be
+// CR 602.2a puts it on the stack, which resolves only once both players pass
+// in succession (CR 117.4), so the opponent can respond; the colour is chosen,
+// the mana added and the card drawn when it resolves; it cannot be
 // activated in the middle of casting a spell to pay for it (CR 605.3a is the
 // mana abilities' licence). The colour pick is an `optionChoice` over five
 // `addMana` modes, the shape the compiler lowers this line to.

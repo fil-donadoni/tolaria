@@ -344,7 +344,8 @@ describe("Chromatic Sphere (not a mana ability: its draw moves a card from a lib
         });
         const view = projectPublicState(harness.state(), 2, "p1");
         expect(view.stack.map((i) => i.abilityId)).toEqual([ABILITY]);
-        // CR 602.2a — the opponent gets priority before it resolves.
+        // CR 117.3c / 117.3d — the activator's priority passes to the
+        // opponent, so it resolves only once both pass (CR 117.4).
         expect(view.priorityPlayerId).toBe("p2");
         const me = view.players[0]!;
         // The {1} is paid and the Sphere sacrificed as costs …
