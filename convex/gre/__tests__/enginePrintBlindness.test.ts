@@ -49,6 +49,7 @@ type Role =
     | "deck setup"
     | "token creation"
     | "copy"
+    | "full text"
     | "serialisation"
     | "cosmetic-key exclusion";
 
@@ -78,7 +79,7 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "state.ts",
-        count: 22,
+        count: 20,
         role: "token creation",
         reason: "a departing permanent's last-known copiable record keeps its print (none when face down) and a token copy made from it shows that art; `SpellContext.createToken` stamps the creating object's printing (its `imagePrintId`, else its Card ID) on the spec as `sourcePrintId`, and `createTokenPermanents` copies it onto each token instance — never read back; a token's own ability inherits its creator's `sourcePrintId` and a token copy keeps the copied token's, so edition art follows the same printing; an explicit `imagePrintId` spec pin still lands on the synthesized token definition.",
     },
@@ -96,9 +97,15 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     },
     {
         file: "copy.ts",
-        count: 14,
+        count: 10,
         role: "copy",
         reason: "a copy effect shows the copied object's art (or its CR 707.9 token-frame pin), remembers the copier's own print and restores it on revert; a face-down source lends none (CR 708.5).",
+    },
+    {
+        file: "fullText.ts",
+        count: 9,
+        role: "full text",
+        reason: "a full-text effect (CR 612.6) shows the presented card's art and restores the layer-1 print when it ends; `copiableImagePrintId` answers the print a copy of the permanent shows — the reads `copy.ts` and the departure LKI used to make inline.",
     },
     {
         file: "effects/interpreter.ts",

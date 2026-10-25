@@ -251,6 +251,16 @@ describe("groupBattlefield — altered predicate ejects to singleton", () => {
         );
     });
 
+    it("full-text anchor ejects (CR 612.6)", () => {
+        assertEjects(
+            makeCard({
+                id: "ft",
+                fullTextAnchor: { underlyingDefId: "def-shapeshifter" },
+            }),
+            "full-text anchor"
+        );
+    });
+
     it("attacking ejects", () => {
         assertEjects(makeCard({ id: "atk", isAttacking: true }), "attacking");
     });
