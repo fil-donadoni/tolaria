@@ -30,7 +30,10 @@ import DeckZoneSurface, {
 // support never decides the branch — the same pattern `compact-chrome.test.tsx`
 // and `board/__tests__/controller-landscape.test.tsx` already use.
 let mode: ViewportMode = "desktop";
-vi.mock("~/hooks/useViewportMode", () => ({
+// Partial: `useSurfaceClass` (read by `DeckZoneSurface`) imports the media
+// query constants from this module.
+vi.mock("~/hooks/useViewportMode", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("~/hooks/useViewportMode")>()),
     useViewportMode: () => mode,
 }));
 
