@@ -487,7 +487,7 @@ describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review f
         const trigger = getByRole("button", { name: "Add Basic" });
         expect(trigger.closest("form")).toBeTruthy();
         expect(trigger.style.minHeight).toBe("var(--control-h)");
-        expect(trigger.getAttribute("data-size")).not.toBe("xs");
+        expect(trigger.className).not.toContain("py-0.5");
     });
 
     it("renders no Add Basic slot in SaveDeckBar outside the dock layout (issue #3679)", () => {
