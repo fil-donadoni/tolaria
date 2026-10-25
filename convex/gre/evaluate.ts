@@ -2515,13 +2515,7 @@ export function declaredCombatDelta(
     return ownView ? attackerDelta : -attackerDelta;
 }
 
-/** The predicted exchange of a block ALREADY DECLARED (blockers confirmed,
- *  damage not yet dealt): which attackers and blockers die and what reaches
- *  the defending player, read off `state.combat.blockerAssignments` with the
- *  crude arithmetic `declaredBlockDelta` documents. `null` when no block is
- *  confirmed. Pure; no valuation — `declaredBlockDelta` prices it, and
- *  `selectRootMove`'s block-quality tie-break compares two of them axis by
- *  axis (`blockOutcomeDominates`, search.ts). */
+/** The predicted exchange of a declared block — see `declaredBlockOutcome`. */
 export type DeclaredBlockOutcome = {
     attacker: PlayerState;
     defender: PlayerState;
@@ -2534,6 +2528,13 @@ export type DeclaredBlockOutcome = {
     pass: Layer7Pass;
 };
 
+/** The predicted exchange of a block ALREADY DECLARED (blockers confirmed,
+ *  damage not yet dealt): which attackers and blockers die and what reaches
+ *  the defending player, read off `state.combat.blockerAssignments` with the
+ *  crude arithmetic `declaredBlockDelta` documents. `null` when no block is
+ *  confirmed. Pure; no valuation — `declaredBlockDelta` prices it, and
+ *  `selectRootMove`'s block-quality tie-break compares two of them axis by
+ *  axis (`blockOutcomeDominates`, search.ts). */
 export function declaredBlockOutcome(
     state: GameState
 ): DeclaredBlockOutcome | null {
