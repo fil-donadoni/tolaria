@@ -17,6 +17,12 @@ import {
     type GameSnapshot,
 } from "./bugReportSummary";
 import {
+    REPORT_RATE_LIMITED_CODE,
+    REPORT_WINDOW_MS,
+    reportRetryAt,
+    type ReportRateLimitedData,
+} from "./bugReportRateLimit";
+import {
     BUG_REPORT_CONSENT_VERSION,
     type BugReportDiagnostics,
 } from "./bugReportConsent";
@@ -316,6 +322,30 @@ export const createReportRow = internalMutation({
     returns: v.id("bugReports"),
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
+        // Rate limit (issue #4076), checked in the SAME transaction as the
+        // insert so concurrent submissions cannot both slip under the cap. A
+        // refusal throws before the insert: no row, and the action never
+        // reaches the GitHub POST.
+        const now = Date.now();
+        const recent = await ctx.db
+            .query("bugReports")
+            .withIndex("by_userId", (q) =>
+                q
+                    .eq("userId", userId)
+                    .gt("_creationTime", now - REPORT_WINDOW_MS)
+            )
+            .collect();
+        const retryAt = reportRetryAt(
+            recent.map((r) => r._creationTime),
+            now
+        );
+        if (retryAt !== null) {
+            const data: ReportRateLimitedData = {
+                code: REPORT_RATE_LIMITED_CODE,
+                retryAt,
+            };
+            throw new ConvexError(data);
+        }
         const reportId = await ctx.db.insert("bugReports", { ...args, userId });
         // The consent is recorded on the USER at the moment a report is filed
         // under it (issue #3255) — one write, in the same transaction as the
