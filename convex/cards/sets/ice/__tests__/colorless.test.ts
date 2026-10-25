@@ -1599,6 +1599,59 @@ describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.23 search / 701.24 sh
         expect(state.players[1].hand).toHaveLength(2);
         expect(state.players[1].library).toHaveLength(3);
     });
+
+    // CR 701.23b — "that many cards" states no quality: the search is mandatory.
+    function setup(handN: number, libN: number) {
+        const mask = makeInstance(jestersMask.id, {
+            id: "mask",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mk = (pre: string, n: number, zone: "hand" | "library") =>
+            Array.from({ length: n }, (_, i) =>
+                makeInstance(balduvianBears.id, {
+                    id: `${pre}${i}`,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone,
+                })
+            );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mask] }),
+                makePlayer("p2", {
+                    hand: mk("h", handN, "hand"),
+                    library: mk("l", libN, "library"),
+                }),
+            ],
+        });
+        resolveActivated(state, mask, "jesters-mask-rearrange", [
+            { type: "player", id: "p2" },
+        ]);
+        const head = state.pendingChoices![0];
+        const submit = (ids: string[]) =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ids,
+            });
+        return { state, head, submit };
+    }
+
+    it("rejects finding fewer cards than the hand held", () => {
+        const { state, submit } = setup(2, 3);
+        expect(() => submit([])).toThrow();
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+
+    it("short library: hand of 2 over an empty library still resolves", () => {
+        const { state, head, submit } = setup(2, 0);
+        expect(head.count).toBe(2);
+        submit(["h0", "h1"]);
+        expect(state.players[1].hand).toHaveLength(2);
+    });
 });
 
 describe("Force Void (counter unless pay {1}, CR 701.6a)", () => {
