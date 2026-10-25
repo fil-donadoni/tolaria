@@ -849,7 +849,14 @@ export function checkWorldRuleSBA(state: GameState): boolean {
  *  Per CR 117.5, after SBA resolution and before priority is granted, the
  *  game scans for state-triggered abilities (CR 603.8) and puts them on the
  *  stack. The two checkpoints are coupled at every priority handoff, so we
- *  fold the state-trigger scan into this entry point. */
+ *  fold the state-trigger scan into this entry point.
+ *
+ *  Deliberately UNGATED on `state.pendingChoices`: the CR 704.3 schedule
+ *  (no sweep while a resolution is suspended on a choice, CR 608.2) is enforced
+ *  by the callers that follow a resolution (`passPriority`, the auto-pass
+ *  mutations, `resumeAfterChoice`, `submitResolutionChoice`) through
+ *  `sweepUnlessResolutionSuspended`. A blanket gate here would swallow the sweep
+ *  `finalizeAsEnters` runs while its entry still owes choices (CR 707.6). */
 export function checkStateBasedActions(state: GameState): void {
     // CR 113.6c — same "canonical recompute point" placement as the two
     // refreshes inside the loop below, but hoisted OUT of the fixpoint: it
