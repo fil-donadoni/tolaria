@@ -343,18 +343,14 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             expect(count(elemental, "flying")).toBe(2);
 
             beginApplyingStaticEffects(state, sphere);
-            // Occupancy BOOKKEEPING only — deliberately not "how many
-            // occurrences survive". Layer-6 `keyword-remove` takes ONE
-            // occurrence and records one hold, so a doubled keyword still reads
-            // as present under "all creatures lose flying": a live CR 613.1f
-            // defect, pre-existing and outside this fix's release-side model.
-            // Asserting the survivor count here would lock that defect in.
-            // tracked-by: #2198
-            expect(removedKeywordRows(state, elemental)).toHaveLength(1);
+            // CR 613.1f — "all creatures lose flying" takes EVERY occurrence,
+            // printed and counter alike, one hold row each.
+            expect(count(elemental, "flying")).toBe(0);
+            expect(removedKeywordRows(state, elemental)).toHaveLength(2);
 
             ctx.removeCounter({ type: "permanent", id: "ae-2" }, "flying", 1);
-            // The live occurrence belongs to the counter grant and is the one
-            // released; the Sphere keeps holding the printed one.
+            // The counter grant's occurrence is released from the hold; the
+            // Sphere keeps holding the printed one.
             expect(count(elemental, "flying")).toBe(0);
             expect(removedKeywordRows(state, elemental)).toHaveLength(1);
 
