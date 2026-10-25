@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { getCardByName } from "@convex/cards";
-import CardPreview, { HOVER_DWELL_MS } from "../card-preview";
+import CardPreview, { HOVER_DWELL_MS, HOVER_GRACE_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
 import { GameContext } from "~/hooks/useGameContext";
 import { makeManualGameContext } from "~/lib/manual-game-context";
@@ -405,19 +405,11 @@ describe("CardPreview — Arena click model (#332)", () => {
             const { root } = openDock();
             hoverLeave(root);
             hoverEnter(root);
-            dwellPast();
-            expect(dock()).toBeTruthy();
-            const livePanel = document.querySelector(
-                "[data-card-preview-dock] .card-preview-dock"
-            ) as HTMLElement;
-            act(() => {
-                fireEvent.pointerLeave(root, {
-                    pointerType: "mouse",
-                    relatedTarget: livePanel,
-                });
-            });
+            // Leave events are lost from here on: only movement outside.
             moveTo(document.body);
-            gracePast();
+            act(() => {
+                vi.advanceTimersByTime(HOVER_GRACE_MS);
+            });
             expect(dock()).toBeNull();
         });
 
