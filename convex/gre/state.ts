@@ -8215,6 +8215,20 @@ export function emitLifeLost(
     ];
 }
 
+/** Outcome recorded in `state.gameOver`. */
+export type GameOutcome = NonNullable<GameState["gameOver"]>;
+
+/** The sole writer of `state.gameOver`. First outcome wins: once the game has
+ *  ended, later calls are no-ops, so a loss found in the same pass as an
+ *  already-registered result never replaces it. Returns true when this call
+ *  recorded the outcome. End-of-game side effects hook in here, after the
+ *  guard, so they run exactly once per game. */
+export function endGame(state: GameState, outcome: GameOutcome): boolean {
+    if (state.gameOver) return false;
+    state.gameOver = outcome;
+    return true;
+}
+
 /** Single choke point for a NON-damage life loss (CR 119.3): a "lose life"
  *  effect (`loseLife` primitive) or a paid life cost (CR 119.4). Runs the CR
  *  614 lifeloss replacement layer (Lich's "if you would lose life, ... instead"
@@ -15132,38 +15146,36 @@ export function buildSpellContext(
         loseGame(playerId: string): void {
             getPlayer(state, playerId);
             const opponent = state.players.find((p) => p.id !== playerId);
-            state.gameOver = {
+            endGame(state, {
                 loserId: playerId,
                 winnerId: opponent?.id ?? playerId,
                 reason: "life",
-            };
+            });
         },
         // CR 104.4a — the game ends in a draw. Neither player wins or loses;
         // `winnerId`/`loserId` are left empty and `isDraw` flags the outcome.
         // Used by Divine Intervention's "the game is a draw" trigger (LEG).
         drawGame(): void {
-            if (state.gameOver) return;
-            state.gameOver = {
+            endGame(state, {
                 winnerId: "",
                 loserId: "",
                 reason: "draw",
                 isDraw: true,
-            };
+            });
         },
         // CR 104.2a — a resolving spell/ability designates its winner
         // (Coalition Victory), through the SAME `state.gameOver` seam
         // State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`). No-op if
-        // the game already ended (mirrors `drawGame`'s guard) — CR 104.2a
+        // the game already ended (`endGame`'s first-writer-wins guard) — CR 104.2a
         // doesn't re-decide an already-decided game.
         winGame(playerId: string): void {
-            if (state.gameOver) return;
             getPlayer(state, playerId);
             const opponent = state.players.find((p) => p.id !== playerId);
-            state.gameOver = {
+            endGame(state, {
                 winnerId: playerId,
                 loserId: opponent?.id ?? playerId,
                 reason: "alternate-win",
-            };
+            });
         },
         getDamageDealtThisTurn(playerId: string): number {
             return state.damageDealtToPlayerThisTurn?.[playerId] ?? 0;
