@@ -21307,18 +21307,17 @@ export function reverseRestrictedManaFromPool(
     color: string,
     amount: number,
     restriction: ManaRestriction | undefined,
-    riders?: ManaRiders
+    riders?: ManaRiders,
+    castableCardId?: string
 ): void {
     const list = player.restrictedMana ?? [];
     const entry = list.find(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
-            // CR 601.3 — the same instance-keyed exclusion the balance lookups
-            // make: an Ice Cauldron unit is its own bucket and is never what a
-            // restriction-keyed (or bare-rider) reversal is addressing. The
-            // two are one key and must stay one key.
-            r.castableCardId === undefined &&
+            // CR 601.3 — instance-keyed like the forward deposit: an Ice
+            // Cauldron unit is its own bucket, addressed only by its card id.
+            r.castableCardId === castableCardId &&
             // CR 702.189a (issue #3235) — a PERSISTENT unit is likewise its own
             // bucket and is never a reversal's subject: firebending mana comes
             // from a resolved trigger, not from tapping a source, so there is
