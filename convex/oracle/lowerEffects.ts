@@ -56,6 +56,7 @@ import {
     type ActedOnNounIR,
     type AmountIR,
     type EffectSentenceIR,
+    type LibraryRestIR,
     type SubjectIR,
 } from "./grammar/shared/effectClause";
 import {
@@ -69,6 +70,7 @@ import {
     type FrameIR,
     type MoveObjectIR,
 } from "./grammar/shared/verbFrames";
+import type { AmongPickSentenceIR } from "./grammar/shared/fromAmong";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
@@ -3461,16 +3463,23 @@ function lowerSentenceBody(
             return lowerUpgrade(sentence, walk, site);
         case "mill": {
             // CR 701.17a — the top cards of the player's library go to their
-            // graveyard. No `bind`: nothing in this clause reads the milled
-            // cards back ("a land card was milled this way" is a later
-            // sentence the grammar refuses).
+            // graveyard. No `bind` unless a pick reads the milled cards back
+            // ("a land card was milled this way" is a later sentence the
+            // grammar refuses).
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
-            return lowered([
-                { op: "mill", player: player.value, count: count.value },
-            ]);
+            if (sentence.pick === undefined)
+                return lowered([
+                    { op: "mill", player: player.value, count: count.value },
+                ]);
+            return lowerMillPick(
+                player.value,
+                count.value,
+                sentence.pick,
+                walk
+            );
         }
         case "optional-shuffle-that-player-library": {
             // CR 701.24a + CR 608.2c — "that player" is the player whose
@@ -5839,6 +5848,23 @@ function lowerLookDistribute(
                 reveal: "window",
             },
         ]);
+    if (route.kind === "pick-from-among") {
+        // CR 608.2c — "them" is the window: one card the filter admits, which
+        // the controller may decline ("You may"). CR 701.20a — a revealed
+        // window shows every card; a look shows only the card "reveal it"
+        // names, after the pick. `foldLibraryRoute` admits only those two.
+        const op: Extract<EffectOp, { op: "lookDistribute" }> = {
+            op: "lookDistribute",
+            keepTo: "hand",
+            player: "controller",
+            look: look.value,
+            take: 1,
+            filter: route.pick.pick.filter,
+            optional: true,
+            reveal: sentence.reveal ? "window" : "kept",
+        };
+        return lowered([withLibraryRest(op, route.rest)]);
+    }
     const take = lowerAmount(route.count, site);
     if (!take.ok) return take;
     const op: Extract<EffectOp, { op: "lookDistribute" }> = {
@@ -5848,9 +5874,63 @@ function lowerLookDistribute(
         look: look.value,
         take: take.value,
     };
-    if (route.rest === "graveyard") op.destination = "graveyard";
-    if (route.rest === "bottom-random-order") op.randomBottom = true;
-    return lowered([op]);
+    return lowered([withLibraryRest(op, route.rest)]);
+}
+
+/**
+ * CR 701.17a + CR 400.2 — "Mill N cards. You may put a land card from among
+ * them into your hand.": the pick reaches EXACTLY the cards this mill put into
+ * the graveyard, never one that was already there. `mill.bindAll` records the
+ * milled set and the public-zone `choice.candidates` scopes the pick to it
+ * (issue #2600). Only your own mill: "your hand" is the controller's, and a
+ * card milled from another player's library is not theirs to take.
+ */
+function lowerMillPick(
+    player: EffectPlayerRef,
+    count: EffectValue,
+    pick: AmongPickSentenceIR,
+    walk: SentenceWalk
+): Lowered<EffectOp[]> {
+    if (player !== "controller")
+        return unlowerable('"from among them" picks from your own mill only');
+    // CR 400.2 — a milled card is public; there is nothing for "reveal" to show.
+    if (pick.reveal)
+        return unlowerable(
+            'a milled card is already public; "reveal it" shows nothing'
+        );
+    const milled = walk.nextBind("milled");
+    const picked = walk.nextBind("pick");
+    return lowered([
+        { op: "mill", player, count, bindAll: milled },
+        {
+            op: "choice",
+            kind: "choose-graveyard-card",
+            player: "controller",
+            zone: "graveyard",
+            candidates: [{ ref: milled }],
+            filter: pick.pick.filter,
+            count: { min: 0, max: 1 },
+            prompt: `You may put ${pick.pick.card} from among the milled cards into your hand.`,
+            bind: picked,
+        },
+        {
+            op: "moveZone",
+            cards: { ref: picked },
+            player: "controller",
+            from: "graveyard",
+            to: "hand",
+        },
+    ]);
+}
+
+/** CR 401.4 — where the cards a `lookDistribute` does not keep go. */
+function withLibraryRest(
+    op: Extract<EffectOp, { op: "lookDistribute" }>,
+    rest: LibraryRestIR
+): Extract<EffectOp, { op: "lookDistribute" }> {
+    if (rest === "graveyard") op.destination = "graveyard";
+    if (rest === "bottom-random-order") op.randomBottom = true;
+    return op;
 }
 
 /**
