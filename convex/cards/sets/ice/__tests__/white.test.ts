@@ -1093,6 +1093,10 @@ describe("Seraph (#653) — reanimate creatures it killed at the next end step",
             (c) => c.id === "victim"
         );
         expect(reanimated).toBeDefined();
+        expect(reanimated?.ownerId).toBe("p2");
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            false
+        );
         expect(reanimated?.controllerId).toBe("p1");
     });
 });
