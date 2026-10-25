@@ -108,6 +108,7 @@ import {
     readAmongPickSentence,
     type AmongPickSentenceIR,
 } from "./fromAmong";
+import { readImpulsePlaySentence, type ImpulsePlayIR } from "./impulsePlay";
 
 export const EFFECT_CLAUSE = "effect clause";
 
@@ -1484,6 +1485,12 @@ export type EffectSentenceIR =
           readonly kind: "exile-top-of-library";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+          /**
+           * CR 601.2 + CR 305.1 — "You may play that card this turn.": the
+           * sentence after a ONE-card exile, folded on by `assembleSentences`
+           * because "that card" means nothing alone (`impulsePlay.ts`).
+           */
+          readonly play?: ImpulsePlayIR;
       }
     | {
           /**
@@ -2408,6 +2415,12 @@ export type SentenceIR =
      * antecedent by `assembleSentences`; alone it points at nothing.
      */
     | { readonly role: "among-pick"; readonly pick: AmongPickSentenceIR }
+    /**
+     * CR 601.2 + CR 305.1 — "You may play that card this turn.": the tail of a
+     * one-card exile of a library's top (`impulsePlay.ts`). Folded onto its
+     * antecedent by `assembleSentences`; alone it points at nothing.
+     */
+    | { readonly role: "impulse-play"; readonly play: ImpulsePlayIR }
     /** CR 401.4 — "Put the rest <where>.", the last of the three. */
     | { readonly role: "library-rest"; readonly rest: LibraryRestIR }
     /** CR 205.2a — the per-card-type pick of a revealed window (see
@@ -3395,6 +3408,30 @@ export function assembleSentences(
                 ok: false,
                 reason: '"the revealed cards" follows no reveal of a library window',
             };
+
+        if (sentence.role === "impulse-play") {
+            // CR 608.2c — "that card" is the card the exile before it moved;
+            // after anything else it names no card this grammar can bind.
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "exile-top-of-library" ||
+                previous.play !== undefined
+            )
+                return {
+                    ok: false,
+                    reason: '"you may play that card" follows no exile of the top of a library',
+                };
+            // "that card" is singular: an exile of several cards, or of an
+            // unprinted number, names no ONE card to grant.
+            if (previous.count.kind !== "fixed" || previous.count.value !== 1)
+                return {
+                    ok: false,
+                    reason: '"that card" follows an exile of other than one card',
+                };
+            effects[effects.length - 1] = { ...previous, play: sentence.play };
+            continue;
+        }
         if (sentence.role === "library-rest")
             return {
                 ok: false,
@@ -5616,6 +5653,15 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         const library = libraryHalf(span, ctx);
         if (library !== null) return library;
+
+        const impulse = readImpulsePlaySentence(span);
+        if (impulse !== null) {
+            if (!impulse.ok) return impulse;
+            return ok({
+                role: "impulse-play" as const,
+                play: impulse.value,
+            } satisfies SentenceIR);
+        }
 
         const recoloured = readPumpThenColor(span, (half) =>
             sentenceRule.run(half, ctx)

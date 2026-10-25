@@ -3518,18 +3518,37 @@ function lowerSentenceBody(
         }
         case "exile-top-of-library": {
             // CR 701.13a + CR 406.3 — the top cards of the player's library
-            // go to exile. No `linkToSource` / `bindAll`: nothing in the
-            // sentence reads the exiled cards back (a "you may play that
-            // card" sentence is one the grammar refuses today).
+            // go to exile. A bare exile binds nothing: only the play tail
+            // below reads the exiled card back.
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
+            if (sentence.play === undefined)
+                return lowered([
+                    {
+                        op: "exileTopOfLibrary",
+                        player: player.value,
+                        count: count.value,
+                    },
+                ]);
+            // CR 601.2 + CR 305.1 — "You may play that card <window>": the
+            // grant reaches EXACTLY the card this exile moved (`bindAll`), and
+            // `includesLand` because the Oracle says "play", not "cast".
+            const exiled = walk.nextBind("exiled");
             return lowered([
                 {
                     op: "exileTopOfLibrary",
                     player: player.value,
                     count: count.value,
+                    bindAll: exiled,
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: exiled },
+                    player: "controller",
+                    window: sentence.play.window,
+                    includesLand: true,
                 },
             ]);
         }

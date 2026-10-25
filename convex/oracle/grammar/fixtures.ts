@@ -13261,4 +13261,151 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.13a + CR 601.2 + CR 305.1 — "Exile the top card of your library.
+    // Until the end of your next turn, you may play that card.": one exile
+    // whose card the next sentence grants play of. Exhibits `grantCastFromExile`
+    // over a `bindAll` binding, which the canned smoke scenario cannot seed.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6344c96a-efa5-4125-8219-d333228391cf",
+            name: "Blazing Crescendo",
+            manaCost: "{1}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Target creature gets +3/+1 until end of turn.\nExile the top card of your library. Until the end of your next turn, you may play that card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Blazing Crescendo",
+            types: ["Instant"],
+            manaCost: { X: 1, R: 1 },
+            oracleText:
+                "Target creature gets +3/+1 until end of turn.\nExile the top card of your library. Until the end of your next turn, you may play that card.",
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 3,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "exileTopOfLibrary",
+                    player: "controller",
+                    count: 1,
+                    bindAll: "$exiled1",
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: "$exiled1" },
+                    player: "controller",
+                    window: "until-end-of-your-next-turn",
+                    includesLand: true,
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 701.13a + CR 601.2 + CR 305.1 — the same exile-and-play pair inside a triggered ability.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "09be0f69-9c7f-491f-964d-bfbbc2d4251f",
+            name: "Abbot of Keral Keep",
+            manaCost: "{1}{R}",
+            typeLine: "Creature — Human Monk",
+            oracleText:
+                "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhen this creature enters, exile the top card of your library. Until end of turn, you may play that card.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Abbot of Keral Keep",
+            types: ["Creature"],
+            subtypes: ["Human", "Monk"],
+            manaCost: { X: 1, R: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhen this creature enters, exile the top card of your library. Until end of turn, you may play that card.",
+            staticAbilities: ["prowess"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "abbot-of-keral-keep-trigger",
+                    oracleText:
+                        "When this creature enters, exile the top card of your library. Until end of turn, you may play that card.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "exileTopOfLibrary",
+                            player: "controller",
+                            count: 1,
+                            bindAll: "$exiled1",
+                        },
+                        {
+                            op: "grantCastFromExile",
+                            card: { ref: "$exiled1" },
+                            player: "controller",
+                            window: "this-turn",
+                            includesLand: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.13a + CR 601.2 + CR 305.1 — the same exile-and-play pair inside an activated ability.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "17917b7a-2b2b-4a96-a21e-10cd91375660",
+            name: "Dark-Dweller Oracle",
+            manaCost: "{1}{R}",
+            typeLine: "Creature — Goblin Shaman",
+            oracleText:
+                "{1}, Sacrifice a creature: Exile the top card of your library. You may play that card this turn. (You still pay its costs. You can play a land this way only if you have an available land play remaining.)",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dark-Dweller Oracle",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Shaman"],
+            manaCost: { X: 1, R: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{1}, Sacrifice a creature: Exile the top card of your library. You may play that card this turn. (You still pay its costs. You can play a land this way only if you have an available land play remaining.)",
+            activatedAbilities: [
+                {
+                    id: "dark-dweller-oracle-ability",
+                    oracleText:
+                        "{1}, Sacrifice a creature: Exile the top card of your library. You may play that card this turn.",
+                    cost: {
+                        mana: { X: 1 },
+                        sacrificeFilter: { types: ["Creature"] },
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "exileTopOfLibrary",
+                            player: "controller",
+                            count: 1,
+                            bindAll: "$exiled1",
+                        },
+                        {
+                            op: "grantCastFromExile",
+                            card: { ref: "$exiled1" },
+                            player: "controller",
+                            window: "this-turn",
+                            includesLand: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
