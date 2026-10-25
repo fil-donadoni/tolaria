@@ -491,6 +491,14 @@ describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review f
     });
 
     it("renders no Add Basic slot in SaveDeckBar outside the dock layout (issue #3679)", () => {
+        (
+            window as unknown as { matchMedia: (q: string) => unknown }
+        ).matchMedia = (query: string) => ({
+            matches: false,
+            media: query,
+            addEventListener() {},
+            removeEventListener() {},
+        });
         const { queryByRole } = renderShell({
             sourcePanel: {
                 label: "Search",
@@ -498,6 +506,7 @@ describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review f
                 content: <div data-testid="source">results</div>,
             },
             basicsBar: <div data-testid="basics">Add Basic content</div>,
+            saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
         });
 
         expect(queryByRole("button", { name: "Add Basic" })).toBeNull();
