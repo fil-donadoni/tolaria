@@ -42,6 +42,7 @@ import {
     resetBattlefieldTransientState,
     clearExileLinksToEnteringSource,
     dropDelayedCapturesOfEnteringObject,
+    forgetDamageToEnteringObject,
     stageAsEntersEntry,
     stagedEntryAnswers,
     restoreStagedEntryAnswers,
@@ -738,6 +739,7 @@ function settleEnteredLand(
     dropDelayedCapturesOfEnteringObject(state, card.id, {
         resolvingItemPopped: false,
     });
+    forgetDamageToEnteringObject(state, card.id);
 
     // CR 305.2 — track the land drop.
     if (card.types.includes("Land")) {

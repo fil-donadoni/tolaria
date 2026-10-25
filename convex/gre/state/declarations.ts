@@ -459,6 +459,19 @@ export type CardInstanceState = {
      *  triggers (Sengir Vampire) can inspect the victim post-death. Cleared
      *  at CLEANUP (CR 514.2). */
     damagedBySources?: string[];
+    /** CR 120.3 — the SOURCE-side, game-long twin of `damagedBySources`:
+     *  instance ids of the permanents this permanent has dealt damage to
+     *  since it last entered the battlefield, each id once
+     *  (`recordSourceDamagedPermanent`). Read by a `forEach` permanents
+     *  selector's `damagedBySourceThisGame` (The Fallen's "each planeswalker
+     *  it has dealt damage to this game").
+     *
+     *  CR 400.7 at both ends: cleared when this permanent changes zones (a
+     *  returned permanent is a new object that has damaged nothing), and a
+     *  recipient that re-enters the battlefield is struck from every list
+     *  (`forgetDamageToEnteringObject`) — the engine keeps its instance id,
+     *  but it is a new object no source ever damaged. */
+    damagedPermanentsThisGame?: string[];
     /** Instance id of the permanent this card is attached to (CR 303.4b,
      *  701.3 — ADR 0065's unified attachment model). Set on auras when they
      *  ETB (cleared by SBA 704.5m when the host becomes illegal — the Aura

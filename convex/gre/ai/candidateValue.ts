@@ -20,6 +20,7 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { getOpponentId, getPlayer } from "../state";
+import { findPermanent } from "../lookup";
 import { getEffectivePT } from "../layers";
 import { getInstanceManaCost, tryGetDefinition } from "../../cards";
 import { getProducibleColorsOnBoard } from "../constants";
@@ -857,9 +858,17 @@ function resolveForEachCountAgainstBoard(
             const matched = cards.filter((c) =>
                 matchesCountFilter(c, select.filter)
             );
-            return select.excludeSource && sourceId
-                ? matched.filter((c) => c.id !== sourceId).length
-                : matched.length;
+            const members =
+                select.excludeSource && sourceId
+                    ? matched.filter((c) => c.id !== sourceId)
+                    : matched;
+            if (!select.damagedBySourceThisGame) return members.length;
+            // CR 120.3 — the source's damage history; a card not yet on the
+            // battlefield has damaged nothing, so it prices as empty.
+            const damaged = sourceId
+                ? findPermanent(state, sourceId)?.damagedPermanentsThisGame
+                : undefined;
+            return members.filter((c) => damaged?.includes(c.id)).length;
         }
         case "graveyard": {
             const pid = select.controller
