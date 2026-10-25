@@ -60,7 +60,6 @@ const cathedralOfSerra = getDefinition("e65356e6-0ead-49fd-b069-be1ea9b1c105");
 const forethoughtAmulet = getDefinition("700f53d3-0a84-4c55-8495-786f0f0783db");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const lavaSpike = getDefinition("60b2fae1-242b-45e0-a757-b1adc02c06f3");
-const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 const greenManaBattery = getDefinition("4671fa01-4a9e-4cd9-8154-b0d45e11b702");
 const hundingGjornersen = getDefinition("07d8e501-6857-4a52-a3b9-2bf0bee5b08c");
@@ -1192,12 +1191,14 @@ describe("Forethought Amulet (upkeep sacrifice unless {3}; instant/sorcery damag
             isAttacking: true,
         });
         state.players[1].battlefield.push(bear);
+        state.activePlayerId = "p2";
+        state.phase = "COMBAT_DAMAGE";
         state.combat = {
             attackerIds: ["bear"],
             confirmed: true,
             blockerAssignments: {},
             blockersConfirmed: true,
-        } as unknown as GameState["combat"];
+        };
         applyAllCombatDamage(state, {});
         expect(state.players[0].life).toBe(15);
     });
