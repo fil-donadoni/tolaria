@@ -72,11 +72,11 @@ describe("Hexdrinker — Level Up (CR 702.87)", () => {
         const ability = getDefinition(HEXDRINKER).activatedAbilities![0];
         const { state, hex } = board(0);
         expect(() =>
-            assertActivationTimingLegal(state, hex, ability)
+            assertActivationTimingLegal(state, hex, hex.controllerId, ability)
         ).not.toThrow();
         state.phase = "DECLARE_ATTACKERS";
         expect(() =>
-            assertActivationTimingLegal(state, hex, ability)
+            assertActivationTimingLegal(state, hex, hex.controllerId, ability)
         ).toThrow();
     });
 

@@ -81,33 +81,58 @@ describe("Broadside Bombardiers — Boast (CR 702.142a) activation timing, issue
         const { state, source } = board();
 
         // Never attacked — CR 702.142a's first clause.
-        expect(() => assertActivationTimingLegal(state, source, boast)).toThrow(
-            /attacked this turn/i
-        );
+        expect(() =>
+            assertActivationTimingLegal(
+                state,
+                source,
+                source.controllerId,
+                boast
+            )
+        ).toThrow(/attacked this turn/i);
 
         // Attacked this turn (the flag `gre/combat.ts` stamps at
         // declare-attackers, CR 508.1) — legal.
         source.hasAttackedThisTurn = true;
         expect(() =>
-            assertActivationTimingLegal(state, source, boast)
+            assertActivationTimingLegal(
+                state,
+                source,
+                source.controllerId,
+                boast
+            )
         ).not.toThrow();
 
         // CR 702.142a's second clause (CR 602.5b) — once each turn.
         source.activationsThisTurn = { [BOAST_ID]: 1 };
-        expect(() => assertActivationTimingLegal(state, source, boast)).toThrow(
-            /once each turn/i
-        );
+        expect(() =>
+            assertActivationTimingLegal(
+                state,
+                source,
+                source.controllerId,
+                boast
+            )
+        ).toThrow(/once each turn/i);
 
         // Next turn: CLEANUP (CR 514.2) clears both the attack flag and the
         // activation tally. Attacking again re-opens the ability.
         source.activationsThisTurn = {};
         source.hasAttackedThisTurn = undefined;
-        expect(() => assertActivationTimingLegal(state, source, boast)).toThrow(
-            /attacked this turn/i
-        );
+        expect(() =>
+            assertActivationTimingLegal(
+                state,
+                source,
+                source.controllerId,
+                boast
+            )
+        ).toThrow(/attacked this turn/i);
         source.hasAttackedThisTurn = true;
         expect(() =>
-            assertActivationTimingLegal(state, source, boast)
+            assertActivationTimingLegal(
+                state,
+                source,
+                source.controllerId,
+                boast
+            )
         ).not.toThrow();
     });
 });
