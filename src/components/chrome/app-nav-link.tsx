@@ -28,7 +28,7 @@ export default function AppNavLink({
         <Link
             to={to}
             activeOptions={{ exact }}
-            className="relative rounded-sm px-2 py-1 text-xs tracking-[0.14em] uppercase text-text-muted transition-colors hover:text-parchment"
+            className="relative flex min-h-[var(--control-h)] items-center rounded-sm px-2 text-xs tracking-[0.14em] uppercase text-text-muted transition-colors hover:text-parchment short-viewport:min-h-[var(--control-h-xs)]"
             activeProps={{
                 className: "text-accent-strong",
                 "aria-current": "page",

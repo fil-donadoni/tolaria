@@ -23,7 +23,7 @@ export default function AppHeaderAdminMenu() {
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs tracking-[0.14em] uppercase text-text-muted transition-colors hover:text-parchment">
+            <PopoverTrigger className="flex min-h-[var(--control-h)] items-center gap-1 rounded-sm px-2 text-xs tracking-[0.14em] uppercase text-text-muted transition-colors hover:text-parchment short-viewport:min-h-[var(--control-h-xs)]">
                 Admin
                 <ChevronDown className="h-3 w-3" />
             </PopoverTrigger>
