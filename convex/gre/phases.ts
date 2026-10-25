@@ -30,6 +30,7 @@ import {
     addCounterToCard,
     markInfectPoisonDamage,
     recordSourceDamagedOpponent,
+    recordSourceDamagedPermanent,
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
@@ -1996,6 +1997,7 @@ export function applyAllCombatDamage(
             ...(hit.damagedBySources ?? []),
             ev.sourceInstanceId,
         ];
+        recordSourceDamagedPermanent(state, ev.sourceInstanceId, hit.id);
     }
 
     // CR 120.3: accumulate combat damage onto the creature's marked damage,
