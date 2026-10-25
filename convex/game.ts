@@ -488,6 +488,7 @@ import {
     applyNumberChoiceSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
+import { sweepUnlessResolutionSuspended } from "./gre/pendingChoiceResume";
 import { assertCallerOwnsSeat, assertSeatOwnership } from "./gameLifecycle";
 import {
     allSeatsReady,
@@ -12625,7 +12626,9 @@ export const passPriority = mutation({
         drainAutoPasses(state);
 
         // Check SBA for game-ending conditions (CR 704.5)
-        checkStateBasedActions(state);
+        // CR 704.3 — a resolution suspended on a choice is not a priority
+        // window; the sweep waits for the answer.
+        sweepUnlessResolutionSuspended(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -12677,7 +12680,7 @@ export const submitResolutionChoice = mutation({
             secondZoneIds: args.secondZoneIds,
         });
 
-        checkStateBasedActions(state);
+        sweepUnlessResolutionSuspended(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -13143,8 +13146,9 @@ export const endTurn = mutation({
         // Immediately pass priority (and keep resolving as long as auto-pass applies)
         drainAutoPasses(state);
 
-        // Check SBA after auto-pass drain (may have resolved combat damage)
-        checkStateBasedActions(state);
+        // Check SBA after auto-pass drain (may have resolved combat damage);
+        // not while the drain left a resolution suspended (CR 704.3).
+        sweepUnlessResolutionSuspended(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -13191,8 +13195,9 @@ export const passUntilAction = mutation({
 
         drainAutoPasses(state);
 
-        // Check SBA after auto-pass drain (may have resolved combat damage)
-        checkStateBasedActions(state);
+        // Check SBA after auto-pass drain (may have resolved combat damage);
+        // not while the drain left a resolution suspended (CR 704.3).
+        sweepUnlessResolutionSuspended(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

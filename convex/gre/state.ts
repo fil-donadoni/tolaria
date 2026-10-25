@@ -2475,6 +2475,22 @@ function resolutionSuspendedOnChoice(
     });
 }
 
+/** True while a resolution is parked on a queued Pending Choice (CR 608.2):
+ *  no player holds priority in the CR 704.3 sense, so the callers that follow
+ *  a resolution skip their SBA sweep until it completes. The stackless
+ *  land-entry pay is answered after the resolution, and a trigger-placement
+ *  prompt (CR 603.3b ordering, CR 603.3c mode announcement) comes AFTER the
+ *  sweep CR 117.5 schedules before triggers go on the stack — neither
+ *  suspends a resolution. */
+export function isResolutionSuspendedOnChoice(state: GameState): boolean {
+    return (state.pendingChoices ?? []).some(
+        (c) =>
+            !isStacklessLandEntryPay(c) &&
+            c.kind !== "trigger-order" &&
+            c.kind !== "trigger-mode"
+    );
+}
+
 /** Runs a modal stack item's announced mode instance(s) (CR 700.2, ADR 0094)
  *  in place of the card/ability-level body. Returns true when the resolution
  *  suspended on a choice. Shared by the spell, activated and triggered
