@@ -871,6 +871,9 @@ export function planBatch(
                 (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
             ),
         }));
+    // Files a higher band waits on (issue #6897), filled as candidates are
+    // deferred for in-flight overlap, in plan order.
+    const reserved: { number: number; rank: number; files: string[] }[] = [];
     const inFlightUnknown = (config.inFlight ?? [])
         .filter((f) => f.files === null)
         .map((f) => f.number)
@@ -1205,10 +1208,40 @@ export function planBatch(
                 f.files.some((a) => comparable.some((c) => pathsOverlap(a, c)))
         );
         if (busy) {
+            // The deferred issue keeps its files (issue #6897): left free, the
+            // slot goes to a lower band on the same hot file, whose PR then
+            // occupies it for the whole queue wait — and the next one after.
+            reserved.push({
+                number: issue.number,
+                rank: band(issue),
+                files: comparable,
+            });
             deferred.push({
                 number: issue.number,
                 reason: `target files overlap in-flight #${busy.number}`,
                 conflictsWith: busy.number,
+            });
+            continue;
+        }
+
+        // Priority reservation (issue #6897): a strictly higher band waiting
+        // on these files gets them first. An unknown or `*` radius overlaps
+        // every reservation; an equal band keeps the order it already has.
+        const touchesAll =
+            blastRadius === "unknown" || blastRadius === "everything";
+        const holder = reserved.find(
+            (r) =>
+                r.rank < band(issue) &&
+                (touchesAll ||
+                    r.files.some((a) =>
+                        comparable.some((c) => pathsOverlap(a, c))
+                    ))
+        );
+        if (holder) {
+            deferred.push({
+                number: issue.number,
+                reason: `target files reserved by higher-priority #${holder.number}`,
+                conflictsWith: holder.number,
             });
             continue;
         }
