@@ -166,7 +166,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Ashnod's Transmogrant",
     "Aspect of Wolf",
     "Astrologian's Planisphere",
-    "Atraxa, Grand Unifier",
     "Aurochs",
     "Aurora Griffin",
     "Avalanche",
