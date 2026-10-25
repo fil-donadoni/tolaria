@@ -517,7 +517,11 @@ describe("Persist keyword expansion (CR 702.79)", () => {
             expect(getEffectiveToughness(state, back!)).toBe(1);
 
             flushPendingEvents(state);
-            killAndResolve(state, "finks");
+            removePermanentTo(state, "finks", "graveyard", "destroy");
+            processPendingActionTriggers(state);
+            resolveTriggerOrder(state);
+            // CR 603.4 — never triggers at all with a -1/-1 counter.
+            expect(state.stack).toHaveLength(0);
             expect(onField(state)).toBeUndefined();
             expect(
                 state.players[0].graveyard.some((c) => c.id === "finks")

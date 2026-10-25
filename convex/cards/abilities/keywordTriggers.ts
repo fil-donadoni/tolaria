@@ -35,6 +35,7 @@
 
 import type {
     CardDefinition,
+    CreatureDiedEvent,
     EffectObjectSelector,
     EffectOp,
     TriggeredAbility,
@@ -163,14 +164,19 @@ function battleCryTrigger(): TriggeredAbility {
  *  afterwards exactly as it would with the counter entering with it.
  *  A token has ceased to exist in the graveyard (CR 111.7), so `moveZone`
  *  finds nothing to return. */
+const hadNoMinusCounters = (event: CreatureDiedEvent): boolean =>
+    (event.creatureCounters?.["-1/-1"] ?? 0) === 0;
+
 function persistTrigger(): TriggeredAbility {
     return diedTrigger({
         id: PERSIST_TRIGGER_ID,
         oracleText:
             "When this creature dies, if it had no -1/-1 counters on it, return it to the battlefield under its owner's control with a -1/-1 counter on it.",
         scope: "self",
-        interveningIf: (event) =>
-            (event.creatureCounters?.["-1/-1"] ?? 0) === 0,
+        // CR 603.4 — checked when the event fires (`condition`, so the trigger
+        // never goes on the stack) AND again at resolution (`interveningIf`).
+        condition: hadNoMinusCounters,
+        interveningIf: hadNoMinusCounters,
         effects: [
             {
                 op: "moveZone",
