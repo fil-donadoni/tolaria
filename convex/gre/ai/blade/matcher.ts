@@ -13,10 +13,12 @@
 import { getCardByName, tryGetDefinition } from "../../../cards";
 import type { GameState, CardInstanceState } from "../../state";
 import type { Move } from "../../moves";
+import { outsideGamePool } from "../../outsideGame";
 import type { BladeExpectation, BladeSeat, MoveMatcher } from "./types";
 
 /** Every zone a scenario can place a card in. `library` is included so a
- *  matcher can name a card the bot digs up mid-resolution; `stack` is included
+ *  matcher can name a card the bot digs up mid-resolution (and the
+ *  outside-the-game pool, a card a Wish brings in); `stack` is included
  *  because the archetypal blade position is a RESPONSE — a matcher naming the
  *  spell being answered (`{ kind: "cast-spell", card: "Counterspell", target:
  *  "Lightning Bolt" }`) must resolve the stack-resident name, or the entry
@@ -30,7 +32,10 @@ export function allInstances(state: GameState): CardInstanceState[] {
             ...p.hand,
             ...p.graveyard,
             ...p.exile,
-            ...p.library
+            ...p.library,
+            // CR 400.11b — a Wish pick names a card OUTSIDE the game (not a
+            // zone, so not above): the holder and an unspent companion.
+            ...outsideGamePool(p)
         );
     }
     out.push(...state.stack);
@@ -71,7 +76,7 @@ export function instanceIdsForName(
         throw new Error(
             `Blade matcher names "${name}", but no instance of it exists in ` +
                 `the built state (checked battlefield, hand, graveyard, exile, ` +
-                `library and stack of both seats). A matcher name that resolves ` +
+                `library, outside the game and stack of both seats). A matcher name that resolves ` +
                 `to nothing can never match — under \`forbidden\` that is a ` +
                 `vacuous pass. Fix the spec or the matcher.`
         );

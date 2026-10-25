@@ -296,6 +296,11 @@ export default function PendingChoicePrompt({
     // line below.
     if (isChooser && choice.kind === "reveal-hand") return null;
 
+    // A Wish pick (CR 400.11b) for the CHOOSER owns its modal picker
+    // (`OutsideGameCardPick`, mounted by the board) with its own Done/Skip —
+    // the cards are outside the game, so nothing on the board is clickable.
+    if (isChooser && choice.kind === "choose-outside-game-card") return null;
+
     return (
         <div className={outerClassName} style={outerStyle}>
             {/* Drag chrome stays on a plain wrapper — Panel forwards no

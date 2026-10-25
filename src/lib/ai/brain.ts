@@ -1156,6 +1156,15 @@ export function chooseResolution(choice: OwedChoice): string[] {
             );
         }
 
+        // CR 400.11b — the Wish pick: a card the bot OWNS from outside the
+        // game goes to its own hand, so being picked is a pure gain. Optional
+        // ("you may", `min` 0), so a `slice(0, min)` would always decline:
+        // take the best `max` (one) whenever the pool offers any.
+        case "choose-outside-game-card":
+            return bestFirst(candidates)
+                .slice(0, max)
+                .map((c) => c.id);
+
         // Aladdin's Lamp (CR 614): look at the top X, keep the single best
         // card to draw — the rest are bottomed at random by the engine.
         case "draw-look-keep":

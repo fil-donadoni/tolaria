@@ -36,6 +36,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         // Intuition (CR 701.20a, issue #3205) — library pick of N of the
         // cards a preceding step revealed, rendered from `libraryPeek`.
         "choose-library-card",
+        // The Wish cards (CR 400.11b) — "you may" pick of one card owned from
+        // outside the game, rendered from `outsideGamePeek`.
+        "choose-outside-game-card",
     ]);
 
 export function isClientBufferedKind(kind: PendingChoiceKind): boolean {

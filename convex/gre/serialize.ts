@@ -629,6 +629,10 @@ type CompactPlayer = {
      *  against the definition). `used` rides alongside, uncompacted (a plain
      *  boolean). */
     companion?: { instance: CompactCard; used: boolean };
+    /** Outside-the-game holder (CR 400.11a, `PlayerState.outsideGame`). Each
+     *  entry is a fat `CardInstanceState` outside every real zone array, so
+     *  it takes the companion slot's `compactCard`/`expandCard` coalescing. */
+    outsideGame?: CompactCard[];
 };
 
 function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
@@ -738,6 +742,11 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
             used: player.companion.used,
         };
     }
+    if (player.outsideGame?.length) {
+        out.outsideGame = player.outsideGame.map((c) =>
+            compactCard(c, { ownerId: player.id }, ctx)
+        );
+    }
     return out;
 }
 
@@ -837,6 +846,13 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
             ),
             used: player.companion.used,
         };
+    }
+    if (player.outsideGame?.length) {
+        // CR 400.11 — outside the game is not a zone; `zone` is the same
+        // nominal "exile" tag the companion slot above carries.
+        result.outsideGame = player.outsideGame.map((c) =>
+            expandCard(c, { ownerId: player.id, zone: "exile" }, ctx)
+        );
     }
     return result;
 }

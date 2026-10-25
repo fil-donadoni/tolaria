@@ -378,6 +378,7 @@ export function heuristicChoicePrior(
         case "choose-graveyard-card":
         case "choose-exile-card":
         case "choose-library-card":
+        case "choose-outside-game-card":
         case "choose-damage-target":
         case "choose-player":
         case "draw-look-keep":
