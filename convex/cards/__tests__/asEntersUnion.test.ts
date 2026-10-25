@@ -89,7 +89,7 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
         expect(wired.map((w) => w.where)).toEqual([]);
     });
 
-    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019, name/subtypes/body/payLife #2467)", () => {
+    it("the wired legs are exactly the ones a slice has landed (discard #2389, copy #2451, mode #2019, name/subtypes/body/payLife #2467, opponent #6484)", () => {
         const kinds = new Set(
             getAllCards()
                 .flatMap(declaredAsEnters)
@@ -101,6 +101,7 @@ describe("as-enters union is declared but unwired in slice 1 (ADR 0100, #2492)",
             "discard",
             "mode",
             "name",
+            "opponent",
             "payLife",
             "subtypes",
         ]);

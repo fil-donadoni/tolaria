@@ -1054,7 +1054,7 @@ export type CardInstanceState = {
     cantBeBlockedBySubtypesThisTurn?: string[];
     /** A player chosen as this permanent enters the battlefield and stored for
      *  the rest of the game (CR 603.6b / 614.12 — "as ~ enters, choose an
-     *  opponent"). Set via `SpellContext.setChosenPlayer` from an ETB trigger;
+     *  opponent"). Set by the as-enters `opponent` leg;
      *  read by static / triggered abilities that act on the chosen player
      *  (Cursed Rack — chosen opponent's max hand size is four; The Rack —
      *  damage at the chosen player's upkeep). Cleared when the permanent leaves
@@ -5548,6 +5548,7 @@ export type StagedEntryAnswers = {
     attachedTo?: string;
     chosenName?: string;
     chosenSubtypes?: string[];
+    chosenPlayerId?: string;
     copy: {
         colorOverride?: readonly Color[];
         grantedTriggeredAbilities?: CardInstanceState["grantedTriggeredAbilities"];
