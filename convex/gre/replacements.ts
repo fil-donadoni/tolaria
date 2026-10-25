@@ -51,7 +51,7 @@ import type {
 import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import { isDamageablePermanent } from "./constants";
-import { turnFaceUp } from "./faceDown";
+import { turnFaceUpOnBattlefield } from "./faceDown";
 import { STATIC_EFFECT_CTX } from "./layers";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
@@ -366,7 +366,7 @@ function buildApplyCtx(
             return removed;
         },
         turnSelfFaceUp: () => {
-            turnFaceUp(state, source);
+            turnFaceUpOnBattlefield(state, source);
             return {
                 power: source.power ?? 0,
                 toughness: source.toughness ?? 0,
