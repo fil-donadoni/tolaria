@@ -2538,6 +2538,8 @@ function substituteTapOptionMana(
     replacements: ManaReplacementView | undefined
 ): ManaTapOption[] {
     if (!controllerId || options.length === 0) return options;
+    if (!isLand(card) && !replacements?.manaProductionColorThisTurn)
+        return options;
     const board = battlefields ?? [];
     return options.map((o) => {
         const mana = replaceLandManaType(

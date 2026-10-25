@@ -33,7 +33,7 @@ import { infernalDarkness } from "../../cards/sets/ice/black.cards";
 import { realityTwist } from "../../cards/sets/ice/blue.cards";
 import { nakedSingularity } from "../../cards/sets/ice/colorless.cards";
 import { darkRitual } from "../../cards/sets/lea/black.cards";
-import { giantGrowth } from "../../cards/sets/lea/green.cards";
+import { llanowarElves } from "../../cards/sets/lea/green.cards";
 import { ancestralRecall } from "../../cards/sets/lea/blue.cards";
 import { forest, island, mountain } from "../../cards/sets/lea/colorless.cards";
 import type { Id } from "../../_generated/dataModel";
@@ -276,18 +276,24 @@ describe("full path — announceCast + autoTapForPayment (CR 106.7)", () => {
         ).toBe(true);
     });
 
-    it("Infernal Darkness: a {G} spell is NOT castable from Forests alone", async () => {
-        const state = board(
-            [{ id: "growth", cardId: giantGrowth().id }],
-            [permanent(infernalDarkness().id, "dark", "p1")]
-        );
-        state.players[0].battlefield = state.players[0].battlefield.filter(
-            (c) => c.id !== "mtn"
-        );
-        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
-        await expect(
-            run(harness, announceCast, { cardInstanceId: "growth" })
-        ).rejects.toThrow();
+    it("Infernal Darkness: a {G} creature is NOT castable from Forests alone (and is without it)", async () => {
+        const castable = async (withDarkness: boolean) => {
+            const state = board(
+                [{ id: "elves", cardId: llanowarElves().id }],
+                withDarkness
+                    ? [permanent(infernalDarkness().id, "dark", "p1")]
+                    : []
+            );
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== "mtn"
+            );
+            const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+            return run(harness, announceCast, { cardInstanceId: "elves" });
+        };
+        // Control: the identical board without the substitution casts fine, so
+        // the rejection below is the mana, not the card.
+        await expect(castable(false)).resolves.toBeUndefined();
+        await expect(castable(true)).rejects.toThrow(/Illegal action/);
     });
 
     it("False Dawn: Divine Light ({W}) is castable with only a Mountain", async () => {
