@@ -90,13 +90,13 @@ export const gaeasTouch = defineCard(() => ({
 // through the normal damage path (CR 120, 510-style), so replacement /
 // prevention / protection effects apply and damage triggers fire. A creature
 // that dies to the exchange still deals its damage (CR 701.12). The generic
-// `ctx.fight(target)` primitive (state.ts → resolveFight) does the work; this
-// card just wires its activated ability to it. CR 605 activated ability;
+// `ctx.fight(target)` primitive (state.ts → resolveSourceDamageExchange) does
+// the work; this card just wires its activated ability to it. CR 605 activated ability;
 // CR 602.5 — the source ("this creature") is `ctx.sourceInstanceId`.
 //
 // Tracker may legally target ANY creature, including itself (2009-10-01 ruling
 // in DRK.json): there is no self-exclusion on a "target creature" requirement,
-// and `resolveFight` short-circuits the self-fight gracefully (both halves
+// and `resolveSourceDamageExchange` short-circuits the self-fight gracefully (both halves
 // resolve against the same instance — it takes 2× its own power, matching the
 // printed ruling that it "deals damage to itself ... then immediately do it
 // again").
