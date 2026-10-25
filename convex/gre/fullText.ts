@@ -34,13 +34,17 @@
  *    changing form fires no "enters" ability (Gatherer ruling, 2004-10-04).
  *
  * **Re-evaluation (CR 611.3a)** — "it applies at any given moment to whatever
- * its text indicates." `syncFullTextEffects` runs at the front of every layer
- * recompute (`beginApplyingStaticEffects`, `stopApplyingStaticEffects`,
- * `recomputeContinuousEffects` — hence every SBA pass and every save) and at
- * the graveyard funnels that hold a `GameState` (`removePermanentTo`, the
- * general graveyard mover, a cast from the graveyard). `moveCard` takes no
- * state; a caller that moves a card through it directly is caught by the next
- * recompute, which every SBA pass runs before it reads toughness.
+ * its text indicates." `syncFullTextEffects` runs at the front of the layer
+ * recomputes in `gre/state.ts` (`beginApplyingStaticEffects`,
+ * `applyExistingGrantsTo`, `recomputeContinuousEffects` — hence every SBA pass
+ * and every save) and at the graveyard funnels that hold a `GameState`
+ * (discard, mill, surveil, the general mover, a cast or a cost paid from the
+ * graveyard; `refreshFullText`). NOT on the battlefield-departure path: a
+ * simultaneous batch leaves one `removePermanentTo` call at a time, and the
+ * effect must not see a card the same event put into the graveyard (CR
+ * 603.10a) — the SBA loop re-evaluates it once the batch is over. `moveCard`
+ * takes no state; a caller that moves a card through it directly is caught by
+ * the next recompute, which every SBA pass runs before it reads toughness.
  *
  * **The CR 613.8a self-dependency.** The full text overwrites the very text
  * that holds the effect. The engine reads the effect from the LAYER-1
@@ -226,8 +230,8 @@ function present(
     top: CardInstanceState,
     topDef: CardDefinition,
     allocTimestamp: () => number
-): void {
-    if (!installFullText(state, card, topDef, top.imagePrintId)) return;
+): boolean {
+    if (!installFullText(state, card, topDef, top.imagePrintId)) return false;
     const underlyingDefId = copiableDefId(card);
     setRetainedTextRows(
         card,
@@ -235,22 +239,26 @@ function present(
         effect.retainedActivatedAbilityIds ?? []
     );
     // CR 613.7a — the presented text's static abilities take the timestamp of
-    // the object they are on. A permanent whose own text has none was never
-    // stamped, and an unstamped source is skipped by the layer-6 walk.
+    // the object they are on, minted at entry (`beginApplyingStaticEffects`).
+    // A permanent placed without an entry (a scenario fixture) has none, and
+    // an unstamped source is skipped by the layer-6 walk.
     if (card.staticSeq === undefined) card.staticSeq = allocTimestamp();
+    return true;
 }
 
 /** CR 612.6 / 611.3a — brings every battlefield permanent's full-text effect
  *  in line with the board as it stands: presents the text the condition names,
  *  or withdraws it when the condition is false. Idempotent; a board with no
- *  full-text card costs one `Set.has` per permanent.
+ *  full-text card costs one `Set.has` per permanent. Returns whether any
+ *  permanent changed form.
  *
  *  `allocTimestamp` is `allocStaticTimestamp` (`gre/state.ts`), injected
  *  because that module imports this one. */
 export function syncFullTextEffects(
     state: GameState,
     allocTimestamp: () => number
-): void {
+): boolean {
+    let changed = false;
     for (const player of state.players) {
         for (const card of player.battlefield) {
             const layer1Id = copiableDefId(card);
@@ -266,7 +274,10 @@ export function syncFullTextEffects(
             // Having the full text of a card with this permanent's own text
             // changes nothing, so it is not presented at all.
             if (!effect || !top || !topDef || topDef.id === layer1Id) {
-                withdrawFullText(state, card);
+                if (card.fullTextAnchor) {
+                    withdrawFullText(state, card);
+                    changed = true;
+                }
                 continue;
             }
             const presentedId = (card.card as { id?: string }).id;
@@ -277,7 +288,10 @@ export function syncFullTextEffects(
             ) {
                 continue;
             }
-            present(state, card, effect, top, topDef, allocTimestamp);
+            if (present(state, card, effect, top, topDef, allocTimestamp)) {
+                changed = true;
+            }
         }
     }
+    return changed;
 }

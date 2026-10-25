@@ -63,6 +63,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import {
+    declaresFullTextEffect,
     declaresLingeringStaticEffect,
     getInstanceManaCost,
 } from "../cards/registry";
@@ -4769,7 +4770,11 @@ export function beginApplyingStaticEffects(
     const cardId = (source.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-    if (effects.length === 0) return;
+    // CR 613.7a — the static abilities of the text a full-text effect presents
+    // take THIS object's timestamp, so a full-text permanent is stamped at
+    // entry like any static-ability source, whatever it shows then.
+    if (effects.length === 0 && !declaresFullTextEffect(copiableDefId(source)))
+        return;
     const seq =
         options?.preserveTimestamp && source.staticSeq !== undefined
             ? source.staticSeq
@@ -4796,10 +4801,28 @@ export function beginApplyingStaticEffects(
 
 /** CR 613.1c — layer 3's full-text effects (`gre/fullText.ts`), brought in
  *  line with the board. Runs ahead of every layers-2-to-5 recompute in this
- *  module, and at the graveyard funnels that change what a full-text effect
- *  names (CR 611.3a). */
-function syncFullText(state: GameState): void {
-    syncFullTextEffects(state, () => allocStaticTimestamp(state));
+ *  module. Returns whether any permanent changed form. */
+function syncFullText(state: GameState): boolean {
+    return syncFullTextEffects(state, () => allocStaticTimestamp(state));
+}
+
+/** CR 611.3a — a graveyard funnel changed what a full-text effect may name.
+ *  A change of form re-seats one permanent's layer-1 bases, so every layer
+ *  above is recomposed board-wide: a single-card rebuild cannot see the other
+ *  permanents' effects on it.
+ *
+ *  Deliberately NOT called on the battlefield-departure path
+ *  (`removePermanentTo`): a simultaneous batch (a wrath, one SBA sweep, combat
+ *  damage) removes its permanents one call at a time, and a full-text effect
+ *  re-evaluated between two of those calls would show a card that reached the
+ *  graveyard in the SAME event — and a permanent leaving later in the batch
+ *  would record that form as its departure LKI (CR 603.10a looks back to
+ *  before the event). The SBA loop's recompute re-evaluates it once the batch
+ *  is over (CR 704.3). */
+function refreshFullText(state: GameState): void {
+    if (!syncFullText(state)) return;
+    syncLayers2to5(state);
+    syncLayer6(state);
 }
 
 /** CR 611.2 — `source` STOPS APPLYING its static abilities: its ability-loss
@@ -4904,7 +4927,6 @@ export function stopApplyingStaticEffects(
     // out, and on a re-attach it never leaves at all), so both derivations are
     // told to skip it rather than being made to wait for the array to catch up.
     const stoppedSourceIds = new Set([source.id]);
-    syncFullText(state);
     syncLayers2to5(state, { stoppedSourceIds });
     syncLayer6(state, { stoppedSourceIds });
 }
@@ -7071,9 +7093,6 @@ export function removePermanentTo(
     // for every other card, so it is NOT what clears a layer-4 type mutation.
     // That is `revertTypeLine`'s job, called on both departure branches above.
     applyZoneCharacteristics(creature);
-    // CR 611.3a — the owner's graveyard has a new top card (after the zone
-    // characteristics above, which can make it a creature card).
-    if (toZone === "graveyard") syncFullText(state);
     // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
     // knowledge: every player watched it sit on the battlefield and watched it
     // move, so its identity in hand is known to all (CR 400.3 — a zone change
@@ -10807,6 +10826,8 @@ function applyAsEntersAnswer(
             // CR 603.2c — one instruction is ONE event with several
             // occurrences: a single CARDS_EXILED (the `moveCardsById` rule).
             emitCardsExiled(state, exiled);
+            // CR 611.3a — the graveyard's top card may have changed.
+            refreshFullText(state);
             return {};
         }
         case "sacrifice": {
@@ -13806,6 +13827,8 @@ export function buildSpellContext(
                 shuffleAfterGraveyardBoundLibraryRedirect(state, player);
             }
             emitCardsExiled(state, exiledEntries);
+            // CR 611.3a — the milled cards are the graveyard's new top.
+            refreshFullText(state);
             return milledIds;
         },
         // CR 614 — arm a one-shot replacement for the next draw `playerId`
@@ -17956,6 +17979,8 @@ export function buildSpellContext(
                 // surveiled away) — shuffle whatever's left directly.
                 shuffleAfterGraveyardBoundLibraryRedirect(state, player);
             }
+            // CR 611.3a — a surveiled card may be the graveyard's new top.
+            refreshFullText(state);
             return true;
         },
         // ADR 0026 / PRD #338 — stamp persistent knowledge on hidden-zone cards.
@@ -19965,6 +19990,8 @@ export function payGraveyardCostCards(
 ): void {
     if (destination === undefined) {
         for (const id of cardInstanceIds) exileCardFromGraveyard(owner, id);
+        // CR 611.3a — the graveyard's top card may have changed.
+        refreshFullText(state);
         return;
     }
     const moved: LibraryEntry[] = [];
@@ -19974,6 +20001,7 @@ export function payGraveyardCostCards(
         moved.push(libraryEntry(card, "graveyard"));
     }
     emitCardsPutIntoLibrary(state, moved);
+    refreshFullText(state);
 }
 
 /** SINGLE AUTHORITY for the `cost.exileThis` activation cost — "Exile this
@@ -20002,8 +20030,12 @@ export function payExileThisCost(
     cardInstanceId: string,
     from: ExileThisSourceZone
 ): boolean {
-    if (from === "graveyard")
-        return exileCardFromGraveyard(player, cardInstanceId);
+    if (from === "graveyard") {
+        const paid = exileCardFromGraveyard(player, cardInstanceId);
+        // CR 611.3a — the graveyard's top card may have changed.
+        refreshFullText(state);
+        return paid;
+    }
     if (from === "hand") {
         if (!player.hand.some((c) => c.id === cardInstanceId)) return false;
         moveCard(player, cardInstanceId, "hand", "exile");
@@ -20256,7 +20288,7 @@ function moveCardWithGraveyardReplacement(
         to
     );
     // CR 611.3a — a graveyard's top card may have changed.
-    if (from === "graveyard" || to === "graveyard") syncFullText(state);
+    if (from === "graveyard" || to === "graveyard") refreshFullText(state);
     return moved;
 }
 
@@ -20443,7 +20475,7 @@ export function removeFromZone(
     if (from === "graveyard") {
         noteGraveyardDeparture(player);
         // CR 611.3a — the graveyard has a new top card.
-        syncFullText(state);
+        refreshFullText(state);
     }
     // ADR 0026 — the stack is a public zone: putting a card on the stack makes
     // its identity universally known. Empty its persistent per-viewer knowledge
@@ -20770,7 +20802,7 @@ export function discardToGraveyard(
             },
         ]);
     }
-    if (destination === "graveyard") syncFullText(state);
+    if (destination === "graveyard") refreshFullText(state);
     emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId, cause);
     return true;
 }

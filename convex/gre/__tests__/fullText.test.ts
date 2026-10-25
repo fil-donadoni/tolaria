@@ -53,6 +53,9 @@ const HUMILITY = "a2fb7128-806b-4148-80fe-eb967f248021";
 const MAN_O_WAR = "4dbf9bf9-75cd-4b25-a3a1-43b7e029700b"; // ETB bounce
 const RUKH_EGG = "b28f9e63-e5e4-44b5-a17e-8301ff17c623"; // dies trigger
 const CLONE = "f00d33dd-4eb2-4446-9813-1923d8e2d2f3";
+const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // Grizzly Bears
+/** Conspiracy — "Creatures you control are the chosen type." (layer 4) */
+const CONSPIRACY = "411c9f22-2df0-4a63-b2be-fa02612a6ef8";
 /** Frozen Shade — `{B}: This creature gets +1/+1 until end of turn.` */
 const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
 const SHADE_PUMP = "frozen-shade-ability";
@@ -229,7 +232,25 @@ describe("full-text effect — presenting (CR 612.6 / 613.1c)", () => {
             const shifter = find(state, spell.id);
             expect(presentedDefId(shifter)).toBe(CRAW_WURM);
             expect(pt(state, spell.id)).toEqual([6, 4]);
-            // CR 613.7a — stamped at entry like any static-ability source.
+            expect(shifter.staticSeq).toBeDefined();
+        });
+    });
+
+    it("is stamped at entry even while it shows nothing (CR 613.7a)", () => {
+        withShapeshifter(() => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        graveyard: [inGraveyard(BOLT, "bolt")],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            const shifter = find(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(SHAPESHIFTER);
+            // The text it shows later takes THIS timestamp, not a later one.
             expect(shifter.staticSeq).toBeDefined();
         });
     });
@@ -309,14 +330,39 @@ describe("full-text effect — re-evaluated at once (CR 611.3a)", () => {
         });
     });
 
-    it("presents a creature that just died onto the top of the graveyard", () => {
+    it("presents a creature that just died once the SBA pass re-evaluates it (CR 704.3)", () => {
         withShapeshifter(() => {
             const state = board(
                 [inGraveyard(BOLT, "bolt")],
                 [makeInstance(CRAW_WURM, { id: "wurm" })]
             );
             removePermanentTo(state, "wurm", "graveyard");
+            checkStateBasedActions(state);
             expect(presentedDefId(find(state, "shifter"))).toBe(CRAW_WURM);
+        });
+    });
+
+    it("a funnel change of form recomposes the board's layer-4 effects on it", () => {
+        withShapeshifter(() => {
+            const state = board(
+                [inGraveyard(BEARS, "bears")],
+                [
+                    makeInstance(CONSPIRACY, {
+                        id: "conspiracy",
+                        staticSeq: 1,
+                        chosenSubtypes: ["Elf"],
+                    }),
+                ]
+            );
+            const shifter = find(state, "shifter");
+            expect(shifter.subtypes).toEqual(["Elf"]);
+            getPlayer(state, "p1").hand.push(
+                makeInstance(CRAW_WURM, { id: "wurm", zone: "hand" })
+            );
+            discardToGraveyard(state, "p1", "wurm", { kind: "cost" });
+            // No recompute: the discard funnel's own re-evaluation.
+            expect(presentedDefId(shifter)).toBe(CRAW_WURM);
+            expect(shifter.subtypes).toEqual(["Elf"]);
         });
     });
 
@@ -341,6 +387,49 @@ describe("full-text effect — re-evaluated at once (CR 611.3a)", () => {
             expect(dead.zone).toBe("graveyard");
             expect(presentedDefId(dead)).toBe(SHAPESHIFTER);
             expect(dead.fullTextAnchor).toBeUndefined();
+        });
+    });
+});
+
+describe("full-text effect — simultaneous departures look back (CR 603.10a)", () => {
+    /** The SBA pass puts the triggers it collected on the stack itself. */
+    function firedIds(state: GameState): string[] {
+        return state.stack.map((t) => t.triggeredAbilityId ?? "");
+    }
+
+    it("dying beside another creature, it leaves as the card it showed before the event", () => {
+        withShapeshifter(() => {
+            // The Bears die FIRST in the sweep and land on top of the graveyard.
+            const state = board([inGraveyard(RUKH_EGG, "egg")]);
+            const p1 = getPlayer(state, "p1");
+            p1.battlefield.unshift(
+                makeInstance(BEARS, { id: "bears", damageMarked: 2 })
+            );
+            find(state, "shifter").damageMarked = 3; // Rukh Egg is 0/3
+            checkStateBasedActions(state);
+            expect(p1.battlefield.map((c) => c.id)).toEqual([]);
+            expect(state.lastKnownCopiable?.shifter?.fullTextDefId).toBe(
+                RUKH_EGG
+            );
+            expect(firedIds(state)).toEqual(["rukh-egg-death"]);
+        });
+    });
+
+    it("a creature card dying in the same event does not lend it its text", () => {
+        withShapeshifter(() => {
+            const state = board([inGraveyard(BOLT, "bolt")]);
+            const p1 = getPlayer(state, "p1");
+            p1.battlefield.unshift(
+                makeInstance(RUKH_EGG, { id: "egg", damageMarked: 3 })
+            );
+            find(state, "shifter").damageMarked = 1; // a 0/1 as itself
+            checkStateBasedActions(state);
+            expect(p1.battlefield.map((c) => c.id)).toEqual([]);
+            expect(
+                state.lastKnownCopiable?.shifter?.fullTextDefId
+            ).toBeUndefined();
+            // One Rukh Egg trigger: the Egg's own, never the Shapeshifter's.
+            expect(firedIds(state)).toEqual(["rukh-egg-death"]);
         });
     });
 });
