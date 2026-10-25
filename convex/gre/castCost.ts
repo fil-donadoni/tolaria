@@ -22,6 +22,7 @@ import type {
 } from "../cards/types";
 import type {
     CardInstanceState,
+    CastFromZone,
     GameState,
     PendingCast,
     PlayerState,
@@ -50,48 +51,46 @@ import {
     libraryTopCastLifeCost,
 } from "./rules";
 
-/** The zone a cast originates from (CR 601.3). Normally the hand; exile for
- *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
- *  library for a cast off the TOP under a cast-from-top permission
- *  (CR 601.3, Bolas's Citadel). */
-export type CastFromZone = "hand" | "exile" | "graveyard" | "library";
+// A state type (it rides the stack item as `StackItem.castFromZone`),
+// re-exported here for the cast-path modules that already import it from here.
+export type { CastFromZone };
 
-/** CR 702.34 — the stack-item flags a Flashback cast (from the graveyard) adds:
- *  `castFromGraveyard` (read by "if this spell was cast from a graveyard"
- *  clauses) and `exileOnResolve` (so `finalizeSpellResolution` exiles the card
- *  instead of returning it to the graveyard). Empty for a normal hand/exile
- *  cast. Exported for the flashback integration test (issue #944 pattern). */
+/** CR 702.34 — the stack-item flag a Flashback cast (from the graveyard) adds:
+ *  `exileOnResolve` (so `finalizeSpellResolution` exiles the card instead of
+ *  returning it to the graveyard). The provenance itself is the commit site's
+ *  `castFromZone` stamp, not a flag of this mechanism. Empty for a normal
+ *  hand/exile cast. Exported for the flashback integration test (issue #944
+ *  pattern). */
 export function flashbackStackFlags(zone: CastFromZone): {
     exileOnResolve?: true;
-    castFromGraveyard?: true;
 } {
-    return zone === "graveyard"
-        ? { exileOnResolve: true, castFromGraveyard: true }
-        : {};
+    return zone === "graveyard" ? { exileOnResolve: true } : {};
 }
 
-/** CR 702.34 / 702.138 / 305.1-analog / 118.9 — the stack-item flags a
+/** CR 702.34 / 702.138 / 305.1-analog / 118.9 — the MECHANISM flags a
  *  graveyard cast adds, choosing between Escape, Flashback, and every OTHER
- *  graveyard-cast mechanism by the card's live capability:
- *   - Escape (CR 702.138b): `castFromGraveyard` + `escaped` — the resulting
- *     permanent escaped. NO `exileOnResolve` (the card resolves normally).
- *   - Flashback (CR 702.34a): `castFromGraveyard` + `exileOnResolve` — the card
- *     is exiled as it leaves the stack.
+ *  graveyard-cast mechanism by the card's live capability. The provenance
+ *  ("cast from a graveyard") is not one of them: every commit site stamps
+ *  `castFromZone` itself, for every zone.
+ *   - Escape (CR 702.138b): `escaped` — the resulting permanent escaped. NO
+ *     `exileOnResolve` (the card resolves normally).
+ *   - Flashback (CR 702.34a): `exileOnResolve` — the card is exiled as it
+ *     leaves the stack.
  *   - Permission cast (CR 305.1-analog / 601, issue #1149, Yawgmoth's Will)
  *     OR a per-card grant (issue #1344, Malcolm, Alluring Scoundrel):
- *     `castFromGraveyard` only — the card resolves and lands in the graveyard
- *     normally, exactly like a hand cast, no exile / no `escaped`. Both share
- *     this same fallback branch — a granted card is never also Flashback/
- *     Escape in practice, so no extra disambiguation is needed.
+ *     nothing — the card resolves and lands in the graveyard normally,
+ *     exactly like a hand cast, no exile / no `escaped`. Both share this same
+ *     fallback branch — a granted card is never also Flashback/Escape in
+ *     practice, so no extra disambiguation is needed.
  *  A non-graveyard cast adds nothing. Exported for the escape integration test. */
 export function graveyardCastStackFlags(
     state: GameState,
     card: CardInstanceState,
     zone: CastFromZone
-): { exileOnResolve?: true; castFromGraveyard?: true; escaped?: true } {
+): { exileOnResolve?: true; escaped?: true } {
     if (zone !== "graveyard") return {};
     if (hasEscape(state, card)) {
-        return { castFromGraveyard: true, escaped: true };
+        return { escaped: true };
     }
     if (hasFlashback(card)) {
         return flashbackStackFlags(zone);
@@ -103,7 +102,7 @@ export function graveyardCastStackFlags(
     // Flashback uses, so there is exactly one exile-as-it-leaves-the-stack
     // path rather than a second parallel one.
     if (card.castFromGraveyardExilesOnResolve) {
-        return { castFromGraveyard: true, exileOnResolve: true };
+        return { exileOnResolve: true };
     }
     // CR 702.81a (issue #2358) — a RETRACE cast.
     //
@@ -123,14 +122,14 @@ export function graveyardCastStackFlags(
     // output, by `retrace.test.ts`'s `graveyardCastStackFlags` and end-to-end
     // resolve cases.
     if (hasRetrace(state, card)) {
-        return { castFromGraveyard: true };
+        return {};
     }
     // CR 305.1-analog / 601 (issue #1149) / 118.9 (issue #1344) —
     // neither Escape nor Flashback: this is a plain cast under the BROAD
     // graveyard-cast permission (Yawgmoth's Will) or a per-card grant
     // (Malcolm). No exile-on-resolve, no `escaped` — the card resolves and
     // lands in the graveyard exactly like any other spell (CR 608.2m).
-    return { castFromGraveyard: true };
+    return {};
 }
 
 /** CR 702.88a — the stack-item flag a Rebound cast adds: `reboundFromHand`,

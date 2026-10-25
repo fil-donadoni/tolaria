@@ -521,7 +521,7 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
         // The two markers the escape cast path stamps on the stack item
         // (`gre/escape.ts` / `gre/state.ts`) — present here so the item is a
         // faithful escaped spell rather than a hand cast in disguise.
-        spell.castFromGraveyard = true;
+        spell.castFromZone = "graveyard";
         spell.escaped = true;
         emitSpellCastEvent(state, spell);
         processPendingActionTriggers(state);

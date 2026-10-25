@@ -349,10 +349,9 @@ describe("Retrace capability (CR 702.81)", () => {
             });
         });
 
-        it("graveyardCastStackFlags sets castFromGraveyard and NOT exileOnResolve", () => {
+        it("graveyardCastStackFlags does NOT set exileOnResolve", () => {
             const { state, bolt } = retraceState();
             const flags = graveyardCastStackFlags(state, bolt, "graveyard");
-            expect(flags.castFromGraveyard).toBe(true);
             // The headline divergence from Flashback (CR 702.34a exiles).
             expect(flags.exileOnResolve).toBeUndefined();
             // Retrace is not Escape either — nothing "escaped".

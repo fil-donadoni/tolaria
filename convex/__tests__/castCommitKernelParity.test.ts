@@ -93,7 +93,7 @@ function costRecord(item: StackItem) {
         dynamicCantBeCountered: item.dynamicCantBeCountered,
         dynamicHasteFromMana: item.dynamicHasteFromMana,
         additionalSacrificeSnapshot: item.additionalSacrificeSnapshot,
-        castFromGraveyard: item.castFromGraveyard,
+        castFromZone: item.castFromZone,
         exileOnResolve: item.exileOnResolve,
         escaped: item.escaped,
         reboundFromHand: item.reboundFromHand,

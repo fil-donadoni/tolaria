@@ -207,7 +207,7 @@ export const ironShieldElf = defineCard(() => ({
 //     (issue #1533), stamped at the graveyard reanimation chokepoints
 //     (`returnToBattlefield` / `returnCardSetToBattlefield` / Animate
 //     Dead) and the cast-from-graveyard chokepoint (`finalizeSpellResolution`
-//     → `castFromGraveyard`).
+//     → `castFromZone`).
 //   - "one or more" is `oncePerEventBatch: true` (CR 603.3b); "only once each
 //     turn" is `maxTriggersPerTurn: 1` (CR 603.2, per-source tallied).
 //   - the copy is `resolve()` (imperative): the token must copy a RUNTIME

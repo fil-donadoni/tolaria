@@ -694,7 +694,7 @@ function castExileSourceZone(
  *  so charge its additional cost on a search sandbox state, in place.
  *
  *  Returns the zone the spell leaves from (`"graveyard"`) so the caller can
- *  route `removeFromZone` and stamp `castFromGraveyard`; `undefined` for every
+ *  route `removeFromZone` and stamp `castFromZone`; `undefined` for every
  *  other cast, leaving the caller's hand/library logic untouched.
  *
  *  Charging the discard here is not an accuracy nicety, it is what TERMINATES
@@ -1577,6 +1577,9 @@ export function commitCastInSearch(
         ...(wasCastOffSorceryTiming(state, playerId)
             ? { castOffSorceryTiming: true }
             : {}),
+        // CR 601.2a — Cast Provenance, stamped exactly as the server kernel
+        // (`castCommit.ts`) stamps it, for every zone.
+        castFromZone,
         // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
         // zone-dependent stack flags, read from the SAME two helpers every real
         // commit site spreads (`gre/castCost.ts`). Flashback's `exileOnResolve`

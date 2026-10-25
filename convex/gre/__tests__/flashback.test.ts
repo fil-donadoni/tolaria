@@ -191,10 +191,10 @@ describe("Flashback capability (CR 702.34)", () => {
                 ...removed,
                 castById: "p1",
                 targets: [{ type: "player", id: "p2" }],
+                castFromZone: src.zone,
                 ...flashbackStackFlags(src.zone),
             };
             expect(stackItem.exileOnResolve).toBe(true);
-            expect(stackItem.castFromGraveyard).toBe(true);
             state.stack.push(stackItem);
             resolveTopOfStack(state);
 
@@ -231,7 +231,7 @@ describe("Flashback capability (CR 702.34)", () => {
         });
     });
 
-    describe("serialization round-trip (grantedFlashback + castFromGraveyard)", () => {
+    describe("serialization round-trip (grantedFlashback + castFromZone)", () => {
         it("preserves the granted-flashback field on a graveyard card", () => {
             const granted = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
@@ -251,7 +251,7 @@ describe("Flashback capability (CR 702.34)", () => {
             ).toEqual({ X: 2, R: 1 });
         });
 
-        it("preserves castFromGraveyard on a stack item", () => {
+        it("preserves castFromZone on a stack item", () => {
             const item: StackItem = {
                 ...makeInstance(firebolt().id, {
                     zone: "stack",
@@ -260,15 +260,40 @@ describe("Flashback capability (CR 702.34)", () => {
                 }),
                 castById: "p1",
                 exileOnResolve: true,
-                castFromGraveyard: true,
+                castFromZone: "graveyard",
             };
             const state = makeState({
                 players: [makePlayer("p1"), makePlayer("p2")],
                 stack: [item],
             });
             const round = expandState(compactState(state));
-            expect(round.stack[0].castFromGraveyard).toBe(true);
+            expect(round.stack[0].castFromZone).toBe("graveyard");
             expect(round.stack[0].exileOnResolve).toBe(true);
+        });
+
+        it("hydrates the legacy castFromGraveyard key of an already-persisted row as castFromZone graveyard", () => {
+            const item: StackItem = {
+                ...makeInstance(firebolt().id, {
+                    zone: "stack",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                castById: "p1",
+                exileOnResolve: true,
+            };
+            const state = makeState({
+                players: [makePlayer("p1"), makePlayer("p2")],
+                stack: [item],
+            });
+            const compact = compactState(state);
+            // The shape a row saved before the provenance became one fact
+            // carries: the boolean, no `castFromZone`.
+            const [persisted] = compact.stack as Record<string, unknown>[];
+            expect(persisted.castFromZone).toBeUndefined();
+            persisted.castFromGraveyard = true;
+            const round = expandState(compact);
+            expect(round.stack[0].castFromZone).toBe("graveyard");
+            expect(round.stack[0]).not.toHaveProperty("castFromGraveyard");
         });
     });
 

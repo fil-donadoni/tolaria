@@ -37,7 +37,7 @@
 import { tryGetDefinition } from "../cards";
 import { allocStaticTimestamp, getEffectiveStaticEffects } from "./state";
 import type { ContinuousEffect } from "./continuousEffects";
-import type { Duration } from "./state";
+import type { CastFromZone, Duration } from "./state";
 import type {
     CardInstanceState,
     GameState,
@@ -1016,10 +1016,10 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.shuffleIntoLibraryOnResolve) {
         base.shuffleIntoLibraryOnResolve = item.shuffleIntoLibraryOnResolve;
     }
-    // CR 702.34 — persist the Flashback cast marker so an "if this spell was
-    // cast from a graveyard" resolution (Sevinne's Reclamation) survives a DB
+    // CR 601.2a — persist the Cast Provenance so an "if this spell was cast
+    // from a graveyard" resolution (Sevinne's Reclamation) survives a DB
     // round-trip mid-resolution.
-    if (item.castFromGraveyard) base.castFromGraveyard = item.castFromGraveyard;
+    if (item.castFromZone) base.castFromZone = item.castFromZone;
     // CR 702.88a — persist the Rebound from-hand marker so the exile
     // redirect + delayed-trigger scheduling survives a DB round-trip
     // mid-resolution.
@@ -1251,8 +1251,13 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         item.shuffleIntoLibraryOnResolve =
             compact.shuffleIntoLibraryOnResolve as boolean;
     }
-    if (compact.castFromGraveyard) {
-        item.castFromGraveyard = compact.castFromGraveyard as boolean;
+    if (compact.castFromZone) {
+        item.castFromZone = compact.castFromZone as CastFromZone;
+    } else if (compact.castFromGraveyard) {
+        // Legacy compact shape: a row persisted before the provenance became
+        // one fact carried only this boolean. Read it so a Flashback / Escape
+        // spell on a live game's stack keeps its provenance across the deploy.
+        item.castFromZone = "graveyard";
     }
     if (compact.reboundFromHand) {
         item.reboundFromHand = compact.reboundFromHand as boolean;
