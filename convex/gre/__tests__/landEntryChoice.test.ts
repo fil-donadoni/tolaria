@@ -19,8 +19,13 @@ import {
     applyPlayLandFromGraveyard,
 } from "../playLand";
 import { applyLandEntrySubmit } from "../pendingChoiceSubmit";
-import { getPlayer, resolveTopOfStack } from "../state";
-import type { StackItem } from "../state";
+import {
+    getPlayer,
+    processPendingActionTriggers,
+    removePermanentTo,
+    resolveTopOfStack,
+} from "../state";
+import { fireDelayedTriggers } from "../phases";
 import { legalActions } from "../legalActions";
 import { projectPublicState } from "../../gameProjections";
 
@@ -338,15 +343,22 @@ describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", ()
 // the land is PLAYED from hand. A shock land put onto the battlefield by an
 // effect (library tutor / reanimation / put-onto-battlefield) funnels through
 // `putReanimatedOnBattlefield`; it MUST offer the same pay-choice, never enter
-// untapped for free. Driven here via Seraph's `seraph-reanimate` delayed
+// untapped for free. Driven here via Seraph's delayed reanimation
 // trigger (`returnToBattlefield` — the identical funnel a fetch land uses).
 describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
     function reanimateShock(life = 20) {
+        // A creature-land (toughness 5, so SBAs leave it alone on re-entry) that
+        // Seraph damaged: it dies, the death trigger
+        // schedules the end-step reanimation, and the end step fires it.
         const shock = makeInstance(steamVents().id, {
             id: "shock",
             controllerId: "p1",
             ownerId: "p1",
-            zone: "graveyard",
+            zone: "battlefield",
+            types: ["Land", "Creature"],
+            power: 1,
+            toughness: 5,
+            damagedBySources: ["seraph"],
         });
         const seraphInst = makeInstance(seraph().id, {
             id: "seraph",
@@ -356,21 +368,14 @@ describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
         });
         const state = makeState({
             players: [
-                makePlayer("p1", {
-                    life,
-                    battlefield: [seraphInst],
-                    graveyard: [shock],
-                }),
+                makePlayer("p1", { life, battlefield: [seraphInst, shock] }),
                 makePlayer("p2"),
             ],
         });
-        state.stack.push({
-            ...seraphInst,
-            zone: "stack",
-            castById: "p1",
-            delayedTriggerId: "seraph-reanimate",
-            delayedPayload: { deadId: "shock", controllerId: "p1" },
-        } as unknown as StackItem);
+        removePermanentTo(state, "shock", "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        fireDelayedTriggers(state, "next-end-step");
         resolveTopOfStack(state);
         return state;
     }
