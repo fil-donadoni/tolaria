@@ -208,7 +208,7 @@ export type MoveObjectIR =
     /** CR 400.3 — "a Forest you control": one of the controller's permanents. */
     | { readonly kind: "own-permanent"; readonly filter: EffectCardFilter }
     /**
-     * CR 401.2 + CR 701.13a — "the top card of your library", "the top three
+     * CR 701.13a — "the top card of your library", "the top three
      * cards of target player's library": the first cards of an ordered
      * library, a deterministic pick. Exiled only (the `exileTopOfLibrary` Op
      * is the move that names them); `owner` is the library's player.
@@ -429,7 +429,7 @@ const GRAVEYARD_END =
     /^the (top|bottom) (?:(\w+) )?card of (your|target player(?:'|’)s) graveyard$/;
 /** CR 401.2 — an end of an ordered library: a move no Op spells, refused by name. */
 const LIBRARY_TOP_CARDS = /^the top (?:\S+ )?cards? of (?:your|.+?) library$/;
-/** CR 401.2 — the library ends the `library-top` class reads, exactly. */
+/** The library ends the `library-top` class reads, exactly. */
 const LIBRARY_TOP_EXACT =
     /^the top (?:(card)|(\S+) cards) of (your|target player's|target opponent's) library$/;
 /** CR 400.7 — "<quantity> <descriptor> from <zone>". */
