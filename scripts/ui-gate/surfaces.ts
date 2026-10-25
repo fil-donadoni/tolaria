@@ -3172,6 +3172,60 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-builder-columns",
+        // The Zone's Columns sheet, open at measurement (issue #3677).
+        // VIEWPORT-SPLIT like `deck-builder-filters`: the `Columns` trigger
+        // (inside the `View` fold on a phone) exists on the coarse surfaces
+        // only; a fine pointer keeps the per-Column glyphs, so the claim is
+        // "measured where it exists".
+        mounts: ["src/components/deckbuilder/zone-columns-sheet.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 Zone columns sheet (/decks/create \u2192 Columns)",
+        // The new-column input, the same accessible name in the sheet's
+        // footer and in the inline control a fine pointer opens.
+        asserts: [
+            {
+                label: "columns: new column name",
+                locator: { role: "textbox", name: "New Maindeck column name" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            const sheet = "[data-columns-sheet]";
+            const trigger = page
+                .getByRole("button", { name: /^Manage .* columns$/ })
+                .filter({ visible: true })
+                .first();
+            if (!(await trigger.isVisible())) {
+                const fold = page
+                    .getByRole("button", { name: /^View/ })
+                    .filter({ visible: true })
+                    .first();
+                if (await fold.isVisible()) {
+                    await fold.click({ timeout: STEP_TIMEOUT });
+                }
+            }
+            if (!(await trigger.isVisible())) {
+                // A fine pointer renders no trigger: open the inline add.
+                await pressNamed(
+                    page,
+                    "Add Maindeck column",
+                    "the Maindeck zone header"
+                );
+                await settle(page, ['[aria-label="New Maindeck column name"]']);
+                return;
+            }
+            await trigger.click({ timeout: STEP_TIMEOUT });
+            if (!(await visible(page, sheet, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "`Columns` opened no columns sheet within 8s"
+                );
+            }
+            await settleOnLayer(page, sheet, "`Columns`");
+        },
+    },
+    {
         id: "deck-builder-stats",
         // The Stats dialog over the lane's own deck, open at measurement
         // (issue #4421) — a real Maindeck, so the curve, the pips and the type

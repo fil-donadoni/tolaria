@@ -24,7 +24,10 @@ vi.mock("motion/react", () => ({
 // pre-existing test in this file implicitly relied on before this mock
 // existed; only the orientation-hint tests below override it.
 let viewportMode: "portrait" | "landscape-compact" | "desktop" = "desktop";
-vi.mock("~/hooks/useViewportMode", () => ({
+// Partial: `useSurfaceClass` (read by `DeckZoneSurface`) imports the media
+// query constants from this module.
+vi.mock("~/hooks/useViewportMode", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("~/hooks/useViewportMode")>()),
     useViewportMode: () => viewportMode,
 }));
 
