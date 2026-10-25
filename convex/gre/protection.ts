@@ -303,8 +303,13 @@ export function hasProtectionFromEachOpponent(
     card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
         TextChangeCarrier
 ): boolean {
-    return liveProtectionAbilities(card).includes(
-        PROTECTION_FROM_EACH_OPPONENT
+    // Read through the plural parser so a combined grant ("protection from red
+    // and from each of your opponents", CR 702.16g) counts, not only the
+    // whole-string literal.
+    return liveProtectionAbilities(card).some((ability) =>
+        parseProtectionQualities(ability)?.some(
+            (quality) => quality.kind === "each-opponent"
+        )
     );
 }
 

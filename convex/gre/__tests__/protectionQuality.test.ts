@@ -28,7 +28,9 @@ import {
 import {
     getProtectionQualities,
     isProtectedFrom,
+    isProtectedFromController,
     isProtectedFromSource,
+    PROTECTION_FROM_EACH_OPPONENT,
     isProtectionAbility,
     parseProtectionQualities,
     parseProtectionQuality,
@@ -323,6 +325,23 @@ describe("renderKeyword -> parseProtectionQualities round trip (CR 702.16g)", ()
             { kind: "color", color: "R" },
             { kind: "color", color: "B" },
         ]);
+    });
+
+    it("a combined grant naming each opponent protects against an opponent's source", () => {
+        const card = makeInstance(GRIZZLY_BEARS, {
+            id: "combo",
+            controllerId: "p1",
+            staticAbilities: [
+                render([
+                    "red",
+                    PROTECTION_FROM_EACH_OPPONENT.slice(
+                        "protection from ".length
+                    ),
+                ]),
+            ],
+        });
+        expect(isProtectedFromController(card, "p2")).toBe(true);
+        expect(isProtectedFromController(card, "p1")).toBe(false);
     });
 
     it("every non-protection parameter shape renders a non-protection string", () => {
