@@ -70,7 +70,6 @@ import { activateAbilityOnState } from "../../../../game";
 import {
     UPKEEP_P1,
     blockEvent,
-    fireEntered,
     fireTrigger,
     getManaSubstitutionsEmpty,
     vanilla,
@@ -3167,31 +3166,27 @@ describe("Shapeshifter (choose-number-on-entry + upkeep, CR 614.1c / 614.12a / 6
 
 // Cursed Rack (CR 402.2 chosen-opponent max-hand-size override)
 describe("Cursed Rack (chosen opponent's max hand size is four)", () => {
+    // CR 614.1c — enters by resolving as a spell; the as-enters pick is made
+    // before it enters.
     const setup = () => {
-        const rack = makeInstance(cursedRack.id, {
-            id: "rack",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [rack] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2")],
         });
+        pushSpell(state, cursedRack.id, "p1");
+        resolveTopOfStack(state);
+        const rack = state.players[0].battlefield.find(
+            (c) => c.card.id === cursedRack.id
+        )!;
         return { state, rack };
     };
 
     it("stores the chosen opponent on entry", () => {
-        const { state, rack } = setup();
-        fireEntered(state, rack, "cursed-rack-choose-opponent");
-        const live = state.players[0].battlefield.find((c) => c.id === "rack")!;
-        expect(live.chosenPlayerId).toBe("p2");
+        const { rack } = setup();
+        expect(rack.chosenPlayerId).toBe("p2");
     });
 
     it("caps the chosen opponent's max hand size at 4 (not the controller's)", () => {
-        const { state, rack } = setup();
-        fireEntered(state, rack, "cursed-rack-choose-opponent");
+        const { state } = setup();
         // Controller is unaffected (default 7); chosen opponent is capped at 4.
         expect(effectiveMaxHandSize(state.players[0], state)).toBe(7);
         expect(effectiveMaxHandSize(state.players[1], state)).toBe(4);
@@ -3199,10 +3194,9 @@ describe("Cursed Rack (chosen opponent's max hand size is four)", () => {
 
     it("override survives the wire-format round-trip", () => {
         const { state, rack } = setup();
-        fireEntered(state, rack, "cursed-rack-choose-opponent");
         const round = expandState(compactState(state));
         expect(
-            round.players[0].battlefield.find((c) => c.id === "rack")!
+            round.players[0].battlefield.find((c) => c.id === rack.id)!
                 .chosenPlayerId
         ).toBe("p2");
         expect(effectiveMaxHandSize(round.players[1], round)).toBe(4);
@@ -3210,7 +3204,6 @@ describe("Cursed Rack (chosen opponent's max hand size is four)", () => {
 
     it("no cap once the Rack leaves the battlefield", () => {
         const { state, rack } = setup();
-        fireEntered(state, rack, "cursed-rack-choose-opponent");
         removePermanentTo(state, rack.id, "graveyard");
         expect(effectiveMaxHandSize(state.players[1], state)).toBe(7);
     });
@@ -3219,11 +3212,6 @@ describe("Cursed Rack (chosen opponent's max hand size is four)", () => {
 // The Rack (CR 603.6a chosen-player upkeep damage = 3 − hand size)
 describe("The Rack (chosen player's upkeep: 3 − hand size damage)", () => {
     const setup = (opponentHand: number) => {
-        const rack = makeInstance(theRack.id, {
-            id: "rack",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
         const hand = Array.from({ length: opponentHand }, (_, i) =>
             makeInstance(onulet.id, {
                 id: `oh${i}`,
@@ -3233,12 +3221,11 @@ describe("The Rack (chosen player's upkeep: 3 − hand size damage)", () => {
             })
         );
         const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [rack] }),
-                makePlayer("p2", { hand, life: 20 }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { hand, life: 20 })],
         });
-        fireEntered(state, rack, "the-rack-choose-opponent");
+        // CR 614.1c — enters by resolving as a spell; the pick precedes entry.
+        pushSpell(state, theRack.id, "p1");
+        resolveTopOfStack(state);
         return { state };
     };
 
