@@ -17,7 +17,7 @@ import {
     hasNonManaActivatedAbility,
     untapRestriction,
 } from "../../abilities/static/untapRestriction";
-import { colorChoiceModes } from "../../abilities/chooseColor";
+import { COLOR_OPTIONS } from "../../abilities/chooseColor";
 
 // Tsabo's Web — {2} Artifact. "When this artifact enters, draw a card. Each
 // land with an activated ability that isn't a mana ability doesn't untap during
@@ -117,23 +117,14 @@ export const powerArmor = defineCard(() => ({
 // hand-written test required beyond the catalogue-wide `validateEffectScript`
 // sweep + `effectScriptSmoke` generator (per-Op regime, ADR 0045/0046),
 // except where noted per-card below (a new trigger-math shape gets a
-// dedicated test; Alloy Golem's ETB colour choice, once resolve()-justified,
-// is now migrated to `effects[]` — see its own comment).
+// dedicated test; Alloy Golem's colour pick is an as-enters mode — see its
+// own comment).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Alloy Golem — {6} Artifact Creature — Golem 4/4. "As this creature enters,
 // choose a color. This creature is the chosen color. (It's still an
-// artifact.)" (CR 105.2 / 613.1e layer 5 colour-set; CR 603.6b "as ~ enters,
-// choose".)
-//
-// Migrated resolve()→effects[] (ADR 0045): the stale marker here cited the
-// `setColor` Op as `status: "planned"` — it has since shipped (issue #1083,
-// promoted from `EFFECT_OP_BACKLOG`), the same Shyft shape (`ice/blue.cards.ts`) /
-// Kavu Chameleon shape (this set's `green.ts`): `optionChoice` — one mode per
-// colour, each a single-Op `setColor` body targeting `$source` with no
-// `duration` (indefinite, mirrors the removed `setColorOverride` call this
-// closure made directly). Scope is `self`, so the entering permanent IS the
-// source — `$source` needs no `entered` payload.
+// artifact.)" (CR 105.2 / 613.1d layer 5 colour; CR 614.1c / 614.12a "as ~
+// enters, choose" is a replacement effect, not a trigger, CR 603.6d.)
 export const alloyGolem = defineCard(() => ({
     id: "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
     rarity: "uncommon",
@@ -145,28 +136,25 @@ export const alloyGolem = defineCard(() => ({
     subtypes: ["Golem"],
     power: 4,
     toughness: 4,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "alloy-golem-choose-color",
-            oracleText:
-                "As this creature enters, choose a color. This creature is the chosen color.",
-            scope: "self",
-            effects: [
-                {
-                    op: "optionChoice",
-                    player: "controller",
-                    prompt: "Choose a color.",
-                    modes: colorChoiceModes((color) => [
-                        {
-                            op: "setColor",
-                            target: { ref: "$source" },
-                            colors: [color],
-                        },
-                    ]),
-                },
-            ],
-        }),
-    ],
+    // CR 614.1c / 614.12a (issue #6483) — "As this creature enters, choose a
+    // color" is a replacement effect (CR 603.6d: not a trigger), so the pick is
+    // declared on `entersWith.asEnters` (ADR 0100 D3) and made before the Golem
+    // enters. The answer lands on `chosenModeId`, which selects the mode whose
+    // `color-grant` static the layer system applies (CR 613.1d, layer 5; the
+    // Golem is colourless, so the grant IS its colour).
+    entersWith: { asEnters: [{ kind: "mode" }] },
+    modes: COLOR_OPTIONS.map(({ id, label }) => ({
+        id,
+        label,
+        oracleText: `This creature is ${label.toLowerCase()}.`,
+        staticEffects: [
+            {
+                kind: "color-grant" as const,
+                applies: EFFECT_AFFECTS_SELF,
+                colors: [id],
+            },
+        ],
+    })),
 }));
 
 // Chromatic Sphere — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add

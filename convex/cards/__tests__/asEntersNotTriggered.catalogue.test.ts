@@ -26,7 +26,6 @@ const AS_ENTERS_CHOICE = /\bAs [^.\n]*?\benters\b[^.\n]*?,\s*(choose|name)\b/i;
 
 /** Cards still authored on the trigger shape, each with its migration issue. */
 const AS_ENTERS_TRIGGER_ALLOWLIST: Readonly<Record<string, string>> = {
-    "Alloy Golem": "tracked-by: #6483",
 };
 
 /** The triggered abilities that restate the card's "As … enters" sentence —
