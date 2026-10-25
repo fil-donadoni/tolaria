@@ -11,7 +11,7 @@ import {
     landscapePileTilePx,
 } from "~/lib/landscape-board-bands";
 import {
-    pendingChoiceRequiresBoardTap,
+    pendingChoiceCollapsesStack,
     pendingTargetWantsBoard,
 } from "~/lib/pending-choice-labels";
 import ControllerStripCommandStack from "./controller-strip-command-stack";
@@ -81,7 +81,7 @@ import BugReportButton from "../bug-report/bug-report-button";
  *  duplicated here rather than shared: that file has been through several
  *  review-fixup rounds and touching it for an unrelated surface risked
  *  regressing behavior no test here exercises. The two PURE predicates it
- *  depends on ({@link pendingChoiceRequiresBoardTap},
+ *  depends on ({@link pendingChoiceCollapsesStack},
  *  {@link pendingTargetWantsBoard}) moved to `pending-choice-labels.ts` and
  *  are imported by both call sites — extracting the state-and-timing-
  *  sensitive part was the higher-risk half; the pure part was not. */
@@ -131,9 +131,7 @@ export default function ControllerLandscapeStrip({
     }
     const activeChoice = pendingChoices?.[0];
     const stackAutoCollapsedForBoardTap =
-        (!!activeChoice &&
-            activeChoice.playerId === playerId &&
-            pendingChoiceRequiresBoardTap(activeChoice)) ||
+        pendingChoiceCollapsesStack(activeChoice, playerId, stackItems) ||
         pendingTargetWantsBoard(pendingTarget, playerId);
     const stackOpen =
         stackItems.length > 0 &&
