@@ -3839,6 +3839,8 @@ function foldLibraryRoute(
             : "a pick from a looked-at window reveals the card it takes";
     // CR 701.20a — the per-type pick names "the revealed cards": a window that
     // was only looked at has none.
+    if (route.kind === "pick-per-type" && route.rest !== "bottom-random-order")
+        return "a per-type pick of a revealed window is read only with the rest on the bottom in a random order";
     if (route.kind === "pick-per-type" && !window.reveal)
         return '"the revealed cards" follows a look, not a reveal (CR 701.20a)';
     if (

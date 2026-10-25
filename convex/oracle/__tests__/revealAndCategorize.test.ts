@@ -67,6 +67,14 @@ describe("revealAndCategorize — refusals (fail-closed)", () => {
     it("the pick without a window before it", () => refused(`${PICK} ${REST}`));
     it("the pick without the rest after it", () =>
         refused(`Reveal the top ten cards of your library. ${PICK}`));
+    it("the rest in any order, a form no fixture pins", () =>
+        refused(
+            `Reveal the top ten cards of your library. ${PICK} Put the rest on the bottom of your library in any order.`
+        ));
+    it("the rest into the graveyard, a form no fixture pins", () =>
+        refused(
+            `Reveal the top ten cards of your library. ${PICK} Put the rest into your graveyard.`
+        ));
     it("a different category list", () =>
         refused(
             `Reveal the top ten cards of your library. For each color, you may put a card of that color from among the revealed cards into your hand. ${REST}`
