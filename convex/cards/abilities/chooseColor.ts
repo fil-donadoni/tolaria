@@ -36,11 +36,10 @@ const COLOR_LABELS: ReadonlyArray<[Color, string]> = [
  *  `colorChoiceModes`' `optionChoice`-Op modes at all. Sets `color` on every
  *  entry, same as `colorChoiceModes` (both feed `PendingChoiceOptions`, which
  *  draws a `ManaSymbol` when `color` is present). Historical note: earlier
- *  revisions of Kavu Chameleon, Alloy Golem and Shyft also hand-rolled their
- *  own options here without a `color` tag; all three have since migrated to
- *  `colorChoiceModes` below (issue #2306 review finding 2 re-checked the
- *  call sites — none of the four remaining colour pickers omits `color`
- *  today). Import this instead of a new local const when the shape fits
+ *  revisions of Kavu Chameleon and Shyft also hand-rolled their own options
+ *  here without a `color` tag; both have since migrated to `colorChoiceModes`
+ *  below (issue #2306 review finding 2 re-checked the call sites — none of
+ *  the remaining colour pickers omits `color` today). Import this instead of a new local const when the shape fits
  *  (primitive-reuse mandate — extract, don't re-duplicate). */
 export const COLOR_OPTIONS: { id: Color; label: string; color: Color }[] =
     COLOR_LABELS.map(([color, label]) => ({ id: color, label, color }));
