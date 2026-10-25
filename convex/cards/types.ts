@@ -570,6 +570,20 @@ export const PERMANENT_TYPES = [
     "Planeswalker",
 ] as const satisfies readonly CardType[];
 
+/** CR 205.2a — every card type, alphabetical. The categories of a "for each
+ *  card type" pick; `PERMANENT_TYPES` is the subset that stays on the battlefield. */
+export const CARD_TYPES = [
+    "Artifact",
+    "Battle",
+    "Creature",
+    "Enchantment",
+    "Instant",
+    "Kindred",
+    "Land",
+    "Planeswalker",
+    "Sorcery",
+] as const satisfies readonly CardType[];
+
 export type CardSupertype =
     | "Basic"
     | "Legendary"

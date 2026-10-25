@@ -104,6 +104,7 @@ import {
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 import {
     printsAmongPick,
+    printsTypePick,
     readAmongPickSentence,
     type AmongPickSentenceIR,
 } from "./fromAmong";
@@ -2218,6 +2219,16 @@ export type LibraryRouteIR =
           readonly kind: "pick-from-among";
           readonly pick: AmongPickSentenceIR;
           readonly rest: LibraryRestIR;
+      }
+    | {
+          /**
+           * CR 205.2a — "For each card type, you may put a card of that type
+           * from among the revealed cards into your hand. Put the rest on the
+           * bottom of your library in a random order." — a categorized pick
+           * of the revealed window (`revealAndCategorize`), then the rest.
+           */
+          readonly kind: "pick-per-type";
+          readonly rest: LibraryRestIR;
       };
 
 /** Where the cards a look-and-route does not keep go (CR 401.4). */
@@ -2387,6 +2398,9 @@ export type SentenceIR =
     | { readonly role: "among-pick"; readonly pick: AmongPickSentenceIR }
     /** CR 401.4 — "Put the rest <where>.", the last of the three. */
     | { readonly role: "library-rest"; readonly rest: LibraryRestIR }
+    /** CR 205.2a — the per-card-type pick of a revealed window (see
+     *  `LibraryRouteIR` `pick-per-type`). */
+    | { readonly role: "type-pick" }
     /** CR 701.20a — the window half of a `reveal-until` (see there). */
     | { readonly role: "reveal-until"; readonly filter: EffectCardFilter }
     /** The routing half of a `reveal-until` (see there). */
@@ -2598,7 +2612,7 @@ export function assembleSentences(
     // CR 608.2c — a library window waits for the sentence that routes it.
     let window: Extract<SentenceIR, { role: "library-look" }> | null = null;
     // The pick "from among them" of a window, waiting for "Put the rest …".
-    let windowPick: AmongPickSentenceIR | null = null;
+    let windowPick: AmongPickSentenceIR | "per-type" | null = null;
     // CR 105.1 — a "Choose a color." marker waits for the ONE sentence that
     // reads its pick (`choose-color-grant-protection`); every other
     // follower, including a second marker or the end of the list, has no
@@ -3308,6 +3322,10 @@ export function assembleSentences(
                 windowPick = sentence.pick;
                 continue;
             }
+            if (sentence.role === "type-pick" && windowPick === null) {
+                windowPick = "per-type";
+                continue;
+            }
             let route: LibraryRouteIR;
             if (windowPick !== null) {
                 if (sentence.role !== "library-rest")
@@ -3315,11 +3333,14 @@ export function assembleSentences(
                         ok: false,
                         reason: "a pick from among them is not followed by where the rest go",
                     };
-                route = {
-                    kind: "pick-from-among",
-                    pick: windowPick,
-                    rest: sentence.rest,
-                };
+                route =
+                    windowPick === "per-type"
+                        ? { kind: "pick-per-type", rest: sentence.rest }
+                        : {
+                              kind: "pick-from-among",
+                              pick: windowPick,
+                              rest: sentence.rest,
+                          };
                 windowPick = null;
             } else if (sentence.role === "library-route")
                 route = sentence.route;
@@ -3357,6 +3378,11 @@ export function assembleSentences(
             effects[effects.length - 1] = { ...previous, pick: sentence.pick };
             continue;
         }
+        if (sentence.role === "type-pick")
+            return {
+                ok: false,
+                reason: '"the revealed cards" follows no reveal of a library window',
+            };
         if (sentence.role === "library-rest")
             return {
                 ok: false,
@@ -3828,6 +3854,12 @@ function foldLibraryRoute(
         return window.reveal
             ? '"reveal it" picks from a window that was looked at, not revealed'
             : "a pick from a looked-at window reveals the card it takes";
+    // CR 701.20a — the per-type pick names "the revealed cards": a window that
+    // was only looked at has none.
+    if (route.kind === "pick-per-type" && route.rest !== "bottom-random-order")
+        return "a per-type pick of a revealed window is read only with the rest on the bottom in a random order";
+    if (route.kind === "pick-per-type" && !window.reveal)
+        return '"the revealed cards" follows a look, not a reveal (CR 701.20a)';
     if (
         route.kind === "take" &&
         route.other === true &&
@@ -4146,7 +4178,7 @@ export function optionalSentenceRule(
         // it is folded onto the window or mill before it, and the marker
         // says the pick may take nothing, not that a whole effect is optional.
         // A pick with no such antecedent is refused by `assembleSentences`.
-        if (printsAmongPick(capitalise(probe)))
+        if (printsAmongPick(capitalise(probe)) || printsTypePick(probe))
             return inner.run(capitalise(probe), ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
@@ -6303,6 +6335,7 @@ function handPickSentence(span: string, ctx: unknown) {
 }
 
 function libraryHalf(span: string, ctx: unknown) {
+    if (printsTypePick(span)) return ok({ role: "type-pick" as const });
     const pick = readAmongPickSentence(span, ctx);
     if (pick !== null) {
         if (!pick.ok) return pick;
