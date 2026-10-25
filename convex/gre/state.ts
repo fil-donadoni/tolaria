@@ -160,6 +160,7 @@ import {
     getExtraLandDrops,
     getLegalTargets,
     NO_TARGETING_SOURCE,
+    passesCastPhaseRestriction,
     raiseTriggerTargetSelection,
     targetingSourceFromCard,
     protectionSourceFromTargeting,
@@ -18368,6 +18369,11 @@ export function buildSpellContext(
             // is rules text on the printed card no longer exists once it is
             // cast face down. `turnFaceDown` is run on a throwaway shallow
             // copy so the real card is untouched when the gate refuses.
+            //
+            // Issue #2177 — the card's own `castPhaseRestriction` is NOT
+            // re-checked here: it is rules text of the printed card, which a
+            // face-down spell no longer has (CR 708.2), the same reason the
+            // gate above reads the face-down characteristics.
             const faceDownProbe: CardInstanceState = { ...inHand };
             turnFaceDown(state, faceDownProbe, "cast-face-down");
             if (
@@ -18532,7 +18538,16 @@ export function buildSpellContext(
             // of letting a forbidden cast through. One shared function, two
             // call sites — the announce/enforce split `getLegalActions` and
             // the cast mutation already use.
-            return castProhibitionReason(playerId, found, state) === undefined;
+            // CR 601.3 — the card's OWN phase/turn restriction ("Cast this
+            // spell only before the combat damage step", Berserk) is a
+            // prohibition printed on the card, not sorcery-speed timing from
+            // its TYPE: a cast during resolution (CR 608.2g) skips priority,
+            // but the card's own text still binds. `castChosenSpell`
+            // re-checks it authoritatively.
+            return (
+                passesCastPhaseRestriction(state, found) &&
+                castProhibitionReason(playerId, found, state) === undefined
+            );
         },
         getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
             // CR 116.2a / 305 (issue #1961) — the LAND twin of
@@ -18776,6 +18791,15 @@ export function buildSpellContext(
                 undefined
             ) {
                 return false; // forbidden — not played (CR 601.3a / 117.3)
+            }
+
+            // CR 601.3 — the card's OWN phase / turn restriction is a
+            // prohibition printed on the card, not sorcery-speed timing from
+            // its TYPE, so a controlled cast or one during resolution
+            // (CR 608.2g) still honours it. Same `passesCastPhaseRestriction`
+            // `getLegalActions` calls.
+            if (!passesCastPhaseRestriction(state, handCard)) {
+                return false; // forbidden — not played (CR 601.3)
             }
 
             // CR 118.8 — additional sacrifice cost. The picked permanent must
