@@ -33,6 +33,8 @@ const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
 const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5 ground
 const SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
 const WALKER = getCardByName("Garruk Wildspeaker").id; // loyalty 3
+const MAMMOTH = getCardByName("War Mammoth").id; // 3/3 trample
+const BIRD = getCardByName("Birds of Paradise").id; // 0/1 flying
 
 const attacker = (cardId: string, id: string): CardInstanceState =>
     makeInstance(cardId, {
@@ -153,6 +155,31 @@ describe("declaredBlockDelta — an unblocked attacker at a walker is not face d
         const state = declared([attacker(GIANT, "g")], [pw], ["g"], true);
         const worth = permanentRealisedValue(state, pw, DEFAULT_EVAL_WEIGHTS);
         expect(declaredBlockDelta(state, "p2")).toBeCloseTo(-worth, 6);
+    });
+});
+
+describe("declaredBlockDelta — trample overflow at a walker (CR 702.19b)", () => {
+    it("the overflow past a chump blocker costs the attacked walker, not the player", () => {
+        // A 3/3 trampler at Garruk (loyalty 2) is chumped by a 0/1: 1 is
+        // lethal to the blocker, 2 tramples over to the walker and kills it.
+        const block = (defenderBoard: CardInstanceState[]) => {
+            const state = declared(
+                [attacker(MAMMOTH, "m")],
+                [defenderCreature(BIRD, "bird"), ...defenderBoard],
+                ["m"],
+                true
+            );
+            state.combat!.blockerAssignments = { bird: ["m"] };
+            state.combat!.blockedAttackerIds = ["m"];
+            return state;
+        };
+        const pw = walker(2);
+        const present = block([pw]);
+        const worth = permanentRealisedValue(present, pw, DEFAULT_EVAL_WEIGHTS);
+        const gone = block([]);
+        expect(
+            declaredBlockDelta(gone, "p2") - declaredBlockDelta(present, "p2")
+        ).toBeCloseTo(worth, 6);
     });
 });
 

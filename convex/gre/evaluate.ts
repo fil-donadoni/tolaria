@@ -2137,6 +2137,8 @@ function walkerDamagePrice(
             price += permanentRealisedValue(state, walker, weights, pass);
             continue;
         }
+        // A creature-planeswalker's body is `evaluateCreature`'s, which no
+        // loyalty scales; its marked damage (CR 120.3e) is not modelled here.
         if (isCreature(walker)) continue;
         const damaged: CardInstanceState = {
             ...walker,
@@ -2685,14 +2687,16 @@ export function declaredBlockDelta(
             }
         }
         // CR 702.19b (issue #5785) — a trampler's power past lethal to EVERY
-        // blocker reaches the player. Not `remaining` above: that walk skips a
-        // blocker it cannot kill, but trample owes lethal to all of them
-        // first. An attacker aimed at a planeswalker (CR 508.1b) is excluded.
-        if (combat.attackTargets?.[atkId] === undefined) {
-            const overflow = playerDamageOf(state, atk, true, blockers, pass);
-            if (infect) facePoison += overflow;
-            else faceDamage += overflow;
-        }
+        // blocker reaches what it is attacking. Not `remaining` above: that
+        // walk skips a blocker it cannot kill, but trample owes lethal to all
+        // of them first. Aimed at a planeswalker (CR 508.1b), the overflow is
+        // that walker's loyalty, never the player's life.
+        const overflow = playerDamageOf(state, atk, true, blockers, pass);
+        const walkerId = combat.attackTargets?.[atkId];
+        if (walkerId !== undefined) {
+            walkerDamage[walkerId] = (walkerDamage[walkerId] ?? 0) + overflow;
+        } else if (infect) facePoison += overflow;
+        else faceDamage += overflow;
     }
 
     const value = (cards: CardInstanceState[]) =>
