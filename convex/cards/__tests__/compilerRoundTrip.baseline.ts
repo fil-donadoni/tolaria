@@ -956,7 +956,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Saproling Infestation",
     "Saproling Symbiosis",
     "Satya, Aetherflux Genius",
-    "Satyr Wayfinder",
     "Savaen Elves",
     "Savage Offensive",
     "Scarecrow",
