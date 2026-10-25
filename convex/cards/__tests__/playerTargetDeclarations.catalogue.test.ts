@@ -65,16 +65,6 @@ const ALLOWLIST: ReadonlyArray<{
             "to the whole flat target list, not to the group that declared it, " +
             "so a second target group folds the opponent into the 5-damage split.",
     },
-    {
-        cardId: "4be2aa3b-207b-4d21-abfb-6788520c7676",
-        site: "spell",
-        issue: 2912,
-        reason:
-            "Drafna's Restoration. BLOCKED: no cross-slot \"candidate is in " +
-            "target N's zone\" filter exists, so two independent groups would " +
-            "let the caster announce one player and raid the other's graveyard " +
-            "(illegal per CR 601.2c).",
-    },
 ];
 
 function requirementTypes(req: TargetRequirement | undefined): string[] {

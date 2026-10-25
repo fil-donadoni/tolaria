@@ -1127,6 +1127,22 @@ export interface TargetRequirement {
      *  itself (`enumerateTargetGroupTuples`, `gre/moves.ts`). Meaningless on a
      *  primary requirement (no earlier group). */
     excludePriorTargets?: boolean;
+    /** CROSS-SLOT zone-owner constraint (CR 601.2c, issue #2912): "target
+     *  artifact cards from target PLAYER's graveyard" (Drafna's Restoration)
+     *  names a player in one group and cards in a zone of THAT player in
+     *  another. Set on a LATER group (an `additionalTargetRequirements`
+     *  entry) of `zone: "graveyard"`: the walk's advance
+     *  (`advanceTargetGroupOrFinalize`, `game.ts`) lowers it into the
+     *  registered `zoneOwnerId` filter, naming the player an EARLIER group
+     *  announced, so `getLegalTargets`, `selectTarget` and the client's
+     *  clickability gate all read one registry check. A directive, never
+     *  checked against a candidate. Meaningless on a primary requirement. */
+    zoneOwnerOfPriorPlayerTarget?: boolean;
+    /** The player whose zone the candidate must be in (CR 108.4a / 404.1 for a
+     *  graveyard card: its OWNER). Registered filter, lowered from
+     *  `zoneOwnerOfPriorPlayerTarget` at the group hand-off; not authored on a
+     *  card. */
+    zoneOwnerId?: string;
     /** CR 702.33g / 601.2c — this GROUP is announced only if the spell was
      *  KICKED. "If part of a spell's ability has its effect only if that
      *  spell was kicked, and that part of the ability includes any targets,

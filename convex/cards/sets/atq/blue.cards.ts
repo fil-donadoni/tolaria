@@ -88,24 +88,11 @@ export const reconstruction = defineCard(() => ({
 // Drafna's Restoration — {U} Sorcery. "Put any number of target artifact cards
 // from target player's graveyard on top of their library in any order."
 // (CR 601.2c variable target count, CR 400.7 zone change, CR 401 library
-// order.) Targets one-or-more artifact graveyard cards (the engine's graveyard
-// target branch already scopes to one player per card, and Antiquities' oracle
-// reads "from a single graveyard"; `controller: "any"` lets the caster recur
-// from any player's bin).
-//
-// DIVERGENCE (tracked-by: #2912) — the oracle's "target PLAYER's graveyard" is
-// a second target in its own right, and it is NOT declared here, so a player
-// with protection from everything (CR 702.16b)
-// or with shroud (CR 702.18) is not screened out (issue #2801). Declaring it
-// as an independent `additionalTargetRequirements` group is NOT the fix: the
-// two groups would be chosen independently, so the caster could announce one
-// player and then pick cards out of the OTHER player's graveyard — an
-// announcement CR 601.2c makes illegal, which the engine would accept and then
-// resolve as a no-op. What this needs is a CROSS-SLOT filter ("the candidate
-// card is in target N's graveyard"); the only relational filter that exists
-// today is `sameController`, which is permanent-only. Until then the owner
-// stays DERIVED from the announced cards, which keeps the two picks consistent
-// by construction.
+// order.) Two announced targets: the PLAYER (slot 0) and the artifact cards,
+// whose group carries `zoneOwnerOfPriorPlayerTarget` so only THAT player's
+// graveyard is offered (CR 601.2c, CR 404.1). The player is declared, so
+// protection from everything (CR 702.16b) screens it out like any player
+// target; shroud (CR 702.18) likewise.
 //
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since
@@ -121,12 +108,16 @@ export const drafnasRestoration = defineCard(() => ({
         "Put any number of target artifact cards from target player's graveyard on top of their library in any order.",
     manaCost: { U: 1 },
     types: ["Sorcery"],
-    targetRequirement: {
-        type: "Artifact",
-        count: { min: 1 },
-        zone: "graveyard",
-        controller: "any",
-    },
+    targetRequirement: { type: "player", count: 1 },
+    additionalTargetRequirements: [
+        {
+            type: "Artifact",
+            count: { min: 1 },
+            zone: "graveyard",
+            controller: "any",
+            zoneOwnerOfPriorPlayerTarget: true,
+        },
+    ],
     // NOT DSL-migratable (ADR 0045): "on top in any order" is a
     // reorder-FROM-choice — the player's `reorder-library` pick order must
     // feed back into a subsequent `reorderLibraryTop` call, which the Effect

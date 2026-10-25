@@ -347,6 +347,11 @@ type StructuralKey =
     // (the real, registered filter) — never itself checked against a
     // candidate.
     | "excludePriorTargets"
+    // CR 601.2c (issue #2912) — a directive read when the target walk ADVANCES
+    // to this group (`advanceTargetGroupOrFinalize`, `game.ts`), lowering the
+    // earlier player pick into `zoneOwnerId` (the real, registered filter) —
+    // never itself checked against a candidate.
+    | "zoneOwnerOfPriorPlayerTarget"
     // CR 702.33g / 601.2c (issue #4220) — a declaration read at ANNOUNCEMENT,
     // deciding whether this group is announced AT ALL on this cast
     // (`castAnnouncedTargetGroups`, `gre/kicker.ts`). A group it drops is
@@ -991,6 +996,21 @@ const sameControllerDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 601.2c + CR 404.1 (issue #2912) — cross-slot zone-owner constraint:
+// "target artifact cards from target player's graveyard". The value is the
+// player an EARLIER group announced, lowered into the requirement at the group
+// hand-off (`zoneOwnerOfPriorPlayerTarget`, `game.ts`). A card in a graveyard
+// belongs to its OWNER (CR 108.4a), so the check reads `ownerId`.
+const zoneOwnerIdDescriptor = defineFilter<string>({
+    lower: (req) => req.zoneOwnerId,
+    checks: {
+        card: (card, value) =>
+            card.ownerId === value
+                ? null
+                : "Must target a card in the announced player's graveyard",
+    },
+});
+
 /** Resolves the LIVE controllerId a `sameController`-constrained
  *  requirement's NEXT pick must match (CR 601.2c, issue #1104), from
  *  whatever has already been chosen under the SAME requirement. Undefined
@@ -1541,6 +1561,7 @@ export const REGISTRY = {
     playerControlsMoreThan:
         playerControlsMoreThanDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
+    zoneOwnerId: zoneOwnerIdDescriptor as FilterDescriptor<unknown>,
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
     controlledSinceTurnStart:
         controlledSinceTurnStartDescriptor as FilterDescriptor<unknown>,
@@ -1978,6 +1999,7 @@ export const CARD_FILTER_KEYS = [
     "excludeSubtypes",
     "colorFilterAny",
     "sameController",
+    "zoneOwnerId",
 ] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
@@ -1993,6 +2015,7 @@ export type CardFilterValues = Partial<{
     excludeSubtypes: string[];
     colorFilterAny: ReadonlyArray<Color>;
     sameController: boolean;
+    zoneOwnerId: string;
 }>;
 
 /** Builds `CardFilterValues` directly off a `PendingTarget` (or the client's
