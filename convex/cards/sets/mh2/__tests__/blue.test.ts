@@ -20,7 +20,7 @@ import { getDefinition, getCardByName } from "../../../index";
 
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const subtlety = getDefinition("701256d5-1389-48b7-9581-d6037209bd06");
-const thoughtMonitor = getDefinition("c5b53f25-25e7-47db-b356-65e93e3b0059");
+const thoughtMonitor = getDefinition("996c1952-8d10-4296-8960-ff8993833649");
 
 // Subtlety — {2}{U}{U} 3/3, flash/flying, blue evoke. First TARGETED trigger
 // over a SPELL on the stack (CR 603.3d / 113, #1193/#1205): "choose up to one

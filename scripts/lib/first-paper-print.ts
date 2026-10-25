@@ -35,13 +35,18 @@ export const SCRYFALL = "https://api.scryfall.com";
  *  Inventions, Zendikar Expeditions): a bonus sheet inserted in another set's
  *  boosters, released the SAME day as that set — so the released-ascending
  *  order can put it first (Verdurous Gearhulk read as `mps`, rarity
- *  "special", instead of `kld`), yet it is never the card's home set. */
+ *  "special", instead of `kld`), yet it is never the card's home set. `promo` (issue #1844): a prerelease or event
+ *  promo is the SAME card with a date stamp and a set overlay, released before
+ *  its real set (Thought Monitor read as `pmh2` 71s, not `mh2` 71) — the id
+ *  resolves card art, so the stamped print would render instead of the clean
+ *  one. */
 export const NON_PRINT_SET_TYPES: ReadonlySet<string> = new Set([
     "token",
     "memorabilia",
     "minigame",
     "funny",
     "masterpiece",
+    "promo",
 ]);
 
 export interface PaperPrint {
@@ -133,14 +138,17 @@ export async function resolveFirstPaperPrint(
         // this the card reads exactly like a Scryfall that never answered.
         // Only `funny` earns the fallback — a token or memorabilia print is
         // not a printing of a card at all.
-        // `masterpiece` earns it on the same argument: skipped only because a
-        // real printing exists beside it.
+        // `masterpiece` and `promo` earn it on the same argument: skipped only
+        // because a real printing exists beside it (a promo-only card has no
+        // other home).
         const home =
             paper[0] ??
             prints.find(
                 (p) =>
                     !p.digital &&
-                    (p.set_type === "funny" || p.set_type === "masterpiece")
+                    (p.set_type === "funny" ||
+                        p.set_type === "masterpiece" ||
+                        p.set_type === "promo")
             );
         if (home === undefined) return null;
         return { id: home.id, set: home.set, rarity: home.rarity };
