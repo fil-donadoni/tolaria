@@ -971,7 +971,7 @@
     },
     {
         "file": "convex/gre/ai/__tests__/nonZoneChoiceCandidates.bot.test.ts",
-        "test": "NON_ZONE_CANDIDATE_SOURCE > names exactly the six kinds whose candidates are not cards",
+        "test": "NON_ZONE_CANDIDATE_SOURCE > names exactly the seven kinds whose candidates are not cards",
         "reason": "Partition check over a Record tsc keeps total but cannot keep right: pins which kinds are non-card (the pick-pile bug)."
     },
     {
