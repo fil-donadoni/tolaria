@@ -2227,6 +2227,9 @@ function seedDeclaredStack(
             ...(entry.castOffSorceryTiming
                 ? { castOffSorceryTiming: true }
                 : {}),
+            // CR 601.2a — stamped as every cast commit stamps it; the spec
+            // omits the ordinary hand case.
+            castFromZone: entry.castFromZone ?? "hand",
         };
         // CR 113.6c (issue #3278) — a card that declares off-battlefield
         // characteristics IS them everywhere except the battlefield, the stack
@@ -3642,7 +3645,8 @@ export const STACK_DROPPED_PREFIX = "stack:";
  *     `CARD_STATE_ALLOWLIST` says of the same keys;
  *  3. announcement — the four facts the spec lowers (`castById` → `controller`,
  *     `targets`, `chosenX` → `x`, `abilityId`) plus `castOffSorceryTiming`,
- *     which is lowered for the reason its own spec field documents.
+ *     which is lowered for the reason its own spec field documents. A spell's
+ *     `castFromZone` is lowered too, spell-only (`STACK_SPELL_ALLOWLIST`).
  *
  * NOT here, deliberately, and each one a refusal: `triggeredAbilityId` /
  * `triggerSourceId` / `triggerEvent` (a trigger is a later slice — and since
@@ -3692,6 +3696,11 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
     "abilityId",
     "castOffSorceryTiming",
 ]);
+
+/** CR 601.2a — the key only a SPELL item may carry and the `spell` entry
+ *  lowers: its Cast Provenance (`castFromZone`, hand omitted). An ability or a
+ *  trigger is not cast, so on either one it stays residue. */
+const STACK_SPELL_ALLOWLIST = new Set<string>(["castFromZone"]);
 
 /**
  * The CLONE keys an `ability` item may additionally carry, because its item is
@@ -3974,6 +3983,7 @@ function lowerStack(
             .filter(
                 (k) =>
                     !STACK_ITEM_ALLOWLIST.has(k) &&
+                    !(!isClone && STACK_SPELL_ALLOWLIST.has(k)) &&
                     !(isClone && STACK_ABILITY_CLONE_KEYS.has(k)) &&
                     !(isTrigger && STACK_TRIGGER_ALLOWLIST.has(k)) &&
                     (item as Record<string, unknown>)[k] !== undefined
@@ -4148,6 +4158,11 @@ function lowerStack(
             ...(item.chosenX !== undefined ? { x: item.chosenX } : {}),
             ...(item.castOffSorceryTiming
                 ? { castOffSorceryTiming: true }
+                : {}),
+            ...(!isClone &&
+            item.castFromZone !== undefined &&
+            item.castFromZone !== "hand"
+                ? { castFromZone: item.castFromZone }
                 : {}),
         });
     });

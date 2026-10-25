@@ -4072,6 +4072,11 @@ function finalizeSpellResolution(
             wasCast: true,
             enteredFromGraveyard: item.castFromZone === "graveyard",
         });
+        // CR 400.7 — the provenance belongs to the SPELL; the permanent it
+        // became is a new object that was never cast from anywhere. Read just
+        // above into the event, and dropped so no ability or trigger cloned
+        // from the permanent inherits it.
+        delete item.castFromZone;
     } else {
         // CR 702.131a (issue #1460) — the INSTANT/SORCERY form of Ascend is
         // NOT handled here: it is the spell's first spell ability and must
@@ -7806,6 +7811,9 @@ function pushCastCopyTrigger(
         // resolves. The `castCopySnapshot` below keeps the spell's own marker,
         // which is what the copies need.
         overloaded: undefined,
+        // CR 601.2a — a trigger is not cast: the watched spell's provenance
+        // stays on the spell.
+        castFromZone: undefined,
         // CR 707.2 / 702.47c (issue #2394) — the snapshot exists ONLY to build
         // copies, and a copy does not inherit a text-changing effect, so the
         // splice reveal is stripped here rather than at each consumer: a
@@ -7863,6 +7871,8 @@ function collectSelfCastTriggers(
             // marker, which would otherwise swap this trigger's own
             // `ctx.targets` for the spell's "each" sweep.
             overloaded: undefined,
+            // CR 601.2a — nor its provenance: a trigger is not cast.
+            castFromZone: undefined,
         });
         pushed = true;
     }
@@ -18384,6 +18394,8 @@ export function buildSpellContext(
                 ...card,
                 zone: "stack",
                 castById: item.castById,
+                // CR 601.2a — Cast Provenance, as every cast commit stamps it.
+                castFromZone: "hand",
                 // CR 307.1 / 117.1a / 601.3a / 608.2g (issue #2473) — this
                 // cast happens mid-resolution of `item` itself, which is
                 // still on the stack (popped only after `item`'s `resolve()`

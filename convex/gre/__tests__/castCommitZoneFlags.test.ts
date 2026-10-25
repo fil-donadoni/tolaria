@@ -10,6 +10,7 @@
 // first cut of the kernel stamped the announcement's set on both placements.
 import { describe, expect, it } from "vitest";
 import { commitCast, type CastCommitPlan } from "../castCommit";
+import { resolveTopOfStack } from "../state";
 import { getCardByName, getDefinition } from "../../cards";
 import {
     makeInstance,
@@ -142,4 +143,27 @@ describe("Cast Commit — Cast Provenance for every zone (CR 601.2a)", () => {
             });
         }
     }
+});
+
+describe("Cast Provenance belongs to the spell, not the permanent (CR 400.7)", () => {
+    it("a resolved permanent spell drops castFromZone once it has entered", () => {
+        const state = provenancePosition("graveyard");
+        commitCast(state, {
+            casterId: "p1",
+            cardInstanceId: "spell",
+            cardDef: getDefinition(getCardByName("Grizzly Bears").id),
+            manaCost: {},
+            source: { zone: "graveyard" },
+            legs: {},
+            record: {},
+            mode: {},
+            placement: { kind: "announce" },
+        });
+        resolveTopOfStack(state);
+        const bears = state.players[0].battlefield.find(
+            (c) => c.id === "spell"
+        );
+        expect(bears).toBeDefined();
+        expect(bears).not.toHaveProperty("castFromZone");
+    });
 });
