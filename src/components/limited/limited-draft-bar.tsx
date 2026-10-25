@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "~/lib/utils";
 import OverflowNavLink from "@/components/chrome/overflow-nav-link";
+import ContextualBarFrame from "@/components/chrome/contextual-bar-frame";
 
 /** What the bar counts while a Draft is running. `null` in Sealed reveal
  *  mode, where there is no pack and no pass. */
@@ -76,9 +77,9 @@ export default function LimitedDraftBar({
     const waiting = pack !== null && pack.cardsLeft === 0;
 
     return (
-        <div
-            data-slot="draft-room-bar"
-            className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-raised px-2 text-xs text-text-muted"
+        <ContextualBarFrame
+            slot="draft-room-bar"
+            className="gap-2 text-xs text-text-muted"
         >
             <span className="hidden min-w-0 truncate text-display tracking-[0.14em] text-accent-strong sm:inline">
                 {title}
@@ -151,7 +152,7 @@ export default function LimitedDraftBar({
                 // a stake in. The sibling `More` keeps its role+name promise
                 // because an `aria-label` is authoritative either way.
                 data-draft-table-entry=""
-                className="flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment"
+                className="flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment short-viewport:min-h-[var(--control-h-xs)]"
             >
                 Table
             </button>
@@ -162,7 +163,7 @@ export default function LimitedDraftBar({
                 // See the Table entry above (issue #3650).
                 data-draft-pool-toggle=""
                 className={cn(
-                    "flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment",
+                    "flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment short-viewport:min-h-[var(--control-h-xs)]",
                     poolVisible && "text-accent-strong"
                 )}
             >
@@ -172,7 +173,7 @@ export default function LimitedDraftBar({
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger
                     aria-label="More"
-                    className="flex min-h-[var(--control-h)] min-w-[var(--control-h)] shrink-0 items-center justify-center rounded-sm transition-colors hover:text-parchment data-[state=open]:text-accent-strong"
+                    className="flex min-h-[var(--control-h)] min-w-[var(--control-h)] shrink-0 items-center justify-center rounded-sm transition-colors hover:text-parchment data-[state=open]:text-accent-strong short-viewport:min-h-[var(--control-h-xs)] short-viewport:min-w-[var(--control-h-xs)]"
                 >
                     <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                 </PopoverTrigger>
@@ -197,6 +198,6 @@ export default function LimitedDraftBar({
                     </nav>
                 </PopoverContent>
             </Popover>
-        </div>
+        </ContextualBarFrame>
     );
 }
