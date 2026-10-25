@@ -175,7 +175,7 @@ const SELF_NOUNS: ReadonlySet<string> = new Set([
     "Vehicle",
 ]);
 
-/** True when the span names the source object (CR 109.2). */
+/** True when the span names the source object (CR 700.7). */
 export function isSelfPhrase(span: string): boolean {
     if (span === SELF_MARKER) return true;
     if (!span.startsWith("this ")) return false;
