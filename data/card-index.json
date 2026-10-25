@@ -24236,6 +24236,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flicker",
+        "scryfallId": "f55e7ec5-6488-483f-8020-b48e1a951f09",
+        "oracleId": "19ea326f-45ff-4bc0-a957-7d3f22dd8c6f",
+        "firstSet": "uds",
+        "firstPrintId": "f55e7ec5-6488-483f-8020-b48e1a951f09",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Flicker of Fate",
         "scryfallId": "59e19bac-176c-4e37-bfc8-27c00de7c37f",
         "oracleId": "d5b9d250-92f5-40d8-b962-4ae4adb466c8",
