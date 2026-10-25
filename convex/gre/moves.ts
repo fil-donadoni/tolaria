@@ -2875,6 +2875,23 @@ function enumerateTargetGroupTuples(
                 ) {
                     continue;
                 }
+                // CR 601.2c + CR 404.1 (issue #2912) — "cards from target
+                // player's graveyard": every card must sit in the graveyard of
+                // the player an earlier group announced; the engine lowers the
+                // same directive into `zoneOwnerId` when the walk reaches this
+                // group (`zoneOwnedByPriorPlayerTarget`, `game.ts`).
+                if (req?.zoneOwnerOfPriorPlayerTarget) {
+                    const owner = priorPicks.find((p) => p.type === "player");
+                    if (
+                        tuple.some(
+                            (t) =>
+                                t.type === "graveyard-card" &&
+                                t.playerId !== owner?.id
+                        )
+                    ) {
+                        continue;
+                    }
+                }
                 // CR 601.2c — the per-pick rule, read as a property of this
                 // group's picks (`groupPicksObeyTargetChoice`). A tuple the
                 // server would refuse half-way through is not a move.

@@ -3809,6 +3809,10 @@ export type PendingTarget = {
      *  (`game.ts`) alongside `selected` to compute the sibling's live
      *  controllerId via `siblingControllerIdFor`. */
     sameController?: boolean;
+    /** CR 601.2c (issue #2912) — the player whose graveyard a card candidate
+     *  must sit in, lowered from `zoneOwnerOfPriorPlayerTarget` at the group
+     *  hand-off. Propagated from TargetRequirement.zoneOwnerId. */
+    zoneOwnerId?: string;
     /** Restricts legal permanent targets by token-ness (CR 111.5, issue
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY nontoken
      *  permanents. Propagated from TargetRequirement.isToken. */
