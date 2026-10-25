@@ -1,0 +1,55 @@
+{
+    "label": "UI source choice — a spell on the stack as a source of your choice",
+    "prompt": "ui-gate `game-source-choice` surface (scripts/ui-gate/surfaces.ts, issue #3731, ADR 0132 §4). The other seat's Lightning Bolt on the stack, aimed at the human seat, under the human seat's Circle of Protection: Red activation, with ONE pass already banked (CR 117.4) so a single pass resolves the ability and raises its `pick-source` choice (CR 609.7a: a spell on the stack is a legal source). Two red candidates: Lightning Bolt on the STACK — the candidate this row exists to show, picked in the stack panel — and Gray Ogre on the battlefield; Savannah Lions is the non-red permanent the filter excludes. `activePlayer`/`priority` both on \"me\" (ADR 0132 §4) — the ability is the human seat's and the choice is owed to the human seat. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/source-choice-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "spec": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "activePlayer": "me",
+        "priority": "me",
+        "passCount": 1,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Circle of Protection: Red",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Gray Ogre",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "stack": [
+            {
+                "kind": "spell",
+                "name": "Lightning Bolt",
+                "controller": "opp",
+                "targets": [{ "kind": "player", "seat": "me" }]
+            },
+            {
+                "kind": "ability",
+                "name": "Circle of Protection: Red",
+                "controller": "me",
+                "abilityId": "cop-prevent"
+            }
+        ]
+    }
+}
