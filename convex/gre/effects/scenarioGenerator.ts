@@ -2190,6 +2190,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
             }
             return;
+        case "dealDamageToEach":
+            analyseValue(op.amount, req);
+            // A creature half sweeps whatever the scenario's boards hold, which
+            // the canned fixtures do not size per script; the Op's own test
+            // (`dealDamageToEach.test.ts`) pins that half. A players-only
+            // script is asserted by its life deltas.
+            if (op.creatures !== undefined) {
+                skipBecause(
+                    req,
+                    "unmodelled-object-or-zone",
+                    "creature half sweeps every creature on the boards, which the canned generator does not size per script"
+                );
+            }
+            return;
         case "draw":
             analysePlayer(op.player, req, true);
             analyseValue(op.count, req);
@@ -3017,6 +3031,35 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
 }
 
 const OP_ASSERTORS: AssertorTable = {
+    // CR 120.3 — a players-only sweep is an observable life delta on each
+    // scoped player (the creature half is skipped in analysis).
+    dealDamageToEach(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "dealDamageToEach" }>;
+        if (op.players === undefined || op.creatures !== undefined) return null;
+        const amount = predictAmount(op.amount, scenario);
+        if (amount === null) return null;
+        const ids =
+            op.players === "each"
+                ? [CASTER_ID, OPPONENT_ID]
+                : [assertionPlayerId(op.players)];
+        const before = new Map(ids.map((id) => [id, findPlayer(pre, id).life]));
+        return {
+            label: `dealDamageToEach ${amount} to ${ids.join(", ")}`,
+            check: (post) => {
+                const bad = ids.filter(
+                    (id) =>
+                        findPlayer(post, id).life !== before.get(id)! - amount
+                );
+                return {
+                    ok: bad.length === 0,
+                    detail:
+                        bad.length === 0
+                            ? "every scoped player lost the amount"
+                            : `life delta wrong for ${bad.join(", ")}`,
+                };
+            },
+        };
+    },
     // Damage to a player is an observable life delta; damage to a permanent is
     // marked damage (CR 120.3). The filler creature (toughness 5) survives.
     dealDamage(rawOp, scenario, pre) {

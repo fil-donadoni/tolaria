@@ -89,6 +89,8 @@ import type {
     EffectOp,
     EffectCopyExcept,
     CopyEffectOptions,
+    EachDamagePlayerRef,
+    EachDamagePlayerScope,
     EffectPileObjectSelector,
     EffectPlayerRef,
     EffectPredicate,
@@ -1159,6 +1161,15 @@ function resolveScaledOperand(
  *  the exact bug class the `any` mapping note below records. A sentinel in
  *  the return type makes every caller handle it or fail to compile. */
 const UNMATCHABLE_FILTER = "unmatchable-filter" as const;
+
+/** A `dealDamageToEach` half's controller scope as the primitive's
+ *  controller-relative vocabulary (CR 109.5); `undefined` = both players'. */
+function eachDamageControllerRelation(
+    ref: EachDamagePlayerRef | undefined
+): EachDamagePlayerScope | undefined {
+    if (ref === undefined) return undefined;
+    return ref === "controller" ? "you" : "opponents";
+}
 
 /** CR 609.7a (issue #5601) — maps a `pick-source` choice's `EffectCardFilter`
  *  onto the `DamageSourceFilter` its pool is read through. The validator
@@ -3171,6 +3182,34 @@ export const OP_EXECUTORS: {
             return;
         }
         ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
+    },
+    // CR 120.3 — deal `amount` damage to every creature / player in the
+    // declared set in ONE `dealDamageToEach` call (the primitive fixes the
+    // whole recipient set before any damage is dealt), never a per-member
+    // walk. `controller` maps onto the primitive's controller-relative scope.
+    dealDamageToEach(ctx, op) {
+        const amount = resolveValue(ctx, op.amount);
+        if (amount === undefined) return;
+        let creatures: boolean | Omit<PermanentFilter, "types"> | undefined;
+        if (op.creatures) {
+            const filter = toPermanentFilter(ctx, op.creatures.filter);
+            // Nothing can match, so the creature half selects nothing; the
+            // player half still applies.
+            if (filter !== UNMATCHABLE_FILTER) {
+                const relation = eachDamageControllerRelation(
+                    op.creatures.controller
+                );
+                creatures = {
+                    ...filter,
+                    ...(relation ? { controllerRelation: relation } : {}),
+                };
+            }
+        }
+        const players =
+            op.players === undefined || op.players === "each"
+                ? op.players !== undefined
+                : eachDamageControllerRelation(op.players);
+        ctx.dealDamageToEach(amount, { creatures, players });
     },
     // CR 601.2d / 120.4 — deal `total` damage divided as chosen among the
     // announced target group (`ctx.targets`). The per-target split was chosen at

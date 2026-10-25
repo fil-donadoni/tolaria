@@ -1568,6 +1568,29 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     return { points: priced(ctx, "damage", amount * (self ? -1 : 1)), tags };
 };
 
+/** CR 120.3 — a no-target sweep. Each half's stake is read off its scope
+ *  alone: `"opponent"` is damage aimed at the caster's opponent (+1), the
+ *  caster's own side (`"controller"`) a self-cost (-1), and a scope-free half
+ *  (`"each"`, or creatures with no controller) hits both sides and nets out
+ *  to 0, the same symmetric reading `isEachPlayerRef` gives `$each` damage. */
+function eachDamageStake(scope: "controller" | "opponent" | undefined): number {
+    if (scope === "opponent") return 1;
+    if (scope === "controller") return -1;
+    return 0;
+}
+
+const dealDamageToEach: Valuer<"dealDamageToEach"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.amount);
+    const stake =
+        (op.creatures ? eachDamageStake(op.creatures.controller) : 0) +
+        (op.players
+            ? eachDamageStake(op.players === "each" ? undefined : op.players)
+            : 0);
+    const tags: ValueTag[] = tagScaling(scaling, "damage");
+    if (stake < 0) tags.push("self-cost");
+    return { points: priced(ctx, "damage", amount * stake), tags };
+};
+
 const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
     op,
     ctx
@@ -3211,6 +3234,7 @@ export const OP_VALUERS: {
     // Charter Ops (issue #1426).
     dealDamage,
     dealDamageDividedAsChosen,
+    dealDamageToEach,
     distributeCountersAsChosen,
     draw,
     gainLife,
@@ -3580,6 +3604,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // ── Attacks on the recipient ──────────────────────────────────────────
     dealDamage: "harmful",
     dealDamageDividedAsChosen: "harmful",
+    dealDamageToEach: "harmful",
     loseLife: "harmful",
     destroy: "harmful",
     // CR 701.14a — damage to both combatants; the stake is the `other`'s life.
