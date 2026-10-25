@@ -74,7 +74,7 @@ describe("empty filter array lowers to undefined (registry-wide)", () => {
 
     it.each(arrayKeys)("%s: [] is skipped, never carried", (key) => {
         const req = {
-            type: "creature",
+            type: "Creature",
             count: 1,
             [key]: [],
         } as TargetRequirement;
@@ -83,7 +83,7 @@ describe("empty filter array lowers to undefined (registry-wide)", () => {
 
     it("nested type lists collapse too", () => {
         const attached = REGISTRY.attachedToFilter.lower({
-            type: "permanent",
+            type: "Creature",
             count: 1,
             attachedToFilter: { types: [] },
         } as TargetRequirement) as { types?: string[] };
