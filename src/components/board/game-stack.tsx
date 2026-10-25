@@ -252,9 +252,9 @@ export default function GameStack({
             // `pointer-events-auto` is restored on the `Panel` below so the
             // drag handle and the clickable stack rows — both DOM
             // descendants of `Panel`, not of this div — stay interactive.
-            // Desktop (`!narrow`, `!landscape`) is untouched: its box is
-            // centered/vh-capped, not edge-pinned, so it never grows past its
-            // own content.
+            // Desktop (`!narrow`, `!landscape`) pins only its BOTTOM (above
+            // the controller pod, issue #6970), so its box never grows past
+            // its own content.
             //
             // `landscape` (issue #2589) reuses the desktop's vertical-center
             // shape (never edge-pinned, so no `pointer-events-none` trick is
