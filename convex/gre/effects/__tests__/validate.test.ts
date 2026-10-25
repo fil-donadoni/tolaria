@@ -1146,6 +1146,55 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
     });
 });
 
+// --- addMana computed amounts (CR 106.1) -----------------------------------
+
+describe("validateEffectScript — addMana per-colour amount (CR 106.1)", () => {
+    const addMana = (mana: Record<string, unknown>): EffectOp =>
+        ({ op: "addMana", mana }) as never;
+
+    it("accepts a fixed integer and a computed EffectValue per colour", () => {
+        expect(
+            validateEffectScript(host({ effects: [addMana({ B: 3 })] }))
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        addMana({
+                            B: 1,
+                            U: {
+                                count: {
+                                    zone: "battlefield",
+                                    controller: "opponent",
+                                    filter: { subtype: "Island" },
+                                },
+                            },
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a non-positive fixed amount, a fractional one and a non-value object", () => {
+        for (const bad of [0, -1, 1.5, { nonsense: 1 }, "2"]) {
+            expect(
+                validateEffectScript(host({ effects: [addMana({ U: bad })] }))
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a generic key and an empty pool", () => {
+        expect(
+            validateEffectScript(host({ effects: [addMana({ X: 1 })] })).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(host({ effects: [addMana({})] })).length
+        ).toBeGreaterThan(0);
+    });
+});
+
 // --- EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8) ----
 
 describe("validateEffectScript — EffectCardFilter.manaCostEquals (issue #1881)", () => {

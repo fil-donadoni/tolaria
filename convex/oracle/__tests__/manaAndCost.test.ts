@@ -129,6 +129,59 @@ describe("Add {mana} — golden fixtures (CR 106.1)", () => {
     });
 });
 
+describe("Add {mana} for each — golden (CR 106.1, CR 107.1)", () => {
+    it("Battle Hymn: a spell that adds one pip per counted permanent", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    oracleCard({
+                        name: "Battle Hymn",
+                        manaCost: "{1}{R}",
+                        typeLine: "Instant",
+                        oracleText: "Add {R} for each creature you control.",
+                        power: undefined,
+                        toughness: undefined,
+                    })
+                )
+            )
+        ).toEqual(
+            sortKeys({
+                name: "Battle Hymn",
+                types: ["Instant"],
+                manaCost: { X: 1, R: 1 },
+                oracleText: "Add {R} for each creature you control.",
+                effects: [
+                    {
+                        op: "addMana",
+                        mana: {
+                            R: {
+                                count: {
+                                    zone: "battlefield",
+                                    controller: "controller",
+                                    filter: { type: ["Creature"] },
+                                },
+                            },
+                        },
+                    },
+                ],
+            })
+        );
+    });
+
+    it("a pip written twice counts twice per member", () => {
+        const outcome = spell("Add {R}{R} for each creature you control.");
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(JSON.stringify(outcome.definition)).toContain('"times":2');
+    });
+
+    it("a counted set the grammar cannot read is refused, not dropped", () => {
+        expect(spell("Add {R} for each flibbertigibbet.").state).toBe(
+            "unparsed"
+        );
+    });
+});
+
 describe("Add {mana} — refused neighbours", () => {
     it("a spend restriction behind the pips is not dropped", () => {
         expect(

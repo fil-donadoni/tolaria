@@ -2279,6 +2279,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the resolving controller (a ritual); a ref player is unmodelable
             // (analysePlayer records the skip).
             analysePlayer(op.player ?? "controller", req, false);
+            // A computed per-colour amount is analysed like any other numeric
+            // position (the same skip reasons, the same seeded reads).
+            for (const amount of Object.values(op.mana)) {
+                analyseValue(amount, req);
+            }
             return;
         case "drainManaPool": {
             // CR 106.4 (issue #5260) — the pool empties. The recipient is
@@ -3401,7 +3406,7 @@ const OP_ASSERTORS: AssertorTable = {
     // same-resolution delta the generator asserts directly (CR 106.1). It reads
     // the recipient's per-colour pool before/after and checks every produced
     // pip landed.
-    addMana(rawOp, _scenario, pre) {
+    addMana(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "addMana" }>;
         const pid = assertionPlayerId(op.player ?? "controller");
         // CR 106.1 / 702.189a (issue #3235) — a plain deposit lands in the
@@ -3427,7 +3432,12 @@ const OP_ASSERTORS: AssertorTable = {
                       0
                   );
         const preP = findPlayer(pre, pid);
-        const added = Object.entries(op.mana).filter(([, n]) => (n ?? 0) > 0);
+        const added: [string, number][] = [];
+        for (const [color, value] of Object.entries(op.mana)) {
+            const n = predictAmount(value, scenario);
+            if (n === null) return null;
+            if (n > 0) added.push([color, n]);
+        }
         const before = Object.fromEntries(
             added.map(([color]) => [color, balance(preP, color)])
         );
@@ -3438,7 +3448,7 @@ const OP_ASSERTORS: AssertorTable = {
             check: (post) => {
                 const postP = findPlayer(post, pid);
                 for (const [color, amount] of added) {
-                    const expected = (before[color] ?? 0) + (amount ?? 0);
+                    const expected = (before[color] ?? 0) + amount;
                     const actual = balance(postP, color);
                     if (actual !== expected) {
                         const where =
