@@ -911,7 +911,9 @@ export default function DeckZoneSurface({
                 // The split grid's divider pill can overflow a narrow or empty
                 // Zone, making this a scroll port with nothing focusable in it
                 // (axe `scrollable-region-focusable`): give it a tab stop.
-                {...(pileLayout.kind === "split"
+                // Issue #3677: coarse surfaces lost the Column header glyphs,
+                // the only focusable content an empty Zone's headers held.
+                {...(pileLayout.kind === "split" || columnsSheet
                     ? {
                           tabIndex: 0,
                           role: "region",

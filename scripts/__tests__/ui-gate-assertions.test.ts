@@ -538,7 +538,7 @@ describe("check:ui surface table — Named Assertions", () => {
                 "reachable role=button name=Add one Island",
             ],
             "deck-builder-columns": [
-                'reachable [data-columns-sheet], button[aria-label^="Add "][aria-label$=" column"]',
+                "reachable role=textbox name=New Maindeck column name",
             ],
             "deck-builder-stats": [
                 "visible role=dialog name=Deck Statistics",

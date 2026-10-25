@@ -3181,16 +3181,12 @@ export const SURFACES: readonly Surface[] = [
         mounts: ["src/components/deckbuilder/zone-columns-sheet.tsx"],
         entries: ["src/routes/deck-builder.route.tsx"],
         label: "Deck builder \u2014 Zone columns sheet (/decks/create \u2192 Columns)",
-        // The sheet on a coarse pointer, the inline `Add <Zone> column` chip
-        // on a fine one: the same promise (a Zone's Columns can be added)
-        // held by whichever control the surface class renders.
+        // The new-column input, the same accessible name in the sheet's
+        // footer and in the inline control a fine pointer opens.
         asserts: [
             {
-                label: "columns: sheet or inline add",
-                locator: {
-                    selector:
-                        '[data-columns-sheet], button[aria-label^="Add "][aria-label$=" column"]',
-                },
+                label: "columns: new column name",
+                locator: { role: "textbox", name: "New Maindeck column name" },
                 check: "reachable",
             },
         ],
@@ -3211,8 +3207,13 @@ export const SURFACES: readonly Surface[] = [
                 }
             }
             if (!(await trigger.isVisible())) {
-                // A fine pointer renders no trigger: nothing to open.
-                await settle(page, ["main"]);
+                // A fine pointer renders no trigger: open the inline add.
+                await pressNamed(
+                    page,
+                    "Add Maindeck column",
+                    "the Maindeck zone header"
+                );
+                await settle(page, ['[aria-label="New Maindeck column name"]']);
                 return;
             }
             await trigger.click({ timeout: STEP_TIMEOUT });
