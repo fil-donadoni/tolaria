@@ -669,6 +669,10 @@ export interface EnchantRestriction {
  *  Resolved by `resolveTargetRequirementCount` (`gre/state.ts`). */
 export type TargetCountQuantity = EffectCount;
 
+/** A live combat role a target filter can name (CR 508.1 attacking, CR 509.1
+ *  blocking, CR 509.1h blocked). */
+export type CombatRole = "attacking" | "blocking" | "blocked";
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -817,8 +821,10 @@ export interface TargetRequirement {
      *  requires `isBlocking === true`. Used by Righteousness ("target
      *  blocking creature"). An array matches ANY listed role (OR semantics) —
      *  "target attacking or blocking creature" (D'Avenant Archer). Ignored for
-     *  player / spell / graveyard targets. */
-    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+     *  player / spell / graveyard targets. "blocked" requires an attacking
+     *  creature that has been blocked (CR 509.1h — it stays blocked after its
+     *  blockers leave; General Jarkeld's "blocked attacking creatures"). */
+    combatRoleFilter?: CombatRole | CombatRole[];
     /** Restricts legal permanent targets to the COMBAT PARTNERS of one
      *  object: creatures blocking it or blocked by it (CR 509.1g — a blocker
      *  is blocking the attackers chosen for it). The value is that object's

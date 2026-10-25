@@ -1456,8 +1456,13 @@ export function matchesPermanentTargetFilters(
     /** CR 509.1g (issue #4320) — the projected combat's block assignments,
      *  which `PendingTarget.combatPartnerOf` ("target creature blocking or
      *  blocked by {self}", Cromat) is evaluated against. Absent → no creature
-     *  is anybody's combat partner, so that filter fails CLOSED. */
-    combat?: { blockerAssignments: Record<string, string[]> }
+     *  is anybody's combat partner, so that filter fails CLOSED. Its
+     *  `blockedAttackerIds` is what `combatRoleFilter: "blocked"` (CR 509.1h,
+     *  General Jarkeld) is evaluated against; absent → nothing is blocked. */
+    combat?: {
+        blockerAssignments: Record<string, string[]>;
+        blockedAttackerIds?: string[];
+    }
 ): boolean {
     // CR 601.2c — a permanent already chosen under THIS SAME requirement is
     // never a legal SECOND pick (Magma Burst's kicked "another target", Dust

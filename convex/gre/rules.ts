@@ -108,7 +108,7 @@ import {
     spellHasConvoke,
     spellHasDelve,
 } from "./payWith";
-import type { ManaCost } from "../cards/types";
+import type { CombatRole, ManaCost } from "../cards/types";
 import {
     applyCostModifiers,
     getCostModifiers,
@@ -2964,7 +2964,7 @@ export interface IntrinsicPermanentTargetFilters {
     colorFilter?: Color;
     colorFilterAny?: ReadonlyArray<Color>;
     tappedFilter?: "tapped" | "untapped";
-    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    combatRoleFilter?: CombatRole | CombatRole[];
     requireAbility?: string;
     requireAbilityAny?: ReadonlyArray<string>;
     excludeAbility?: string;

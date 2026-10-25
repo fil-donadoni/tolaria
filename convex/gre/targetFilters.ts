@@ -46,7 +46,12 @@
  *  here from `rules.ts`; `rules.ts` re-exports them for backward
  *  compatibility with existing callers/imports. */
 import { combatPartnerIds, findPermanent } from "./lookup";
-import type { CardType, Color, TargetRequirement } from "../cards/types";
+import type {
+    CardType,
+    Color,
+    CombatRole,
+    TargetRequirement,
+} from "../cards/types";
 import type {
     CardInstanceState,
     GameState,
@@ -818,20 +823,26 @@ const tappedFilterDescriptor = defineFilter<"tapped" | "untapped">({
 // pre-refactor `pendingTargetFiltersFromRequirement`, which copied it through
 // unchanged). Normalization to an array happens inside the `permanent` check
 // instead, exactly where the original `intrinsicPermanentTargetViolation` did it.
-const combatRoleFilterDescriptor = defineFilter<
-    "attacking" | "blocking" | ("attacking" | "blocking")[]
->({
+const combatRoleFilterDescriptor = defineFilter<CombatRole | CombatRole[]>({
     lower: (req) =>
         shorthandArray(req.combatRoleFilter) === undefined
             ? undefined
             : req.combatRoleFilter,
     checks: {
-        permanent: (card, value) => {
+        permanent: (card, value, ctx) => {
             const roles = shorthandArray(value)!;
+            // CR 509.1h — "blocked" is the attacker's state in
+            // `combat.blockedAttackerIds` (it outlives its blockers), read
+            // off the projected combat so the client mirrors the server.
             const ok = roles.some(
                 (r) =>
                     (r === "attacking" && card.isAttacking) ||
-                    (r === "blocking" && card.isBlocking)
+                    (r === "blocking" && card.isBlocking) ||
+                    (r === "blocked" &&
+                        card.isAttacking &&
+                        ctx.state.combat?.blockedAttackerIds?.includes(
+                            card.id
+                        ) === true)
             );
             return ok ? null : `Target must be ${roles.join(" or ")}`;
         },
@@ -1563,7 +1574,7 @@ export type PermanentFilterValues = Partial<{
     colorFilter: Color;
     colorFilterAny: ReadonlyArray<Color>;
     tappedFilter: "tapped" | "untapped";
-    combatRoleFilter: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    combatRoleFilter: CombatRole | CombatRole[];
     combatPartnerOf: string;
     requireAbility: string;
     requireAbilityAny: ReadonlyArray<string>;

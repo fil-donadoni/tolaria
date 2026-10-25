@@ -28,6 +28,7 @@ import { getCardColors } from "../../cards/colors";
 import { registeredDefinitions } from "../../cards/registry";
 import type {
     CardDefinition,
+    CombatRole,
     CardSupertype,
     EffectOp,
     TargetRequirement,
@@ -995,7 +996,18 @@ function requirementPose(
     return { cards, omitToughnessBoost, position: {} };
 }
 
-type CombatRole = "attacking" | "blocking";
+/** The roles a pose can seat a creature in. `"blocked"` (CR 509.1h) is not a
+ *  seat of its own: a blocked attacker is an `"attacking"` one that a pose
+ *  built with blockers already makes blocked, so it is left out here. */
+type PosedRole = Exclude<CombatRole, "blocked">;
+
+function posedRoles(
+    req: TargetRequirement | null | undefined
+): readonly PosedRole[] {
+    return asList(req?.combatRoleFilter).filter(
+        (r): r is PosedRole => r !== "blocked"
+    );
+}
 
 /**
  * CR 115.3 + CR 508.1 / 509.1 — `pose` (the FIRST target group's), its combat
@@ -1018,13 +1030,13 @@ function withLaterCombatants(
     later: readonly TargetRequirement[]
 ): TargetPose {
     const { combat, activePlayer: active } = pose.position;
-    const firstRoles = asList(creatureRequirement(first)?.combatRoleFilter);
+    const firstRoles = posedRoles(creatureRequirement(first));
     if (!combat || !active || firstRoles.length === 0) return pose;
-    const sideOf = (role: CombatRole): "me" | "opp" =>
+    const sideOf = (role: PosedRole): "me" | "opp" =>
         role === "attacking" ? active : active === "me" ? "opp" : "me";
     const attackers = [...(combat.attackers ?? [])];
     const blockers = [...(combat.blockers ?? [])];
-    const declared = (role: CombatRole): readonly string[] =>
+    const declared = (role: PosedRole): readonly string[] =>
         role === "attacking" ? attackers : blockers.map((b) => b.blocker);
     const cards = [...pose.cards];
     // The first group's pick: its pose's first combatant in the role it
@@ -1038,7 +1050,7 @@ function withLaterCombatants(
         (req.controller === "active"
             ? side === active
             : (req.controller === "you") === (side === "me"));
-    const fits = (name: string, role: CombatRole, req: TargetRequirement) => {
+    const fits = (name: string, role: PosedRole, req: TargetRequirement) => {
         const body = tryGetCardByName(name);
         return (
             body !== null &&
@@ -1071,7 +1083,7 @@ function withLaterCombatants(
     // first group in `requirementPose`).
     let ceiling = false;
     for (const req of later) {
-        const roles = asList(creatureRequirement(req)?.combatRoleFilter);
+        const roles = posedRoles(creatureRequirement(req));
         if (roles.length === 0) continue;
         if (req.toughnessFilter?.max !== undefined) ceiling = true;
         const reused = roles
