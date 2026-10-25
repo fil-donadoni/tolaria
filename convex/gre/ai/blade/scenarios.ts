@@ -2896,6 +2896,80 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3192, the FIRE half — the identical board with the opponent at 1, and the reason the hold half is not satisfied by a blanket \"never remove the last counter\" prune. The counter buys the game here, so the hold tie-break must never see it: MEASURED at 400 iterations, seed 0xb1ade, BOTH before and after the fix, the shot wins on `mechanism: mean-reward` with `exploredSize: 1` / `contenderCount: 1` at mean 0.9150 and meanMargin 160.00, against `pass` at visits 68 / mean 0.7621 / meanMargin 152.44 — a gap of 0.153 against the 0.05 outcome-equality band, so the tie-break is never consulted at all. Deleting the hold half's clause leaves this entry green, and deleting the clause's board-awareness (promoting `removeCounter` wholesale) leaves it green too; only the pair pins both directions. Re-measured by issue #3376: `pass`'s 0.76 was rollout noise — its subtree shot the Ballista away before the lethal attack in a quarter of its lines. With that noise gone (`isSourceBodyDamageConversion`) `pass` reads as the lethal attack a combat later with the Ballista alive, a richer win than the shot, and took the pick (0.938 against 0.915); the shot is back on `mean-reward` because a won leaf now pays for the game time it took (`scoreLeaf`'s `since`), which puts the win now more than `outcomeEps` above the win a combat later.",
     },
     {
+        label: "counter count: holds a Ballista whose last counter is its body, opponent on 2",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "two more +1/+1 counters on the Ballista",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3296, the anchor of the counter-count pair: the same Ballista and board as the entry below, differing only in carrying ONE +1/+1 counter. Paying the shoot cost removes it and the 0/0 dies (CR 704.5f), so one shot at a 2-life opponent forfeits the body for one point. MEASURED at 400 iterations on all 5 seeds: `pass` on `mechanism: mean-reward`. The tie-break clause itself (`spendsStandingPermanent` seeing the source die) is pinned by the opp-on-20 hold entry above, whose position is inside the outcome band; at 2 life the gap already clears it, so this half pins the board-awareness only through its twin.",
+    },
+    {
+        label: "counter count: shoots a Ballista with counters to spare, opponent on 2",
+        pairOf: {
+            anchor: "counter count: holds a Ballista whose last counter is its body, opponent on 2",
+            discriminant: {
+                kind: "other",
+                detail: "two more +1/+1 counters on the Ballista",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 3 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Walking Ballista",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #3296, the FIRE half: three counters, so a shot leaves a 2/2 standing and the cost gives up no body. MEASURED at 400 iterations: the shot at the face on all 5 seeds, `mechanism: mean-reward` (two shots are lethal), against `pass` on every seed with one counter. Shows the bot is not blanket-frozen on a counter cost. Honest limit: it does not discriminate a wholesale promotion of `removeCounter` to a standing spend, because mean reward clears the outcome band before the tie-break is consulted; the unit test in `activationTiming.bot.test.ts` pins that.",
+    },
+    {
         label: "activation timing: does not shoot away its own last counter at the opponent's end step",
         classification: {
             kind: "conditional",
