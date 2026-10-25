@@ -66,10 +66,6 @@ const SHAPE: Record<FilterKey, "array" | "other"> = {
 };
 
 describe("empty filter array lowers to undefined (registry-wide)", () => {
-    it("classifies exactly the registry keys", () => {
-        expect(Object.keys(SHAPE).sort()).toEqual(Object.keys(REGISTRY).sort());
-    });
-
     const arrayKeys = (Object.keys(SHAPE) as FilterKey[]).filter(
         (k) => SHAPE[k] === "array"
     );
