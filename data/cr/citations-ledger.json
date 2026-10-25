@@ -19166,6 +19166,8 @@
         {"id":"510.1b","line":"* battlefield is still keyed here; its attacker deals nothing (CR 510.1b),","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
         {"id":"510.1b","line":"* loyalty, not life (CR 510.1b, CR 120.3c). An id that has since left the","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
         {"id":"510.1b","line":"* nothing: its attacker deals no combat damage (CR 510.1b). Never life — the","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
+        {"id":"510.1b","line":"/** CR 510.1b — damage sent at each attacked planeswalker, by walker id. */","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
+        {"id":"510.1b","line":"/** CR 510.1b — damage still reaching attacked planeswalkers, all summed. */","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
         {"id":"510.1b","line":"// 4. Unblocked — CR 510.1b: its power reaches what it is attacking. A","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
         {"id":"510.1b","line":"// CR 510.1b — it hits what it is attacking: a planeswalker's","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
         {"id":"510.1b","line":"// CR 510.1b — loyalty removed from an attacked planeswalker is a gain","sites":1,"status":"confirmed","ruleHash":"04a08af68df68e16"},
