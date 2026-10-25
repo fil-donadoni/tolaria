@@ -131,6 +131,9 @@
           "damagedBySources": [
             "src-5"
           ],
+          "damagedPermanentsThisGame": [
+            "pw-1"
+          ],
           "attachedTo": "host-1",
           "controlChanges": [
             {
@@ -528,6 +531,9 @@
       ],
       "damagedBySources": [
         "src-5"
+      ],
+      "damagedPermanentsThisGame": [
+        "pw-1"
       ],
       "attachedTo": "host-1",
       "controlChanges": [
