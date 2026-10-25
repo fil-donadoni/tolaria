@@ -3181,12 +3181,16 @@ export const SURFACES: readonly Surface[] = [
         mounts: ["src/components/deckbuilder/zone-columns-sheet.tsx"],
         entries: ["src/routes/deck-builder.route.tsx"],
         label: "Deck builder \u2014 Zone columns sheet (/decks/create \u2192 Columns)",
-        // The sheet itself, named by its seam: its controls carry the Zone's
-        // label, which varies with the Zone that opened it.
+        // The sheet on a coarse pointer, the inline `Add <Zone> column` chip
+        // on a fine one: the same promise (a Zone's Columns can be added)
+        // held by whichever control the surface class renders.
         asserts: [
             {
-                label: "columns sheet",
-                locator: { selector: "[data-columns-sheet]" },
+                label: "columns: sheet or inline add",
+                locator: {
+                    selector:
+                        '[data-columns-sheet], button[aria-label^="Add "][aria-label$=" column"]',
+                },
                 check: "reachable",
             },
         ],
@@ -3217,7 +3221,7 @@ export const SURFACES: readonly Surface[] = [
                     "`Columns` opened no columns sheet within 8s"
                 );
             }
-            await settleOnLayer(page, sheet, "`Columns`", "Columns");
+            await settleOnLayer(page, sheet, "`Columns`");
         },
     },
     {
