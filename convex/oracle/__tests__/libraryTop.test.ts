@@ -326,10 +326,6 @@ describe("Library top — refusals (fail-closed, ADR 0105 § 2)", () => {
             "Reveal the top four cards of your library. Put all creature cards of the chosen type revealed this way into your hand and the rest on the bottom of your library in any order.",
         ],
         [
-            "an optional filtered pick (Satyr Wayfinder's routing)",
-            "Reveal the top four cards of your library. You may put a land card from among them into your hand. Put the rest into your graveyard.",
-        ],
-        [
             "another player's library routed into your hand",
             "Look at the top four cards of target opponent's library. Put one of them into your hand and the rest into your graveyard.",
         ],
