@@ -528,7 +528,40 @@ describe("enchant-player Aura hosts (CR 303.4, issue #1119)", () => {
         expect(entered).toEqual([]);
         const choice = state.pendingChoices?.[0];
         expect(choice?.kind).toBe("choose-aura-host");
-        expect(new Set(choice?.candidateIds)).toEqual(new Set(["p1", "p2"]));
+        // Players ride `candidatePlayerIds`; `candidateIds` is the permanent
+        // allow-list and holds none of them.
+        expect(new Set(choice?.candidatePlayerIds)).toEqual(
+            new Set(["p1", "p2"])
+        );
+        expect(choice?.candidateIds).toEqual([]);
+
+        // Wire format — the field survives the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            new Set(projected.pendingChoices?.[0]?.candidatePlayerIds)
+        ).toEqual(new Set(["p1", "p2"]));
+    });
+
+    it("submit path rejects an id in neither allow-list for a player-host choice", () => {
+        const aura = makeInstance(TEST_ENCHANT_PLAYER_AURA_ID, {
+            id: "aura-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        putReanimatedSetOnBattlefield(state, [
+            { card: aura, controllerId: "p1" },
+        ]);
+
+        expect(() => submitAuraHost(state, ["nobody"])).toThrow(
+            "Card is not an eligible choice"
+        );
     });
 
     it("the submitted host choice attaches the reanimated Aura to the chosen PLAYER and it survives the SBA sweep", () => {

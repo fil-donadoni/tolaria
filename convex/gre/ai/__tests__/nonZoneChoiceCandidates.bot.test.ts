@@ -27,7 +27,7 @@ function head(over: Partial<NonZoneChoiceHead>): NonZoneChoiceHead {
 }
 
 describe("NON_ZONE_CANDIDATE_SOURCE", () => {
-    it("names exactly the six kinds whose candidates are not cards", () => {
+    it("names exactly the seven kinds whose candidates are not cards", () => {
         // `tsc` guarantees every `PendingChoiceKind` has a row; it cannot
         // guarantee the row is RIGHT. This pins the split: a kind quietly moved
         // onto the "it's just cards" side is the bug `pick-pile` was.
@@ -37,6 +37,7 @@ describe("NON_ZONE_CANDIDATE_SOURCE", () => {
                 .map(([kind, source]) => `${kind}=${source}`)
                 .sort()
         ).toEqual([
+            "choose-aura-host=players",
             "choose-damage-target=players",
             "choose-player=players",
             "option-pick=options",

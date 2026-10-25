@@ -110,7 +110,9 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     "look-distribute": "none",
     "choose-categorized": "none",
     "legend-keep": "none",
-    "choose-aura-host": "none",
+    // CR 303.4 — the permanent hosts are zone members (the battlefield read);
+    // an "Enchant player" Aura's player hosts ride `candidatePlayerIds`.
+    "choose-aura-host": "players",
     // The DIVIDER's half of ADR 0053 — it splits real cards, so its candidates
     // are the zone's. Only the CHOOSER's half names a label.
     "divide-piles": "none",
