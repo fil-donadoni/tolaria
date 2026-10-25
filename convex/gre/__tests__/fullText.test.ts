@@ -552,6 +552,31 @@ describe("full-text effect — not copiable (CR 707.2)", () => {
         });
     });
 
+    it("a permanent that becomes a copy of it after entering is stamped when it first presents (CR 613.7a)", () => {
+        withShapeshifter(() => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [
+                            makeInstance(SHAPESHIFTER, { id: "shifter" }),
+                        ],
+                        graveyard: [inGraveyard(CRAW_WURM, "wurm")],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const spell = pushSpell(state, BEARS, "p1");
+            resolveTopOfStack(state);
+            const bears = find(state, spell.id);
+            // Grizzly Bears has no static ability: entry stamped nothing.
+            expect(bears.staticSeq).toBeUndefined();
+            applyCopy(state, bears, find(state, "shifter"));
+            recomputeContinuousEffects(state);
+            expect(presentedDefId(bears)).toBe(CRAW_WURM);
+            expect(bears.staticSeq).toBeDefined();
+        });
+    });
+
     it("the departure LKI records the copiable identity, the shown one beside it", () => {
         withShapeshifter(() => {
             const state = board([inGraveyard(CRAW_WURM, "wurm")]);
