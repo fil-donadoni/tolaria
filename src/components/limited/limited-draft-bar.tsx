@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, MoreHorizontal } from "lucide-react";
 import {
     Popover,
@@ -7,6 +6,7 @@ import {
     PopoverContent,
 } from "@/components/ui/popover";
 import { cn } from "~/lib/utils";
+import OverflowNavLink from "@/components/chrome/overflow-nav-link";
 
 /** What the bar counts while a Draft is running. `null` in Sealed reveal
  *  mode, where there is no pack and no pass. */
@@ -179,23 +179,21 @@ export default function LimitedDraftBar({
                 <PopoverContent side="bottom" align="end" className="p-1">
                     <nav
                         aria-label="Overflow"
-                        className="flex min-w-40 flex-col"
+                        className="flex min-w-40 flex-col gap-[var(--menu-row-gap)]"
                     >
-                        <Link
+                        <OverflowNavLink
                             to="/limited/$eventId"
                             params={{ eventId }}
                             onClick={() => setOpen(false)}
-                            className="rounded-sm px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-parchment"
                         >
                             Leave the draft
-                        </Link>
-                        <Link
+                        </OverflowNavLink>
+                        <OverflowNavLink
                             to="/settings"
                             onClick={() => setOpen(false)}
-                            className="rounded-sm px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-parchment"
                         >
                             Settings
-                        </Link>
+                        </OverflowNavLink>
                     </nav>
                 </PopoverContent>
             </Popover>
