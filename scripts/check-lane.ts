@@ -92,6 +92,7 @@ import { fileURLToPath } from "node:url";
 import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
+import { LEDGER_PATH } from "./lib/cr-ledger-path";
 import { failingFiles } from "./lib/health-evidence";
 import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
@@ -398,6 +399,23 @@ export function classifyPath(path: string): PathClass {
 }
 
 /**
+ * The CR ledger rides as documentation's companion (issue #3749): a prose line
+ * citing a CR rule owes a ledger entry (ADR 0133), so a docs diff legitimately
+ * carries `data/cr/citations-ledger.json`. Content-decided like `package.json`:
+ * the ledger is `docs` ONLY when at least one other path is changed and every
+ * other path is `docs` — the ledger alone, or beside any code path, keeps its
+ * own class. Returned as an `overrides` map for `classifyLane`.
+ */
+export function ledgerCompanionOverrides(
+    files: readonly string[]
+): ReadonlyMap<string, PathClass> {
+    const others = files.filter((p) => p !== LEDGER_PATH);
+    if (others.length === files.length || others.length === 0) return new Map();
+    if (!others.every((p) => classifyPath(p) === "docs")) return new Map();
+    return new Map<string, PathClass>([[LEDGER_PATH, "docs"]]);
+}
+
+/**
  * Pick the lane from the per-path classes.
  *
  * Structurally fail-closed: `full` is the terminal statement, and each
@@ -550,7 +568,8 @@ export function classifyLane(
     botReach: BotReachSource = defaultBotReach
 ): LanePlan {
     const files = [...changedPaths];
-    const classOf = (p: string) => overrides.get(p) ?? classifyPath(p);
+    const merged = new Map([...ledgerCompanionOverrides(files), ...overrides]);
+    const classOf = (p: string) => merged.get(p) ?? classifyPath(p);
     const lane = laneFor(files.map(classOf));
 
     if (lane === "full") {

@@ -2750,3 +2750,29 @@ describe("pr-check's lane role", () => {
         expect(treeRole({ [TREE_ROLE_ENV]: "pr" })).toBe("pr");
     });
 });
+
+describe("check-lane — the CR ledger as documentation's companion (issue #3749)", () => {
+    const LEDGER = "data/cr/citations-ledger.json";
+    const none = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+
+    it("classifies docs + ledger as docs", () => {
+        expect(
+            classifyLane(["docs/adr/0135-x.md", LEDGER], undefined, none).lane
+        ).toBe("docs");
+    });
+
+    it("keeps the ledger alone out of docs", () => {
+        expect(classifyLane([LEDGER], undefined, none).lane).not.toBe("docs");
+    });
+
+    it("keeps docs + ledger + code out of docs", () => {
+        expect(
+            classifyLane(["docs/a.md", LEDGER, "scripts/x.ts"], undefined, none)
+                .lane
+        ).not.toBe("docs");
+    });
+});
