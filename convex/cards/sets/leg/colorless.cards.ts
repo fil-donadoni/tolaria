@@ -786,10 +786,11 @@ export const whiteManaBattery = defineCard(() =>
 // Forethought Amulet — {5} Artifact. "At the beginning of your upkeep,
 // sacrifice this artifact unless you pay {3}. If an instant or sorcery source
 // would deal 3 or more damage to you, it deals 2 damage to you instead."
-// Upkeep clause: the shared `payOrSacrificeUpkeepTrigger` (CR 603.6a). Damage
+// Upkeep clause: the shared `payOrSacrificeUpkeepTrigger` (CR 503.1a). Damage
 // clause: a CR 614 REPLACEMENT that rewrites the event's `amount` (it does not
 // cancel the damage, so it is not CR 615 prevention), gated on the source
-// being an instant or sorcery (CR 608.2b / 120.3).
+// being an instant or sorcery (CR 609.7a).
+// compiler-gap: "If an instant or sorcery source would deal 3 or more damage to you, it deals 2 damage to you instead." (#2693)
 export const forethoughtAmulet = defineCard(() => ({
     id: "700f53d3-0a84-4c55-8495-786f0f0783db",
     rarity: "rare",

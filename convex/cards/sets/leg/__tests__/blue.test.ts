@@ -1336,7 +1336,7 @@ describe("Remove Soul (counter target creature spell, CR 701.6a)", () => {
     });
 });
 
-describe("Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; can't be blocked by red, CR 603.6a / 118.3 / 509.1b)", () => {
+describe("Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; can't be blocked by red, CR 503.1a / 118.3 / 509.1b)", () => {
     function setup(islandCount: number) {
         const spawn = makeInstance(elderSpawn.id, {
             id: "spawn",
@@ -1381,7 +1381,7 @@ describe("Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; c
         expect(state.players[0].life).toBe(14);
     });
 
-    it("with no Island there is no prompt: sacrificed and 6 damage (CR 117.3a)", () => {
+    it("with no Island there is no prompt: sacrificed and 6 damage", () => {
         const { state, spawn } = setup(0);
         resolveTrigger(state, spawn, "elder-spawn-upkeep", UPKEEP_C7("p1"));
         expect(state.pendingChoices ?? []).toHaveLength(0);

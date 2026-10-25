@@ -1023,13 +1023,15 @@ export const inTheEyeOfChaos = defineCard(() => ({
 // Elder Spawn — {4}{U}{U}{U} 6/6 Spawn. "At the beginning of your upkeep,
 // unless you sacrifice an Island, sacrifice this creature and it deals 6 damage
 // to you. This creature can't be blocked by red creatures."
-// Upkeep clause: the Mold Demon sacrifice-as-cost shape (CR 118.3 + CR 701.21)
-// on a `phaseTrigger`. With no Island there is no real choice (CR 117.3a), so
-// the `count` predicate goes straight to the penalty. The 6 damage is
+// Upkeep clause: the Mold Demon sacrifice-as-cost shape (CR 118.3 + CR 701.21a)
+// on a `phaseTrigger`. With no Island there is no real choice, so the `count`
+// predicate goes straight to the penalty. The 6 damage is
 // unconditional (a sacrifice always succeeds, CR 701.21a), so — unlike Cosmic
 // Horror's "if destroyed this way" rider — it stays a plain Effect Script.
 // Block clause: CR 509.1b `block-restriction`, read against the candidate
 // blocker's EFFECTIVE colour (layer 5, CR 613.1e).
+// compiler-gap: "At the beginning of your upkeep, unless you sacrifice an Island, sacrifice this creature and it deals 6 damage to you." (#2693)
+// compiler-gap: "This creature can't be blocked by red creatures." (#2693)
 export const elderSpawn = defineCard(() => ({
     id: "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
     rarity: "rare",

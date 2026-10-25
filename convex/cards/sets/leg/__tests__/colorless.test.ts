@@ -1135,7 +1135,7 @@ describe("Mana Batteries (charge-counter scaling mana ability, CR 106 / 605)", (
     });
 });
 
-describe("Forethought Amulet (upkeep sacrifice unless {3}; instant/sorcery damage of 3+ becomes 2, CR 603.6a / 614.1a)", () => {
+describe("Forethought Amulet (upkeep sacrifice unless {3}; instant/sorcery damage of 3+ becomes 2, CR 503.1a / 614.1a)", () => {
     function setup() {
         const amulet = makeInstance(forethoughtAmulet.id, {
             id: "amulet",
@@ -1203,7 +1203,7 @@ describe("Forethought Amulet (upkeep sacrifice unless {3}; instant/sorcery damag
         expect(state.players[0].life).toBe(15);
     });
 
-    it("declining the {3} payment at upkeep sacrifices the Amulet (CR 701.21)", () => {
+    it("declining the {3} payment at upkeep sacrifices the Amulet (CR 701.21a)", () => {
         const { state, amulet } = setup();
         resolveTrigger(
             state,
