@@ -2477,8 +2477,9 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  at every cast commit for every zone (hand included), so "if this spell
      *  was cast from a graveyard / from exile" reads one fact rather than a
      *  family of per-mechanism flags. Absent on anything that was not cast: a
-     *  copy (CR 707.10) is scrubbed by `cloneSpellOntoStack`, and an ability or
-     *  trigger never carries it. The mechanism riders a graveyard cast adds
+     *  copy (CR 707.10) is scrubbed by `cloneSpellOntoStack`, a cast trigger
+     *  that spreads its spell clears it, and the permanent a spell becomes
+     *  drops it once `PERMANENT_ENTERED` has read it (CR 400.7). The mechanism riders a graveyard cast adds
      *  (`exileOnResolve`, `escaped`) and Rebound's consume-once
      *  `reboundFromHand` stay separate fields. */
     castFromZone?: CastFromZone;

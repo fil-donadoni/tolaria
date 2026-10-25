@@ -19,8 +19,8 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // last comment records it was superseded by PRD #2091 after a design grill
 // (2026-08-03): Foretell ships as six slices (#2092..#2097) with three of
 // #925's own premises corrected there (timing is CR 702.143a/116.2h any time
-// during your turn, not sorcery-speed; `StackItem` carries no `castFromZone`
-// today; the "cast from a non-hand zone" seam is per-keyword, not shared —
+// during your turn, not sorcery-speed; `StackItem` carried no `castFromZone`
+// then; the "cast from a non-hand zone" seam is per-keyword, not shared —
 // ADR 0088). This exact stub is #2097's own acceptance criterion ("closes
 // this issue" in #2097's body); #2097 sits under #2096 (the Foretell
 // keyword itself) and umbrella PRD #2091. No engine work happened between
