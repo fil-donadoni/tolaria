@@ -1,5 +1,5 @@
-// CR 602.5d / 307.5 — "activate only as a sorcery" is asked of the permanent's
-// CONTROLLER (`isSorceryTimingFor`), not of the active player. Pins that
+// CR 602.5d / 307.5 — "activate only as a sorcery" is asked of the ACTIVATING
+// player (`isSorceryTimingFor`), not of the active player. Pins that
 // `assertActivationTimingLegal` no longer leans on a caller-side check
 // (issue #1722).
 

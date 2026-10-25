@@ -1836,8 +1836,8 @@ export function assertActivationTimingLegal(
     state: GameState,
     card: CardInstanceState,
     /** The player ACTIVATING — not `card.controllerId`: a graveyard source
-     *  keeps its last battlefield controller (CR 113.6), but only its owner
-     *  may activate it. */
+     *  keeps its last battlefield controller, but only its owner
+     *  may activate it (CR 113.6m). */
     activatorId: string,
     ability: {
         id: string;
