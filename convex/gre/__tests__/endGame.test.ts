@@ -51,7 +51,7 @@ describe("endGame — sole writer of state.gameOver", () => {
         });
     });
 
-    it("an SBA loss does not replace an already-registered alternate win (CR 104.2a)", () => {
+    it("an SBA loss does not replace an already-registered alternate win (CR 104.2b)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { life: 0 })],
         });
