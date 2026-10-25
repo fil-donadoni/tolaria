@@ -180,6 +180,13 @@
             "needsSetup": false
         }
     ],
+    "Etched Oracle": [
+        {
+            "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Exalted Angel": [
         {
             "label": "morph: casts Exalted Angel face down for {3} on three lands",
