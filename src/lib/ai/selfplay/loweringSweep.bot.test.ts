@@ -161,7 +161,7 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
             "activated ability (own)"
         );
         expect(
-            classifyStackObject(item({ castFromGraveyard: true }), "p1")
+            classifyStackObject(item({ castFromZone: "graveyard" }), "p1")
         ).toBe("spell (cast from a graveyard) (own)");
     });
 
