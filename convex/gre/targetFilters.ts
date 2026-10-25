@@ -281,9 +281,17 @@ export function matchesBattlefieldController(
 }
 
 /** `T | T[] | undefined` → `T[] | undefined` normalization shared by every
- *  `lower()` that accepts the shorthand-single-value authoring convenience. */
-function arr<T>(v: T | T[] | undefined): T[] | undefined {
-    return v === undefined ? undefined : Array.isArray(v) ? v : [v];
+ *  `lower()` that accepts the shorthand-single-value authoring convenience,
+ *  and the ONE place an empty array is collapsed: `[]` → `undefined` (filter
+ *  skipped, as if the field were omitted). A `value.some(...)` predicate over
+ *  `[]` is `false` and would reject every candidate; every other predicate is
+ *  vacuously true over `[]`, so collapsing is behaviour-neutral for them. */
+export function shorthandArray<T>(
+    v: T | readonly T[] | undefined
+): T[] | undefined {
+    if (v === undefined) return undefined;
+    const out = Array.isArray(v) ? (v as T[]) : [v as T];
+    return out.length > 0 ? out : undefined;
 }
 
 // ─── Registry shape (ADR 0068) ──────────────────────────────────────────────
@@ -392,7 +400,11 @@ export interface TargetFilterCtx {
  *  `undefined` is skipped; a filter whose value is present but whose
  *  candidate kind is absent from `checks` excludes that candidate. */
 export interface FilterDescriptor<V> {
-    /** `sourcePower` (issue #1378) is the announcing trigger/ability source's
+    /** Contract: a lowered value of `undefined` means "filter skipped"; an
+     *  empty array is NEVER a legal carried value — collapse it through
+     *  `shorthandArray` (guard: `targetFilterEmptyArray.test.ts`).
+     *
+     *  `sourcePower` (issue #1378) is the announcing trigger/ability source's
      *  live effective power, threaded through ONLY for `mvFilterDescriptor`'s
      *  `"sourcePower"` placeholder — every other descriptor ignores the extra
      *  argument (TS function-type compatibility permits a narrower-arity
@@ -542,7 +554,7 @@ const controllerFilter = defineFilter<TargetRequirement["controller"]>({
 
 // CR 205.3 — subtype filter ("target Mountains"): at least one present.
 const subtypeFilterDescriptor = defineFilter<string[]>({
-    lower: (req) => arr(req.subtypeFilter),
+    lower: (req) => shorthandArray(req.subtypeFilter),
     checks: {
         permanent: (card, value) =>
             value.some((s) => card.subtypes.includes(s))
@@ -567,7 +579,7 @@ const subtypeFilterDescriptor = defineFilter<string[]>({
 
 // CR 205.4a — live supertype filter ("target snow lands"): ALL present.
 const supertypeFilterDescriptor = defineFilter<string[]>({
-    lower: (req) => arr(req.supertypeFilter),
+    lower: (req) => shorthandArray(req.supertypeFilter),
     checks: {
         permanent: (card, value) =>
             value.every((s) => hasSupertypeLive(card, s))
@@ -578,7 +590,7 @@ const supertypeFilterDescriptor = defineFilter<string[]>({
 
 // CR 205.4a — negative supertype filter ("target nonbasic land").
 const excludeSupertypesDescriptor = defineFilter<string[]>({
-    lower: (req) => arr(req.excludeSupertypes),
+    lower: (req) => shorthandArray(req.excludeSupertypes),
     checks: {
         permanent: (card, value) =>
             value.some((s) => hasSupertypeLive(card, s))
@@ -598,7 +610,7 @@ const excludeSupertypesDescriptor = defineFilter<string[]>({
 // Scalelord's graveyard reanimation target) only works catalogue-wide once a
 // `card` candidate can be excluded by type too.
 const excludeTypesDescriptor = defineFilter<CardType[]>({
-    lower: (req) => arr(req.excludeTypes),
+    lower: (req) => shorthandArray(req.excludeTypes),
     checks: {
         permanent: (card, value) =>
             value.some((t) => card.types.includes(t))
@@ -675,7 +687,7 @@ const attachedToFilterDescriptor = defineFilter<{
     lower: (req) => {
         const f = req.attachedToFilter;
         if (!f) return undefined;
-        return { types: arr(f.types), controlledBy: f.controlledBy };
+        return { types: shorthandArray(f.types), controlledBy: f.controlledBy };
     },
     checks: {
         permanent: (card, value, ctx) => {
@@ -710,7 +722,7 @@ const attachedToFilterDescriptor = defineFilter<{
 
 // CR 202.2 — color-exclude filter (Terror's "nonblack").
 const excludeColorsDescriptor = defineFilter<Color[]>({
-    lower: (req) => arr(req.excludeColors),
+    lower: (req) => shorthandArray(req.excludeColors),
     checks: {
         permanent: (card, value) =>
             value.some((c) => hasColor(card, c))
@@ -721,7 +733,7 @@ const excludeColorsDescriptor = defineFilter<Color[]>({
 
 // CR 205.3 — subtype-exclude filter (Nettling Imp's "non-Wall").
 const excludeSubtypesDescriptor = defineFilter<string[]>({
-    lower: (req) => arr(req.excludeSubtypes),
+    lower: (req) => shorthandArray(req.excludeSubtypes),
     checks: {
         permanent: (card, value) =>
             value.some((s) => card.subtypes.includes(s))
@@ -753,7 +765,7 @@ const colorFilterDescriptor = defineFilter<Color>({
 
 // CR 202.2 — OR-over-colors filter ("a black or red source").
 const colorFilterAnyDescriptor = defineFilter<ReadonlyArray<Color>>({
-    lower: (req) => req.colorFilterAny,
+    lower: (req) => shorthandArray(req.colorFilterAny),
     checks: {
         permanent: (card, value) =>
             value.some((c) => hasColor(card, c))
@@ -807,10 +819,13 @@ const tappedFilterDescriptor = defineFilter<"tapped" | "untapped">({
 const combatRoleFilterDescriptor = defineFilter<
     "attacking" | "blocking" | ("attacking" | "blocking")[]
 >({
-    lower: (req) => req.combatRoleFilter,
+    lower: (req) =>
+        shorthandArray(req.combatRoleFilter) === undefined
+            ? undefined
+            : req.combatRoleFilter,
     checks: {
         permanent: (card, value) => {
-            const roles = arr(value)!;
+            const roles = shorthandArray(value)!;
             const ok = roles.some(
                 (r) =>
                     (r === "attacking" && card.isAttacking) ||
@@ -876,10 +891,7 @@ const requireAbilityDescriptor = defineFilter<string>({
 // single-keyword `requireAbility` (a requirement sets one or the other, and
 // both are ANDed by the loop when a card sets both anyway).
 const requireAbilityAnyDescriptor = defineFilter<ReadonlyArray<string>>({
-    lower: (req) =>
-        req.requireAbilityAny && req.requireAbilityAny.length > 0
-            ? [...req.requireAbilityAny]
-            : undefined,
+    lower: (req) => shorthandArray(req.requireAbilityAny),
     checks: {
         permanent: (card, value) =>
             value.some((kw) => hasKeywordAbility(card, kw))
@@ -902,10 +914,7 @@ const excludeAbilityDescriptor = defineFilter<string>({
 // CR 601.2c — "other than ~" / reflexive self-exclude (Phelia, Sorceress
 // Queen). Carries the source id resolved from `excludeSource` by the caller.
 const excludeInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
-    lower: (req) =>
-        req.excludeInstanceIds && req.excludeInstanceIds.length > 0
-            ? [...req.excludeInstanceIds]
-            : undefined,
+    lower: (req) => shorthandArray(req.excludeInstanceIds),
     checks: {
         permanent: (card, value) =>
             value.includes(card.id) ? "Can't target that permanent" : null,
@@ -1172,10 +1181,7 @@ const spellStackKindDescriptor = defineFilter<
 // CR 113.7a — Brown Ouphe's "from an artifact source": the stack item's
 // SOURCE card types must include at least one of these.
 const stackSourceTypeFilterDescriptor = defineFilter<CardType[]>({
-    lower: (req) => {
-        const v = arr(req.stackSourceTypeFilter);
-        return v && v.length > 0 ? v : undefined;
-    },
+    lower: (req) => shorthandArray(req.stackSourceTypeFilter),
     checks: {
         spell: (item, value) =>
             value.some((t) => item.types.includes(t))
@@ -1192,10 +1198,7 @@ const stackSourceTypeFilterDescriptor = defineFilter<CardType[]>({
 // excludes abilities itself (Ward's "any" kind + this filter must admit
 // both) — matches `getLegalTargets`'s pre-T2 behavior.
 const spellTargetsInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
-    lower: (req) =>
-        req.spellTargetsInstanceIds && req.spellTargetsInstanceIds.length > 0
-            ? [...req.spellTargetsInstanceIds]
-            : undefined,
+    lower: (req) => shorthandArray(req.spellTargetsInstanceIds),
     checks: {
         spell: (item, value) => {
             const tgts = item.targets ?? [];
@@ -1212,7 +1215,7 @@ const spellTargetsInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
 // stack is never a spell, and an actual spell must match one of the given
 // card types.
 const spellTypeFilterDescriptor = defineFilter<CardType[]>({
-    lower: (req) => arr(req.spellTypeFilter),
+    lower: (req) => shorthandArray(req.spellTypeFilter),
     checks: {
         spell: (item, value) => {
             const isAbility = !isSpellStackItem(item);
@@ -1227,7 +1230,7 @@ const spellTypeFilterDescriptor = defineFilter<CardType[]>({
 // CR 114.1 — Spell Pierce's "target noncreature spell". Reuses the shared
 // predicate (issue #683).
 const spellExcludeTypeFilterDescriptor = defineFilter<CardType[]>({
-    lower: (req) => arr(req.spellExcludeTypeFilter),
+    lower: (req) => shorthandArray(req.spellExcludeTypeFilter),
     checks: {
         spell: (item, value) =>
             spellMatchesExcludeTypeFilter(item, value)
@@ -1319,7 +1322,7 @@ const spellTargetsPermanentFilterDescriptor = defineFilter<{
         // everything — the fail-OPEN this filter's whole shape exists to
         // avoid (review of PR #3279).
         if (!f) return undefined;
-        const types = arr(f.types);
+        const types = shorthandArray(f.types);
         return {
             ...(types === undefined ? {} : { types }),
             ...(f.controller === undefined ? {} : { controller: f.controller }),

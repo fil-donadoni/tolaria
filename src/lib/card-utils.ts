@@ -112,6 +112,7 @@ import {
     isAlreadySelectedTarget,
     permanentFilterValuesFromCarrier,
     playerFilterValuesFromCarrier,
+    shorthandArray,
     spellFilterValuesFromCarrier,
     type PermanentFilterValues,
     type TargetFilterCtx,
@@ -1306,11 +1307,7 @@ export function hasBattlefieldTargetCandidate(
     };
     const values: PermanentFilterValues = {
         controller: requirement.controller,
-        subtypeFilter: requirement.subtypeFilter
-            ? Array.isArray(requirement.subtypeFilter)
-                ? requirement.subtypeFilter
-                : [requirement.subtypeFilter]
-            : undefined,
+        subtypeFilter: shorthandArray(requirement.subtypeFilter),
     };
     // CR 602.2b (issue #1951 review round 3, MINOR 8) — a `count >= 2`
     // ability (Sorrow's Path / General Jarkeld's swap-blockers, Garruk
