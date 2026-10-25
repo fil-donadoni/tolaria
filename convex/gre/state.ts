@@ -6078,10 +6078,8 @@ function markDamageFromPermanentSource(
  *  its full damage (CR 701.14, 510.4-style simultaneity; CR 704.5g lethal).
  *
  *  CR 701.14b — a no-op WHOLE (neither half) when either creature has left
- *  the battlefield or is no longer a creature (last-known information is
- *  intentionally not modeled here — Tracker's ruling: if the
- *  target leaves before resolution the ability is countered upstream by the
- *  target check, CR 608.2b). */
+ *  the battlefield or is no longer a creature. That is the keyword action's
+ *  own rule; the pre-"fight" template is `resolveSourceDamageExchange`. */
 export function resolveFight(
     state: GameState,
     creatureAId: string,
@@ -6111,6 +6109,53 @@ export function resolveFight(
         creatureAId,
         powerB
     );
+}
+
+/** The pre-"fight" template (Tracker, Karplusan Yeti, Tahngarth): "This
+ *  creature deals damage equal to its power to target creature. That creature
+ *  deals damage equal to its power to this creature." Not a CR 701.14 fight, so
+ *  CR 701.14b's "neither deals damage" does not apply: the ability's own source
+ *  is an object an ability states does something, and when it has left the
+ *  battlefield "it's the object as it most recently existed that does it"
+ *  (CR 608.2h, CR 113.7a). The source's half therefore still happens from its
+ *  last known information (`lki`, stamped on the stack item at departure), and
+ *  the return half is skipped: a departed source is no recipient. A target
+ *  that has left makes the ability's only target illegal (CR 608.2b), which the
+ *  resolution gate answers upstream, so there is nothing left to do here.
+ *
+ *  Both powers are read before either half marks damage (damage does not
+ *  change power). Passing `lki` also covers a blink: the same instance id may be
+ *  back on the battlefield as a NEW object (CR 400.7), which must not be hit. */
+export function resolveSourceDamageExchange(
+    state: GameState,
+    sourceId: string,
+    targetId: string,
+    lki?: { card: CardInstanceState; power: number }
+): void {
+    const b = findOnBattlefield(state, targetId);
+    if (!b || !isCreature(b.card)) return;
+    const live = lki ? null : findOnBattlefield(state, sourceId);
+    if (!lki && (!live || !isCreature(live.card))) return;
+    const sourceCard = lki ? lki.card : live!.card;
+    const powerA = lki ? lki.power : getEffectivePower(state, sourceCard);
+    const powerB = getEffectivePower(state, b.card);
+    markDamageFromPermanentSource(
+        state,
+        sourceCard,
+        sourceCard.controllerId,
+        targetId,
+        powerA
+    );
+    // CR 608.2h — the departed source cannot be dealt damage.
+    if (live) {
+        markDamageFromPermanentSource(
+            state,
+            b.card,
+            b.card.controllerId,
+            sourceId,
+            powerB
+        );
+    }
 }
 
 /** Replacement-aware tap (CR 701.26a, 614). Runs the tap replacement loop
@@ -6753,11 +6798,22 @@ export function removePermanentTo(
     // stack item then — so there is nothing there to stamp today. A delayed
     // trigger that ever gains an intervening-if would have to extend this
     // walk.
+    // An activated ability's stack item is a clone of its source, so its source
+    // id is the item id (`buildActivatedAbilityStackItem`); a triggered one
+    // carries `triggerSourceId`. `sourceLkiPower` is the effective (layer-folded)
+    // power at departure (other sources' effects folded in, as the CR 603.10
+    // snapshot below), which the raw record cannot reproduce: "this creature deals damage equal to its
+    // power" reads it (CR 608.2h).
     for (const item of state.stack) {
-        if (item.triggerSourceId === creature.id && !item.sourceLki) {
+        const abilitySourceId =
+            item.triggerSourceId ?? (item.abilityId ? item.id : undefined);
+        if (abilitySourceId === creature.id && !item.sourceLki) {
             item.sourceLki = { ...creature };
             if (creature.counters) {
                 item.sourceLki.counters = { ...creature.counters };
+            }
+            if (creature.types.includes("Creature")) {
+                item.sourceLkiPower = getEffectivePT(state, creature).power;
             }
         }
     }
@@ -12204,7 +12260,17 @@ export function buildSpellContext(
             // `sourceInstanceId` is the activated/triggered ability's permanent.
             // The source is the resolving ability's permanent — a triggered
             // ability carries `triggerSourceId`; an activated one is `item.id`.
-            resolveFight(state, item.triggerSourceId ?? item.id, target.id);
+            // This is the pre-"fight" template, so a source that has left the
+            // battlefield still deals its half from last known information
+            // (CR 608.2h) instead of CR 701.14b's all-or-nothing.
+            resolveSourceDamageExchange(
+                state,
+                item.triggerSourceId ?? item.id,
+                target.id,
+                item.sourceLki && item.sourceLkiPower !== undefined
+                    ? { card: item.sourceLki, power: item.sourceLkiPower }
+                    : undefined
+            );
         },
         preventNextDamageFromSource(
             sourceInstanceId: string,
