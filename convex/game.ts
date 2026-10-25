@@ -82,6 +82,7 @@ import {
     tapPermanent,
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
+    endGame,
     PENDING_TARGET_FILTER_KEYS,
 } from "./gre/state";
 import type { ContinuousEffect } from "./gre/continuousEffects";
@@ -4112,11 +4113,11 @@ export const forfeitMatch = mutation({
             );
             if (gameState && !gameState.state.gameOver) {
                 const state = structuredClone(gameState.state) as GameState;
-                state.gameOver = {
+                endGame(state, {
                     winnerId,
                     loserId: args.playerId,
                     reason: "concede",
-                };
+                });
                 const nextSeq = gameState.seq + 1;
                 await saveGameState(
                     ctx,
@@ -13298,11 +13299,11 @@ export const concede = mutation({
         if (bindingDoc) assertNotEventBotSeat(bindingDoc, args.playerId);
         const winnerId = getOpponentId(state, args.playerId);
 
-        state.gameOver = {
+        endGame(state, {
             winnerId,
             loserId: args.playerId,
             reason: "concede",
-        };
+        });
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -15090,11 +15091,11 @@ export const debugBo3Sideboard = mutation({
         const existing = await getLatestGameState(ctx, args.gameId);
         if (existing) {
             const state = structuredClone(existing.state) as GameState;
-            state.gameOver = {
+            endGame(state, {
                 winnerId: winnerSeat.id,
                 loserId: loserSeat?.id ?? winnerSeat.id,
                 reason: "concede",
-            };
+            });
             await saveGameState(
                 ctx,
                 args.gameId,

@@ -4,6 +4,7 @@ import {
     auraEnchantsPlayers,
     hostMatchesEnchantRestriction,
     destroyWithReplacements,
+    endGame,
     getOpponentId,
     processPendingActionTriggers,
     recomputeContinuousEffects,
@@ -118,21 +119,21 @@ export function checkGameOverSBA(state: GameState): boolean {
         // CR 104.4a — all remaining players lost simultaneously → draw. Match
         // the existing draw shape (Divine Intervention, see SpellContext
         // .drawGame): empty winner/loser, reason "draw", isDraw flag set.
-        state.gameOver = {
+        endGame(state, {
             winnerId: "",
             loserId: "",
             reason: "draw",
             isDraw: true,
-        };
+        });
         return true;
     }
 
     const [loser] = losers;
-    state.gameOver = {
+    endGame(state, {
         winnerId: getOpponentId(state, loser.playerId),
         loserId: loser.playerId,
         reason: loser.reason,
-    };
+    });
     return true;
 }
 
