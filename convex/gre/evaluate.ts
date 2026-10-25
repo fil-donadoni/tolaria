@@ -47,8 +47,10 @@ import {
     manaValue,
     finiteManaUsesRemaining,
     hasManaAbility,
+    isPlaneswalker,
     POISON_LOSS_COUNTERS,
 } from "./constants";
+import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
 import type { ActivatedAbility } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 // Issue #1890 item 3 — the single authority on whether an activation could just
@@ -2110,6 +2112,46 @@ function deckOutDelta(
 // `evaluate` AND `declaredBlockDelta`: folding it into the latter would make
 // the rollout default policy see ±2·WIN_SCORE.
 
+/** What `damageByWalker` costs the defender, in the board term's own units:
+ *  combat damage removes that many loyalty counters (CR 120.3c), so a walker
+ *  left above zero loses the realized worth its lower loyalty no longer
+ *  carries (`nonCreatureBodyValue`, scaled by `loyaltyRealizationRatio`), and
+ *  one taken to zero is put into the graveyard (CR 704.5i) — its whole
+ *  `permanentRealisedValue`. An id no longer on `defender`'s battlefield costs
+ *  nothing: its attacker deals no combat damage (CR 510.1b). Never life — the
+ *  two resources are priced apart. */
+function walkerDamagePrice(
+    state: GameState,
+    defender: PlayerState,
+    damageByWalker: Record<string, number>,
+    weights: EvalWeights,
+    pass: Layer7Pass
+): number {
+    let price = 0;
+    for (const [walkerId, damage] of Object.entries(damageByWalker)) {
+        if (damage <= 0) continue;
+        const walker = defender.battlefield.find((c) => c.id === walkerId);
+        if (!walker || !isPlaneswalker(walker)) continue;
+        const loyalty = currentLoyalty(walker);
+        if (damage >= loyalty) {
+            price += permanentRealisedValue(state, walker, weights, pass);
+            continue;
+        }
+        if (isCreature(walker)) continue;
+        const damaged: CardInstanceState = {
+            ...walker,
+            counters: {
+                ...walker.counters,
+                [LOYALTY_COUNTER_KEY]: loyalty - damage,
+            },
+        };
+        price +=
+            nonCreatureBodyValue(state, walker, weights, pass) -
+            nonCreatureBodyValue(state, damaged, weights, pass);
+    }
+    return price;
+}
+
 /** Invert `blockerAssignments` (blocker → attackers) into attacker → blockers,
  *  in stable listed order, so each attacker's combat can be resolved
  *  independently. Shared by `declaredBlockDelta` and `declaredFaceDamage` so
@@ -2506,11 +2548,13 @@ export function declaredCombatDelta(
 
     const attacker = state.players.find((p) => p.id === attackerId)!;
     // Attacker's view: it loses its dead attackers, gains the dead blockers'
-    // worth (the defender's loss), and the face damage removes opponent life.
+    // worth (the defender's loss), the face damage removes opponent life, and
+    // the damage at an attacked planeswalker removes its loyalty (CR 120.3c).
     const attackerDelta =
         value(outcome.deadBlockerIds, defender) -
         value(outcome.deadAttackerIds, attacker) +
-        facePrice(defender, outcome.faceDamage, outcome.facePoison, weights);
+        facePrice(defender, outcome.faceDamage, outcome.facePoison, weights) +
+        walkerDamagePrice(state, defender, outcome.walkerDamage, weights, pass);
 
     return ownView ? attackerDelta : -attackerDelta;
 }
@@ -2572,6 +2616,8 @@ export function declaredBlockDelta(
     let faceDamage = 0;
     // CR 702.90b — the infect share of it, which lands as poison.
     let facePoison = 0;
+    // CR 510.1b — what the unblocked attackers send at a planeswalker instead.
+    const walkerDamage: Record<string, number> = {};
     const deadAttackers: CardInstanceState[] = [];
     const deadBlockers: CardInstanceState[] = [];
     // One layer-7 pass for the whole exchange (issue #4462) — see
@@ -2586,7 +2632,13 @@ export function declaredBlockDelta(
         const atkPT = ptOf(atk);
         const infect = hasInfect(atk);
         if (blockers.length === 0) {
-            if (infect) facePoison += Math.max(0, atkPT.power);
+            // CR 510.1b — it hits what it is attacking: a planeswalker's
+            // loyalty (CR 120.3c), else the player.
+            const walkerId = combat.attackTargets?.[atkId];
+            if (walkerId !== undefined) {
+                walkerDamage[walkerId] =
+                    (walkerDamage[walkerId] ?? 0) + Math.max(0, atkPT.power);
+            } else if (infect) facePoison += Math.max(0, atkPT.power);
             else faceDamage += Math.max(0, atkPT.power);
             continue;
         }
@@ -2665,7 +2717,8 @@ export function declaredBlockDelta(
     const defenderDelta =
         value(deadAttackers) -
         value(deadBlockers) -
-        facePrice(defender, faceDamage, facePoison, weights);
+        facePrice(defender, faceDamage, facePoison, weights) -
+        walkerDamagePrice(state, defender, walkerDamage, weights, pass);
 
     // Cautious multi-block (ADR 0021, issue #229). If the ATTACKER holds castable
     // interaction (a pump or instant removal), a block that only WINS when the
