@@ -17,7 +17,8 @@ import {
     permanentRealisedValue,
 } from "../evaluate";
 import { predictCombatOutcome } from "../dangerClock";
-import { isWastefulAttack } from "../search";
+import { applyMoveInSearch, isWastefulAttack } from "../search";
+import { cloneGameState } from "../clone";
 import type { CardInstanceState, GameState } from "../state";
 import type { Move } from "../moves";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
@@ -171,6 +172,16 @@ describe("isWastefulAttack — a walker attack on its own merits (issue #2798)",
         attackerIds: ["ir"],
         attackTargets: { ir: "pw" },
     };
+
+    it("the in-tree declaration keeps the announced planeswalker target (CR 508.1b)", () => {
+        const probe = cloneGameState(attackDecision([walker(5)]));
+        applyMoveInSearch(probe, "p1", atWalker);
+        expect(probe.combat?.attackTargets).toEqual({ ir: "pw" });
+        // A walker the defender no longer controls is no target at all.
+        const gone = cloneGameState(attackDecision([]));
+        applyMoveInSearch(gone, "p1", atWalker);
+        expect(gone.combat?.attackTargets).toBeUndefined();
+    });
 
     it("an unblocked attack on a planeswalker is NOT wasteful", () => {
         expect(isWastefulAttack(attackDecision([walker(5)]), atWalker)).toBe(
