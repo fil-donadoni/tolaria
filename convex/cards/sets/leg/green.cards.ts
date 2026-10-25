@@ -182,8 +182,7 @@ export const sylvanLibrary = defineCard(() => ({
 //   • Willow Satyr — "gain control of target legendary creature for as long as
 //     you control this AND this remains tapped" needs a control-change condition
 //     combining controls-source + source-tapped; only the separate
-//     `controller-controls-source` and `source-tapped-and-power-ge` kinds exist
-//     (same may-not-untap clause deferred for Old Man of the Sea).
+//     `controller-controls-source` and `source-tapped-and-power-ge` kinds exist.
 //   • Wood Elemental — "P/T each equal to the number of Forests sacrificed as it
 //     entered" needs an entry-time sacrifice count stored and read by a CDA (or
 //     an indefinite base-P/T set); only phase-scoped `setBasePT` exists.
