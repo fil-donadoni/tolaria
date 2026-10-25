@@ -4,7 +4,12 @@
 // Each submit handler used to carry its own copy of this sequence; they now
 // return into the one below.
 
-import { resolveTopOfStack, type GameState, type PendingChoice } from "./state";
+import {
+    isResolutionSuspendedOnChoice,
+    resolveTopOfStack,
+    type GameState,
+    type PendingChoice,
+} from "./state";
 import { drainAutoPasses } from "./phases";
 import { checkStateBasedActions } from "./sba";
 
@@ -80,5 +85,13 @@ export function resumeAfterChoice(
     }
     resolveTopOfStack(state);
     handPriorityOn(state, options.pendingTargetHandoff);
-    if (options.stateBasedActions) checkStateBasedActions(state);
+    if (options.stateBasedActions) sweepUnlessResolutionSuspended(state);
+}
+
+/** CR 704.3 — the SBA sweep a mutation runs after answering a choice. A
+ *  resolution still parked on a further choice is not a priority window (CR
+ *  608.2), so the sweep waits until it completes; the finalize paths that need
+ *  a sweep mid-queue run their own. */
+export function sweepUnlessResolutionSuspended(state: GameState): void {
+    if (!isResolutionSuspendedOnChoice(state)) checkStateBasedActions(state);
 }
