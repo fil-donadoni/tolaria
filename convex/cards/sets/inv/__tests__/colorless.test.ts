@@ -22,6 +22,7 @@ import {
     normalizeManaCost,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { getEffectiveColors } from "../../../effectiveColors";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
@@ -31,7 +32,6 @@ import {
     makeState,
     resolveActivated,
 } from "../../../__tests__/setup.helper";
-import { resolveTrigger } from "./set.helper";
 import { getDefinition } from "../../../index";
 import {
     activateAbility,
@@ -230,12 +230,19 @@ describe("Tsabo's Web untap lock (CR 502.1, dynamicMatch)", () => {
 // Free tranche (issue #1074) — the remaining 11 of 13 colourless cards.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1e / 603.6b, resolve() justification)", () => {
-    it("applies the chosen color indefinitely, surviving the wire projection", () => {
+describe("Alloy Golem (as-enters colour pick; CR 614.1c / 614.12a / 603.6d, CR 613.1e)", () => {
+    it("declares the pick as an as-enters mode, not a trigger", () => {
+        const def = getDefinition(alloyGolem.id)!;
+        expect(def.entersWith?.asEnters).toEqual([{ kind: "mode" }]);
+        expect(def.triggeredAbilities ?? []).toEqual([]);
+    });
+
+    it("is the chosen colour, surviving the wire projection", () => {
         const golem = makeInstance(alloyGolem.id, {
             id: "golem1",
             controllerId: "p1",
             ownerId: "p1",
+            chosenModeId: "R",
         });
         const state = makeState({
             players: [
@@ -243,31 +250,14 @@ describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, golem, "alloy-golem-choose-color", {
-            type: "PERMANENT_ENTERED",
-            instanceId: golem.id,
-            controllerId: "p1",
-            types: golem.types,
-        });
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("option-pick");
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["R"],
-        });
-        const onBoard = state.players[0].battlefield.find(
-            (c) => c.id === "golem1"
-        )!;
-        expect(onBoard.colorOverride).toEqual(["R"]);
+        beginApplyingStaticEffects(state, golem);
+        expect(getEffectiveColors(golem)).toEqual(["R"]);
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "golem1"
         )!;
-        expect(slim.colorOverride).toEqual(["R"]);
+        expect(slim.chosenModeId).toBe("R");
     });
 });
 
