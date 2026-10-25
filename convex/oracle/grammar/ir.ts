@@ -112,14 +112,16 @@ export interface AlternativeCostIR {
 /**
  * CR 605.1a — a rider SENTENCE after a mana production: a non-mana additional
  * effect the ability carries and still resolves without the stack (the Wall of
- * Roots / Chromatic Sphere shape). Each lowers to the one `ActivatedAbility`
- * field the engine already reads for it.
+ * Roots shape). Each lowers to the one `ActivatedAbility` field the engine
+ * already reads for it — except a draw, which disqualifies the mana ability.
  */
 export type ManaRiderIR =
     /** "This land deals N damage to you" after a FIXED production
      *  (`dealsDamageToControllerOnTap`, Ancient Tomb). */
     | { readonly kind: "damage-to-controller"; readonly amount: number }
-    /** CR 121.1 — "Draw a card" (`drawsCardOnTap`, Chromatic Sphere). */
+    /** CR 605.1a — "Draw a card" (Chromatic Sphere): the draw moves a card
+     *  from a library, so the ability is NOT a mana ability and lowers to a
+     *  stack ability (`lowerActivated.ts`'s `lowerDrawingManaShape`). */
     | { readonly kind: "draw-card" }
     /** CR 122.1 / 701.21 — "If there are no <kind> counters on this land,
      *  sacrifice it" (`sacrificesSourceWhenNoCountersRemain`, the depletion

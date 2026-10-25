@@ -23,10 +23,14 @@
  * card in hand, a counter or a card in a graveyard, and NONE of them touches a
  * library, so (d) holds, and none of them is a loyalty cost, so (c) does. The
  * classification is therefore still a property of the accepted language, not a
- * check applied to the output — which is why `useStack: false` (CR 605.3a: a
- * mana ability does not use the stack) is safe to emit. A cost atom that could
- * move a card to or from a library would have to re-open this argument, and
- * the criterion is written out here so that it must be.
+ * check applied to the output — which is why `useStack: false` (CR 605.3b: a
+ * mana ability does not go on the stack) is safe to emit. A cost atom that
+ * could move a card to or from a library would have to re-open this argument,
+ * and the criterion is written out here so that it must be.
+ *
+ * The one rider that DOES move a card from a library is "Draw a card"
+ * (`DRAW_RIDER`): the slot reads it, and `lowerManaAbility` lowers that line as
+ * an ordinary stack ability instead, because (d) fails for it.
  *
  * ── What v0 deliberately refuses ───────────────────────────────────────────
  *
@@ -331,10 +335,10 @@ function readPainlandDamage(span: string): number | null {
 }
 
 /**
- * CR 121.1 / 605.1a — "Draw a card" after a production: the draw rides the
- * same stackless resolution (`drawsCardOnTap`, Chromatic Sphere and the
- * Invasion eggs). Scoped to ONE card: "Draw two cards" is a different count
- * the field could carry but no printed ability needs.
+ * CR 121.1 / 605.1a — "Draw a card" after a production (Chromatic Sphere and
+ * the Invasion eggs). A draw moves a card from a library, so the line is not a
+ * mana ability: `lowerManaAbility` lowers it to a stack ability. Scoped to ONE
+ * card: "Draw two cards" is a different count no printed ability needs.
  */
 const DRAW_RIDER = "Draw a card";
 

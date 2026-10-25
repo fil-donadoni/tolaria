@@ -35,7 +35,6 @@ import {
     isManaPaymentChoiceWindow,
     getOpponentId,
     drawCard as drawCardFromLibrary,
-    emitCardDrawn,
     discardToGraveyard,
     payExileThisCost,
     exileThisSourceZone,
@@ -1097,8 +1096,8 @@ export function applyManaAbilityRemoveCounterCost(
  *
  *  Runs AFTER the mana has been deposited and `PERMANENT_TAPPED` emitted, so
  *  the mana survives the source leaving and a leaves-the-battlefield trigger
- *  sees the mana already added — the ordering `cost.sacrifice` and
- *  `drawsCardOnTap` already establish. CR 603.6 / 700.4 — routed through
+ *  sees the mana already added — the ordering `cost.sacrifice` already
+ *  establishes. CR 603.6 / 700.4 — routed through
  *  `removePermanentTo` so the departure queues `PERMANENT_LEFT` and the
  *  source's dies / leave-the-battlefield triggers reach the stack, which a raw
  *  `moveCard` would skip.
@@ -1357,43 +1356,6 @@ export function reverseDepletionCounterOnUntap(
     if (have - 1 <= 0) delete next["depletion"];
     else next["depletion"] = have - 1;
     card.counters = Object.keys(next).length > 0 ? next : undefined;
-}
-
-/** CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere: "{1}, {T},
- *  Sacrifice this artifact: Add one mana of any color. Draw a card."). When a
- *  tap mana ability declares `drawsCardOnTap`, the controller draws N cards as
- *  part of the SAME mana ability resolving — CR 605.1a permits a mana ability
- *  to carry a non-mana additional effect and still resolve without the stack
- *  (the Wall of Roots precedent). Unlike `applyUnconditionalTapSelfDamage` /
- *  `applyDepletionCounterOnTap`, this rider fires EVEN when the ability
- *  sacrifices its own source (Chromatic Sphere IS a sacrifice ability) — the
- *  draw is a player-level effect, not conditioned on the permanent still
- *  existing. Routed through `drawCard` (aliased `drawCardFromLibrary`,
- *  `convex/gre/state.ts`) + `emitCardDrawn` so "whenever you draw a card"
- *  triggers (Sheoldred, Underworld Dreams) still see the draw, mirroring the
- *  draw step's own `if (drawCard(player) !== null) emitCardDrawn(...)`
- *  pattern (`gre/phases.ts`) — no event when the library was empty (CR
- *  704.5b). Deliberately NOT modeled as Chromatic Star's separate leaves-the-
- *  battlefield trigger: Sphere's draw is tied only to activating ITS OWN mana
- *  ability, not to dying by any means (issue #1093). No-op when the ability
- *  lacks the rider. Shared by both tap-for-mana paths (`tapUntap` priority tap
- *  + `tapSourceIntoPayment` payment tap). */
-export function applyDrawCardOnTap(
-    state: GameState,
-    ability: ActivatedAbility | undefined | null,
-    activatorId: string
-): void {
-    const count = ability?.drawsCardOnTap;
-    if (!count || count <= 0) return;
-    const player = getPlayer(state, activatorId);
-    for (let i = 0; i < count; i++) {
-        if (drawCardFromLibrary(player) !== null) {
-            // CR 504.1 — a mana ability's draw rider (Chromatic Sphere) is
-            // never the draw step's turn-based draw, whatever phase it is
-            // activated in.
-            emitCardDrawn(state, activatorId, 1, false);
-        }
-    }
 }
 
 /** CR 603.3 — a triggered ability, once put on the stack, cannot be undone.
@@ -1865,13 +1827,12 @@ function activateFixedSacrificeManaAbility(
     emitPermanentTapped(state, card, true, produced);
     removePermanentTo(state, card.id, "graveyard", "sacrifice");
     // The riders a sacrifice activation can still carry (CR 605.1a / 120 /
-    // 118.4 / 118.3 / 121.1). No depletion counter, no `lifePaidThisTap`, no
+    // 118.4 / 118.3). No depletion counter, no `lifePaidThisTap`, no
     // Wild-Growth tap bonus: all three exist only to be reversed by an untap
     // this source will never have.
     applyUnconditionalTapSelfDamage(state, ability, card, player.id);
     applyManaAbilityLifeCost(state, ability, player.id);
     applyManaAbilityDiscardCost(state, ability, player.id);
-    applyDrawCardOnTap(state, ability, player.id);
     applyManaAbilityEffects(state, ability, card, player.id);
 }
 
@@ -2098,12 +2059,6 @@ export function tapSourceIntoPayment(
         // applies whether the source is tapped via priority (`tapUntap`) or
         // while paying a spell/ability cost (here).
         applyManaAbilityDiscardCost(state, effAbility, player.id);
-        // CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere):
-        // fires in the payment-tap path too, so the draw applies whether the
-        // source is tapped via priority (`tapUntap`) or while paying a
-        // spell/ability cost (here). Unlike the riders above, this one is NOT
-        // gated on `!isSacrifice` — it must fire on Sphere's own sacrifice.
-        applyDrawCardOnTap(state, effAbility, player.id);
         // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect Script.
         applyManaAbilityEffects(state, effAbility, card, player.id);
         // CR 106.4 / 605.1a — record the life paid to the inline riders so
@@ -2259,11 +2214,6 @@ export function tapSourceIntoPayment(
     // the payment-tap path too, so the discard applies whether tapped via
     // priority (`tapUntap`) or while paying a spell/ability cost (here).
     applyManaAbilityDiscardCost(state, acting, player.id);
-    // CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere). Fires in
-    // the payment-tap path too, whether tapped via priority (`tapUntap`) or
-    // while paying a spell/ability cost (here). Unlike the riders above, this
-    // one is NOT gated on `!isSacrifice` — it must fire on a sacrifice cost.
-    applyDrawCardOnTap(state, acting, player.id);
     // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect Script.
     applyManaAbilityEffects(state, acting, card, player.id);
     // CR 106.4 / 605.1a — record the life paid to the inline riders (Ancient
@@ -8086,7 +8036,7 @@ export type TapPaymentInput = {
  *  and silently dropped every inline rider: `isTapLockedBySummoningSickness`
  *  (CR 302.1), `manaChoiceRemovesCounters` / `payRemoveCounterCost` (CR
  *  122.6, Mana Battery), `armDelayedTriggerOnTap` (ADR 0040, Rainbow Vale),
- *  `applyDrawCardOnTap`, `recordLifePaidOnTap`, `realizeManaAbilityTapBonus`
+ *  `recordLifePaidOnTap`, `realizeManaAbilityTapBonus`
  *  (Wild Growth) — and the unconditional self-damage rider (Ancient Tomb):
  *  tapping it through the divergent copy cost 0 life instead of 2 (CR
  *  605.1a / 106.4). There must be only ONE authority for this mechanic. */
@@ -14176,17 +14126,12 @@ export const tapUntap = mutation({
             applyManaAbilityDiscardCost(state, tapAbility, args.playerId);
         }
 
-        // CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere: "{1},
-        // {T}, Sacrifice this artifact: Add one mana of any color. Draw a
-        // card."). Same `producedThisActivation` gate as the riders above —
-        // this single site covers whichever branch (choice or fixed) the
-        // ability took, whether it sacrificed its source or not. Runs BEFORE
-        // the trigger flush below so a "whenever you draw a card" watcher
-        // (Sheoldred, Underworld Dreams) sees the draw land first.
+        // CR 605.1a / 605.3b (issue #5509) — the stackless Effect Script
+        // ("during your next untap step, return this land …"). Same
+        // `producedThisActivation` gate as the riders above — this single
+        // site covers whichever branch (choice or fixed) the ability took.
+        // Runs BEFORE the trigger flush below.
         if (producedThisActivation) {
-            applyDrawCardOnTap(state, tapAbility, args.playerId);
-            // CR 605.1a / 605.3b (issue #5509) — and its stackless Effect
-            // Script ("during your next untap step, return this land …").
             applyManaAbilityEffects(state, tapAbility, card, args.playerId);
         }
 
@@ -14204,7 +14149,7 @@ export const tapUntap = mutation({
         // counters on this land, sacrifice it."). Runs after the mana is in
         // the pool and `PERMANENT_TAPPED` is emitted, so the mana survives the
         // source leaving and its leave-the-battlefield triggers see it —
-        // exactly the ordering `cost.sacrifice` and `drawsCardOnTap` use.
+        // exactly the ordering `cost.sacrifice` uses.
         // Its `PERMANENT_LEFT` event is drained by the shared trigger flush
         // below, in the same pass as theirs.
         if (producedThisActivation) {

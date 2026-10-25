@@ -5,7 +5,9 @@
 //
 //   "This land deals N damage to you"  after a FIXED production
 //                                       → dealsDamageToControllerOnTap
-//   "Draw a card"                       → drawsCardOnTap
+//   "Draw a card"                       → NOT a mana ability (CR 605.1a: a
+//                                         draw moves a card from a library):
+//                                         a stack ability, mana + draw ops
 //   "If there are no <kind> counters on this land, sacrifice it"
 //                                       → sacrificesSourceWhenNoCountersRemain
 //   "During your next untap step, as you untap your permanents, return this
@@ -118,9 +120,20 @@ describe("golden — one fixture per accepted rider form", () => {
                         id: "chromatic-sphere-mana",
                         oracleText: text,
                         cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-                        useStack: false,
-                        manaChoices: ANY_COLOR,
-                        drawsCardOnTap: 1,
+                        // CR 605.1a — the draw disqualifies a mana ability.
+                        useStack: true,
+                        effects: [
+                            {
+                                op: "optionChoice",
+                                player: "controller",
+                                prompt: "Choose the mana to add",
+                                modes: ANY_COLOR.map((mana) => ({
+                                    label: `Add {${Object.keys(mana)[0]}}`,
+                                    effects: [{ op: "addMana", mana }],
+                                })),
+                            },
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
                     },
                 ],
             })
@@ -143,13 +156,29 @@ describe("golden — one fixture per accepted rider form", () => {
                         id: "mossfire-egg-mana",
                         oracleText: text,
                         cost: { mana: { X: 2 }, tap: true, sacrifice: true },
-                        useStack: false,
-                        manaProduced: { R: 1, G: 1 },
-                        drawsCardOnTap: 1,
+                        useStack: true,
+                        effects: [
+                            { op: "addMana", mana: { R: 1, G: 1 } },
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
                     },
                 ],
             })
         );
+    });
+
+    // CR 605.1a — the draw makes it a STACK ability, whose cost the ordinary
+    // activation path pays whatever its legs, so no tap or sacrifice leg is
+    // needed (contrast the stackless riders, applied by the tap routes only).
+    it("a draw rider with no tap or sacrifice leg lowers to the stack too", () => {
+        const text = "{1}: Add {G}. Draw a card.";
+        const ability = compiledOf(artifact("Untapped Draw", "{1}", text))
+            .activatedAbilities![0]!;
+        expect(ability.useStack).toBe(true);
+        expect(ability.effects).toEqual([
+            { op: "addMana", mana: { G: 1 } },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
     });
 
     it("Saprazzan Skerry (Mercadian Masques) — the depletion sacrifice", () => {
@@ -271,14 +300,6 @@ describe("refusals — the neighbours of each rider form", () => {
             land(
                 "Wrong Counter",
                 "{T}, Remove a depletion counter from this land: Add {U}. If there are no mining counters on this land, sacrifice it."
-            ),
-        ],
-        [
-            "a draw rider with no tap or sacrifice leg (the engine drops it)",
-            artifact(
-                "Untapped Draw",
-                "{1}",
-                "{1}: Add one mana of any color. Draw a card."
             ),
         ],
         [

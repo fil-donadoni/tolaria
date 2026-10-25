@@ -170,26 +170,14 @@ export const alloyGolem = defineCard(() => ({
 }));
 
 // Chromatic Sphere — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add
-// one mana of any color. Draw a card." (CR 605.1a — a mana ability MAY carry
-// a non-mana additional effect and still skip the stack, the Wall of Roots
-// precedent; here the additional effect is a draw.)
-//
-// Shipped via the `drawsCardOnTap` rider (issue #1093, mirroring the existing
-// tap-mana-ability rider family — `dealsDamageToControllerOnTap` /
-// `dealsDamageToControllerOnColoredTap` / `putDepletionCounterOnTap` /
-// `armsDelayedTriggerOnTap`): the engine's `useStack: false` mana-ability
-// commit path (`convex/game.ts` `tapUntap` / `tapSourceIntoPayment`, the
-// shared payment-tap helper backing `tapForPayment`/`tapForActivationPayment`)
-// invokes `ability.effect` through a deliberately narrow
-// `ActivatedAbilityContext` exposing ONLY `addMana`, so a non-mana additional
-// effect (the draw) is declared as a rider and applied by the shared engine
-// call sites instead of the ability's own `effect` closure. Chromatic STAR
-// (`tsp/colorless.cards.ts`) is NOT the template here: Star's actual (later,
-// different) Oracle text splits its draw into a separate "leaves the
-// battlefield to a graveyard" trigger, which would incorrectly draw a card if
-// Sphere were destroyed by unrelated removal instead of sacrificed for its
-// own ability — `drawsCardOnTap` instead ties the draw only to activating
-// THIS ability, matching Sphere's actual text.
+// one mana of any color. Draw a card." CR 605.1a: an activated ability is a
+// mana ability only if "its cost and effect don't move any card to or from a
+// library" — the draw moves one, so this is an ordinary activated ability.
+// CR 602.2a puts it on the stack, the opponent gets priority, and the colour
+// is chosen, the mana added and the card drawn when it resolves; it cannot be
+// activated in the middle of casting a spell to pay for it (CR 605.3a is the
+// mana abilities' licence). The colour pick is an `optionChoice` over five
+// `addMana` modes, the shape the compiler lowers this line to.
 export const chromaticSphere = defineCard(() => ({
     id: "920cd17f-9274-443e-906f-c9904f0658d5",
     rarity: "uncommon",
@@ -204,10 +192,37 @@ export const chromaticSphere = defineCard(() => ({
             oracleText:
                 "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-            drawsCardOnTap: 1,
+            useStack: true,
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: "controller",
+                    prompt: "Choose the mana to add",
+                    modes: [
+                        {
+                            label: "Add {W}",
+                            effects: [{ op: "addMana", mana: { W: 1 } }],
+                        },
+                        {
+                            label: "Add {U}",
+                            effects: [{ op: "addMana", mana: { U: 1 } }],
+                        },
+                        {
+                            label: "Add {B}",
+                            effects: [{ op: "addMana", mana: { B: 1 } }],
+                        },
+                        {
+                            label: "Add {R}",
+                            effects: [{ op: "addMana", mana: { R: 1 } }],
+                        },
+                        {
+                            label: "Add {G}",
+                            effects: [{ op: "addMana", mana: { G: 1 } }],
+                        },
+                    ],
+                },
+                { op: "draw", player: "controller", count: 1 },
+            ],
         },
     ],
 }));
