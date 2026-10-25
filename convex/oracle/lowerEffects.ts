@@ -4232,6 +4232,22 @@ function lowerSentenceBody(
         case "look-distribute":
             return lowerLookDistribute(sentence, site);
         case "reveal-top-to-hand": {
+            // CR 701.20a + CR 400.7 — the routed form: "your library" is the
+            // controller's, one card, the Op's default window.
+            if (sentence.route !== undefined)
+                return lowered([
+                    {
+                        op: "revealTopAndRoute",
+                        player: "controller",
+                        routes: [
+                            {
+                                filter: sentence.route.filter,
+                                to: sentence.route.to,
+                            },
+                        ],
+                        fallback: sentence.route.fallback,
+                    },
+                ]);
             // CR 701.20a — the one card revealed always goes to hand; the
             // match-all `filter` leaves nothing for `destination`, so its
             // value is inert (`destination` is required by the Op's shape).
@@ -4254,17 +4270,6 @@ function lowerSentenceBody(
                 },
             ]);
         }
-        case "reveal-top-route":
-            // CR 701.20a + CR 400.7 — "your library": the controller's; one
-            // card, so the Op's default window.
-            return lowered([
-                {
-                    op: "revealTopAndRoute",
-                    player: "controller",
-                    routes: [{ filter: sentence.filter, to: sentence.to }],
-                    fallback: sentence.fallback,
-                },
-            ]);
         case "reveal-until":
             // CR 701.20a — "your library": the controller's.
             return lowered([

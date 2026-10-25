@@ -45306,6 +45306,16 @@
         "source": "compiled"
     },
     {
+        "name": "Neurok Familiar",
+        "scryfallId": "52fd15b0-4ada-41c7-81e0-4f8956798685",
+        "oracleId": "8e11d1f7-fa98-4cd2-9912-081e9c9e37ee",
+        "firstSet": "mrd",
+        "firstPrintId": "52fd15b0-4ada-41c7-81e0-4f8956798685",
+        "firstPrintSet": "mrd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Neurok Prodigy",
         "scryfallId": "fb179448-5e1f-4ef3-858c-ba7a9ea05a78",
         "oracleId": "910860ce-d617-48c1-b44d-b1d95cdd006f",
@@ -62011,6 +62021,16 @@
         "firstPrintId": "b951bc89-be0b-4330-8a13-e196e084d53c",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Skyward Eye Prophets",
+        "scryfallId": "c8125473-a296-4032-bacd-1c1b96819cf9",
+        "oracleId": "45bef776-121b-4489-9c46-f7b4fd4c3c0d",
+        "firstSet": "con",
+        "firstPrintId": "c8125473-a296-4032-bacd-1c1b96819cf9",
+        "firstPrintSet": "con",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

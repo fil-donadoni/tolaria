@@ -560,7 +560,6 @@ export const EFFECT_SENTENCE_KINDS = [
     "replace-if-kicked",
     "look-distribute",
     "reveal-top-to-hand",
-    "reveal-top-route",
     "reveal-until",
     "first-player-may-reveal-until",
     "divide-library-piles",
@@ -1981,22 +1980,21 @@ export type EffectSentenceIR =
            * "You lose life equal to its mana value." sentence behind it, folded
            * on by `assembleSentences` because "its" reads the revealed card
            * (CR 608.2c) and means nothing alone.
+           *
+           * `route` widens the kind (the sentence-kind table only shrinks,
+           * issue #6557) to "Reveal the top card of your library. If it's a
+           * <type> card, put it <where>. Otherwise, put it <elsewhere>." —
+           * CR 400.7: three printed sentences, one effect, folded by
+           * `assembleSentences`. A window with no "Otherwise" (the card stays
+           * on top) or a route with no window is refused.
            */
           readonly kind: "reveal-top-to-hand";
           readonly lifeLoss: boolean;
-      }
-    | {
-          /**
-           * CR 701.20a / CR 400.7 — "Reveal the top card of your library. If
-           * it's a <type> card, put it <where>. Otherwise, put it <elsewhere>."
-           * Three printed sentences, one effect, folded by `assembleSentences`;
-           * a window with no "Otherwise" (the card stays on top) or a route
-           * with no window is refused.
-           */
-          readonly kind: "reveal-top-route";
-          readonly filter: EffectCardFilter;
-          readonly to: UntilRouteDestination;
-          readonly fallback: UntilRouteDestination;
+          readonly route?: {
+              readonly filter: EffectCardFilter;
+              readonly to: UntilRouteDestination;
+              readonly fallback: UntilRouteDestination;
+          };
       }
     | {
           /**
@@ -3323,10 +3321,13 @@ export function assembleSentences(
                     reason: 'a revealed top card\'s route is not followed by "Otherwise, put it …"',
                 };
             effects.push({
-                kind: "reveal-top-route",
-                filter: revealTop.filter,
-                to: revealTop.to,
-                fallback: sentence.to,
+                kind: "reveal-top-to-hand",
+                lifeLoss: false,
+                route: {
+                    filter: revealTop.filter,
+                    to: revealTop.to,
+                    fallback: sentence.to,
+                },
             });
             revealTop = null;
             continue;
@@ -3456,7 +3457,11 @@ export function assembleSentences(
             // revealed; the pair is one effect. Behind any other sentence the
             // same words name a different object, so this fold does not apply.
             const previous = effects[effects.length - 1]!;
-            if (previous.kind === "reveal-top-to-hand" && !previous.lifeLoss) {
+            if (
+                previous.kind === "reveal-top-to-hand" &&
+                !previous.lifeLoss &&
+                previous.route === undefined
+            ) {
                 effects[effects.length - 1] = { ...previous, lifeLoss: true };
                 continue;
             }
