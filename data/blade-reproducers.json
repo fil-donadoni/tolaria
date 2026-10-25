@@ -2225,33 +2225,6 @@
         "turn": 3,
         "libraryCount": 20
     },
-    "preparation: casts the prepare spell's exiled copy to re-buy an enters trigger": {
-        "cards": [
-            {
-                "name": "Skycoach Conductor",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Flametongue Kavu",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "opp",
-                "zone": "battlefield"
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 3,
-        "libraryCount": 20
-    },
     "prevention shield: casts Warning on the opponent's attacker that kills its blocker": {
         "cards": [
             {

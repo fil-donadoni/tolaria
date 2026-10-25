@@ -473,13 +473,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         tier: "must",
         expect: {
-            moves: [
-                {
+            // A `predicate`, not a `moves` matcher: the claim is that the
+            // cast is REACHABLE and taken (the adventure entry's shape), not a
+            // preference between two legal moves the weight fit should learn.
+            predicate: (move, state) =>
+                matchesMove(state, move, {
                     kind: "cast-spell",
                     card: "All Aboard",
                     target: "Flametongue Kavu",
-                },
-            ],
+                }),
+            describe: "casts the exiled copy of All Aboard on Flametongue Kavu",
         },
         note: "CR 722.3c prepare-copy cast reachability: the copy is matched by the prepare spell's own name, which resolves to the registered twin the exiled instance carries.",
     },
