@@ -490,3 +490,32 @@ describe("graveyard-card client parity (issue #1734)", () => {
         expect(client).toEqual(server);
     });
 });
+
+// ─── empty filter arrays (issue #2201) ──────────────────────────────────────
+
+describe("empty filter array client parity (issue #2201)", () => {
+    it("spellTypeFilter: [] offers the same spells as omitting it, client and server", () => {
+        const state = makeState();
+        pushSpell(state, counterspell().id, "p2");
+        pushSpell(state, shivanDragon().id, "p2");
+        const omitted: TargetRequirement = { type: "spell", count: 1 };
+        const empty: TargetRequirement = { ...omitted, spellTypeFilter: [] };
+        const baseline = serverOffered(state, omitted);
+        expect(baseline).toHaveLength(2);
+        expect(serverOffered(state, empty)).toEqual(baseline);
+        expect(clientSpellOffered(state, empty)).toEqual(baseline);
+    });
+
+    it("spellExcludeTypeFilter: [] offers the same spells as omitting it", () => {
+        const state = makeState();
+        pushSpell(state, counterspell().id, "p2");
+        const omitted: TargetRequirement = { type: "spell", count: 1 };
+        const empty: TargetRequirement = {
+            ...omitted,
+            spellExcludeTypeFilter: [],
+        };
+        expect(clientSpellOffered(state, empty)).toEqual(
+            serverOffered(state, omitted)
+        );
+    });
+});
