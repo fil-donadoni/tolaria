@@ -66,6 +66,32 @@ export function colorChoiceModes(
     }));
 }
 
+/** Builds the "choose a color OR COLORS" `EffectMode[]` (CR 105.2 — an object
+ *  is one or more of the five colors): one mode per non-empty subset of the
+ *  five colors (31), in WUBRG order, single colors first. A single-color mode
+ *  carries `color` (the client draws its mana symbol); a multicolor mode is a
+ *  text button naming every color. `bodyForColors` decides what the chosen
+ *  set DOES (Shyft: `setColor` with the whole set). Same `optionChoice`
+ *  composition as {@link colorChoiceModes} — no new choice construct. */
+export function colorSetChoiceModes(
+    bodyForColors: (colors: Color[]) => EffectOp[]
+): EffectMode[] {
+    const subsets: Array<Array<[Color, string]>> = [];
+    for (let mask = 1; mask < 1 << COLOR_LABELS.length; mask++) {
+        subsets.push(COLOR_LABELS.filter((_, i) => mask & (1 << i)));
+    }
+    subsets.sort((a, b) => a.length - b.length);
+    return subsets.map((subset) => {
+        const colors = subset.map(([color]) => color);
+        return {
+            id: colors.join(""),
+            label: subset.map(([, label]) => label).join(" and "),
+            ...(colors.length === 1 ? { color: colors[0] } : {}),
+            effects: bodyForColors(colors),
+        };
+    });
+}
+
 /** Builds the one-Op `[{ op: "optionChoice", ... }]` script for "target
  *  becomes the color of your choice" (CR 613.1e) — the single-target case
  *  (Blind Seer, Rainbow Crow, Tidal Visionary). `target` is the object

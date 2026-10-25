@@ -28,7 +28,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
-import { colorChoiceModes } from "../../abilities/chooseColor";
+import { colorSetChoiceModes } from "../../abilities/chooseColor";
 import { countSnowLands } from "../../snowReads";
 
 // Color-word options for Balduvian Shaman's text change (CR 612 — the five
@@ -1884,16 +1884,8 @@ export const realityTwist = defineCard(() => ({
 // via a layer-5 colour override (CR 305.7 / 613.1d — `setColorOverride`). The
 // override rides the instance with no duration, so it lasts INDEFINITELY until
 // a zone change (CR 612.7) — exactly "this effect lasts indefinitely."
-//
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the oracle "the color or colors
-// of your choice" permits any subset of the five colours (CR 105.2). The
-// `requestOptionChoice` primitive is a single pick, so this models the five
-// MONO-colour choices (each a one-element override, the common faithful
-// reading — the same single-colour pick Jihad/Metamorphosis use). Picking a
-// multicolour combination would need a multi-select colour primitive; the
-// mono-colour pick covers the tactical use (becoming a colour to dodge a
-// "protection from" / colour-hate effect). Full power-set picking lands when a
-// multi-colour choice primitive exists.
+// "The color or colors of your choice" (CR 105.2) is one `optionChoice` mode
+// per non-empty subset of the five colors (`colorSetChoiceModes`).
 export const shyft = defineCard(() => ({
     id: "99a60c33-b641-42c4-870d-95d07bc975dc",
     name: "Shyft",
@@ -1932,12 +1924,12 @@ export const shyft = defineCard(() => ({
                         {
                             op: "optionChoice",
                             player: "controller",
-                            prompt: "Choose Shyft's new color.",
-                            modes: colorChoiceModes((color) => [
+                            prompt: "Choose Shyft's new color or colors.",
+                            modes: colorSetChoiceModes((colors) => [
                                 {
                                     op: "setColor",
                                     target: { ref: "$source" },
-                                    colors: [color],
+                                    colors,
                                 },
                             ]),
                         },
