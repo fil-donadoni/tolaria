@@ -98,6 +98,21 @@ function kickerPaymentsOf(plan: Extract<Plan, { kind: "run" }>): {
     return paid === undefined ? {} : { kickerPayments: { ...paid } };
 }
 
+/** The kicker payments of another run plan of the same script, when this
+ *  plan's differ — the opposite world to probe a branch run against. */
+function flippedPayments(
+    plans: Plan[],
+    plan: Extract<Plan, { kind: "run" }>
+): Record<string, number> | undefined {
+    const mine = JSON.stringify(plan.scenario.kickerPayments ?? {});
+    for (const other of plans) {
+        if (other.kind !== "run") continue;
+        const theirs = other.scenario.kickerPayments ?? {};
+        if (JSON.stringify(theirs) !== mine) return { ...theirs };
+    }
+    return undefined;
+}
+
 /** Runs one ability-site script through resolution: registers a synthetic
  *  creature carrying the ability, drops the source permanent on the caster's
  *  battlefield (so `$source` binds — CR 608.2h), and pushes an activated-ability
@@ -187,7 +202,38 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
                         `${s.label}${plan.branch ? ` ${plan.branch}` : ""}: ${assertion.label} — ${result.detail ?? ""}`
                     ).toBe(true);
                 }
-                if (plan.branch !== undefined) branchesRan++;
+                if (plan.branch !== undefined) {
+                    branchesRan++;
+                    const flipped = flippedPayments(plans, plan);
+                    if (flipped !== undefined) {
+                        // A branch run must tell its branch from the other:
+                        // re-run the original script in the opposite kicker
+                        // world on a fresh scenario; if every assertion still
+                        // holds, the run proves nothing about the branch.
+                        const fresh = planSmokeBranches(s.effects, s.host)
+                            .plans[p];
+                        if (fresh?.kind === "run") {
+                            const probe = {
+                                ...fresh,
+                                scenario: {
+                                    ...fresh.scenario,
+                                    kickerPayments: flipped,
+                                },
+                            };
+                            const pid = `${id}-flip`;
+                            if (s.pushes === "spell")
+                                runSpellSite(probe, s.effects, pid);
+                            else runAbilitySite(probe, s.effects, pid);
+                            const stillHolds = fresh.assertions.every(
+                                (a) => a.check(fresh.scenario.state).ok
+                            );
+                            if (stillHolds)
+                                branchSkips.push(
+                                    `SKIP-BRANCH ${s.label}: branch ${plan.branch} — its assertions also hold in the opposite kicker world, so the run does not tell the branches apart`
+                                );
+                        }
+                    }
+                }
                 ran++;
             });
         });

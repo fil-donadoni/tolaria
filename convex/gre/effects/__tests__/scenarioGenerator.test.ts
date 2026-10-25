@@ -1127,8 +1127,8 @@ describe("if-branch scenario-ization (issue #1707, CR 702.33)", () => {
         expect(lifeLost.sort()).toEqual([2, 5]);
     });
 
-    it("reports a branch no scenario can make true as an attributed skip", () => {
-        const { plans, skipped } = planSmokeBranches([
+    it("keeps a count predicate a skip: the final scenario does not seed its set", () => {
+        const { plans } = planSmokeBranches([
             {
                 op: "if",
                 predicate: {
@@ -1136,15 +1136,26 @@ describe("if-branch scenario-ization (issue #1707, CR 702.33)", () => {
                         count: { zone: "graveyard", controller: "controller" },
                     },
                     op: "ge",
-                    right: 7,
+                    right: 1,
                 },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+                else: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ]);
+        expect(plans).toHaveLength(1);
+        expect(plans[0]!.kind).toBe("skip");
+    });
+
+    it("reports an empty taken branch as a skip, never as covered", () => {
+        const { plans, skipped } = planSmokeBranches([
+            {
+                op: "if",
+                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
                 then: [{ op: "draw", player: "controller", count: 1 }],
-                else: [{ op: "draw", player: "controller", count: 2 }],
             },
         ]);
         expect(plans.filter((p) => p.kind === "run")).toHaveLength(1);
-        expect(skipped).toHaveLength(1);
-        expect(skipped[0]!.reason).toMatch(/then branch.*predicate true/);
+        expect(skipped.map((k) => k.code)).toEqual(["no-assertable-outcome"]);
     });
 
     it("keeps the legacy skip for a predicate it cannot read", () => {

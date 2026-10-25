@@ -4316,7 +4316,7 @@ function nestedOps(effects: readonly EffectOp[]): EffectOp[] {
 // ORIGINAL script, so the interpreter's own `if` takes the branch and the
 // flattened Ops' declared outcomes are asserted. Only predicates whose truth
 // the generator can read off the scenario are handled (a comparison over
-// literals / kicker payments / X / count sets / source counters, and
+// literals / kicker payments / X / source counters, and
 // `targetIsAnother`); any other `if` stays the legacy `runtime-branch` skip.
 
 type IfOp = Extract<EffectOp, { op: "if" }>;
@@ -4339,7 +4339,6 @@ function isBranchOperand(value: EffectValue): boolean {
         "kickerCount" in value ||
         "additionalCostPaid" in value ||
         "X" in value ||
-        "count" in value ||
         "counters" in value
     );
 }
@@ -4524,14 +4523,12 @@ export function planSmokeBranches(
                 .join(",");
             for (const op of reached) seenIfs.add(op);
             if (flat.length === 0) {
-                // The taken branches hold no Op: the interpreter has nothing
-                // to do, so there is no outcome to declare — realised, but no
-                // plan (and no pretence of a run) stands for it.
-                for (const op of reached) {
-                    const set = realised.get(op) ?? new Set<boolean>();
-                    set.add(decisions.get(op)!);
-                    realised.set(op, set);
-                }
+                // The taken branches hold no Op: nothing is declared to
+                // assert, so this outcome is reported, never counted covered.
+                skips.set(key, {
+                    code: "no-assertable-outcome",
+                    reason: `branch [${key}] — the taken branch holds no Op, so there is no outcome to assert`,
+                });
                 break;
             }
             const plan = planWith(flat, host, world);
