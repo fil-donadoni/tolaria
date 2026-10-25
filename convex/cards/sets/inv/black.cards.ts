@@ -867,12 +867,12 @@ export const phyrexianDelver = defineCard(() => ({
 // a green creature, destroy that creature. It can't be regenerated." (CR
 // 509.1h becomes-blocked, CR 701.8 destroy, CR 701.19c regen suppression.)
 //
-// The trigger CONDITION still depends on the blocker's live color, which
-// isn't carried on `BLOCKERS_CONFIRMED` — read via
-// `TriggerStateView.players[].battlefield[].colors` in `matches` (a plain
+// The trigger CONDITION depends on the blocker's effective colour (layer
+// 5), read off the event's own `blockerColors` in `matches` (a plain
 // `TriggeredAbility` field, orthogonal to the effect body) so the ability
 // doesn't even go on the stack when blocked by a non-green creature (CR
-// 603.2). `combatPairKillTrigger` doesn't fit — it destroys at END of combat
+// 603.2). The live `GameState` handed to `matches` carries no colours.
+// `combatPairKillTrigger` doesn't fit — it destroys at END of combat
 // (a delayed trigger) and has no color filter; this is an IMMEDIATE destroy,
 // one direction only ("becomes blocked by", not "blocks or becomes blocked
 // by"), matching Lim-Dûl's Cohort's precedent of declaring the
@@ -899,13 +899,10 @@ export const phyrexianReaper = defineCard(() => ({
             oracleText:
                 "Whenever this creature becomes blocked by a green creature, destroy that creature. It can't be regenerated.",
             event: "BLOCKERS_CONFIRMED",
-            matches: (event, self, state) => {
+            matches: (event, self) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 if (event.attackerId !== self.id) return false;
-                const blocker = state?.players
-                    .flatMap((p) => p.battlefield)
-                    .find((p) => p.id === event.blockerId);
-                return blocker?.colors?.includes("G") ?? false;
+                return event.blockerColors?.includes("G") ?? false;
             },
             effects: [
                 {
@@ -921,7 +918,7 @@ export const phyrexianReaper = defineCard(() => ({
 // Phyrexian Slayer — {3}{B} 2/2. "Flying. Whenever this creature becomes
 // blocked by a white creature, destroy that creature. It can't be
 // regenerated." (Same shape as Phyrexian Reaper above, filtered to white —
-// same `$event.blockerId` DSL effect body, same live-color `matches` gate.)
+// same `$event.blockerId` DSL effect body, same `blockerColors` `matches` gate.)
 export const phyrexianSlayer = defineCard(() => ({
     id: "5fa8c604-343f-4c94-ac25-439ab1845c19", // INV 118
     rarity: "common",
@@ -940,13 +937,10 @@ export const phyrexianSlayer = defineCard(() => ({
             oracleText:
                 "Whenever this creature becomes blocked by a white creature, destroy that creature. It can't be regenerated.",
             event: "BLOCKERS_CONFIRMED",
-            matches: (event, self, state) => {
+            matches: (event, self) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 if (event.attackerId !== self.id) return false;
-                const blocker = state?.players
-                    .flatMap((p) => p.battlefield)
-                    .find((p) => p.id === event.blockerId);
-                return blocker?.colors?.includes("W") ?? false;
+                return event.blockerColors?.includes("W") ?? false;
             },
             effects: [
                 {

@@ -42,6 +42,7 @@ import {
     applyNameCardSubmit,
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
+import { emitBlockersConfirmedEvents } from "../../../../gre/phases";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -179,152 +180,70 @@ describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)",
 });
 
 describe("Phyrexian Reaper / Phyrexian Slayer (becomes-blocked-by-color → destroy, can't regen; CR 509.1h / 701.8 / 701.19c)", () => {
-    it("Reaper's trigger fires only when blocked by a GREEN creature", () => {
-        const reaper = makeInstance(phyrexianReaper.id, {
-            id: "reaper",
+    // Real combat path: `emitBlockersConfirmedEvents` is the production
+    // emitter, so `matches` sees the raw live GameState exactly as in a game
+    // (a hand-built colours-annotated view masked the dead trigger).
+    function blockedBy(attackerDefId: string, blockerDefId: string) {
+        const attacker = makeInstance(attackerDefId, {
+            id: "atk",
             controllerId: "p1",
             ownerId: "p1",
+            isAttacking: true,
         });
-        const greenBlocker = makeInstance(
-            getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90").id,
-            {
-                id: "green-blk",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
+        const blocker = makeInstance(blockerDefId, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [reaper] }),
-                makePlayer("p2", { battlefield: [greenBlocker] }),
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
             ],
-        });
-        const trigger = phyrexianReaper.triggeredAbilities![0]!;
-        const stateView = {
-            players: state.players.map((p) => ({
-                id: p.id,
-                life: p.life,
-                battlefield: p.battlefield.map((c) => ({
-                    ...c,
-                    colors: c.id === "green-blk" ? (["G"] as const) : undefined,
-                })),
-            })),
-        };
-        const matches = trigger.matches(
-            {
-                type: "BLOCKERS_CONFIRMED",
-                attackerId: "reaper",
-                attackerControllerId: "p1",
-                attackerTypes: ["Creature"],
-                attackerSubtypes: [],
-                blockerId: "green-blk",
-                blockerControllerId: "p2",
-                blockerTypes: ["Creature"],
-                blockerSubtypes: [],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments: { [blocker.id]: [attacker.id] },
+                blockersConfirmed: true,
             },
-            reaper as never,
-            stateView as never
-        );
-        expect(matches).toBe(true);
+        });
+        emitBlockersConfirmedEvents(state);
+        return state;
+    }
+    const GREEN = "1cb9d405-f2b5-4e10-a405-feafd2a87d90";
+    const WHITE = "11600105-56c6-4073-a4a6-8469030b39c9";
 
-        resolveTrigger(state, reaper, "phyrexian-reaper-blocked", {
-            type: "BLOCKERS_CONFIRMED",
-            attackerId: "reaper",
-            attackerControllerId: "p1",
-            attackerTypes: ["Creature"],
-            attackerSubtypes: [],
-            blockerId: "green-blk",
-            blockerControllerId: "p2",
-            blockerTypes: ["Creature"],
-            blockerSubtypes: [],
-        } as StackItem["triggerEvent"]);
+    it("Reaper's trigger fires only when blocked by a GREEN creature", () => {
+        const state = blockedBy(phyrexianReaper.id, GREEN);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "phyrexian-reaper-blocked"
+        );
+        resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
-        expect(
-            state.players[1].graveyard.some((c) => c.id === "green-blk")
-        ).toBe(true);
+        expect(state.players[1].graveyard.some((c) => c.id === "blk")).toBe(
+            true
+        );
     });
 
-    it("Reaper's trigger does NOT match a non-green blocker", () => {
-        const reaper = makeInstance(phyrexianReaper.id, {
-            id: "reaper",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const whiteBlocker = makeInstance(
-            getDefinition("11600105-56c6-4073-a4a6-8469030b39c9").id,
-            {
-                id: "white-blk",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [reaper] }),
-                makePlayer("p2", { battlefield: [whiteBlocker] }),
-            ],
-        });
-        const trigger = phyrexianReaper.triggeredAbilities![0]!;
-        const stateView = {
-            players: state.players.map((p) => ({
-                id: p.id,
-                life: p.life,
-                battlefield: p.battlefield.map((c) => ({
-                    ...c,
-                    colors: c.id === "white-blk" ? (["W"] as const) : undefined,
-                })),
-            })),
-        };
-        const matches = trigger.matches(
-            {
-                type: "BLOCKERS_CONFIRMED",
-                attackerId: "reaper",
-                attackerControllerId: "p1",
-                attackerTypes: ["Creature"],
-                attackerSubtypes: [],
-                blockerId: "white-blk",
-                blockerControllerId: "p2",
-                blockerTypes: ["Creature"],
-                blockerSubtypes: [],
-            },
-            reaper as never,
-            stateView as never
-        );
-        expect(matches).toBe(false);
+    it("Reaper's trigger does NOT fire for a non-green blocker", () => {
+        const state = blockedBy(phyrexianReaper.id, WHITE);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(1);
     });
 
     it("Slayer destroys a WHITE blocker", () => {
-        const slayer = makeInstance(phyrexianSlayer.id, {
-            id: "slayer",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const whiteBlocker = makeInstance(
-            getDefinition("11600105-56c6-4073-a4a6-8469030b39c9").id,
-            {
-                id: "white-blk",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [slayer] }),
-                makePlayer("p2", { battlefield: [whiteBlocker] }),
-            ],
-        });
-        resolveTrigger(state, slayer, "phyrexian-slayer-blocked", {
-            type: "BLOCKERS_CONFIRMED",
-            attackerId: "slayer",
-            attackerControllerId: "p1",
-            attackerTypes: ["Creature"],
-            attackerSubtypes: [],
-            blockerId: "white-blk",
-            blockerControllerId: "p2",
-            blockerTypes: ["Creature"],
-            blockerSubtypes: [],
-        } as StackItem["triggerEvent"]);
+        const state = blockedBy(phyrexianSlayer.id, WHITE);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("Slayer's trigger does NOT fire for a green blocker", () => {
+        const state = blockedBy(phyrexianSlayer.id, GREEN);
+        expect(state.stack).toHaveLength(0);
     });
 });
 
