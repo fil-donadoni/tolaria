@@ -2265,6 +2265,12 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  `self.counters`), never effective or copiable ones. Do not unify the
      *  three: they answer different questions. */
     sourceLki?: CardInstanceState;
+    /** CR 608.2h — the source's EFFECTIVE power at departure, stamped beside
+     *  `sourceLki` (the raw record cannot reproduce layer-folded power once the
+     *  permanent's own statics are gone). Read by "deals damage equal to its
+     *  power" abilities whose source left the battlefield. Absent for a
+     *  non-creature source. */
+    sourceLkiPower?: number;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
     /** CR 603.3b — for a `oncePerEventBatch` ability, the FULL set of events in

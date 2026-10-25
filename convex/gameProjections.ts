@@ -442,6 +442,7 @@ function slimCard<
     // that never crosses the wire cannot leak a future non-public one
     // (#1977/#1982), and the engine reads it server-side only.
     delete (slimmed as { sourceLki?: unknown }).sourceLki;
+    delete (slimmed as { sourceLkiPower?: unknown }).sourceLkiPower;
     // CR 608.2h / 400.7 (issue #2384) — `capturedBindings`, the cross-ability
     // binding memory one of this permanent's abilities left for a later one, is
     // the third field of exactly the `sourceLki` shape and gets the same

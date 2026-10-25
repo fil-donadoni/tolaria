@@ -539,14 +539,6 @@ export const strafe = defineCard(() => ({
 // `effects: [{ op: "fight", target: { target: 0 } }]`). Stays `resolve()`
 // only until that issue closes.
 //
-// DIVERGENCE (tracked-by: #2012): `SpellContext.fight` (`resolveFight`,
-// `gre/state.ts`) does not model CR 608.2h last-known-information — if
-// Tahngarth (or the target) leaves the battlefield in response to this
-// ability, `resolveFight` no-ops ENTIRELY instead of still dealing the half
-// of the exchange sourced from whichever creature is still around. Karplusan
-// Yeti shares this exact gap (same primitive); #2012 tracks fixing
-// `resolveFight` for both.
-//
 // Two printings in the same set (ADR 0014): PLS 74 (canonical) and PLS 74★
 // (the foil-only alternate-illustration variant) — one CardDefinition plus
 // one CardPrint, the Skyship Weatherlight precedent `pls/colorless.cards.ts`.
