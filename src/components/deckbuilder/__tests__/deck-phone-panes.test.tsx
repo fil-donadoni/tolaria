@@ -39,7 +39,10 @@ import type {
 } from "../deckBuilderVariant";
 
 let mode: ViewportMode = "portrait";
-vi.mock("~/hooks/useViewportMode", () => ({
+// Partial: `useSurfaceClass` (read by `DeckZoneSurface`) imports the media
+// query constants from this module.
+vi.mock("~/hooks/useViewportMode", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("~/hooks/useViewportMode")>()),
     useViewportMode: () => mode,
 }));
 
