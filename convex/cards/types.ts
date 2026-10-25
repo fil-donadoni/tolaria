@@ -6245,6 +6245,14 @@ export interface SpellContext {
      *  delayed triggers. Returns false for players and for permanents no
      *  longer on the battlefield. */
     hasAttackedThisTurn: (target: TargetSelection) => boolean;
+    /** True if the target permanent was able to attack: it passes the same
+     *  attack-legality check as an attack declaration (CR 508.1a-c — defender,
+     *  summoning sickness without haste, "can't attack" flags and statics,
+     *  global attack restrictions). Season of the Witch's "except for
+     *  creatures that couldn't attack". The creature's CURRENT tapped status
+     *  counts as in the declaration, so filter on `tapped: false` first.
+     *  False for players / permanents off the battlefield. */
+    couldHaveAttacked: (target: TargetSelection) => boolean;
     /** True if the target permanent is summoning-sick (CR 302.6 — entered under
      *  its controller's control after their most recent turn began). Used to
      *  identify creatures that "couldn't attack" this turn (Season of the

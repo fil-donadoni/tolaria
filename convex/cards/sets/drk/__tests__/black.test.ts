@@ -900,6 +900,35 @@ describe("Season of the Witch — upkeep pay-2-life-or-sac + end-step mass destr
         expect(alive("wall")).toBe(true);
         expect(alive("fresh")).toBe(true);
     });
+
+    it("spares a creature that couldn't attack for another reason (CR 508.1a can't-attack flag)", () => {
+        const bears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
+        const barred = makeInstance(bears, {
+            id: "barred",
+            controllerId: "p1",
+            cantAttackThisTurn: true,
+        });
+        const idler = makeInstance(bears, { id: "idler", controllerId: "p1" });
+        const witch = makeInstance(seasonOfTheWitch.id, {
+            id: "witch",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [barred, idler, witch] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, witch, "season-of-the-witch-end-step", {
+            type: "PHASE_BEGIN",
+            phase: "END_STEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        const alive = (id: string) =>
+            state.players[0].battlefield.some((c) => c.id === id);
+        expect(alive("barred")).toBe(true);
+        expect(alive("idler")).toBe(false);
+    });
 });
 
 describe("The Fallen — upkeep 1 to each opponent it damaged this game (CR 603.6a)", () => {

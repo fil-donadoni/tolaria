@@ -471,8 +471,8 @@ export const ragMan = defineCard(() => ({
 // all untapped creatures that didn't attack this turn, except for creatures
 // that couldn't attack." (CR 603.6a + CR 119.4 upkeep pay-2-life-or-sacrifice;
 // CR 603.6a each end step a mass destroy of untapped creatures that didn't
-// attack — excepting those that "couldn't attack": creatures with defender or
-// that were summoning-sick this turn.)
+// attack — excepting those that "couldn't attack", read from the engine's
+// attack-legality check.)
 export const seasonOfTheWitch = defineCard(() => ({
     id: "06900a71-34ca-48c6-94ac-fca744356829",
     rarity: "rare",
@@ -533,16 +533,15 @@ export const seasonOfTheWitch = defineCard(() => ({
             phase: "END_STEP",
             scope: "each",
             // NOT DSL-migratable (ADR 0045): the destroy set is filtered by
-            // runtime predicates (hasAttackedThisTurn / isSummoningSick /
-            // defender) the forEach `permanents` selector can't express (it
+            // runtime predicates (hasAttackedThisTurn / couldHaveAttacked)
+            // the forEach `permanents` selector can't express (it
             // filters only by type/subtype). Stays resolve().
             resolve: (ctx) => {
                 // CR 603.6a — every untapped creature that didn't attack this
                 // turn and could have attacked is destroyed. "Couldn't attack"
-                // is approximated (tracked-by: #2785) by the two structural reasons in this pool: a
-                // creature with defender, or one that was summoning-sick this
-                // turn (CR 508.1a). Tapped creatures are excluded by the
-                // `tapped: false` filter (CR 508.1g).
+                // is the engine's own attack-legality check (CR 508.1a-c).
+                // Tapped creatures are excluded by the `tapped: false` filter
+                // (CR 508.1g).
                 for (const pid of ctx.allPlayerIds) {
                     for (const id of ctx.getBattlefieldIds(pid, {
                         types: "Creature",
@@ -550,8 +549,7 @@ export const seasonOfTheWitch = defineCard(() => ({
                     })) {
                         const ref = { type: "permanent" as const, id };
                         if (ctx.hasAttackedThisTurn(ref)) continue;
-                        if (ctx.hasStaticAbility(ref, "defender")) continue;
-                        if (ctx.isSummoningSick(ref)) continue;
+                        if (!ctx.couldHaveAttacked(ref)) continue;
                         ctx.destroy(ref);
                     }
                 }
