@@ -1018,8 +1018,12 @@ export const jestersMask = defineCard(() => ({
                         kind: "search-library",
                         zone: "library",
                         zoneOwnerId: player,
-                        count: { min: 0, max: handCount },
-                        prompt: `Search the target player's library for up to ${handCount} cards to put into their hand.`,
+                        // CR 701.23b — "that many cards" states no quality,
+                        // so the search is MANDATORY. The hand just moved onto
+                        // the library, so it holds at least `handCount` cards
+                        // and a fixed count can never outrun it.
+                        count: handCount,
+                        prompt: `Search the target player's library for ${handCount} cards to put into their hand.`,
                         // Genuine CR 701.23a search of the whole target
                         // library (no candidateIds restriction) — issue #788
                         // finding 1.
