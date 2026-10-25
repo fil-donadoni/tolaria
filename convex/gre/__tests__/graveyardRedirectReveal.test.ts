@@ -43,7 +43,7 @@ function revealing(
         subtypes: [],
         ...(types.includes("Creature") ? { power: 1, toughness: 1 } : {}),
         ...(types.includes("Sorcery")
-            ? { targetRequirement: { type: "creature" as const, count: 1 } }
+            ? { targetRequirement: { type: "Creature" as const, count: 1 } }
             : {}),
         replacementEffects: [
             shuffleFromAnywhereReplacement({
