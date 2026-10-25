@@ -1397,6 +1397,10 @@ function selectorsFor(
         return unlowerable(
             "each creature and each player is two recipient sets, not one object (CR 120.3)"
         );
+    if (subject.kind === "each-opponent-and-their-creatures")
+        return unlowerable(
+            "each opponent and their creatures is two recipient sets, not one object (CR 120.3)"
+        );
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     // CR 112.1 / CR 110.1 — a SPELL is a card on the STACK; a permanent is a
@@ -2204,6 +2208,19 @@ function lowerSentenceBody(
                     },
                 ]);
             }
+            // CR 120.3 + CR 109.5 — "to each opponent and each creature they
+            // control": both sets are dealt the damage at once, which is what
+            // the no-target `dealDamageToEach` Op is (one primitive call over
+            // the whole recipient set), not a pair of sequential sweeps.
+            if (sentence.to.kind === "each-opponent-and-their-creatures")
+                return lowered([
+                    {
+                        op: "dealDamageToEach",
+                        amount: amount.value,
+                        creatures: { controller: "opponent" },
+                        players: "opponent",
+                    },
+                ]);
             // CR 120.3 — "to each creature and each player" names two
             // disjoint recipient sets; `dealDamage.to` names one, so this
             // fans out into a pair of sweeps instead of a single Op.

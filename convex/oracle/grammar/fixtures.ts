@@ -4890,6 +4890,38 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 120.3 + CR 109.5 — "<self> deals N damage to each opponent and each
+    // creature they control": the opponent-scoped recipient union, lowered to
+    // the one no-target `dealDamageToEach` Op (both sets dealt the damage at
+    // once) rather than a pair of sequential sweeps. Exhibits the form
+    // `each-opponent-and-their-creatures` reads.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "9097243a-39fa-4e18-8316-c0e57699c783",
+            name: "Tectonic Hazard",
+            manaCost: "{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Tectonic Hazard deals 1 damage to each opponent and each creature they control.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tectonic Hazard",
+            types: ["Sorcery"],
+            manaCost: { R: 1 },
+            oracleText:
+                "Tectonic Hazard deals 1 damage to each opponent and each creature they control.",
+            effects: [
+                {
+                    op: "dealDamageToEach",
+                    amount: 1,
+                    creatures: { controller: "opponent" },
+                    players: "opponent",
+                },
+            ],
+        },
+    },
     // CR 615.1a — "Prevent all combat damage that would be dealt to and dealt
     // by this creature this turn": a two-way shield on the ability's own
     // source, exhibiting the "preventDamage acts on $source" card-dependent

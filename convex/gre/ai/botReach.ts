@@ -434,6 +434,26 @@ function damagesEveryCreatureIn(
     // the position and prices the cast itself, and a `hasAbility` filter
     // (damage to fliers only) never reaches the 1/1s the pose adds.
     if (def.additionalCosts !== undefined) return false;
+    // CR 120.3 — the no-target `dealDamageToEach` Op is the same sweep in one
+    // node: its creature half (the opponent's, or every player's — never the
+    // holder's alone) is damage no 1/1 survives, whatever the amount.
+    const eachOp = (node: unknown): boolean => {
+        if (Array.isArray(node)) return node.some(eachOp);
+        if (node === null || typeof node !== "object") return false;
+        const record = node as Record<string, unknown>;
+        const creatures = record.creatures as
+            | { controller?: string; filter?: { hasAbility?: unknown } }
+            | undefined;
+        return (
+            (record.op === "dealDamageToEach" &&
+                creatures !== undefined &&
+                creatures.controller !== "controller" &&
+                creatures.filter?.hasAbility === undefined) ||
+            Object.values(record).some(eachOp)
+        );
+    };
+    if (eachOp([...(withSpell ? [def.effects, def.modes] : []), ...roots]))
+        return true;
     return battlefieldForEaches(def, withSpell, roots).some(
         ({ select, effects }) =>
             select.controller === undefined &&

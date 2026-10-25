@@ -5693,13 +5693,17 @@ export interface SpellContext {
      *  effective toughness (layer 7c). `filter.creatures`: `true` for all
      *  creatures, or a `PermanentFilter` (types are forced to Creature) to
      *  restrict by subtype/keyword (e.g. `{ excludeAbility: "flying" }`).
-     *  `filter.players`: include both players. No-op when amount <= 0 or
+     *  `filter.players`: `true` includes both players; `"you"` / `"opponents"`
+     *  scope it to the resolving controller / their opponent (CR 109.5).
+     *  A creature half scopes by controller through
+     *  `PermanentFilter.controllerRelation` (`"you"` / `"opponents"`, read
+     *  relative to the resolving controller). No-op when amount <= 0 or
      *  nothing matches. Used by Earthquake / Hurricane / Pyroclasm-like sweepers. */
     dealDamageToEach: (
         amount: number,
         filter: {
             creatures?: boolean | Omit<PermanentFilter, "types">;
-            players?: boolean;
+            players?: boolean | EachDamagePlayerScope;
         }
     ) => void;
     /** Grants a player a reference to an activated ability template defined
@@ -13669,6 +13673,17 @@ export type EffectPlayerRef =
  *  the Op is skipped (CR 608.2b). */
 export type EffectTargetRef = { target: number };
 
+/** Whose recipients a `dealDamageToEach` Op's half covers, relative to the
+ *  resolving controller (CR 109.5): `"controller"` — "you", `"opponent"` —
+ *  "each opponent". */
+export type EachDamagePlayerRef = "controller" | "opponent";
+
+/** The `SpellContext.dealDamageToEach` primitive's player scope, the
+ *  controller-relative vocabulary `PermanentFilter.controllerRelation` already
+ *  speaks: `"you"` ↔ `EachDamagePlayerRef` `"controller"`, `"opponents"` ↔
+ *  `"opponent"`. */
+export type EachDamagePlayerScope = "you" | "opponents";
+
 /** Object selector accepted by object-acting Ops (destroy / exile /
  *  dealDamage): an announced target slot, OR — inside a `forEach` over
  *  permanents (issue #807) — the bare `{ ref: "$each" }` naming the current
@@ -15443,6 +15458,31 @@ export type EffectOp =
            *  Presence, Ali from Cairo, Lashknife Barrier) are untouched — they
            *  neither prevent nor redirect. */
           unredirectable?: boolean;
+      }
+    /** CR 120.3 / 120.2 — deal `amount` damage SIMULTANEOUSLY to every
+     *  creature and/or player in a declared set, with no target ("deals N
+     *  damage to each opponent and each creature they control"). A thin
+     *  declarative skin over the single `SpellContext.dealDamageToEach`
+     *  primitive, one execution path (ADR 0045). The whole recipient set is
+     *  fixed once, at the Op's start, and handed to the primitive in ONE call
+     *  — unlike a `forEach` over the same permanents with a `dealDamage` body,
+     *  which walks the members one Op run at a time. `creatures` selects
+     *  creatures (`controller` narrows whose, `filter` is the usual
+     *  `EffectCardFilter`; types are forced to Creature); omit it for no
+     *  creature half. `players` selects players: `"each"` both, `"controller"`
+     *  the resolving controller, `"opponent"` their opponent; omit it for no
+     *  player half. At least one half is required. Deliberately NOT here: a
+     *  non-creature recipient (planeswalker / battle sweeps) and a damage
+     *  source other than the resolving object. No-op when `amount` is ≤ 0 or
+     *  nothing matches. */
+    | {
+          op: "dealDamageToEach";
+          amount: EffectValue;
+          creatures?: {
+              controller?: EachDamagePlayerRef;
+              filter?: EffectCardFilter;
+          };
+          players?: "each" | EachDamagePlayerRef;
       }
     /** CR 601.2d / 120.4 — deal `total` damage DIVIDED AS YOU CHOOSE among the
      *  spell/ability's announced targets (Arc Lightning, Fiery Justice, Meteor

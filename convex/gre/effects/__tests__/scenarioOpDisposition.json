@@ -78,6 +78,7 @@
         "code": "target-slot-shape",
         "reason": "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized"
     },
+    "dealDamageToEach": "runs",
     "delayedTrigger": {
         "code": "later-outcome",
         "reason": "Op \"delayedTrigger\" fires at a future phase boundary — covered by the Op's interpreter tests"
