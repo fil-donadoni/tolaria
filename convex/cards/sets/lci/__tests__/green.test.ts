@@ -247,7 +247,7 @@ describe("Map token (CR 111.10) — the ability shape", () => {
         // A non-empty stack is never a sorcery-speed window (CR 307.5).
         state.stack.push({ ...sentinel, zone: "stack", castById: "p1" });
         expect(() =>
-            assertActivationTimingLegal(state, map, ability)
+            assertActivationTimingLegal(state, map, map.controllerId, ability)
         ).toThrow();
     });
 });

@@ -2672,7 +2672,7 @@ export function beginNonStackFilterCostActivation(
     }
     // CR 602.5 / 602.5b — the same timing and precondition gates every other
     // activation entry point runs before cost lock.
-    assertActivationTimingLegal(state, card, ability);
+    assertActivationTimingLegal(state, card, player.id, ability);
     const precondition = activationPreconditionViolation(state, card, ability);
     if (precondition !== null) throw new Error(precondition);
     // CR 302.1 — a {T} leg needs an untapped, non-summoning-sick source.
@@ -5011,7 +5011,7 @@ export function finalizeTargetSelection(
                 );
             }
         }
-        assertActivationTimingLegal(state, card, ability);
+        assertActivationTimingLegal(state, card, player.id, ability);
         // CR 606 — re-validate a targeted loyalty ability at commit (the timing
         // / once-per-turn / below-0 gates), since the board may have changed
         // between opening the target prompt and confirming it.
@@ -14413,7 +14413,7 @@ export const activateManaAbility = mutation({
         // Ornitier: "Activate only during your turn and only once each
         // turn."). Mirrors the check every other activation entry point runs
         // before cost lock.
-        assertActivationTimingLegal(state, card, ability);
+        assertActivationTimingLegal(state, card, args.playerId, ability);
         // CR 602.5 — the ability's own restriction and an
         // `activation-restriction` static (Cursed Totem), read through the
         // one authority every other activation entry point reads.

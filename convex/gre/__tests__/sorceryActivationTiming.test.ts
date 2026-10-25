@@ -34,14 +34,23 @@ describe("assertActivationTimingLegal sorcery window (CR 602.5d, CR 307.5)", () 
     it("allows the active controller holding priority", () => {
         const { state, card } = frame("p1");
         expect(() =>
-            assertActivationTimingLegal(state, card, ability)
+            assertActivationTimingLegal(state, card, card.controllerId, ability)
         ).not.toThrow();
     });
 
     it("refuses a non-active controller even while the active player holds priority", () => {
         const { state, card } = frame("p2");
-        expect(() => assertActivationTimingLegal(state, card, ability)).toThrow(
-            "Activate only as a sorcery"
-        );
+        expect(() =>
+            assertActivationTimingLegal(state, card, card.controllerId, ability)
+        ).toThrow("Activate only as a sorcery");
+    });
+
+    it("asks about the activating player, not the card's stored controller (graveyard source)", () => {
+        // A graveyard card keeps its last battlefield controller; its owner p1
+        // activates it in their own window.
+        const { state, card } = frame("p2");
+        expect(() =>
+            assertActivationTimingLegal(state, card, "p1", ability)
+        ).not.toThrow();
     });
 });
