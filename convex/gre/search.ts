@@ -113,6 +113,7 @@ import {
     summonCompanionInSearch,
     turnFaceUpInSearch,
     autoFinalizeLandEntryChoices,
+    declaredAttackTargets,
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
 import { castNeedsSorceryWindow } from "./rules";
@@ -1220,8 +1221,12 @@ export function applyMoveInSearch(
             const declaredExertIds = (move.exertIds ?? []).filter((id) =>
                 move.attackerIds.includes(id)
             );
+            // CR 508.1b — the announced planeswalker targets, or every
+            // attacker would reach the player's life in the sandbox.
+            const attackTargets = declaredAttackTargets(state, playerId, move);
             const combat = (state.combat = {
                 attackerIds: [...move.attackerIds],
+                ...(attackTargets ? { attackTargets } : {}),
                 ...(declaredExertIds.length > 0
                     ? { exertedIds: declaredExertIds }
                     : {}),

@@ -1776,6 +1776,33 @@ export function payGrantedAbilityInSearch(
  *  sandbox. */
 const MAX_CAST_RESOLUTION_STEPS = 64;
 
+/** CR 508.1b — the per-attacker planeswalker attack targets a
+ *  `declare-attackers` move announces, keeping only entries whose attacker is
+ *  declared and whose planeswalker the defender still controls; `undefined`
+ *  when none survive. Shared by both search appliers (`applyMoveForSearch`
+ *  here, `applyMoveInSearch` in `search.ts`), so the search plays a walker
+ *  attack as one rather than as damage to the player. */
+export function declaredAttackTargets(
+    state: GameState,
+    playerId: string,
+    move: Extract<Move, { kind: "declare-attackers" }>
+): Record<string, string> | undefined {
+    if (!move.attackTargets) return undefined;
+    const defenderId = getOpponentId(state, playerId);
+    const defenderBf =
+        state.players.find((p) => p.id === defenderId)?.battlefield ?? [];
+    const filtered: Record<string, string> = {};
+    for (const [atkId, pwId] of Object.entries(move.attackTargets)) {
+        if (
+            move.attackerIds.includes(atkId) &&
+            defenderBf.some((c) => c.id === pwId && isPlaneswalker(c))
+        ) {
+            filtered[atkId] = pwId;
+        }
+    }
+    return Object.keys(filtered).length > 0 ? filtered : undefined;
+}
+
 /** Simulate `move` for `playerId` on a clone of `state`, returning the resulting
  *  stable position for evaluation. Pure: `state` is not mutated. */
 export function applyMoveForSearch(
@@ -1943,30 +1970,7 @@ export function applyMoveForSearch(
 
         case "declare-attackers": {
             if (move.attackerIds.length === 0) return next;
-            // CR 508.1a (issue #1220) — carry per-attacker planeswalker attack
-            // targets, keeping only entries whose attacker is declared and whose
-            // planeswalker the defender still controls.
-            const defenderIdForAttack = getOpponentId(next, playerId);
-            const defenderBf =
-                next.players.find((p) => p.id === defenderIdForAttack)
-                    ?.battlefield ?? [];
-            let attackTargets: Record<string, string> | undefined;
-            if (move.attackTargets) {
-                const filtered: Record<string, string> = {};
-                for (const [atkId, pwId] of Object.entries(
-                    move.attackTargets
-                )) {
-                    if (
-                        move.attackerIds.includes(atkId) &&
-                        defenderBf.some(
-                            (c) => c.id === pwId && isPlaneswalker(c)
-                        )
-                    ) {
-                        filtered[atkId] = pwId;
-                    }
-                }
-                if (Object.keys(filtered).length > 0) attackTargets = filtered;
-            }
+            const attackTargets = declaredAttackTargets(next, playerId, move);
             // CR 508.1g / 701.43d — the optional exert costs the move chose,
             // filtered to ids actually declared. `emitAttackersDeclaredEvents`
             // below pays them and batches their triggers with the attack
