@@ -3895,6 +3895,17 @@ export type PendingTarget = {
      *  until the caster assigns amounts; an all-1s default is filled in at
      *  finalize when the totals leave no real choice. */
     divideAmounts?: Record<string, number>;
+    /** CR 601.2d / 120.4 — the divide budget of a group ALREADY LOCKED by a
+     *  group advance. `divideTotal` / `divideAmounts` describe only the ACTIVE
+     *  group (cleared when the next group loads); this keeps the finished
+     *  divide group's budget, split and target count so finalization divides
+     *  over that slice of the flat target list and nothing else. The divide
+     *  group is always the primary, so its targets are the first `count`. */
+    dividedGroup?: {
+        total: number;
+        amounts?: Record<string, number>;
+        count: number;
+    };
     /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */

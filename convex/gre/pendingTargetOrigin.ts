@@ -263,15 +263,24 @@ export function finalizeDivideAmounts(
     pt: PendingTarget,
     targets: TargetSelection[]
 ): Record<string, number> {
-    const total = pt.divideTotal ?? 0;
-    const assigned = pt.divideAmounts;
-    // Use the chooser's split iff every target has a positive amount and the
-    // amounts sum to the total (a complete, legal division). Otherwise fall
-    // back to an even ≥1-each split.
+    // CR 601.2d — the budget belongs to the group that declared it: once a
+    // group advance parked it (`dividedGroup`), divide over that group's
+    // slice of the flat list only; a later group's targets are owed nothing.
+    const group = pt.dividedGroup ?? {
+        total: pt.divideTotal ?? 0,
+        amounts: pt.divideAmounts,
+        count: targets.length,
+    };
+    const total = group.total;
+    const assigned = group.amounts;
+    const divided = targets.slice(0, group.count);
+    // Use the chooser's split iff every divided target has a positive amount
+    // and the amounts sum to the total (a complete, legal division).
+    // Otherwise fall back to an even ≥1-each split.
     if (assigned) {
         let sum = 0;
         let complete = true;
-        for (const t of targets) {
+        for (const t of divided) {
             const a = assigned[`${t.type}:${t.id}`] ?? 0;
             if (a < 1) complete = false;
             sum += a;
@@ -279,15 +288,27 @@ export function finalizeDivideAmounts(
         if (complete && sum === total) return assigned;
     }
     const out: Record<string, number> = {};
-    const n = targets.length;
+    const n = divided.length;
     const base = Math.floor(total / n);
     let remainder = total - base * n;
-    for (const t of targets) {
+    for (const t of divided) {
         const extra = remainder > 0 ? 1 : 0;
         if (remainder > 0) remainder -= 1;
         out[`${t.type}:${t.id}`] = base + extra;
     }
     return out;
+}
+
+/** The split to snapshot onto the stack item at commit, or `undefined` when
+ *  the spell divides nothing. Single gate for the three commit sites. */
+export function divideAmountsForCommit(
+    pt: PendingTarget,
+    targets: TargetSelection[]
+): Record<string, number> | undefined {
+    const divides = pt.divideTotal !== undefined || pt.dividedGroup;
+    return divides && targets.length > 0
+        ? finalizeDivideAmounts(pt, targets)
+        : undefined;
 }
 
 /** Commit a completed ENGINE-RAISED target selection (`"copy-retarget"` /
@@ -319,10 +340,7 @@ export function applyRaisedTargetFinalization(
     // `priorSelected`; concatenate in declaration order so the stack item's
     // `targets` are positionally indexable by the Effect Script.
     const targets = [...(pt.priorSelected ?? []), ...pt.selected];
-    const divideAmounts =
-        pt.divideTotal !== undefined && targets.length > 0
-            ? finalizeDivideAmounts(pt, targets)
-            : undefined;
+    const divideAmounts = divideAmountsForCommit(pt, targets);
     const cardInstanceId = pt.cardInstanceId;
     state.pendingTarget = undefined;
 
