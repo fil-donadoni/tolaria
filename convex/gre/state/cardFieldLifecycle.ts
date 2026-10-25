@@ -146,6 +146,7 @@ export const CARD_FIELD_LIFECYCLE = {
     subtypeAddHolds:            { codec: "list",    reset: ZONE },
     supertypeHolds:             { codec: "list",    reset: ZONE },
     damagedBySources:           { codec: "list",    reset: TURN_ZONE },
+    damagedPermanentsThisGame:  { codec: "list",    reset: ZONE },
     // Ended by the departure side (`removePermanentTo`) and by `revertBestow`.
     attachedTo:                 { codec: "scalar",  reset: ["custom:zone-change", "custom:stack"] },
     controlChanges:             { codec: "list",    reset: ZONE },

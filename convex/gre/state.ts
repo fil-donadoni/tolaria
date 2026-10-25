@@ -3881,6 +3881,7 @@ function finalizeSpellResolution(
         dropDelayedCapturesOfEnteringObject(state, item.id, {
             resolvingItemPopped: true,
         });
+        forgetDamageToEnteringObject(state, item.id);
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
         // switches off here: Grist stops being a 1/1 Insect creature the
         // instant it resolves as a planeswalker. Before the layer-4 grants
@@ -5462,6 +5463,24 @@ export function recordSourceDamagedOpponent(
     found.card.dealtDamageToOpponentThisTurn = true;
 }
 
+/** Records that the permanent `sourceInstanceId` dealt damage to the
+ *  permanent `recipientId` (CR 120.1), on the source's game-long
+ *  `damagedPermanentsThisGame` history — each recipient once. Called by the
+ *  permanent-source damage sinks after the damage lands (post replacement +
+ *  prevention + protection). No-op when the source is not on the battlefield:
+ *  a spell or a card in another zone keeps no history. */
+export function recordSourceDamagedPermanent(
+    state: GameState,
+    sourceInstanceId: string,
+    recipientId: string
+): void {
+    const found = findOnBattlefield(state, sourceInstanceId);
+    if (!found) return;
+    const history = found.card.damagedPermanentsThisGame ?? [];
+    if (history.includes(recipientId)) return;
+    found.card.damagedPermanentsThisGame = [...history, recipientId];
+}
+
 /** Increments the per-turn damage tally for `playerId` (CR 120.3). Called
  *  by every damage path after the damage actually lands (post replacement +
  *  prevention + protection). Read by Simulacrum's "equal to the damage
@@ -6097,6 +6116,7 @@ function markDamageFromPermanentSource(
         ...(found.card.damagedBySources ?? []),
         source.id,
     ];
+    recordSourceDamagedPermanent(state, source.id, finalTarget.id);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -6504,6 +6524,31 @@ export function dropDelayedCapturesOfEnteringObject(
             scrub(item.delayedPayload);
         }
     }
+}
+
+/** CR 400.7 — the damage-history twin of
+ *  `dropDelayedCapturesOfEnteringObject`, called from the same three entry
+ *  funnels: a permanent re-entering the battlefield keeps its instance id but
+ *  is a new object no source has dealt damage to, so its id is struck from
+ *  every `damagedPermanentsThisGame` history — on the battlefield, phased
+ *  out, and on the ability snapshots waiting on the stack (whose source may
+ *  have left, CR 608.2h). */
+export function forgetDamageToEnteringObject(
+    state: GameState,
+    instanceId: string
+): void {
+    const scrub = (card: CardInstanceState): void => {
+        const history = card.damagedPermanentsThisGame;
+        if (!history?.includes(instanceId)) return;
+        const kept = history.filter((id) => id !== instanceId);
+        if (kept.length > 0) card.damagedPermanentsThisGame = kept;
+        else delete card.damagedPermanentsThisGame;
+    };
+    for (const player of state.players) player.battlefield.forEach(scrub);
+    // CR 702.26d — a phased-out source keeps its history, so it is scrubbed
+    // too.
+    for (const bundle of state.phasedOut ?? []) bundle.cards.forEach(scrub);
+    state.stack.forEach((item) => scrub(item as CardInstanceState));
 }
 
 /** CR 701.27f (issue #3249) — true when `item` is a fired delayed triggered
@@ -9624,6 +9669,7 @@ function stageReanimatedOnBattlefield(
     dropDelayedCapturesOfEnteringObject(state, card.id, {
         resolvingItemPopped: false,
     });
+    forgetDamageToEnteringObject(state, card.id);
     card.zone = "battlefield";
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.
@@ -12240,6 +12286,16 @@ export function buildSpellContext(
                     ...(found.card.damagedBySources ?? []),
                     item.id,
                 ];
+                // CR 608.2h — "this creature deals damage": an ability's
+                // damage is its source permanent's (a spell is on no
+                // battlefield, so it records nothing).
+                if (!isSpellStackItem(item)) {
+                    recordSourceDamagedPermanent(
+                        state,
+                        item.triggerSourceId ?? item.id,
+                        found.card.id
+                    );
+                }
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -17462,6 +17518,24 @@ export function buildSpellContext(
                 ...(card.capturedBindings ?? {}),
                 [name]: [...values],
             };
+        },
+        getPermanentsDamagedBySource(): string[] {
+            // CR 608.2h — the source's CURRENT history while it is still on
+            // the battlefield; its last known information once it has left
+            // (leaving clears the live history, CR 400.7): the ability is a
+            // `{ ...self }` snapshot of its source taken as it was put on the
+            // stack (`buildTriggerItem`, gre/triggers.ts).
+            // A source on the battlefield with no history may be a NEW object
+            // (it left and returned with this ability on the stack, CR
+            // 400.7): the ability still reads the object it came from.
+            const live = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            )?.card.damagedPermanentsThisGame;
+            const history = live?.length
+                ? live
+                : (item as CardInstanceState).damagedPermanentsThisGame;
+            return [...(history ?? [])];
         },
         recallCapturedBinding(name: string): string[] | undefined {
             // CR 608.2h — "the effect uses the CURRENT information of that
