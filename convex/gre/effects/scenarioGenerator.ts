@@ -37,6 +37,7 @@ import type {
     EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
+    EffectPredicate,
     EffectValue,
     TargetSelection,
     TriggeredAbility,
@@ -360,6 +361,11 @@ export interface Scenario {
      *  (issue #4022); absent otherwise. The caller snapshots it onto the stack
      *  item as `chosenX`, the field `getX()` reads at resolution. */
     chosenX?: number;
+    /** The per-Kicker payment record a branch scenario announces (CR 702.33),
+     *  keyed by Kicker id; absent when the scenario casts unkicked. The caller
+     *  snapshots it onto the stack item as `kickerPayments`, which
+     *  `{ kickerCount }` / `{ additionalCostPaid }` read at resolution. */
+    kickerPayments?: Readonly<Record<string, number>>;
     /** The counters seeded on the source permanent, by type, when an amount
      *  reads a `$source` counter count (issue #5265); absent otherwise. */
     sourceCounters?: Readonly<Record<string, number>>;
@@ -372,7 +378,14 @@ export interface Scenario {
  *  assertions, or an explicit skip carrying a human-readable reason. A skip is
  *  surfaced by the sweep (never silently green — ADR 0045 / issue #804). */
 export type Plan =
-    | { kind: "run"; scenario: Scenario; assertions: Assertion[] }
+    | {
+          kind: "run";
+          scenario: Scenario;
+          assertions: Assertion[];
+          /** Which `if` branches this plan realises, when the script has one
+           *  (`planSmokeBranches`); absent for a branch-free script. */
+          branch?: string;
+      }
     | {
           kind: "skip";
           /** The first skip's reason — the legible one-liner the sweep prints. */
@@ -4184,6 +4197,14 @@ export function planSmokeTest(
     effects: readonly EffectOp[],
     host: SmokeHost = SPELL_HOST
 ): Plan {
+    return planWith(effects, host, undefined);
+}
+
+function planWith(
+    effects: readonly EffectOp[],
+    host: SmokeHost,
+    kickerPayments: Readonly<Record<string, number>> | undefined
+): Plan {
     if (effects.length === 0) {
         return skipPlan([
             { code: "no-assertable-outcome", reason: "empty effect script" },
@@ -4215,6 +4236,8 @@ export function planSmokeTest(
         return skipPlan([...built.skip, ...nested.skips]);
     }
 
+    if (kickerPayments !== undefined && Object.keys(kickerPayments).length > 0)
+        built.kickerPayments = kickerPayments;
     const assertions: Assertion[] = [];
     for (const op of effects) {
         // A skipped Op never reaches here (`buildScenario` returned its skip);
@@ -4289,4 +4312,305 @@ function nestedOps(effects: readonly EffectOp[]): EffectOp[] {
         for (const value of Object.values(op)) walk(value);
     }
     return found;
+}
+
+// ── `if` branch scenario-ization ─────────────────────────────────────────────
+//
+// A script holding an `if` is planned once per branch outcome the canned
+// scenario can really produce. Each outcome flattens the script (the `if`
+// replaced by the taken branch's Ops), plans THAT through the ordinary
+// per-Op analysis, and keeps the scenario's seeds (a kicked stack item) that
+// make the real predicate evaluate the same way; the sweep then runs the
+// ORIGINAL script, so the interpreter's own `if` takes the branch and the
+// flattened Ops' declared outcomes are asserted. Only predicates whose truth
+// the generator can read off the scenario are handled (a comparison over
+// literals / kicker payments / X / source counters, and
+// `targetIsAnother`); any other `if` stays the legacy `runtime-branch` skip.
+
+type IfOp = Extract<EffectOp, { op: "if" }>;
+
+/** The branch planner's verdict: the plans to run (at least one, a skip plan
+ *  only when NO branch could be run) plus every branch it could not run. */
+export interface SmokeBranchPlans {
+    plans: Plan[];
+    /** Attributed reasons a branch outcome has no run plan — empty for a
+     *  script whose every branch ran. */
+    skipped: SmokeSkip[];
+}
+
+const BRANCH_KICKER_ID = "kicker";
+const MAX_BRANCH_ITERATIONS = 3;
+
+function isBranchOperand(value: EffectValue): boolean {
+    if (typeof value === "number") return true;
+    return (
+        "kickerCount" in value ||
+        "additionalCostPaid" in value ||
+        "X" in value ||
+        "counters" in value
+    );
+}
+
+function isBranchPredicate(predicate: EffectPredicate): boolean {
+    if ("targetIsAnother" in predicate) return true;
+    if ("left" in predicate && "right" in predicate)
+        return (
+            isBranchOperand(predicate.left) && isBranchOperand(predicate.right)
+        );
+    return false;
+}
+
+/** Every `if` reachable through `then` / `else` chains, document order. An
+ *  `if` inside a loop body or payload is not reached — it stays inside an Op
+ *  the legacy analysis skips. */
+function reachableIfs(effects: readonly EffectOp[]): IfOp[] {
+    const found: IfOp[] = [];
+    for (const op of effects) {
+        if (op.op !== "if") continue;
+        found.push(
+            op,
+            ...reachableIfs(op.then),
+            ...reachableIfs(op.else ?? [])
+        );
+    }
+    return found;
+}
+
+/** The kicker ids the predicates read — what a branch world pays. */
+function kickerIdsRead(ifs: readonly IfOp[]): string[] {
+    const ids = new Set<string>();
+    for (const op of ifs) {
+        const p = op.predicate;
+        if (!("left" in p && "right" in p)) continue;
+        for (const v of [p.left, p.right]) {
+            if (typeof v === "number") continue;
+            if ("kickerCount" in v) ids.add(BRANCH_KICKER_ID);
+            if ("additionalCostPaid" in v) ids.add(v.additionalCostPaid);
+        }
+    }
+    return [...ids];
+}
+
+/** Unkicked, each Kicker alone, then all paid — the worlds a kicker-reading
+ *  script can be cast in. */
+function branchWorlds(ids: readonly string[]): Record<string, number>[] {
+    const worlds: Record<string, number>[] = [{}];
+    for (const id of ids) worlds.push({ [id]: 1 });
+    if (ids.length > 1)
+        worlds.push(Object.fromEntries(ids.map((id) => [id, 1])));
+    return worlds;
+}
+
+function branchOperand(
+    value: EffectValue,
+    scenario: Scenario,
+    world: Readonly<Record<string, number>>
+): number | null {
+    if (typeof value !== "number") {
+        if ("kickerCount" in value)
+            return Object.values(world).reduce((a, b) => a + b, 0);
+        if ("additionalCostPaid" in value)
+            return world[value.additionalCostPaid] ?? 0;
+    }
+    return predictAmount(value, scenario);
+}
+
+function compareValues(
+    left: number,
+    op: "eq" | "ne" | "lt" | "le" | "gt" | "ge",
+    right: number
+): boolean {
+    switch (op) {
+        case "eq":
+            return left === right;
+        case "ne":
+            return left !== right;
+        case "lt":
+            return left < right;
+        case "le":
+            return left <= right;
+        case "gt":
+            return left > right;
+        case "ge":
+            return left >= right;
+    }
+}
+
+/** Whether the predicate holds in `scenario` cast in `world`; `null` when the
+ *  scenario cannot say (the plan then skips rather than guess). */
+function branchPredicateHolds(
+    predicate: EffectPredicate,
+    scenario: Scenario,
+    world: Readonly<Record<string, number>>
+): boolean | null {
+    if ("targetIsAnother" in predicate) {
+        // CR 702.165a — "another" permanent: the announced target is a
+        // permanent other than the source. The canned target is a filler on
+        // the opponent's board, never the source.
+        const id =
+            scenario.targetPermanentIds[predicate.targetIsAnother.target];
+        return id === undefined ? null : id !== scenario.sourcePermanentId;
+    }
+    if (!("left" in predicate && "right" in predicate)) return null;
+    const left = branchOperand(predicate.left, scenario, world);
+    const right = branchOperand(predicate.right, scenario, world);
+    if (left === null || right === null) return null;
+    return compareValues(left, predicate.op, right);
+}
+
+function flattenBranches(
+    effects: readonly EffectOp[],
+    decisions: ReadonlyMap<IfOp, boolean>,
+    reached: IfOp[]
+): EffectOp[] {
+    return effects.flatMap((op) => {
+        if (op.op !== "if") return [op];
+        reached.push(op);
+        const taken = decisions.get(op) === false ? (op.else ?? []) : op.then;
+        return flattenBranches(taken, decisions, reached);
+    });
+}
+
+function describePredicate(predicate: EffectPredicate): string {
+    return "targetIsAnother" in predicate
+        ? `targetIsAnother(${predicate.targetIsAnother.target})`
+        : JSON.stringify(predicate);
+}
+
+/**
+ * Plan every `if` branch outcome of a script the canned scenario can
+ * construct (issue #1707). A script with no `if`, or one whose predicates the
+ * generator cannot read, returns exactly `[planSmokeTest(...)]`.
+ */
+export function planSmokeBranches(
+    effects: readonly EffectOp[],
+    host: SmokeHost = SPELL_HOST
+): SmokeBranchPlans {
+    const legacy = (): SmokeBranchPlans => ({
+        plans: [planSmokeTest(effects, host)],
+        skipped: [],
+    });
+    const ifs = reachableIfs(effects);
+    if (ifs.length === 0) return legacy();
+    if (!ifs.every((op) => isBranchPredicate(op.predicate))) return legacy();
+
+    // The seeds every predicate operand needs, so a first scenario can read
+    // them: a count set / source counters / announced X exist before any
+    // branch is chosen.
+    const operandReq = emptyRequirements(host);
+    for (const op of ifs) {
+        const p = op.predicate;
+        if (!("left" in p && "right" in p)) continue;
+        for (const v of [p.left, p.right]) {
+            if (typeof v === "number") continue;
+            if ("kickerCount" in v || "additionalCostPaid" in v) continue;
+            analyseValue(v, operandReq);
+        }
+    }
+    const operandScenario = buildScenario(operandReq);
+    if ("skip" in operandScenario) return legacy();
+
+    const run = new Map<string, Plan & { kind: "run" }>();
+    const skips = new Map<string, SmokeSkip>();
+    const realised = new Map<IfOp, Set<boolean>>();
+    const seenIfs = new Set<IfOp>();
+
+    for (const world of branchWorlds(kickerIdsRead(ifs))) {
+        let decisions = new Map<IfOp, boolean>(
+            ifs.map((op) => [
+                op,
+                branchPredicateHolds(op.predicate, operandScenario, world) ??
+                    true,
+            ])
+        );
+        for (let i = 0; i < MAX_BRANCH_ITERATIONS; i++) {
+            const reached: IfOp[] = [];
+            const flat = flattenBranches(effects, decisions, reached);
+            const key = reached
+                .map((op) => `${ifs.indexOf(op)}:${decisions.get(op)}`)
+                .join(",");
+            for (const op of reached) seenIfs.add(op);
+            if (flat.length === 0) {
+                // The taken branches hold no Op: nothing is declared to
+                // assert, so this outcome is reported, never counted covered.
+                skips.set(key, {
+                    code: "no-assertable-outcome",
+                    reason: `branch [${key}] — the taken branch holds no Op, so there is no outcome to assert`,
+                });
+                break;
+            }
+            const plan = planWith(flat, host, world);
+            if (plan.kind === "skip") {
+                if (!skips.has(key))
+                    skips.set(key, {
+                        code: plan.skips[0]!.code,
+                        reason: `branch [${key}] — ${plan.reason}`,
+                    });
+                break;
+            }
+            // The decisions were guessed off the operand scenario; the final
+            // scenario (target slots, source seed) is the one the script runs
+            // in, so the predicates are re-read there.
+            const next = new Map(decisions);
+            let unreadable = false;
+            for (const op of reached) {
+                const holds = branchPredicateHolds(
+                    op.predicate,
+                    plan.scenario,
+                    world
+                );
+                if (holds === null) unreadable = true;
+                else next.set(op, holds);
+            }
+            if (unreadable) {
+                skips.set(key, {
+                    code: "runtime-branch",
+                    reason: `branch [${key}] — a predicate's truth is not readable off the canned scenario`,
+                });
+                break;
+            }
+            if (reached.every((op) => next.get(op) === decisions.get(op))) {
+                if (!run.has(key)) {
+                    const worldLabel = Object.keys(world).length
+                        ? ` kicked ${Object.keys(world).join("+")}`
+                        : "";
+                    run.set(key, {
+                        ...plan,
+                        branch: `[${key}]${worldLabel}`,
+                    });
+                }
+                for (const op of reached) {
+                    const set = realised.get(op) ?? new Set<boolean>();
+                    set.add(decisions.get(op)!);
+                    realised.set(op, set);
+                }
+                break;
+            }
+            decisions = next;
+            if (i === MAX_BRANCH_ITERATIONS - 1)
+                skips.set(key, {
+                    code: "runtime-branch",
+                    reason: `branch [${key}] — the predicates did not settle against the final scenario`,
+                });
+        }
+    }
+
+    const skipped: SmokeSkip[] = [...skips.values()];
+    // An outcome already named by a skipped branch plan is not named twice.
+    const explained = new Set(
+        [...skips.keys()].flatMap((key) => key.split(","))
+    );
+    for (const op of seenIfs) {
+        for (const outcome of [true, false]) {
+            if (realised.get(op)?.has(outcome)) continue;
+            if (explained.has(`${ifs.indexOf(op)}:${outcome}`)) continue;
+            skipped.push({
+                code: "runtime-branch",
+                reason: `${outcome ? "then" : "else"} branch of if ${describePredicate(op.predicate)} — no canned scenario makes the predicate ${outcome}`,
+                op,
+            });
+        }
+    }
+    if (run.size === 0) return { plans: [skipPlan(skipped)], skipped: [] };
+    return { plans: [...run.values()], skipped };
 }
