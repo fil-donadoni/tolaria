@@ -114,7 +114,7 @@ describe("DeckZoneSurface — Columns sheet (issue #3677)", () => {
                 expect(within(rowOf("MV 1")).getByText("1")).toBeTruthy();
             });
 
-            it("renames a manual Column through the same onRenameColumn seam; Enter submits", () => {
+            it("renames a manual Column through the same onRenameColumn seam on form submit", () => {
                 const { handlers } = renderZone();
                 openSheet();
                 fireEvent.click(
