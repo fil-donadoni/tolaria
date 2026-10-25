@@ -30,16 +30,18 @@ import type { CardInstanceState, GameState } from "./state/declarations";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 import { STATIC_EFFECT_CTX, getEffectivePT } from "./layers";
 import { manaValue } from "./constants";
-import { getInstanceManaCost } from "../cards/registry";
+import { getPermanentManaValueCost } from "../cards/registry";
 
 /** Mana value (CR 202.3) of a battlefield permanent, `{X}` as 0 (CR 202.3e).
  *  A token that is not a copy has no mana cost (CR 111.3), so its value is 0
  *  (CR 202.3a) — the registered token definition's one-pip-per-colour cost is
- *  a rendering artefact, never a mana cost. The single authority for
+ *  a rendering artefact, never a mana cost. A transformed nonmodal
+ *  double-faced permanent reads its FRONT face's cost (CR 712.8e); see
+ *  `getPermanentManaValueCost`. The single authority for
  *  `MatchablePermanent.manaValue` (`PermanentFilter.manaValueAtLeast`). */
 export function permanentManaValue(card: CardInstanceState): number {
     if (card.isToken === true && card.copiedFrom === undefined) return 0;
-    return manaValue(getInstanceManaCost(card));
+    return manaValue(getPermanentManaValueCost(card));
 }
 
 /** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and

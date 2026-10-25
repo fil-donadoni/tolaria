@@ -9,7 +9,11 @@
 // Each card declares its own eligibility rule — engine has no enum of
 // scopes/filters to maintain.
 
-import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import {
+    getInstanceManaCost,
+    getPermanentManaValueCost,
+    tryGetDefinition,
+} from "../cards";
 import { objectHasChosenName } from "../cards/cardNames";
 import { declaresLayer7StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
@@ -183,8 +187,9 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         // the string-X placeholder for variable-X cards is treated as 0.
         // Single authority (`cards/registry.ts`): instance `manaCostOverride`
         // (CR 707.2 "except it has no mana cost" — an Eternalize token) →
-        // embedded fixture cost → registry definition.
-        const cost = getInstanceManaCost(card);
+        // embedded fixture cost → registry definition; a double-faced
+        // permanent reads the front face (CR 712.8e).
+        const cost = getPermanentManaValueCost(card);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {
