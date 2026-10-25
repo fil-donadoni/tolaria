@@ -152,8 +152,9 @@ export const miracleWorker = defineCard(() => ({
 }));
 
 // Witch Hunter — two activated abilities (CR 605): a {T} ping to a player and a
-// {1}{W}{W}, {T} bounce of an opponent's creature (CR 400.7). Planeswalkers are
-// out of scope, so the first ability targets `player` only.
+// {1}{W}{W}, {T} bounce of an opponent's creature (CR 400.7). The ping targets
+// a player or a planeswalker (CR 120.3a / 120.3c — damage to a planeswalker
+// removes that many loyalty counters).
 export const witchHunter = defineCard(() => ({
     id: "4eef9bb7-cd3c-422e-a93b-90d98684675a",
     rarity: "rare",
@@ -172,9 +173,9 @@ export const witchHunter = defineCard(() => ({
                 "{T}: This creature deals 1 damage to target player or planeswalker.",
             cost: { tap: true },
             useStack: true,
-            targetRequirement: { type: "player", count: 1 },
+            targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
             // Migrated resolve()→effects[] (ADR 0045, #832): 1 damage to the
-            // announced target player (CR 120).
+            // announced target player or planeswalker (CR 120).
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
         {
