@@ -358,6 +358,82 @@ describe("planner — in-flight overlap (issue #6195)", () => {
     });
 });
 
+describe("planner — a deferred higher band reserves its files (issue #6897)", () => {
+    const prio = (
+        files: Record<number, string>,
+        priority: QueuePort["priority"]
+    ): QueuePort => ({ ...port(files), priority });
+    const inFlight = [{ number: 1, files: ["convex/cards/types.ts"] }];
+    const reason = (plan: ReturnType<typeof planBatch>, n: number) =>
+        plan.deferred.find((d) => d.number === n)?.reason;
+
+    it("a lower band on the reserved file waits; a disjoint one is admitted", () => {
+        // #2 waits on `types.ts` and also touches `layers.ts`, which nothing
+        // occupies: without the reservation #3 would take it first.
+        const plan = planBatch(
+            [issue(2), issue(3), issue(4)],
+            { ...CONFIG, inFlight },
+            prio(
+                {
+                    2: "convex/cards/types.ts`\n- `convex/gre/layers.ts",
+                    3: "convex/gre/layers.ts",
+                    4: "scripts/b.ts",
+                },
+                { 2: "P1", 3: "P3", 4: "P3" }
+            )
+        );
+        expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
+        expect(reason(plan, 3)).toBe(
+            "target files reserved by higher-priority #2"
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([4]);
+    });
+
+    it("an unknown-radius lower band waits while a higher band holds a reservation", () => {
+        const base = prio({ 2: "convex/cards/types.ts" }, { 2: "P1", 3: "P3" });
+        const noFiles: QueuePort = {
+            ...base,
+            issueDetail: (n) =>
+                n === 3
+                    ? {
+                          state: "OPEN",
+                          stateReason: null,
+                          labels: ["enhancement", "ready-for-agent"],
+                          body: BODY.replace("## Target files", ""),
+                      }
+                    : base.issueDetail(n),
+        };
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            noFiles
+        );
+        expect(reason(plan, 3)).toBe(
+            "target files reserved by higher-priority #2"
+        );
+        expect(plan.batch).toEqual([]);
+    });
+
+    it("an equal band on the same file is not held back", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            {
+                ...CONFIG,
+                inFlight: [{ number: 1, files: ["convex/gre/layers.ts"] }],
+            },
+            prio(
+                {
+                    2: "convex/gre/layers.ts",
+                    3: "convex/cards/types.ts",
+                },
+                { 2: "P1", 3: "P1" }
+            )
+        );
+        expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+});
+
 describe("picker — in-flight edge cases (issue #6195)", () => {
     it("an unlabelled issue with an open PR occupies the PR's files", () => {
         const got = pick(
