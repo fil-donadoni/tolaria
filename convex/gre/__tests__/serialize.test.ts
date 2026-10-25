@@ -856,6 +856,33 @@ describe("gameStates serialize round-trip", () => {
         expect(normal.stack[0].sourceLki).toBeUndefined();
     });
 
+    it("preserves the departed source's effective power on the stack item (CR 608.2h)", () => {
+        // The raw `sourceLki` record cannot reproduce layer-folded power, so a
+        // save between the departure and the resolution must carry the number.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                abilityId: "some-ability",
+                sourceLki: { ...spell, zone: "battlefield" as const },
+                sourceLkiPower: 7,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].sourceLkiPower).toBe(7);
+        state.stack[0].sourceLkiPower = 0;
+        expect(expandState(compactState(state)).stack[0].sourceLkiPower).toBe(
+            0
+        );
+        state.stack[0].sourceLkiPower = undefined;
+        expect(
+            expandState(compactState(state)).stack[0].sourceLkiPower
+        ).toBeUndefined();
+    });
+
     it("preserves a fired inline delayed trigger's body on the stack item (ADR 0048, CR 603.7a)", () => {
         const state = freshState();
         const spell = state.players[0].hand[0];
