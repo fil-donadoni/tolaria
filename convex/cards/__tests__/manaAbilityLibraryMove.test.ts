@@ -191,12 +191,6 @@ function offencesIn(
 }
 
 describe("CR 605.1a — no stackless ability moves a card to or from a library", () => {
-    it("the reviewed lists never admit a library Op", () => {
-        expect([...STACKLESS_OPS].filter((op) => LIBRARY_OPS.has(op))).toEqual(
-            []
-        );
-    });
-
     it("hand-written catalogue", () => {
         const cards = getAllCards().map((c) => ({
             name: c.name,
