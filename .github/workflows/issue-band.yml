@@ -1,0 +1,44 @@
+# issue-band — a workflow bug is P0 (issue #6902, ADR 0143 Amendment VII).
+# When an issue is labelled and carries both `bug` and `area:workflow` (an
+# issue filed with its labels fires `labeled` too), `bun run issue:workflow-band` sets its board `Priority` to
+# `P0` (idempotent; never lowers a band). The board write needs the machine's
+# own gh login (a user project; the job token cannot write it), so it runs on
+# the `seed` runner, idle between merges. `labeled` only: only a collaborator
+# labels, so no outsider reaches the runner, and the job runs the base's
+# script, never code from the issue. No `concurrency`: the script is
+# idempotent, and a group would cancel a pending run.
+name: issue-band
+run-name: "issue-band #${{ github.event.issue.number }}"
+
+on:
+    issues:
+        types: [labeled]
+
+permissions:
+    contents: read
+
+jobs:
+    band:
+        name: workflow bug → P0
+        if: >-
+            ${{ contains(github.event.issue.labels.*.name, 'bug') &&
+            contains(github.event.issue.labels.*.name, 'area:workflow') }}
+        runs-on: [self-hosted, seed]
+        timeout-minutes: 15
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: issue:workflow-band
+              env:
+                  ISSUE: ${{ github.event.issue.number }}
+              run: env -u GITHUB_TOKEN -u GH_TOKEN bun run issue:workflow-band "$ISSUE"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

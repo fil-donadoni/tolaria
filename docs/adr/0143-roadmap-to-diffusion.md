@@ -31,6 +31,10 @@ first clause is 100% playable over a **closed** hand-written set — the cards
 hand-written that day, by name (`completion: "closed-tail"`); no new Hand
 Tail. It supersedes the 100% `ready` exit of issue #4519.
 
+**Amended 2026-10-25** (issue #6902, Amendment VII): every open issue
+labelled `bug` + `area:workflow` is `P0`, written by `issue:workflow-band` —
+the second script that may write `P0`.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -412,6 +416,20 @@ the wave's exit) sits between the two:
 The mechanism is a third completion mode, `closed-tail` (`isFloorless` in
 `scripts/lib/targets.ts`), not a special case for one Target. Clauses 2–4
 are unchanged.
+
+### A workflow bug is P0 — Amendment VII (issue #6902, 2026-10-25)
+
+At the owner's ruling, a second exception to "`P0` … never written by a
+script": an open issue labelled both `bug` and `area:workflow` takes `P0` on
+the board the moment it carries both labels. `.github/workflows/issue-band.yml`
+runs `bun run issue:workflow-band <N>` on every `labeled` event. The script
+raises a lower band and never lowers or clears one. Of the two exceptions,
+this is the only one that DERIVES a band, and it derives exactly one value.
+
+The night of 2026-10-24 showed why. Issue #6795 (the dispatcher never ran a
+`land-failed` repair) and issue #6897 (a P1 losing its files to P3 picks) were
+pipeline bugs, and each held the queue for hours behind work of a lower band.
+A pipeline bug costs every issue behind it, so no feature band outranks it.
 
 ### Format Tiers
 

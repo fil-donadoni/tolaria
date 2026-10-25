@@ -80,6 +80,7 @@
         "health:nightly": "bun scripts/health-nightly.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "issue:inherit-band": "bun scripts/issue-inherit-band.ts",
+        "issue:workflow-band": "bun scripts/issue-workflow-band.ts",
         "issues:orphans": "bun scripts/issues-orphans.ts",
         "ladder": "bun scripts/ladder.ts",
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
