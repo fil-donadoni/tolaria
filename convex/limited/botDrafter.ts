@@ -160,6 +160,7 @@ import { cardValueById } from "../gre/cardValue";
 // closure, so this module never touches the `cardProfiles` table, its Convex
 // query shell, or the card registry behind it — the same discipline
 // `GetCardEvalMeta`/`GetPickRating` already follow.
+import { capabilitySatisfiedBy } from "./capabilityRegistry";
 import type { CardProfile, GetCardProfile } from "./cardProfilesCore";
 import type { DraftPackCard, LimitedPoolCard } from "./eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
@@ -1103,7 +1104,15 @@ export function capabilityFitTerm(
         if (entry.meta.cardId === candidate.cardId) continue;
         const pairWeight = candidateWeight * profileWeight(entry.profile);
         for (const capability of provides) {
-            if (entry.profile.requires.includes(capability)) {
+            if (
+                entry.profile.requires.some((required) =>
+                    capabilitySatisfiedBy(
+                        required,
+                        [capability],
+                        candidate.manaValue
+                    )
+                )
+            ) {
                 matches.push({
                     cardId: entry.meta.cardId,
                     capability,
@@ -1113,7 +1122,13 @@ export function capabilityFitTerm(
             }
         }
         for (const capability of requires) {
-            if (entry.profile.provides.includes(capability)) {
+            if (
+                capabilitySatisfiedBy(
+                    capability,
+                    entry.profile.provides,
+                    entry.meta.manaValue
+                )
+            ) {
                 matches.push({
                     cardId: entry.meta.cardId,
                     capability,
