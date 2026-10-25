@@ -65,6 +65,16 @@ describe("ManaChoicePicker (multi-colour combos, CR 106.1)", () => {
         expect(within(doubleU).getAllByRole("img")).toHaveLength(2);
     });
 
+    it("shows symbols only, naming the colours in the accessible name", () => {
+        renderPicker();
+        const combo = document
+            .querySelectorAll("button")
+            .item(1) as HTMLButtonElement;
+        // No visible colour text beside the pips — the symbol is the label.
+        expect(combo.textContent).toBe("");
+        expect(combo.getAttribute("aria-label")).toBe("Blue + Black");
+    });
+
     it("centres on screen when opened without pointer coords (ability menu)", () => {
         // Menu-triggered activation passes no position — the panel must centre,
         // not pin to the top-left corner (fixed left:0/top:0).

@@ -237,11 +237,12 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
         });
 
         // getManaChoices(power=2) → [{R:2}, {U:1,R:1}, {U:2}] (index order).
-        // Pick the all-blue option (index 2, visible label "Blue x2" — issue
-        // #2920 replaced the old title-attribute-only "{U}{U}" tooltip with a
-        // real visible label).
+        // Pick the all-blue option (index 2, accessible name "Blue x2" — the
+        // row itself shows only the two {U} symbols).
         const buttons = Array.from(document.querySelectorAll("button"));
-        const allU = buttons.find((b) => b.textContent?.includes("Blue x2"))!;
+        const allU = buttons.find(
+            (b) => b.getAttribute("aria-label") === "Blue x2"
+        )!;
         expect(allU).toBeDefined();
         fireEvent.click(allU);
 
@@ -270,7 +271,7 @@ describe("useBattlefieldInteraction — non-tap choice-based mana ability (Vivi 
 
         const buttons = Array.from(document.querySelectorAll("button"));
         expect(buttons).toHaveLength(1);
-        expect(buttons[0].textContent).toContain("No mana");
+        expect(buttons[0].getAttribute("aria-label")).toBe("No mana");
 
         fireEvent.click(buttons[0]);
         expect(activateManaAbility).toHaveBeenCalledWith({
