@@ -3699,7 +3699,16 @@ export const OP_EXECUTORS: {
     addMana(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
         if (playerId === undefined) return;
-        ctx.addManaTo(playerId, op.mana, op.persistsUntil);
+        // Each entry is a fixed integer or an `EffectValue` read now (a `count`
+        // of Islands, a `ref`); an unresolvable or non-positive amount adds
+        // nothing (CR 106.1, CR 608.2b).
+        const mana: Record<string, number> = {};
+        for (const [color, amount] of Object.entries(op.mana)) {
+            const n = resolveValue(ctx, amount);
+            if (n !== undefined && n > 0) mana[color] = n;
+        }
+        if (Object.keys(mana).length === 0) return;
+        ctx.addManaTo(playerId, mana, op.persistsUntil);
     },
     // CR 106.4 (issue #5260) — "that player loses all unspent mana": a thin
     // skin over the SpellContext primitive `drainManaPool`, ONE execution path

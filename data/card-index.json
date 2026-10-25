@@ -5314,6 +5314,16 @@
         "source": "compiled"
     },
     {
+        "name": "Battle Hymn",
+        "scryfallId": "43b5d46e-7054-44f8-9a14-b412f2f0ab86",
+        "oracleId": "4b977117-741c-4157-8fcf-719e475a8a4c",
+        "firstSet": "avr",
+        "firstPrintId": "43b5d46e-7054-44f8-9a14-b412f2f0ab86",
+        "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Battle Mastery",
         "scryfallId": "79e234ce-6d61-4d62-a8cd-fa985a6aba60",
         "oracleId": "a06c7c1a-8534-40fb-8bb8-59f8f2530567",

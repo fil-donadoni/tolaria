@@ -974,7 +974,8 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
             return (
                 op.player !== undefined &&
                 isStepPlayerRef(op.player) &&
-                op.persistsUntil === undefined
+                op.persistsUntil === undefined &&
+                Object.values(op.mana).every((n) => typeof n === "number")
             );
         case "choice":
             return (
@@ -2158,11 +2159,18 @@ const setLevel: Valuer<"setLevel"> = (op, ctx) => ({
 // -------------------------------------------------------------------------
 
 const addMana: Valuer<"addMana"> = (op, ctx) => {
-    const total = Object.values(op.mana).reduce(
-        (sum: number, n) => sum + (n ?? 0),
-        0
-    );
-    return { points: priced(ctx, "ramp", total), tags: ["ramp"] };
+    // A computed per-colour amount (a `count`, a `ref`) is read through
+    // `ctx.value` like every other numeric position, never summed as zero.
+    let total = 0;
+    const tags: ValueTag[] = ["ramp"];
+    for (const entry of Object.values(op.mana)) {
+        const { amount, scaling } = ctx.value(entry);
+        total += Math.max(0, amount);
+        for (const tag of tagScaling(scaling, "ramp")) {
+            if (!tags.includes(tag)) tags.push(tag);
+        }
+    }
+    return { points: priced(ctx, "ramp", total), tags };
 };
 
 // CR 106.4 (issue #5260) — a player's unspent mana is lost. The feature basis
