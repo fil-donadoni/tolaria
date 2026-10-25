@@ -14,6 +14,7 @@ import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
 import {
+    BESIDE_CONTROLLER_POD,
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
 } from "~/lib/controller-bar-metrics";
@@ -277,7 +278,9 @@ export default function GameStack({
                         ? `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${landscapePileClearancePx}px)`
                         : landscape
                           ? undefined
-                          : "0.5rem",
+                          : narrow
+                            ? "0.5rem"
+                            : BESIDE_CONTROLLER_POD,
                 transform: narrow
                     ? `translate(${offset.x}px, ${offset.y}px)`
                     : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,

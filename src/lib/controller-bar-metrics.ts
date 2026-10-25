@@ -122,3 +122,16 @@ export const BESIDE_CONTROLLER_STRIP =
  *  {@link BESIDE_CONTROLLER_STRIP} must stay `right-[calc<EXPR>]` with
  *  whitespace removed, so neither can drift from the other. */
 export const CONTROLLER_STRIP_CLEARANCE_EXPR = `(var(--controller-strip-w, 0px) + ${CONTROLLER_STRIP_CLEARANCE_REM}rem)`;
+
+/** The desktop controller pod's footprint on the right edge (`controller-pod.tsx`:
+ *  `right-4 w-52`, Tailwind 4px steps), in rem. The pod is `fixed` and sits
+ *  at the board's vertical middle on a short viewport (1180x820 measured: its
+ *  Pass CTA at y 495-539), exactly where the always-on desktop stack panel is
+ *  centred — so the panel anchors LEFT of the pod instead of under it. The
+ *  classes stay literals in the pod; `controller-pod.test.tsx` pins them to
+ *  these numbers so neither can drift. */
+export const CONTROLLER_POD_RIGHT_REM = 1;
+export const CONTROLLER_POD_WIDTH_REM = 13;
+
+/** Inline `right` of the desktop stack panel: clear of the pod plus a gap. */
+export const BESIDE_CONTROLLER_POD = `calc(${CONTROLLER_POD_RIGHT_REM}rem + ${CONTROLLER_POD_WIDTH_REM}rem + 0.5rem)`;

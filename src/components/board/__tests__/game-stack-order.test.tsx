@@ -3,7 +3,14 @@
 // first (leftmost). This test asserts the external DOM order against the
 // stack's logical order, so the "top resolves first" read survives refactors of
 // the tile internals.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+    BESIDE_CONTROLLER_POD,
+    CONTROLLER_POD_RIGHT_REM,
+    CONTROLLER_POD_WIDTH_REM,
+} from "~/lib/controller-bar-metrics";
 import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
@@ -249,13 +256,24 @@ describe("GameStack targets are arrows, not text chips (QA)", () => {
 });
 
 describe("GameStack viewport anchor (QA)", () => {
-    it("anchors to the viewport right edge so it clears centered dialogs", () => {
+    it("anchors to the viewport right edge, left of the controller pod", () => {
         // It used to anchor to the play area's right edge
         // (`--right-piles-w`), which pushed the 384px panel far enough left to
         // overlap every play-area-centered dialog (card placement, pickers).
+        // It now stops at the pod's left edge: at 1180x820 the centred panel
+        // sat over the pod's Pass CTA (issue #6970).
         const { container } = renderStack([makeStackItem("only")]);
         const panel = container.firstElementChild as HTMLElement;
-        expect(panel.style.right).toBe("0.5rem");
+        expect(panel.style.right).toBe(BESIDE_CONTROLLER_POD);
         expect(panel.style.right).not.toContain("--right-piles-w");
+    });
+
+    it("the pod's literal classes match the clearance constants", () => {
+        const pod = readFileSync(
+            resolve(__dirname, "../controller-pod.tsx"),
+            "utf8"
+        );
+        expect(pod).toContain(`right-${CONTROLLER_POD_RIGHT_REM * 4}`);
+        expect(pod).toContain(`w-${CONTROLLER_POD_WIDTH_REM * 4}`);
     });
 });
