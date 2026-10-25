@@ -1277,7 +1277,10 @@ export default defineSchema({
         // `false` means the reporter DECLINED: the description and contact
         // fields are here, the diagnostic payload deliberately is not.
         diagnosticsConsent: v.optional(v.boolean()),
-    }).index("by_issueNumber", ["issueNumber"]),
+    })
+        .index("by_issueNumber", ["issueNumber"])
+        // Rate limit (issue #4076): a user's reports in the last hour.
+        .index("by_userId", ["userId"]),
 
     debugScenarios: defineTable({
         // Authorship provenance for interactively-saved rows only (set by

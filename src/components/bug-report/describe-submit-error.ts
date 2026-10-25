@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import { isReportRateLimitedData } from "@convex/bugReportRateLimit";
 
 /**
  * Turns a bug-report submission failure into a message worth showing.
@@ -13,6 +14,13 @@ import { ConvexError } from "convex/values";
 export function describeSubmitError(err: unknown): string {
     if (err instanceof ConvexError) {
         const data: unknown = err.data;
+        if (isReportRateLimitedData(data)) {
+            const when = new Date(data.retryAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            return `You've sent too many reports. You can report again at ${when}.`;
+        }
         if (typeof data === "string" && data.trim()) return data;
         if (
             data &&

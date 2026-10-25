@@ -35,3 +35,19 @@ describe("describeSubmitError", () => {
         );
     });
 });
+
+describe("describeSubmitError — rate limit (issue #4076)", () => {
+    it("renders the refusal with the retry time, not a generic failure", () => {
+        const retryAt = new Date(2026, 0, 1, 13, 5).getTime();
+        const msg = describeSubmitError(
+            new ConvexError({ code: "REPORT_RATE_LIMITED", retryAt })
+        );
+        expect(msg).toContain("too many reports");
+        expect(msg).toContain(
+            new Date(retryAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            })
+        );
+    });
+});
