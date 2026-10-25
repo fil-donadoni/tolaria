@@ -232,6 +232,8 @@ import {
     additionalCostKeywordOf,
     additionalCostPaidCount,
     buildSpellKickedEvents,
+    castAnnouncedTargetGroups,
+    kickedCountOfPayments,
     totalKickerCount,
 } from "./kicker";
 import { modeInstances, soleChosenModeId } from "./modeSelection";
@@ -11513,6 +11515,11 @@ export function requestCopyRetargetOn(
     // For Fork this equals the resolving spell's caster; for Chain
     // Lightning it's the player who paid {R}{R} (the copy's controller),
     // so key the chooser off the copy itself, not the resolving item's caster.
+    // CR 707.10c / 115.7a — the copy has the SAME target groups as the spell,
+    // and finalization replaces its whole list, so the walk offers every group
+    // (the cast path's `advanceTargetGroupOrFinalize` hand-off) rather than
+    // only the primary one.
+    const additionalGroups = ownAdditionalTargetRequirements(copy);
     state.pendingTarget = {
         playerId: as?.playerId ?? copy.controllerId,
         cardInstanceId: copy.id,
@@ -11520,6 +11527,14 @@ export function requestCopyRetargetOn(
         count,
         selected: [],
         kind: as?.kind ?? "copy-retarget",
+        ...(additionalGroups.length > 0
+            ? {
+                  remainingRequirements: additionalGroups,
+                  ...(copy.chosenX !== undefined
+                      ? { chosenX: copy.chosenX }
+                      : {}),
+              }
+            : {}),
         ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
         ...(shorthandArray(req.colorFilterAny)
             ? { colorFilterAny: req.colorFilterAny }
@@ -11576,10 +11591,36 @@ function ownTargetRequirement(spell: StackItem): TargetRequirement | undefined {
     );
 }
 
-/** Raises the retarget prompt over `copy`'s OWN requirement unless it has no
+/** The spell's INDEPENDENT additional target groups (CR 601.2c), in announced
+ *  order — the chosen mode's, else the card's, minus a kicker-gated group the
+ *  spell was not kicked for (CR 702.33g). Empty for a spell with a single
+ *  group and for several mode instances (ADR 0094), whose flat list no one
+ *  requirement governs. */
+function ownAdditionalTargetRequirements(
+    spell: StackItem
+): TargetRequirement[] {
+    if ((spell.chosenModeIds?.length ?? 0) > 1) return [];
+    const cardId = (spell.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!def) return [];
+    const soleId = soleChosenModeId(spell.chosenModeIds);
+    const mode =
+        soleId !== undefined
+            ? def.modes?.find((m) => m.id === soleId)
+            : undefined;
+    return castAnnouncedTargetGroups(
+        mode?.additionalTargetRequirements ??
+            def.additionalTargetRequirements ??
+            [],
+        kickedCountOfPayments(def, spell.kickerPayments) > 0
+    );
+}
+
+/** Exported only so `copyRetargetTargetGroups.test.ts` can drive the
+ *  zero-branch gate directly. Raises the retarget prompt over `copy`'s OWN requirement unless it has no
  *  other legal target — then it keeps what it has and nothing is shown (CR
  *  115.7a for a change; the Arena zero-branch convention for a "may"). */
-function offerRetargetUnlessForced(
+export function offerRetargetUnlessForced(
     state: GameState,
     copy: StackItem,
     as?: { kind: "retarget"; playerId: string }
@@ -11597,9 +11638,19 @@ function offerRetargetUnlessForced(
     const currentKeys = new Set(
         (copy.targets ?? []).map((t) => `${t.type}:${t.id}`)
     );
-    const hasAlternative = legal.some(
-        (t) => !currentKeys.has(`${t.type}:${t.id}`)
-    );
+    // A further group may still offer a choice when the primary one cannot —
+    // forced only when NO group has a candidate beyond the inherited picks.
+    const hasAlternative =
+        legal.some((t) => !currentKeys.has(`${t.type}:${t.id}`)) ||
+        ownAdditionalTargetRequirements(copy).some((group) =>
+            getLegalTargets(
+                state,
+                group,
+                targetingSourceFromCard(copy, true),
+                copy.controllerId,
+                copy.chosenX
+            ).some((t) => !currentKeys.has(`${t.type}:${t.id}`))
+        );
     if (!hasAlternative) return; // zero-branch — keep the inherited target
     requestCopyRetargetOn(state, copy, as);
 }
