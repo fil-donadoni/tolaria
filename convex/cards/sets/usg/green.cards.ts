@@ -4,7 +4,7 @@ import { defineCard } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import type { Color } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
-import { COLOR_OPTIONS } from "../../abilities/chooseColor";
+import { COLOR_OPTIONS, colorChoiceModes } from "../../abilities/chooseColor";
 
 // Argothian Enchantress — "Shroud. Whenever you cast an enchantment spell,
 // draw a card." (CR 702.18 shroud; CR 603.2 + 601.2i spell-cast trigger; CR
@@ -137,5 +137,76 @@ export const fertileGround = defineCard(() => ({
             // fixed-`{G:1}` twin, `lea/green.cards.ts`).
             aiEffects: [{ op: "addMana", mana: { C: 1 } }],
         }),
+    ],
+}));
+
+// Carpet of Flowers — {G} Enchantment. "At the beginning of each of your main
+// phases, if you haven't added mana with this ability this turn, you may add X
+// mana of any one color, where X is the number of Islands target opponent
+// controls." (CR 603.2 phase-begin trigger over BOTH main phases — one Oracle
+// line, one ability; CR 603.3d the opponent is targeted as the trigger goes on
+// the stack; CR 106.1 + CR 500.5 the mana is added to the controller's pool.)
+//
+// The colour is one `optionChoice` mode per colour (`colorChoiceModes`), each
+// an `addMana` whose amount is a `count` of the targeted opponent's Islands read
+// at resolution. "Haven't added mana with this ability this turn" is
+// `maxTriggersPerTurn: 1` (a per-source tally), made exact by the `matches`
+// gate: the ability only triggers while the opponent has an Island, so a
+// zero-Island main phase adds nothing and does not spend the turn's one use.
+// The "you may" is not offered: unspent mana has no cost, so adding is never
+// worse than declining, and a decline would spend the use for nothing.
+//
+// compiler-gap: At the beginning of each of your main phases (#5223)
+export const carpetOfFlowers = defineCard(() => ({
+    id: "93abb48a-85f2-432d-8602-0a1d17fbb409",
+    rarity: "uncommon",
+    name: "Carpet of Flowers",
+    oracleText:
+        "At the beginning of each of your main phases, if you haven't added mana with this ability this turn, you may add X mana of any one color, where X is the number of Islands target opponent controls.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "carpet-of-flowers-main-phase",
+            oracleText:
+                "At the beginning of each of your main phases, if you haven't added mana with this ability this turn, you may add X mana of any one color, where X is the number of Islands target opponent controls.",
+            event: "PHASE_BEGIN",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            maxTriggersPerTurn: 1,
+            matches: (event, self, state) =>
+                event.type === "PHASE_BEGIN" &&
+                (event.phase === "PRECOMBAT_MAIN" ||
+                    event.phase === "POSTCOMBAT_MAIN") &&
+                event.activePlayerId === self.controllerId &&
+                !!state?.players.some(
+                    (p) =>
+                        p.id !== self.controllerId &&
+                        p.battlefield.some((c) => c.subtypes.includes("Island"))
+                ),
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Carpet of Flowers: add mana of which color?",
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "addMana",
+                            mana: {
+                                [color]: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: { target: 0 },
+                                        filter: { subtype: "Island" },
+                                    },
+                                },
+                            },
+                        },
+                    ]),
+                },
+            ],
+        },
     ],
 }));
