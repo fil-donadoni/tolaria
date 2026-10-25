@@ -5058,7 +5058,7 @@ const REVEAL_TOP_TO_HAND =
 const REVEAL_TOP_WINDOW = /^Reveal the top card of your library$/;
 /** CR 400.7 — its matching route: only the card types the corpus prints. */
 const REVEAL_TOP_IF =
-    /^If it's (?:a land|an artifact) card, put it (into your hand|onto the battlefield|into your graveyard)$/;
+    /^If it's (a land|an artifact) card, put it (into your hand|onto the battlefield|into your graveyard)$/;
 /** CR 400.7 — its fallback route. */
 const REVEAL_TOP_OTHERWISE =
     /^Otherwise, put it (into your hand|onto the battlefield|into your graveyard)$/;
@@ -6487,8 +6487,8 @@ function libraryHalf(span: string, ctx: unknown) {
     if (topIf !== null)
         return ok({
             role: "reveal-top-if" as const,
-            filter: { type: span.includes("a land") ? "Land" : "Artifact" },
-            to: REVEAL_TOP_DESTINATIONS.get(topIf[1]!)!,
+            filter: { type: topIf[1] === "a land" ? "Land" : "Artifact" },
+            to: REVEAL_TOP_DESTINATIONS.get(topIf[2]!)!,
         } satisfies SentenceIR);
     const topOtherwise = span.match(REVEAL_TOP_OTHERWISE);
     if (topOtherwise !== null)

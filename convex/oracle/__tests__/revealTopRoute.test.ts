@@ -3,8 +3,7 @@
 // `revealTopAndRoute` (CR 701.20a reveal, CR 400.7 zone change).
 //
 //  1. GOLDEN — a real corpus card compiled whole (Neurok Familiar), plus the
-//     land → battlefield / hand variant Nissa, Sage Animist prints, read as a
-//     spell line (the compiler reads no loyalty ability yet).
+//     land → battlefield / hand variant on a tap ability (Skyward Eye Prophets).
 //  2. REFUSALS — each sentence without the others, and the neighbours the
 //     corpus prints that this rule does not read.
 
@@ -15,8 +14,8 @@ import { oracleCard } from "./oracle.fixture";
 
 const NEUROK =
     "Flying\nWhen this creature enters, reveal the top card of your library. If it's an artifact card, put it into your hand. Otherwise, put it into your graveyard.";
-const LAND_LINE =
-    "Reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put it into your hand.";
+const SKYWARD =
+    "Vigilance\n{T}: Reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put it into your hand.";
 
 function spell(oracleText: string) {
     return compileCard(
@@ -79,17 +78,52 @@ describe("Reveal top route — golden fixtures", () => {
         );
     });
 
-    it("land → battlefield, otherwise hand: Nissa, Sage Animist's line", () => {
-        const outcome = spell(LAND_LINE);
+    it("tap ability, land → battlefield, otherwise hand: Skyward Eye Prophets", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Skyward Eye Prophets",
+                manaCost: "{3}{G}{W}{U}",
+                typeLine: "Creature — Human Wizard",
+                power: "3",
+                toughness: "3",
+                oracleText: SKYWARD,
+            })
+        );
         if (outcome.state === "unparsed") throw new Error("unparsed");
-        expect(outcome.definition.effects).toEqual([
-            {
-                op: "revealTopAndRoute",
-                player: "controller",
-                routes: [{ filter: { type: "Land" }, to: "battlefield" }],
-                fallback: "hand",
-            },
-        ]);
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Skyward Eye Prophets",
+                types: ["Creature"],
+                subtypes: ["Human", "Wizard"],
+                manaCost: { X: 3, W: 1, U: 1, G: 1 },
+                power: 3,
+                toughness: 3,
+                oracleText: SKYWARD,
+                staticAbilities: ["vigilance"],
+                activatedAbilities: [
+                    {
+                        id: "skyward-eye-prophets-ability",
+                        oracleText:
+                            "{T}: Reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put it into your hand.",
+                        cost: { tap: true },
+                        useStack: true,
+                        effects: [
+                            {
+                                op: "revealTopAndRoute",
+                                player: "controller",
+                                routes: [
+                                    {
+                                        filter: { type: "Land" },
+                                        to: "battlefield",
+                                    },
+                                ],
+                                fallback: "hand",
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
     });
 });
 
