@@ -36,6 +36,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { LEDGER_PATH } from "./lib/cr-ledger-path";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // What the lane accepts, and what gates it.
@@ -305,6 +306,11 @@ export function classifyChanges(paths: string[]): {
     const docs: string[] = [];
     const foreign: string[] = [];
     for (const p of paths) (isDocPath(p) ? docs : foreign).push(p);
+    // The CR ledger (ADR 0133) is documentation's companion, never its own
+    // diff (issue #3749): admitted only beside at least one doc and no foreign path.
+    if (docs.length > 0 && foreign.length === 1 && foreign[0] === LEDGER_PATH) {
+        return { docs: [...docs, LEDGER_PATH], foreign: [] };
+    }
     return { docs, foreign };
 }
 
