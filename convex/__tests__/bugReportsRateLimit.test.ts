@@ -9,7 +9,6 @@ import { ConvexError } from "convex/values";
 import type { MutationCtx } from "../_generated/server";
 import { createReportRow } from "../bugReports";
 import {
-    REPORT_LIMIT,
     REPORT_RATE_LIMITED_CODE,
     REPORT_WINDOW_MS,
     isReportRateLimitedData,
@@ -71,11 +70,11 @@ describe("bug-report rate limit (issue #4076)", () => {
         vi.setSystemTime(T0);
         const table: Row[] = [];
         const ctx = makeCtx("u1", table);
-        for (let i = 0; i < REPORT_LIMIT; i++) {
+        for (let i = 0; i < 5; i++) {
             vi.setSystemTime(T0 + i * 60_000);
             await file(ctx);
         }
-        expect(table).toHaveLength(REPORT_LIMIT);
+        expect(table).toHaveLength(5);
 
         vi.setSystemTime(T0 + 10 * 60_000);
         const err = await file(ctx).catch((e: unknown) => e);
@@ -86,7 +85,7 @@ describe("bug-report rate limit (issue #4076)", () => {
             code: REPORT_RATE_LIMITED_CODE,
             retryAt: T0 + REPORT_WINDOW_MS,
         });
-        expect(table).toHaveLength(REPORT_LIMIT);
+        expect(table).toHaveLength(5);
     });
 
     it("allows a report again once the oldest has left the window", async () => {
@@ -94,21 +93,21 @@ describe("bug-report rate limit (issue #4076)", () => {
         vi.setSystemTime(T0);
         const table: Row[] = [];
         const ctx = makeCtx("u1", table);
-        for (let i = 0; i < REPORT_LIMIT; i++) await file(ctx);
+        for (let i = 0; i < 5; i++) await file(ctx);
 
         vi.setSystemTime(T0 + REPORT_WINDOW_MS - 1);
         await expect(file(ctx)).rejects.toBeInstanceOf(ConvexError);
 
         vi.setSystemTime(T0 + REPORT_WINDOW_MS);
         await file(ctx);
-        expect(table).toHaveLength(REPORT_LIMIT + 1);
+        expect(table).toHaveLength(6);
     });
 
     it("counts per user: another user is unaffected", async () => {
         vi.useFakeTimers();
         vi.setSystemTime(T0);
         const table: Row[] = [];
-        for (let i = 0; i < REPORT_LIMIT; i++) await file(makeCtx("u1", table));
+        for (let i = 0; i < 5; i++) await file(makeCtx("u1", table));
         await expect(file(makeCtx("u1", table))).rejects.toBeInstanceOf(
             ConvexError
         );
