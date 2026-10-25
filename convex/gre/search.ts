@@ -3906,10 +3906,12 @@ export function blockOutcomeDominates(
     b: BlockExchange
 ): boolean {
     for (const id of b.killed) if (!a.killed.has(id)) return false;
+    // Values are float sums in assignment order: equal within a rounding ulp.
+    const VALUE_EPS = 1e-6;
     if (
         a.faceDamage > b.faceDamage ||
         a.facePoison > b.facePoison ||
-        a.lostValue > b.lostValue
+        a.lostValue > b.lostValue + VALUE_EPS
     ) {
         return false;
     }
@@ -3917,7 +3919,7 @@ export function blockOutcomeDominates(
         a.killed.size > b.killed.size ||
         a.faceDamage < b.faceDamage ||
         a.facePoison < b.facePoison ||
-        a.lostValue < b.lostValue
+        a.lostValue < b.lostValue - VALUE_EPS
     );
 }
 
@@ -5199,24 +5201,22 @@ export function selectRootMove(
             }
             return exchanges.get(e)!;
         };
+        // The empty declaration is never a base: it is admitted without any
+        // reward evidence, and a block the exchange arithmetic misreads (an
+        // on-block trigger, a first striker) would otherwise "dominate" it
+        // for free. One pass suffices — dominance is transitive.
+        const bases = blocks.filter((e) => !isEmptyBlockDeclaration(e.move));
         const outside = pool.filter(
             (e) => e.move.kind === "declare-blockers" && !blocks.includes(e)
         );
-        for (let grew = outside.length > 0; grew; ) {
-            grew = false;
-            for (const e of outside) {
-                if (blocks.includes(e)) continue;
-                const x = exchangeOf(e);
-                if (!x) continue;
-                const dominates = blocks.some((b) => {
-                    const y = exchangeOf(b);
-                    return y !== null && blockOutcomeDominates(x, y);
-                });
-                if (dominates) {
-                    blocks.push(e);
-                    grew = true;
-                }
-            }
+        for (const e of outside) {
+            const x = exchangeOf(e);
+            if (!x) continue;
+            const dominates = bases.some((b) => {
+                const y = exchangeOf(b);
+                return y !== null && blockOutcomeDominates(x, y);
+            });
+            if (dominates) blocks.push(e);
         }
         if (blocks.length > 0) {
             const prev = best;
