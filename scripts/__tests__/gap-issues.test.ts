@@ -21,6 +21,7 @@ import {
     applyUpdatedIssues,
     bandUmbrellaOf,
     BAND_UMBRELLAS,
+    closedStillListedLines,
     buildGrammarGapFilings,
     grammarGapTitle,
     LOWEST_RANKED_TARGET,
@@ -1623,6 +1624,27 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             expect(tracker.comments).toEqual([
                 { issue: CLOSED, body: reHomeComment(BOT, TIP, 1234) },
             ]);
+        });
+
+        it("closedStillListedLines names each skip-closed gap and is empty otherwise (issue #4660)", () => {
+            const tracker = trackerWithClosed();
+            const closed = syncGaps(
+                [botFiling({ currentIssue: CLOSED })],
+                tracker,
+                new Set([CLUSTER]),
+                [signature],
+                TIP
+            );
+            const lines = closedStillListedLines(closed.actions);
+            expect(lines).toHaveLength(2);
+            expect(lines[0]).toContain("WARNING 1 Bot Gap(s)");
+            expect(lines[1]).toContain(`issue #${CLOSED}`);
+            expect(closedStillListedLines([])).toEqual([]);
+            expect(
+                closedStillListedLines(
+                    closed.actions.map((a) => ({ ...a, kind: "grammar" }))
+                )
+            ).toEqual([]);
         });
 
         it("a closed SINGLE stays skip-closed, and a gone key is the closer's — no filing, no action", () => {
