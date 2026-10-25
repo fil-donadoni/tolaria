@@ -1375,6 +1375,13 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
                           )
                         : effect.costPerAttacker;
                 for (const attacker of declared) {
+                    // "Attacking YOU" taxes only creatures attacking the player
+                    // (CR 508.1h cost to attack, CR 506.2 who may be attacked);
+                    // a `combat.attackTargets` entry names the planeswalker or
+                    // battle being attacked instead.
+                    if (combat.attackTargets?.[attacker.id] !== undefined) {
+                        continue;
+                    }
                     if (
                         !effect.taxes(
                             attacker as unknown as PermanentView,
