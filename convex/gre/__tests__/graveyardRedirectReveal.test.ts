@@ -122,7 +122,7 @@ describe("revealing graveyard-bound redirect (CR 701.20a, issue #2557)", () => {
         expectRevealFor(state, "r1");
     });
 
-    it("resolution-driven discard from hand reveals", () => {
+    it("discard from hand reveals", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", { hand: [revealer("r1", "p1", "hand")] }),

@@ -588,8 +588,9 @@ export function grantKnowledgeToAll(
 
 /** CR 701.20a (issue #3425) — the players a card was PUBLICLY revealed to
  *  during the resolution currently in progress, read off the transient
- *  `pendingReveals` channel (cleared at the top of every `resolveTopOfStack`,
- *  so it never reaches back into an earlier resolution). Empty when the card
+ *  `pendingReveals` channel (cleared at the top of every `resolveTopOfStack` bar
+ *  `retained` entries, which this reader skips, so it never reaches back into
+ *  an earlier resolution). Empty when the card
  *  was not revealed, or was only LOOKED at: a look is shown to one player and
  *  grants no one else knowledge (CR 701.20e).
  *
@@ -608,6 +609,10 @@ function publicRevealAudience(
 ): string[] {
     const audience = new Set<string>();
     for (const entry of state.pendingReveals ?? []) {
+        // A `retained` entry was raised outside this resolution (a revealing
+        // graveyard redirect) and a shuffle has happened since: not this
+        // resolution's reveal.
+        if (entry.retained) continue;
         if (entry.kind !== "reveal") continue;
         if (!entry.cards.some((c) => c.instanceId === cardInstanceId)) continue;
         for (const id of entry.audience) audience.add(id);
