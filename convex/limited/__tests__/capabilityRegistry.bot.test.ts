@@ -199,11 +199,15 @@ describe("mana-value-bounded rows (issue #1677)", () => {
     it("every bound names a registered, non-bounded base capability", () => {
         expect(bounded.length).toBeGreaterThan(0);
         for (const row of bounded) {
-            const base = CAPABILITY_REGISTRY.find(
-                (r) => r.id === row.bound!.capability
+            const baseId = row.bound!.capability;
+            expect(isRegisteredCapability(baseId), row.id).toBe(true);
+            expect(capabilitySatisfiedBy(baseId, [baseId], 0), row.id).toBe(
+                true
             );
-            expect(base, row.id).toBeDefined();
-            expect(base!.bound, row.id).toBeUndefined();
+            expect(
+                CAPABILITY_REGISTRY.find((r) => r.id === baseId)!.bound,
+                row.id
+            ).toBeUndefined();
         }
     });
 
