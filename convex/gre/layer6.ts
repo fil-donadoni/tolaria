@@ -104,10 +104,10 @@ type Layer6Action =
  *  caller may feed one of them back in as input. */
 export type Layer6Derivation = {
     /** CR 613.1f — the effective keyword multiset. A MULTISET, not a set: two
-     *  sources granting flying put two occurrences on, and one
-     *  `keyword-remove` takes one back off (CR 113.1 — the abilities are
-     *  separate instances). #1715's "Flight then Gravity Sphere" case is
-     *  exactly this arithmetic. */
+     *  sources granting flying put two occurrences on (CR 113.1 — the
+     *  abilities are separate instances), and a `keyword-remove` takes every
+     *  occurrence applied before it in the walk — the object loses the
+     *  keyword, not one grant of it. */
     staticAbilities: string[];
     /** CR 613.1f — the keyword grants a live SOURCE's static ability is
      *  contributing, in the shape `grantedStaticAbilities` has always had.
@@ -883,8 +883,9 @@ function resolveActivatedGrant(
  *  separately):
  *
  *  - a GRANT pushes one occurrence of its keyword;
- *  - a REMOVAL takes one occurrence back off (CR 113.1 — two grants of flying
- *    are two abilities, and "loses flying" removes one of them);
+ *  - a REMOVAL takes every occurrence applied SO FAR (two grants of flying
+ *    are two abilities, CR 113.1, and "loses flying" removes both — a grant
+ *    later in the walk survives);
  *  - an ABILITY LOSS clears everything applied SO FAR, which is precisely
  *    "everything with an earlier timestamp" (Humility, then Fire Whip: the
  *    Whip's grant is later in the walk and survives).
@@ -930,25 +931,41 @@ export function deriveLayer6(
                 }
                 break;
             case "keyword-remove": {
-                const idx = staticAbilities.indexOf(action.keyword);
-                if (idx === -1) break;
-                staticAbilities.splice(idx, 1);
-                // Keep the provenance record in step with the multiset: the
-                // occurrence a removal takes is the one a consumer must no
-                // longer see attributed to a source (`defensiveGrants.ts`
-                // documents exactly this hazard).
-                const grantIdx = grantedStatic.findIndex(
-                    (g) => g.ability === action.keyword
+                // CR 613.1f — the removal applies to the OBJECT, not to one
+                // grant of it: every occurrence on the multiset at this point
+                // of the timestamp walk (CR 613.7) goes, whatever its source,
+                // so "loses flying" never degrades to "loses one flying". A
+                // grant strictly later than the removal is pushed after this
+                // point and survives. One row per occurrence taken, as
+                // `ability-loss` records.
+                const taken = staticAbilities.filter(
+                    (kw) => kw === action.keyword
+                ).length;
+                if (taken === 0) break;
+                const kept = staticAbilities.filter(
+                    (kw) => kw !== action.keyword
                 );
-                if (grantIdx !== -1) grantedStatic.splice(grantIdx, 1);
-                removedKeywords.push({
-                    keyword: action.keyword,
-                    sourceId:
-                        entry.expiry.kind === "source"
-                            ? entry.expiry.sourceId
-                            : INDEFINITE_SOURCE_ID,
-                    seq: entry.timestamp,
-                });
+                staticAbilities.length = 0;
+                staticAbilities.push(...kept);
+                // Keep the provenance record in step with the multiset: an
+                // occurrence a removal takes is one a consumer must no longer
+                // see attributed to a source (`defensiveGrants.ts` documents
+                // exactly this hazard).
+                const keptGrants = grantedStatic.filter(
+                    (g) => g.ability !== action.keyword
+                );
+                grantedStatic.length = 0;
+                grantedStatic.push(...keptGrants);
+                for (let i = 0; i < taken; i++) {
+                    removedKeywords.push({
+                        keyword: action.keyword,
+                        sourceId:
+                            entry.expiry.kind === "source"
+                                ? entry.expiry.sourceId
+                                : INDEFINITE_SOURCE_ID,
+                        seq: entry.timestamp,
+                    });
+                }
                 break;
             }
             case "ability-loss":
