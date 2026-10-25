@@ -52,6 +52,7 @@ import ZoneAddColumnControl from "./zone-add-column-control";
 import ZoneColumnsTrigger from "./zone-columns-trigger";
 import { zoneColumnEntries } from "./zoneColumnEntries";
 import ZoneColorFilterToggles from "./zone-color-filter-toggles";
+import ZoneColorFilterTrigger from "./zone-color-filter-trigger";
 import ZoneCreatureFilterSelect from "./zone-creature-filter-select";
 import ZoneFilterChip from "./zone-filter-chip";
 import ZoneGroupingSelect from "./zone-grouping-select";
@@ -563,6 +564,8 @@ export default function DeckZoneSurface({
     // trigger (below) manages the same Columns through a sheet.
     const surface = useSurfaceClass();
     const columnsSheet = surface !== "roomy-fine";
+    const toggleColor = (color: Color) =>
+        setFilter((f) => toggleZoneFilterColor(f, color));
     const columnActions = (column: {
         id: ColumnId;
         label: string;
@@ -800,15 +803,21 @@ export default function DeckZoneSurface({
                                         zoneLabel={title}
                                     />
                                 )}
-                                <ZoneColorFilterToggles
-                                    value={filter.colors}
-                                    onToggle={(color: Color) =>
-                                        setFilter((f) =>
-                                            toggleZoneFilterColor(f, color)
-                                        )
-                                    }
-                                    zoneLabel={title}
-                                />
+                                {/* Issue #3678: coarse surfaces fold the
+                                    five 24px toggles into one 44px trigger. */}
+                                {columnsSheet ? (
+                                    <ZoneColorFilterTrigger
+                                        value={filter.colors}
+                                        onToggle={toggleColor}
+                                        zoneLabel={title}
+                                    />
+                                ) : (
+                                    <ZoneColorFilterToggles
+                                        value={filter.colors}
+                                        onToggle={toggleColor}
+                                        zoneLabel={title}
+                                    />
+                                )}
                             </>
                         )}
                         {onGroupingChange && (
