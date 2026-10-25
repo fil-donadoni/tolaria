@@ -129,6 +129,19 @@ describe("declaredCombatDelta — walker damage is loyalty, not life (CR 120.3c)
     });
 });
 
+describe("declaredCombatDelta — a walker that survives loses only loyalty", () => {
+    it("prices loyalty removed short of zero as part of the walker's worth", () => {
+        // 2 damage at loyalty 3 leaves it at 1 (CR 120.3c): part of its
+        // worth, never the whole of it, and never life.
+        const pw = walker(3);
+        const state = declared([attacker(BEARS, "b")], [pw], ["b"]);
+        const worth = permanentRealisedValue(state, pw, DEFAULT_EVAL_WEIGHTS);
+        const delta = declaredCombatDelta(state, "p2");
+        expect(delta).toBeLessThan(0);
+        expect(delta).toBeGreaterThan(-worth);
+    });
+});
+
 describe("declaredBlockDelta — an unblocked attacker at a walker is not face damage", () => {
     it("is zero when the attacked walker has left the battlefield (CR 510.1b)", () => {
         const state = declared([attacker(GIANT, "g")], [], ["g"], true);
