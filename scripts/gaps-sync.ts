@@ -122,6 +122,7 @@ import {
     matchCluster,
     syncAdoptedBlocks,
     syncClusterCutTickets,
+    closedStillListedLines,
     NO_FILE_BOT_FLAG,
     setFileColour,
     syncGaps,
@@ -1634,9 +1635,11 @@ async function main(): Promise<void> {
             );
         }
     }
+    for (const line of closedStillListedLines(result.actions))
+        console.log(line);
     for (const move of result.moves) {
         console.log(
-            `${move.kind.padEnd(10)} move        ${move.key} -> issue #${move.issue}: parent ${move.from === null ? "none" : `#${move.from}`} -> #${move.to}`
+            `${move.kind.padEnd(10)} move       ${move.key} -> issue #${move.issue}: parent ${move.from === null ? "none" : `#${move.from}`} -> #${move.to}`
         );
     }
     console.log(

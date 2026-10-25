@@ -582,6 +582,26 @@ export interface GapSyncResult {
     readonly held: readonly string[];
 }
 
+/**
+ * The lines a run prints for every gap still in the lockfile whose issue is
+ * CLOSED (`skip-closed`, issue #4660): a fixed Bot Gap lingers until the next
+ * `bot-replay` sweep drops its key, and one that REGRESSED under a closed key
+ * would otherwise read as one more line among the run's actions. Empty when
+ * none, so a clean run prints nothing.
+ */
+export function closedStillListedLines(
+    actions: readonly GapSyncAction[]
+): string[] {
+    const closed = actions.filter((a) => a.action === "skip-closed");
+    if (closed.length === 0) return [];
+    return [
+        `gaps:sync: WARNING ${closed.length} gap(s) still listed in the lockfile on a CLOSED issue — fixed and awaiting the next bot-replay/recompile, or regressed (reopen it):`,
+        ...closed.map(
+            (a) => `  ${a.kind.padEnd(10)} ${a.key} -> issue #${a.issue}`
+        ),
+    ];
+}
+
 /** One open single counted toward a Cluster Cut ticket's threshold. */
 export interface ClusterCutSingle {
     readonly key: string;
