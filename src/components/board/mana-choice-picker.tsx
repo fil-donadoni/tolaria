@@ -25,13 +25,12 @@ function expandPips(cost: ManaCost): Color[] {
     return colors.flatMap((c) => Array.from({ length: cost[c] ?? 0 }, () => c));
 }
 
-// Visible label for a set of pips — "White", "Blue + Black", collapsing a
+// Accessible name for a set of pips — "White", "Blue + Black", collapsing a
 // repeated colour ("White x2") so a fixed {W}{W} option reads as one clause
-// instead of a stutter. Issue #2920: this used to be the ONLY string the
-// picker produced, and it lived solely in a `title` attribute — duplicated as
-// both the button's accessible name and its hover tooltip, with no visible
-// text at all. `getColorOverrideDisplay` is the same colour-name primitive
-// `preview-body.ts` already uses for the card-preview panel.
+// instead of a stutter. The row shows the symbols alone (the owner's call: the
+// colour name beside its pip is redundant); this string is the button's
+// `aria-label` only. `getColorOverrideDisplay` is the same colour-name
+// primitive `preview-body.ts` already uses for the card-preview panel.
 function optionLabel(pips: Color[]): string {
     if (!pips.length) return "No mana";
     const names = pips.map((c) => getColorOverrideDisplay([c])?.name ?? c);
@@ -62,6 +61,7 @@ export default function ManaChoicePicker({
                     <AnchoredPickerRow
                         key={i}
                         onSelect={() => onSelect(i)}
+                        aria-label={label}
                         className="flex-row items-center gap-2"
                     >
                         <span className="flex shrink-0 items-center gap-0.5">
@@ -79,9 +79,6 @@ export default function ManaChoicePicker({
                                     0
                                 </span>
                             )}
-                        </span>
-                        <span className="text-display text-sm text-text">
-                            {label}
                         </span>
                         {sacrificeFlags?.[i] && (
                             <span className="text-xs text-text/70">
