@@ -11255,9 +11255,9 @@ export function findStagedEntry(
 /** CR 303.4f — hold `aura` off every zone (the caller has already removed it
  *  from its origin) and enqueue the controller's "choose what to enchant" pick.
  *  Freezes priority on the chooser; the Aura enters via `finalizeAsEnters` when
- *  the choice is answered. `candidateIds` are the legal hosts computed by the
- *  caller (`findAllLegalAuraHosts`) — a mix of permanent ids and, for an
- *  "Enchant player" Aura (issue #1119), player ids. Only called with ≥2
+ *  the choice is answered. The legal hosts are computed by the caller
+ *  (`findAllLegalAuraHosts`): permanent ids go to `candidateIds` and, for an
+ *  "Enchant player" Aura, player ids to `candidatePlayerIds`. Only called with ≥2
  *  candidates — a 0/1-host Aura is resolved inline without a prompt (CR
  *  303.4g / ADR 0003). */
 function enqueueAuraHostChoice(
