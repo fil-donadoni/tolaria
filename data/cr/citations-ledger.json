@@ -43972,6 +43972,7 @@
         {"id":"702.16g","line":"// Auriok Champion (CR 702.16g)","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
         {"id":"702.16g","line":"// Oversoul of Dusk (CR 702.16g, comma list)","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
         {"id":"702.16g","line":"// Subtype comma list (CR 702.16g)","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
+        {"id":"702.16g","line":"// and from each of your opponents\", CR 702.16g) counts, not only the","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
         {"id":"702.16g","line":"// separate abilities (CR 702.16g); the engine's string","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
         {"id":"702.16g","line":"describe(\"renderKeyword -> parseProtectionQualities round trip (CR 702.16g)\", () => {","sites":1,"status":"confirmed","ruleHash":"8016382e5916a313"},
         {"id":"702.16i","line":"* (CR 702.16i), so for a PLAYER (CR 115.4) exactly two of protection's","sites":1,"status":"baseline"},
