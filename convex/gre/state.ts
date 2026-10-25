@@ -1202,6 +1202,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     toughnessFilter: true,
     mvFilter: true,
     sameController: true,
+    zoneOwnerId: true,
     isToken: true,
     controlledSinceTurnStart: true,
     attachedToFilter: true,

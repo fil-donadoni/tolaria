@@ -4535,6 +4535,22 @@ export function excludingPriorTargets(
     };
 }
 
+/** CR 601.2c + CR 404.1 (issue #2912) — lowers a group's
+ *  `zoneOwnerOfPriorPlayerTarget` directive into the registered `zoneOwnerId`
+ *  filter, naming the player an EARLIER group announced ("target artifact
+ *  cards from target player's graveyard"). Returns the requirement untouched
+ *  when the directive is absent. With no player among the earlier picks (the
+ *  announcement dropped it) the filter is set to a handle no player has, so
+ *  the group fails CLOSED rather than offering every graveyard. */
+export function zoneOwnedByPriorPlayerTarget(
+    req: TargetRequirement,
+    prior: readonly TargetSelection[]
+): TargetRequirement {
+    if (!req.zoneOwnerOfPriorPlayerTarget) return req;
+    const player = prior.find((t) => t.type === "player");
+    return { ...req, zoneOwnerId: player?.id ?? "" };
+}
+
 /** After a target group's selection completes (CR 601.2c): if the spell has
  *  further INDEPENDENT groups queued (Fumarole), lock the current group's picks
  *  into `priorSelected` and load the next requirement; otherwise finalize the
@@ -4562,7 +4578,10 @@ export function advanceTargetGroupOrFinalize(
         applyRequirementToPendingTarget(
             state,
             pt,
-            excludingPriorTargets(next, instancePrior),
+            zoneOwnedByPriorPlayerTarget(
+                excludingPriorTargets(next, instancePrior),
+                instancePrior
+            ),
             pt.chosenX,
             instancePrior
         );

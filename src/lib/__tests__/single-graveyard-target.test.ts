@@ -61,3 +61,22 @@ describe("matchesGraveyardTarget — a single graveyard", () => {
         ).toBe(true);
     });
 });
+
+// CR 601.2c + CR 404.1 (issue #2912) — "cards from target player's graveyard":
+// the lowered `zoneOwnerId` on the pending target reaches the same registry
+// check the server runs, so only the announced player's graveyard is clickable.
+describe("matchesGraveyardTarget — the announced player's graveyard", () => {
+    const owned: PendingTarget = {
+        ...pending([], false),
+        zoneOwnerId: "p2",
+    };
+
+    it("marks only the announced player's graveyard cards", () => {
+        expect(
+            matchesGraveyardTarget(gyCard("b1"), "p2", owned, "p1", "p1")
+        ).toBe(true);
+        expect(
+            matchesGraveyardTarget(gyCard("a1"), "p1", owned, "p1", "p1")
+        ).toBe(false);
+    });
+});
