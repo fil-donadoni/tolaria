@@ -1315,8 +1315,9 @@ export const infernalDenizen = defineCard(() => ({
                     zone: "battlefield",
                     zoneOwnerId: ctx.controller,
                     filter: { types: "Creature" },
-                    count: 1,
-                    prompt: "Infernal Denizen: choose a creature to gain control of.",
+                    // "an opponent MAY gain control" — picking none declines.
+                    count: { min: 0, max: 1 },
+                    prompt: "Infernal Denizen: choose a creature to gain control of, or none.",
                 });
                 if (picks === undefined) return;
                 for (const id of picks) {
