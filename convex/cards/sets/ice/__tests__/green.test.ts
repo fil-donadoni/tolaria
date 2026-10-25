@@ -32,7 +32,10 @@ import {
     applyAllCombatDamage,
 } from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { hasBanding, recordBlockedAttackers } from "../../../../gre/banding";
+import {
+    recordBlockedAttackers,
+    getDamageAssignerId,
+} from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     assertLegalAction,
@@ -106,6 +109,8 @@ const foxfire = getDefinition("88db9685-6a2f-4548-b6c4-669918d653b4");
 const pyknite = getDefinition("6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6");
 const touchOfVitae = getDefinition("48d2cd18-a24d-40e0-a654-777d9e623ae2");
 const whiteout = getDefinition("a8645e4f-eaa8-4420-a6a3-eb53c311fab1");
+const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
+const direWolves = getDefinition("a602c93d-e00f-4b4f-a7ff-95316b7e7641");
 const woollyMammoths = getDefinition("eaca1216-99c8-4ad5-a51a-3c4ff3b82097");
 const freyalisesWinds = getDefinition("b11cd2e0-9419-4267-807e-5b73915c748a");
 const forgottenLore = getDefinition("fb01dd39-a957-4c1a-86cf-f31a699a154a");
@@ -2750,51 +2755,83 @@ describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
     });
 });
 
-describe("Dire Wolves (CR 702.22 banding, CR 613.1f conditional grant)", () => {
-    // "This creature has banding as long as you control a Plains."
-    const wolvesDef = getDefinition("a602c93d-e00f-4b4f-a7ff-95316b7e7641");
-    const plainsDef = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
-
-    function makeWolvesState(plainsPresent: boolean) {
-        const wolves = makeInstance(wolvesDef.id, {
+describe("Dire Wolves (conditional banding, CR 702.22 / CR 611.2c)", () => {
+    /** Dire Wolves (controlled by `wolfController`, owned by `wolfOwner`) blocks
+     *  a p2 attacker; `plainsFor` lists whose battlefield holds a Plains. */
+    function makeWolfBlockState(
+        wolfController: "p1" | "p2",
+        wolfOwner: "p1" | "p2",
+        plainsFor: ("p1" | "p2")[]
+    ) {
+        const wolves = makeInstance(direWolves.id, {
             id: "wolves",
-            controllerId: "p1",
-            ownerId: "p1",
+            controllerId: wolfController,
+            ownerId: wolfOwner,
         });
-        const plains = makeInstance(plainsDef.id, {
-            id: "plains",
-            controllerId: "p1",
-            ownerId: "p1",
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: wolfController === "p1" ? "p2" : "p1",
+            ownerId: wolfController === "p1" ? "p2" : "p1",
         });
+        const bf = (id: "p1" | "p2") => [
+            ...(id === wolfController ? [wolves] : []),
+            ...(id !== wolfController ? [attacker] : []),
+            ...(plainsFor.includes(id) ? [makeLand(plains.id, id)] : []),
+        ];
         const state = makeState({
+            phase: "COMBAT_DAMAGE",
             players: [
-                makePlayer("p1", {
-                    battlefield: plainsPresent ? [wolves, plains] : [wolves],
-                }),
-                makePlayer("p2"),
+                makePlayer("p1", { battlefield: bf("p1") }),
+                makePlayer("p2", { battlefield: bf("p2") }),
             ],
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments: { wolves: [attacker.id] },
+                blockersConfirmed: true,
+            },
         });
         beginApplyingStaticEffects(state, wolves);
-        return { state, wolves };
+        return { state, wolves, attacker };
     }
 
-    it("has banding while controlling a Plains", () => {
-        const { wolves } = makeWolvesState(true);
-        expect(hasBanding(wolves)).toBe(true);
+    it("has banding while its controller controls a Plains", () => {
+        const { wolves } = makeWolfBlockState("p1", "p1", ["p1"]);
+        expect(wolves.staticAbilities).toContain("banding");
     });
 
-    it("has no banding without a Plains", () => {
-        const { wolves } = makeWolvesState(false);
-        expect(hasBanding(wolves)).toBe(false);
+    it("does NOT have banding with no Plains controlled", () => {
+        const { wolves } = makeWolfBlockState("p1", "p1", []);
+        expect(wolves.staticAbilities).not.toContain("banding");
     });
 
-    it("loses banding once its only Plains leaves, re-evaluated via checkStateBasedActions", () => {
-        const { state, wolves } = makeWolvesState(true);
-        expect(hasBanding(wolves)).toBe(true);
+    it("loses banding when the last Plains leaves, via checkStateBasedActions", () => {
+        const { state, wolves } = makeWolfBlockState("p1", "p1", ["p1"]);
+        expect(wolves.staticAbilities).toContain("banding");
         state.players[0].battlefield = state.players[0].battlefield.filter(
-            (c) => c.id !== "plains"
+            (c) => c.id !== `${plains.id.slice(0, 4)}-p1`
         );
         checkStateBasedActions(state);
-        expect(hasBanding(wolves)).toBe(false);
+        expect(wolves.staticAbilities).not.toContain("banding");
+    });
+
+    it('"you" is the controller, not the owner (stolen Dire Wolves)', () => {
+        // p1 controls Wolves owned by p2; only the OWNER has a Plains.
+        const ownerOnly = makeWolfBlockState("p1", "p2", ["p2"]);
+        expect(ownerOnly.wolves.staticAbilities).not.toContain("banding");
+        // Only the CONTROLLER has a Plains.
+        const controllerOnly = makeWolfBlockState("p1", "p2", ["p1"]);
+        expect(controllerOnly.wolves.staticAbilities).toContain("banding");
+    });
+
+    // Real banding combat path: a banding blocker shifts the attacker's
+    // damage assignment to the blocker's controller (CR 702.22j).
+    it("blocking Wolves with a Plains: its controller divides the attacker's damage", () => {
+        const { state, attacker } = makeWolfBlockState("p1", "p1", ["p1"]);
+        expect(getDamageAssignerId(state, attacker, ["wolves"])).toBe("p1");
+    });
+
+    it("blocking Wolves with no Plains: the attacker's controller assigns", () => {
+        const { state, attacker } = makeWolfBlockState("p1", "p1", []);
+        expect(getDamageAssignerId(state, attacker, ["wolves"])).toBe("p2");
     });
 });
