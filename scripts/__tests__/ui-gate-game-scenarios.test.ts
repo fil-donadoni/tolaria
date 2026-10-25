@@ -37,6 +37,7 @@ import {
 } from "../../convex/debugScenarioSpec";
 import { computeExpectedInput } from "../../convex/gre/expectedInput";
 import { buildStateFromScenario } from "../../convex/gre/scenarioBuilder";
+import { resolveTopOfStack } from "../../convex/gre/state";
 import {
     createInitialGameState,
     type PlayerInput,
@@ -84,7 +85,7 @@ function baseState() {
 
 describe("check:ui declared positions (ADR 0132 §4)", () => {
     it("seeds one payload per game surface that loads a position", () => {
-        // Five today. The count is asserted so that ADDING a payload without
+        // Six today. The count is asserted so that ADDING a payload without
         // a surface, or a surface without a payload, is a decision somebody
         // makes on purpose rather than a diff nobody reads.
         expect(seeds.map((s) => s.label)).toEqual([
@@ -93,6 +94,7 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
             "UI board — ordinary mid-game position",
             "UI combat — blocks owed on a confirmed attack",
             "UI choice — a card pick over the board, seven candidates",
+            "UI source choice — a spell on the stack as a source of your choice",
         ]);
     });
 
@@ -179,4 +181,36 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
             }
         }
     );
+
+    it("the source-choice position raises a pick-source choice with the spell ON THE STACK among its candidates (CR 609.7a)", () => {
+        // `game-source-choice` walks to the stack panel's pick control, which
+        // exists only while the open choice names a stack object. The pass the
+        // walk clicks resolves the top of the stack (`passCount: 1`), so the
+        // same resolution here must raise that choice — or the row is
+        // UNWALKED at every viewport for a reason no browser log names.
+        const seed = seeds.find((s) => s.label.startsWith("UI source choice"))!;
+        const state = buildStateFromScenario(
+            baseState(),
+            seed.spec as ScenarioSpec
+        );
+        const [human, other] = state.players;
+        const named = (name: string) => {
+            const id = getCardByName(name).id;
+            return (c: { card: { id?: unknown } }) => c.card.id === id;
+        };
+        const bolt = state.stack.find(named("Lightning Bolt"))!;
+        expect(bolt).toBeDefined();
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("pick-source");
+        expect(head?.playerId).toBe(human!.id);
+        const ogre = other!.battlefield.find(named("Gray Ogre"))!;
+        const lions = other!.battlefield.find(named("Savannah Lions"))!;
+        // The Bolt on the stack and the red permanent; never the white one
+        // (the Circle's colour filter) and never the resolving ability.
+        expect([...(head?.candidateIds ?? [])].sort()).toEqual(
+            [bolt.id, ogre.id].sort()
+        );
+        expect(head?.candidateIds).not.toContain(lions.id);
+    });
 });
