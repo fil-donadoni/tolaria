@@ -75,8 +75,7 @@ export const koboldsOfKherKeep = defineCard(() => ({
 //   • C5 named counters: Triassic Egg (hatchling counters; no longer blocked —
 //     tracked-by: #2230), Voodoo Doll (pin counters; tracked-by: #2225),
 //     Serpent Generator (poison-counter token).
-//   • C7 upkeep pay-or-sacrifice: Forethought Amulet, The Tabernacle at Pendrell
-//     Vale.
+//   • C7 upkeep pay-or-sacrifice: The Tabernacle at Pendrell Vale.
 //
 // SKIPPED here — needs an engine primitive that genuinely isn't built yet
 // (data-only tranche must not build engine support); each lands in a later
@@ -783,3 +782,48 @@ export const whiteManaBattery = defineCard(() =>
         color: "W",
     })
 );
+
+// Forethought Amulet — {5} Artifact. "At the beginning of your upkeep,
+// sacrifice this artifact unless you pay {3}. If an instant or sorcery source
+// would deal 3 or more damage to you, it deals 2 damage to you instead."
+// Upkeep clause: the shared `payOrSacrificeUpkeepTrigger` (CR 603.6a). Damage
+// clause: a CR 614 REPLACEMENT that rewrites the event's `amount` (it does not
+// cancel the damage, so it is not CR 615 prevention), gated on the source
+// being an instant or sorcery (CR 608.2b / 120.3).
+export const forethoughtAmulet = defineCard(() => ({
+    id: "700f53d3-0a84-4c55-8495-786f0f0783db",
+    rarity: "rare",
+    name: "Forethought Amulet",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this artifact unless you pay {3}.\nIf an instant or sorcery source would deal 3 or more damage to you, it deals 2 damage to you instead.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "forethought-amulet-upkeep",
+            cardName: "this artifact",
+            cost: { X: 3 },
+            costText: "{3}",
+        }),
+    ],
+    replacementEffects: [
+        {
+            id: "forethought-amulet-clamp",
+            oracleText:
+                "If an instant or sorcery source would deal 3 or more damage to you, it deals 2 damage to you instead.",
+            eventKind: "damage",
+            damageEffectKind: "other",
+            appliesTo: (event, self) =>
+                event.kind === "damage" &&
+                event.target.type === "player" &&
+                event.target.id === self.controllerId &&
+                event.amount >= 3 &&
+                (event.sourceTypes.includes("Instant") ||
+                    event.sourceTypes.includes("Sorcery")),
+            replace: (event) =>
+                event.kind !== "damage"
+                    ? { kind: "consumed" }
+                    : { kind: "modified", event: { ...event, amount: 2 } },
+        },
+    ],
+}));

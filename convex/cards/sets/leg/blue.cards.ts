@@ -11,6 +11,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { isBlockingCreature } from "../../combatDamagePrevention";
+import { getEffectiveColors } from "../../effectiveColors";
 
 // Wall of Vapor — {3}{U} 0/1 Wall, Defender. "Prevent all damage that would be
 // dealt to this creature by creatures it's blocking." Source filter: the
@@ -56,8 +57,6 @@ export const wallOfVapor = defineCard(() => ({
 //   • C6 shroud / can't-be-targeted — SHIPPED below (Spectral Cloak,
 //     Anti-Magic Aura, Bartel Runeaxe). Tetsuo Umezawa and Wall of Shadows are
 //     deferred (tracked-by: #2785) — see the C6 section footer for the per-card reasons.
-//   • C7 upkeep pay-or-sacrifice — Elder Spawn ("unless you sacrifice an
-//     Island, sacrifice this and it deals 6 damage to you").
 //   • C8 cast-tax counter-unless-pay — Nether Void and In the Eye of Chaos
 //     (both World) SHIPPED in the C8 section at the foot of this file (#385).
 //     Invoke Prejudice (counter an opponent's off-color creature spell unless
@@ -1018,5 +1017,108 @@ export const inTheEyeOfChaos = defineCard(() => ({
                 if (!paid) ctx.counter({ type: "spell", id: spell.instanceId });
             },
         }),
+    ],
+}));
+
+// Elder Spawn — {4}{U}{U}{U} 6/6 Spawn. "At the beginning of your upkeep,
+// unless you sacrifice an Island, sacrifice this creature and it deals 6 damage
+// to you. This creature can't be blocked by red creatures."
+// Upkeep clause: the Mold Demon sacrifice-as-cost shape (CR 118.3 + CR 701.21)
+// on a `phaseTrigger`. With no Island there is no real choice (CR 117.3a), so
+// the `count` predicate goes straight to the penalty. The 6 damage is
+// unconditional (a sacrifice always succeeds, CR 701.21a), so — unlike Cosmic
+// Horror's "if destroyed this way" rider — it stays a plain Effect Script.
+// Block clause: CR 509.1b `block-restriction`, read against the candidate
+// blocker's EFFECTIVE colour (layer 5, CR 613.1e).
+export const elderSpawn = defineCard(() => ({
+    id: "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
+    rarity: "rare",
+    name: "Elder Spawn",
+    oracleText:
+        "At the beginning of your upkeep, unless you sacrifice an Island, sacrifice this creature and it deals 6 damage to you.\nThis creature can't be blocked by red creatures.",
+    manaCost: { X: 4, U: 3 },
+    types: ["Creature"],
+    subtypes: ["Spawn"],
+    power: 6,
+    toughness: 6,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "elder-spawn-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, unless you sacrifice an Island, sacrifice this creature and it deals 6 damage to you.",
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { subtype: "Island" },
+                            },
+                        },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        { op: "sacrifice", target: { ref: "$source" } },
+                        {
+                            op: "dealDamage",
+                            amount: 6,
+                            to: { player: "controller" },
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Sacrifice an Island to keep Elder Spawn?",
+                            bind: "$elderSpawnAccept",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$elderSpawnAccept" },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "sacrifice-permanents",
+                                    player: "controller",
+                                    zone: "battlefield",
+                                    filter: { subtype: "Island" },
+                                    count: 1,
+                                    prompt: "Sacrifice an Island.",
+                                    bind: "$elderSpawnIsland",
+                                },
+                                {
+                                    op: "sacrifice",
+                                    permanents: { ref: "$elderSpawnIsland" },
+                                },
+                            ],
+                            else: [
+                                { op: "sacrifice", target: { ref: "$source" } },
+                                {
+                                    op: "dealDamage",
+                                    amount: 6,
+                                    to: { player: "controller" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "elder-spawn-no-red",
+            side: "attacker" as const,
+            // CR 509.1b — can't be blocked by red creatures.
+            predicate: (_self, opponent) =>
+                !getEffectiveColors(opponent).includes("R"),
+            oracleText: "Elder Spawn can't be blocked by red creatures.",
+        },
     ],
 }));

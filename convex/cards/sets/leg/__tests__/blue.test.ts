@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import {
     CREATURE_REQ,
     UPKEEP_C5,
+    UPKEEP_C7,
     answerChoice,
     castEvent,
     commitHead,
@@ -16,6 +17,7 @@ import {
     startRecall,
 } from "./set.helper";
 import { projectPublicState } from "../../../../gameProjections";
+import { validateBlockerEligibility } from "../../../../gre/combat";
 import { isCombatDamagePreventedFromSource } from "../../../../gre/combatDamagePrevention";
 import {
     STATIC_EFFECT_CTX,
@@ -73,6 +75,8 @@ const seaKingsBlessing = getDefinition("11d1f02d-533e-4b77-a72a-ff5f91ae0626");
 const spectralCloak = getDefinition("7524fd0d-a675-41d6-bc99-bd3ba336893b");
 const teleport = getDefinition("18f86e13-f942-423e-b175-930d768cb811");
 const venarianGold = getDefinition("11fb92c0-bb1e-463a-a6b6-887a5d0cb873");
+const elderSpawn = getDefinition("99cc045e-01a8-4f14-a86d-0a67ec35d6b7");
+const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const wallOfVapor = getDefinition("6a6c0a27-d410-4ded-a842-70e1656ea21e");
 const wallOfWonder = getDefinition("bcd9af40-b46c-44b4-878e-8eb026c96b51");
 const winterBlast = getDefinition("fb846366-2105-4999-8af1-a11687f42e17");
@@ -1329,5 +1333,92 @@ describe("Remove Soul (counter target creature spell, CR 701.6a)", () => {
         expect(
             projected.stack.find((s) => s.id === bearsSpell.id)
         ).toBeUndefined();
+    });
+});
+
+describe("Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; can't be blocked by red, CR 603.6a / 118.3 / 509.1b)", () => {
+    function setup(islandCount: number) {
+        const spawn = makeInstance(elderSpawn.id, {
+            id: "spawn",
+            controllerId: "p1",
+        });
+        const islands = Array.from({ length: islandCount }, (_, i) =>
+            makeInstance(island.id, { id: `island-${i}`, controllerId: "p1" })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [spawn, ...islands],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, spawn };
+    }
+
+    it("sacrificing an Island on accept keeps Elder Spawn and deals no damage", () => {
+        const { state, spawn } = setup(2);
+        resolveTrigger(state, spawn, "elder-spawn-upkeep", UPKEEP_C7("p1"));
+        answerChoice(state, ["yes"]); // accept the sacrifice cost
+        answerChoice(state, ["island-0"]); // pick the Island
+        const bf = state.players[0].battlefield;
+        expect(bf.some((c) => c.id === "spawn")).toBe(true);
+        expect(bf.filter((c) => c.subtypes.includes("Island"))).toHaveLength(1);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("declining sacrifices Elder Spawn and it deals exactly 6 damage to its controller", () => {
+        const { state, spawn } = setup(2);
+        resolveTrigger(state, spawn, "elder-spawn-upkeep", UPKEEP_C7("p1"));
+        answerChoice(state, ["decline"]);
+        const bf = state.players[0].battlefield;
+        expect(bf.some((c) => c.id === "spawn")).toBe(false);
+        expect(bf.filter((c) => c.subtypes.includes("Island"))).toHaveLength(2);
+        expect(state.players[0].graveyard.some((c) => c.id === "spawn")).toBe(
+            true
+        );
+        expect(state.players[0].life).toBe(14);
+    });
+
+    it("with no Island there is no prompt: sacrificed and 6 damage (CR 117.3a)", () => {
+        const { state, spawn } = setup(0);
+        resolveTrigger(state, spawn, "elder-spawn-upkeep", UPKEEP_C7("p1"));
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].battlefield.some((c) => c.id === "spawn")).toBe(
+            false
+        );
+        expect(state.players[0].life).toBe(14);
+    });
+
+    it("can't be blocked by a red creature, but can be by a non-red one (CR 509.1b)", () => {
+        const spawn = makeInstance(elderSpawn.id, {
+            id: "spawn",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const redBlocker = makeInstance(hillGiant.id, {
+            id: "redBlocker",
+            controllerId: "p2",
+        });
+        const greenBlocker = makeInstance(grizzlyBears.id, {
+            id: "greenBlocker",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spawn] }),
+                makePlayer("p2", { battlefield: [redBlocker, greenBlocker] }),
+            ],
+        });
+        const blockers = [redBlocker, greenBlocker];
+        expect(
+            validateBlockerEligibility(spawn, redBlocker, blockers, state)
+                .eligible
+        ).toBe(false);
+        expect(
+            validateBlockerEligibility(spawn, greenBlocker, blockers, state)
+                .eligible
+        ).toBe(true);
     });
 });
