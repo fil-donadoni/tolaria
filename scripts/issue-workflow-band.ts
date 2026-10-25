@@ -2,10 +2,9 @@
 /**
  * `bun run issue:workflow-band <N>` — a workflow bug is `P0` (issue #6902).
  *
- * A bug in the pipeline itself holds every issue behind it: issue #6795
- * (repairs never dispatched) and issue #6897 (a P1 losing its files to P3
- * picks) each stalled the queue for hours while they sat at an inherited or
- * missing band. The owner's ruling (2026-10-25): every OPEN issue labelled
+ * A bug in the pipeline itself holds every issue behind it, so it must not
+ * wait at an inherited or missing band. The owner's ruling (2026-10-25,
+ * ADR 0143 Amendment VII has the history): every OPEN issue labelled
  * both `bug` and `area:workflow` carries board `Priority` `P0`, set the moment
  * it is filed or labelled (`.github/workflows/issue-band.yml`).
  *
