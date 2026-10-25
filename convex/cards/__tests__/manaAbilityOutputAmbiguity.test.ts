@@ -8,12 +8,12 @@
 // the same reversal.
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "..";
-import type { ActivatedAbility } from "../types";
+import type { ActivatedAbility, ManaCost } from "../types";
 import { MANA_COLORS } from "../../gre/manaColors";
 
 type Shape = string;
 
-const shapeKey = (m: Record<string, number | undefined>): Shape =>
+const shapeKey = (m: ManaCost): Shape =>
     MANA_COLORS.map((c) => `${c}${m[c] ?? 0}`).join("");
 
 // Mirrors the matcher in `resolveManaAbilityByOutput`: manaChoices when
