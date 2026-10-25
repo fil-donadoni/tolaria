@@ -128,12 +128,13 @@ describe("resolveFirstPaperPrint (issue #3423)", () => {
                 sleep: noSleep,
             })
         ).toBeNull();
-        // The five types the filter drops, pinned so a rename can't widen it.
+        // The six types the filter drops, pinned so a rename can't widen it.
         expect([...NON_PRINT_SET_TYPES].sort()).toEqual([
             "funny",
             "masterpiece",
             "memorabilia",
             "minigame",
+            "promo",
             "token",
         ]);
     });
@@ -219,6 +220,46 @@ describe("resolveFirstPaperPrint — a card printed only in funny sets (issue #3
                 sleep: noSleep,
             })
         ).toEqual({ id: CMB1_ID, set: "cmb1", rarity: "rare" });
+    });
+});
+
+describe("resolveFirstPaperPrint — prerelease promos (issue #1844)", () => {
+    const PROMO_ID = "pmh2-print";
+    const MAIN_ID = "mh2-print";
+
+    it("skips an earlier promo print for the real set (Thought Monitor)", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [
+                    print({ id: PROMO_ID, set: "pmh2", set_type: "promo" }),
+                    print({
+                        id: MAIN_ID,
+                        set: "mh2",
+                        set_type: "draft_innovation",
+                    }),
+                ],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: MAIN_ID, set: "mh2", rarity: "rare" });
+    });
+
+    it("takes the earliest promo print when the card has no other home", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [print({ id: PROMO_ID, set: "pmh2", set_type: "promo" })],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: PROMO_ID, set: "pmh2", rarity: "rare" });
     });
 });
 
