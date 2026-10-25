@@ -3,7 +3,7 @@
     "header": {
         "grammarVersion": "v0",
         "compilerHash": "sha256:2cc12149643ce16ae6910dfe602f0a9b0f6e60f0960c9527022788093760fae4",
-        "registryHash": "sha256:a2ea0623ce13818853ac19edc95c2820576454e0124a9a6e9820a05ec0703aa0",
+        "registryHash": "sha256:144ba3feb3b537cd5ad4aa58a941066d8220288fe2f5bb403e6c76a00c3e423f",
         "botHash": "sha256:838d5063baf79d2a326441d85fa552ec9485e34a67854eca292f19249a9a850e",
         "poolHash": "sha256:138da7b5f24b377522c98cab1bcbf57e8717ca773e3be1b08ceebdb93a59b8fd",
         "corpus": {
