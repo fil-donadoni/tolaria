@@ -15,8 +15,11 @@
 import { describe, it, expect } from "vitest";
 import {
     binRevealedTopCard,
+    buildSpellContext,
     discardToGraveyard,
     getPlayer,
+    payExileThisCost,
+    payGraveyardCostCards,
     recomputeContinuousEffects,
     removeFromZone,
     removePermanentTo,
@@ -310,6 +313,50 @@ describe("full-text effect — re-evaluated at once (CR 611.3a)", () => {
             );
             binRevealedTopCard(state, getPlayer(state, "p1"));
             expect(presentedDefId(find(state, "shifter"))).toBe(CRAW_WURM);
+        });
+    });
+
+    it("presents a creature card milled mid-resolution", () => {
+        withShapeshifter(() => {
+            const state = board([inGraveyard(BOLT, "bolt")]);
+            getPlayer(state, "p1").library.push(
+                makeInstance(CRAW_WURM, { id: "wurm", zone: "library" })
+            );
+            const ctx = buildSpellContext(state, pushSpell(state, BOLT, "p1"));
+            ctx.millCards("p1", 1);
+            expect(presentedDefId(find(state, "shifter"))).toBe(CRAW_WURM);
+        });
+    });
+
+    it("reverts when a graveyard cost exiles the top creature card", () => {
+        withShapeshifter(() => {
+            const state = board([
+                inGraveyard(BOLT, "bolt"),
+                inGraveyard(CRAW_WURM, "wurm"),
+            ]);
+            payGraveyardCostCards(
+                state,
+                getPlayer(state, "p1"),
+                ["wurm"],
+                undefined
+            );
+            expect(presentedDefId(find(state, "shifter"))).toBe(SHAPESHIFTER);
+        });
+    });
+
+    it("reverts when an exile-this cost takes the top creature card from the graveyard", () => {
+        withShapeshifter(() => {
+            const state = board([
+                inGraveyard(BOLT, "bolt"),
+                inGraveyard(CRAW_WURM, "wurm"),
+            ]);
+            payExileThisCost(
+                state,
+                getPlayer(state, "p1"),
+                "wurm",
+                "graveyard"
+            );
+            expect(presentedDefId(find(state, "shifter"))).toBe(SHAPESHIFTER);
         });
     });
 
