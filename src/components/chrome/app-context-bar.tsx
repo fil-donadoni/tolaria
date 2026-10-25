@@ -20,9 +20,9 @@
 // alone ate ~11% of a ~390px-tall landscape-phone screen before the surface
 // below it drew anything.
 //
-// The band, inset padding and compact band live in `ContextualBarFrame`
-// (issue #3682), shared with the Draft Room bar; the `min-h` / safe-area
-// derivation (issues #2594, #2662) is documented there.
+// The band, inset padding and compact band live in `ContextualBarFrame`,
+// shared with the Draft Room bar; the `min-h` / safe-area derivation is
+// documented there.
 //
 // The board (`/game`) never renders this bar — it owns its chrome (`ownChrome`
 // in the registry), and its pause menu already offers the exit this would
