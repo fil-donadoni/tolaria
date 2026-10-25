@@ -122,3 +122,25 @@ export const BESIDE_CONTROLLER_STRIP =
  *  {@link BESIDE_CONTROLLER_STRIP} must stay `right-[calc<EXPR>]` with
  *  whitespace removed, so neither can drift from the other. */
 export const CONTROLLER_STRIP_CLEARANCE_EXPR = `(var(--controller-strip-w, 0px) + ${CONTROLLER_STRIP_CLEARANCE_REM}rem)`;
+
+/** The DESKTOP controller pod's own measured HEIGHT (issue #6970), the vertical
+ *  twin of {@link CONTROLLER_STRIP_WIDTH_VAR}. The pod is `fixed bottom-32
+ *  right-4` and ~330px tall, so on a short viewport (1180x820 measured) its
+ *  Pass CTA sits exactly at the vertical middle where the always-on desktop
+ *  stack panel is centred — and the panel (z-modal) covered it. The panel
+ *  therefore anchors ABOVE the pod instead of centring, via
+ *  {@link ABOVE_CONTROLLER_POD_EXPR}. Published on `document.documentElement`
+ *  by `useControllerPodHeight`, removed when the pod unmounts. */
+export const CONTROLLER_POD_HEIGHT_VAR = "--controller-pod-h";
+
+/** The pod's `bottom-32` inset, in rem — the pod class stays a literal;
+ *  `game-stack-order.test.tsx` pins it to this number. */
+export const CONTROLLER_POD_BOTTOM_REM = 8;
+
+/** Gap between the stack panel's bottom edge and the pod's top edge, in rem. */
+export const CONTROLLER_POD_GAP_REM = 0.5;
+
+/** Distance from the viewport bottom to the top of the pod plus a gap, as a
+ *  parenthesised CSS sum so it composes inside a `calc()`. With no pod mounted
+ *  (variable absent) it falls back to the bare bottom inset. */
+export const ABOVE_CONTROLLER_POD_EXPR = `(${CONTROLLER_POD_BOTTOM_REM}rem + var(${CONTROLLER_POD_HEIGHT_VAR}, 0px) + ${CONTROLLER_POD_GAP_REM}rem)`;

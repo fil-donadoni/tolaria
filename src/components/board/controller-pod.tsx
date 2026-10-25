@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
+import { useControllerPodHeight } from "~/hooks/useControllerPodHeight";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
@@ -46,6 +47,9 @@ export default function ControllerPod({
               ? "status"
               : undefined;
     const [expanded, setExpanded] = useState(false);
+    // Publishes the pod's height so the desktop stack panel anchors above it
+    // (issue #6970).
+    const podRef = useControllerPodHeight<HTMLDivElement>();
 
     const isMyTurn = activePlayerId === playerId;
 
@@ -55,6 +59,7 @@ export default function ControllerPod({
         // clears the pile row height in the corner.
         <div
             data-controller-pod
+            ref={podRef}
             // v4 (ADR 0103 §5, issue #2727): a HAIRLINE plate, not a heavy
             // rounded box with a seat-coloured frame. The turn-ownership
             // signal moves to the strip below and to the pill inside — the

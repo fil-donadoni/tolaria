@@ -3,7 +3,13 @@
 // first (leftmost). This test asserts the external DOM order against the
 // stack's logical order, so the "top resolves first" read survives refactors of
 // the tile internals.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+    ABOVE_CONTROLLER_POD_EXPR,
+    CONTROLLER_POD_BOTTOM_REM,
+} from "~/lib/controller-bar-metrics";
 import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
@@ -257,5 +263,23 @@ describe("GameStack viewport anchor (QA)", () => {
         const panel = container.firstElementChild as HTMLElement;
         expect(panel.style.right).toBe("0.5rem");
         expect(panel.style.right).not.toContain("--right-piles-w");
+    });
+
+    it("sits above the controller pod instead of centring over its Pass CTA", () => {
+        // Issue #6970: centred at `top-1/2` the z-modal panel covered the pod's
+        // Pass CTA at 1180x820 (measured hit-test).
+        const { container } = renderStack([makeStackItem("only")]);
+        const panel = container.firstElementChild as HTMLElement;
+        expect(panel.style.bottom).toBe(`calc${ABOVE_CONTROLLER_POD_EXPR}`);
+        expect(panel.className).not.toContain("top-1/2");
+        expect(panel.style.transform).not.toContain("-50%");
+    });
+
+    it("the pod's literal bottom inset matches the clearance constant", () => {
+        const pod = readFileSync(
+            resolve(__dirname, "../controller-pod.tsx"),
+            "utf8"
+        );
+        expect(pod).toContain(`bottom-${CONTROLLER_POD_BOTTOM_REM * 4}`);
     });
 });
