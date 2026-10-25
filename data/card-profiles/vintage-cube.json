@@ -784,7 +784,7 @@
         "5fe70295-e550-4577-a341-dab6c25aabfd": {
             "archetypes": ["control"],
             "provides": [],
-            "requires": ["reanimatable"],
+            "requires": ["reanimatable-mv-2"],
             "reviewed": false
         },
         "0ce44270-a684-4489-9077-521456e6dfaa": {
@@ -1234,7 +1234,7 @@
         "7e68f4df-88ce-4e09-a03c-7edf40bff167": {
             "archetypes": ["graveyard", "reanimator"],
             "provides": [],
-            "requires": ["reanimatable", "discard-outlet", "self-mills"],
+            "requires": ["reanimatable-mv-3", "discard-outlet", "self-mills"],
             "reviewed": false
         },
         "69c1b656-1d67-499c-bf0f-417682a86c7d": {
@@ -1576,7 +1576,7 @@
         "b6cb2549-e485-44d6-9d65-7605c568909e": {
             "archetypes": ["reanimator", "graveyard"],
             "provides": [],
-            "requires": ["reanimatable"],
+            "requires": ["reanimatable-mv-3"],
             "reviewed": false
         },
         "2b73d294-6ab1-4051-9b0f-d8e335d37674": {

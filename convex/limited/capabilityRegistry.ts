@@ -56,6 +56,14 @@
 export interface CapabilityRow {
     id: string;
     description: string;
+    /** Present on a MANA-VALUE-BOUNDED requirement (issue #1677): the row is
+     *  a REQUIRES-side refinement of the `capability` row, satisfied by a
+     *  card that provides `capability` AND has mana value <= `maxManaValue`
+     *  (a reanimation spell with a mana-value ceiling can only return cheap
+     *  targets, so it must not pair with an 8-drop it can never touch). The
+     *  names stay a closed set; the numeric constraint lives here, beside
+     *  the row, and `capabilitySatisfiedBy` is the one place that reads it. */
+    bound?: { capability: string; maxManaValue: number };
 }
 
 /** The closed Capability vocabulary (ADR 0072). Grouped by the enabler
@@ -68,6 +76,18 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
         id: "reanimatable",
         description:
             "PROVIDES: a creature/permanent that is disproportionately powerful put onto the battlefield directly from a graveyard, and that will actually still BE in the graveyard when a reanimation effect looks for it — no ability that removes it from the graveyard on its own (e.g. shuffling itself into its library on death, the reason Worldspine Wurm does not provide this). REQUIRES: a graveyard-to-battlefield effect (Animate Dead, Reanimate) requires this from its target; a target lacking it scores nothing from the effect regardless of shared archetype.",
+    },
+    {
+        id: "reanimatable-mv-2",
+        bound: { capability: "reanimatable", maxManaValue: 2 },
+        description:
+            "PROVIDES: nothing directly — a card providing `reanimatable` satisfies this row exactly when its mana value is 2 or less (see `reanimatable` for the provider side). REQUIRES: a graveyard-to-battlefield effect with a mana-value ceiling of 2 (a charm returning a permanent with mana value 2 or less) requires this from its target instead of `reanimatable`: a big reanimation target above the ceiling can never be returned, so that pair scores nothing.",
+    },
+    {
+        id: "reanimatable-mv-3",
+        bound: { capability: "reanimatable", maxManaValue: 3 },
+        description:
+            "PROVIDES: nothing directly — a card providing `reanimatable` satisfies this row exactly when its mana value is 3 or less (see `reanimatable` for the provider side). REQUIRES: a graveyard-to-battlefield effect with a mana-value ceiling of 3 (returns a permanent with mana value 3 or less) requires this from its target instead of `reanimatable`: a big reanimation target above the ceiling can never be returned, so that pair scores nothing.",
     },
     {
         id: "self-mills",
@@ -124,4 +144,28 @@ const CAPABILITY_IDS: ReadonlySet<string> = new Set(
  *  `scope`, which IS user-facing/data-driven and normalizes to lowercase). */
 export function isRegisteredCapability(name: string): boolean {
     return CAPABILITY_IDS.has(name);
+}
+
+/** True iff a card with `providerCapabilities` and mana value
+ *  `providerManaValue` satisfies a `requiredCapability` (issue #1677). A plain
+ *  row is satisfied by a provider listing it; a mana-value-bounded row
+ *  (`CapabilityRow.bound`) by a provider of its base capability whose mana
+ *  value is within the ceiling. */
+export function capabilitySatisfiedBy(
+    requiredCapability: string,
+    providerCapabilities: readonly string[],
+    providerManaValue: number
+): boolean {
+    const bound = CAPABILITY_REGISTRY.find(
+        (row) => row.id === requiredCapability
+    )?.bound;
+    // A bounded row is never satisfied by listing it: only the base
+    // capability within the ceiling counts, so a profile cannot dodge it.
+    if (bound === undefined) {
+        return providerCapabilities.includes(requiredCapability);
+    }
+    return (
+        providerCapabilities.includes(bound.capability) &&
+        providerManaValue <= bound.maxManaValue
+    );
 }

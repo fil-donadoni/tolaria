@@ -1102,6 +1102,33 @@ describe("Pick Invariant — Capability Fit is the veto (ADR 0072, issue #1611)"
         }
     });
 
+    it("a mana-value-ceiling reanimation spell scores NO fit against a provider above its ceiling, and DOES against one at or below it (issue #1677)", () => {
+        const ceilingSpell = metaOf("Grizzly Bears", { manaValue: 3 });
+        const bigTarget = metaOf("Craw Wurm", { manaValue: 8 });
+        const cheapTarget = metaOf("Hill Giant", { manaValue: 3 });
+        const spellProfile = profileOf({ requires: ["reanimatable-mv-3"] });
+        const targetProfile = profileOf({ provides: ["reanimatable"] });
+        for (const [target, expected] of [
+            [bigTarget, false],
+            [cheapTarget, true],
+        ] as const) {
+            const getCardProfile = profileLookup({
+                [ceilingSpell.cardId]: spellProfile,
+                [target.cardId]: targetProfile,
+            });
+            // Both directions: the target drafted after the spell, and the
+            // spell drafted after the target.
+            const asTarget = scoreCandidate(target, [ceilingSpell], 3, {
+                getCardProfile,
+            });
+            const asSpell = scoreCandidate(ceilingSpell, [target], 3, {
+                getCardProfile,
+            });
+            expect(termValue(asTarget, "capabilityFit") > 0).toBe(expected);
+            expect(termValue(asSpell, "capabilityFit") > 0).toBe(expected);
+        }
+    });
+
     it("the Archetype layer is deliberately too coarse to express the veto — it fires where Capability Fit correctly does not", () => {
         // ADR 0072's actual argument: all four cards sit inside any coarse
         // "cheat a fatty into play" archetype, so a model that only knows
