@@ -13950,6 +13950,7 @@
         {"id":"400.11a","line":"/** Outside-the-game holder (CR 400.11a, `PlayerState.outsideGame`). Each","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"400.11a","line":"/** The viewer's OWN outside-the-game holder (CR 400.11a — their","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"400.11a","line":"// CR 400.11 / 400.11a — the outside-the-game pool's characteristics,","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
+        {"id":"400.11a","line":"// CR 400.11a (issue #6523) — the sideboard a Wish brings a card in from.","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"400.11a","line":"// CR 400.11a Cards in a player's sideboard are outside the game.","sites":2,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"400.11a","line":"// CR 400.11a — a Wish pick's allow-list counts the matching cards in","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
         {"id":"400.11a","line":"// CR 400.11a — a player knows their own sideboard: the holder","sites":1,"status":"confirmed","ruleHash":"95f277ed697a30ba"},
