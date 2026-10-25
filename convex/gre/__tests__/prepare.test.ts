@@ -218,6 +218,32 @@ describe("CR 722.3c — the exiled copy's lifetime", () => {
         expect(getPlayer(state, "p1").hand[0].prepared).toBeUndefined();
     });
 
+    it("a flickered Conductor enters prepared again with ONE copy — the old object's copy is gone (CR 400.7)", () => {
+        const state = preparedBoard();
+        const [before] = copiesIn(state);
+        const p1 = getPlayer(state, "p1");
+        p1.hand.push(
+            makeInstance(getCardByName("Ephemerate").id, {
+                id: "ephemerate",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        p1.battlefield.push(
+            makeInstance(getCardByName("Plains").id, {
+                id: "plains",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        castAndResolve(state, "p1", "ephemerate", conductorOf(state)!.id);
+        expect(conductorOf(state)!.prepared).toBe(true);
+        const after = copiesIn(state);
+        expect(after).toHaveLength(1);
+        expect(after[0].id).not.toBe(before.id);
+    });
+
     it("phasing out removes the copy; phasing in prepared makes a new one", () => {
         const state = preparedBoard();
         const bundle = phaseOutPermanent(state, conductorOf(state)!.id, {

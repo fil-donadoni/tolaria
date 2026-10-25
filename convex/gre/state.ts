@@ -11341,6 +11341,8 @@ function finishAuraEntry(state: GameState, aura: CardInstanceState): void {
     applyExistingGrantsTo(state, aura);
     beginApplyingStaticEffects(state, aura);
     applyAuraControlChange(state, aura);
+    // CR 722.3a — "enters prepared", at this entry site too.
+    applyEntersPrepared(state, aura);
     emitPermanentEntered(state, aura);
 }
 

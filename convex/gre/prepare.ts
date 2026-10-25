@@ -39,7 +39,6 @@ import { allocInstanceId, findPermanent, getPlayer } from "./lookup";
 import type {
     CardInstanceState,
     GameState,
-    PlayerState,
     StackItem,
 } from "./state/declarations";
 
@@ -76,6 +75,11 @@ export function becomePrepared(
     const def = presentedDefinition(permanent);
     if (def?.insetSpell?.kind !== "prepare") return false;
     permanent.prepared = true;
+    // CR 400.7 — a permanent that left and returned within one resolution (a
+    // flicker) keeps its instance id, and the copy its previous object made is
+    // still in exile until the next state-based check: that object is gone,
+    // and its copy with it. Only the copy made now belongs to this permanent.
+    removePreparedCopies(state, permanent.id);
     createPreparedCopy(state, permanent, def);
     return true;
 }
@@ -146,20 +150,26 @@ export function onPhasedInPrepared(
     if (permanent.prepared !== true) return;
     const def = presentedDefinition(permanent);
     if (def?.insetSpell?.kind !== "prepare") return;
-    if (findPreparedCopy(state, permanent.id)) return;
+    if (hasPreparedCopy(state, permanent.id)) return;
     createPreparedCopy(state, permanent, def);
 }
 
-/** The exiled copy linked to `permanentId`, with the exile it sits in. */
-function findPreparedCopy(
-    state: GameState,
-    permanentId: string
-): { player: PlayerState; copy: CardInstanceState } | undefined {
+/** Whether an exiled copy linked to `permanentId` exists. */
+function hasPreparedCopy(state: GameState, permanentId: string): boolean {
+    return state.players.some((p) =>
+        p.exile.some((c) => c.preparedCopyOf === permanentId)
+    );
+}
+
+/** Removes every exiled copy linked to `permanentId`. */
+function removePreparedCopies(state: GameState, permanentId: string): void {
     for (const player of state.players) {
-        const copy = player.exile.find((c) => c.preparedCopyOf === permanentId);
-        if (copy) return { player, copy };
+        if (player.exile.some((c) => c.preparedCopyOf === permanentId)) {
+            player.exile = player.exile.filter(
+                (c) => c.preparedCopyOf !== permanentId
+            );
+        }
     }
-    return undefined;
 }
 
 /** CR 722.3b — "a rule or effect may cause a permanent to become
@@ -172,10 +182,7 @@ export function unprepare(
 ): void {
     if (permanent.prepared !== true) return;
     delete permanent.prepared;
-    const found = findPreparedCopy(state, permanent.id);
-    if (found) {
-        found.player.exile = found.player.exile.filter((c) => c !== found.copy);
-    }
+    removePreparedCopies(state, permanent.id);
 }
 
 /** CR 722.3c + 601.2i — the exiled copy has just become cast: "that permanent
@@ -194,8 +201,10 @@ export function onPreparedCopyCast(state: GameState, item: StackItem): void {
     if (permanentId === undefined) return;
     delete item.preparedCopyOf;
     item.isCopy = true;
+    // `unprepare`, not a bare delete: any other copy still linked to the
+    // permanent goes with the designation.
     const permanent = findPermanent(state, permanentId);
-    if (permanent) delete permanent.prepared;
+    if (permanent) unprepare(state, permanent);
 }
 
 /** CR 704.5e + 722.3c — "if a copy of a card is in any zone other than the
