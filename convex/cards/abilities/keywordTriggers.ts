@@ -35,24 +35,20 @@
 
 import type {
     CardDefinition,
-    CreatureDiedEvent,
     EffectObjectSelector,
     EffectOp,
     TriggeredAbility,
 } from "../types";
 import { attacksTrigger } from "./triggers/attacksTrigger";
 import { spellCastTrigger } from "./triggers/spellCastTrigger";
-import { diedTrigger } from "./triggers/diedTrigger";
 
 const EXALTED_KEYWORD = "exalted";
 const PROWESS_KEYWORD = "prowess";
 const BATTLE_CRY_KEYWORD = "battle cry";
-const PERSIST_KEYWORD = "persist";
 
 const EXALTED_TRIGGER_ID = "exalted";
 const PROWESS_TRIGGER_ID = "prowess";
 const BATTLE_CRY_TRIGGER_ID = "battle-cry";
-const PERSIST_TRIGGER_ID = "persist";
 
 /** +1/+1 until end of turn (CR 613.4c) — the shared pump payload exalted and
  *  prowess apply, differing only in target. */
@@ -148,54 +144,6 @@ function battleCryTrigger(): TriggeredAbility {
     });
 }
 
-/** Persist (CR 702.79a) — "When this permanent is put into a graveyard from
- *  the battlefield, if it had no -1/-1 counters on it, return it to the
- *  battlefield under its owner's control with a -1/-1 counter on it."
- *
- *  A self `diedTrigger` whose intervening-if (CR 603.4, checked at trigger AND
- *  at resolution) reads the death event's last-known counters (CR 603.10),
- *  never the graveyard card: the object that died is gone, and the card in the
- *  graveyard is a new object (CR 400.7). The body is two exercised Ops: a
- *  `moveZone` self-reanimation (the `$source` recovery, defaulting the
- *  controller to the card's OWNER — "under its owner's control") that binds the
- *  returned permanent, then a `counters` add of one -1/-1 onto it. The counter
- *  lands in the same resolution, before any SBA check or ETB trigger goes on
- *  the stack, so a persisted creature with toughness 1 dies to CR 704.5f
- *  afterwards exactly as it would with the counter entering with it.
- *  A token has ceased to exist in the graveyard (CR 111.7), so `moveZone`
- *  finds nothing to return. */
-const hadNoMinusCounters = (event: CreatureDiedEvent): boolean =>
-    (event.creatureCounters?.["-1/-1"] ?? 0) === 0;
-
-function persistTrigger(): TriggeredAbility {
-    return diedTrigger({
-        id: PERSIST_TRIGGER_ID,
-        oracleText:
-            "When this creature dies, if it had no -1/-1 counters on it, return it to the battlefield under its owner's control with a -1/-1 counter on it.",
-        scope: "self",
-        // CR 603.4 — checked when the event fires (`condition`, so the trigger
-        // never goes on the stack) AND again at resolution (`interveningIf`).
-        condition: hadNoMinusCounters,
-        interveningIf: hadNoMinusCounters,
-        effects: [
-            {
-                op: "moveZone",
-                target: { ref: "$source" },
-                from: "graveyard",
-                to: "battlefield",
-                bind: "$persisted",
-            },
-            {
-                op: "counters",
-                action: "add",
-                counter: "-1/-1",
-                target: { ref: "$persisted" },
-                count: 1,
-            },
-        ],
-    });
-}
-
 /** Case-insensitively tests whether a `staticAbilities` list carries `keyword`
  *  as a bare string (CR 702 keyword abilities are declared lowercase). */
 function hasKeyword(
@@ -217,8 +165,7 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     const hasExalted = hasKeyword(def.staticAbilities, EXALTED_KEYWORD);
     const hasProwess = hasKeyword(def.staticAbilities, PROWESS_KEYWORD);
     const hasBattleCry = hasKeyword(def.staticAbilities, BATTLE_CRY_KEYWORD);
-    const hasPersist = hasKeyword(def.staticAbilities, PERSIST_KEYWORD);
-    if (!hasExalted && !hasProwess && !hasBattleCry && !hasPersist) return def;
+    if (!hasExalted && !hasProwess && !hasBattleCry) return def;
 
     const existing = def.triggeredAbilities ?? [];
     const injected: TriggeredAbility[] = [];
@@ -230,9 +177,6 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     }
     if (hasBattleCry && !existing.some((t) => t.id === BATTLE_CRY_TRIGGER_ID)) {
         injected.push(battleCryTrigger());
-    }
-    if (hasPersist && !existing.some((t) => t.id === PERSIST_TRIGGER_ID)) {
-        injected.push(persistTrigger());
     }
     if (injected.length === 0) return def;
 
