@@ -1254,12 +1254,39 @@ export interface SeatPlay {
     readonly verdict: SeatVerdict;
 }
 
+/**
+ * The windows posed after the holder's main phases, in order. The opponent's
+ * end step is skipped when the target requirement pins a phase of its own (a
+ * `combatRoleFilter` names a declare-attackers / declare-blockers pose,
+ * CR 508.1 / 509.1): that pose is spread over the window's, so the end-step
+ * pass would repeat the combat position, and no attacker or blocker exists
+ * in an end step for the target to be.
+ */
+export function laterWindows(def: CardDefinition): PoseWindow[] {
+    const [, ...later] = REACH_WINDOWS;
+    const trick: PoseWindow[] =
+        combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
+    const ambush: PoseWindow[] =
+        ambushPosition(def) === null ? [] : [AMBUSH_WINDOW];
+    const endStep: PoseWindow[] =
+        isInstantSpeedCard(def) && targetPose(def).position.phase === undefined
+            ? [OPPONENT_END_STEP_WINDOW]
+            : [];
+    // CR 117.1a — the window is a declare-blockers step: only an
+    // instant-speed card can be cast there.
+    const blocked: PoseWindow[] =
+        isInstantSpeedCard(def) && blockedAttackPose(def) !== null
+            ? [BLOCKED_ATTACK_WINDOW]
+            : [];
+    return [...later, ...trick, ...ambush, ...endStep, ...blocked];
+}
+
 function playSeat(
     def: CardDefinition,
     holderSeat: 0 | 1,
     budget: BotReachBudget
 ): SeatPlay {
-    const [first, ...later] = REACH_WINDOWS;
+    const [first] = REACH_WINDOWS;
     const opening = buildBotReachState(def, holderSeat, first);
     const { holderId } = opening;
     let verdict = playFrom(
@@ -1269,26 +1296,7 @@ function playSeat(
         opening.instanceId,
         budget
     );
-    const trick: PoseWindow[] =
-        combatTrickPosition(def) === null ? [] : [TRICK_WINDOW];
-    const ambush: PoseWindow[] =
-        ambushPosition(def) === null ? [] : [AMBUSH_WINDOW];
-    const endStep: PoseWindow[] = isInstantSpeedCard(def)
-        ? [OPPONENT_END_STEP_WINDOW]
-        : [];
-    // CR 117.1a — the window is a declare-blockers step: only an
-    // instant-speed card can be cast there.
-    const blocked: PoseWindow[] =
-        isInstantSpeedCard(def) && blockedAttackPose(def) !== null
-            ? [BLOCKED_ATTACK_WINDOW]
-            : [];
-    for (const window of [
-        ...later,
-        ...trick,
-        ...ambush,
-        ...endStep,
-        ...blocked,
-    ]) {
+    for (const window of laterWindows(def)) {
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or

@@ -17,6 +17,7 @@ import { enumerateMoves } from "../../moves";
 import {
     BOT_REACH_BUDGET,
     OPPONENT_END_STEP_WINDOW,
+    laterWindows,
     botReachSpec,
     buildBotReachState,
     classifyNoMove,
@@ -29,6 +30,7 @@ import {
     HASTE_CREATURE,
     FLASH_AURA_DOUBLE_STRIKE,
     FLASH_AURA_SHROUD,
+    flashAura,
     EDICT_INSTANT,
     RAISE_DEAD_CREATURE,
     DRAW_SORCERY,
@@ -145,6 +147,28 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — core verdict classes and determin
             });
         });
     }
+
+    // CR 508.1 — a target that must be an attacking creature pins the combat
+    // pose, which would overwrite the end-step pose: the window is skipped
+    // rather than posed as a repeat of the combat position.
+    it("the opponent's end step is not posed for a Flash Aura whose target pins a combat phase", () => {
+        const attackerAura: CardDefinition = {
+            ...flashAura("attacker", FLASH_AURA_SHROUD.compiledStaticEffects!),
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+        };
+        withTemporaryDefinition(attackerAura, () => {
+            expect(laterWindows(attackerAura)).not.toContain(
+                OPPONENT_END_STEP_WINDOW
+            );
+        });
+        expect(laterWindows(FLASH_AURA_SHROUD)).toContain(
+            OPPONENT_END_STEP_WINDOW
+        );
+    });
 
     it("the opponent's end-step window: opponent active, holder holds priority", () => {
         withTemporaryDefinition(FLASH_AURA_SHROUD, () => {
