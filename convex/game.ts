@@ -610,6 +610,32 @@ function buildCompanionInstance(
     );
 }
 
+/** CR 400.11a — "Cards in a player's sideboard are outside the game."
+ *  Instantiates `player`'s sideboard snapshot into the `PlayerState.outsideGame`
+ *  holder, skipping ONE copy of the declared companion (that physical card
+ *  lives in the companion slot) and any entry the registry cannot resolve (a
+ *  card the engine cannot instantiate can never be brought in). `exile` is
+ *  the same nominal tag the companion slot carries — outside the game is not
+ *  a zone (CR 400.11). Returns `undefined` for an empty holder. */
+function buildOutsideGameHolder(
+    player: PlayerInput,
+    counter: { nextInstanceId?: number },
+    companionDefinitionId: string | undefined
+): CardInstanceState[] | undefined {
+    let companionSkipped = companionDefinitionId === undefined;
+    const holder: CardInstanceState[] = [];
+    for (const entry of player.deck.sideboard ?? []) {
+        const def = tryGetDefinition(entry.definitionId ?? entry.cardId);
+        if (!def) continue;
+        if (!companionSkipped && def.id === companionDefinitionId) {
+            companionSkipped = true;
+            continue;
+        }
+        holder.push(instantiateDeckCard(entry, player.id, "exile", counter));
+    }
+    return holder.length > 0 ? holder : undefined;
+}
+
 function buildPlayerState(
     player: PlayerInput,
     counter: { nextInstanceId?: number }
@@ -619,6 +645,13 @@ function buildPlayerState(
     );
 
     const companionInstance = buildCompanionInstance(player, counter);
+    const outsideGame = buildOutsideGameHolder(
+        player,
+        counter,
+        companionInstance
+            ? (companionInstance.card as { id: string }).id
+            : undefined
+    );
 
     return {
         id: player.id,
@@ -634,6 +667,7 @@ function buildPlayerState(
         ...(companionInstance
             ? { companion: { instance: companionInstance, used: false } }
             : {}),
+        ...(outsideGame ? { outsideGame } : {}),
     };
 }
 
@@ -12657,6 +12691,14 @@ export const submitResolutionChoice = mutation({
             expect: "choice",
         });
 
+        // CR 400.11b — a card brought in from outside the game was in no
+        // seat's manifest but its owner's (the sideboard is hidden), so every
+        // other client lacks its definition once it is revealed into hand;
+        // and `games.cardIds` (the Token Print lookup) lists maindecks only.
+        const broughtIn =
+            state.pendingChoices?.[0]?.kind === "choose-outside-game-card" &&
+            args.cardInstanceIds.length > 0;
+
         applyPendingChoiceSubmit(state, {
             playerId: args.playerId,
             stackItemId: args.stackItemId,
@@ -12670,6 +12712,15 @@ export const submitResolutionChoice = mutation({
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        if (broughtIn) {
+            const game = await ctx.db.get(args.gameId);
+            if (game) {
+                await ctx.db.patch(args.gameId, {
+                    cardIds: withStatePrintIds(game.cardIds, state),
+                });
+            }
+            await widenGameDefinitionManifests(ctx, args.gameId, state);
+        }
         await finalizeGameOver(ctx, args.gameId, nextSeq, state);
     },
 });
@@ -15526,6 +15577,17 @@ export const debugSetupScenario = mutation({
                 owner: v.optional(v.union(v.literal("me"), v.literal("opp"))),
                 used: v.optional(v.boolean()),
             })
+        ),
+        // CR 400.11a — the cards each seat owns outside the game.
+        outsideGame: v.optional(
+            v.array(
+                v.object({
+                    name: v.string(),
+                    owner: v.optional(
+                        v.union(v.literal("me"), v.literal("opp"))
+                    ),
+                })
+            )
         ),
     },
     handler: async (ctx, args) => {

@@ -21,6 +21,7 @@ import {
     submitMidResolutionPick,
     submitMulliganBottom,
     submitOptionPick,
+    submitOutsideGamePick,
     submitPilePick,
     submitPlayerPick,
     submitTriggerMode,
@@ -75,6 +76,12 @@ export const PENDING_CHOICE_HANDLERS: Record<
     "choose-graveyard-card": ZONE_PICK,
     "choose-exile-card": ZONE_PICK,
     "choose-library-card": ZONE_PICK,
+    // CR 400.11 — no zone to validate against: the pool check is the
+    // handler's own.
+    "choose-outside-game-card": {
+        submit: counted(submitOutsideGamePick),
+        legalActions: zonePickActions,
+    },
     "order-top": ZONE_PICK,
     "look-distribute": ZONE_PICK,
     "choose-categorized": ZONE_PICK,
