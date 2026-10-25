@@ -5133,7 +5133,7 @@ export const SURFACES: readonly Surface[] = [
                 ))
             ) {
                 throw new Unreachable(
-                    `passing resolved the ability but no stack row turned into a source pick — the choice's candidates include Lightning Bolt on the stack (CR 609.7a), so either the choice never reached the client or the stack panel is folded at this viewport (${await topmostAt(page, GAME_STACK)})`
+                    `passing resolved the ability but no stack row turned into a source pick — the choice's candidates include Lightning Bolt on the stack (CR 609.7a), so either the choice never reached the client or the stack panel is folded or unmounted at this viewport (${await topmostAt(page, GAME_STACK)})`
                 );
             }
             // EXACTLY one: the Bolt. The ability's row is not a source, and a
