@@ -3516,6 +3516,23 @@ function lowerSentenceBody(
                 walk
             );
         }
+        case "exile-top-of-library": {
+            // CR 701.13a + CR 406.3 — the top cards of the player's library
+            // go to exile. No `linkToSource` / `bindAll`: nothing in the
+            // sentence reads the exiled cards back (a "you may play that
+            // card" sentence is one the grammar refuses today).
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            return lowered([
+                {
+                    op: "exileTopOfLibrary",
+                    player: player.value,
+                    count: count.value,
+                },
+            ]);
+        }
         case "optional-shuffle-that-player-library": {
             // CR 701.24a + CR 608.2c — "that player" is the player whose
             // library the sentence before looked at; with no such sentence

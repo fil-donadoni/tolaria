@@ -522,6 +522,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "each-player-puts",
     "create-token",
     "mill",
+    "exile-top-of-library",
     "optional-shuffle-that-player-library",
     "shuffle-graveyard-into-library",
     "exile-graveyard",
@@ -1472,6 +1473,17 @@ export type EffectSentenceIR =
            * `assembleSentences` because "them" means nothing alone.
            */
           readonly pick?: AmongPickSentenceIR;
+      }
+    | {
+          /**
+           * CR 701.13a + CR 406.3 — "Exile the top card of your library" /
+           * "Exile the top N cards of target player's library": the top cards
+           * of that player's library go to exile, face up. The sibling of
+           * `mill` (CR 701.17a defines milling as going to the GRAVEYARD).
+           */
+          readonly kind: "exile-top-of-library";
+          readonly player: PlayerRefIR;
+          readonly count: AmountIR;
       }
     | {
           /**
@@ -4825,6 +4837,9 @@ const EXILE_GRAVEYARD_EXCEPT_BASIC_LANDS =
 const EXILE_SAME_NAME_LIBRARY_COPIES =
     /^For each card exiled this way, search (.+?)(?:'|’)s library for all cards with the same name as that card and exile them$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
+/** CR 701.13a — "Exile the top card of your library" / "…top three cards of target player's library". */
+const EXILE_TOP_OF_LIBRARY =
+    /^Exile the top (?:(card)|(\S+) cards) of (your|target player's|target opponent's) library$/;
 /** CR 701.17a — "Target player mills three cards". */
 const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
 /** CR 401.4 — "Target opponent puts a card from their hand on top of their library". */
@@ -8075,6 +8090,26 @@ function effectSentence(
         return ok({
             kind: "exile-until-leaves" as const,
             subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── exile the top of a library (CR 701.13a + CR 406.3) ─────────────────
+    const exileTop = span.match(EXILE_TOP_OF_LIBRARY);
+    if (exileTop !== null) {
+        const word = exileTop[1] === undefined ? exileTop[2]! : "one";
+        const count = readAmount(word);
+        if (count === null) return fail(`"${word}" is not a count`, span);
+        // The possessive of a player phrase: "your" is "you"'s, the rest
+        // drop their "'s" ("target opponent's" → "target opponent").
+        const owner =
+            exileTop[3] === "your" ? "you" : exileTop[3]!.replace(/'s$/, "");
+        const player = playerSubject(owner, ctx);
+        if (player === null)
+            return fail(`"${exileTop[3]}" is not a library owner`, span);
+        return ok({
+            kind: "exile-top-of-library" as const,
+            player,
+            count,
         } satisfies EffectSentenceIR);
     }
 
