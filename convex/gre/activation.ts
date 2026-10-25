@@ -74,7 +74,7 @@ import {
 import { nextOwedPayment, tapOtherContribution } from "./owedPayment";
 import { resolveDivideTotal } from "./pendingTargetOrigin";
 import { effectivePermanentView } from "./permanentView";
-import { drainAutoPasses, isSorceryTiming } from "./phases";
+import { drainAutoPasses, isSorceryTimingFor } from "./phases";
 import { findRetraceCastable } from "./retrace";
 import {
     effectiveRequirementForSource,
@@ -1880,10 +1880,14 @@ export function assertActivationTimingLegal(
     }
     // CR 602.3b / 307.5 template — "activate only as a sorcery" follows the
     // same timing window a sorcery's own casting does (main phase, empty
-    // stack, activator holds priority). Reuses the engine's canonical
-    // `isSorceryTiming` helper — the same one `assertLoyaltyActivationLegal`
-    // layers an active-player requirement on top of for loyalty abilities.
-    if (ability.sorcerySpeedOnly && !isSorceryTiming(state)) {
+    // stack, activator holds priority). Asked about the permanent's
+    // controller via the caster-aware `isSorceryTimingFor`, the same
+    // authority `assertLoyaltyActivationLegal` uses, so the window never
+    // depends on a caller-side priority check.
+    if (
+        ability.sorcerySpeedOnly &&
+        !isSorceryTimingFor(state, card.controllerId)
+    ) {
         throw new Error("Activate only as a sorcery");
     }
 }

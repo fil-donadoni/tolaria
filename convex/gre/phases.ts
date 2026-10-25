@@ -4415,16 +4415,6 @@ export function drainAutoPasses(state: GameState): void {
     }
 }
 
-/** Returns true if sorcery-speed actions are legal (main phase, empty stack, active player has priority). */
-export function isSorceryTiming(state: GameState): boolean {
-    return (
-        (state.phase === "PRECOMBAT_MAIN" ||
-            state.phase === "POSTCOMBAT_MAIN") &&
-        state.stack.length === 0 &&
-        state.priorityPlayerId === state.activePlayerId
-    );
-}
-
 /** CR 307.1 / 601.3a — the CASTER-AWARE sorcery window: `playerId` may take a
  *  sorcery-speed action only during one of THEIR OWN main phases, while the
  *  stack is empty and THEY hold priority.
@@ -4435,10 +4425,8 @@ export function isSorceryTiming(state: GameState): boolean {
  *  behalf of anyone else it silently answers about a different player —
  *  reporting a sorcery window to the non-active player throughout the
  *  opponent's main phases (issue #1690). Every per-player timing decision
- *  (`castTimingBaseLegal`) must use this form; `isSorceryTiming` stays for the
- *  turn-scoped questions that have no subject other than the active player
- *  (auto-tap Demand scoring, `sorcerySpeedOnly` ability gates that pair it with
- *  their own controller check). */
+ *  (`castTimingBaseLegal`) must use this form; `isSorceryTiming` is only its
+ *  active-player specialisation. */
 export function isSorceryTimingFor(
     state: GameState,
     playerId: string
@@ -4450,6 +4438,14 @@ export function isSorceryTimingFor(
         state.activePlayerId === playerId &&
         state.priorityPlayerId === playerId
     );
+}
+
+/** Sorcery window of the ACTIVE player only — exactly
+ *  `isSorceryTimingFor(state, state.activePlayerId)`, kept for tests and
+ *  turn-scoped questions. Production callers name their subject with
+ *  {@link isSorceryTimingFor}. */
+export function isSorceryTiming(state: GameState): boolean {
+    return isSorceryTimingFor(state, state.activePlayerId);
 }
 
 /** CR 307.1 / 117.1a / 601.3a — true iff `playerId` casting a spell RIGHT NOW
