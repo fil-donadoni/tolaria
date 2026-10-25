@@ -1538,12 +1538,11 @@ describe("moveZone frame — object classes beyond the found card (issue #6631)"
             ).toBe("unparsed");
     });
 
-    it("refuses the undeclared object classes by name: 'X cards' (a cost's quantity), 'any number of', 'from a graveyard' (no one owner's zone), the top card of a library (no Op), 'into exile', a sweep to one hand", () => {
+    it("refuses the undeclared object classes by name: 'X cards' (a cost's quantity), 'any number of', 'from a graveyard' (no one owner's zone), the top card of a library put anywhere but exile (the exile Op is the only move that names it), 'into exile', a sweep to one hand", () => {
         for (const text of [
             "Exile X creature cards from your graveyard.",
             "Exile any number of cards from your graveyard.",
             "Exile a card from a graveyard.",
-            "Exile the top card of your library.",
             "Put the top card of your library into your graveyard.",
             "Return all creatures to its owner's hand.",
         ])
