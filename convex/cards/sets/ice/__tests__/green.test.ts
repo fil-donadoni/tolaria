@@ -2755,7 +2755,7 @@ describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
     });
 });
 
-describe("Dire Wolves (conditional banding, CR 702.22 / CR 611.2c)", () => {
+describe("Dire Wolves (conditional banding, CR 702.22 / CR 611.3a)", () => {
     /** Dire Wolves (controlled by `wolfController`, owned by `wolfOwner`) blocks
      *  a p2 attacker; `plainsFor` lists whose battlefield holds a Plains. */
     function makeWolfBlockState(
