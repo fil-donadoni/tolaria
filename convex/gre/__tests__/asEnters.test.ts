@@ -483,6 +483,33 @@ describe("as-enters owed list grows mid-flight (CR 707.6, ADR 0100 D4)", () => {
         expect((entered.card as { id: string }).id).toBe(PAY_LIFE_ID);
     });
 
+    it("CR 704.3 — the entry's commit still gets its sweep while a grown choice is queued (issue #2478)", () => {
+        const state = boardWithGraveyard([copyCreature], 10);
+        state.players[0].battlefield.push(
+            makeInstance(PAY_LIFE_ID, {
+                id: "copy-source",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            }),
+            makeInstance(grizzlyBears().id, {
+                id: "doomed",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                damageMarked: 2,
+            })
+        );
+        reanimateAll(state);
+        answer(state, ["copy-source"]);
+
+        // The copy revealed a second owed choice, so one is still queued…
+        expect(head(state).asEntersKind).toBe("payLife");
+        // …and `finalizeAsEnters` swept anyway: the lethally damaged 2/2 is gone.
+        expect(battlefieldIds(state)).not.toContain("doomed");
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("doomed");
+    });
+
     it("a definition already consulted is never re-owed", () => {
         const state = boardWithGraveyard([copyCreature], 10);
         state.players[0].battlefield.push(

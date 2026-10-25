@@ -2474,6 +2474,14 @@ function resolutionSuspendedOnChoice(
     });
 }
 
+/** True while a resolution is parked on a queued Pending Choice (CR 608.2):
+ *  no player holds priority in the CR 704.3 sense, so the callers that follow
+ *  a `resolveTopOfStack` skip their SBA sweep until the resolution completes.
+ *  Same predicate the resumable bodies use at a `"checkpointed"` site. */
+export function isResolutionSuspendedOnChoice(state: GameState): boolean {
+    return resolutionSuspendedOnChoice(state, "checkpointed");
+}
+
 /** Runs a modal stack item's announced mode instance(s) (CR 700.2, ADR 0094)
  *  in place of the card/ability-level body. Returns true when the resolution
  *  suspended on a choice. Shared by the spell, activated and triggered
