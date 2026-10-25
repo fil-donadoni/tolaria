@@ -96,10 +96,10 @@ describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", 
             ...removed,
             castById: "p1",
             targets: [{ type: "player", id: "p2" }],
+            castFromZone: src.zone,
             ...flashbackStackFlags(src.zone),
         };
         expect(stackItem.exileOnResolve).toBe(true);
-        expect(stackItem.castFromGraveyard).toBe(true);
         state.stack.push(stackItem);
         resolveTopOfStack(state);
 

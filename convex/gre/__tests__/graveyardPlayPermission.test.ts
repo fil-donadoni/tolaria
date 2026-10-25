@@ -308,7 +308,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
             });
         });
 
-        it("graveyardCastStackFlags marks castFromGraveyard only — NOT exileOnResolve or escaped", () => {
+        it("graveyardCastStackFlags adds no mechanism flag — NOT exileOnResolve or escaped", () => {
             const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
             });
@@ -326,7 +326,6 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 ],
             });
             const flags = graveyardCastStackFlags(state, gyBolt, "graveyard");
-            expect(flags.castFromGraveyard).toBe(true);
             expect(flags.exileOnResolve).toBeUndefined();
             expect(flags.escaped).toBeUndefined();
         });
@@ -366,9 +365,9 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 ...removed,
                 castById: "p1",
                 targets: [{ type: "player", id: "p2" }],
+                castFromZone: src.zone,
                 ...graveyardCastStackFlags(state, removed, src.zone),
             };
-            expect(stackItem.castFromGraveyard).toBe(true);
             expect(stackItem.exileOnResolve).toBeUndefined();
             state.stack.push(stackItem);
             resolveTopOfStack(state);
