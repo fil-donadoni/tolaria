@@ -560,11 +560,11 @@ export const seasonOfTheWitch = defineCard(() => ({
 
 // The Fallen — "At the beginning of your upkeep, this creature deals 1 damage to
 // each opponent and planeswalker it has dealt damage to this game." (CR 603.6a
-// upkeep trigger; "dealt damage to this game" is tracked with a named flag
-// counter — a `damageDealtTrigger` stamps "fallen-marked" the first time The
-// Fallen damages an opponent, and the upkeep trigger deals 1 to that opponent
-// while the flag is set. Planeswalkers are out of scope, so only the opponent
-// player is tracked — exactly one opponent in a 2-player game.)
+// upkeep trigger; "dealt damage to this game" is tracked per half — a
+// `damageDealtTrigger` stamps "fallen-marked" the first time The Fallen damages
+// an opponent (exactly one opponent in a 2-player game), and each planeswalker
+// it has damaged is read off its own damage history, CR 120.3, through the
+// `damagedBySourceThisGame` forEach selector.)
 export const theFallen = defineCard(() => ({
     id: "f4a176e1-b22b-4f36-ba7b-c506cb4e1bed",
     rarity: "uncommon",
@@ -630,6 +630,24 @@ export const theFallen = defineCard(() => ({
                             op: "dealDamage",
                             amount: 1,
                             to: { player: "opponent" },
+                        },
+                    ],
+                },
+                // CR 120.3c — any controller's planeswalker The Fallen has
+                // damaged as the object it now is (CR 400.7) loses loyalty.
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Planeswalker" },
+                        damagedBySourceThisGame: true,
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { ref: "$each" },
                         },
                     ],
                 },
