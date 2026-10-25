@@ -28210,6 +28210,7 @@
         {"id":"605.1a","line":"// Sacrifice-only (tap-less) FIXED-output mana abilities — CR 605.1a / 302.6,","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Self-source deprioritization (issue #544, CR 602.1 / 605.1a). When paying an","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Sisters of the Flame — \"{T}: Add {R}.\" (CR 605.1a mana ability — resolves","sites":1,"status":"baseline"},
+        {"id":"605.1a","line":"// Sphere, since rebuilt as a stack ability: CR 605.1a).","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"605.1a","line":"// Sunastian Falconer — \"{T}: Add {C}{C}.\" (CR 605.1a mana ability.)","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Tap the planned lands and add their mana (CR 605.1a), mirroring","sites":2,"status":"baseline"},
         {"id":"605.1a","line":"// The CLIENT half of issue #2021's seam (CR 605.1a / 302.6).","sites":1,"status":"baseline"},

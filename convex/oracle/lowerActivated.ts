@@ -309,11 +309,6 @@ const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
- * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
- * which is the same ability printed inside quotation marks.
- */
-/**
  * CR 605.1a — "[Cost]: Add <mana>. Draw a card." (Chromatic Sphere, the
  * Invasion eggs). Its effect moves a card from a library, so it is not a mana
  * ability: CR 602.2a puts it on the stack, the mana is added when it resolves,
@@ -324,6 +319,8 @@ const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
  * to nothing: CR 117.1b already lets an activated ability be activated any
  * time its controller has priority.
  */
+const POOL_KEYS: ReadonlySet<string> = new Set(["W", "U", "B", "R", "G", "C"]);
+
 function lowerDrawingManaShape(
     input: {
         readonly id: string;
@@ -345,6 +342,22 @@ function lowerDrawingManaShape(
         return {
             ok: false,
             reason: `mana rider "${others[0]!.kind}" beside a draw has no stack lowering`,
+        };
+    // `addMana` adds coloured and colourless units only (`EffectManaPool`):
+    // a production carrying any other symbol would add nothing.
+    const options =
+        input.produces.kind === "fixed"
+            ? [input.produces.mana]
+            : input.produces.kind === "choice"
+              ? input.produces.options
+              : [];
+    const unpoolable = options.find((mana) =>
+        Object.keys(mana).some((k) => !POOL_KEYS.has(k))
+    );
+    if (unpoolable !== undefined)
+        return {
+            ok: false,
+            reason: `mana production ${printManaCost(unpoolable)} beside a draw has no addMana pool`,
         };
     let production: EffectOp;
     switch (input.produces.kind) {
@@ -396,6 +409,11 @@ function isHandExile(atom: CostAtomIR): boolean {
     return atom.kind === "exile-self-from-hand";
 }
 
+/**
+ * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
+ * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
+ * which is the same ability printed inside quotation marks.
+ */
 export function lowerManaAbility(input: {
     readonly id: string;
     readonly oracleText: string;

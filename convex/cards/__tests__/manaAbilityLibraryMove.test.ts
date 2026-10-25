@@ -21,6 +21,9 @@
 //     card from a library, CR 605.1a's "cost" half);
 //   - its Effect Script Ops (`effects`, `manaAbilityEffects`), which must sit in
 //     the reviewed stackless set and never be a library Op.
+//
+// The walk reads data only: an ability a closure builds at runtime (a grant
+// inside an `applies` function) is outside its reach.
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -168,7 +171,9 @@ function stacklessAbilities(root: unknown): Record<string, unknown>[] {
         seen.add(x);
         if (Array.isArray(x)) return x.forEach(walk);
         const o = x as Record<string, unknown>;
-        if (o.useStack === false && "cost" in o) found.push(o);
+        // The engine reads anything but `useStack: true` as stackless.
+        if (o.useStack !== true && "cost" in o && "oracleText" in o)
+            found.push(o);
         Object.values(o).forEach(walk);
     };
     walk(root);
