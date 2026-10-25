@@ -121,7 +121,7 @@ describe("Cast Commit — Cast Provenance for every zone (CR 601.2a)", () => {
                 resolvingItemId: "resolver",
             },
         ]) {
-            it(`a ${placement.kind} cast from ${zone} carries castFromZone "${zone}"`, () => {
+            it(`castFromZone "${zone}" on a cast from ${zone} (placement: ${placement.kind})`, () => {
                 const state = provenancePosition(zone);
                 const item = commitCast(state, {
                     casterId: "p1",
