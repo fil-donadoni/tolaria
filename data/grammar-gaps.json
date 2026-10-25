@@ -133,11 +133,6 @@
             "issue": 4531
         },
         {
-            "key": "(op) › revealAndCategorize",
-            "op": "revealAndCategorize",
-            "issue": 5690
-        },
-        {
             "key": "(op) › revealTopAndRoute",
             "op": "revealTopAndRoute",
             "issue": 5691
