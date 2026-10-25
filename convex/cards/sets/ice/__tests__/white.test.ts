@@ -45,6 +45,7 @@ import {
     applyAllCombatDamage,
     finalizeCleanup,
     emitBlockersConfirmedEvents,
+    fireDelayedTriggers,
 } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
@@ -1065,33 +1066,29 @@ describe("Seraph (#653) — reanimate creatures it killed at the next end step",
             ownerId: "p1",
             zone: "battlefield",
         });
-        // The dead card sits in the reanimating player's graveyard — the same
-        // lookup `returnToBattlefield(controllerId, …, "graveyard")` performs
-        // (mirrors Krovikan Vampire's shipped composition).
-        const deadCreature = makeInstance(balduvianBears.id, {
+        const victim = makeInstance(balduvianBears.id, {
             id: "victim",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            damagedBySources: ["seraph"],
         });
         const state = makeState({
             players: [
-                makePlayer("p1", {
-                    battlefield: [seraphInst],
-                    graveyard: [deadCreature],
-                }),
-                makePlayer("p2"),
+                makePlayer("p1", { battlefield: [seraphInst] }),
+                makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        state.stack.push({
-            ...seraphInst,
-            zone: "stack",
-            castById: "p1",
-            delayedTriggerId: "seraph-reanimate",
-            delayedPayload: { deadId: "victim", controllerId: "p1" },
-        } as unknown as StackItem);
+        // The real death emitter snapshots `damagedBySources` onto the event,
+        // the death trigger schedules the delayed reanimation, and the end
+        // step fires it (CR 603.2 / 603.7c / 400.7e).
+        removePermanentTo(state, "victim", "graveyard");
+        processPendingActionTriggers(state);
         resolveTopOfStack(state);
-        // The victim is now on p1's battlefield (reanimated under their control).
+        expect(state.delayedTriggers).toHaveLength(1);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        // The victim (owned by p2) is back on the battlefield under p1's control.
         const reanimated = state.players[0].battlefield.find(
             (c) => c.id === "victim"
         );

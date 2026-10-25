@@ -7830,7 +7830,10 @@ function checkCaptureSource(
     // checked here; the fire-time re-binding family is decided by
     // `captureBindingKind`. The `"object"` and `"player"` families are both
     // fine as a capture SOURCE — both store a single id string that
-    // `runDelayedTriggerBody` can re-seed at fire time. `"stack-object"` is
+    // `runDelayedTriggerBody` can re-seed at fire time. So is
+    // `"graveyard-card"` (CR 400.7e): the id survives the zone change, and the
+    // fire-time re-seed falls back to the graveyard, binding the card for
+    // `moveZone`'s `from: "graveyard"` return path. `"stack-object"` is
     // NOT (issue #3206): its id names a STACK ITEM, and the fire-time
     // re-binding looks the captured id up on the battlefield, then the
     // graveyard, then exile. A spell still on the stack is found nowhere and
@@ -7855,12 +7858,6 @@ function checkCaptureSource(
             return;
         }
         const row = resolved.row;
-        if (row.family === "graveyard-card") {
-            errors.push(
-                `${at}: capture "${name}" "$event" ref "${ref}" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`
-            );
-            return;
-        }
         if (row.family === "number") {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is a number field — a capture re-binds an object or a player at fire time, and no delayed body reads a captured magnitude yet`

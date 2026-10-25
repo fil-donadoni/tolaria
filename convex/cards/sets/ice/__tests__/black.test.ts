@@ -3263,9 +3263,7 @@ describe("Krovikan Vampire (reanimates a creature it killed, CR 603.2 / 603.7c)"
         expect(trig).toBeDefined();
         resolveTopOfStack(state);
         expect(state.delayedTriggers).toHaveLength(1);
-        expect(state.delayedTriggers![0].triggerId).toBe(
-            "krovikan-vampire-reanimate"
-        );
+        expect(state.delayedTriggers![0].timing).toBe("next-end-step");
 
         fireDelayedTriggers(state, "next-end-step");
         expect(state.stack).toHaveLength(1);
