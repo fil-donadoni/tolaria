@@ -16814,7 +16814,6 @@ export function buildSpellContext(
             // is consumed by the block-selection mutations (which route to the
             // active player) and the blocker-confirmation rider; cleared at end
             // of combat alongside the other combat-scoped state.
-            if (!state.combat) return;
             state.meleeCombat = true;
         },
         copyStackItem(targetStackItemId, modifications): string | null {

@@ -812,9 +812,7 @@ export const freyalisesWinds = defineCard(() => ({
 //     one-offs owned by later clusters.
 //
 // FLAGGED SIMPLIFICATIONS (no new primitive) (tracked-by: #2785): Blizzard drops its snow cast-
-// condition (no snow lands in pool); Dire Wolves grants banding unconditionally
-// (the "as long as you control a Plains" gate needs a board-aware keyword-grant
-// predicate the engine lacks).
+// condition (no snow lands in pool).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
