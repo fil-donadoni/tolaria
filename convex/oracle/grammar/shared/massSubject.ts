@@ -159,6 +159,7 @@ function sweepSelector(
                 "controller",
                 "plural",
                 "colors",
+                "excludeSource",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -247,7 +248,9 @@ function sweepSelector(
             ? { controller: "controller" as const }
             : {}),
         ...(Object.keys(filter).length > 0 ? { filter } : {}),
-        ...(other ? { excludeSource: true } : {}),
+        ...(other || descriptor.excludeSource === true
+            ? { excludeSource: true }
+            : {}),
     };
     return { ok: true, value: select };
 }
@@ -419,7 +422,12 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
             const bareSubtypeGroup =
                 descriptor.value.controller === undefined &&
                 descriptor.value.subtypes !== undefined;
-            if (!bareSubtypeGroup)
+            // CR 201.5 — "Other creatures get -2/-2" is every creature but the
+            // source: the exclusion is the sentence's own restriction.
+            const everythingButSource =
+                descriptor.value.controller === undefined &&
+                descriptor.value.excludeSource === true;
+            if (!bareSubtypeGroup && !everythingButSource)
                 return fail(
                     'a plural subject without "all" names whose permanents: "you control", "target player controls" or a subtype',
                     span
