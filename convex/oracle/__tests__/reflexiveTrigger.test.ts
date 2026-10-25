@@ -403,7 +403,23 @@ describe("When you do — reflexive trigger (CR 603.12)", () => {
     it("refuses a second target group in the reflexive ability (CR 603.3d)", () => {
         expect(
             trigger(
-                "When this creature enters, you may sacrifice another creature. When you do, destroy target creature and tap target land."
+                "When this creature enters, you may sacrifice another creature. When you do, destroy target creature and target land."
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("refuses a body naming the source, which crosses no capture (CR 608.2h)", () => {
+        expect(
+            trigger(
+                "When this creature enters, you may sacrifice another creature. When you do, put a +1/+1 counter on this creature."
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("refuses a sentence after the reflexive one — it belongs to the reflexive ability (CR 603.12)", () => {
+        expect(
+            trigger(
+                "When this creature enters, you may sacrifice another creature. When you do, destroy target creature. Tap target land."
             ).state
         ).toBe("unparsed");
     });

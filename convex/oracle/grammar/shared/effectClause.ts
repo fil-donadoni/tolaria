@@ -2714,7 +2714,17 @@ export function assembleSentences(
         readonly count: number;
         readonly max: number | null;
     } | null = null;
+    // CR 603.12 — every sentence after "When you do," is part of the reflexive
+    // ability's text ("…put a +1/+1 counter on target attacking creature. It
+    // gains trample…"); the folded `then` holds one sentence, so a follower is
+    // refused rather than read as part of the resolving ability.
+    let afterReflexive = false;
     for (const sentence of sentences) {
+        if (afterReflexive)
+            return {
+                ok: false,
+                reason: '"When you do, …" is followed by a sentence, which belongs to the reflexive ability',
+            };
         if (firstPlayerReveal !== null) {
             if (
                 firstPlayerReveal.stage === "chosen" &&
@@ -3006,6 +3016,7 @@ export function assembleSentences(
                     then: sentence.effect,
                     reflexive: sentence.text,
                 };
+                afterReflexive = true;
                 continue;
             }
             return {
