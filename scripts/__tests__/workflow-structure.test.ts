@@ -265,6 +265,45 @@ jobs:
     });
 });
 
+describe("the pass's failed-setup record (issue #6781)", () => {
+    const real = readFileSync(
+        join(REPO, ".github/workflows/afk-pass.yml"),
+        "utf8"
+    );
+    const check = (text: string) =>
+        rules({
+            ...fixture(),
+            workflows: [{ path: ".github/workflows/afk-pass.yml", text }],
+        });
+
+    it("admits the shipped workflow", () => {
+        expect(check(real)).not.toContain("pass-setup-record");
+    });
+
+    it("refuses the step run from the job workspace a failed worktree leaves missing", () => {
+        const text = real.replace(
+            /\n {14}working-directory: \$\{\{ runner\.temp \}\}\n(?= {14}env:\n {18}AFK_ISSUE)/,
+            "\n"
+        );
+        expect(text).not.toBe(real);
+        expect(check(text)).toContain("pass-setup-record");
+    });
+
+    it("refuses the step that does not recreate the workspace", () => {
+        const text = real.replace(/\n {18}mkdir -p "\$GITHUB_WORKSPACE"/, "");
+        expect(text).not.toBe(real);
+        expect(check(text)).toContain("pass-setup-record");
+    });
+
+    it("refuses a pass workflow with no failed-setup record at all", () => {
+        const text = real.replace(
+            "name: Record a failed setup",
+            "name: Something else"
+        );
+        expect(check(text)).toContain("pass-setup-record");
+    });
+});
+
 describe("workflow structure guard", () => {
     it("the fixture holds every invariant", () => {
         expect(checkStructure(fixture()).map(formatViolation)).toEqual([]);
