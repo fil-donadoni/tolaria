@@ -303,8 +303,13 @@ export function hasProtectionFromEachOpponent(
     card: Partial<Pick<CardInstanceState, "staticAbilities" | "subtypes">> &
         TextChangeCarrier
 ): boolean {
-    return liveProtectionAbilities(card).includes(
-        PROTECTION_FROM_EACH_OPPONENT
+    // Read through the plural parser so a combined grant ("protection from red
+    // and from each of your opponents", CR 702.16g) counts, not only the
+    // whole-string literal.
+    return liveProtectionAbilities(card).some((ability) =>
+        parseProtectionQualities(ability)?.some(
+            (quality) => quality.kind === "each-opponent"
+        )
     );
 }
 
@@ -411,6 +416,34 @@ export function parseProtectionQuality(
     );
 }
 
+/** The separator `renderKeyword` (`gre/continuousEffects.ts`) joins a
+ *  multi-quality protection grant with ("protection from red and from black").
+ *  Owned here so the render and the parse below cannot drift apart. */
+export const PROTECTION_QUALITY_SEPARATOR = " and from ";
+
+/** CR 702.16g — parses a protection ability string that names ONE OR
+ *  MORE qualities, joined by `PROTECTION_QUALITY_SEPARATOR`, into one
+ *  `ProtectionQuality` per conjunct ("protection from red and from black" is
+ *  two separate protection abilities). Fails CLOSED: if any one conjunct
+ *  is unparseable the WHOLE string yields `null`, never a partially-understood
+ *  set. A single-quality string yields a one-element list. */
+export function parseProtectionQualities(
+    ability: string
+): ProtectionQuality[] | null {
+    const normalized = ability.trim().toLowerCase();
+    if (!normalized.startsWith(PROTECTION_PREFIX)) return null;
+    const conjuncts = normalized
+        .slice(PROTECTION_PREFIX.length)
+        .split(PROTECTION_QUALITY_SEPARATOR);
+    const qualities: ProtectionQuality[] = [];
+    for (const conjunct of conjuncts) {
+        const quality = parseProtectionQuality(PROTECTION_PREFIX + conjunct);
+        if (quality === null) return null;
+        qualities.push(quality);
+    }
+    return qualities;
+}
+
 /** Every protection quality this card has (CR 702.16), parsed from its
  *  `staticAbilities[]` read through any active color-word text changes
  *  (CR 612.6 — Sleight of Mind turns "protection from white" into "protection
@@ -422,11 +455,12 @@ export function getProtectionQualities(
 ): ProtectionQuality[] {
     const result: ProtectionQuality[] = [];
     for (const ability of liveProtectionAbilities(card)) {
-        const quality = parseProtectionQuality(ability);
         // CR 702.16m — multiple instances of protection from the same quality
         // are redundant.
-        if (quality && !result.some((q) => sameQuality(q, quality))) {
-            result.push(quality);
+        for (const quality of parseProtectionQualities(ability) ?? []) {
+            if (!result.some((q) => sameQuality(q, quality))) {
+                result.push(quality);
+            }
         }
     }
     return result;
