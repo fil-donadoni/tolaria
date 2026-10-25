@@ -139,4 +139,62 @@ describe("divide budget is scoped to its own target group (CR 601.2d / 120.4, is
             expect(getPlayer(state, "p2").life).toBe(25);
         });
     });
+
+    it("honours a multi-target split over the divide group only; the extra group's target is not folded in", async () => {
+        await withTemporaryDefinitionAsync(dividedPlusOpponent(), async () => {
+            const state = board();
+            getPlayer(state, "p2").battlefield.push(
+                makeInstance(getCreatureId(), {
+                    id: "big2",
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    toughness: 9,
+                })
+            );
+            const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+            await runMutation<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    cardInstanceId: string;
+                },
+                void
+            >(
+                announceCast as unknown as Handler<
+                    {
+                        gameId: Id<"games">;
+                        playerId: string;
+                        cardInstanceId: string;
+                    },
+                    void
+                >,
+                harness.ctx,
+                { gameId: GAME_ID, playerId: "p1", cardInstanceId: "fj" }
+            );
+            await pick(harness, {
+                targetType: "permanent",
+                targetId: "big",
+                amount: 3,
+            });
+            await pick(harness, {
+                targetType: "permanent",
+                targetId: "big2",
+                amount: 2,
+            });
+            await pick(harness, { targetType: "player", targetId: "p2" });
+
+            const after = harness.state();
+            const item = after.stack[after.stack.length - 1];
+            expect(item.targetAmounts).toEqual({
+                "permanent:big": 3,
+                "permanent:big2": 2,
+            });
+            resolveTopOfStack(after);
+            const dmg = (id: string) =>
+                getPlayer(after, "p2").battlefield.find((c) => c.id === id)!
+                    .damageMarked;
+            expect(dmg("big")).toBe(3);
+            expect(dmg("big2")).toBe(2);
+        });
+    });
 });
