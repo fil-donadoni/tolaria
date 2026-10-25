@@ -630,6 +630,12 @@ export type EffectSentenceIR =
            * the head named (`SiteAntecedents.player`), not the controller.
            */
           readonly thatPlayer?: true;
+          /**
+           * CR 106.1 + CR 107.1 — "Add {R} for each creature you control": each
+           * pip of `mana` is produced once per member of the counted set, read
+           * at resolution (a pip written n times counts n times per member).
+           */
+          readonly perSet?: CountedSetIR;
       }
     /** CR 106.1 + CR 608.2c (Cabal Ritual) — "Add {B}{B}{B}. <Ability word> —
      *  Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
@@ -3327,7 +3333,8 @@ export function assembleSentences(
             if (
                 previous === undefined ||
                 previous.kind !== "add-mana" ||
-                previous.thatPlayer === true
+                previous.thatPlayer === true ||
+                previous.perSet !== undefined
             )
                 return {
                     ok: false,
@@ -4463,18 +4470,21 @@ const PAY_LIFE_OR_TOPDECK =
     /^For each of those cards, pay (\S+) life or put the card on top of your library$/;
 /** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
 const ADD_MANA = /^(That player adds|Add) ((?:\{[WUBRGC]\})+)$/;
+/** CR 106.1 + CR 107.1 — "Add {R} for each creature you control": the pips,
+ *  then the counted-set clause `countedSetRule` reads. */
+const ADD_MANA_FOR_EACH = /^Add ((?:\{[WUBRGC]\})+) (for each .+)$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
 const ADD_MANA_INSTEAD_IF_COUNT =
     /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
 
 /** CR 106.1 — a run of `{W}{U}{B}{R}{G}{C}` pips as a per-symbol tally. */
 function readManaPips(pips: string): EffectManaPool {
-    const mana: EffectManaPool = {};
+    const tally: Record<string, number> = {};
     for (const pip of pips.matchAll(/\{([WUBRGC])\}/g)) {
-        const symbol = pip[1] as keyof EffectManaPool;
-        mana[symbol] = (mana[symbol] ?? 0) + 1;
+        const symbol = pip[1]!;
+        tally[symbol] = (tally[symbol] ?? 0) + 1;
     }
-    return mana;
+    return tally as EffectManaPool;
 }
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 107.1 + CR 119.3 — "You gain life equal to the number of creature cards
@@ -6557,6 +6567,18 @@ function effectSentence(
             ...(addMana[1] === "That player adds"
                 ? { thatPlayer: true as const }
                 : {}),
+        });
+    }
+
+    // ── add mana per counted set (CR 106.1, CR 107.1) ──────────────────────
+    const addManaEach = span.match(ADD_MANA_FOR_EACH);
+    if (addManaEach !== null) {
+        const set = countedSetRule.run(addManaEach[2]!, ctx);
+        if (!set.ok) return set;
+        return ok({
+            kind: "add-mana" as const,
+            mana: readManaPips(addManaEach[1]!),
+            perSet: set.value,
         });
     }
 

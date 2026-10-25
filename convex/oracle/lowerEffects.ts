@@ -26,6 +26,7 @@ import type {
     Color,
     EffectCardFilter,
     EffectCountSpec,
+    EffectManaPool,
     EffectChoiceCount,
     EffectPlayerRef,
     EffectPredicate,
@@ -4809,6 +4810,22 @@ function lowerSentenceBody(
                 },
             ]);
         case "add-mana": {
+            if (sentence.perSet !== undefined) {
+                // CR 106.1 + CR 107.1 — every pip is produced once per member
+                // of the counted set (a pip written n times: n per member).
+                const spec = lowerCountedSet(sentence.perSet, slots, site);
+                if (!spec.ok) return spec;
+                const mana: EffectManaPool = {};
+                for (const [color, n] of Object.entries(sentence.mana)) {
+                    mana[color as keyof EffectManaPool] = {
+                        count:
+                            n === 1
+                                ? spec.value
+                                : { ...spec.value, times: n as number },
+                    };
+                }
+                return lowered([{ op: "addMana", mana }]);
+            }
             if (sentence.thatPlayer !== true)
                 return lowered([{ op: "addMana", mana: sentence.mana }]);
             const player = playerRef({ kind: "that-player" }, slots, site);

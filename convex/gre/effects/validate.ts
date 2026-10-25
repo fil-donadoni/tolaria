@@ -3010,10 +3010,11 @@ function isManaCostFilterValue(value: unknown): boolean {
     return true;
 }
 
-/** The `mana` field of an `addMana` Op (CR 106.1, issue #850): a JSON-pure
- *  per-colour amount map — only the five colours + colorless (WUBRGC), each a
- *  POSITIVE integer, and at least one entry (a mana-add producing nothing is
- *  meaningless). No generic / X / xFactor: those are not fixed produced mana. */
+/** The `mana` field of an `addMana` Op (CR 106.1): a JSON-pure per-colour
+ *  amount map — only the five colours + colorless (WUBRGC), at least one entry
+ *  (a mana-add producing nothing is meaningless). Each amount is a positive
+ *  integer or an `EffectValue` read at resolution (a `count`, a `ref`, …); a
+ *  computed amount reading 0 adds nothing. No generic / X / xFactor key. */
 const MANA_POOL_KEYS = new Set(["W", "U", "B", "R", "G", "C"]);
 function isManaPool(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -3023,9 +3024,7 @@ function isManaPool(value: unknown): boolean {
     if (entries.length === 0) return false;
     for (const [k, v] of entries) {
         if (!MANA_POOL_KEYS.has(k)) return false;
-        if (!(typeof v === "number" && Number.isInteger(v) && v > 0)) {
-            return false;
-        }
+        if (!isEffectValue(v)) return false;
     }
     return true;
 }
@@ -4336,7 +4335,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: { player: isPlayerRef },
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
-    // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
+    // JSON-pure per-colour amount map (WUBRGC; positive integer or EffectValue); `player`
     // (optional) names whose pool (default the resolving controller).
     addMana: {
         required: { mana: isManaPool },
