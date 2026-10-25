@@ -363,7 +363,7 @@ import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
     finalizeDrawReplacementPay,
-    isSorceryTiming,
+    isSorceryTimingFor,
     wasCastOffSorceryTiming,
 } from "./gre/phases";
 import {
@@ -9009,7 +9009,7 @@ export const autoTapForPayment = mutation({
         // Timing-aware Demand filter (issue #475, CR 307 / 601.3a): sorcery-
         // speed hand spells count as preservable Demands only at sorcery timing
         // (own main, empty stack, holding priority); instant-speed spells count
-        // in any window. Reuses the engine's canonical `isSorceryTiming` helper.
+        // in any window. Asked of the paying player via `isSorceryTimingFor`.
         // On-board activated-ability Demands (issue #476, CR 602.1): a
         // firebreathing creature's "{R}: +1/+0" and other mana-costed activated
         // abilities on the paying player's battlefield are also plays they
@@ -9017,7 +9017,7 @@ export const autoTapForPayment = mutation({
         // ability) — repeatable activations don't multiply the Demand (PRD
         // user story 12) — and is timing-filtered the same way (sorcery-speed
         // abilities count only at sorcery timing).
-        const sorceryTiming = isSorceryTiming(state);
+        const sorceryTiming = isSorceryTimingFor(state, player.id);
         const demands: Demand[] = [
             ...buildHandSpellDemands(
                 player.hand,
