@@ -487,7 +487,7 @@
         {"id":"104.2a","line":"// CR 104.2a: a player who wins a Game wins it for the Match's tally. A","sites":1,"status":"baseline"},
         {"id":"104.2a","line":"// The `winGame` Op itself carries no predicate (CR 104.2a: \"a player CAN win","sites":1,"status":"baseline"},
         {"id":"104.2a","line":"// game.\" (CR 401.4 / CR 700.5 / CR 104.2a.)","sites":1,"status":"baseline"},
-        {"id":"104.2a","line":"// the game already ended (mirrors `drawGame`'s guard) — CR 104.2a","sites":1,"status":"baseline"},
+        {"id":"104.2a","line":"// the game already ended (`endGame`'s first-writer-wins guard) — CR 104.2a","sites":1,"status":"confirmed","ruleHash":"1bfae0b06cc3f853"},
         {"id":"104.2a","line":"// wins (CR 104.2a, `winGame` — the same alternate-win seam Coalition Victory","sites":1,"status":"baseline"},
         {"id":"104.2a","line":"const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition","sites":1,"status":"baseline"},
         {"id":"104.2a","line":"describe(\"Coalition Victory (CR 104.2a alternate win, Domain, issue #1066)\", () => {","sites":1,"status":"baseline"},

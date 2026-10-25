@@ -40,6 +40,17 @@ describe("endGame — sole writer of state.gameOver", () => {
         });
     });
 
+    it("loseGame after the game ended keeps the first outcome", () => {
+        const state = makeState();
+        ctx(state).winGame("p1");
+        ctx(state).loseGame("p1");
+        expect(state.gameOver).toEqual({
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "alternate-win",
+        });
+    });
+
     it("an SBA loss does not replace an already-registered alternate win (CR 104.2a)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { life: 0 })],

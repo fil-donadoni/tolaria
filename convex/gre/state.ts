@@ -15131,7 +15131,7 @@ export function buildSpellContext(
         // CR 104.2a — a resolving spell/ability designates its winner
         // (Coalition Victory), through the SAME `state.gameOver` seam
         // State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`). No-op if
-        // the game already ended (mirrors `drawGame`'s guard) — CR 104.2a
+        // the game already ended (`endGame`'s first-writer-wins guard) — CR 104.2a
         // doesn't re-decide an already-decided game.
         winGame(playerId: string): void {
             getPlayer(state, playerId);
