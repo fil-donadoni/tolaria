@@ -419,6 +419,11 @@ export type Edge = {
      *  candidates whose win/loss outcome is identical but whose surviving
      *  material differs. */
     totalMargin: number;
+    /** Sum of squared rewards (mover perspective), accumulated alongside
+     *  `totalReward` so a root rule can tell a real reward gap from sampling
+     *  noise (`meanRewardGapStdErr`). Optional: a hand-built `Node` without it
+     *  reads as noiseless, i.e. the fixed `outcomeEps` band alone. */
+    totalRewardSq?: number;
     /** Times this move was AVAILABLE during selection (ISMCTS availability). */
     avail: number;
 };
@@ -3301,7 +3306,9 @@ function backpropagate(path: Edge[], leaf: Leaf, botId: string): void {
     for (const edge of path) {
         const forMover = edge.mover === botId;
         edge.visits += 1;
-        edge.totalReward += forMover ? leaf.reward : 1 - leaf.reward;
+        const reward = forMover ? leaf.reward : 1 - leaf.reward;
+        edge.totalReward += reward;
+        edge.totalRewardSq = (edge.totalRewardSq ?? 0) + reward * reward;
         edge.totalMargin += forMover ? leaf.margin : -leaf.margin;
     }
 }
@@ -3799,6 +3806,29 @@ export function isWastefulAttack(state: GameState, move: Move): boolean {
         outcome.faceDamage === 0 &&
         outcome.facePoison === 0
     );
+}
+
+/** Variance of an edge's MEAN reward (sample variance over `visits`). Rewards
+ *  live in [0, 1], so an edge visited once falls back to the widest variance
+ *  that range allows (1/4); an edge with no `totalRewardSq` (a hand-built
+ *  `Node`) reads as zero. */
+function meanRewardVariance(e: Edge): number {
+    if (e.totalRewardSq === undefined || e.visits === 0) return 0;
+    if (e.visits < 2) return 0.25;
+    const m = e.totalReward / e.visits;
+    const sample = (e.totalRewardSq - e.visits * m * m) / (e.visits - 1);
+    return Math.max(0, sample) / e.visits;
+}
+
+/** One standard error of the gap between two edges' mean rewards. A root rule
+ *  that treats moves within `outcomeEps` as outcome-equal reads a fixed band;
+ *  at a handful of visits per edge (a time-capped search over a wide root) the
+ *  sampling noise of a mean is several times that band, so a gap under this
+ *  width is not evidence that one move out-rewards the other.
+ *
+ *  Exported as a named seam so the admission it drives is unit-testable. */
+export function meanRewardGapStdErr(a: Edge, b: Edge): number {
+    return Math.sqrt(meanRewardVariance(a) + meanRewardVariance(b));
 }
 
 /** Whether `move` is the EMPTY block declaration — the defender declining to
@@ -5095,10 +5125,25 @@ export function selectRootMove(
         ruleOn("block-quality") &&
         best.move.kind === "declare-blockers"
     ) {
+        // Outcome-equal means statistically indistinguishable: the band is
+        // `outcomeEps` or one standard error of the gap to the reward leader,
+        // whichever is wider. A time-capped search over a wide block root
+        // gives each declaration a handful of visits, and a fixed 0.05 band
+        // then admits whichever block the rollouts happened to favour — a
+        // lone 4/4 thrown in front of a 6/6 beat both the 1/1 chump and the
+        // double block that kills the attacker, with `blockDeltaOf` ranking
+        // it last. At visit counts where the gap is real the band is
+        // `outcomeEps`, exactly as before.
+        const leader = explored.reduce((m, e) => (mean(e) > mean(m) ? e : m));
         const blocks = pool.filter(
             (e) =>
                 e.move.kind === "declare-blockers" &&
-                (mean(e) >= bestMean - weights.outcomeEps ||
+                (mean(e) >=
+                    bestMean -
+                        Math.max(
+                            weights.outcomeEps,
+                            meanRewardGapStdErr(e, leader)
+                        ) ||
                     isEmptyBlockDeclaration(e.move))
         );
         if (blocks.length > 0) {
