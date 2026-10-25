@@ -115,6 +115,12 @@ const ANOTHER_HEAD = "another target ";
 
 /** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+/** CR 120.3 + CR 109.5 — the opponent-scoped recipient union, in the two
+ *  spellings the corpus prints it (Tectonic Hazard; Sarkhan, Dragonsoul). */
+const EACH_OPPONENT_AND_THEIR_CREATURES = new Set([
+    "each opponent and each creature they control",
+    "each opponent and each creature your opponents control",
+]);
 /** CR 601.2c — the damage recipient "each of X targets", read as one exact
  *  phrase: a descriptor after it ("each of X target creatures") is a different
  *  announcement and is not read. */
@@ -386,6 +392,15 @@ export type SubjectIR =
      * pair of `forEach` sweeps, one per set, because neither Op's `to` field
      * names more than one recipient.
      */
+    /**
+     * CR 120.3 + CR 109.5 — the opponent-scoped two-set damage recipient:
+     * "each opponent and each creature they control" (or "…your opponents
+     * control"). Read as ONE exact phrase for the same reason as
+     * `each-creature-and-player`; read only by `deal-damage`, whose lowering
+     * is the single no-target `dealDamageToEach` Op (the damage is dealt to
+     * both sets at once).
+     */
+    | { readonly kind: "each-opponent-and-their-creatures" }
     | {
           readonly kind: "each-creature-and-player";
           /**
@@ -3856,6 +3871,8 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         // opponent and each creature they control").
         if (probe === EACH_CREATURE_AND_EACH_PLAYER)
             return ok({ kind: "each-creature-and-player" as const });
+        if (EACH_OPPONENT_AND_THEIR_CREATURES.has(probe))
+            return ok({ kind: "each-opponent-and-their-creatures" as const });
         // CR 608.2h — the pronoun, in its two reachable spellings.
         //
         // `{it}` is the marker `objectPronounListRule` writes over the

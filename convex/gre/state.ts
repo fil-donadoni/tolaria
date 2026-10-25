@@ -37,6 +37,7 @@ import {
     type MovableZone,
     PERMANENT_TYPES,
     type PermanentFilter,
+    type EachDamagePlayerScope,
     type ManaPersistence,
     type PermanentView,
     type SpellCastEvent,
@@ -207,7 +208,11 @@ import {
 import { spliceMergedEffects } from "./splice";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
-import type { DamageSourceFilter, SpellFilter } from "../cards/filters";
+import type {
+    DamageSourceFilter,
+    FilterMatchContext,
+    SpellFilter,
+} from "../cards/filters";
 import { damageSourceChoiceIds } from "./damageSourceChoice";
 import { castProhibitionReason } from "../cards/castRestrictions";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
@@ -15110,40 +15115,53 @@ export function buildSpellContext(
             }
         },
         // CR 120.3: damage is dealt simultaneously to every matching entity.
-        // Snapshot creature ids before iterating — the set is fixed before
-        // any damage is dealt (CR 704.5g lethal waits for the SBA pass).
+        // The WHOLE recipient set (creatures and players) is fixed before any
+        // damage is dealt (CR 704.5g lethal waits for the SBA pass), then
+        // handed out in one pass. `controllerRelation` on the creature filter
+        // and the `"you"` / `"opponents"` player scope read relative to the
+        // resolving controller (CR 109.5).
         dealDamageToEach(
             amount: number,
             filter: {
                 creatures?: boolean | Omit<PermanentFilter, "types">;
-                players?: boolean;
+                players?: boolean | EachDamagePlayerScope;
             }
         ): void {
             if (amount <= 0) return;
+            const recipients: TargetSelection[] = [];
             if (filter.creatures) {
                 const spec: PermanentFilter = {
-                    types: "Creature",
                     ...(typeof filter.creatures === "object"
                         ? filter.creatures
                         : {}),
+                    types: "Creature",
                 };
-                const ids: string[] = [];
+                const matchCtx: FilterMatchContext = {
+                    selfInstanceId: item.id,
+                    selfControllerId: item.controllerId,
+                };
                 for (const player of state.players) {
                     for (const card of player.battlefield) {
                         if (!isDamageablePermanent(card)) continue;
-                        if (matchesPermanentFilter(card, spec)) {
-                            ids.push(card.id);
+                        if (matchesPermanentFilter(card, spec, matchCtx)) {
+                            recipients.push({
+                                type: "permanent",
+                                id: card.id,
+                            });
                         }
                     }
-                }
-                for (const id of ids) {
-                    this.dealDamage({ type: "permanent", id }, amount);
                 }
             }
             if (filter.players) {
                 for (const player of state.players) {
-                    this.dealDamage({ type: "player", id: player.id }, amount);
+                    const isYou = player.id === item.controllerId;
+                    if (filter.players === "you" && !isYou) continue;
+                    if (filter.players === "opponents" && isYou) continue;
+                    recipients.push({ type: "player", id: player.id });
                 }
+            }
+            for (const target of recipients) {
+                this.dealDamage(target, amount);
             }
         },
         // Grants an activated ability to a player for a limited duration

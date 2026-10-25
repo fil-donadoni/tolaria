@@ -193,6 +193,52 @@ function isPositiveInt(value: unknown): boolean {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+/** A `dealDamageToEach` controller scope (CR 109.5): the resolving
+ *  controller's or their opponent's recipients. */
+function isEachDamagePlayerRef(value: unknown): boolean {
+    return value === "controller" || value === "opponent";
+}
+
+/** A `dealDamageToEach` `creatures` half: an optional controller scope and an
+ *  optional battlefield-reading card filter (the same fence a `forEach`
+ *  permanents selector draws — the matcher is `toPermanentFilter`, so a
+ *  hidden-zone-only field would silently match everything). */
+function isEachDamageCreatures(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const half = value as Record<string, unknown>;
+    const allowed = new Set(["controller", "filter"]);
+    if (!Object.keys(half).every((k) => allowed.has(k))) return false;
+    if ("controller" in half && !isEachDamagePlayerRef(half.controller)) {
+        return false;
+    }
+    // The primitive forces Creature over any `type` the filter carries, so a
+    // card-type restriction would validate and then widen to every creature
+    // (fail-open); it is spelled `any: [{ type }]` instead.
+    if (
+        typeof half.filter === "object" &&
+        half.filter !== null &&
+        "type" in half.filter
+    ) {
+        return false;
+    }
+    return (
+        !("filter" in half) ||
+        isCardFilter(half.filter, {
+            allowHasAbility: true,
+            allowLiveState: true,
+            allowControlledSinceTurnStart: true,
+            rejectHiddenZoneFields: true,
+        })
+    );
+}
+
+/** A `dealDamageToEach` `players` half: both players or one scoped side. */
+function isEachDamagePlayers(value: unknown): boolean {
+    return value === "each" || isEachDamagePlayerRef(value);
+}
+
 /** A `dealDamageDividedAsChosen` Op's `total` (CR 601.2d / 120.4): the exact
  *  `TargetRequirement.divideAsChosen.total` vocabulary — a positive-int literal,
  *  the announced {X} (`"X"`, Fire Covenant), or X+1 (`"X+1"`, Meteor Shower). */
@@ -4026,6 +4072,19 @@ const OP_SCHEMAS: OpSchemaTable = {
             unredirectable: isBoolean,
             source: isObjectSelector,
         },
+    },
+    // CR 120.3 — simultaneous no-target mass damage. At least one half
+    // (`creatures` / `players`) must name a recipient set, else the Op is inert.
+    dealDamageToEach: {
+        required: { amount: isEffectValue },
+        optional: {
+            creatures: isEachDamageCreatures,
+            players: isEachDamagePlayers,
+        },
+        check: (entry) =>
+            entry.creatures === undefined && entry.players === undefined
+                ? ["needs `creatures` and/or `players`"]
+                : [],
     },
     // CR 601.2d / 120.4 — divide-as-you-choose damage over the announced target
     // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
