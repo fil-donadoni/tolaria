@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     isStackChoiceCandidate,
+    pendingChoiceCollapsesStack,
     pendingChoiceRoutesToBattlefield,
     pendingChoiceRequiresBoardTap,
     pendingChoiceSpansAllBattlefields,
@@ -248,5 +249,29 @@ describe("the battlefield-or-stack source pool (issue #5601)", () => {
             )
         ).toBe(false);
         expect(isStackChoiceCandidate(undefined, "me", "bolt")).toBe(false);
+    });
+
+    it("keeps the compact stack panel open while a stack object is a candidate (CR 609.7a)", () => {
+        const stack = [{ id: "bolt" }, { id: "cop" }];
+        expect(pendingChoiceCollapsesStack(sourcePick(), "me", stack)).toBe(
+            false
+        );
+        // Battlefield candidates only: an ordinary board tap, panel aside.
+        expect(
+            pendingChoiceCollapsesStack(
+                sourcePick({ candidateIds: ["ogre"] }),
+                "me",
+                stack
+            )
+        ).toBe(true);
+        // Another seat's choice never collapses this viewer's panel.
+        expect(
+            pendingChoiceCollapsesStack(
+                sourcePick({ candidateIds: ["ogre"] }),
+                "opp",
+                stack
+            )
+        ).toBe(false);
+        expect(pendingChoiceCollapsesStack(undefined, "me", stack)).toBe(false);
     });
 });

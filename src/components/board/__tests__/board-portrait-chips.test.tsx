@@ -488,6 +488,35 @@ describe("BoardPortraitChips (#336)", () => {
         ).toBe("1");
     });
 
+    it("does NOT auto-collapse for a source choice whose candidates include a spell ON THE STACK — its row is the only place to pick it (CR 609.7a)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "bolt", card: { id: "def-bolt" } },
+            { id: "cop", card: { id: "def-cop" } },
+        ] as unknown as StackItem[];
+        const sourceChoice = makeChoice({
+            kind: "pick-source",
+            zone: "battlefield-or-stack",
+            candidateIds: ["bolt", "ogre"],
+        });
+        const { rerender } = renderChips(opp, me, stack, {
+            pendingChoices: [sourceChoice],
+        });
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("2");
+
+        // The same choice with only BATTLEFIELD candidates is an ordinary
+        // board tap, and the panel steps aside.
+        rerender(
+            chipsElement(opp, me, stack, {
+                pendingChoices: [{ ...sourceChoice, candidateIds: ["ogre"] }],
+            })
+        );
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
     it("does NOT auto-collapse for a board-tap choice belonging to the OTHER player", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");
