@@ -39,6 +39,7 @@ import type {
     TextChange,
 } from "../cards/types";
 import type { Duration, GameState } from "./state/declarations";
+import { PROTECTION_QUALITY_SEPARATOR } from "./protection";
 
 /** CR 613.1b-g — the layers this registry covers. Layer 1 (copiable values,
  *  CR 613.1a) is deliberately absent: copy effects are applied BEFORE the
@@ -250,10 +251,11 @@ export function renderKeyword(payload: {
     switch (parameter.kind) {
         case "protection":
             // CR 702.16a — "protection from red and from black" is TWO
-            // instances of the ability (CR 702.16i), but the engine's string
-            // vocabulary spells a multi-quality grant with " and from ", which
-            // is what `parseProtectionQuality` reads back.
-            return `protection from ${parameter.qualities.join(" and from ")}`;
+            // separate abilities (CR 702.16g); the engine's string
+            // vocabulary spells a multi-quality grant with the separator
+            // `parseProtectionQualities` splits on, and that parser (not the
+            // single-quality `parseProtectionQuality`) is what reads it back.
+            return `protection from ${parameter.qualities.join(PROTECTION_QUALITY_SEPARATOR)}`;
         case "landwalk":
             return `${parameter.subtype.toLowerCase()}walk`;
         case "count":
