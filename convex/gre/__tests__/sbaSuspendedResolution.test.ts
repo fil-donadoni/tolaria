@@ -175,3 +175,25 @@ describe("CR 704.5j legend drain with the post-answer sweep gated", () => {
         expect(state.players[1].battlefield).toHaveLength(1);
     });
 });
+
+describe("trigger-placement prompts are not a suspended resolution (CR 117.5 / 603.3b)", () => {
+    it("a player at 0 life loses even while the controller still owes a trigger ordering", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { life: -2 })],
+        });
+        state.pendingChoices = [
+            {
+                stackItemId: "trigger-batch",
+                step: 0,
+                choiceId: "trigger-order-p1",
+                playerId: "p1",
+                kind: "trigger-order",
+                candidateIds: ["t1", "t2"],
+                count: 2,
+                prompt: "Order your triggered abilities.",
+            },
+        ];
+        sweepUnlessResolutionSuspended(state);
+        expect(state.gameOver).toBeTruthy();
+    });
+});
