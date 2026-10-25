@@ -398,26 +398,25 @@ export function commitCast(
         // change functions until the spell has finished resolving.
         ...(mode.overloaded ? { overloaded: true } : {}),
         ...(record.castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
-        // CR 702.34 / 702.138 / 702.81a — the zone-dependent stack flags of an
-        // ANNOUNCED graveyard cast, read from the SAME helper the search kernel
-        // spreads (`gre/castCost.ts`): Flashback's `exileOnResolve`, escape.
-        // The helper derives the mechanism from the card's keywords, which is
-        // right for an announcement (`locateCastSource` routed a flashback card
-        // through its flashback cost) and WRONG for a cast made during
-        // resolution under the resolving effect's own permission (Malcolm's
-        // free cast of a discarded Think Twice paid no flashback cost, so
-        // CR 702.34a exiles nothing): that cast carries only the factual
-        // `castFromGraveyard` and the per-card exile rider a graveyard grant
+        // CR 601.2a — Cast Provenance: the zone the card moved to the stack
+        // from, stamped for EVERY zone under either placement, so a resolving
+        // "if this spell was cast from …" clause reads one fact.
+        castFromZone,
+        // CR 702.34 / 702.138 / 702.81a — the mechanism flags of an ANNOUNCED
+        // graveyard cast, read from the SAME helper the search kernel spreads
+        // (`gre/castCost.ts`): Flashback's `exileOnResolve`, escape. The helper
+        // derives the mechanism from the card's keywords, which is right for an
+        // announcement (`locateCastSource` routed a flashback card through its
+        // flashback cost) and WRONG for a cast made during resolution under the
+        // resolving effect's own permission (Malcolm's free cast of a discarded
+        // Think Twice paid no flashback cost, so CR 702.34a exiles nothing):
+        // that cast carries only the per-card exile rider a graveyard grant
         // stamped (`castFromGraveyardExilesOnResolve`).
         ...(placement.kind === "announce"
             ? graveyardCastStackFlags(state, spellCard, castFromZone)
-            : castFromZone === "graveyard"
-              ? {
-                    castFromGraveyard: true as const,
-                    ...(spellCard.castFromGraveyardExilesOnResolve
-                        ? { exileOnResolve: true as const }
-                        : {}),
-                }
+            : castFromZone === "graveyard" &&
+                spellCard.castFromGraveyardExilesOnResolve
+              ? { exileOnResolve: true as const }
               : {}),
         // CR 702.88a — rebound applies to a cast from the caster's hand under
         // either placement (Word of Command's controlled cast leaves a hand).

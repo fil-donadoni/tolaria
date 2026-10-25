@@ -2045,6 +2045,13 @@ export type PlayerState = {
     };
 };
 
+/** The zone a cast originates from (CR 601.3). Normally the hand; exile for
+ *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34);
+ *  library for a cast off the TOP under a cast-from-top permission
+ *  (CR 601.3, Bolas's Citadel). Carried on the spell as
+ *  `StackItem.castFromZone`. */
+export type CastFromZone = "hand" | "exile" | "graveyard" | "library";
+
 export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). Never a
@@ -2466,11 +2473,16 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  destination once), but not enforced — the finalization path checks
      *  this flag first. */
     shuffleIntoLibraryOnResolve?: boolean;
-    /** CR 702.34 — true iff this spell was cast from a graveyard via Flashback.
-     *  Read by resolution effects with an "if this spell was cast from a
-     *  graveyard" clause (Sevinne's Reclamation). The cast site also sets
-     *  `exileOnResolve` so the flashback card is exiled as it leaves the stack. */
-    castFromGraveyard?: boolean;
+    /** CR 601.2a — Cast Provenance: the zone this spell was cast from, stamped
+     *  at every cast commit for every zone (hand included), so "if this spell
+     *  was cast from a graveyard / from exile" reads one fact rather than a
+     *  family of per-mechanism flags. Absent on anything that was not cast: a
+     *  copy (CR 707.10) is scrubbed by `cloneSpellOntoStack`, a cast trigger
+     *  that spreads its spell clears it, and the permanent a spell becomes
+     *  drops it once `PERMANENT_ENTERED` has read it (CR 400.7). The mechanism riders a graveyard cast adds
+     *  (`exileOnResolve`, `escaped`) and Rebound's consume-once
+     *  `reboundFromHand` stay separate fields. */
+    castFromZone?: CastFromZone;
     /** CR 702.88a — true iff this spell has Rebound AND was cast from HAND
      *  (stamped at cast-commit by `reboundCastStackFlags`, game.ts — the
      *  gate that makes CR 702.88a "free": an exile recast never carries this

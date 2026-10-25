@@ -769,3 +769,44 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
         ).toHaveLength(1);
     });
 });
+
+describe("a spell's Cast Provenance (CR 601.2a)", () => {
+    function declared(castFromZone?: "exile" | "graveyard" | "library") {
+        const spec: ScenarioSpec = {
+            ...OPP_TURN,
+            cards: OPP_TURN.cards.filter((c) => c.zone !== "hand"),
+            stack: [
+                {
+                    kind: "spell",
+                    name: lightningBolt().name,
+                    controller: "opp",
+                    targets: [{ kind: "player", seat: "me" }],
+                    ...(castFromZone ? { castFromZone } : {}),
+                },
+            ],
+        };
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), spec);
+        const { spec: lowered, dropped } = specFromState(rebuilt, {
+            mySeatId: rebuilt.players[0].id,
+        });
+        return { rebuilt, lowered, dropped };
+    }
+
+    it("round-trips a non-hand zone through the spec", () => {
+        const { rebuilt, lowered, dropped } = declared("exile");
+        expect(rebuilt.stack[0].castFromZone).toBe("exile");
+        expect(
+            dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(lowered.stack?.[0].castFromZone).toBe("exile");
+    });
+
+    it("stamps hand on an omitted zone, and lowers hand as the omission", () => {
+        const { rebuilt, lowered, dropped } = declared();
+        expect(rebuilt.stack[0].castFromZone).toBe("hand");
+        expect(
+            dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(lowered.stack?.[0]).not.toHaveProperty("castFromZone");
+    });
+});
