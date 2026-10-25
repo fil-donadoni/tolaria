@@ -79,7 +79,7 @@ describe("bug-report rate limit (issue #4076)", () => {
         vi.setSystemTime(T0 + 10 * 60_000);
         const err = await file(ctx).catch((e: unknown) => e);
         expect(err).toBeInstanceOf(ConvexError);
-        const data = (err as ConvexError<unknown>).data;
+        const data = (err as ConvexError<string>).data as unknown;
         expect(isReportRateLimitedData(data)).toBe(true);
         expect(data).toEqual({
             code: REPORT_RATE_LIMITED_CODE,
