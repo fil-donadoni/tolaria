@@ -67832,6 +67832,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tectonic Hazard",
+        "scryfallId": "5204c781-f568-4c7f-b3f7-ce4dd678689b",
+        "oracleId": "9097243a-39fa-4e18-8316-c0e57699c783",
+        "firstSet": "lci",
+        "firstPrintId": "5204c781-f568-4c7f-b3f7-ce4dd678689b",
+        "firstPrintSet": "lci",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tectonic Instability",
         "scryfallId": "0476cc6b-ecc6-44d6-9f44-a90d4ee85daa",
         "oracleId": "0e68ee36-9649-490a-8483-fc8bdc23f161",
