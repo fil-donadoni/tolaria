@@ -1276,7 +1276,9 @@ export function autoTapForManaAbilityCost(
     // The activating permanent can't fund its own activation cost.
     const sources = buildAutoTapSources(
         player.battlefield,
-        manaGateBattlefields(state)
+        manaGateBattlefields(state),
+        undefined,
+        state
     ).filter((s) => s.cardId !== card.id);
     const plan =
         solveAutoTap(player.manaPool, cost, substitutions, sources) ??
@@ -4225,7 +4227,9 @@ export const summonCompanion = mutation({
         const subs = getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(
             player.battlefield,
-            manaGateBattlefields(state)
+            manaGateBattlefields(state),
+            undefined,
+            state
         );
         // CR 106.6 (issue #3354) — the payment below already admits a
         // bare-rider unit (`payManaCostForSpell` with no spell types), so the
@@ -4374,7 +4378,9 @@ export function applyTurnPermanentFaceUp(
     const subs = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(
         player.battlefield,
-        manaGateBattlefields(state)
+        manaGateBattlefields(state),
+        undefined,
+        state
     );
     const tappedIds = new Set(plan.map((step) => step.cardId));
     for (const src of player.battlefield) {
@@ -8985,7 +8991,8 @@ export const autoTapForPayment = mutation({
         const sources = buildAutoTapSources(
             player.battlefield,
             manaGateBattlefields(state),
-            planContext
+            planContext,
+            state
         );
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
         // cover the cost, prefer the one that best preserves the paying
@@ -11229,7 +11236,9 @@ function chargeManaCostOrThrow(
     const subs = getManaSubstitutions(state, controllerId);
     const sources = buildAutoTapSources(
         payer.battlefield,
-        manaGateBattlefields(state)
+        manaGateBattlefields(state),
+        undefined,
+        state
     );
     const cost = normalizeManaCost(rawCost);
     // CR 106.6 (issue #3354) — "This doesn't affect the mana's type": a
@@ -11636,7 +11645,9 @@ export const autoTapForAttackTax = mutation({
         const subs = getManaSubstitutions(state, player.id);
         const sources = buildAutoTapSources(
             player.battlefield,
-            manaGateBattlefields(state)
+            manaGateBattlefields(state),
+            undefined,
+            state
         );
         const cost = normalizeManaCost(pending.cost);
         // Prefer a minimal full plan; fall back to the maximal-useful partial
