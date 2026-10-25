@@ -16,14 +16,21 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    resolveTriggerOrder,
 } from "../../__tests__/setup.helper";
+import { withTemporaryDefinition } from "../../registry";
 import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 import type {
     CardInstanceState,
     GameState,
     StackItem,
 } from "../../../gre/state";
-import { resolveTopOfStack } from "../../../gre/state";
+import {
+    flushPendingEvents,
+    processPendingActionTriggers,
+    removePermanentTo,
+    resolveTopOfStack,
+} from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { projectPublicState } from "../../../gameProjections";
 import { getCardByName, getDefinition } from "../..";
@@ -447,5 +454,95 @@ describe("Hierarch definitions carry the exalted keyword (issue #699)", () => {
             { R: 1 },
             { G: 1 },
         ]);
+    });
+});
+
+describe("Persist keyword expansion (CR 702.79)", () => {
+    const persister = (): CardDefinition => ({
+        ...expandedWith("persist"),
+        id: "synthetic-persister",
+        toughness: 2,
+    });
+
+    /** Kill through the production departure funnel, run the trigger. */
+    function killAndResolve(state: GameState, id: string): void {
+        removePermanentTo(state, id, "graveyard", "destroy");
+        processPendingActionTriggers(state);
+        resolveTriggerOrder(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+    }
+
+    function board(ownerId: string, controllerId: string) {
+        const card = makeInstance("synthetic-persister", {
+            id: "finks",
+            controllerId,
+            ownerId,
+            isSummoningSick: false,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: controllerId === "p1" ? [card] : [],
+                }),
+                makePlayer("p2", {
+                    battlefield: controllerId === "p2" ? [card] : [],
+                }),
+            ],
+        });
+    }
+
+    const onField = (state: GameState) =>
+        state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "finks");
+
+    it("injects a single self dies trigger from the bare keyword, idempotently", () => {
+        const def = persister();
+        expect(
+            def.triggeredAbilities?.filter((t) => t.id === "persist")
+        ).toHaveLength(1);
+        expect(
+            expandKeywordTriggers(def).triggeredAbilities?.filter(
+                (t) => t.id === "persist"
+            )
+        ).toHaveLength(1);
+    });
+
+    it("returns with one -1/-1 counter, then stays dead on the second death", () => {
+        withTemporaryDefinition(persister(), () => {
+            const state = board("p1", "p1");
+            killAndResolve(state, "finks");
+            const back = onField(state);
+            expect(back?.counters?.["-1/-1"]).toBe(1);
+            expect(getEffectiveToughness(state, back!)).toBe(1);
+
+            flushPendingEvents(state);
+            removePermanentTo(state, "finks", "graveyard", "destroy");
+            processPendingActionTriggers(state);
+            resolveTriggerOrder(state);
+            // CR 603.4 — never triggers at all with a -1/-1 counter.
+            expect(state.stack).toHaveLength(0);
+            expect(onField(state)).toBeUndefined();
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "finks")
+            ).toBe(true);
+        });
+    });
+
+    it("returns under its OWNER's control, not the last controller's", () => {
+        withTemporaryDefinition(persister(), () => {
+            const state = board("p1", "p2");
+            killAndResolve(state, "finks");
+            expect(onField(state)?.controllerId).toBe("p1");
+        });
+    });
+
+    it("a +1/+1 counter does not stop it (only -1/-1 counters do)", () => {
+        withTemporaryDefinition(persister(), () => {
+            const state = board("p1", "p1");
+            onField(state)!.counters = { "+1/+1": 2 };
+            killAndResolve(state, "finks");
+            expect(onField(state)?.counters?.["-1/-1"]).toBe(1);
+        });
     });
 });
