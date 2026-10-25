@@ -51914,6 +51914,7 @@
         {"id":"722.3a","line":"/** CR 722.3a — \"this creature enters prepared\": applied at each","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
         {"id":"722.3a","line":"/** CR 722.3a — `permanent` becomes prepared. Returns `false`, changing","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
         {"id":"722.3a","line":"/** CR 722.3a — persistent \"this permanent is PREPARED\" marker.","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
+        {"id":"722.3a","line":"/** CR 722.3a — the PREPARED designation (`CardInstanceState.prepared`):","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
         {"id":"722.3a","line":"/** CR 722.3a — the PREPARED designation: \"a designation that acts as a","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
         {"id":"722.3a","line":"// \"enters prepared\" entry rider (CR 722.3a) and the flicker the first","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
         {"id":"722.3a","line":"// * CR 722.3a — a permanent with a prepare spell may gain the PREPARED","sites":1,"status":"confirmed","ruleHash":"59050d7906c31599"},
