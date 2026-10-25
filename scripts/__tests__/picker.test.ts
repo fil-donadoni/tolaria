@@ -417,14 +417,11 @@ describe("planner — a deferred higher band reserves its files (issue #6897)", 
     it("an equal band on the same file is not held back", () => {
         const plan = planBatch(
             [issue(2), issue(3)],
-            {
-                ...CONFIG,
-                inFlight: [{ number: 1, files: ["convex/gre/layers.ts"] }],
-            },
+            { ...CONFIG, inFlight },
             prio(
                 {
-                    2: "convex/gre/layers.ts",
-                    3: "convex/cards/types.ts",
+                    2: "convex/cards/types.ts`\n- `convex/gre/layers.ts",
+                    3: "convex/gre/layers.ts",
                 },
                 { 2: "P1", 3: "P1" }
             )
