@@ -4150,6 +4150,18 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
     return false;
 }
 
+/** CR 603.3b's last sentence — "Then the appropriate player gets priority" —
+ *  once a trigger announcement that suspended (ordering, a mode, targets) has
+ *  landed every trigger on the stack: the active player, unless the batch was
+ *  raised by a special action the other player took, who then receives
+ *  priority afterward (CR 116.3, `GameState.priorityAfterTriggerAnnouncement`).
+ *  Clears that field: it names one landing, never a standing preference. */
+export function landTriggerAnnouncementPriority(state: GameState): void {
+    state.priorityPlayerId =
+        state.priorityAfterTriggerAnnouncement ?? state.activePlayerId;
+    delete state.priorityAfterTriggerAnnouncement;
+}
+
 /** CR 603.3d / 603.3c (issue #1193) — the whole announcement sweep for a
  *  triggered ability that has just gone on the stack: it raises the MODE
  *  announcement FIRST and the target selection second, so the name understates

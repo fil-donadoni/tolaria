@@ -166,6 +166,13 @@ export type TriggerHeadIR =
      */
     | { readonly kind: "attacks-unblocked" }
     /**
+     * CR 708.8 — "when this creature is turned face up": the source, a
+     * face-down permanent, turned face up on the battlefield (the morph
+     * special action, CR 702.37e). Self only: the event names the one
+     * permanent turned up.
+     */
+    | { readonly kind: "turned-face-up" }
+    /**
      * CR 701.26a — "whenever this land becomes tapped": the source itself
      * going from untapped to tapped, however it was tapped (a {T} cost, a
      * mana ability, an effect). Self only; "enchanted land is tapped for
@@ -539,6 +546,12 @@ export const SELF_HEADS: readonly {
         tail: " attacks and isn't blocked",
         ir: { kind: "attacks-unblocked" },
     },
+    // CR 708.8 — the source itself turned face up on the battlefield.
+    {
+        opener: "when ",
+        tail: " is turned face up",
+        ir: { kind: "turned-face-up" },
+    },
     // CR 701.26a — the source itself becoming tapped, by any means.
     {
         opener: "whenever ",
@@ -608,6 +621,9 @@ export function headPronounReferent(
             return "combatant";
         case "combat-damage-to-player":
         case "attacks-unblocked":
+            return "source";
+        // CR 708.8 — the permanent turned face up is the source itself.
+        case "turned-face-up":
             return "source";
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
         case "damage-dealt":

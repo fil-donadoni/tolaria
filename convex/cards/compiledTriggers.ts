@@ -48,6 +48,7 @@ import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
+import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
@@ -281,6 +282,8 @@ export type CompiledTriggerHead =
     | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
     /** CR 509.1h — "whenever this creature attacks and isn't blocked". */
     | { readonly kind: "attacks-unblocked" }
+    /** CR 708.8 — "when this creature is turned face up". Self only. */
+    | { readonly kind: "turned-face-up" }
     /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
     | { readonly kind: "tapped"; readonly scope: "self" }
     /** CR 702.29c — "when you cycle this card". */
@@ -688,6 +691,8 @@ export function resolveCompiledTrigger(
             });
         case "attacks-unblocked":
             return attackerUnblockedTrigger(common);
+        case "turned-face-up":
+            return turnedFaceUpTrigger(common);
         case "tapped":
             return tappedTrigger({ ...common, scope: head.scope });
         case "cycled":
