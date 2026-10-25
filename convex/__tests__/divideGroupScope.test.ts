@@ -1,4 +1,4 @@
-// CR 601.2d / 120.4 — the divide-as-you-choose budget belongs to the target
+// CR 601.2d — the divide-as-you-choose budget belongs to the target
 // group that declared it (issue #2910). A spell with a divide group AND an
 // `additionalTargetRequirements` group must split its budget across ONLY the
 // divide group's picks; the other group's target is owed no amount.
@@ -90,7 +90,7 @@ const pick = (
         { gameId: GAME_ID, playerId: "p1", ...args }
     );
 
-describe("divide budget is scoped to its own target group (CR 601.2d / 120.4, issue #2910)", () => {
+describe("divide budget is scoped to its own target group (CR 601.2d, issue #2910)", () => {
     it("assigns all 5 damage to the divide group's one creature; the opponent group takes none and gains 5 life", async () => {
         await withTemporaryDefinitionAsync(dividedPlusOpponent(), async () => {
             const harness = makeMutationCtx("p1", [gameStateSeed(board())]);
