@@ -31,6 +31,7 @@ import {
     PopoverTrigger,
     PopoverContent,
 } from "@/components/ui/popover";
+import OverflowNavLink from "./overflow-nav-link";
 
 export default function AppContextBar({
     title,
@@ -107,22 +108,17 @@ export default function AppContextBar({
                 <PopoverContent side="bottom" align="end" className="p-1">
                     <nav
                         aria-label="Overflow"
-                        className="flex min-w-40 flex-col"
+                        className="flex min-w-40 flex-col gap-[var(--menu-row-gap)]"
                     >
-                        <Link
-                            to="/"
-                            onClick={() => setOpen(false)}
-                            className="rounded-sm px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-parchment"
-                        >
+                        <OverflowNavLink to="/" onClick={() => setOpen(false)}>
                             Home
-                        </Link>
-                        <Link
+                        </OverflowNavLink>
+                        <OverflowNavLink
                             to="/limited"
                             onClick={() => setOpen(false)}
-                            className="rounded-sm px-3 py-1.5 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-parchment"
                         >
                             Limited
-                        </Link>
+                        </OverflowNavLink>
                     </nav>
                 </PopoverContent>
             </Popover>
