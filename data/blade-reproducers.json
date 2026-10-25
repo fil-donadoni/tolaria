@@ -112,6 +112,28 @@
         "libraryCount": 1
     },
     "as-enters creature type: names the opponent's tribe, not its own and not the alphabet": null,
+    "attack target: kills the planeswalker rather than chipping the player": {
+        "cards": [
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Garruk Wildspeaker",
+                "owner": "opp",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 3
+                }
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 3,
+        "libraryCount": 20
+    },
     "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla": null,
     "audit: cast-blink: Flickerwisp flickers its own Flametongue Kavu for the permanent kill": null,
     "battle cry: swings for exactly-lethal only the pump provides": {
