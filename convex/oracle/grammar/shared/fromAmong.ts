@@ -97,6 +97,20 @@ export const amongPickRule: Rule<AmongPickIR> = subGrammar(
     })
 );
 
+/**
+ * CR 205.2a + CR 608.2c — "For each card type, you may put a card of that type
+ * from among the revealed cards into your hand": one pick PER card type out of
+ * the revealed window, a card claimable by one type only. The words are fixed;
+ * a narrower category list ("for each color") is a different form.
+ */
+const TYPE_PICK =
+    /^For each card type, you may put a card of that type from among the revealed cards into your hand$/;
+
+/** True when the sentence is the per-card-type pick. */
+export function printsTypePick(span: string): boolean {
+    return TYPE_PICK.test(span);
+}
+
 /** True when the sentence prints a pick "from among" into the hand. */
 export function printsAmongPick(span: string): boolean {
     return PICK_REVEAL.test(span) || PICK_PUT.test(span);

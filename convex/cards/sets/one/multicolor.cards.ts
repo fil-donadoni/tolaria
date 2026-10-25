@@ -1,5 +1,5 @@
 // one — multicolor cards (ADR 0043 colour split).
-import { defineCard, type CardType } from "../../types";
+import { CARD_TYPES, defineCard } from "../../types";
 
 // Atraxa, Grand Unifier — {3}{G}{W}{U}{B} Legendary Creature, 7/7. "Flying,
 // vigilance, deathtouch, lifelink. When Atraxa enters, reveal the top ten
@@ -26,17 +26,6 @@ import { defineCard, type CardType } from "../../types";
 // card type (CR 205.2a) and this engine models it (`CardType`), so it is a
 // category here too — omitting it would silently under-deliver on a Kindred
 // card in the revealed window.
-const ATRAXA_CARD_TYPES = [
-    "Artifact",
-    "Battle",
-    "Creature",
-    "Enchantment",
-    "Instant",
-    "Kindred",
-    "Land",
-    "Planeswalker",
-    "Sorcery",
-] as const satisfies readonly CardType[];
 
 export const atraxaGrandUnifier = defineCard(() => ({
     id: "4a1f905f-1d55-4d02-9d24-e58070793d3f",
@@ -75,7 +64,7 @@ export const atraxaGrandUnifier = defineCard(() => ({
                     // "Put the rest on the bottom of your library in a RANDOM
                     // order" — no ordering pick, no knowledge granted.
                     randomBottom: true,
-                    categories: ATRAXA_CARD_TYPES.map((type) => ({
+                    categories: CARD_TYPES.map((type) => ({
                         label: type,
                         filter: { type },
                     })),

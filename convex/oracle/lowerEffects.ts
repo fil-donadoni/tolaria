@@ -38,7 +38,7 @@ import type {
     ManaCost,
     TargetRequirement,
 } from "../cards/types";
-import { PERMANENT_TYPES } from "../cards/types";
+import { CARD_TYPES, PERMANENT_TYPES } from "../cards/types";
 import { LAND_SUBTYPE_MANA } from "../gre/constants";
 import type { PermanentFilter } from "../cards/filters";
 import {
@@ -5899,6 +5899,25 @@ function lowerLookDistribute(
             reveal: sentence.reveal ? "window" : "kept",
         };
         return lowered([withLibraryRest(op, route.rest)]);
+    }
+    if (route.kind === "pick-per-type") {
+        // CR 205.2a + CR 608.2c — one keep per card type out of the revealed
+        // window; a card of several types is kept for only one of them.
+        const op: Extract<EffectOp, { op: "revealAndCategorize" }> = {
+            op: "revealAndCategorize",
+            player: "controller",
+            look: look.value,
+            reveal: "window",
+            optional: true,
+            categories: CARD_TYPES.map((type) => ({
+                label: type,
+                filter: { type },
+            })),
+            prompt: "Put up to one card of each card type into your hand.",
+        };
+        if (route.rest === "graveyard") op.destination = "graveyard";
+        if (route.rest === "bottom-random-order") op.randomBottom = true;
+        return lowered([op]);
     }
     const take = lowerAmount(route.count, site);
     if (!take.ok) return take;
