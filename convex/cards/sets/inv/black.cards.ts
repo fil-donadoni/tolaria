@@ -867,11 +867,12 @@ export const phyrexianDelver = defineCard(() => ({
 // a green creature, destroy that creature. It can't be regenerated." (CR
 // 509.1h becomes-blocked, CR 701.8 destroy, CR 701.19c regen suppression.)
 //
-// The trigger CONDITION depends on the blocker's effective colour (CR 202.2,
-// layer 5), read off the event's own `blockerColors` in `matches` (a plain
+// The trigger CONDITION depends on the blocker's effective colour (layer
+// 5), read off the event's own `blockerColors` in `matches` (a plain
 // `TriggeredAbility` field, orthogonal to the effect body) so the ability
 // doesn't even go on the stack when blocked by a non-green creature (CR
-// 603.2). The live `GameState` handed to `matches` carries no colours. `combatPairKillTrigger` doesn't fit — it destroys at END of combat
+// 603.2). The live `GameState` handed to `matches` carries no colours.
+// `combatPairKillTrigger` doesn't fit — it destroys at END of combat
 // (a delayed trigger) and has no color filter; this is an IMMEDIATE destroy,
 // one direction only ("becomes blocked by", not "blocks or becomes blocked
 // by"), matching Lim-Dûl's Cohort's precedent of declaring the
