@@ -13298,4 +13298,76 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 603.12 — "…sacrifice this artifact. When you do, <effect>": the
+    // reflexive ability announces its own target as it goes on the stack. The
+    // `if` over the sacrifice's bind reads a runtime binding, a form the canned
+    // smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c262e015-f379-484f-894f-1a1deb3c75cc",
+            name: "Smoke Bomb",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "Flash\nAll creatures have shroud. (They can't be the targets of spells or abilities.)\nAt the beginning of your upkeep, sacrifice this artifact. When you do, target creature you control can't be blocked this turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Smoke Bomb",
+            types: ["Artifact"],
+            manaCost: { X: 3 },
+            oracleText:
+                "Flash\nAll creatures have shroud. (They can't be the targets of spells or abilities.)\nAt the beginning of your upkeep, sacrifice this artifact. When you do, target creature you control can't be blocked this turn.",
+            staticAbilities: ["flash"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "smoke-bomb-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, sacrifice this artifact. When you do, target creature you control can't be blocked this turn.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "sacrifice",
+                            target: { ref: "$source" },
+                            bind: "$sacrificed1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                boundMatchesFilter: { ref: "$sacrificed1" },
+                                filter: {},
+                            },
+                            then: [
+                                {
+                                    op: "reflexiveTrigger",
+                                    oracleText:
+                                        "When you do, target creature you control can't be blocked this turn.",
+                                    targetRequirement: {
+                                        type: "Creature",
+                                        count: 1,
+                                        controller: "you",
+                                    },
+                                    effects: [
+                                        {
+                                            op: "restrictCombat",
+                                            restriction: "cant-be-blocked",
+                                            target: { target: 0 },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    filter: { types: ["Creature"] },
+                    keyword: "shroud",
+                },
+            ],
+        },
+    },
 ]);
