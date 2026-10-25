@@ -326,3 +326,22 @@ describe("docs-lane — the merge is the land-runner's, never the lane's (issue 
         expect(src).not.toMatch(/gh", \[\s*"pr",\s*"merge"/);
     });
 });
+
+describe("docs-lane — the CR ledger rides only as documentation's companion (issue #3749)", () => {
+    const LEDGER = "data/cr/citations-ledger.json";
+
+    it("carries docs + ledger", () => {
+        const r = classifyChanges(["docs/adr/0135-x.md", LEDGER]);
+        expect(r.foreign).toEqual([]);
+        expect(r.docs).toContain(LEDGER);
+    });
+
+    it("refuses the ledger alone", () => {
+        expect(classifyChanges([LEDGER]).foreign).toEqual([LEDGER]);
+    });
+
+    it("refuses the ledger beside a code path", () => {
+        const r = classifyChanges(["docs/a.md", LEDGER, "scripts/x.ts"]);
+        expect(r.foreign).toEqual([LEDGER, "scripts/x.ts"]);
+    });
+});
