@@ -3614,7 +3614,7 @@ function isRedirectEnd(value: unknown): boolean {
  *  filter?, excludeSource?, damagedBySourceThisGame? }` (`excludeSource` —
  *  issue #1957 — drops the resolving ability/spell's own source from the
  *  frozen member set; `damagedBySourceThisGame` keeps only what that source
- *  has dealt damage to, CR 120.3), `{ set:
+ *  has dealt damage to, CR 120.1), `{ set:
  *  "graveyard", controller?, filter? }`, or `{ set: "bound",
  *  ref }`. Unknown keys are rejected (the grammar is frozen; selector SHAPES
  *  may grow like vocabulary, but only by extending this checker). */
@@ -3674,7 +3674,7 @@ function isForEachSelector(value: unknown): boolean {
     if ("excludeSource" in s && typeof s.excludeSource !== "boolean") {
         return false;
     }
-    // CR 120.3 — the source's damage history (The Fallen).
+    // CR 120.1 — the source's damage history (The Fallen).
     if (
         "damagedBySourceThisGame" in s &&
         typeof s.damagedBySourceThisGame !== "boolean"

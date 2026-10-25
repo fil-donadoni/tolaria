@@ -5483,7 +5483,7 @@ export function recordSourceDamagedOpponent(
 }
 
 /** Records that the permanent `sourceInstanceId` dealt damage to the
- *  permanent `recipientId` (CR 120.3), on the source's game-long
+ *  permanent `recipientId` (CR 120.1), on the source's game-long
  *  `damagedPermanentsThisGame` history — each recipient once. Called by the
  *  permanent-source damage sinks after the damage lands (post replacement +
  *  prevention + protection). No-op when the source is not on the battlefield:

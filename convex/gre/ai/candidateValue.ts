@@ -863,7 +863,7 @@ function resolveForEachCountAgainstBoard(
                     ? matched.filter((c) => c.id !== sourceId)
                     : matched;
             if (!select.damagedBySourceThisGame) return members.length;
-            // CR 120.3 — the source's damage history; a card not yet on the
+            // CR 120.1 — the source's damage history; a card not yet on the
             // battlefield has damaged nothing, so it prices as empty.
             const damaged = sourceId
                 ? findPermanent(state, sourceId)?.damagedPermanentsThisGame

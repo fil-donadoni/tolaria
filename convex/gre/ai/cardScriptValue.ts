@@ -1360,7 +1360,7 @@ function isSymmetricSelector(select: unknown): boolean {
         sel.set === "players" ||
         (sel.set === "permanents" &&
             sel.controller === undefined &&
-            // CR 120.3 — the source's damage history is one-sided.
+            // CR 120.1 — the source's damage history is one-sided.
             sel.damagedBySourceThisGame !== true)
     );
 }
