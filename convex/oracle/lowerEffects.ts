@@ -2783,6 +2783,24 @@ function lowerSentenceBody(
                 op: "exile",
                 target: target.value,
             };
+            if (sentence.returnsToBattlefield === true) {
+                // CR 400.7 + CR 608.2h — the flicker: the exile binds the
+                // object it moved and the return reads that binding from
+                // exile (`from: "exile"`), never the target slot, whose
+                // object is gone. The returned permanent is a new object, so
+                // nothing later reads it as the acted-on target.
+                const bind = walk.nextBind("that");
+                exile.bind = bind;
+                return lowered([
+                    exile,
+                    {
+                        op: "moveZone",
+                        target: { ref: bind },
+                        from: "exile",
+                        to: "battlefield",
+                    },
+                ]);
+            }
             recordActedOn(walk, sentence.subject, exile);
             return lowered([exile]);
         }

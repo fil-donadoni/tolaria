@@ -185,6 +185,11 @@ import type {
 } from "./targetFilters";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import {
+    applyEntersPrepared,
+    onPhasedInPrepared,
+    onPreparedCopyCast,
+} from "./prepare";
+import {
     entryAbilitiesSuppressed,
     resolveEntersWithCounters,
 } from "../cards/entersWith";
@@ -4081,6 +4086,10 @@ function finalizeSpellResolution(
         // Escape (CR 702.138), Retrace (CR 702.81), or a graveyard-cast
         // permission — read by Twilight Diviner's "entered or were cast from a
         // graveyard".
+        // CR 722.3a — "enters prepared", applied as it enters (the
+        // `entersTapped` shape), so the CR 722.3c exiled copy exists before
+        // any ETB trigger is put on the stack.
+        applyEntersPrepared(state, item);
         emitPermanentEntered(state, item, {
             wasCast: true,
             enteredFromGraveyard: item.castFromZone === "graveyard",
@@ -7283,6 +7292,8 @@ export function phaseInBundle(state: GameState, bundleId: string): boolean {
     state.phasedOut = bundles.length > 0 ? bundles : undefined;
     for (const card of bundle.cards) {
         getPlayer(state, card.controllerId).battlefield.push(card);
+        // CR 722.3c — a permanent that "phases in prepared" makes a new copy.
+        onPhasedInPrepared(state, card);
     }
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): a phased-in
     // bundle is back on the battlefield and counts again (CR 702.26b).
@@ -7657,6 +7668,10 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // copied warp spell correctly counts as no warp at all.
     if (caster && item.warped)
         caster.spellsWarpedThisTurn = (caster.spellsWarpedThisTurn ?? 0) + 1;
+    // CR 722.3c / 601.2i — casting a prepare spell's exiled copy unprepares
+    // its permanent "at the time the spell becomes cast", which is this
+    // choke point.
+    onPreparedCopyCast(state, item);
     const event: SpellCastEvent = {
         type: "SPELL_CAST",
         casterId: item.castById,
@@ -9799,6 +9814,9 @@ function finishReanimatedEntry(
     // CR 603.6 — ETB notification for self-ETB triggers, matching the
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
+    // CR 722.3a — "enters prepared" (a blinked or reanimated preparation card
+    // is a new object, CR 400.7, and enters prepared again).
+    applyEntersPrepared(state, card);
     emitPermanentEntered(state, card, { enteredFromGraveyard });
 }
 
@@ -10006,6 +10024,8 @@ export function putReanimatedSetOnBattlefield(
     // ETB simultaneity is preserved: all grants settle, THEN every ETB fires.
     for (const card of staged) beginApplyingStaticEffects(state, card);
     for (const card of staged) applyExistingGrantsTo(state, card);
+    // CR 722.3a — "enters prepared", for each member of the batch.
+    for (const card of staged) applyEntersPrepared(state, card);
     for (const card of staged)
         emitPermanentEntered(state, card, { enteredFromGraveyard });
     return staged.map((c) => c.id);
@@ -19738,6 +19758,9 @@ function finishTokenEntry(
         // copiable characteristic on before the chokepoint, so there is nothing
         // left for a caller to defer this emit for (it superseded the
         // `deferEntryEvent` opt #2300 added for exactly that reason).
+        // CR 722.3a / 722.2b — a token copy of a preparation card has its
+        // prepare spell (copiable values) and so enters prepared too.
+        applyEntersPrepared(state, token);
         emitPermanentEntered(state, token);
     }
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token

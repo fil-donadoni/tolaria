@@ -14,6 +14,7 @@
  * input is never mutated (the function clones internally).
  */
 
+import { applyEntersPrepared, hasPrepareSpell } from "./prepare";
 import {
     FACE_DOWN_CARD_ID,
     getCardByName as getCatalogueCardByName,
@@ -1091,6 +1092,15 @@ export function buildStateFromScenario(
         const host = findHost(owner) ?? findHost(opp);
         if (host) aura.attachedTo = host.id;
     }
+
+    // CR 722.3a / 722.3c — a placed preparation card that "enters prepared"
+    // is staged prepared, with its exiled copy, exactly as declared entry
+    // counters are staged by default above. Run once every id is final: the
+    // copy links to its permanent's instance id. A face-down permanent has no
+    // prepare spell (CR 708.2) and is skipped by `applyEntersPrepared` itself.
+    for (const pl of state.players)
+        for (const permanent of [...pl.battlefield])
+            applyEntersPrepared(state, permanent);
 
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into the requested slot. Mirrors `buildCompanionInstance`'s shape
@@ -2432,6 +2442,10 @@ function nameableCards(
     dropped: string[]
 ): CardInstanceState[] {
     return cards.filter((card) => {
+        // CR 722.3c — a prepare spell's exiled copy is not a card a spec
+        // places: the builder re-creates it from its prepared permanent
+        // (`applyEntersPrepared`), so lowering it would stage two.
+        if (card.preparedCopyOf !== undefined) return false;
         if (!hidesIdentity(card)) return true;
         const what = zone === "battlefield" ? "permanent" : "card";
         const where = zone === "battlefield" ? owner : `${owner}, ${zone}`;
@@ -4976,6 +4990,20 @@ export function specFromState(
 
     const dropped: string[] = [];
     const cards: ScenarioCard[] = [];
+
+    // CR 722.3b — the builder stages every "enters prepared" card prepared,
+    // so a spec cannot say one has already been unprepared.
+    for (const p of [me, opp])
+        for (const card of p.battlefield)
+            if (
+                card.prepared !== true &&
+                hasPrepareSpell(card) &&
+                tryGetDefinition((card.card as { id?: string }).id ?? "")
+                    ?.entersPrepared === true
+            )
+                dropped.push(
+                    `an unprepared preparation card (${p === me ? "me" : "opp"}) — the builder stages it prepared, with its exiled copy (CR 722.3a/b); the unprepared state is not lowered`
+                );
 
     for (const zone of ["battlefield", "graveyard", "exile"] as const) {
         for (const card of nameableCards(

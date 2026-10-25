@@ -20619,6 +20619,14 @@ export interface CardDefinition {
     resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
+    /** CR 722.3a — "This creature enters prepared." The permanent gains the
+     *  `prepared` designation as it enters, which in turn makes its
+     *  controller create the CR 722.3c exiled copy of its prepare spell
+     *  (`gre/prepare.ts`). Meaningful only beside an `insetSpell` of kind
+     *  `"prepare"`: CR 722.3a — "a permanent can't gain this designation
+     *  unless it has a prepare spell". Applied at every battlefield-entry
+     *  site through `applyEntersPrepared`, the `entersTapped` shape. */
+    entersPrepared?: boolean;
     /** CR 614.1c self-conditional replacement: this permanent enters the
      *  battlefield tapped UNLESS the predicate returns true — the fast-land /
      *  check-land / "unless it's your Nth turn" shape (Botanical Sanctum

@@ -1395,6 +1395,27 @@ export type CardInstanceState = {
      *  wherever `castableFromExileBy` is cleared (the SAME permission window).
      *  Persisted so the restriction survives a DB round-trip. */
     castFromExileNotAsAdventure?: boolean;
+    /** CR 722.3a — the PREPARED designation: "a designation that acts as a
+     *  marker which rules and effects can identify". Set only on a battlefield
+     *  permanent that has a prepare spell (`becomePrepared`, `gre/prepare.ts`),
+     *  never twice (CR 722.3a: "a permanent can't gain this designation if the
+     *  permanent already has it"), and removed by CR 722.3b's "unprepared" —
+     *  which casting the exiled copy does at CR 601.2i. Public (it is a marker
+     *  on a public object) and rendered on the board. Cleared on a zone change
+     *  (CR 400.7: the new object has no designation); survives phasing, which
+     *  is not a zone change (CR 702.26) — a permanent "phases in prepared". */
+    prepared?: boolean;
+    /** CR 722.3c — on the EXILED COPY of a prepare spell: the instance id of
+     *  the prepared permanent it was created for. The copy "remains in exile
+     *  for as long as the prepared permanent remains on the battlefield and
+     *  has the prepared designation", and "the prepared permanent's
+     *  controller may cast the copy" — both read through this link by
+     *  `checkPreparedCopySBA` (`gre/prepare.ts`), which keeps
+     *  `castableFromExileBy` pointed at the permanent's CURRENT controller
+     *  and lets the copy cease to exist (CR 704.5e) once the link is broken.
+     *  Consumed as the copy becomes cast (CR 601.2i, `onPreparedCopyCast`),
+     *  which unprepares the permanent and marks the spell `isCopy`. */
+    preparedCopyOf?: string;
     /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3, with the
      *  waiver's own CR 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
      *  the discarded card without paying its mana cost"). The graveyard-zone

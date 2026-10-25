@@ -128,6 +128,7 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
  */
 const SUPPORTED_INSET_LAYOUTS: Record<string, InsetSpellKind> = {
     adventure: "adventure",
+    prepare: "prepare",
 };
 
 /** The inverse of {@link SUPPORTED_INSET_LAYOUTS} — the Scryfall layout string

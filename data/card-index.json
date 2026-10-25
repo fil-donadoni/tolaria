@@ -420,6 +420,16 @@
         "source": "compiled"
     },
     {
+        "name": "Acrobatic Maneuver",
+        "scryfallId": "74f92174-f38f-4623-a5f7-f5be7f7dcc9d",
+        "oracleId": "1aa1cf50-ee79-4bef-826b-5f1a9e1aa1a5",
+        "firstSet": "kld",
+        "firstPrintId": "74f92174-f38f-4623-a5f7-f5be7f7dcc9d",
+        "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Active Volcano",
         "scryfallId": "ad402e65-6fac-4005-a2d4-592983df0c30",
         "oracleId": "205ffa76-ff8e-4405-b21a-42358a9883c2",
@@ -544,6 +554,16 @@
         "firstSet": "leg",
         "firstPrintId": "32865e68-5842-4f17-b2ea-4ffa743b511f",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Adventurous Eater // Have a Bite",
+        "scryfallId": "d40cc7da-c731-418e-8547-7033d1939450",
+        "oracleId": "02125db4-4507-467a-ac0c-406de2c7d533",
+        "firstSet": "sos",
+        "firstPrintId": "d40cc7da-c731-418e-8547-7033d1939450",
+        "firstPrintSet": "sos",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Adventurous Impulse",
@@ -6408,6 +6428,16 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Blazing Firesinger // Seething Song",
+        "scryfallId": "3ba971e7-0b7a-4750-896f-7cf063e66b2a",
+        "oracleId": "1bf505a7-292e-4642-83b6-8ff41ebe5d51",
+        "firstSet": "sos",
+        "firstPrintId": "3ba971e7-0b7a-4750-896f-7cf063e66b2a",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blazing Rootwalla",
         "scryfallId": "4404fc9c-ef02-479c-9638-0cc163f0b48f",
         "oracleId": "d43f5977-0532-4653-bc57-ce29f9a531c9",
@@ -7186,6 +7216,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blossom-Blessed Angel // Seed Suture",
+        "scryfallId": "5e77fbf0-9d1f-4e7d-a02e-43065d11b0d9",
+        "oracleId": "cd61c26b-8d3c-4730-92f2-0d94d961bafd",
+        "firstSet": "fra",
+        "firstPrintId": "5e77fbf0-9d1f-4e7d-a02e-43065d11b0d9",
+        "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blossoming Sands",
         "scryfallId": "a32a1c0b-f6ea-475a-aa01-3618ea7d8647",
         "oracleId": "45429b2c-be3b-4b2e-9bab-a059ccbda8cd",
@@ -7246,6 +7286,16 @@
         "firstSet": "lea",
         "firstPrintId": "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Blur",
+        "scryfallId": "77a43413-3ab0-4ef6-83de-192a11d48f00",
+        "oracleId": "00b36996-43c6-42a5-892c-c7c8864cf973",
+        "firstSet": "clb",
+        "firstPrintId": "77a43413-3ab0-4ef6-83de-192a11d48f00",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Blur of Blades",
@@ -9742,6 +9792,16 @@
         "source": "compiled"
     },
     {
+        "name": "Carnivorous Cultivator // Enroot",
+        "scryfallId": "79dd5c54-5ea5-47b5-8f9b-50ed57a5ea45",
+        "oracleId": "db655c5a-06f6-42bc-8180-d9ca1c1d939a",
+        "firstSet": "fra",
+        "firstPrintId": "79dd5c54-5ea5-47b5-8f9b-50ed57a5ea45",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Carnivorous Moss-Beast",
         "scryfallId": "bd814ce3-9555-4e9d-a212-e40717f4e546",
         "oracleId": "32f5f67b-bba3-427c-ab24-13a50acdc611",
@@ -11024,6 +11084,16 @@
         "firstSet": "iko",
         "firstPrintId": "4a0e12f5-7b15-4a8c-b045-35bcbf1fbb90",
         "firstPrintSet": "iko",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cheerful Osteomancer // Raise Dead",
+        "scryfallId": "3c34660c-25e3-4ff5-9b2b-5554ded2bcc3",
+        "oracleId": "fd01229f-1c4c-4ad1-bc6f-4023f24d8c71",
+        "firstSet": "sos",
+        "firstPrintId": "3c34660c-25e3-4ff5-9b2b-5554ded2bcc3",
+        "firstPrintSet": "sos",
         "rarity": "common",
         "source": "compiled"
     },
@@ -20372,6 +20442,16 @@
         "source": "compiled"
     },
     {
+        "name": "Emergency Phytomedic // Seed Suture",
+        "scryfallId": "de94d388-919d-44ff-baef-8c90a417ac6d",
+        "oracleId": "7737ccdc-49f2-463e-8ffd-43ab98d11f45",
+        "firstSet": "fra",
+        "firstPrintId": "de94d388-919d-44ff-baef-8c90a417ac6d",
+        "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Emergency Weld",
         "scryfallId": "ec94d440-3922-4588-bf7b-d8670f81ef4e",
         "oracleId": "86b0e978-5b4e-4bb7-bfda-be899c632d8e",
@@ -24153,6 +24233,16 @@
         "firstPrintId": "f2726d3c-c182-4d8a-a723-0de2c5c4b152",
         "firstPrintSet": "m14",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Flicker of Fate",
+        "scryfallId": "59e19bac-176c-4e37-bfc8-27c00de7c37f",
+        "oracleId": "d5b9d250-92f5-40d8-b962-4ae4adb466c8",
+        "firstSet": "thb",
+        "firstPrintId": "59e19bac-176c-4e37-bfc8-27c00de7c37f",
+        "firstPrintSet": "thb",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -33706,6 +33796,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Infirmary Healer // Stream of Life",
+        "scryfallId": "911442e3-3003-4683-a766-e791e9553667",
+        "oracleId": "4cbbdebc-b807-4d7b-92dd-312637d2a5de",
+        "firstSet": "sos",
+        "firstPrintId": "911442e3-3003-4683-a766-e791e9553667",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Infuriate",
         "scryfallId": "7ac778f6-8997-47ee-a676-3eb9f8d1592f",
         "oracleId": "d23119ca-73d1-4a48-a8d0-dab8919d891f",
@@ -37482,6 +37582,16 @@
         "source": "compiled"
     },
     {
+        "name": "Landscape Painter // Vibrant Idea",
+        "scryfallId": "c0bd30c4-3cdf-4eda-8be5-0fb5e5ddddbf",
+        "oracleId": "5ba7abbc-f6e8-40c2-800b-11efd10cca5b",
+        "firstSet": "sos",
+        "firstPrintId": "c0bd30c4-3cdf-4eda-8be5-0fb5e5ddddbf",
+        "firstPrintSet": "sos",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Languish",
         "scryfallId": "d3593efa-0a05-4061-9f6e-edd0a5ca9a1f",
         "oracleId": "ef1a83f2-6707-41a2-b5ed-861c8e45ae07",
@@ -39716,6 +39826,16 @@
         "firstSet": "arb",
         "firstPrintId": "21d4fd58-2052-4f97-b634-f89e2139d980",
         "firstPrintSet": "arb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Maelstrom Artisan // Rocket Volley",
+        "scryfallId": "5c88391d-271f-4021-a5d9-158ebc1e6357",
+        "oracleId": "03931270-504a-4b0b-af3f-918bf124ea07",
+        "firstSet": "sos",
+        "firstPrintId": "5c88391d-271f-4021-a5d9-158ebc1e6357",
+        "firstPrintSet": "sos",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -43198,6 +43318,16 @@
         "firstSet": "rix",
         "firstPrintId": "08be8c18-eca3-4960-b174-e4a78579ed63",
         "firstPrintSet": "rix",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Momentary Blink",
+        "scryfallId": "032e072a-0630-472b-9106-5df554dff785",
+        "oracleId": "a3ec6b5d-08ec-4ae0-b1db-c4b87a1849c7",
+        "firstSet": "tsp",
+        "firstPrintId": "032e072a-0630-472b-9106-5df554dff785",
+        "firstPrintSet": "tsp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -57766,6 +57896,16 @@
         "source": "compiled"
     },
     {
+        "name": "Scrollshift",
+        "scryfallId": "6fc278d1-2ea4-4fbc-95cd-a9cd48c3c630",
+        "oracleId": "9f762b9f-7525-4ff8-bc1d-fbab66fd4013",
+        "firstSet": "mom",
+        "firstPrintId": "6fc278d1-2ea4-4fbc-95cd-a9cd48c3c630",
+        "firstPrintSet": "mom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Scrounger of Souls",
         "scryfallId": "3d66f3c4-5a11-4e28-a4ae-673b3b36d3ec",
         "oracleId": "23dd6d4a-d933-4328-8d09-75f7908ae347",
@@ -61444,6 +61584,24 @@
         "source": "compiled"
     },
     {
+        "name": "Skycoach Conductor",
+        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
+        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
+        "firstSet": "sos",
+        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
+        "firstPrintSet": "sos"
+    },
+    {
+        "name": "Skycoach Conductor // All Aboard",
+        "scryfallId": "4ecbca71-9a1d-44c5-b709-d6f565941d5e",
+        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
+        "firstSet": "sos",
+        "firstPrintId": "4ecbca71-9a1d-44c5-b709-d6f565941d5e",
+        "firstPrintSet": "sos",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Skycrash",
         "scryfallId": "87e82be6-d2b4-4c95-8466-477e8c6832e9",
         "oracleId": "2343ebff-edf4-4132-ad9e-7800f8014072",
@@ -63484,6 +63642,16 @@
         "firstSet": "ala",
         "firstPrintId": "d6870203-ece9-4fe0-912b-2dcf685f3eb0",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spellbook Seeker // Careful Study",
+        "scryfallId": "cc44eaa4-59a4-419e-b1d1-d92f354ff588",
+        "oracleId": "df5e4100-8c83-42d6-af96-1a1ec84a9210",
+        "firstSet": "sos",
+        "firstPrintId": "cc44eaa4-59a4-419e-b1d1-d92f354ff588",
+        "firstPrintSet": "sos",
         "rarity": "common",
         "source": "compiled"
     },
@@ -66078,6 +66246,16 @@
         "source": "compiled"
     },
     {
+        "name": "Studious First-Year // Rampant Growth",
+        "scryfallId": "24f888dd-785c-4089-a89c-03f9080130ed",
+        "oracleId": "58b0c737-0a84-4f9a-b3b7-300c5de43874",
+        "firstSet": "sos",
+        "firstPrintId": "24f888dd-785c-4089-a89c-03f9080130ed",
+        "firstPrintSet": "sos",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Stun",
         "scryfallId": "c09c0da6-37a7-42ba-b264-18898ee372f0",
         "oracleId": "d3491972-44c5-4962-a680-42b79357a189",
@@ -68212,6 +68390,16 @@
         "firstSet": "leg",
         "firstPrintId": "18f86e13-f942-423e-b175-930d768cb811",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Teleportation Circle",
+        "scryfallId": "90140bc0-4a9c-4422-b07c-3400c7ccde56",
+        "oracleId": "c786a0aa-d86f-42c3-a7ea-5cb6ab72b5ec",
+        "firstSet": "afr",
+        "firstPrintId": "90140bc0-4a9c-4422-b07c-3400c7ccde56",
+        "firstPrintSet": "afr",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Tempest Drake",
@@ -75099,6 +75287,16 @@
         "firstPrintId": "a1523cda-c47d-4419-a5d3-fd6ed9867c56",
         "firstPrintSet": "iko",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Void Extrapolator // Omit Variables",
+        "scryfallId": "0eae2efb-bf25-48ee-9c07-9098008110ad",
+        "oracleId": "517f84b5-cf99-410d-96ea-910740231dac",
+        "firstSet": "fra",
+        "firstPrintId": "0eae2efb-bf25-48ee-9c07-9098008110ad",
+        "firstPrintSet": "fra",
+        "rarity": "common",
         "source": "compiled"
     },
     {

@@ -440,6 +440,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 715.3 Adventure reachability. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape (as for overload / dash). Also the end-to-end cover for the `suppressDamagePrevention` Op inside Stomp's script.",
     },
     {
+        // PREPARATION reachability (CR 722.3c). The bot controls a PREPARED
+        // Skycoach Conductor — the builder stages "enters prepared" with its
+        // exiled copy of All Aboard — one Island, and a Flametongue Kavu; the
+        // opponent has a Serra Angel. Casting the copy flickers the Kavu: it
+        // returns as a new object (CR 400.7) and its enters trigger deals 4
+        // damage to the Angel. Passing leaves the Angel alive and the copy
+        // unused; nothing else on the board costs {U}.
+        //
+        // The claim is REACHABILITY of the copy's cast: a card in exile whose
+        // `card.id` is a twin, castable only through `castableFromExileBy`.
+        // A seam that dropped it — the non-hand cast enumeration, the twin's
+        // targeting or timing, the CR 601.2i unprepare — makes the bot pass.
+        label: "preparation: casts the prepare spell's exiled copy to re-buy an enters trigger",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Skycoach Conductor",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Flametongue Kavu", owner: "me", zone: "battlefield" },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "All Aboard",
+                    target: "Flametongue Kavu",
+                },
+            ],
+        },
+        note: "CR 722.3c prepare-copy cast reachability: the copy is matched by the prepare spell's own name, which resolves to the registered twin the exiled instance carries.",
+    },
+    {
         // MDFC LAND-PLAY reachability (CR 712.12, ADR 0122, issue #3311). The
         // bot's main phase, an empty board, and ONE card in hand: Sink into
         // Stupor — whose printed type line says Instant. Its land face is the

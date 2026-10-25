@@ -195,6 +195,8 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromExileFromTurn: 22,
         castFromExileWithoutPayingManaCost: true,
         castFromExileNotAsAdventure: true,
+        prepared: true,
+        preparedCopyOf: "perm-722",
         castableFromGraveyardBy: "p1",
         castableFromGraveyardUntilTurn: 23,
         castFromGraveyardWithoutPayingManaCost: true,
