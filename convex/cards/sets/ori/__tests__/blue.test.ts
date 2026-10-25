@@ -286,7 +286,6 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
         // alone would leave the two halves passing individually and failing
         // together (CR 702.34a's Flashback exile shares this seam).
         expect(graveyardCastStackFlags(state, granted, "graveyard")).toEqual({
-            castFromGraveyard: true,
             exileOnResolve: true,
         });
 

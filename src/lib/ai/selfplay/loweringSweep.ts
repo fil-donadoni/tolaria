@@ -288,7 +288,7 @@ export function classifyStackObject(
             ? "triggered ability"
             : item.abilityId
               ? "activated ability"
-              : item.castFromGraveyard
+              : item.castFromZone === "graveyard"
                 ? "spell (cast from a graveyard)"
                 : "spell";
     const copy = item.isCopy ? "copy of a " : "";

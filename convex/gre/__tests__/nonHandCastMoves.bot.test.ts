@@ -667,7 +667,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
     const stackItem = (s: GameState, id: string) =>
         s.stack.find((it) => it.id === id);
 
-    it("FLASHBACK (CR 702.34a): leaves the graveyard and is stamped exileOnResolve + castFromGraveyard", () => {
+    it("FLASHBACK (CR 702.34a): leaves the graveyard and is stamped exileOnResolve + castFromZone graveyard", () => {
         const bolt = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
@@ -689,7 +689,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         // asserted there UNCONDITIONALLY — an `if (item)` guard would pass
         // vacuously the day the item stops being pushed at all.
         const item = stackItem(tree, "gyBolt")!;
-        expect(item.castFromGraveyard).toBe(true);
+        expect(item.castFromZone).toBe("graveyard");
         // The flag that BOUNDS the line: without it the tree models a
         // flashback card as infinitely recastable.
         expect(item.exileOnResolve).toBe(true);
@@ -707,7 +707,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         ).toBe(false);
     });
 
-    it("PER-CARD GRANT (CR 601.3): castFromGraveyard, and NOT exileOnResolve", () => {
+    it("PER-CARD GRANT (CR 601.3): castFromZone graveyard, and NOT exileOnResolve", () => {
         const bears = makeInstance(grizzlyBears().id, {
             id: "gyBears",
             zone: "graveyard",
@@ -727,7 +727,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         const move = castOf(state, "p1", "gyBears")!;
         const { tree } = applyBoth(state, "p1", move);
         const item = stackItem(tree, "gyBears")!;
-        expect(item.castFromGraveyard).toBe(true);
+        expect(item.castFromZone).toBe("graveyard");
         expect(item.exileOnResolve).toBeUndefined();
         expect(item.escaped).toBeUndefined();
     });
@@ -759,7 +759,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         const item = stackItem(tree, "exiledBolt")!;
         expect(item.castById).toBe("p1");
         // An exile cast is not a graveyard cast: no graveyard flags.
-        expect(item.castFromGraveyard).toBeUndefined();
+        expect(item.castFromZone).toBe("exile");
         expect(item.exileOnResolve).toBeUndefined();
     });
 

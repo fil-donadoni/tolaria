@@ -170,7 +170,7 @@ describe("Retrace — Bot visibility (CR 702.81a)", () => {
         // cast-from-graveyard with NO exile-on-resolve, as retrace (CR 702.81a) requires.
         expect(p1.graveyard.some((c) => c.id === "gyBolt")).toBe(false);
         const item = state.stack.find((s) => s.id === "gyBolt")!;
-        expect(item.castFromGraveyard).toBe(true);
+        expect(item.castFromZone).toBe("graveyard");
         expect(item.exileOnResolve).toBeUndefined();
     });
 

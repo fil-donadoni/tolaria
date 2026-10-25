@@ -70,7 +70,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
                 makePlayer("p2"),
             ],
         });
-        // Cast from hand (no castFromGraveyard flag).
+        // Cast from hand (castFromZone: hand).
         state.stack.push({
             ...makeInstance(sevinnesReclamation.id, {
                 id: "sev",
@@ -106,7 +106,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
                 makePlayer("p2"),
             ],
         });
-        // Flashed back — castFromGraveyard set (as the cast commit would stamp it).
+        // Flashed back — castFromZone graveyard (as the cast commit would stamp it).
         state.stack.push({
             ...makeInstance(sevinnesReclamation.id, {
                 id: "sev2",
@@ -115,7 +115,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
                 ownerId: "p1",
             }),
             castById: "p1",
-            castFromGraveyard: true,
+            castFromZone: "graveyard",
             exileOnResolve: true,
             targets: [
                 { type: "graveyard-card", id: "gy-bear-3", playerId: "p1" },
@@ -164,7 +164,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
                 makePlayer("p2"),
             ],
         });
-        // Flashed back — castFromGraveyard + exileOnResolve set (as the cast
+        // Flashed back — castFromZone graveyard + exileOnResolve set (as the cast
         // commit stamps them for a flashback cast, CR 702.34).
         state.stack.push({
             ...makeInstance(sevinnesReclamation.id, {
@@ -174,7 +174,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
                 ownerId: "p1",
             }),
             castById: "p1",
-            castFromGraveyard: true,
+            castFromZone: "graveyard",
             exileOnResolve: true,
             targets: [
                 { type: "graveyard-card", id: "gy-bear-A", playerId: "p1" },
@@ -211,7 +211,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
         // inherit the flashback cast-provenance flags. If it did, the copy's
         // step-1 wasCastFromGraveyard() would read true and spawn another copy →
         // unbounded copies.
-        expect(copy.castFromGraveyard).not.toBe(true);
+        expect(copy.castFromZone).toBeUndefined();
         expect(copy.exileOnResolve).not.toBe(true);
 
         // Retarget the copy at bear B and clear the copy-retarget pendingTarget,

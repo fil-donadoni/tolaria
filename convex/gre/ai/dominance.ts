@@ -766,6 +766,9 @@ export function applyProbeCast(
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
         ...announcedModeFields(move),
+        // CR 601.2a — Cast Provenance: the probe only casts from hand, and
+        // stamps it as every real cast commit does.
+        castFromZone: "hand",
         // CR 307.1 / 117.1a / 601.3a (issue #2473) — the third
         // build-a-spell-StackItem-and-push site. This probe produces no
         // persisted state, but its whole contract (see the doc comment above)
