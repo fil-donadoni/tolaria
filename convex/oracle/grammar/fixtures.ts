@@ -11751,6 +11751,213 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Verb Frames (CR 701.21a, CR 603.2) — the `sacrifice` frame's edict
+    // read off the phase event's player, "that player sacrifices an artifact
+    // of their choice": the seat is the upkeep's owner, `$event.activePlayerId`.
+    // Exhibits the `choice` whose player is that runtime event binding, which
+    // the canned smoke scenario cannot name (issue #4171).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d7c8b636-b7ff-446d-aa51-516e2cfe2730",
+            name: "Molder Slug",
+            manaCost: "{3}{G}{G}",
+            typeLine: "Creature — Slug Beast",
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices an artifact of their choice.",
+            power: "4",
+            toughness: "6",
+            layout: "normal",
+        },
+        expected: {
+            name: "Molder Slug",
+            types: ["Creature"],
+            subtypes: ["Slug", "Beast"],
+            manaCost: { X: 3, G: 2 },
+            power: 4,
+            toughness: 6,
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices an artifact of their choice.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "molder-slug-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player sacrifices an artifact of their choice.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "battlefield",
+                            filter: { type: "Artifact" },
+                            count: 1,
+                            prompt: "Sacrifice an artifact.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 603.2 — the same edict over a type list, "an artifact,
+    // creature, or land": a different `choice` filter, hence its own form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d85aa59b-c6aa-4b2f-885c-59d6e5e6e8b9",
+            name: "Braids, Cabal Minion",
+            manaCost: "{2}{B}{B}",
+            typeLine: "Legendary Creature — Human Minion",
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices an artifact, creature, or land of their choice.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Braids, Cabal Minion",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Human", "Minion"],
+            manaCost: { X: 2, B: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices an artifact, creature, or land of their choice.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "braids-cabal-minion-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player sacrifices an artifact, creature, or land of their choice.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "battlefield",
+                            filter: { type: ["Artifact", "Creature", "Land"] },
+                            count: 1,
+                            prompt: "Sacrifice an artifact, creature, or land.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 603.2 — the same edict over a colour-qualified
+    // permanent, "a green or white permanent": the filter carries a colour
+    // list beside the permanent-type list.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d0e6203b-cef2-470f-8c79-7b139290e2d5",
+            name: "Dystopia",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Cumulative upkeep—Pay 1 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of each player's upkeep, that player sacrifices a green or white permanent of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dystopia",
+            types: ["Enchantment"],
+            manaCost: { X: 1, B: 2 },
+            oracleText:
+                "Cumulative upkeep—Pay 1 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of each player's upkeep, that player sacrifices a green or white permanent of their choice.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "dystopia-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player sacrifices a green or white permanent of their choice.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "battlefield",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                color: ["G", "W"],
+                            },
+                            count: 1,
+                            prompt: "Sacrifice a green or white permanent.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+            cumulativeUpkeep: { life: 1 },
+        },
+    },
+    // CR 701.9a + CR 603.2 — "that player discards a card" off the same
+    // phase event: the `choice` is a hand pick (`discard-hand`), the discard
+    // consuming its binding.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "db25d48e-e5eb-4364-9d7a-f9757ee4ccbe",
+            name: "Necrogen Mists",
+            manaCost: "{2}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of each player's upkeep, that player discards a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Necrogen Mists",
+            types: ["Enchantment"],
+            manaCost: { X: 2, B: 1 },
+            oracleText:
+                "At the beginning of each player's upkeep, that player discards a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "necrogen-mists-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player discards a card.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card.",
+                            bind: "$discard1",
+                        },
+                        {
+                            op: "discard",
+                            player: { ref: "$event.activePlayerId" },
+                            cards: { ref: "$discard1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // Verb Frames (issue #6630, CR 701.21a, CR 101.4, CR 107.3) — the
     // `sacrifice` frame's "X" quantity under "each player": every player
     // picks X of their own lands in APNAP order, the picks sacrificed
