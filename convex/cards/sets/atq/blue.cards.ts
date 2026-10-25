@@ -92,7 +92,7 @@ export const reconstruction = defineCard(() => ({
 // everything, CR 702.16b, and shroud, CR 702.18, screen it out like any
 // player target) and the artifact cards, whose group carries
 // `zoneOwnerOfPriorPlayerTarget` so only THAT player's graveyard is offered
-// (CR 601.2c, CR 404.1). "Any number" includes zero cards.
+// (CR 601.2c, CR 404.1).
 //
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since
@@ -112,7 +112,7 @@ export const drafnasRestoration = defineCard(() => ({
     additionalTargetRequirements: [
         {
             type: "Artifact",
-            count: { min: 0 },
+            count: { min: 1 },
             zone: "graveyard",
             controller: "any",
             zoneOwnerOfPriorPlayerTarget: true,
