@@ -181,6 +181,9 @@ export const CARD_FIELD_LIFECYCLE = {
     copyExcept:                 { codec: "scalar",  reset: NONE },
     copiedFrom:                 { codec: "scalar",  reset: NONE },
     copyOptions:                { codec: "scalar",  reset: NONE },
+    // Withdrawn (identity restored) by `withdrawFullText` before every
+    // identity swap and on the way off the battlefield (`revertCopy`).
+    fullTextAnchor:             { codec: "scalar",  reset: NONE },
     timedCopyEffects:           { codec: "scalar",  reset: NONE },
     // `{}` IS the override (Eternalize / Embalm), so presence, not truthiness.
     manaCostOverride:           { codec: "defined", reset: NONE },

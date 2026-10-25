@@ -56,7 +56,8 @@ function manifestIdOf(cardId: string | undefined): string | undefined {
 
 /** Every definition id `card` can present: its current one, and each printed
  *  card it stands in for — an Adventure's or split half's parent, a
- *  transformed permanent's front, and (to its controller only, it is hidden
+ *  transformed permanent's front, the card under a full-text effect, and (to
+ *  its controller only, it is hidden
  *  from everyone else) a face-down card's real identity. */
 function cardDefinitionIds(
     card: Omit<CardInstanceState, "chosenModeId">,
@@ -67,6 +68,8 @@ function cardDefinitionIds(
         card.adventureOf,
         card.splitHalfOf,
         card.transformedFrom,
+        // CR 612.6 — the layer-1 card behind a full-text effect.
+        card.fullTextAnchor?.underlyingDefId,
         card.controllerId === viewerId ? card.faceDownOf : undefined,
     ];
 }

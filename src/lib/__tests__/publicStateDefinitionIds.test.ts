@@ -123,4 +123,23 @@ describe("publicStateDefinitionIds", () => {
             "split",
         ]);
     });
+
+    it("includes the card under a full-text effect (CR 612.6)", () => {
+        expect(
+            publicStateDefinitionIds({
+                players: [
+                    player({
+                        battlefield: [
+                            {
+                                card: { id: "shown-creature" },
+                                fullTextAnchor: {
+                                    underlyingDefId: "shapeshifter",
+                                },
+                            } as never,
+                        ],
+                    }),
+                ],
+            })
+        ).toEqual(["shown-creature", "shapeshifter"]);
+    });
 });

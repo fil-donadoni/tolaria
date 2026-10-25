@@ -455,6 +455,13 @@ export interface CardInstance {
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */
     copiedFrom?: string;
+    /** Full-text effect anchor (CR 612.6). When set, `card.id` carries the
+     *  card whose full text this permanent has; the anchor holds the layer-1
+     *  identity underneath. Mirrors `CardInstanceState.fullTextAnchor`. */
+    fullTextAnchor?: {
+        underlyingDefId: string;
+        underlyingImagePrintId?: string;
+    };
     /** The copier's own print before it became a copy; the preview's
      *  "original version" renders it. Mirrors
      *  `CardInstanceState.preCopyImagePrintId`. */
