@@ -12,7 +12,9 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
-import type { TargetRequirement } from "../../cards/types";
+import type { CardDefinition, TargetRequirement } from "../../cards/types";
+import { withTemporaryDefinition } from "../../cards/registry";
+import { requestCopyRetargetOn } from "../state";
 import { REGISTRY, shorthandArray, type FilterKey } from "../targetFilters";
 import {
     getLegalTargets,
@@ -176,5 +178,41 @@ describe("offered/accepted parity for [] vs omitted", () => {
                 key
             ).toEqual(pendingTargetFiltersFromRequirement(base, undefined));
         }
+    });
+});
+
+describe("copy-retarget carrier (CR 707.10c) never carries []", () => {
+    it("requestCopyRetargetOn drops empty filter arrays", () => {
+        const def: CardDefinition = {
+            id: "00000000-0000-4000-8000-000000002201",
+            name: "Synthetic Empty-Filter Spell",
+            rarity: "common",
+            types: ["Instant"],
+            manaCost: {},
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                subtypeFilter: [],
+                supertypeFilter: [],
+                excludeSubtypes: [],
+                excludeSupertypes: [],
+                colorFilterAny: [],
+            },
+        };
+        withTemporaryDefinition(def, () => {
+            const state = makeState();
+            const copy = pushSpell(state, def.id, "p1");
+            requestCopyRetargetOn(state, copy);
+            expect(state.pendingTarget).toBeDefined();
+            for (const key of [
+                "subtypeFilter",
+                "supertypeFilter",
+                "excludeSubtypes",
+                "excludeSupertypes",
+                "colorFilterAny",
+            ]) {
+                expect(state.pendingTarget, key).not.toHaveProperty(key);
+            }
+        });
     });
 });

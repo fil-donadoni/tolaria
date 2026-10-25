@@ -173,6 +173,7 @@ import {
     lowerPlayerFilters,
     lowerSpellOnlyFilters,
     requirementAdmitsSpellTarget,
+    shorthandArray,
 } from "./targetFilters";
 import type {
     FilterKey,
@@ -11291,26 +11292,10 @@ export function requestCopyRetargetOn(
     });
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
-    const subtypeFilter = req.subtypeFilter
-        ? Array.isArray(req.subtypeFilter)
-            ? req.subtypeFilter
-            : [req.subtypeFilter]
-        : undefined;
-    const supertypeFilter = req.supertypeFilter
-        ? Array.isArray(req.supertypeFilter)
-            ? req.supertypeFilter
-            : [req.supertypeFilter]
-        : undefined;
-    const excludeSubtypes = req.excludeSubtypes
-        ? Array.isArray(req.excludeSubtypes)
-            ? req.excludeSubtypes
-            : [req.excludeSubtypes]
-        : undefined;
-    const excludeSupertypes = req.excludeSupertypes
-        ? Array.isArray(req.excludeSupertypes)
-            ? req.excludeSupertypes
-            : [req.excludeSupertypes]
-        : undefined;
+    const subtypeFilter = shorthandArray(req.subtypeFilter);
+    const supertypeFilter = shorthandArray(req.supertypeFilter);
+    const excludeSubtypes = shorthandArray(req.excludeSubtypes);
+    const excludeSupertypes = shorthandArray(req.excludeSupertypes);
     // Inline mvFilter "X"/"sourcePower" resolution (mirrors
     // rules.resolveMvFilter; duplicated to avoid a state ↔ rules import
     // cycle). A copy-retarget's source is the spell COPY on the stack, not a
@@ -11352,7 +11337,9 @@ export function requestCopyRetargetOn(
         selected: [],
         kind: as?.kind ?? "copy-retarget",
         ...(req.colorFilter ? { colorFilter: req.colorFilter } : {}),
-        ...(req.colorFilterAny ? { colorFilterAny: req.colorFilterAny } : {}),
+        ...(shorthandArray(req.colorFilterAny)
+            ? { colorFilterAny: req.colorFilterAny }
+            : {}),
         ...(req.zone ? { zone: req.zone } : {}),
         ...(req.controller ? { controller: req.controller } : {}),
         ...(subtypeFilter ? { subtypeFilter } : {}),
@@ -16681,26 +16668,12 @@ export function buildSpellContext(
             );
             const minNeeded = typeof count === "number" ? count : count.min;
             if (minNeeded <= 0) return; // no targets to choose
-            const subtypeFilter = requirement.subtypeFilter
-                ? Array.isArray(requirement.subtypeFilter)
-                    ? requirement.subtypeFilter
-                    : [requirement.subtypeFilter]
-                : undefined;
-            const supertypeFilter = requirement.supertypeFilter
-                ? Array.isArray(requirement.supertypeFilter)
-                    ? requirement.supertypeFilter
-                    : [requirement.supertypeFilter]
-                : undefined;
-            const excludeSubtypes = requirement.excludeSubtypes
-                ? Array.isArray(requirement.excludeSubtypes)
-                    ? requirement.excludeSubtypes
-                    : [requirement.excludeSubtypes]
-                : undefined;
-            const excludeSupertypes = requirement.excludeSupertypes
-                ? Array.isArray(requirement.excludeSupertypes)
-                    ? requirement.excludeSupertypes
-                    : [requirement.excludeSupertypes]
-                : undefined;
+            const subtypeFilter = shorthandArray(requirement.subtypeFilter);
+            const supertypeFilter = shorthandArray(requirement.supertypeFilter);
+            const excludeSubtypes = shorthandArray(requirement.excludeSubtypes);
+            const excludeSupertypes = shorthandArray(
+                requirement.excludeSupertypes
+            );
             state.pendingTarget = {
                 // The activating player (controller of THIS resolving ability)
                 // chooses the new target (CR 115.7 / 608.2).
@@ -16713,7 +16686,7 @@ export function buildSpellContext(
                 ...(requirement.colorFilter
                     ? { colorFilter: requirement.colorFilter }
                     : {}),
-                ...(requirement.colorFilterAny
+                ...(shorthandArray(requirement.colorFilterAny)
                     ? { colorFilterAny: requirement.colorFilterAny }
                     : {}),
                 ...(requirement.zone ? { zone: requirement.zone } : {}),
