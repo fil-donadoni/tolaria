@@ -30,6 +30,7 @@ import {
     isProtectedFrom,
     isProtectedFromSource,
     isProtectionAbility,
+    parseProtectionQualities,
     parseProtectionQuality,
     PROTECTION_FROM_COLORED_SPELLS,
     protectionSourceView,
@@ -55,6 +56,10 @@ import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";
 import { applyAllCombatDamage } from "../phases";
 import { projectPublicState } from "../../gameProjections";
 import { getAllCards } from "../../cards";
+import {
+    renderKeyword,
+    type ContinuousEffectKeywordParameter,
+} from "../continuousEffects";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 
@@ -241,6 +246,21 @@ function collectStrings(value: unknown, out: string[], depth = 0): void {
         return;
     }
     if (value && typeof value === "object") {
+        // A literal protection grant parameter renders to a string at read time
+        // (`renderKeyword`) that never appears in the definition — scan what it
+        // would produce, so the GRANT-rendered vocabulary is under the guard too.
+        const parameter = value as Partial<ContinuousEffectKeywordParameter>;
+        if (
+            parameter.kind === "protection" &&
+            Array.isArray(parameter.qualities)
+        ) {
+            out.push(
+                renderKeyword({
+                    keyword: "protection",
+                    parameter: parameter as ContinuousEffectKeywordParameter,
+                })
+            );
+        }
         // PROSE keys are excluded by NAME, not by an allow-list of ability
         // fields: an allow-list silently stops covering whatever ability-string
         // field ships next, which is precisely the failure this guard exists to
@@ -253,6 +273,89 @@ function collectStrings(value: unknown, out: string[], depth = 0): void {
     }
 }
 
+describe("renderKeyword -> parseProtectionQualities round trip (CR 702.16g)", () => {
+    const render = (qualities: string[]) =>
+        renderKeyword({
+            keyword: "protection",
+            parameter: { kind: "protection", qualities },
+        });
+
+    it("reads every rendered quality back, in order, multi-quality included", () => {
+        expect(parseProtectionQualities(render(["red"]))).toEqual([
+            { kind: "color", color: "R" },
+        ]);
+        expect(parseProtectionQualities(render(["red", "black"]))).toEqual([
+            { kind: "color", color: "R" },
+            { kind: "color", color: "B" },
+        ]);
+        expect(
+            parseProtectionQualities(
+                render(["colorless", "legendary creatures", "everything"])
+            )
+        ).toEqual([
+            { kind: "color", color: "C" },
+            {
+                kind: "characteristic",
+                types: ["Creature"],
+                supertypes: ["Legendary"],
+                subtypes: [],
+            },
+            { kind: "everything" },
+        ]);
+    });
+
+    it("fails CLOSED: one unparseable conjunct voids the whole string", () => {
+        expect(
+            parseProtectionQualities(render(["red", "gobblins"]))
+        ).toBeNull();
+        expect(
+            parseProtectionQualities(render(["gobblins", "red"]))
+        ).toBeNull();
+        expect(parseProtectionQualities("flying")).toBeNull();
+    });
+
+    it("the consult path sees both qualities of a rendered multi-quality grant", () => {
+        const card = makeInstance(GRIZZLY_BEARS, {
+            id: "multi",
+            staticAbilities: [render(["red", "black"])],
+        });
+        expect(getProtectionQualities(card)).toEqual([
+            { kind: "color", color: "R" },
+            { kind: "color", color: "B" },
+        ]);
+    });
+
+    it("every non-protection parameter shape renders a non-protection string", () => {
+        const others: ContinuousEffectKeywordParameter[] = [
+            { kind: "landwalk", subtype: "Island" },
+            { kind: "count", count: 2 },
+        ];
+        for (const parameter of others) {
+            expect(
+                isProtectionAbility(renderKeyword({ keyword: "x", parameter }))
+            ).toBe(false);
+        }
+    });
+
+    it("the catalogue guard sees a grant parameter's rendered string", () => {
+        const out: string[] = [];
+        collectStrings(
+            {
+                staticEffects: [
+                    {
+                        parameter: {
+                            kind: "protection",
+                            qualities: ["red", "gobblins"],
+                        },
+                    },
+                ],
+            },
+            out
+        );
+        expect(out).toContain("protection from red and from gobblins");
+    });
+});
+
 describe("catalogue guard — every shipped protection quality parses (CR 702.16)", () => {
     it("no card declares or grants a protection string the parser cannot name", () => {
         const offenders: string[] = [];
@@ -261,7 +364,7 @@ describe("catalogue guard — every shipped protection quality parses (CR 702.16
             collectStrings(def, strings);
             for (const s of strings) {
                 if (!isProtectionAbility(s)) continue;
-                if (parseProtectionQuality(s) === null) {
+                if (parseProtectionQualities(s) === null) {
                     offenders.push(`${def.name}: "${s}"`);
                 }
             }
