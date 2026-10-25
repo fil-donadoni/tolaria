@@ -30,7 +30,8 @@ import {
 } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
-import { applyTurnPermanentFaceUp } from "../../game";
+import { applyTurnPermanentFaceUp, finalizeTargetSelection } from "../../game";
+import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 
 const MASTER_OF_PEARLS = getCardByName("Master of Pearls").id; // Morph {3}{W}{W}
@@ -179,6 +180,46 @@ describe("turning a morph face up fires its own trigger (CR 708.8 / 702.37e, ful
         expect(state.activePlayerId).toBe("p1");
         expect(state.priorityPlayerId).toBe("p2");
         expect(state.passCount).toBe(0);
+    });
+
+    it("a NON-active actor whose face-up trigger asks for a target still gets priority once it is chosen (CR 116.3)", () => {
+        // Skirk Marauder's "any target" always has a real choice (both
+        // players at least), so the announcement SUSPENDS on p2's prompt and
+        // lands from the target-submit handler, not from the special action.
+        const marauder = makeInstance(getCardByName("Skirk Marauder").id, {
+            id: "marauder",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, marauder, "morph");
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        marauder,
+                        ...lands(getCardByName("Mountain").id, "p2", 3),
+                    ],
+                }),
+            ],
+        });
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p2";
+        applyTurnPermanentFaceUp(state, "p2", "marauder");
+        expect(state.pendingTarget?.playerId).toBe("p2");
+        expect(state.priorityAfterTriggerAnnouncement).toBe("p2");
+        // A stable save point: the actor survives the round trip.
+        const saved = expandState(compactState(state));
+        expect(saved.priorityAfterTriggerAnnouncement).toBe("p2");
+
+        const pt = saved.pendingTarget!;
+        pt.selected = [{ type: "player", id: "p1" }];
+        finalizeTargetSelection(saved, pt, "p2");
+        expect(saved.stack[0].targets).toEqual([{ type: "player", id: "p1" }]);
+        expect(saved.priorityPlayerId).toBe("p2");
+        expect(saved.priorityAfterTriggerAnnouncement).toBeUndefined();
     });
 
     it("a targeted face-up trigger announces its target and resolves (CR 603.3d)", () => {

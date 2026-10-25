@@ -978,5 +978,19 @@ export function checkStateBasedActionsAfterSpecialAction(
     const suspended =
         (state.pendingChoices?.length ?? 0) > choicesBefore ||
         state.pendingTarget !== targetBefore;
-    if (!suspended) state.priorityPlayerId = actorId;
+    if (!suspended) {
+        state.priorityPlayerId = actorId;
+        return;
+    }
+    // The announcement lands later, from its own submit handler: carry the
+    // actor there (`landTriggerAnnouncementPriority`). Only for a TRIGGER
+    // announcement — any other suspension ends in its own handler, which
+    // would never consume the field.
+    const head = state.pendingChoices?.[0]?.kind;
+    const announcing =
+        state.pendingTarget?.kind === "trigger" ||
+        head === "trigger-order" ||
+        head === "trigger-mode";
+    if (announcing && actorId !== state.activePlayerId)
+        state.priorityAfterTriggerAnnouncement = actorId;
 }

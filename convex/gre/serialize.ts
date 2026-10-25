@@ -1309,6 +1309,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // point, so the batch must survive a DB round-trip (round-trips as raw JSON —
     // its StackItems already carry `card: { id }`, no fat defs).
     "pendingTriggerBatch",
+    // CR 116.3 — a plain player id, set only while a special action's trigger
+    // announcement is suspended (a stable save point).
+    "priorityAfterTriggerAnnouncement",
     // CR 603.12 — reflexive triggered abilities queued by a still-resolving
     // effect. Normally drained at the end of the resolution that made them,
     // but a script can suspend on a player choice AFTER its `reflexiveTrigger`
