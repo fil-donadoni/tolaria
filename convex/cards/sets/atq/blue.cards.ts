@@ -88,11 +88,11 @@ export const reconstruction = defineCard(() => ({
 // Drafna's Restoration — {U} Sorcery. "Put any number of target artifact cards
 // from target player's graveyard on top of their library in any order."
 // (CR 601.2c variable target count, CR 400.7 zone change, CR 401 library
-// order.) Two announced targets: the PLAYER (slot 0, so protection from
-// everything, CR 702.16b, and shroud, CR 702.18, screen it out like any
-// player target) and the artifact cards, whose group carries
-// `zoneOwnerOfPriorPlayerTarget` so only THAT player's graveyard is offered
-// (CR 601.2c, CR 404.1).
+// order.) Two announced targets: the PLAYER (slot 0) and the artifact cards,
+// whose group carries `zoneOwnerOfPriorPlayerTarget` so only THAT player's
+// graveyard is offered (CR 601.2c, CR 404.1). The player is declared, so
+// protection from everything (CR 702.16b) screens it out like any player
+// target; shroud (CR 702.18) likewise.
 //
 // Composition for "on top in any order" using existing primitives only: move
 // every chosen card graveyard → library (they append to the BOTTOM, since

@@ -1,7 +1,8 @@
 // Full-path coverage for the cross-slot zone-owner filter (CR 601.2c, CR 404.1,
 // issue #2912): Drafna's Restoration names a PLAYER, then artifact CARDS from
-// THAT player's graveyard. GRE offered set -> `selectTarget` accepted set ->
-// the client's `matchesGraveyardTarget` reducer all read one registry key.
+// THAT player's graveyard. GRE offered set and `selectTarget` accepted set read
+// one registry key; the client reducer is covered in
+// `src/lib/__tests__/single-graveyard-target.test.ts`.
 
 import { describe, it, expect } from "vitest";
 import { selectTarget, zoneOwnedByPriorPlayerTarget } from "../game";
@@ -20,7 +21,6 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
-import { matchesGraveyardTarget } from "../../src/lib/graveyard-targets";
 
 const GAME_ID = "game-1" as Id<"games">;
 const drafnasRestoration = getDefinition(
@@ -116,7 +116,7 @@ describe("zoneOwnerOfPriorPlayerTarget — Drafna's Restoration (CR 601.2c, CR 4
         ]);
     });
 
-    it("offered set and client matcher read the same key", async () => {
+    it("the offered set honours the lowered key", async () => {
         const stub = makeMutationCtx("p1", [gameStateSeed(drafnaState())]);
         await pick(stub.ctx, { targetType: "player", targetId: "p2" });
         const state = stub.state();
@@ -133,15 +133,6 @@ describe("zoneOwnerOfPriorPlayerTarget — Drafna's Restoration (CR 601.2c, CR 4
             "p1"
         ).map((t) => t.id);
         expect(offered).toEqual(["theirs"]);
-
-        // Client reducer: same decision per graveyard.
-        const card = (id: string) => ({ id, types: ["Artifact"] }) as never;
-        expect(
-            matchesGraveyardTarget(card("theirs"), "p2", pt, "p1", "p1")
-        ).toBe(true);
-        expect(matchesGraveyardTarget(card("mine"), "p1", pt, "p1", "p1")).toBe(
-            false
-        );
     });
 
     it("fails closed when no player precedes the group", () => {
