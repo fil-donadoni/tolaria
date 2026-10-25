@@ -1294,8 +1294,9 @@ export const smolderingTar = defineCard(() => ({
                 "Sacrifice this enchantment: It deals 4 damage to target creature. Activate only as a sorcery.",
             cost: { sacrifice: true },
             useStack: true,
-            controllerTurnOnly: true,
-            activationPhaseRestriction: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            // CR 307.1 / 602.5d — "activate only as a sorcery": main phase,
+            // empty stack, own priority (`isSorceryTiming`).
+            sorcerySpeedOnly: true,
             targetRequirement: { type: "Creature", count: 1 },
             effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
         },
