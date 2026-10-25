@@ -3075,17 +3075,17 @@ describe("selectRootMove — a block whose exchange dominates a contender's is a
         kind: "declare-blockers",
         assignments: [{ blockerId: "small", attackerId: "atk" }],
     };
-    /** 4 + 1 power does not kill the 6/6, and its 6 damage kills both. */
-    const BIG_AND_SMALL: Move = {
+    /** 4 + 2 power kills the 6/6, and its 6 damage kills both blockers. */
+    const BIG_AND_MID: Move = {
         kind: "declare-blockers",
         assignments: [
             { blockerId: "big", attackerId: "atk" },
-            { blockerId: "small", attackerId: "atk" },
+            { blockerId: "mid", attackerId: "atk" },
         ],
     };
 
-    /** A 6/6 attacking a defender at 2 life with a 4/4 and a 1/1: any block
-     *  survives, declining does not. */
+    /** A 6/6 attacking a defender at 2 life with a 4/4, a 2/2 and a 1/1: any
+     *  block survives, declining does not. */
     function board(): GameState {
         return makeState({
             phase: "DECLARE_BLOCKERS",
@@ -3099,6 +3099,7 @@ describe("selectRootMove — a block whose exchange dominates a contender's is a
                     life: 2,
                     battlefield: [
                         creature(BALOTH, "p2", "big"),
+                        creature(BEARS, "p2", "mid"),
                         creature(RAIDERS, "p2", "small"),
                     ],
                 }),
@@ -3148,12 +3149,12 @@ describe("selectRootMove — a block whose exchange dominates a contender's is a
     });
 
     it("NO-FIRE: a rival out of the band that does NOT dominate stays out — the SAME readings, only the rival moved", () => {
-        // Throwing both in loses the 4/4 AND the 1/1 to kill nothing: it loses
-        // more than the lone 4/4, so it dominates nothing and the reward band
-        // decides as before.
+        // The double block kills the 6/6 and `blockDeltaOf` rates it above the
+        // lone 4/4 — but it also loses the 2/2, so it does not dominate, and
+        // a rival outside the reward band that dominates nothing stays out.
         const chosen = selectRootMove(
-            rootOf(BIG_AND_SMALL),
-            [LONE_BIG, BIG_AND_SMALL],
+            rootOf(BIG_AND_MID),
+            [LONE_BIG, BIG_AND_MID],
             board(),
             "p2"
         );
