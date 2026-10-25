@@ -34040,6 +34040,16 @@
         "source": "compiled"
     },
     {
+        "name": "Interstellar Effigy",
+        "scryfallId": "4b7d505f-2a6b-4525-87c7-19e06d49c9df",
+        "oracleId": "76f52fad-8db2-42f0-8e12-f4341e4c8680",
+        "firstSet": "trk",
+        "firstPrintId": "4b7d505f-2a6b-4525-87c7-19e06d49c9df",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Inti, Seneschal of the Sun",
         "scryfallId": "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd",
         "oracleId": "176f5ba8-6e7b-4234-a298-b6164f51656f",

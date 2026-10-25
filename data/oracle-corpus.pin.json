@@ -1,7 +1,7 @@
 {
     "source": "https://api.scryfall.com/bulk-data/oracle-cards",
-    "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20261022090154.jsonl.gz",
-    "updatedAt": "2026-10-22T09:01:54.353+00:00",
-    "cardCount": 35093,
-    "sha256": "b00e15ccf31ccf5750ef21407b67f0f3d294033b69fc3e68e9adc7206f31d23e"
+    "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20261025210154.jsonl.gz",
+    "updatedAt": "2026-10-25T21:01:54.847+00:00",
+    "cardCount": 35135,
+    "sha256": "172c0126331e861441f99e102bce03f566138e3dfe44b06335e09c7e5836165a"
 }
