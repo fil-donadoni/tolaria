@@ -3811,6 +3811,12 @@ export type AsEntersChoice =
      *  offered: this engine models no battle protector (CR 310.9), and the
      *  declare-attackers action offers planeswalkers only. */
     | { kind: "attack-target" }
+    /** CR 614.1c — "as this enters, choose an opponent" (Cursed Rack, The Rack,
+     *  Lost Order of Jarkeld); the answer is written to
+     *  `CardInstanceState.chosenPlayerId`. The chooser picks among the
+     *  controller's opponents; with exactly one (every 2-player game) the
+     *  choice is zero-branch and auto-answered. */
+    | { kind: "opponent" }
     /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
      *  Declared here so the family is whole; the shipped `land-entry-tapped`
      *  provisional park keeps its own shape until #1980 reconciles the two. */
@@ -4193,14 +4199,6 @@ export interface SpellContext {
     /** Returns the `attachedTo` id of the trigger's source permanent (aura).
      *  Undefined if the source is not on the battlefield or has no host. */
     getAttachedToId: () => string | undefined;
-    /** Records a player chosen as this permanent enters and stores it on the
-     *  source instance for the rest of the game (CR 603.6b / 614.12 — "as ~
-     *  enters the battlefield, choose an opponent") as `chosenPlayerId`.
-     *  The source is the resolving permanent (an ETB
-     *  trigger's source). No-op if the source has left the battlefield. Used
-     *  by Cursed Rack (chosen opponent's max hand size is four) and The Rack
-     *  (damage at the chosen player's upkeep). */
-    setChosenPlayer: (playerId: string) => void;
     /** Reads the mode chosen as the source permanent entered (CR 700.2c modal
      *  pick stored on the instance as `chosenModeId`). Undefined if no mode was
      *  chosen or the source has left the battlefield. Used by Psychic Allergy's

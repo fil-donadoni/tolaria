@@ -19,7 +19,6 @@ import {
 import { manaCostForCardId } from "../../manaCostLookup";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -1561,25 +1560,8 @@ export const lostOrderOfJarkeld = defineCard(() => ({
     subtypes: ["Human", "Knight"],
     power: 0,
     toughness: 0,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "lost-order-choose-opponent",
-            oracleText: "As this creature enters, choose an opponent.",
-            scope: "self",
-            resolve: (ctx) => {
-                // 2-player game: the single opponent of the controller.
-                const opponent = ctx.apNapOrder().find(
-                    (id) =>
-                        id !==
-                        ctx.getController({
-                            type: "permanent",
-                            id: ctx.sourceInstanceId,
-                        })
-                );
-                if (opponent) ctx.setChosenPlayer(opponent);
-            },
-        }),
-    ],
+    // CR 614.1c / 614.12a — the pick is made before the creature enters.
+    entersWith: { asEnters: [{ kind: "opponent" }] },
     staticEffects: [
         {
             kind: "pt-cda",

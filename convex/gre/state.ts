@@ -9920,6 +9920,7 @@ export function stageAsEntersEntry(
         card.attachedTo = undefined;
         delete card.chosenName;
         delete card.chosenSubtypes;
+        delete card.chosenPlayerId;
         // Same clean, same reason, for the two slots the `copy` answer writes
         // and `copyAnswerCarry` therefore has to carry across the entry reset
         // (issue #2451, review round 2). `resetBattlefieldTransientState`
@@ -10034,6 +10035,16 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
                 options: asEntersAttackTargetOptions(state, entry),
                 count: 1,
                 prompt: `Choose what ${subject} is attacking.`,
+            };
+            break;
+        }
+        case "opponent": {
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: asEntersOpponentOptions(state, entry),
+                count: 1,
+                prompt: `Choose an opponent as ${subject} enters.`,
             };
             break;
         }
@@ -10384,6 +10395,12 @@ function forcedAsEntersAnswer(
         const options = asEntersAttackTargetOptions(state, entry);
         return options.length === 1 ? [options[0].id] : undefined;
     }
+    if (choice?.kind === "opponent") {
+        // CR 614.1c — one opponent (every 2-player game) is a zero-branch
+        // choice; auto-answered like the `attack-target` single option.
+        const options = asEntersOpponentOptions(state, entry);
+        return options.length === 1 ? [options[0].id] : undefined;
+    }
     if (choice?.kind === "payLife") {
         return asEntersPayLifeMax(state, entry, choice.cap) === 0
             ? ["0"]
@@ -10490,6 +10507,17 @@ function asEntersPayLifeMax(
     return Math.max(0, Math.min(numericCap, affordable));
 }
 
+/** CR 614.1c — the legal picks of an as-enters "choose an opponent": every
+ *  other player of the game, read live as the choice is offered. */
+function asEntersOpponentOptions(
+    state: GameState,
+    entry: StagedEntry
+): { id: string; label: string }[] {
+    return state.players
+        .filter((p) => p.id !== entry.controllerId)
+        .map((p) => ({ id: p.id, label: p.name }));
+}
+
 /** Compile-time exhaustiveness over {@link AsEntersChoice} — a new `kind`
  *  cannot be declared without a queue shape and a writer (ADR 0100 D3). */
 function assertNeverAsEnters(choice: never): never {
@@ -10594,6 +10622,18 @@ function applyAsEntersAnswer(
             // nothing ever observes the printed 0/0 (CR 707.5 forbids the
             // "enters, then becomes a copy" shape outright).
             if (source) applyCopy(state, card, source, choice.opts ?? {});
+            return {};
+        }
+        case "opponent": {
+            // CR 614.1c — re-checked against the live opponents: a stale or
+            // forged id writes nothing rather than a non-opponent.
+            const pick = selected[0];
+            if (
+                pick !== undefined &&
+                asEntersOpponentOptions(state, entry).some((o) => o.id === pick)
+            ) {
+                card.chosenPlayerId = pick;
+            }
             return {};
         }
         case "mode":
@@ -10880,6 +10920,9 @@ export function stagedEntryAnswers(
         ...(card.chosenSubtypes !== undefined
             ? { chosenSubtypes: [...card.chosenSubtypes] }
             : {}),
+        ...(card.chosenPlayerId !== undefined
+            ? { chosenPlayerId: card.chosenPlayerId }
+            : {}),
         copy: copyAnswerCarry(card),
     };
 }
@@ -10894,6 +10937,9 @@ export function restoreStagedEntryAnswers(
     if (answers.chosenName !== undefined) card.chosenName = answers.chosenName;
     if (answers.chosenSubtypes !== undefined) {
         card.chosenSubtypes = [...answers.chosenSubtypes];
+    }
+    if (answers.chosenPlayerId !== undefined) {
+        card.chosenPlayerId = answers.chosenPlayerId;
     }
     restoreCopyAnswer(card, answers.copy);
 }
@@ -11713,20 +11759,6 @@ export function buildSpellContext(
                 item.triggerSourceId ?? item.id
             );
             return src?.card.attachedTo;
-        },
-
-        setChosenPlayer(playerId: string): void {
-            // CR 603.6b / 614.12 — record a player chosen as this permanent
-            // enters (or when an ability resolves), stored on the source
-            // instance for the rest of the game. The source is the resolving
-            // permanent: an ETB trigger's `triggerSourceId` points at the
-            // permanent that just entered. No-op if it is no longer on the
-            // battlefield.
-            const src = findOnBattlefield(
-                state,
-                item.triggerSourceId ?? item.id
-            );
-            if (src) src.card.chosenPlayerId = playerId;
         },
 
         // CR 607.2d (issue #3809) — the creature type chosen as the source
@@ -12895,8 +12927,8 @@ export function buildSpellContext(
         },
         // CR 613.1f layer 6 / CR 611.2b (issue #1562) — a target permanent
         // LOSES ALL ABILITIES for as long as the CURRENTLY-RESOLVING
-        // permanent (the ETB source: `item.triggerSourceId ?? item.id`,
-        // mirroring `setChosenPlayer` above) remains on the
+        // permanent (the ETB source: `item.triggerSourceId ?? item.id`)
+        // remains on the
         // battlefield. Tishana's Tidebinder's rider.
         //
         // Goes through the SAME shared applier `applyAbilityLossHold`, keyed
