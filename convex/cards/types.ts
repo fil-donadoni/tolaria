@@ -571,7 +571,7 @@ export const PERMANENT_TYPES = [
 ] as const satisfies readonly CardType[];
 
 /** CR 205.2a — every card type, alphabetical. The categories of a "for each
- *  card type" pick; `PERMANENT_TYPES` is the CR 300.1 subset. */
+ *  card type" pick; `PERMANENT_TYPES` is the subset that stays on the battlefield. */
 export const CARD_TYPES = [
     "Artifact",
     "Battle",
