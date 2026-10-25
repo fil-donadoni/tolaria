@@ -1,5 +1,5 @@
 // Source damage history — "each planeswalker it has dealt damage to this game"
-// (CR 120.3 / 120.3c / 400.7 / 608.2h, issue #6867, The Fallen).
+// (CR 120.1 / 120.3c / 400.7 / 608.2h, issue #6867, The Fallen).
 //
 // A permanent's `damagedPermanentsThisGame` lists the permanents it has dealt
 // damage to as the object it now is; a `forEach` permanents selector's
@@ -77,7 +77,7 @@ function loyalty(state: GameState, id: string): number | undefined {
     return card(state, id)?.counters?.loyalty;
 }
 
-/** The Fallen attacks planeswalker `pwId` unblocked (CR 508.1a / 510.1). */
+/** The Fallen attacks planeswalker `pwId` unblocked (CR 508.1b). */
 function fallenAttacks(state: GameState, pwId: string): void {
     card(state, "fallen")!.isAttacking = true;
     state.phase = "COMBAT_DAMAGE";
@@ -132,7 +132,7 @@ function pushUpkeepTrigger(state: GameState): void {
     });
 }
 
-describe("source damage history (CR 120.3, issue #6867)", () => {
+describe("source damage history (CR 120.1, issue #6867)", () => {
     it("combat damage to a planeswalker is recorded on the attacking source", () => {
         const state = fallenState();
         fallenAttacks(state, "pw");

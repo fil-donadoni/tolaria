@@ -565,7 +565,7 @@ export const seasonOfTheWitch = defineCard(() => ({
 // upkeep trigger; "dealt damage to this game" is tracked per half — a
 // `damageDealtTrigger` stamps "fallen-marked" the first time The Fallen damages
 // an opponent (exactly one opponent in a 2-player game), and each planeswalker
-// it has damaged is read off its own damage history, CR 120.3, through the
+// it has damaged is read off its own damage history, CR 120.1, through the
 // `damagedBySourceThisGame` forEach selector.)
 export const theFallen = defineCard(() => ({
     id: "f4a176e1-b22b-4f36-ba7b-c506cb4e1bed",
