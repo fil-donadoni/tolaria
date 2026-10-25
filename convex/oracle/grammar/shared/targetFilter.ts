@@ -1155,14 +1155,6 @@ export function targetRequirementFromDescriptor(
             "a colour count is not expressible as a target requirement (CR 105.2b)",
             "multicolored"
         );
-    // CR 111.1 — the same widening for "target nontoken creature": no target
-    // site reads the token status from the grammar yet, so the clause is
-    // refused rather than dropped.
-    if (descriptor.nontoken === true)
-        return fail(
-            "a token status is not read at a target site yet (CR 111.1)",
-            "nontoken"
-        );
     if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {
         const requirement: Record<string, unknown> = {
@@ -1231,6 +1223,8 @@ export function targetRequirementFromDescriptor(
     if (descriptor.toughnessFilter)
         requirement.toughnessFilter = descriptor.toughnessFilter;
     if (descriptor.mvFilter) requirement.mvFilter = descriptor.mvFilter;
+    // CR 111.1 — "target nontoken creature": `TargetRequirement.isToken`.
+    if (descriptor.nontoken === true) requirement.isToken = false;
     if (descriptor.zone !== undefined) {
         // CR 404.1 — the graveyard's owner is named by `zoneOwner` alone; a
         // trailing "you control" would be dropped here, so it is refused.

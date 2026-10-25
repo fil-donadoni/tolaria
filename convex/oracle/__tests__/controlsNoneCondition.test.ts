@@ -126,16 +126,20 @@ describe('"nontoken" in a descriptor (CR 111.1)', () => {
         );
     });
 
-    it("refuses it at every site that does not read it, rather than dropping it", () => {
+    it("reads it at the target, sacrifice and permanent sites, refuses it where unread", () => {
         const descriptor = descriptorRule.run(
             "nontoken creature",
             parseContext()
         );
         expect(descriptor.ok).toBe(true);
         if (!descriptor.ok) return;
-        expect(targetRequirementFromDescriptor(descriptor.value).ok).toBe(
-            false
-        );
+        // The target site READS it (issue #5284): `TargetRequirement.isToken`.
+        const target = targetRequirementFromDescriptor(descriptor.value);
+        expect(target.ok && target.value).toEqual({
+            type: "Creature",
+            count: 1,
+            isToken: false,
+        });
         // The sacrifice filter READS it since the `sacrifice` Verb Frame
         // (issue #6630): `isToken: false`, the permanent filter's encoding.
         const sacrifice = sacrificeFilterFromDescriptor(descriptor.value);
