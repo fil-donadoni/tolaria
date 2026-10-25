@@ -643,15 +643,40 @@ export function enqueueFailToFindNotice(
         source: string;
     }
 ): void {
+    enqueuePublicRevealNotice(state, {
+        idPrefix: `${args.stackItemId}:${args.step}:${args.choiceId}:fail-to-find`,
+        source: args.source,
+        kind: "fail-to-find",
+        cards: [],
+    });
+}
+
+/** Shared enqueue for a PUBLIC notification raised outside any resolving stack
+ *  item (fail-to-find, a revealing graveyard-bound redirect): addressed to
+ *  every player, id = `idPrefix` + the game-lifetime `nextRevealSeq` so it is
+ *  deterministic and unique. `retained` keeps the entry across the
+ *  `pendingReveals` clear at the top of the next resolution within this
+ *  mutation (see `RevealNotification.retained`). No-op with no players. */
+export function enqueuePublicRevealNotice(
+    state: GameState,
+    args: {
+        idPrefix: string;
+        source: string;
+        kind: RevealNotification["kind"];
+        cards: RevealNotification["cards"];
+        retained?: boolean;
+    }
+): void {
     const audience = state.players.map((p) => p.id);
     if (audience.length === 0) return;
     state.nextRevealSeq = (state.nextRevealSeq ?? 0) + 1;
     const entry: RevealNotification = {
-        id: `${args.stackItemId}:${args.step}:${args.choiceId}:fail-to-find:${state.nextRevealSeq}`,
+        id: `${args.idPrefix}:${state.nextRevealSeq}`,
         audience,
         source: args.source,
-        kind: "fail-to-find",
-        cards: [],
+        kind: args.kind,
+        cards: args.cards,
+        ...(args.retained ? { retained: true } : {}),
     };
     state.pendingReveals = [...(state.pendingReveals ?? []), entry];
 }
@@ -2572,7 +2597,13 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // 701.44a, issue #2376 — the first reveal site that notifies and THEN
     // suspends; its own `noteChoice` latch is what keeps the resumed pass
     // from re-notifying).
-    state.pendingReveals = undefined;
+    // Entries raised outside a resolution in THIS mutation (`retained`, e.g. a
+    // revealing graveyard redirect from a mill) have not yet reached a stable
+    // snapshot, so they survive; `saveGameState` strips the flag on persist.
+    const retainedReveals = state.pendingReveals?.filter((r) => r.retained);
+    state.pendingReveals = retainedReveals?.length
+        ? retainedReveals
+        : undefined;
 
     const top = state.stack[state.stack.length - 1];
 
@@ -3624,7 +3655,8 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         state,
         item.id,
         item.ownerId,
-        "stack"
+        "stack",
+        item
     );
     // Read before `resetStackTransientState` strips it: a copy of a spell is
     // not a card, and ceases to exist off the stack (CR 707.10a).

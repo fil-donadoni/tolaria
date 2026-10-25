@@ -13110,6 +13110,11 @@ export interface GraveyardBoundReplacementEvent {
      *  SOMEWHERE, so redirection is expressed as a `"modified"` rewrite of
      *  `destination`, not a null result. */
     destination: "graveyard" | "exile" | "library";
+    /** Set by a replacement whose Oracle text reveals the card as it
+     *  redirects it ("reveal it and shuffle it into its owner's library
+     *  instead", CR 701.20a). `graveyardDestinationFor` raises the public
+     *  reveal notification for it; absent for a silent redirect (exile). */
+    revealed?: boolean;
     /** Counters to stamp on the card once it lands in `destination` (Dauthi
      *  Voidwalker's void counter). Only meaningful when `destination !==
      *  "graveyard"` — a card that lands in the graveyard normally is never
