@@ -400,7 +400,7 @@ export function classifyPath(path: string): PathClass {
 
 /**
  * The CR ledger rides as documentation's companion (issue #3749): a prose line
- * citing `CR 116.2c` owes a ledger entry (ADR 0133), so a docs diff legitimately
+ * citing a CR rule owes a ledger entry (ADR 0133), so a docs diff legitimately
  * carries `data/cr/citations-ledger.json`. Content-decided like `package.json`:
  * the ledger is `docs` ONLY when at least one other path is changed and every
  * other path is `docs` — the ledger alone, or beside any code path, keeps its
