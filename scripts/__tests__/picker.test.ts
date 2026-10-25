@@ -429,6 +429,35 @@ describe("planner — a deferred higher band reserves its files (issue #6897)", 
         expect(reason(plan, 2)).toBe("target files overlap in-flight #1");
         expect(plan.batch.map((b) => b.number)).toEqual([3]);
     });
+    it("a repair whose own PR is in flight is not held by a reservation", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            {
+                ...CONFIG,
+                inFlight: [
+                    ...inFlight,
+                    { number: 3, files: ["convex/gre/layers.ts"] },
+                ],
+            },
+            prio(
+                {
+                    2: "convex/cards/types.ts`\n- `convex/gre/layers.ts",
+                    3: "convex/gre/layers.ts",
+                },
+                { 2: "P1", 3: "P3" }
+            )
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
+
+    it("a deferred `*` radius reserves nothing", () => {
+        const plan = planBatch(
+            [issue(2), issue(3)],
+            { ...CONFIG, inFlight },
+            prio({ 2: "*", 3: "scripts/b.ts" }, { 2: "P1", 3: "P3" })
+        );
+        expect(plan.batch.map((b) => b.number)).toEqual([3]);
+    });
 });
 
 describe("picker — in-flight edge cases (issue #6195)", () => {

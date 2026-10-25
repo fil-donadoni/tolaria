@@ -1211,11 +1211,13 @@ export function planBatch(
             // The deferred issue keeps its files (issue #6897): left free, the
             // slot goes to a lower band on the same hot file, whose PR then
             // occupies it for the whole queue wait — and the next one after.
-            reserved.push({
-                number: issue.number,
-                rank: band(issue),
-                files: comparable,
-            });
+            // A `*` radius reserves nothing: it would hold the whole repo.
+            if (batchable)
+                reserved.push({
+                    number: issue.number,
+                    rank: band(issue),
+                    files: comparable,
+                });
             deferred.push({
                 number: issue.number,
                 reason: `target files overlap in-flight #${busy.number}`,
@@ -1226,17 +1228,23 @@ export function planBatch(
 
         // Priority reservation (issue #6897): a strictly higher band waiting
         // on these files gets them first. An unknown or `*` radius overlaps
-        // every reservation; an equal band keeps the order it already has.
+        // every reservation, so it waits while any higher band does — bounded
+        // by the in-flight PR's life, which is the point. An equal band keeps
+        // the order it already has; a repair (its own PR in flight) already
+        // holds its files, so deferring it frees nothing.
         const touchesAll =
             blastRadius === "unknown" || blastRadius === "everything";
-        const holder = reserved.find(
-            (r) =>
-                r.rank < band(issue) &&
-                (touchesAll ||
-                    r.files.some((a) =>
-                        comparable.some((c) => pathsOverlap(a, c))
-                    ))
-        );
+        const repairing = occupied.some((f) => f.number === issue.number);
+        const holder =
+            !repairing &&
+            reserved.find(
+                (r) =>
+                    r.rank < band(issue) &&
+                    (touchesAll ||
+                        r.files.some((a) =>
+                            comparable.some((c) => pathsOverlap(a, c))
+                        ))
+            );
         if (holder) {
             deferred.push({
                 number: issue.number,
