@@ -1463,8 +1463,7 @@ export function commitNonStackActivation(
     // NOT carried here, and deliberately (review finding 7): the painland
     // coloured-tap ping (`applyColoredTapSelfDamage`), Ancient Tomb's
     // unconditional one (`applyUnconditionalTapSelfDamage`), the depletion
-    // counter (`applyDepletionCounterOnTap`), Chromatic Sphere's draw
-    // (`applyDrawCardOnTap`), Rainbow Vale's control-change arm
+    // counter (`applyDepletionCounterOnTap`), Rainbow Vale's control-change arm
     // (`armDelayedTriggerOnTap`) and the stackless Effect Script
     // (`applyManaAbilityEffects`, issue #5509). No card on this shape declares
     // any of them —

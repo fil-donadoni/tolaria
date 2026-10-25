@@ -7908,7 +7908,7 @@ function collectSelfCastTriggers(
  *  Each event also carries `drawIndexThisTurn` (0-based, CR 121.1, issue
  *  #781) — the trigger-side twin of `DrawReplacementEvent.drawIndexThisTurn`
  *  (`cards/types.ts`). Every call site (`drawStep`, `finalizeDrawLookKeep`,
- *  `applyDrawCardOnTap`, the draw-step/`may-pay-bin` plan branches) already
+ *  the draw-step/`may-pay-bin` plan branches) already
  *  calls `drawCard`/`drawCardFromLibrary` — which appends to
  *  `player.drawnThisTurn` — exactly `count` times synchronously BEFORE
  *  calling this function, so by the time this runs `drawnThisTurn.length`

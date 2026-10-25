@@ -15,7 +15,7 @@ import { restoreReturnMarkOnUntap } from "./untapReturn";
  *  never pushed. The validator admits only `MANA_ABILITY_EFFECT_OPS` here, so
  *  the script raises no choice that would need the item to persist.
  *
- *  Shared by every tap-for-mana path, beside `applyDrawCardOnTap`. No-op when
+ *  Shared by every tap-for-mana path. No-op when
  *  the ability has no such script; an Op naming a source that has left (a
  *  sacrifice cost) skips itself (CR 609.3). */
 export function applyManaAbilityEffects(
