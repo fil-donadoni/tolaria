@@ -3226,6 +3226,54 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-builder-zone-colors",
+        // The Zone colour filter sheet, open at measurement (issue #3678).
+        // VIEWPORT-SPLIT like `deck-builder-columns`: the `Colors` trigger
+        // (inside the `View` fold on a phone) exists on the coarse surfaces
+        // only; a fine pointer keeps the five inline toggles, so the claim is
+        // "measured where it exists".
+        mounts: ["src/components/deckbuilder/zone-color-filter-sheet.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 Zone colour filter sheet (/decks/create \u2192 Colors)",
+        // The same accessible name in the sheet and on the inline toggle.
+        asserts: [
+            {
+                label: "zone colours: Maindeck colour R",
+                locator: { role: "button", name: "Maindeck colour R" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            const sheet = "[data-color-filter-sheet]";
+            const trigger = page
+                .getByRole("button", { name: /^Maindeck colour filter: / })
+                .filter({ visible: true })
+                .first();
+            if (!(await trigger.isVisible())) {
+                const fold = page
+                    .getByRole("button", { name: /^View/ })
+                    .filter({ visible: true })
+                    .first();
+                if (await fold.isVisible()) {
+                    await fold.click({ timeout: STEP_TIMEOUT });
+                }
+            }
+            if (!(await trigger.isVisible())) {
+                // A fine pointer renders no trigger: the inline toggles stand.
+                await settle(page, ['[aria-label="Maindeck colour R"]']);
+                return;
+            }
+            await trigger.click({ timeout: STEP_TIMEOUT });
+            if (!(await visible(page, sheet, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "`Colors` opened no colour filter sheet within 8s"
+                );
+            }
+            await settleOnLayer(page, sheet, "`Colors`");
+        },
+    },
+    {
         id: "deck-builder-stats",
         // The Stats dialog over the lane's own deck, open at measurement
         // (issue #4421) — a real Maindeck, so the curve, the pips and the type
