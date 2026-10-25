@@ -29,6 +29,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "choose-exile-card": "Choose",
     // Intuition (issue #3205) — pick one of the REVEALED library cards.
     "choose-library-card": "Choose",
+    // the Wish cards (CR 400.11b) — a card you own from outside the game.
+    "choose-outside-game-card": "Wish",
     "choose-damage-target": "Choose target",
     // trigger-time player target (CR 115.1a — Endurance's "up to one target player")
     "choose-player": "Choose a player",

@@ -133,6 +133,11 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // through untouched by any edit of the row.
     stack: "preserved",
     companion: "form-owned",
+    // CR 400.11a — the cards each seat owns outside the game, a LIST of
+    // per-seat card names: `preserved` like `stack`, a repeatable record no
+    // scalar input kind here has the shape of. Hand-written in a preset or
+    // captured (`specFromState`), and carried through untouched by an edit.
+    outsideGame: "preserved",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 
 /** The spec keys the form cannot edit — derived from the table above, never

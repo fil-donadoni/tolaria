@@ -381,6 +381,35 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
         );
         return state;
     },
+    // CR 400.11b (issue #6523) — a Wish's "you may reveal a sorcery card you
+    // own from outside the game": two sorceries of different worth in the
+    // bot's outside-the-game holder, both on the allow-list, so taking one
+    // (or declining) is a real decision the driver hands to the search.
+    "choose-outside-game-card": () =>
+        stateWithBotChoice(
+            {
+                kind: "choose-outside-game-card",
+                count: { min: 0, max: 1 },
+                candidateIds: ["og-wrath", "og-wheel"],
+                prompt: "You may reveal a sorcery card you own from outside the game.",
+            },
+            {
+                outsideGame: [
+                    makeInstance(getCardByName("Wrath of God").id, {
+                        id: "og-wrath",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "exile",
+                    }),
+                    makeInstance(getCardByName("Wheel of Fortune").id, {
+                        id: "og-wheel",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "exile",
+                    }),
+                ],
+            }
+        ),
     // CR 608.2d (issue #5559) — Balance's "choose N to keep, the rest go":
     // keep one of two creatures of clearly different worth.
     "keep-permanents": () =>

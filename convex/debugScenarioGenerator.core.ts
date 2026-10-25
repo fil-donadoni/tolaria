@@ -303,6 +303,30 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Declare a companion into a slot. Omit unless the description names a companion.",
         },
+        // CR 400.11a (issue #6523) — the sideboard a Wish brings a card in from.
+        outsideGame: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                    name: {
+                        type: "string",
+                        description:
+                            "Exact card name, copied verbatim from the allow-list.",
+                    },
+                    owner: {
+                        type: "string",
+                        enum: ["me", "opp"],
+                        description:
+                            "Who owns the card outside the game (default 'me').",
+                    },
+                },
+                required: ["name"],
+            },
+            description:
+                "Cards a seat owns outside the game (its sideboard), the pool a Wish fetches from. Omit unless the description names a Wish target or a sideboard.",
+        },
         // CR 102.1 / 117.1 / 117.4 (issue #3454) — a description that says
         // "it's your opponent's turn and you're holding up removal" is a real
         // board the model can be asked for, and the only way to get it.
@@ -455,7 +479,7 @@ export function buildScenarioSystemPrompt(
         "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
         "  when no life total is mentioned (default 20 each).",
         "- The same omit-unless-named discipline applies to `experience`,",
-        "  `landsPlayed`, `companion`, `markLastDrawn`, `activePlayer`,",
+        "  `landsPlayed`, `companion`, `outsideGame`, `markLastDrawn`, `activePlayer`,",
         "  `priority`, `passCount`, `spellsCastThisTurn`,",
         "  `spellsCastThisGame`, `stormCount`,",
         "  `damageDealtToPlayerThisTurn`,",
