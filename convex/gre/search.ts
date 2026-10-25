@@ -3860,6 +3860,8 @@ export type BlockExchange = {
     lostValue: number;
     faceDamage: number;
     facePoison: number;
+    /** CR 510.1b — damage still reaching attacked planeswalkers, all summed. */
+    walkerDamage: number;
 };
 
 /** `move`'s declared exchange read off `state` (`declaredBlockOutcome`, the
@@ -3893,6 +3895,10 @@ export function blockExchangeOf(
         ),
         faceDamage: outcome.faceDamage,
         facePoison: outcome.facePoison,
+        walkerDamage: Object.values(outcome.walkerDamage).reduce(
+            (sum, d) => sum + d,
+            0
+        ),
     };
 }
 
@@ -3911,6 +3917,7 @@ export function blockOutcomeDominates(
     if (
         a.faceDamage > b.faceDamage ||
         a.facePoison > b.facePoison ||
+        a.walkerDamage > b.walkerDamage ||
         a.lostValue > b.lostValue + VALUE_EPS
     ) {
         return false;
@@ -3919,6 +3926,7 @@ export function blockOutcomeDominates(
         a.killed.size > b.killed.size ||
         a.faceDamage < b.faceDamage ||
         a.facePoison < b.facePoison ||
+        a.walkerDamage < b.walkerDamage ||
         a.lostValue < b.lostValue - VALUE_EPS
     );
 }

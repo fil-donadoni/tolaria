@@ -2571,6 +2571,8 @@ export type DeclaredBlockOutcome = {
     faceDamage: number;
     /** CR 702.90b — the infect share of the face damage, landing as poison. */
     facePoison: number;
+    /** CR 510.1b — damage sent at each attacked planeswalker, by walker id. */
+    walkerDamage: Record<string, number>;
     pass: Layer7Pass;
 };
 
@@ -2702,6 +2704,7 @@ export function declaredBlockOutcome(
         deadBlockers,
         faceDamage,
         facePoison,
+        walkerDamage,
         pass,
     };
 }
@@ -2744,6 +2747,7 @@ export function declaredBlockDelta(
         deadBlockers,
         faceDamage,
         facePoison,
+        walkerDamage,
         pass,
     } = outcome;
 
