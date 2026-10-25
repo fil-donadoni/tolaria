@@ -912,13 +912,6 @@
     },
     {
         "class": "ability",
-        "cardId": "720d871d-1e7b-482e-bd1e-8ec79519fb86",
-        "name": "Cursed Rack",
-        "abilityId": "cursed-rack-choose-opponent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "f11684d6-5b74-47a7-a2d0-256c9e437aa6",
         "name": "Cyclone",
         "abilityId": "cyclone-upkeep",
@@ -1685,13 +1678,6 @@
         "cardId": "2926777a-4f6e-4965-ba83-22cf7df02602",
         "name": "Lord of the Pit",
         "abilityId": "lord-of-the-pit-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
-        "name": "Lost Order of Jarkeld",
-        "abilityId": "lost-order-choose-opponent",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

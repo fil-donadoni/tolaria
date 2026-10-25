@@ -24,7 +24,6 @@ import type {
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapTrigger } from "../../abilities/triggers/untapTrigger";
@@ -1661,7 +1660,7 @@ export const shapeshifter = defineCard(() => ({
 //
 // Each card here exercises one small, orthogonal engine extension:
 //  • chosen-opponent-on-entry stored for the rest of the game (Cursed Rack,
-//    The Rack) — CR 603.6b / 614.12, `SpellContext.setChosenPlayer`.
+//    The Rack) — CR 614.1c, `entersWith.asEnters: { kind: "opponent" }`.
 //  • sacrifice-vs-other leave distinction (Urza's Miter) — the `PERMANENT_LEFT`
 //    event now carries `cause: "sacrifice"`.
 //  • random-discard as an activation cost (Coral Helm) — `cost.discardAtRandom`.
@@ -1673,17 +1672,9 @@ export const shapeshifter = defineCard(() => ({
 //    `SpellContext.setCantBeBlockedThisTurn`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Resolves the player chosen as an "as ~ enters, choose an opponent" card
- *  entered. In the engine's 2-player games there is exactly one opponent, so
- *  the choice auto-resolves (Arena-style — no prompt for a zero-branch choice).
- *  Returns undefined if no opponent exists (solo edge case). */
-function singleOpponentId(ctx: SpellContext): string | undefined {
-    return ctx.allPlayerIds.find((id) => id !== ctx.controller);
-}
-
 // Cursed Rack — {4} Artifact. "As this artifact enters, choose an opponent.
-// The chosen player's maximum hand size is four." (CR 603.6b on-entry choice
-// stored via `setChosenPlayer`; CR 402.2 max-hand-size override read by
+// The chosen player's maximum hand size is four." (CR 614.1c as-enters choice
+// stored via the as-enters `opponent` leg; CR 402.2 max-hand-size override read by
 // `effectiveMaxHandSize` through the `appliesTo: "chosen-player"`
 // `hand-size-override` static effect — the cap is applied at the chosen
 // player's CLEANUP.)
@@ -1705,23 +1696,14 @@ export const cursedRack = defineCard(() => ({
             appliesTo: "chosen-player",
         },
     ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "cursed-rack-choose-opponent",
-            oracleText: "As this artifact enters, choose an opponent.",
-            scope: "self",
-            resolve: (ctx) => {
-                const opponent = singleOpponentId(ctx);
-                if (opponent) ctx.setChosenPlayer(opponent);
-            },
-        }),
-    ],
+    // CR 614.1c / 614.12a — the pick is made before the artifact enters.
+    entersWith: { asEnters: [{ kind: "opponent" }] },
 }));
 
 // The Rack — {1} Artifact. "As this artifact enters, choose an opponent. At the
 // beginning of the chosen player's upkeep, this artifact deals X damage to that
-// player, where X is 3 minus the number of cards in their hand." (CR 603.6b
-// on-entry choice; CR 603.6a upkeep trigger. `scope: "each"` fires on every
+// player, where X is 3 minus the number of cards in their hand." (CR 614.1c
+// as-enters choice; CR 603.6a upkeep trigger. `scope: "each"` fires on every
 // player's upkeep; the `condition` narrows it to the stored chosen player so
 // the trigger only enters the stack on their upkeep — CR 603.4.)
 export const theRack = defineCard(() => ({
@@ -1738,20 +1720,9 @@ export const theRack = defineCard(() => ({
     // reads. 18 is the blind `base + MV` worth (8 + 10 × MV 1), kept
     // explicit rather than guessed higher.
     aiValue: 18,
+    // CR 614.1c / 614.12a — the pick is made before the artifact enters.
+    entersWith: { asEnters: [{ kind: "opponent" }] },
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): "choose an opponent" has no Op —
-        // `setChosenPlayer`/`getChosenPlayer` are SpellContext-only
-        // primitives with no declarative skin in EFFECT_OP_REGISTRY.
-        // Blocked on: a choose-player-and-store Op.
-        enteredTrigger({
-            id: "the-rack-choose-opponent",
-            oracleText: "As this artifact enters, choose an opponent.",
-            scope: "self",
-            resolve: (ctx) => {
-                const opponent = singleOpponentId(ctx);
-                if (opponent) ctx.setChosenPlayer(opponent);
-            },
-        }),
         // UNBLOCKED since issue #2006: "3 minus hand size" is
         // `{ difference: { from: 3, minus: { count: { zone: "hand",
         // controller: { ref: "$event.activePlayerId" } } } } }` — the same
