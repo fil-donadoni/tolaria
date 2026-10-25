@@ -113,6 +113,7 @@ import {
     summonCompanionInSearch,
     turnFaceUpInSearch,
     autoFinalizeLandEntryChoices,
+    declaredAttackTargets,
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
 import { castNeedsSorceryWindow } from "./rules";
@@ -1220,8 +1221,12 @@ export function applyMoveInSearch(
             const declaredExertIds = (move.exertIds ?? []).filter((id) =>
                 move.attackerIds.includes(id)
             );
+            // CR 508.1b — the announced planeswalker targets, or every
+            // attacker would reach the player's life in the sandbox.
+            const attackTargets = declaredAttackTargets(state, playerId, move);
             const combat = (state.combat = {
                 attackerIds: [...move.attackerIds],
+                ...(attackTargets ? { attackTargets } : {}),
                 ...(declaredExertIds.length > 0
                     ? { exertedIds: declaredExertIds }
                     : {}),
@@ -3777,7 +3782,8 @@ export function buildTrace(
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
 /** A declared attack that gains NOTHING: every attacker is fully absorbed (no
- *  blocker dies) and no damage reaches the defender's life or poison counters. From a player's view
+ *  blocker dies) and no damage reaches the defender's life, poison counters or
+ *  attacked planeswalkers. From a player's view
  *  there is no reason to make such an attack even with no risk of losing the
  *  attacker — a creature that attacks without vigilance taps out of defence, so a
  *  neutral attack is already a tempo loss (the only upside, bluffing a trick for
@@ -3797,7 +3803,10 @@ export function isWastefulAttack(state: GameState, move: Move): boolean {
     return (
         outcome.deadBlockerIds.length === 0 &&
         outcome.faceDamage === 0 &&
-        outcome.facePoison === 0
+        outcome.facePoison === 0 &&
+        // CR 510.1b — loyalty removed from an attacked planeswalker is a gain
+        // of its own, never counted as damage to the player.
+        Object.values(outcome.walkerDamage).every((d) => d === 0)
     );
 }
 
