@@ -1667,7 +1667,12 @@ export function summonCompanionInSearch(
         player.manaPool,
         COMPANION_SUMMON_COST,
         getManaSubstitutions(state, player.id),
-        buildAutoTapSources(player.battlefield, manaGateBattlefields(state))
+        buildAutoTapSources(
+            player.battlefield,
+            manaGateBattlefields(state),
+            undefined,
+            state
+        )
     );
     if (plan) {
         for (const step of plan) {

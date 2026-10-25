@@ -13,7 +13,7 @@ import {
     primaryManaTapOptions,
     normalizedHybridPips,
 } from "./constants";
-import type { ManaTapPlanContext } from "./constants";
+import type { ManaReplacementView, ManaTapPlanContext } from "./constants";
 import type { CardInstanceState } from "./state";
 import {
     isManaCostCovered,
@@ -203,7 +203,10 @@ export function buildAutoTapSources(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    context?: ManaTapPlanContext
+    context?: ManaTapPlanContext,
+    /** CR 106.7 / 614 — the per-turn mana replacements (Deep Water, False
+     *  Dawn): the planner counts what a tap WOULD add. */
+    replacements?: ManaReplacementView
 ): AutoTapSource[] {
     const sources: AutoTapSource[] = [];
     for (const card of battlefield) {
@@ -231,7 +234,10 @@ export function buildAutoTapSources(
         const options = getManaTapOptionsDetailed(
             card,
             card.controllerId,
-            battlefields ?? [{ playerId: card.controllerId, battlefield }]
+            battlefields ?? [{ playerId: card.controllerId, battlefield }],
+            undefined,
+            undefined,
+            replacements
         );
         if (options.length === 0) continue; // non-mana source: leave manual
         // CR 605.1a — an index is submitted only when the payment primitive

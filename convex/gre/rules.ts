@@ -61,7 +61,7 @@ import {
 // tapped" is the exact model rather than "the converter is a mana source".
 import { manaConverterColors } from "./manaConverters";
 import { boardManaUnits, producesUncostedMana } from "./manaAvailability";
-import type { ManaTapOption } from "./constants";
+import type { ManaReplacementView, ManaTapOption } from "./constants";
 import { foldHybridGenericLegs, hybridGenericPipCount } from "./hybridGeneric";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -1923,7 +1923,9 @@ export function getProducibleManaSourceView(
     battlefields?: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    /** CR 106.7 / 614 — see `getManaTapOptionsDetailed`. */
+    replacements?: ManaReplacementView
 ): ProducibleManaSourceView {
     // requireTap: the auto-tap planner only ever taps for mana — it must never
     // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
@@ -1933,7 +1935,9 @@ export function getProducibleManaSourceView(
         battlefields,
         {
             requireTap: true,
-        }
+        },
+        undefined,
+        replacements
     );
     if (detailed.length === 0) return { detailed, needIndex: false };
 
@@ -2199,6 +2203,7 @@ export function buildManaSourceUnits(
             controllerId: boardControllerId,
             battlefields: boardBattlefields,
             spell: { types: card.types, supertypes: spellSupertypes },
+            replacements: opts.state,
         })) {
             sources.push(unit);
         }

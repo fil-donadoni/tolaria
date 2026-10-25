@@ -60,6 +60,7 @@ import {
     manaGateBattlefields,
     pureGenericManaSubCost,
 } from "./constants";
+import type { ManaReplacementView } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { manaConverterColors } from "./manaConverters";
 import { tapManaBonusUnits } from "./tapManaBonus";
@@ -170,7 +171,10 @@ function producibleManaUnitsWithDebt(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    spell?: ManaSpellContext
+    spell?: ManaSpellContext,
+    /** CR 106.7 / 614 — the per-turn mana replacements, so the unit colours
+     *  are the mana a tap WOULD add (`getManaTapOptionsDetailed`). */
+    replacements?: ManaReplacementView
 ): { units: Set<Color>[]; debt: number } {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
@@ -204,7 +208,9 @@ function producibleManaUnitsWithDebt(
         battlefields,
         {
             requireTap: true,
-        }
+        },
+        undefined,
+        replacements
     );
     const detailed = spell
         ? allOptions.filter((opt) => {
@@ -418,6 +424,8 @@ export function boardManaCensus(
         /** CR 106.6 — judge each option's spend restriction against this
          *  spell; omitted = spell-blind. */
         spell?: ManaSpellContext;
+        /** CR 106.7 / 614 — see `producibleManaUnitsWithDebt`. */
+        replacements?: ManaReplacementView;
     } = {}
 ): { now: Set<Color>[]; base: Set<Color>[] } {
     const converters = opts.converters;
@@ -442,7 +450,8 @@ export function boardManaCensus(
             perm,
             opts.controllerId,
             opts.battlefields,
-            opts.spell
+            opts.spell,
+            opts.replacements
         );
         const row: Set<Color>[] = [];
         if (widen && widen.size > 0) {
@@ -486,6 +495,7 @@ export function boardManaUnits(
         controllerId?: string;
         battlefields?: BattlefieldsView;
         spell?: ManaSpellContext;
+        replacements?: ManaReplacementView;
     } = {}
 ): Set<Color>[] {
     return boardManaCensus(battlefield, { ...opts, wantBase: false }).now;
@@ -531,6 +541,7 @@ export function boardCensusFor(
         converters: state ? manaConverterColors(state, player) : undefined,
         controllerId: battlefields ? player.id : undefined,
         battlefields,
+        replacements: state,
     });
 }
 

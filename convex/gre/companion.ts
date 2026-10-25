@@ -212,7 +212,9 @@ export function canSummonCompanion(
     const subs = getManaSubstitutions(state, player.id);
     const sources = buildAutoTapSources(
         player.battlefield,
-        manaGateBattlefields(state)
+        manaGateBattlefields(state),
+        undefined,
+        state
     );
     return (
         // CR 106.6 (issue #3354) — counts a bare-rider unit, matching the
