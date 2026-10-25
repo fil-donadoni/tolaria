@@ -15,6 +15,7 @@ import { cn } from "~/lib/utils";
 import { CARD_LANDSCAPE_COMPACT_W } from "~/lib/cardSizing";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useSurfaceClass } from "~/hooks/useSurfaceClass";
 import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
@@ -48,6 +49,8 @@ import {
 import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import DeckColumnActions from "./deck-column-actions";
 import ZoneAddColumnControl from "./zone-add-column-control";
+import ZoneColumnsTrigger from "./zone-columns-trigger";
+import { zoneColumnEntries } from "./zoneColumnEntries";
 import ZoneColorFilterToggles from "./zone-color-filter-toggles";
 import ZoneCreatureFilterSelect from "./zone-creature-filter-select";
 import ZoneFilterChip from "./zone-filter-chip";
@@ -553,6 +556,13 @@ export default function DeckZoneSurface({
     // Rename/delete controls of one Column (see the long note on the pile's
     // `actions` below, now at its call site): none for a non-pin-target
     // Column, none for a Column the pile CSS-hides below `md`.
+    //
+    // Issue #3677: coarse-pointer surfaces (`phone`, `roomy-coarse`) render
+    // none of these glyphs — they sit far below the 44px rung and cannot grow
+    // without widening every pile's header. Their one Zone-level `Columns`
+    // trigger (below) manages the same Columns through a sheet.
+    const surface = useSurfaceClass();
+    const columnsSheet = surface !== "roomy-fine";
     const columnActions = (column: {
         id: ColumnId;
         label: string;
@@ -561,6 +571,7 @@ export default function DeckZoneSurface({
         deletable: boolean;
         hiddenWhenEmpty: boolean;
     }): React.ReactNode =>
+        !columnsSheet &&
         (onRenameColumn || onDeleteColumn) &&
         column.pinNamespace !== null &&
         !(column.hiddenWhenEmpty && narrowWidth) ? (
@@ -822,7 +833,19 @@ export default function DeckZoneSurface({
                                     zoneLabel={title}
                                 />
                             )}
-                        {onAddColumn && (
+                        {columnsSheet &&
+                            (onAddColumn ||
+                                onRenameColumn ||
+                                onDeleteColumn) && (
+                                <ZoneColumnsTrigger
+                                    zoneLabel={title}
+                                    columns={zoneColumnEntries(rawColumns)}
+                                    onAdd={onAddColumn}
+                                    onRename={onRenameColumn}
+                                    onDelete={onDeleteColumn}
+                                />
+                            )}
+                        {!columnsSheet && onAddColumn && (
                             <ZoneAddColumnControl
                                 onAdd={onAddColumn}
                                 zoneLabel={title}
@@ -888,7 +911,9 @@ export default function DeckZoneSurface({
                 // The split grid's divider pill can overflow a narrow or empty
                 // Zone, making this a scroll port with nothing focusable in it
                 // (axe `scrollable-region-focusable`): give it a tab stop.
-                {...(pileLayout.kind === "split"
+                // Issue #3677: coarse surfaces lost the Column header glyphs,
+                // the only focusable content an empty Zone's headers held.
+                {...(pileLayout.kind === "split" || columnsSheet
                     ? {
                           tabIndex: 0,
                           role: "region",

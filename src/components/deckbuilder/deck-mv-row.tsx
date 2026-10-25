@@ -28,9 +28,11 @@ import type { DeckRowTile } from "./deckZoneRows";
  * The row is the SAME drop target as the pile it replaces — one Column, one
  * `zoneColumnDropId`, whichever arrangement is on screen.
  *
- * Deliberately renders no column-management controls (`DeckColumnActions`):
- * nine Columns x a controls button is nine more tap targets on the smallest
- * screen, and rename/delete are workbench gestures. They stay on the pile.
+ * Deliberately renders no per-Column management controls
+ * (`DeckColumnActions`): nine Columns x a controls button is nine more tap
+ * targets on the smallest screen. Phone now reaches column management through
+ * the ONE Zone-level `Columns` trigger (`ZoneColumnsTrigger`, issue #3677),
+ * which is why that objection no longer applies to the Zone as a whole.
  */
 export default function DeckMvRow({
     label,
