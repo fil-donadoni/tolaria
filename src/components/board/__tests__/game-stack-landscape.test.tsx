@@ -10,7 +10,6 @@ import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
-    BESIDE_CONTROLLER_POD,
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
 } from "~/lib/controller-bar-metrics";
@@ -155,7 +154,7 @@ describe("GameStack landscape variant (issue #2589)", () => {
         const panel = outer.querySelector('[data-slot="panel"]') as HTMLElement;
 
         expect(outer.className).not.toContain(BESIDE_CONTROLLER_STRIP);
-        expect(outer.style.right).toBe(BESIDE_CONTROLLER_POD);
+        expect(outer.style.right).toBe("0.5rem");
         expect(panel.className).toContain("w-96");
     });
 });

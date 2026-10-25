@@ -7,9 +7,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-    BESIDE_CONTROLLER_POD,
-    CONTROLLER_POD_RIGHT_REM,
-    CONTROLLER_POD_WIDTH_REM,
+    ABOVE_CONTROLLER_POD_EXPR,
+    CONTROLLER_POD_BOTTOM_REM,
 } from "~/lib/controller-bar-metrics";
 import { render, cleanup } from "@testing-library/react";
 import type { StackItem } from "~/types/game";
@@ -256,24 +255,31 @@ describe("GameStack targets are arrows, not text chips (QA)", () => {
 });
 
 describe("GameStack viewport anchor (QA)", () => {
-    it("anchors to the viewport right edge, left of the controller pod", () => {
+    it("anchors to the viewport right edge so it clears centered dialogs", () => {
         // It used to anchor to the play area's right edge
         // (`--right-piles-w`), which pushed the 384px panel far enough left to
         // overlap every play-area-centered dialog (card placement, pickers).
-        // It now stops at the pod's left edge: at 1180x820 the centred panel
-        // sat over the pod's Pass CTA (issue #6970).
         const { container } = renderStack([makeStackItem("only")]);
         const panel = container.firstElementChild as HTMLElement;
-        expect(panel.style.right).toBe(BESIDE_CONTROLLER_POD);
+        expect(panel.style.right).toBe("0.5rem");
         expect(panel.style.right).not.toContain("--right-piles-w");
     });
 
-    it("the pod's literal classes match the clearance constants", () => {
+    it("sits above the controller pod instead of centring over its Pass CTA", () => {
+        // Issue #6970: centred at `top-1/2` the z-modal panel covered the pod's
+        // Pass CTA at 1180x820 (measured hit-test).
+        const { container } = renderStack([makeStackItem("only")]);
+        const panel = container.firstElementChild as HTMLElement;
+        expect(panel.style.bottom).toBe(`calc${ABOVE_CONTROLLER_POD_EXPR}`);
+        expect(panel.className).not.toContain("top-1/2");
+        expect(panel.style.transform).not.toContain("-50%");
+    });
+
+    it("the pod's literal bottom inset matches the clearance constant", () => {
         const pod = readFileSync(
             resolve(__dirname, "../controller-pod.tsx"),
             "utf8"
         );
-        expect(pod).toContain(`right-${CONTROLLER_POD_RIGHT_REM * 4}`);
-        expect(pod).toContain(`w-${CONTROLLER_POD_WIDTH_REM * 4}`);
+        expect(pod).toContain(`bottom-${CONTROLLER_POD_BOTTOM_REM * 4}`);
     });
 });
