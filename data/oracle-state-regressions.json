@@ -1,4 +1,83 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Every entry names its disposition: `trackedBy` (the issue that undoes the loss) or `intended: true` (a deliberate drop). Written by `bun run oracle:mark-regressions --acknowledge`; stale entries are pruned after merge by `oracle:prune-regressions`, never by a PR author (issue #6061).",
-    "acknowledged": []
+    "acknowledged": [
+        {
+            "oracleId": "70cdd24a-8dc5-47b5-8729-9ebf486f4821",
+            "name": "Aerie Ouphes",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "2141b48d-5a04-40dd-a76b-457ac06b56c2",
+            "name": "Gravelgill Axeshark",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "a2db1035-008e-4de3-b5e5-2a0de83082b2",
+            "name": "Grazing Kelpie",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "5470dcfa-4eff-43da-abf7-19922841f719",
+            "name": "Kitchen Finks",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "de8beb92-234b-4684-9185-c7077c8a5133",
+            "name": "Kithkin Spellduster",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "276b1bd8-8918-4226-bab3-100cf5aa3c24",
+            "name": "Lingering Tormentor",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "27faa94b-c7a7-45e7-8630-80126fab74ba",
+            "name": "Putrid Goblin",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "86177c7e-a6eb-448b-baf8-aedd06f0a2f3",
+            "name": "Rendclaw Trow",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "fbd6dda7-ccee-4640-805d-78a9d60f45ef",
+            "name": "Restless Apparition",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "68ca91ba-31fb-47e0-9b32-e4f3504cbbca",
+            "name": "Safehold Elite",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "423a1fc2-f623-4b5f-9a3e-7f63b2f3cf5d",
+            "name": "Scuzzback Marauders",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "0d6fccd5-ec14-4da6-972e-b2f5502818a4",
+            "name": "Trapjaw Kelpie",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        },
+        {
+            "oracleId": "2f70f1bb-29fa-4abb-afc2-653acd0a08b9",
+            "name": "Woodfall Primus",
+            "reason": "RED-ladder revert of PR #6849 removes the Persist keyword; the fix-forward pass re-ships it",
+            "trackedBy": 3992
+        }
+    ]
 }

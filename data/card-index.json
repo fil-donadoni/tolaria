@@ -640,16 +640,6 @@
         "source": "compiled"
     },
     {
-        "name": "Aerie Ouphes",
-        "scryfallId": "b2e4cb09-c99f-4a17-a6fd-55c9a169a808",
-        "oracleId": "70cdd24a-8dc5-47b5-8729-9ebf486f4821",
-        "firstSet": "eve",
-        "firstPrintId": "b2e4cb09-c99f-4a17-a6fd-55c9a169a808",
-        "firstPrintSet": "eve",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Aeronaut Admiral",
         "scryfallId": "ff15c06c-160d-4960-92d5-6f8e7b33f051",
         "oracleId": "dcde1a62-33a5-4454-a389-9bf7a3521a4c",
@@ -29030,16 +29020,6 @@
         "source": "compiled"
     },
     {
-        "name": "Gravelgill Axeshark",
-        "scryfallId": "5efc174a-f710-4602-aace-c2165473f6c2",
-        "oracleId": "2141b48d-5a04-40dd-a76b-457ac06b56c2",
-        "firstSet": "shm",
-        "firstPrintId": "5efc174a-f710-4602-aace-c2165473f6c2",
-        "firstPrintSet": "shm",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Gravelgill Duo",
         "scryfallId": "f2fd4959-bfff-46dc-b568-b6d69ef8eac9",
         "oracleId": "a9e28134-382b-45e5-8fd0-cc0e7d56fd0c",
@@ -29112,16 +29092,6 @@
         "firstSet": "rav",
         "firstPrintId": "89c2c94a-31df-4789-a309-4cdfe7f6a719",
         "firstPrintSet": "rav",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Grazing Kelpie",
-        "scryfallId": "68ccef2d-9a1f-4011-89e1-911bcc109b9d",
-        "oracleId": "a2db1035-008e-4de3-b5e5-2a0de83082b2",
-        "firstSet": "eve",
-        "firstPrintId": "68ccef2d-9a1f-4011-89e1-911bcc109b9d",
-        "firstPrintSet": "eve",
         "rarity": "common",
         "source": "compiled"
     },
@@ -36390,16 +36360,6 @@
         "firstPrintSet": "leg"
     },
     {
-        "name": "Kitchen Finks",
-        "scryfallId": "7d203208-8a21-4c68-afa2-4efd8726f026",
-        "oracleId": "5470dcfa-4eff-43da-abf7-19922841f719",
-        "firstSet": "shm",
-        "firstPrintId": "7d203208-8a21-4c68-afa2-4efd8726f026",
-        "firstPrintSet": "shm",
-        "rarity": "uncommon",
-        "source": "compiled"
-    },
-    {
         "name": "Kitchen Imp",
         "scryfallId": "836ae711-e62f-49ec-850e-d25f6fd2a4d4",
         "oracleId": "eaa2ad31-065d-4aa3-a39c-5e491dd59022",
@@ -36456,16 +36416,6 @@
         "firstSet": "shm",
         "firstPrintId": "7e5102a7-2147-4e22-b683-c08b4a725617",
         "firstPrintSet": "shm",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Kithkin Spellduster",
-        "scryfallId": "71547cb8-b275-4ff2-a7fa-327cb493ce04",
-        "oracleId": "de8beb92-234b-4684-9185-c7077c8a5133",
-        "firstSet": "eve",
-        "firstPrintId": "71547cb8-b275-4ff2-a7fa-327cb493ce04",
-        "firstPrintSet": "eve",
         "rarity": "common",
         "source": "compiled"
     },
@@ -38678,16 +38628,6 @@
         "firstSet": "dka",
         "firstPrintId": "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
         "firstPrintSet": "dka"
-    },
-    {
-        "name": "Lingering Tormentor",
-        "scryfallId": "f5165880-9727-4f52-9633-fd5cecce7f01",
-        "oracleId": "276b1bd8-8918-4226-bab3-100cf5aa3c24",
-        "firstSet": "eve",
-        "firstPrintId": "f5165880-9727-4f52-9633-fd5cecce7f01",
-        "firstPrintSet": "eve",
-        "rarity": "uncommon",
-        "source": "compiled"
     },
     {
         "name": "Lion Sash",
@@ -51108,16 +51048,6 @@
         "source": "compiled"
     },
     {
-        "name": "Putrid Goblin",
-        "scryfallId": "333406d5-abcc-4629-a33b-395d0662ba1b",
-        "oracleId": "27faa94b-c7a7-45e7-8630-80126fab74ba",
-        "firstSet": "mh1",
-        "firstPrintId": "333406d5-abcc-4629-a33b-395d0662ba1b",
-        "firstPrintSet": "mh1",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Putrid Leech",
         "scryfallId": "aaa47568-5668-4a9f-ad1c-9a13010ffc2b",
         "oracleId": "16b723bc-aab9-40f2-8e1b-b9c2bd2af3bc",
@@ -53678,16 +53608,6 @@
         "source": "compiled"
     },
     {
-        "name": "Rendclaw Trow",
-        "scryfallId": "bc293a4b-abd6-47b6-99d1-578bc22580de",
-        "oracleId": "86177c7e-a6eb-448b-baf8-aedd06f0a2f3",
-        "firstSet": "eve",
-        "firstPrintId": "bc293a4b-abd6-47b6-99d1-578bc22580de",
-        "firstPrintSet": "eve",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Render Speechless",
         "scryfallId": "25bbb1c7-14e8-444f-ab98-e95f50927460",
         "oracleId": "6fdddab4-fcc9-4622-9c17-c69f9d4bca08",
@@ -54025,16 +53945,6 @@
         "firstPrintId": "680b7955-d939-4195-aba8-b46a8c925616",
         "firstPrintSet": "ala",
         "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Restless Apparition",
-        "scryfallId": "dc6480d0-17c5-4ac2-afb2-4d44f089de22",
-        "oracleId": "fbd6dda7-ccee-4640-805d-78a9d60f45ef",
-        "firstSet": "eve",
-        "firstPrintId": "dc6480d0-17c5-4ac2-afb2-4d44f089de22",
-        "firstPrintSet": "eve",
-        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -56324,16 +56234,6 @@
         "source": "compiled"
     },
     {
-        "name": "Safehold Elite",
-        "scryfallId": "14dee5be-94fd-4b5d-9265-edd1b58c8026",
-        "oracleId": "68ca91ba-31fb-47e0-9b32-e4f3504cbbca",
-        "firstSet": "shm",
-        "firstPrintId": "14dee5be-94fd-4b5d-9265-edd1b58c8026",
-        "firstPrintSet": "shm",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Safewright Quest",
         "scryfallId": "61edb39b-ff82-4568-971f-baf22e209c88",
         "oracleId": "003c48d4-0303-4970-8637-47ae060385aa",
@@ -57898,16 +57798,6 @@
         "firstSet": "khm",
         "firstPrintId": "9dab2ca2-0039-4eac-a7dc-68756362737d",
         "firstPrintSet": "khm",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Scuzzback Marauders",
-        "scryfallId": "6738d2b7-2773-4146-8f95-8d95b8402266",
-        "oracleId": "423a1fc2-f623-4b5f-9a3e-7f63b2f3cf5d",
-        "firstSet": "shm",
-        "firstPrintId": "6738d2b7-2773-4146-8f95-8d95b8402266",
-        "firstPrintSet": "shm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -71236,16 +71126,6 @@
         "firstPrintSet": "atq"
     },
     {
-        "name": "Trapjaw Kelpie",
-        "scryfallId": "62615f86-0431-4709-b41c-af43f7793fdb",
-        "oracleId": "0d6fccd5-ec14-4da6-972e-b2f5502818a4",
-        "firstSet": "eve",
-        "firstPrintId": "62615f86-0431-4709-b41c-af43f7793fdb",
-        "firstPrintSet": "eve",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Trash for Treasure",
         "scryfallId": "ec59ed99-ce40-489a-b776-8874bec60393",
         "oracleId": "e69279f6-50a1-4db5-83be-30a2ea7fc6a9",
@@ -78480,16 +78360,6 @@
         "firstSet": "lea",
         "firstPrintId": "bcae01a2-171b-47cd-87be-f1e4e5314326",
         "firstPrintSet": "lea"
-    },
-    {
-        "name": "Woodfall Primus",
-        "scryfallId": "43aa7e35-55ee-4e02-a8aa-ea2b267055d1",
-        "oracleId": "2f70f1bb-29fa-4abb-afc2-653acd0a08b9",
-        "firstSet": "shm",
-        "firstPrintId": "43aa7e35-55ee-4e02-a8aa-ea2b267055d1",
-        "firstPrintSet": "shm",
-        "rarity": "rare",
-        "source": "compiled"
     },
     {
         "name": "Woodland Chasm",

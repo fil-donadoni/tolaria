@@ -11108,11 +11108,6 @@ export interface CreatureDiedEvent {
      *  (CR 704.5m) may detach it in the same sweep that killed the host
      *  (issue #5784). Omitted when nothing was attached. */
     attachmentsBeforeLeave?: ReadonlyArray<string>;
-    /** Counters on the creature at the moment it died, by counter type
-     *  (CR 603.10 last known information). Read by Persist's intervening-if
-     *  (CR 702.79a — "if it had no -1/-1 counters on it"): the card in the
-     *  graveyard is a new object with none. Omitted when it had no counters. */
-    creatureCounters?: Readonly<Record<string, number>>;
 }
 
 /** Enter-the-battlefield event emitted whenever a permanent enters play via
