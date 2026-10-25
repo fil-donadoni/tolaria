@@ -101,6 +101,10 @@ describe("Reveal top route — refusals", () => {
             "Reveal the top card of your library. If it's a land card, put it onto the battlefield.",
         ],
         [
+            "unfinished route after another effect",
+            "Draw a card. Reveal the top card of your library. If it's a land card, put it onto the battlefield.",
+        ],
+        [
             "route without a window",
             "If it's a land card, put it onto the battlefield. Otherwise, put it into your hand.",
         ],
