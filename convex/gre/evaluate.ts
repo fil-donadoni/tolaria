@@ -2561,34 +2561,28 @@ export function declaredCombatDelta(
     return ownView ? attackerDelta : -attackerDelta;
 }
 
-/** The material + life swing of a block ALREADY DECLARED (blockers confirmed,
- *  damage not yet dealt), from `viewerId`'s perspective (ADR 0021 slice 2,
- *  issue #222). Unlike `declaredCombatDelta` — which predicts the defender's OWN
- *  sensible block off a pre-block snapshot — this scores the SPECIFIC block
- *  assignment recorded in `state.combat.blockerAssignments`, so it can rank one
- *  block against another. It is the lens the reactive rollout default policy
- *  uses to pick a SANE block; it is deliberately NOT folded into `evaluate`, so
- *  the shared leaf magnitudes (and the search reward band / issue-#138 tie-break)
- *  are unchanged. Crude on purpose, matching the Danger Clock shape: a blocked
- *  attacker dies if the blockers' total power covers its toughness; each blocker
- *  dies if the attacker's power (assigned in listed order) covers its toughness;
- *  an unblocked attacker's power hits the defender's life. Zero when no block is
- *  confirmed.
- *
- *  Lethality reads EFFECTIVE P/T (temp buffs included, like `predictCombatOutcome`)
- *  — the combat happens THIS turn while an until-end-of-turn pump is live, so a
- *  combat trick cast in response to the block MUST count here (ADR 0021 slice 3,
- *  issue #223); this is what lets the rollout policy see that holding a trick and
- *  casting it in the block step wins the exchange. The dead creatures' WORTH
- *  still comes from `evaluateCreature` (permanent P/T): you lose the base
- *  creature, not its one-turn pumped body. */
-export function declaredBlockDelta(
-    state: GameState,
-    viewerId: string,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    /** Issue #4461 — see `ManaCensusMemo`. */
-    memo?: ManaCensusMemo
-): number {
+/** The predicted exchange of a block ALREADY DECLARED (blockers confirmed,
+ *  damage not yet dealt): which attackers and blockers die and what reaches
+ *  the defending player, read off `state.combat.blockerAssignments` with the
+ *  crude arithmetic `declaredBlockDelta` documents. `null` when no block is
+ *  confirmed. Pure; no valuation — `declaredBlockDelta` prices it, and
+ *  `selectRootMove`'s block-quality tie-break compares two of them axis by
+ *  axis (`blockOutcomeDominates`, search.ts). */
+export type DeclaredBlockOutcome = {
+    attacker: PlayerState;
+    defender: PlayerState;
+    byAttacker: Map<string, CardInstanceState[]>;
+    deadAttackers: CardInstanceState[];
+    deadBlockers: CardInstanceState[];
+    faceDamage: number;
+    /** CR 702.90b — the infect share of the face damage, landing as poison. */
+    facePoison: number;
+    pass: Layer7Pass;
+};
+
+export function declaredBlockOutcome(
+    state: GameState
+): DeclaredBlockOutcome | null {
     const combat = state.combat;
     if (
         !combat ||
@@ -2596,12 +2590,12 @@ export function declaredBlockDelta(
         !combat.blockersConfirmed ||
         combat.attackerIds.length === 0
     ) {
-        return 0;
+        return null;
     }
     const attackerId = state.activePlayerId; // CR 508.1 — active player attacks.
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id !== attackerId);
-    if (!attacker || !defender) return 0;
+    if (!attacker || !defender) return null;
 
     // Invert blockerId → attackerIds into attackerId → blockers (in stable
     // listed order) so each attacker's combat can be resolved independently.
@@ -2698,6 +2692,59 @@ export function declaredBlockDelta(
         } else if (infect) facePoison += overflow;
         else faceDamage += overflow;
     }
+
+    return {
+        attacker,
+        defender,
+        byAttacker,
+        deadAttackers,
+        deadBlockers,
+        faceDamage,
+        facePoison,
+        pass,
+    };
+}
+
+/** The material + life swing of a block ALREADY DECLARED (blockers confirmed,
+ *  damage not yet dealt), from `viewerId`'s perspective (ADR 0021 slice 2,
+ *  issue #222). Unlike `declaredCombatDelta` — which predicts the defender's OWN
+ *  sensible block off a pre-block snapshot — this scores the SPECIFIC block
+ *  assignment recorded in `state.combat.blockerAssignments`, so it can rank one
+ *  block against another. It is the lens the reactive rollout default policy
+ *  uses to pick a SANE block; it is deliberately NOT folded into `evaluate`, so
+ *  the shared leaf magnitudes (and the search reward band / issue-#138 tie-break)
+ *  are unchanged. Crude on purpose, matching the Danger Clock shape: a blocked
+ *  attacker dies if the blockers' total power covers its toughness; each blocker
+ *  dies if the attacker's power (assigned in listed order) covers its toughness;
+ *  an unblocked attacker's power hits the defender's life. Zero when no block is
+ *  confirmed.
+ *
+ *  Lethality reads EFFECTIVE P/T (temp buffs included, like `predictCombatOutcome`)
+ *  — the combat happens THIS turn while an until-end-of-turn pump is live, so a
+ *  combat trick cast in response to the block MUST count here (ADR 0021 slice 3,
+ *  issue #223); this is what lets the rollout policy see that holding a trick and
+ *  casting it in the block step wins the exchange. The dead creatures' WORTH
+ *  still comes from `evaluateCreature` (permanent P/T): you lose the base
+ *  creature, not its one-turn pumped body. */
+export function declaredBlockDelta(
+    state: GameState,
+    viewerId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    /** Issue #4461 — see `ManaCensusMemo`. */
+    memo?: ManaCensusMemo
+): number {
+    const outcome = declaredBlockOutcome(state);
+    if (!outcome) return 0;
+    const {
+        attacker,
+        defender,
+        byAttacker,
+        deadAttackers,
+        deadBlockers,
+        faceDamage,
+        facePoison,
+        pass,
+    } = outcome;
 
     const value = (cards: CardInstanceState[]) =>
         cards.reduce(
