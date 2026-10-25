@@ -635,6 +635,35 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
             plan.skips.map((s) => [s.code, SMOKE_SKIP_CLASS[s.code]])
         ).toContainEqual(["source-or-each-subject", "card-dependent"]);
     });
+
+    it("a delayedTrigger's $source capture is bookkeeping, not a card-dependent subject (CR 603.7)", () => {
+        const plan = planSmokeTest(
+            [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-cleanup-step",
+                    oracleText: "Return this land to its owner's hand.",
+                    capture: { $self: { ref: "$source" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$self" },
+                            to: "hand",
+                        },
+                    ],
+                } as EffectOp,
+            ],
+            CREATURE_HOST
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        const codes = plan.skips.map((s) => s.code);
+        expect(codes).toContain("later-outcome");
+        // the payload walk still reports the body's own card-dependent clause
+        expect(codes).toContain("unmodelled-object-or-zone");
+        expect(codes).not.toContain("source-or-each-subject");
+        expect(codes).not.toContain("runtime-amount");
+    });
 });
 
 describe("the seeded $source is the HOST card, where it really is (issue #3879)", () => {
