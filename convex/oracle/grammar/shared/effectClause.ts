@@ -1902,6 +1902,13 @@ export type EffectSentenceIR =
            * paid (the lowering gates on the evidence the action left).
            */
           readonly then?: EffectSentenceIR;
+          /**
+           * CR 603.12 — the sentence text when `then` is a REFLEXIVE ability
+           * ("When you do, <effect>.") rather than an "If you do" follow-up:
+           * the lowering wraps `then` in a `reflexiveTrigger` that announces
+           * its own targets. Set only beside `then`.
+           */
+          readonly reflexive?: string;
       }
     | {
           /**
@@ -2345,6 +2352,14 @@ export type SentenceIR =
       }
     | {
           readonly role: "if-you-do";
+          readonly text: string;
+          readonly effect: EffectSentenceIR;
+      }
+    /** CR 603.12 — "When you do, <effect>.": the reflexive ability the
+     *  member before it (an optional action or the controller's own
+     *  sacrifice) triggers. Folded by `assembleSentences` like `if-you-do`. */
+    | {
+          readonly role: "when-you-do";
           readonly text: string;
           readonly effect: EffectSentenceIR;
       }
@@ -2972,6 +2987,30 @@ export function assembleSentences(
             return {
                 ok: false,
                 reason: '"If you do, …" follows no optional effect or "You may pay {X}"',
+            };
+        }
+        if (sentence.role === "when-you-do") {
+            // CR 603.12 — a reflexive ability triggers off an action the
+            // controller just performed: an optional one (the player said
+            // yes and paid it) or their own sacrifice. A member already
+            // gated has no second gate.
+            const last = effects[effects.length - 1];
+            if (
+                last !== undefined &&
+                (last.kind === "optional" ||
+                    (last.kind === undefined && endsInOwnSacrifice(last))) &&
+                last.then === undefined
+            ) {
+                effects[effects.length - 1] = {
+                    ...last,
+                    then: sentence.effect,
+                    reflexive: sentence.text,
+                };
+                continue;
+            }
+            return {
+                ok: false,
+                reason: '"When you do, …" follows no optional effect or sacrifice',
             };
         }
         if (landTypePick) {
@@ -4618,6 +4657,8 @@ const AND_ASSIGNS_NO_COMBAT_DAMAGE =
     /^(.+) and (.+) assigns no combat damage this turn$/;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
+/** CR 603.12 — the reflexive sentence behind an action it triggers off. */
+const WHEN_YOU_DO = /^When you do, (.+)$/;
 /** CR 121.1 — the first half of a `draw-then-ranged-topdeck`, whole. */
 const DRAW_ADDITIONAL_CARDS = /^draw (\S+) additional cards$/;
 /** The pick among the cards drawn this turn, whole. */
@@ -5596,6 +5637,22 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 return fail('"If you do" feeds a plain effect sentence', span);
             return ok({
                 role: "if-you-do" as const,
+                text: span,
+                effect: inner.value.effect,
+            });
+        }
+
+        const whenYouDo = span.match(WHEN_YOU_DO);
+        if (whenYouDo !== null) {
+            const inner = sentenceRule.run(capitalise(whenYouDo[1]!), ctx);
+            if (!inner.ok) return inner;
+            if (inner.value.role !== "effect")
+                return fail(
+                    '"When you do" feeds a plain effect sentence',
+                    span
+                );
+            return ok({
+                role: "when-you-do" as const,
                 text: span,
                 effect: inner.value.effect,
             });
