@@ -1719,6 +1719,124 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "life-dependent negative control (issue #2147): same board as charter scenario 4 (4 x Craw Wurm vs. lone Grizzly Bears), only `life.opp` raised from the default 20 to 40. 24 unblocked damage no longer kills, so blocking (which trades the 2/2 for nothing against a 6/4) is pure material loss with zero survival benefit — the bot must decline. Measured 5/5 seeds: blocks at life 20 (scenario 4), declines at life 40 (this entry). Proves the ScenarioSpec `life` field actually reaches the built board and changes the bot's decision, not just the definition.",
     },
     {
+        // DOMINATED BLOCK (issue #6914), lowered from a real game. A 6/6 attacks
+        // a defender at 2 life holding a 4/4, a 2/2 and a 1/1; the attacker
+        // keeps red open for the 6/6's own "{R}, sacrifice: 6 damage to each
+        // creature and each player", which at 3 life against 2 is a draw. The
+        // defender must block. Throwing the 4/4 in front alone is the one block
+        // that is strictly worse than another legal block: the 1/1 chump also
+        // kills nothing and also stops all 6, losing less; the 4/4 + 2/2 double
+        // block kills the attacker.
+        //
+        // At a time-capped budget each declaration gets a handful of visits,
+        // and the attacker's node under each is still an average over its
+        // untried replies, the draw-sacrifice among them. MEASURED before the
+        // fix at this budget: the lone 4/4 out-rewarded both better blocks by
+        // more than `outcomeEps` on seeds 6 and 16, so the block-quality
+        // tie-break never saw them (`blockDeltaOf` ranked the lone 4/4 last).
+        // Admitting any block whose exchange dominates a contender's
+        // (`blockOutcomeDominates`) closes it; with no red source for the
+        // attacker the same board never produced the blunder.
+        label: "dominated block: never throws the 4/4 alone in front of a 6/6 when the 1/1 chump does the same job (issue #6914)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Bloodfire Colossus",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Slimy Kavu",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mogg Jailer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Quirion Explorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Darigaaz's Caldera",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Geothermal Crevice",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Tinder Farm", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Glade Gnarr",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Benalish Lancer",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Dega Disciple",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 5 },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 4 },
+                { name: "Yavimaya Barbarian", owner: "opp", zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 30,
+            landCount: 0,
+            libraryCount: 18,
+            life: { me: 3, opp: 2 },
+        },
+        setup: [{ kind: "declare-attackers", cards: ["Bloodfire Colossus"] }],
+        bot: "opp",
+        // The time-capped regime the blunder lives in: at 160+ iterations the
+        // means converge and the reward band admits every survival block.
+        budget: { iterations: 50 },
+        seeds: [1, 2, 6, 16],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "declare-blockers")
+                    return false;
+                if (move.assignments.length === 0) return false;
+                const gnarr = instanceIdsForName(state, "Glade Gnarr");
+                return !(
+                    move.assignments.length === 1 &&
+                    gnarr.has(move.assignments[0].blockerId)
+                );
+            },
+            describe:
+                "blocks the 6/6 with anything but the lone Glade Gnarr (the 1/1 chump dominates it)",
+        },
+        note: "Issue #6914 — a block whose exchange is dominated (kills no more, stops no more, loses more) must never be picked over the block that dominates it, even when rollout noise at a time-capped budget out-rewards it by more than `outcomeEps`. Lowered from a real game's Copy State. Red before the fix on seeds 6 and 16 at 50 iterations; the lone 2/2 block stays legal here because the engine values the 2/2 and the 1/1 equally.",
+    },
+    {
         // POISON-LETHAL (issue #5153) — charter scenario 4's question, block or
         // die, asked of the OTHER loss: the bot holds 8 poison counters and the
         // attacker is a 2/2 with infect, so the 2 unblocked damage arrives as

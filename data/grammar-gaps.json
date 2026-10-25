@@ -551,6 +551,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Creature › dealDamage",
+            "issue": 6977
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Creature › pump",
             "issue": 4270
         },
