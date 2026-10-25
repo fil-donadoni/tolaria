@@ -1482,7 +1482,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Persist",
         kind: "keyword-ability",
         cr: "702.79",
-        status: "planned",
+        status: "implemented",
+        binding: "persist",
+        note: "CR 702.79a — expanded implicitly from the `persist` staticAbilities string by `expandKeywordTriggers` (abilities/keywordTriggers.ts, ADR 0054): a self `diedTrigger` whose intervening-if reads `CreatureDiedEvent.creatureCounters` (CR 603.10 last-known counters), returning the card via `moveZone` ($source, owner's control) then a `counters` add of one -1/-1. No new Op.",
     },
     // 702.80 Wither
     {
