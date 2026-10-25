@@ -2750,7 +2750,7 @@ describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
     });
 });
 
-describe("Dire Wolves (CR 702.22 banding, CR 611.2c conditional grant)", () => {
+describe("Dire Wolves (CR 702.22 banding, CR 613.1f conditional grant)", () => {
     // "This creature has banding as long as you control a Plains."
     const wolvesDef = getCardByName("Dire Wolves");
     const plainsDef = getCardByName("Plains");

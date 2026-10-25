@@ -230,7 +230,7 @@ export const chubToad = defineCard(() => ({
     ],
 }));
 // Dire Wolves — {2}{G} 2/2 Wolf. "This creature has banding as long as you
-// control a Plains." (CR 702.22 banding; CR 611.2c "as long as" — a
+// control a Plains." (CR 702.22 banding; CR 613.1f layer 6, "as long as" — a
 // `keyword-grant` with a `condition` re-evaluated every stable transition, the
 // Woolly Mammoths shape.) "You" is the creature's controller at read time.
 export const direWolves = defineCard(() => ({

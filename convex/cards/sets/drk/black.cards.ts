@@ -541,7 +541,7 @@ export const seasonOfTheWitch = defineCard(() => ({
                 // turn and could have attacked is destroyed. "Couldn't attack"
                 // is the engine's own attack-legality check (CR 508.1a-c).
                 // Tapped creatures are excluded by the `tapped: false` filter
-                // (CR 508.1g).
+                // (CR 508.1a).
                 for (const pid of ctx.allPlayerIds) {
                     for (const id of ctx.getBattlefieldIds(pid, {
                         types: "Creature",
