@@ -11,6 +11,8 @@ import {
     holdFor,
     holdReleases,
     hostOfRunnerName,
+    livePassIssues,
+    repairAttempted,
     mayClaim,
     parseAfkDispatchConfig,
     parsePassRecord,
@@ -29,11 +31,12 @@ import {
 } from "../lib/afk-dispatch";
 import { claimFate, pick } from "../lib/picker";
 import { classifyClaims } from "../loop-doctor";
-import type {
-    IssueDetail,
-    PlanConfig,
-    QueueIssue,
-    QueuePort,
+import {
+    repairItems,
+    type IssueDetail,
+    type PlanConfig,
+    type QueueIssue,
+    type QueuePort,
 } from "../lib/queue-plan";
 
 // The AFK dispatcher's decisions (issue #5649). Every hold, the claim-facts
@@ -762,6 +765,105 @@ describe("afk-dispatch plan (issue #5649)", () => {
         );
         expect(plan.release).toEqual([7]);
         expect(plan.dispatch).toEqual([]);
+    });
+});
+
+describe("afk-dispatch repairs (issue #6795)", () => {
+    const labels: Record<number, string[]> = {
+        1: ["ready-for-agent"],
+        2: ["ready-for-agent"],
+        7: ["ready-for-agent", "in-progress"],
+    };
+    const repair = (number: number, pr: number) => ({
+        number,
+        pr,
+        branch: `fix/issue-${number}`,
+        model: "sonnet",
+    });
+    const picked = (claims: ReturnType<typeof facts>) =>
+        pick({
+            issues: queue(labels),
+            config: CONFIG,
+            port: port(labels),
+            trust: TRUST,
+            provenance: OWNED([1, 2, 7]),
+            claims,
+        });
+
+    it("a land-failed repair takes a slot after the resumes and before the batch", () => {
+        const plan = planDispatch(
+            picked(
+                facts(
+                    [7],
+                    [passRun(1, 7, { conclusion: "failure" })],
+                    ["feat/issue-7"],
+                    []
+                )
+            ),
+            { free: ["mbp", "hw", "hw"], online: ["mbp", "hw"] },
+            () => null,
+            [repair(40, 400)]
+        );
+        expect(plan.dispatch.map((d) => d.issue)).toEqual([7, 40, 1]);
+        expect(plan.dispatch[1]).toMatchObject({
+            issue: 40,
+            resume: true,
+            host: null,
+            pr: 400,
+        });
+    });
+
+    it("repairs never exceed the free slots and never repeat a resume", () => {
+        const plan = planDispatch(
+            picked(
+                facts(
+                    [7],
+                    [passRun(1, 7, { conclusion: "failure" })],
+                    ["feat/issue-7"],
+                    []
+                )
+            ),
+            { free: ["mbp", "hw"], online: ["mbp", "hw"] },
+            () => null,
+            [repair(7, 70), repair(40, 400), repair(41, 410)]
+        );
+        expect(plan.dispatch.map((d) => d.issue)).toEqual([7, 40]);
+    });
+
+    it("two land-failed PRs naming one issue repair it once", () => {
+        const plan = planDispatch(
+            picked(facts([], [], [], [])),
+            { free: ["mbp", "hw", "hw"], online: ["mbp", "hw"] },
+            () => null,
+            [repair(40, 400), repair(40, 401)]
+        );
+        expect(plan.dispatch.filter((d) => d.issue === 40)).toHaveLength(1);
+    });
+
+    it("a repair a finished pass already tried since the label is not dispatched again", () => {
+        const runs = [passRun(1, 40, { createdAt: iso(30) })];
+        expect(repairAttempted(runs, 40, iso(60))).toBe(true);
+        expect(repairAttempted(runs, 40, iso(10))).toBe(false);
+        expect(repairAttempted(runs, 40, null)).toBe(false);
+        expect(repairAttempted(runs, 41, iso(60))).toBe(false);
+    });
+
+    it("an issue a live pass run holds is not a repair pick", () => {
+        const live = livePassIssues([
+            passRun(1, 40, { status: "in_progress", conclusion: null }),
+            passRun(2, 41),
+        ]);
+        expect([...live]).toEqual([40]);
+        const items = repairItems(
+            [
+                { number: 400, headRefName: "fix/issue-40" },
+                { number: 410, headRefName: "fix/issue-41" },
+            ],
+            () => ({ labels: [], body: "" }),
+            CONFIG,
+            live
+        );
+        expect(items.map((r) => r.number)).toEqual([41]);
     });
 });
 
