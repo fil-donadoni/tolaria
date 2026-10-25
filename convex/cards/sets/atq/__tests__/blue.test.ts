@@ -272,7 +272,7 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
         );
     });
 
-    it("getLegalTargets offers artifact cards from any player's graveyard", () => {
+    it("the card group offers artifact cards from the announced player's graveyard only", () => {
         const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
@@ -299,11 +299,14 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
         });
         const ids = getLegalTargets(
             state,
-            drafnasRestoration.targetRequirement!,
+            {
+                ...drafnasRestoration.additionalTargetRequirements![0],
+                zoneOwnerId: "p2",
+            },
             NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
-        expect(ids).toContain("g1");
+        expect(ids).not.toContain("g1");
         expect(ids).toContain("oppArt");
         expect(ids).not.toContain("oppSpell");
     });
