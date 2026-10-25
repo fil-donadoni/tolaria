@@ -36,6 +36,12 @@ interface SaveDeckBarProps {
      *  overlays this slice removed. Rendered unconditionally (not folded
      *  behind `short-viewport:`): a mouse has no other path to it. */
     featured?: ReactNode;
+    /** Issue #3679: the source-dock layout's `Add Basic` trigger. In the dock
+     *  layout the basics bar folds into a sheet trigger; hosting it in THIS
+     *  row (right-hand cluster, before Delete / Done) at `--control-h` costs
+     *  the deck pane nothing, where a standalone band cost it ~22px. Passed
+     *  ONLY by the shell's `isSourceDock` branch; omitted everywhere else. */
+    dockAction?: ReactNode;
 }
 
 export default function SaveDeckBar({
@@ -49,6 +55,7 @@ export default function SaveDeckBar({
     legality,
     foldableActions,
     featured,
+    dockAction,
 }: SaveDeckBarProps) {
     return (
         <form
@@ -121,6 +128,7 @@ export default function SaveDeckBar({
                 Auto-saved
             </span>
             <div className="flex items-center gap-2 ml-auto">
+                {dockAction}
                 {onDelete && (
                     <Button
                         type="button"

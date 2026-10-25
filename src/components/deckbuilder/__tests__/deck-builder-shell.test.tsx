@@ -455,6 +455,7 @@ describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review f
                 content: <div data-testid="source">results</div>,
             },
             basicsBar: <div data-testid="basics">Add Basic content</div>,
+            saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
         });
 
         // The inline band is ABSENT — folded, not just visually collapsed
@@ -469,6 +470,37 @@ describe("DeckBuilderShell — source-dock basics-bar fold (issue #2585 review f
         // the inline band (folded above) never joins it once the sheet mounts.
         expect(document.querySelector("[data-basics-sheet]")).toBeTruthy();
         expect(getAllByTestId("basics")).toHaveLength(1);
+    });
+
+    it("hosts the dock Add Basic trigger inside SaveDeckBar's action cluster at --control-h, with no standalone band (issue #3679)", () => {
+        stubDockViewport();
+        const { getByRole } = renderShell({
+            sourcePanel: {
+                label: "Search",
+                count: 1,
+                content: <div data-testid="source">results</div>,
+            },
+            basicsBar: <div data-testid="basics">Add Basic content</div>,
+            saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
+        });
+
+        const trigger = getByRole("button", { name: "Add Basic" });
+        expect(trigger.closest("form")).toBeTruthy();
+        expect(trigger.style.minHeight).toBe("var(--control-h)");
+        expect(trigger.getAttribute("data-size")).not.toBe("xs");
+    });
+
+    it("renders no Add Basic slot in SaveDeckBar outside the dock layout (issue #3679)", () => {
+        const { queryByRole } = renderShell({
+            sourcePanel: {
+                label: "Search",
+                count: 1,
+                content: <div data-testid="source">results</div>,
+            },
+            basicsBar: <div data-testid="basics">Add Basic content</div>,
+        });
+
+        expect(queryByRole("button", { name: "Add Basic" })).toBeNull();
     });
 
     it("does NOT fold the Add Basic bar at a dock-shaped viewport when no source panel is supplied (round-1 finding #5's own gate) — the bar stays inline, as Limited's does", () => {
