@@ -1639,7 +1639,7 @@ async function main(): Promise<void> {
         console.log(line);
     for (const move of result.moves) {
         console.log(
-            `${move.kind.padEnd(10)} move       ${move.key} -> issue #${move.issue}: parent ${move.from === null ? "none" : `#${move.from}`} -> #${move.to}`
+            `${move.kind.padEnd(10)} move        ${move.key} -> issue #${move.issue}: parent ${move.from === null ? "none" : `#${move.from}`} -> #${move.to}`
         );
     }
     console.log(
