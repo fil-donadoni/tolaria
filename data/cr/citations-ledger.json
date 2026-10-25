@@ -13988,6 +13988,7 @@
         {"id":"400.11b","line":"/** `choose-outside-game-card` (CR 400.11b — the Wish cards): the player MAY","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
         {"id":"400.11b","line":"/** `choose-outside-game-card` (the CR 400.11b pick): the player whose","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
         {"id":"400.11b","line":"// A Wish pick (CR 400.11b) for the CHOOSER owns its modal picker","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
+        {"id":"400.11b","line":"// CR 400.11b (issue #6523) — a Wish's \"you may reveal a sorcery card you","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
         {"id":"400.11b","line":"// CR 400.11b (issue #6523) — the Wish pick. An optional pick whose","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
         {"id":"400.11b","line":"// CR 400.11b (issue #6523) — the Wish pick. The pick is optional","sites":1,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
         {"id":"400.11b","line":"// CR 400.11b + CR 701.20a — \"You may reveal a <filter> card you own from","sites":2,"status":"confirmed","ruleHash":"3d82924690c0d9ad"},
