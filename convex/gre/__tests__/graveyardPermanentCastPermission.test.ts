@@ -536,7 +536,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             });
         });
 
-        it("graveyardCastStackFlags marks castFromGraveyard only â€” NOT exileOnResolve or escaped", () => {
+        it("graveyardCastStackFlags adds no mechanism flag â€” NOT exileOnResolve or escaped", () => {
             const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
             });
@@ -547,7 +547,6 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             const flags = graveyardCastStackFlags(state, gyLions, "graveyard");
-            expect(flags.castFromGraveyard).toBe(true);
             expect(flags.exileOnResolve).toBeUndefined();
             expect(flags.escaped).toBeUndefined();
         });

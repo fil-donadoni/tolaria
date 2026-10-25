@@ -373,6 +373,7 @@ import {
     removeContinuousEffect,
 } from "./continuousEffects";
 export type {
+    CastFromZone,
     Duration,
     GrantedAttackRequirement,
     DurationTickView,
@@ -3389,7 +3390,7 @@ export function emitEntersWithCounterEvents(
  *  SAME cast-commit seam as `buybackPaid`, so they are exactly as
  *  cast-instance-scoped) plus the redirect flags a SPELL's own resolution can
  *  set on itself (`exileOnResolve`, `shuffleIntoLibraryOnResolve`,
- *  `castFromGraveyard`, `reboundFromHand`, `isCopy`) and multi-step resolve
+ *  `castFromZone`, `reboundFromHand`, `isCopy`) and multi-step resolve
  *  bookkeeping (`resolutionStep`, `collectedChoices`, `massRiderTargets`) —
  *  every one of these is stale by the time any call site below runs (the
  *  redirect flags have already been READ and branched on; resolution
@@ -3550,7 +3551,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.isCopy;
     delete item.exileOnResolve;
     delete item.shuffleIntoLibraryOnResolve;
-    delete item.castFromGraveyard;
+    delete item.castFromZone;
     delete item.reboundFromHand;
     delete item.actingPlayerId;
 }
@@ -4080,7 +4081,7 @@ function finalizeSpellResolution(
         // graveyard".
         emitPermanentEntered(state, item, {
             wasCast: true,
-            enteredFromGraveyard: item.castFromGraveyard === true,
+            enteredFromGraveyard: item.castFromZone === "graveyard",
         });
     } else {
         // CR 702.131a (issue #1460) — the INSTANT/SORCERY form of Ascend is
@@ -11379,7 +11380,7 @@ function cloneSpellOntoStack(
     // unbounded copies. `exileOnResolve` is likewise a cast-site artifact (the
     // flashback card is exiled, not the copy, which ceases to exist as a
     // one-shot effect per CR 707.10a).
-    delete copy.castFromGraveyard;
+    delete copy.castFromZone;
     delete copy.exileOnResolve;
     // `shuffleIntoLibraryOnResolve` is likewise a cast-site artifact (issue
     // #898) — the ORIGINAL is shuffled into its owner's library, not the copy,
@@ -18564,9 +18565,9 @@ export function buildSpellContext(
             card.grantedFlashback = granted;
         },
         wasCastFromGraveyard(): boolean {
-            // CR 702.34 — the flag is stamped on the stack item at cast commit
-            // when the spell was flashed back from the graveyard.
-            return item.castFromGraveyard === true;
+            // CR 601.2a — the Cast Provenance every cast commit stamps on the
+            // stack item; a copy carries none (CR 707.10).
+            return item.castFromZone === "graveyard";
         },
         getCardTargetRequirement(casterId, cardInstanceId) {
             // CR 108.1 — read the chosen card's target requirement from the

@@ -294,7 +294,7 @@ describe("Iron-Shield Elf (CR 702.12 indestructible grant + CR 701.26 tap, disca
 // `PERMANENT_ENTERED.enteredFromGraveyard` provenance flag (issue #1533),
 // stamped at the graveyard reanimation chokepoints (`returnToBattlefield` from
 // a graveyard) and the cast-from-graveyard chokepoint
-// (`finalizeSpellResolution` → `castFromGraveyard`). These tests prove the
+// (`finalizeSpellResolution` → `castFromZone`). These tests prove the
 // flag is set on a graveyard reanimation and NOT on an exile return, and that
 // the full trigger fires and creates a token copy of the entering creature.
 describe("Twilight Diviner (CR 701.25 ETB surveil 2; CR 603.4 graveyard-entry token copy)", () => {

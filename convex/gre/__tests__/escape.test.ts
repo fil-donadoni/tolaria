@@ -245,7 +245,6 @@ describe("Escape capability (CR 702.138)", () => {
             });
             const flags = graveyardCastStackFlags(state, uro, "graveyard");
             expect(flags.escaped).toBe(true);
-            expect(flags.castFromGraveyard).toBe(true);
             expect(flags.exileOnResolve).toBeUndefined();
         });
 
@@ -424,7 +423,9 @@ describe("Escape capability (CR 702.138)", () => {
             const stackItem: StackItem = {
                 ...removed,
                 castById: "p1",
-                ...(escaped ? { escaped: true, castFromGraveyard: true } : {}),
+                ...(escaped
+                    ? { escaped: true, castFromZone: "graveyard" as const }
+                    : {}),
             };
             state.stack.push(stackItem);
             resolveTopOfStack(state);

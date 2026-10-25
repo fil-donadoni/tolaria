@@ -196,7 +196,7 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             const top = state.stack[state.stack.length - 1];
             expect((top.card as { id: string }).id).toBe(FOI);
             expect(top.chosenX).toBe(2);
-            expect(top.castFromGraveyard).toBe(true);
+            expect(top.castFromZone).toBe("graveyard");
             expect(top.exileOnResolve).toBe(true);
             expect(p1.graveyard.map((c) => c.id)).not.toContain("foi");
         });
