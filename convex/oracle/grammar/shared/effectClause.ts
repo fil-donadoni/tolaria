@@ -3404,7 +3404,14 @@ export function assembleSentences(
                 previous.kind !== undefined ||
                 previous.play !== undefined ||
                 last?.frame !== "moveZone" ||
-                last.object.kind !== "library-top"
+                last.object.kind !== "library-top" ||
+                // "that card" names ONE exile: a chain of two exiles of a
+                // library's top leaves it ambiguous which card is meant.
+                previous.frames.filter(
+                    (frame) =>
+                        frame.frame === "moveZone" &&
+                        frame.object.kind === "library-top"
+                ).length !== 1
             )
                 return {
                     ok: false,

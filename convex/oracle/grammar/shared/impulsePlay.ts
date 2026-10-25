@@ -5,8 +5,8 @@
  * The sentence after an exile that turns ONE just-exiled card into a card its
  * controller may play from exile for a window. It points at the exile before
  * it ("that card"), so alone it names nothing: `assembleSentences` folds it
- * onto an `exile-top-of-library` of exactly one card and refuses it anywhere
- * else. The plural form ("those cards", "them") needs a grant over a set, which
+ * onto a frame chain whose one library-top exile moves exactly one card, and
+ * refuses it anywhere else. The plural form ("those cards", "them") needs a grant over a set, which
  * the lowering has no binding for — it stays unread.
  */
 

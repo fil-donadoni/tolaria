@@ -128,6 +128,8 @@ describe("exile the top of a library — refusals (fail-closed)", () => {
         "Exile the top card of your library. You may play that card until your next end step.",
         // "play that card" with no exile before it
         "You may play that card this turn.",
+        // two exiles: "that card" is ambiguous between them
+        "Exile the top card of your library, then exile the top card of target opponent's library. You may play that card this turn.",
         // an exile that is not of a library's top
         "Exile the top card of your graveyard. You may play that card this turn.",
         // a face-down exile is hidden information the Op does not model
