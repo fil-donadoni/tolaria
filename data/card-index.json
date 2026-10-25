@@ -9750,6 +9750,14 @@
         "source": "compiled"
     },
     {
+        "name": "Carpet of Flowers",
+        "scryfallId": "93abb48a-85f2-432d-8602-0a1d17fbb409",
+        "oracleId": "2ffc6372-f63b-4f32-8dd0-2d7938aeb412",
+        "firstSet": "usg",
+        "firstPrintId": "93abb48a-85f2-432d-8602-0a1d17fbb409",
+        "firstPrintSet": "usg"
+    },
+    {
         "name": "Carrier Pigeons",
         "scryfallId": "5543b08d-d470-435e-83d9-a3a84c1cc2e6",
         "oracleId": "2d30a634-43c6-4e78-ba10-7ef7ee17ac40",
