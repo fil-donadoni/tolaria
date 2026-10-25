@@ -5,7 +5,7 @@
 // card is playable by construction, so the same card must stay selectable:
 // gating on `entry.available` alone made the whole manual pool (~26k cards)
 // pointer-events-none, i.e. a manual deck could not be built at all.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import type { CardIndexEntry } from "../useCardSearch";
 import ResultCard from "../result-card";
@@ -62,6 +62,13 @@ function entry(available: boolean): CardIndexEntry {
         available,
     };
 }
+
+// No test here asserts on a network response; a real request still in flight
+// at window teardown is aborted by happy-dom and prints an AbortError.
+beforeEach(() => {
+    vi.stubGlobal("fetch", () => new Promise<Response>(() => {}));
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("ResultCard availability gating", () => {
     it("dims and blocks an Unavailable Card when availability is enforced", () => {
