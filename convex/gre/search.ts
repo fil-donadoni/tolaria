@@ -129,7 +129,9 @@ import {
     evaluateBreakdown,
     evaluateWithMargin,
     declaredBlockDelta,
+    declaredBlockOutcome,
     declaredCombatDelta,
+    evaluateCreature,
     lethalUnblockedDelta,
     hasCastableInstant,
     hasCastableFlashPermanent,
@@ -419,11 +421,6 @@ export type Edge = {
      *  candidates whose win/loss outcome is identical but whose surviving
      *  material differs. */
     totalMargin: number;
-    /** Sum of squared rewards (mover perspective), accumulated alongside
-     *  `totalReward` so a root rule can tell a real reward gap from sampling
-     *  noise (`meanRewardGapStdErr`). Optional: a hand-built `Node` without it
-     *  reads as noiseless, i.e. the fixed `outcomeEps` band alone. */
-    totalRewardSq?: number;
     /** Times this move was AVAILABLE during selection (ISMCTS availability). */
     avail: number;
 };
@@ -3306,9 +3303,7 @@ function backpropagate(path: Edge[], leaf: Leaf, botId: string): void {
     for (const edge of path) {
         const forMover = edge.mover === botId;
         edge.visits += 1;
-        const reward = forMover ? leaf.reward : 1 - leaf.reward;
-        edge.totalReward += reward;
-        edge.totalRewardSq = (edge.totalRewardSq ?? 0) + reward * reward;
+        edge.totalReward += forMover ? leaf.reward : 1 - leaf.reward;
         edge.totalMargin += forMover ? leaf.margin : -leaf.margin;
     }
 }
@@ -3808,29 +3803,6 @@ export function isWastefulAttack(state: GameState, move: Move): boolean {
     );
 }
 
-/** Variance of an edge's MEAN reward (sample variance over `visits`). Rewards
- *  live in [0, 1], so an edge visited once falls back to the widest variance
- *  that range allows (1/4); an edge with no `totalRewardSq` (a hand-built
- *  `Node`) reads as zero. */
-function meanRewardVariance(e: Edge): number {
-    if (e.totalRewardSq === undefined || e.visits === 0) return 0;
-    if (e.visits < 2) return 0.25;
-    const m = e.totalReward / e.visits;
-    const sample = (e.totalRewardSq - e.visits * m * m) / (e.visits - 1);
-    return Math.max(0, sample) / e.visits;
-}
-
-/** One standard error of the gap between two edges' mean rewards. A root rule
- *  that treats moves within `outcomeEps` as outcome-equal reads a fixed band;
- *  at a handful of visits per edge (a time-capped search over a wide root) the
- *  sampling noise of a mean is several times that band, so a gap under this
- *  width is not evidence that one move out-rewards the other.
- *
- *  Exported as a named seam so the admission it drives is unit-testable. */
-export function meanRewardGapStdErr(a: Edge, b: Edge): number {
-    return Math.sqrt(meanRewardVariance(a) + meanRewardVariance(b));
-}
-
 /** Whether `move` is the EMPTY block declaration — the defender declining to
  *  block at all (CR 509.1: declaring no blockers is a legal declaration, not
  *  the absence of one). Structural, no card knowledge: the null baseline every
@@ -3868,6 +3840,75 @@ export function blockDeltaOf(
     return (
         declaredBlockDelta(probe, botId, weights) +
         lethalUnblockedDelta(probe, botId, weights)
+    );
+}
+
+/** The axes of a declared block's exchange the dominance comparison reads:
+ *  the attackers it kills, the blocker value it loses, and what still reaches
+ *  the defending player. */
+export type BlockExchange = {
+    killed: ReadonlySet<string>;
+    lostValue: number;
+    faceDamage: number;
+    facePoison: number;
+};
+
+/** `move`'s declared exchange read off `state` (`declaredBlockOutcome`, the
+ *  same arithmetic `declaredBlockDelta` prices), the lost blockers valued as
+ *  `declaredBlockDelta` values them. `null` for a move that is not a block
+ *  declaration. */
+export function blockExchangeOf(
+    state: GameState,
+    move: Move,
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): BlockExchange | null {
+    if (move.kind !== "declare-blockers") return null;
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, botId, move);
+    const outcome = declaredBlockOutcome(probe);
+    if (!outcome) return null;
+    return {
+        killed: new Set(outcome.deadAttackers.map((c) => c.id)),
+        lostValue: outcome.deadBlockers.reduce(
+            (sum, c) =>
+                sum +
+                evaluateCreature(
+                    probe,
+                    c,
+                    weights.latent,
+                    outcome.pass,
+                    weights
+                ),
+            0
+        ),
+        faceDamage: outcome.faceDamage,
+        facePoison: outcome.facePoison,
+    };
+}
+
+/** Whether exchange `a` is no worse than `b` on every axis — it kills every
+ *  attacker `b` kills, lets through no more damage or poison, loses no more
+ *  blocker value — and strictly better on at least one. Throwing a 4/4 in
+ *  front of a 6/6 is dominated by throwing a 1/1 there: both kill nothing and
+ *  stop the same damage, one loses less. */
+export function blockOutcomeDominates(
+    a: BlockExchange,
+    b: BlockExchange
+): boolean {
+    for (const id of b.killed) if (!a.killed.has(id)) return false;
+    if (
+        a.faceDamage > b.faceDamage ||
+        a.facePoison > b.facePoison ||
+        a.lostValue > b.lostValue
+    ) {
+        return false;
+    }
+    return (
+        a.killed.size > b.killed.size ||
+        a.faceDamage < b.faceDamage ||
+        a.facePoison < b.facePoison ||
+        a.lostValue < b.lostValue
     );
 }
 
@@ -5125,27 +5166,49 @@ export function selectRootMove(
         ruleOn("block-quality") &&
         best.move.kind === "declare-blockers"
     ) {
-        // Outcome-equal means statistically indistinguishable: the band is
-        // `outcomeEps` or one standard error of the gap to the reward leader,
-        // whichever is wider. A time-capped search over a wide block root
-        // gives each declaration a handful of visits, and a fixed 0.05 band
-        // then admits whichever block the rollouts happened to favour — a
-        // lone 4/4 thrown in front of a 6/6 beat both the 1/1 chump and the
-        // double block that kills the attacker, with `blockDeltaOf` ranking
-        // it last. At visit counts where the gap is real the band is
-        // `outcomeEps`, exactly as before.
-        const leader = explored.reduce((m, e) => (mean(e) > mean(m) ? e : m));
         const blocks = pool.filter(
             (e) =>
                 e.move.kind === "declare-blockers" &&
-                (mean(e) >=
-                    bestMean -
-                        Math.max(
-                            weights.outcomeEps,
-                            meanRewardGapStdErr(e, leader)
-                        ) ||
+                (mean(e) >= bestMean - weights.outcomeEps ||
                     isEmptyBlockDeclaration(e.move))
         );
+        // A block whose exchange DOMINATES a contender's is a contender too
+        // (`blockOutcomeDominates`), whatever its mean reward. The reward band
+        // is only as good as the subtrees under it: a time-capped search gives
+        // each declaration a handful of visits, and the opponent's node below
+        // each one is still an average over its untried replies, so one block
+        // can out-reward a strictly better one by more than `outcomeEps` for
+        // reasons that have nothing to do with the block. Admission only — the
+        // pick below is still the best `deltaOf`, trick caution included.
+        const exchanges = new Map<Edge, BlockExchange | null>();
+        const exchangeOf = (e: Edge) => {
+            if (!exchanges.has(e)) {
+                exchanges.set(
+                    e,
+                    blockExchangeOf(rootState, e.move, botId, weights)
+                );
+            }
+            return exchanges.get(e)!;
+        };
+        const outside = pool.filter(
+            (e) => e.move.kind === "declare-blockers" && !blocks.includes(e)
+        );
+        for (let grew = outside.length > 0; grew; ) {
+            grew = false;
+            for (const e of outside) {
+                if (blocks.includes(e)) continue;
+                const x = exchangeOf(e);
+                if (!x) continue;
+                const dominates = blocks.some((b) => {
+                    const y = exchangeOf(b);
+                    return y !== null && blockOutcomeDominates(x, y);
+                });
+                if (dominates) {
+                    blocks.push(e);
+                    grew = true;
+                }
+            }
+        }
         if (blocks.length > 0) {
             const prev = best;
             // The determinized lens when the caller had a sampler (issue
