@@ -18,6 +18,7 @@ import {
     GRANTED_ABILITY_HOST,
     OPPONENT_ID,
     opCoverageGaps,
+    planSmokeBranches,
     planSmokeTest,
     SMOKE_SKIP_CLASS,
     SMOKE_SKIP_CODES,
@@ -1059,5 +1060,107 @@ describe("$source counter-count amounts (CR 608.2h, issue #5265)", () => {
         if (plan.kind !== "run") throw new Error("expected a run plan");
         expect(plan.scenario.sourceCounters).toBeUndefined();
         expect(seededSource(plan)?.counters).toBeUndefined();
+    });
+});
+
+describe("if-branch scenario-ization (issue #1707, CR 702.33)", () => {
+    const kickedBurn: EffectOp[] = [
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [{ op: "dealDamage", to: { player: "opponent" }, amount: 5 }],
+            else: [{ op: "dealDamage", to: { player: "opponent" }, amount: 2 }],
+        },
+    ];
+
+    it("plans one run per branch, the kicked one announcing its payment", () => {
+        const { plans, skipped } = planSmokeBranches(kickedBurn);
+        expect(skipped).toEqual([]);
+        const runs = plans.filter((p) => p.kind === "run");
+        expect(runs).toHaveLength(2);
+        const kicked = runs.filter(
+            (p) => p.kind === "run" && p.scenario.kickerPayments !== undefined
+        );
+        expect(kicked).toHaveLength(1);
+        expect(
+            kicked[0]!.kind === "run" && kicked[0]!.scenario.kickerPayments
+        ).toEqual({ kicker: 1 });
+    });
+
+    it("asserts the branch the interpreter really takes (resolved end to end)", () => {
+        const { plans } = planSmokeBranches(kickedBurn);
+        const lifeLost: number[] = [];
+        for (const [i, plan] of plans.entries()) {
+            if (plan.kind !== "run") throw new Error("expected a run plan");
+            const id = `branch-burn-${i}`;
+            registerTokenDefinition({
+                id,
+                name: id,
+                rarity: "common",
+                manaCost: { R: 1 },
+                types: ["Sorcery"],
+                effects: kickedBurn,
+            });
+            const state = plan.scenario.state;
+            const before = state.players.find(
+                (p) => p.id === OPPONENT_ID
+            )!.life;
+            state.stack.push({
+                ...makeInstance(id, {
+                    controllerId: CASTER_ID,
+                    ownerId: CASTER_ID,
+                    zone: "hand",
+                }),
+                castById: CASTER_ID,
+                targets: plan.scenario.targets,
+                ...(plan.scenario.kickerPayments
+                    ? { kickerPayments: { ...plan.scenario.kickerPayments } }
+                    : {}),
+            });
+            resolveTopOfStack(state);
+            for (const a of plan.assertions)
+                expect(a.check(state).ok, a.label).toBe(true);
+            lifeLost.push(
+                before - state.players.find((p) => p.id === OPPONENT_ID)!.life
+            );
+        }
+        expect(lifeLost.sort()).toEqual([2, 5]);
+    });
+
+    it("reports a branch no scenario can make true as an attributed skip", () => {
+        const { plans, skipped } = planSmokeBranches([
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        count: { zone: "graveyard", controller: "controller" },
+                    },
+                    op: "ge",
+                    right: 7,
+                },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+                else: [{ op: "draw", player: "controller", count: 2 }],
+            },
+        ]);
+        expect(plans.filter((p) => p.kind === "run")).toHaveLength(1);
+        expect(skipped).toHaveLength(1);
+        expect(skipped[0]!.reason).toMatch(/then branch.*predicate true/);
+    });
+
+    it("keeps the legacy skip for a predicate it cannot read", () => {
+        const { plans, skipped } = planSmokeBranches([
+            {
+                op: "if",
+                predicate: { binding: "paid" },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+        expect(skipped).toEqual([]);
+        expect(plans).toHaveLength(1);
+        expect(plans[0]!.kind).toBe("skip");
+        if (plans[0]!.kind === "skip")
+            expect(plans[0]!.skips.map((k) => k.code)).toContain(
+                "runtime-branch"
+            );
     });
 });

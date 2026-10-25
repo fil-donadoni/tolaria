@@ -21,7 +21,8 @@ import type { EffectOp, TargetRequirement } from "../types";
 import {
     CASTER_ID,
     FILLER_CARD_DEFINITION,
-    planSmokeTest,
+    planSmokeBranches,
+    SMOKE_SKIP_CLASS,
     type Plan,
 } from "../../gre/effects/scenarioGenerator";
 import { collectDslSites } from "./smokeSites.helper";
@@ -74,6 +75,7 @@ function runSpellSite(
         castById: CASTER_ID,
         targets: plan.scenario.targets,
         ...chosenXOf(plan),
+        ...kickerPaymentsOf(plan),
     });
     resolveTopOfStack(state);
 }
@@ -85,6 +87,15 @@ function chosenXOf(plan: Extract<Plan, { kind: "run" }>): {
 } {
     const x = plan.scenario.chosenX;
     return x === undefined ? {} : { chosenX: x };
+}
+
+/** The Kickers the branch plan paid, snapshotted onto the stack item where
+ *  `{ kickerCount }` / `{ additionalCostPaid }` read them (CR 702.33). */
+function kickerPaymentsOf(plan: Extract<Plan, { kind: "run" }>): {
+    kickerPayments?: Record<string, number>;
+} {
+    const paid = plan.scenario.kickerPayments;
+    return paid === undefined ? {} : { kickerPayments: { ...paid } };
 }
 
 /** Runs one ability-site script through resolution: registers a synthetic
@@ -140,6 +151,7 @@ function runAbilitySite(
         abilityId,
         targets: plan.scenario.targets,
         ...chosenXOf(plan),
+        ...kickerPaymentsOf(plan),
     });
     resolveTopOfStack(state);
 }
@@ -147,54 +159,85 @@ function runAbilitySite(
 describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
     const sites = collectDslSites(getAllCards());
     const skips: string[] = [];
+    const branchSkips: string[] = [];
     let ran = 0;
+    let branchesRan = 0;
 
     it("every DSL-only Effect Script's declared outcomes hold under canned resolution", () => {
         sites.forEach((s, i) => {
-            const plan = planSmokeTest(s.effects, s.host);
-            if (plan.kind === "skip") {
-                skips.push(`SKIP ${s.label}: ${plan.reason}`);
-                return;
-            }
-            const id = `smoke-${s.pushes}-${i}`;
-            if (s.pushes === "spell") {
-                runSpellSite(plan, s.effects, id);
-            } else {
-                runAbilitySite(plan, s.effects, id);
-            }
-            const post = plan.scenario.state;
-            for (const assertion of plan.assertions) {
-                const result = assertion.check(post);
-                expect(
-                    result.ok,
-                    `${s.label}: ${assertion.label} — ${result.detail ?? ""}`
-                ).toBe(true);
-            }
-            ran++;
+            const { plans, skipped } = planSmokeBranches(s.effects, s.host);
+            for (const skip of skipped)
+                branchSkips.push(`SKIP-BRANCH ${s.label}: ${skip.reason}`);
+            plans.forEach((plan, p) => {
+                if (plan.kind === "skip") {
+                    skips.push(`SKIP ${s.label}: ${plan.reason}`);
+                    return;
+                }
+                const id = `smoke-${s.pushes}-${i}-${p}`;
+                if (s.pushes === "spell") {
+                    runSpellSite(plan, s.effects, id);
+                } else {
+                    runAbilitySite(plan, s.effects, id);
+                }
+                const post = plan.scenario.state;
+                for (const assertion of plan.assertions) {
+                    const result = assertion.check(post);
+                    expect(
+                        result.ok,
+                        `${s.label}${plan.branch ? ` ${plan.branch}` : ""}: ${assertion.label} — ${result.detail ?? ""}`
+                    ).toBe(true);
+                }
+                if (plan.branch !== undefined) branchesRan++;
+                ran++;
+            });
         });
-        // Report skips explicitly — never silently green (issue #804).
-        if (skips.length > 0) {
+        // Report skips explicitly — never silently green (issue #804). A
+        // script whose `if` branches only partly ran is listed per branch.
+        if (skips.length > 0 || branchSkips.length > 0) {
             console.info(
-                `[DSL smoke sweep] ${ran} ran, ${skips.length} skipped:\n${skips.join("\n")}`
+                `[DSL smoke sweep] ${ran} ran (${branchesRan} as an \`if\` branch), ${skips.length} scripts skipped, ${branchSkips.length} branches skipped:\n${[...skips, ...branchSkips].join("\n")}`
             );
         }
+    });
+
+    it("a kicker-gated `if` script runs both its branches (issue #1707)", () => {
+        // A comparison over the kicker payments is read off the canned
+        // scenario: the script is cast unkicked AND kicked, and each cast
+        // asserts the branch the interpreter really took.
+        const both = sites.filter(
+            (s) =>
+                planSmokeBranches(s.effects, s.host).plans.filter(
+                    (plan) => plan.kind === "run" && plan.branch !== undefined
+                ).length >= 2
+        );
+        expect(both.length).toBeGreaterThan(0);
     });
 
     it("is not vacuous — at least one DSL script ran end-to-end", () => {
         // Recompute independently so this assertion doesn't depend on test
         // ordering (vitest may isolate `it` state).
-        const runnable = sites.filter(
-            (s) => planSmokeTest(s.effects, s.host).kind === "run"
+        const runnable = sites.filter((s) =>
+            planSmokeBranches(s.effects, s.host).plans.some(
+                (plan) => plan.kind === "run"
+            )
         );
         expect(runnable.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("every skip carries a non-empty reason (never silently green)", () => {
+    it("every skip carries a non-empty reason and a known class (never silently green)", () => {
         for (const s of sites) {
-            const plan = planSmokeTest(s.effects, s.host);
-            if (plan.kind === "skip") {
-                expect(plan.reason.length, s.label).toBeGreaterThan(0);
-            }
+            const { plans, skipped } = planSmokeBranches(s.effects, s.host);
+            for (const plan of plans)
+                if (plan.kind === "skip") {
+                    expect(plan.reason.length, s.label).toBeGreaterThan(0);
+                    for (const skip of plan.skips)
+                        expect(
+                            SMOKE_SKIP_CLASS[skip.code],
+                            s.label
+                        ).toBeDefined();
+                }
+            for (const skip of skipped)
+                expect(skip.reason.length, s.label).toBeGreaterThan(0);
         }
     });
 });
