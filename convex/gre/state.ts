@@ -6549,9 +6549,9 @@ export function dropDelayedCapturesOfEnteringObject(
  *  `dropDelayedCapturesOfEnteringObject`, called from the same three entry
  *  funnels: a permanent re-entering the battlefield keeps its instance id but
  *  is a new object no source has dealt damage to, so its id is struck from
- *  every `damagedPermanentsThisGame` history — on the battlefield and on the
- *  ability snapshots waiting on the stack (whose source may have left, CR
- *  608.2h). */
+ *  every `damagedPermanentsThisGame` history — on the battlefield, phased
+ *  out, and on the ability snapshots waiting on the stack (whose source may
+ *  have left, CR 608.2h). */
 export function forgetDamageToEnteringObject(
     state: GameState,
     instanceId: string
@@ -6564,6 +6564,9 @@ export function forgetDamageToEnteringObject(
         else delete card.damagedPermanentsThisGame;
     };
     for (const player of state.players) player.battlefield.forEach(scrub);
+    // CR 702.26d — a phased-out source keeps its history, so it is scrubbed
+    // too.
+    for (const bundle of state.phasedOut ?? []) bundle.cards.forEach(scrub);
     state.stack.forEach((item) => scrub(item as CardInstanceState));
 }
 
@@ -12369,6 +12372,16 @@ export function buildSpellContext(
                     ...(found.card.damagedBySources ?? []),
                     item.id,
                 ];
+                // CR 608.2h — "this creature deals damage": an ability's
+                // damage is its source permanent's (a spell is on no
+                // battlefield, so it records nothing).
+                if (!isSpellStackItem(item)) {
+                    recordSourceDamagedPermanent(
+                        state,
+                        item.triggerSourceId ?? item.id,
+                        found.card.id
+                    );
+                }
                 state.pendingEvents = [
                     ...(state.pendingEvents ?? []),
                     {
@@ -17615,12 +17628,15 @@ export function buildSpellContext(
             // (leaving clears the live history, CR 400.7): the ability is a
             // `{ ...self }` snapshot of its source taken as it was put on the
             // stack (`buildTriggerItem`, gre/triggers.ts).
-            const source = findOnBattlefield(
+            // A source on the battlefield with no history may be a NEW object
+            // (it left and returned with this ability on the stack, CR
+            // 400.7): the ability still reads the object it came from.
+            const live = findOnBattlefield(
                 state,
                 item.triggerSourceId ?? item.id
-            );
-            const history = source
-                ? source.card.damagedPermanentsThisGame
+            )?.card.damagedPermanentsThisGame;
+            const history = live?.length
+                ? live
                 : (item as CardInstanceState).damagedPermanentsThisGame;
             return [...(history ?? [])];
         },

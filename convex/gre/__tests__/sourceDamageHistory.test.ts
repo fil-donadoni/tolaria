@@ -21,6 +21,8 @@ import {
     type CardInstanceState,
     type GameState,
     buildSpellContext,
+    phaseInBundle,
+    phaseOutPermanent,
     putReanimatedSetOnBattlefield,
     removePermanentTo,
     resolveTopOfStack,
@@ -152,6 +154,25 @@ describe("source damage history (CR 120.1, issue #6867)", () => {
         ]);
     });
 
+    it("an ability's default-source damage is its source permanent's (CR 608.2h)", () => {
+        const state = fallenState();
+        const ability = {
+            ...card(state, "fallen")!,
+            id: "ability",
+            zone: "stack",
+            triggeredAbilityId: "the-fallen-upkeep",
+            triggerSourceId: "fallen",
+        } as StackItem;
+        buildSpellContext(state, ability).dealDamage(
+            { type: "permanent", id: "pw" },
+            1
+        );
+        expect(loyalty(state, "pw")).toBe(4);
+        expect(card(state, "fallen")!.damagedPermanentsThisGame).toEqual([
+            "pw",
+        ]);
+    });
+
     it("damage from a source that is not a permanent records nothing", () => {
         const state = fallenState();
         const spell = {
@@ -219,6 +240,39 @@ describe("The Fallen — each planeswalker it has dealt damage to this game (CR 
         pushUpkeepTrigger(state);
         resolveTopOfStack(state);
         expect(loyalty(state, "pw")).toBe(3);
+    });
+
+    it("a phased-out Fallen forgets a planeswalker that returned meanwhile (CR 702.26d / 400.7)", () => {
+        const state = fallenState();
+        fallenAttacks(state, "pw");
+        const bundle = phaseOutPermanent(state, "fallen", {
+            returnOn: { kind: "untap-cycle" },
+        });
+        expect(bundle).not.toBeNull();
+        removePermanentTo(state, "pw", "graveyard");
+        const returned = state.players[1].graveyard.find((c) => c.id === "pw")!;
+        putReanimatedSetOnBattlefield(state, [
+            { card: returned, controllerId: "p2" },
+        ]);
+        expect(phaseInBundle(state, bundle!)).toBe(true);
+        expect(
+            card(state, "fallen")!.damagedPermanentsThisGame
+        ).toBeUndefined();
+    });
+
+    it("its upkeep trigger reads the object it came from when The Fallen returned in response (CR 608.2h)", () => {
+        const state = fallenState();
+        fallenAttacks(state, "pw");
+        pushUpkeepTrigger(state);
+        removePermanentTo(state, "fallen", "graveyard");
+        const returned = state.players[0].graveyard.find(
+            (c) => c.id === "fallen"
+        )!;
+        putReanimatedSetOnBattlefield(state, [
+            { card: returned, controllerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(loyalty(state, "pw")).toBe(2);
     });
 
     it("its upkeep trigger still reads the history after The Fallen has left (CR 608.2h)", () => {
