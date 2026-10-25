@@ -1610,10 +1610,9 @@ export const mRtonStromgald = defineCard(() => ({
 // and how those creatures block. Whenever a creature attacks and isn't blocked
 // this combat, untap it and remove it from combat." (#669)
 //
-// The cast window is the controller's DECLARE_ATTACKERS step (CR 117.1b — "your
-// turn, before blockers are declared"; attackers are already declared by the
-// time priority opens in that step, so `getBattlefieldIds(..., isAttacking)` is
-// populated). On resolution `ctx.enableAttackerChoosesBlocks()` sets the
+// The cast window is the controller's BEGINNING_OF_COMBAT or DECLARE_ATTACKERS
+// step (CR 117.1b — "your turn, before blockers are declared"; Panic's
+// window). On resolution `ctx.enableAttackerChoosesBlocks()` sets the
 // combat-scoped `meleeCombat` flag: the DECLARE_BLOCKERS step routes the block
 // declaration to the ATTACKING player, with every assignment still gated by
 // `validateBlockerEligibility` (only LEGAL blocks can be forced). The
@@ -1628,9 +1627,9 @@ export const melee = defineCard(() => ({
         "Cast this spell only during combat on your turn before blockers are declared.\nYou choose which creatures block this combat and how those creatures block.\nWhenever a creature attacks and isn't blocked this combat, untap it and remove it from combat.",
     manaCost: { X: 4, R: 1 },
     types: ["Instant"],
-    // CR 117.1b — castable only during the controller's declare-attackers step
-    // (the "during combat on your turn before blockers are declared" window).
-    castPhaseRestriction: ["DECLARE_ATTACKERS"],
+    // CR 117.1b — castable only during combat on the controller's turn before
+    // blockers are declared: beginning of combat + declare attackers (Panic).
+    castPhaseRestriction: ["BEGINNING_OF_COMBAT", "DECLARE_ATTACKERS"],
     castTurnRestriction: "self",
     resolve: (ctx: SpellContext) => {
         ctx.enableAttackerChoosesBlocks();

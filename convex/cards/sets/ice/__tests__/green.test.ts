@@ -32,7 +32,7 @@ import {
     applyAllCombatDamage,
 } from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { recordBlockedAttackers } from "../../../../gre/banding";
+import { hasBanding, recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     assertLegalAction,
@@ -2747,5 +2747,54 @@ describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
             state.players[1].battlefield.some((c) => c.id === "target-land")
         ).toBe(false);
         expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Dire Wolves (CR 702.22 banding, CR 611.2c conditional grant)", () => {
+    // "This creature has banding as long as you control a Plains."
+    const wolvesDef = getCardByName("Dire Wolves");
+    const plainsDef = getCardByName("Plains");
+
+    function makeWolvesState(plainsPresent: boolean) {
+        const wolves = makeInstance(wolvesDef.id, {
+            id: "wolves",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const plains = makeInstance(plainsDef.id, {
+            id: "plains",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: plainsPresent ? [wolves, plains] : [wolves],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        beginApplyingStaticEffects(state, wolves);
+        return { state, wolves };
+    }
+
+    it("has banding while controlling a Plains", () => {
+        const { wolves } = makeWolvesState(true);
+        expect(hasBanding(wolves)).toBe(true);
+    });
+
+    it("has no banding without a Plains", () => {
+        const { wolves } = makeWolvesState(false);
+        expect(hasBanding(wolves)).toBe(false);
+    });
+
+    it("loses banding once its only Plains leaves, re-evaluated via checkStateBasedActions", () => {
+        const { state, wolves } = makeWolvesState(true);
+        expect(hasBanding(wolves)).toBe(true);
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "plains"
+        );
+        checkStateBasedActions(state);
+        expect(hasBanding(wolves)).toBe(false);
     });
 });

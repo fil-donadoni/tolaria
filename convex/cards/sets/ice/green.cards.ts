@@ -230,21 +230,9 @@ export const chubToad = defineCard(() => ({
     ],
 }));
 // Dire Wolves — {2}{G} 2/2 Wolf. "This creature has banding as long as you
-// control a Plains." (CR 702.22 banding; `gre/banding.ts` reads the keyword from
-// `staticAbilities`.)
-//
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "as long as you control a
-// Plains" condition is a CONTINUOUS keyword gate on board state. The engine's
-// `keyword-grant` static effect is applied imperatively at ETB and reversed only
-// when the source leaves play — its `applies` predicate gets no board view
-// (`StaticEffectContext` exposes only the target's own characteristics), so a
-// "controls a Plains" condition that re-evaluates as Plains come and go is not
-// expressible today. Banding is therefore granted UNCONDITIONALLY. This is a
-// strict superset of the printed behaviour (Dire Wolves is a green-white card
-// played alongside Plains in practice) and matches the engine's existing
-// treatment of conditional keywords (Snow Devil's conditional first strike).
-// A board-aware keyword-grant predicate would let this track Plains exactly;
-// flagged for a follow-up.
+// control a Plains." (CR 702.22 banding; CR 611.2c "as long as" — a
+// `keyword-grant` with a `condition` re-evaluated every stable transition, the
+// Woolly Mammoths shape.) "You" is the creature's controller at read time.
 export const direWolves = defineCard(() => ({
     id: "a602c93d-e00f-4b4f-a7ff-95316b7e7641",
     name: "Dire Wolves",
@@ -256,7 +244,18 @@ export const direWolves = defineCard(() => ({
     subtypes: ["Wolf"],
     power: 2,
     toughness: 2,
-    staticAbilities: ["banding"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: (source: PermanentView, state: StaticEffectStateView) =>
+                (
+                    state.players.find((p) => p.id === source.controllerId)
+                        ?.battlefield ?? []
+                ).some((perm) => perm.subtypes.includes("Plains")),
+            keyword: "banding",
+        },
+    ],
 }));
 // Earthlore — Aura on a land you control granting it "Tap enchanted land:
 // Target blocking creature gets +1/+2 until end of turn." (CR 611 activated-
