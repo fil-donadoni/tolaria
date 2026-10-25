@@ -1706,8 +1706,10 @@ function realizeAndStampTapBonus(
  *  legendary-spell ability) — reversing against the wrong ability corrupts
  *  state (decrementing a pool that was never credited while the real deposit
  *  sits untouched in `restrictedMana`). Correct as long as no two mana
- *  abilities on the same card produce byte-identical mana (true of every card
- *  in the catalogue today). Falls back to `fallback` (the card's single/first
+ *  abilities on the same card share an output shape while differing in
+ *  restriction or rider — enforced catalogue-wide by
+ *  `manaAbilityOutputAmbiguity.test.ts` (agreeing pairs, Quirion Elves, are
+ *  fine: either resolves to the same reversal). Falls back to `fallback` (the card's single/first
  *  ability) when nothing matches — the previously-only-supported single-mana-
  *  ability shape. Shared by every untap/refund site that reverses a
  *  `chosenMana` snapshot: `tapUntap`'s untap toggle, `untapSourceFromPayment`,
