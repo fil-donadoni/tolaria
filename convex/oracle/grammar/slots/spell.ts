@@ -283,6 +283,12 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
         // grammar can read has nowhere to go on the flashback cast path, and
         // an unpaid cost is an unbounded bug (see `shared/cost.ts`).
         if (atom.kind === "sacrifice-other" && atom.count === 1) {
+            // `excludeSource` is resolved on activation costs only: refuse it.
+            if (atom.filter.excludeSource === true)
+                return fail(
+                    "a flashback sacrifice excluding the source has no encoding",
+                    span
+                );
             out.sacrifice = atom.filter;
             continue;
         }

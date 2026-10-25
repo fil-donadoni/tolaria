@@ -12,6 +12,7 @@ import {
     staticFilterFromDescriptor,
     targetRequirementFromDescriptor,
 } from "../grammar/shared/targetFilter";
+import { lowerAdditionalCosts } from "../lowerSpell";
 import { oracleCard, parseContext } from "./oracle.fixture";
 
 function read(span: string) {
@@ -118,5 +119,29 @@ describe("other — whole cards", () => {
             })
         );
         expect(JSON.stringify(outcome)).toContain('"excludeSource":true');
+    });
+});
+
+describe("other — cast-path costs refuse what only activation costs resolve", () => {
+    it("an additional cost sacrificing 'another' permanent has no encoding", () => {
+        const outcome = lowerAdditionalCosts([
+            {
+                kind: "sacrifice-other",
+                filter: { types: ["Creature"], excludeSource: true },
+                count: 1,
+            },
+        ]);
+        expect(outcome.ok).toBe(false);
+    });
+
+    it("the same atom without the exclusion still lowers", () => {
+        const outcome = lowerAdditionalCosts([
+            {
+                kind: "sacrifice-other",
+                filter: { types: ["Creature"] },
+                count: 1,
+            },
+        ]);
+        expect(outcome.ok).toBe(true);
     });
 });
