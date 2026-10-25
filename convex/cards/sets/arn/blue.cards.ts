@@ -348,10 +348,10 @@ export const unstableMutation = defineCard(() => ({
 }));
 
 // Old Man of the Sea — control change conditioned on "remains tapped and the
-// target's power stays <= this creature's power". The "may choose not to
-// untap" clause is not yet modelled (no optional-untap choice mechanism); Old
-// Man therefore untaps normally and the SBA reverts control at the controller's
-// next upkeep. Tracked as a follow-up.
+// target's power stays <= this creature's power" (CR 611.2b conditional control
+// gain). The "may choose not to untap" clause is the shipped
+// `may-choose-not-to-untap` static (CR 502.3), so the controller can keep Old
+// Man tapped to hold the stolen creature.
 export const oldManOfTheSea = defineCard(() => ({
     id: "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
     rarity: "rare",
@@ -363,6 +363,7 @@ export const oldManOfTheSea = defineCard(() => ({
     subtypes: ["Djinn"],
     power: 2,
     toughness: 3,
+    staticAbilities: ["may-choose-not-to-untap"],
     activatedAbilities: [
         {
             id: "old-man-of-the-sea-steal",
