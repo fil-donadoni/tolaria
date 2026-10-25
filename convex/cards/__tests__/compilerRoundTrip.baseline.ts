@@ -868,7 +868,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Powerleech",
     "Pox",
     "Preacher",
-    "Presence of the Master",
     "Priest of Yawgmoth",
     "Primal Clay",
     "Primal Growth",
