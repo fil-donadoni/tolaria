@@ -48,13 +48,15 @@ import {
     oracleLayoutForInsetKind,
 } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
-import type { ManaCost } from "../cards/types";
+import { printManaCost } from "./manaCost";
 import type {
     CompiledDefinition,
     CompileOutcome,
     OracleCard,
     OracleFace,
 } from "./types";
+
+export { printManaCost };
 
 /** Fields with no rules text behind them — see the header. */
 export const PASSTHROUGH_KEYS: ReadonlySet<string> = new Set([
@@ -383,28 +385,6 @@ export function goldBucket(definition: CardDefinition): GoldBucket {
         return "activated";
     }
     return "other";
-}
-
-/** Inverse of `readManaCost` — reconstructs the printed cost string. */
-export function printManaCost(cost: ManaCost | undefined): string {
-    if (cost === undefined) return "";
-    const parts: string[] = [];
-    if (cost.X === "X") {
-        for (let i = 0; i < (cost.xFactor ?? 1); i += 1) parts.push("{X}");
-        if (cost.generic) parts.push(`{${cost.generic}}`);
-    } else if (typeof cost.X === "number" && cost.X > 0) {
-        parts.push(`{${cost.X}}`);
-    }
-    for (const colour of ["W", "U", "B", "R", "G", "C"] as const) {
-        for (let i = 0; i < (cost[colour] ?? 0); i += 1)
-            parts.push(`{${colour}}`);
-    }
-    for (const [a, b] of cost.hybrid ?? []) parts.push(`{${a}/${b}}`);
-    for (const [colour, count] of Object.entries(cost.phyrexian ?? {})) {
-        for (let i = 0; i < (count as number); i += 1)
-            parts.push(`{${colour}/P}`);
-    }
-    return parts.join("");
 }
 
 /** Reconstruct the Scryfall-shaped input for a hand-written card. */

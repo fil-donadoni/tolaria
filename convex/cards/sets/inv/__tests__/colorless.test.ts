@@ -20,7 +20,6 @@ import {
     beginApplyingStaticEffects,
     getCostModifiers,
     normalizeManaCost,
-    processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -34,14 +33,27 @@ import {
 } from "../../../__tests__/setup.helper";
 import { resolveTrigger } from "./set.helper";
 import { getDefinition } from "../../../index";
-import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
+import {
+    activateAbility,
+    announceCast,
+    passPriority,
+    submitResolutionChoice,
+    tapForPayment,
+    tapSourceIntoPayment,
+} from "../../../../game";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+} from "../../../../__tests__/gameMutationHarness.fixture";
+import type { Id } from "../../../../_generated/dataModel";
+import type { GameState } from "../../../../gre/state";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { hasNonManaActivatedAbility } from "../../../abilities/static/untapRestriction";
 
 const alloyGolem = getDefinition("1fb6d6a1-9d71-405b-9c93-1a7f06c67abd");
 const chromaticSphere = getDefinition("920cd17f-9274-443e-906f-c9904f0658d5");
 const juntuStakes = getDefinition("3ab7cf53-f62d-47e1-af70-ab12be0d22e2");
-const lotusGuardian = getDefinition("ddfc6396-5377-4ab3-9c10-8abcdeae2aa1");
 const phyrexianLens = getDefinition("6ec9a91d-7af0-44a8-839f-fb9960be0ddd");
 const planarPortal = getDefinition("24315eaa-ef55-4fd6-9145-e75b3de6f492");
 const sparringGolem = getDefinition("d829d9de-83fa-4feb-8efc-0075315163c6");
@@ -259,143 +271,149 @@ describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1
     });
 });
 
-// Chromatic Sphere's mana ability shares the `manaChoices` "any colour" shape
-// already exercised by Lotus Guardian / Phyrexian Lens / Chromatic Star
-// (tsp/colorless.cards.ts) above, so the new surface here is purely the
-// `drawsCardOnTap` rider (issue #1093) — a `resolve()`-adjacent engine
-// behavior change (a new declarative rider on `ActivatedAbility`, wired at
-// FOUR call sites in convex/game.ts), so it gets the full GRE test regime
-// per `.claude/rules/gre-development.md`, not just the per-Op DSL sweep.
-describe("Chromatic Sphere ({1}, {T}, Sacrifice: add one mana of any color, draw a card — CR 605.1a / 121.1, issue #1093)", () => {
-    // CR 605.1a / 601.2f — the payment-tap path is the REAL commit path this
-    // card actually goes through (its mana ability has a {1} cost, which only
-    // tapSourceIntoPayment/applyManaAbilityManaCost validates — same as
-    // Chromatic Star, tsp/colorless.cards.ts). Backs BOTH tapForPayment and
-    // tapForActivationPayment (ADR: one shared helper, per game.ts's own
-    // doc comment).
-    it("payment-tap path (tapSourceIntoPayment): pays {1}, sacrifices the source, adds the chosen color, and draws exactly one card", () => {
-        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
-        const lib = ["l0", "l1"].map((id) =>
-            makeInstance(grizzlyBears.id, {
+// CR 605.1a — "{1}, {T}, Sacrifice this artifact: Add one mana of any color.
+// Draw a card." is NOT a mana ability (its effect moves a card from a library),
+// so it is driven through the real `game.ts` mutations and read back off the
+// projection: activation puts it on the stack and hands priority over; the
+// colour pick, the mana and the draw all happen on resolution.
+describe("Chromatic Sphere (not a mana ability: its draw moves a card from a library — CR 605.1a / 602.2a)", () => {
+    const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
+    const ABILITY = "chromatic-sphere-mana";
+
+    function sphereBoard(opts: { sheoldred?: boolean } = {}): GameState {
+        const own = (defId: string, id: string, zone = "battlefield") =>
+            makeInstance(defId, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
-                zone: "library",
+                zone: zone as "battlefield",
+            });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        own(chromaticSphere.id, "sphere"),
+                        ...(opts.sheoldred
+                            ? [own(sheoldredTheApocalypse.id, "sheoldred")]
+                            : []),
+                    ],
+                    hand: [own(grizzlyBears.id, "bears", "hand")],
+                    library: ["l0", "l1"].map((id) =>
+                        own(grizzlyBears.id, id, "library")
+                    ),
+                    // Floats the {1} activation cost.
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+    }
+
+    async function activateAndResolve(
+        harness: ReturnType<typeof makeMutationCtx>
+    ) {
+        await runMutation(activateAbility, harness.ctx, {
+            ...BASE,
+            cardInstanceId: "sphere",
+            abilityId: ABILITY,
+        });
+        await runMutation(passPriority, harness.asUser("p2"), {
+            ...BASE,
+            playerId: "p2",
+        });
+        const head = harness.state().pendingChoices![0]!;
+        await runMutation(submitResolutionChoice, harness.ctx, {
+            ...BASE,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            // Mode 1 = {U}.
+            cardInstanceIds: ["1"],
+        });
+    }
+
+    it("activating puts the ability on the stack and passes priority; nothing is added or drawn yet", async () => {
+        const harness = makeMutationCtx("p1", [gameStateSeed(sphereBoard())]);
+        await runMutation(activateAbility, harness.ctx, {
+            ...BASE,
+            cardInstanceId: "sphere",
+            abilityId: ABILITY,
+        });
+        const view = projectPublicState(harness.state(), 2, "p1");
+        expect(view.stack.map((i) => i.abilityId)).toEqual([ABILITY]);
+        // CR 117.3c / 117.3d — the activator's priority passes to the
+        // opponent, so it resolves only once both pass (CR 117.4).
+        expect(view.priorityPlayerId).toBe("p2");
+        const me = view.players[0]!;
+        // The {1} is paid and the Sphere sacrificed as costs …
+        expect(me.manaPool).toMatchObject({ R: 0, U: 0 });
+        expect(me.graveyard.map((c) => c.id)).toEqual(["sphere"]);
+        // … but the mana and the draw wait for resolution.
+        expect(me.hand).toHaveLength(1);
+        expect(me.library.count).toBe(2);
+    });
+
+    it("on resolution the chosen colour is added and a card is drawn", async () => {
+        const harness = makeMutationCtx("p1", [gameStateSeed(sphereBoard())]);
+        await activateAndResolve(harness);
+        const view = projectPublicState(harness.state(), 4, "p1");
+        expect(view.stack).toHaveLength(0);
+        const me = view.players[0]!;
+        expect(me.manaPool).toMatchObject({ U: 1, W: 0, B: 0, R: 0, G: 0 });
+        expect(me.hand).toHaveLength(2);
+        expect(me.library.count).toBe(1);
+    });
+
+    it("the draw emits CARD_DRAWN, so 'whenever you draw a card' (Sheoldred) triggers", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(sphereBoard({ sheoldred: true })),
+        ]);
+        await activateAndResolve(harness);
+        const view = projectPublicState(harness.state(), 4, "p1");
+        expect(view.players[0]!.hand).toHaveLength(2);
+        expect(view.stack.map((i) => i.card.id)).toEqual([
+            sheoldredTheApocalypse.id,
+        ]);
+    });
+
+    it("cannot be tapped mid-cast to pay for the spell being cast (CR 605.3a licenses mana abilities only)", async () => {
+        const state = sphereBoard();
+        const p1 = state.players[0]!;
+        p1.manaPool.R = 0;
+        // Two lands make the Bears castable, so the cast reaches its payment
+        // window; the Sphere is the source the test tries to tap there.
+        p1.battlefield.push(
+            ...[forest, mountain].map((land, i) =>
+                makeInstance(land.id, {
+                    id: `land${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "battlefield",
+                })
+            )
+        );
+        expect(
+            getManaTapOptionsDetailed(state.players[0]!.battlefield[0]!)
+        ).toEqual([]);
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runMutation(announceCast, harness.ctx, {
+            ...BASE,
+            cardInstanceId: "bears",
+        });
+        expect(harness.state().pendingCast).toBeDefined();
+        await expect(
+            runMutation(tapForPayment, harness.ctx, {
+                ...BASE,
+                payments: [{ cardInstanceId: "sphere", manaChoiceIndex: 1 }],
             })
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [sphere],
-                    library: lib,
-                    // Float a red to pay the {1} activation cost.
-                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        const p1 = state.players[0];
-
-        // Choice option index 1 = {U} (manaChoices[1]). Pays {1} from the
-        // floated red, adds {U}.
-        tapSourceIntoPayment(state, p1, sphere, 1, []);
-
-        expect(p1.manaPool.U).toBe(1);
-        expect(p1.manaPool.R).toBe(0);
-        // CR 603.6 / 700.4 — sacrificed to pay its own activation cost.
-        expect(p1.battlefield.some((c) => c.id === "sphere")).toBe(false);
-        expect(p1.graveyard.some((c) => c.id === "sphere")).toBe(true);
-        // CR 605.1a / 121.1 — the drawsCardOnTap rider draws exactly one card,
-        // even though the source was just sacrificed.
-        expect(p1.hand).toHaveLength(1);
-        expect(p1.library).toHaveLength(1);
-    });
-
-    it("the draw emits CARD_DRAWN so 'whenever you draw a card' triggers still see it (Sheoldred)", () => {
-        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
-        const sheoldred = makeInstance(sheoldredTheApocalypse.id, {
-            id: "sheoldred",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const lib = [
-            makeInstance(grizzlyBears.id, {
-                id: "l0",
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            }),
-        ];
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    battlefield: [sphere, sheoldred],
-                    library: lib,
-                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
-                }),
-                makePlayer("p2"),
-            ],
-        });
-        const p1 = state.players[0];
-
-        // Choice option index 0 = {W}.
-        tapSourceIntoPayment(state, p1, sphere, 0, []);
-        expect(p1.hand).toHaveLength(1);
-        // Not resolved yet — the trigger is still queued, not applied.
-        expect(p1.life).toBe(20);
-
-        // Drain the queued CARD_DRAWN event into a trigger pass and resolve
-        // Sheoldred's "whenever you draw a card, you gain 2 life."
-        processPendingActionTriggers(state);
-        expect(state.stack).toHaveLength(1);
-        resolveTopOfStack(state);
-        expect(p1.life).toBe(22);
-    });
-
-    // CR 605.1a — verifies the OTHER commit path this rider is wired into
-    // (`tapUntap`'s shared post-branch call site). There is no convex-test
-    // harness in this repo to drive the `tapUntap` mutation end-to-end (see
-    // untapRefundsLife.test.ts), so this calls the REAL `applyDrawCardOnTap`
-    // function directly — the same call `tapUntap` makes once
-    // `producedThisActivation` is set, covering both its choice and fixed
-    // branches with one shared site.
-    it("fires from the direct-tap call site too (tapUntap's shared post-branch, applyDrawCardOnTap)", () => {
-        const sphere = makeInstance(chromaticSphere.id, { id: "sphere" });
-        const lib = [
-            makeInstance(grizzlyBears.id, {
-                id: "l0",
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            }),
-        ];
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [sphere], library: lib }),
-                makePlayer("p2"),
-            ],
-        });
-        const p1 = state.players[0];
-        const ability = chromaticSphere.activatedAbilities!.find(
-            (a) => a.id === "chromatic-sphere-mana"
-        )!;
-
-        applyDrawCardOnTap(state, ability, p1.id);
-
-        expect(p1.hand).toHaveLength(1);
-        expect(p1.library).toHaveLength(0);
-    });
-
-    it("no-ops when the ability declares no drawsCardOnTap rider (Lotus Guardian)", () => {
-        const state = makeState();
-        const p1 = state.players[0];
-        const noRiderAbility = lotusGuardian.activatedAbilities!.find(
-            (a) => a.id === "lotus-guardian-mana"
-        );
-
-        applyDrawCardOnTap(state, noRiderAbility, p1.id);
-
-        expect(p1.hand).toHaveLength(0);
+        ).rejects.toThrow();
+        const after = harness.state().players[0]!;
+        expect(after.battlefield.map((c) => c.id)).toContain("sphere");
+        expect(after.graveyard).toHaveLength(0);
+        expect(after.hand.map((c) => c.id)).toEqual(["bears"]);
     });
 });
 

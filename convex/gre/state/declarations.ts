@@ -178,7 +178,7 @@ export type CardInstanceState = {
     exertedThisTap?: boolean;
     /** CR 601.2h / 605.1a — mana the controller actually spent from their pool
      *  to pay this tap-for-mana's own MANA cost leg (a filter/upgrader rock:
-     *  Chromatic Star / Chromatic Sphere / Barbed Sextant / Implements of
+     *  Chromatic Star / Barbed Sextant / Implements of
      *  Sacrifice "{1}, {T}, Sacrifice this: Add …", Celestial Prism / Mana
      *  Cylix "{N}, {T}: Add one mana of any color", Standing Stones, Fire
      *  Sprites "{G}, {T}: Add {R}"). Snapshotted as the real per-colour pool

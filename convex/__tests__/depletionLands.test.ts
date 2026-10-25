@@ -22,7 +22,7 @@
 //     no `effects[]` (CR 605.3a), so "If there are no depletion counters on
 //     this land, sacrifice it" is a declarative RIDER
 //     (`sacrificesSourceWhenNoCountersRemain`) read AFTER the cost is paid —
-//     the `drawsCardOnTap` / `dealsDamageToControllerOnTap` shape.
+//     the `dealsDamageToControllerOnTap` shape.
 //
 // Driven through the REAL entry points: the registered `tapUntap` mutation
 // `_handler` via the stub `MutationCtx` for the priority tap, the exported

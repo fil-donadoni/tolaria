@@ -5,7 +5,8 @@
 // `applyManaAbilityManaCost`; `tapUntap` never did. Every shipped "{N}, {T}:
 // Add …" filter was therefore FREE RAMP when tapped with priority instead of
 // mid-payment: Mana Cylix, Celestial Prism, Standing Stones, Chromatic Star,
-// Chromatic Sphere, Barbed Sextant, Implements of Sacrifice, Fire Sprites.
+// Barbed Sextant, Implements of Sacrifice, Fire Sprites (and Chromatic
+// Sphere, since rebuilt as a stack ability: CR 605.1a).
 //
 // Both `tapUntap` branches are covered: the manaChoices branch (Mana Cylix —
 // "{1}, {T}: Add one mana of any color") and the fixed-output branch (Fire
