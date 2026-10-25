@@ -240,6 +240,27 @@ export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
     );
 }
 
+/** The pending-CHOICE half of the compact stack panel's auto-collapse (the
+ *  target half is {@link pendingTargetWantsBoard}): the head choice is this
+ *  viewer's and is answered by tapping the mid-board
+ *  ({@link pendingChoiceRequiresBoardTap}), so an open stack overlay would sit
+ *  over what they must tap. Same carve-out as the target half: a choice one
+ *  of whose candidates is ON THE STACK (CR 609.7a — a spell is a legal
+ *  "source of your choice", {@link isStackChoiceCandidate}) keeps the panel
+ *  open, because its row is the only surface that candidate can be picked
+ *  from. */
+export function pendingChoiceCollapsesStack(
+    choice: PendingChoice | undefined,
+    viewerId: string,
+    stackItems: readonly { id: string }[]
+): boolean {
+    if (!choice || choice.playerId !== viewerId) return false;
+    if (!pendingChoiceRequiresBoardTap(choice)) return false;
+    return !stackItems.some((item) =>
+        isStackChoiceCandidate(choice, viewerId, item.id)
+    );
+}
+
 /** Issue #1816 review fixup finding 1 (round 3 correction), moved here
  *  verbatim from `board-portrait-chips.tsx` by issue #2589 (the landscape
  *  stack panel needs the SAME predicate — a stack overlay auto-collapsing

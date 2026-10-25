@@ -77,6 +77,12 @@ export interface WalkContext {
      *  pass already banked (CR 117.4), so the walk's single pass resolves it
      *  into a mid-resolution card choice (CR 608.2) over the board. */
     choiceScenarioLabel: string;
+    /** The debug-scenario label the `game-source-choice` surface loads
+     *  (`source-choice-scenario.json`, issue #3731) — a Circle of
+     *  Protection activation over an opposing spell, ONE pass banked, so the
+     *  walk's single pass raises a `pick-source` choice whose candidates
+     *  include that spell ON THE STACK (CR 609.7a). */
+    sourceChoiceScenarioLabel: string;
     /** The `userDecks` id of the deck this lane's account OWNS
      *  (`LANE_DECK_NAME`, seeded at bootstrap — issue #4421). The three delete
      *  confirms open over it; `undefined` only if the bootstrap never ran. */
@@ -1379,6 +1385,13 @@ const CHOICE_PICKER_CARD = `${CHOICE_PICKER} [data-card-tilt-root]`;
  *  so the label is not a constant — anchored on its stable head. */
 const CHOICE_PICKER_CONFIRM = `${CHOICE_PICKER} button:has-text("Done")`;
 const STACK_YIELD_TOGGLE = "[data-stack-yield-toggle]";
+/** The board's stack panel (`game-stack.tsx`). */
+const GAME_STACK = '[data-testid="game-stack"]';
+/** A stack row offered as the open `pick-source` choice's candidate (CR
+ *  609.7a, `stack-row.tsx`): every row is a `data-arrow-anchor-stack` button,
+ *  and only a candidate of the viewer's own choice is enabled while the
+ *  choice stands. */
+const SOURCE_CHOICE_STACK_CANDIDATE = `${GAME_STACK} [data-arrow-anchor-stack]:enabled`;
 const MANAGE_YIELDS_CTA = '[data-manage-yields="panel"]';
 const MANAGE_YIELDS_ROW = "[data-manage-yields-row]";
 /** The game route's board wrapper (`debug-board-area.tsx`, issue #3493). Its
@@ -5063,6 +5076,97 @@ export const SURFACES: readonly Surface[] = [
                 // Cleanup is hygiene — `index.ts`'s `measure()` swallows a
                 // failure here, and the next row reports a picker left standing
                 // in its own Unreachable reason.
+            }
+            await settle(page);
+        },
+    },
+    {
+        // Issue #3731 — "a source of your choice" picked ON THE STACK (CR
+        // 609.7a: a spell on the stack is a legal source). Its own row because
+        // the candidate is not on the board at all: the stack panel's row for
+        // the spell turns into a pick control, the one place a resolution
+        // choice is answered from the stack, and no other row stages it.
+        //
+        // The position is a Circle of Protection: Red activation over the
+        // other seat's Lightning Bolt. Two red candidates, one per pool — the
+        // Bolt on the stack and Gray Ogre on the battlefield — so the stack
+        // row is offered BESIDE a board candidate, as it is in play. The
+        // ability's own stack row is not a candidate (an ability is not a
+        // source), which is why the walk can demand exactly one enabled row.
+        id: "game-source-choice",
+        needsGame: true,
+        settleTargets: [GAME_STACK],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Source choice — a spell on the stack as the candidate",
+        // The candidate this row exists for, and the prompt's commit plate.
+        // The plate is VISIBLE, not reachable: `Done` is disabled until the
+        // buffer holds the choice's one pick, and the walk picks nothing
+        // before the asserts run (its cleanup does).
+        asserts: [
+            {
+                label: "stack source candidate",
+                locator: { selector: SOURCE_CHOICE_STACK_CANDIDATE },
+                check: "reachable",
+            },
+            {
+                label: "source choice confirm plate",
+                locator: { role: "button", name: "Done" },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await ensureScenarioBoard(page, ctx, ctx.sourceChoiceScenarioLabel);
+            // ONE pass resolves the ability (CR 117.4, `passCount: 1`) and
+            // raises its `pick-source` choice (CR 608.2).
+            if (
+                !(await clickIfVisible(page, PASS_PRIORITY_CTA, STEP_TIMEOUT))
+            ) {
+                throw new Unreachable(
+                    "the source-choice position loaded but offered the human seat no Pass control — the Circle's ability resolves on one pass, so without it this surface cannot reach its prompt"
+                );
+            }
+            if (
+                !(await visible(
+                    page,
+                    SOURCE_CHOICE_STACK_CANDIDATE,
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    `passing resolved the ability but no stack row turned into a source pick — the choice's candidates include Lightning Bolt on the stack (CR 609.7a), so either the choice never reached the client or the stack panel is folded or unmounted at this viewport (${await topmostAt(page, GAME_STACK)})`
+                );
+            }
+            // EXACTLY one: the Bolt. The ability's row is not a source, and a
+            // second enabled row means the panel offers what the server would
+            // refuse.
+            const candidates = await page
+                .locator(SOURCE_CHOICE_STACK_CANDIDATE)
+                .count();
+            if (candidates !== 1) {
+                throw new Unreachable(
+                    `the stack panel offered ${candidates} source pick(s) — the position declares one spell on the stack under the resolving ability, so exactly one row is a candidate`
+                );
+            }
+            await page.mouse.move(0, 0);
+            await settle(page, [GAME_STACK]);
+        },
+        // ANSWER the choice: pick the Bolt, commit it. A standing choice would
+        // hand the next row a board mid-resolution, and that row's
+        // `ensureScenarioBoard` loads its own position over it.
+        async cleanup(page) {
+            try {
+                await page
+                    .locator(SOURCE_CHOICE_STACK_CANDIDATE)
+                    .first()
+                    .click({ timeout: STEP_TIMEOUT });
+                await clickIfVisible(
+                    page,
+                    'button:text-is("Done")',
+                    STEP_TIMEOUT
+                );
+            } catch {
+                // Cleanup is hygiene — `index.ts`'s `measure()` swallows a
+                // failure here, and the next row reports what it found.
             }
             await settle(page);
         },

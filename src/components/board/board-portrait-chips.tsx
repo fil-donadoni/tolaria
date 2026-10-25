@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Player, StackItem } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import {
-    pendingChoiceRequiresBoardTap,
+    pendingChoiceCollapsesStack,
     pendingTargetWantsBoard,
 } from "~/lib/pending-choice-labels";
 import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
@@ -134,9 +134,7 @@ export default function BoardPortraitChips({
     // established convention rather than diverging with a `.find`.
     const activeChoice = pendingChoices?.[0];
     const autoCollapsedForBoardTap =
-        (!!activeChoice &&
-            activeChoice.playerId === playerId &&
-            pendingChoiceRequiresBoardTap(activeChoice)) ||
+        pendingChoiceCollapsesStack(activeChoice, playerId, stackItems) ||
         pendingTargetWantsBoard(pendingTarget, playerId);
 
     const stackOpen =
