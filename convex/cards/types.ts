@@ -15050,18 +15050,19 @@ export interface EffectNegatedValue {
  *  driven "-X/-X" (Toxic Deluge). */
 export type EffectSignedValue = EffectValue | EffectNegatedValue;
 
-/** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
- *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
- *  `{X}`, generic, or "mana of any colour" (a runtime colour choice, not a
- *  static amount). At least one positive entry is expected; non-positive
- *  amounts are ignored by the mana-add primitives (CR 106.1). */
+/** JSON-pure mana specification for the `addMana` Op (CR 106.1) — a
+ *  per-colour amount map. Each entry is a fixed integer OR an `EffectValue`
+ *  read at resolution ("add {U} for each Island target opponent controls": a
+ *  `count`, a `ref`, …); a value that reads 0 or less adds nothing (CR 106.1).
+ *  No variable `{X}`/generic slot and no "mana of any colour" — that choice
+ *  composes from `optionChoice`, one `addMana` mode per colour. */
 export interface EffectManaPool {
-    W?: number;
-    U?: number;
-    B?: number;
-    R?: number;
-    G?: number;
-    C?: number;
+    W?: EffectValue;
+    U?: EffectValue;
+    B?: EffectValue;
+    R?: EffectValue;
+    G?: EffectValue;
+    C?: EffectValue;
 }
 
 /** One branch of a `coinFlip` Op (CR 705, issue #851): the nested Effect Script
