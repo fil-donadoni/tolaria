@@ -187,11 +187,11 @@ neither match nothing nor silently skip.
 median related set is ≤ 25 % of its suite), last 20 landed PRs, the walker
 against vitest's own `getTestDependencies` graph over the same trees:
 
-| lane              |  median related set | suite | share | against vitest's graph                                                        |
-| ----------------- | ------------------: | ----: | ----: | ----------------------------------------------------------------------------- |
-| `engine` (11 PRs) |       42 node files |  1342 | 3.1 % | walker ≥ vitest on every row it did not force                                 |
-| `skin` (4 PRs)    | 27 node + dom files |  1781 | 1.5 % | equal on 2 of 4, walker +2 / +2 on the others                                 |
-| `full` (kept)     |                   — |     — |     — | the widest row, PR #5483, relates 339 (vitest 336) — scoped since issue #6989 |
+| lane              |  median related set | suite | share | against vitest's graph                             |
+| ----------------- | ------------------: | ----: | ----: | -------------------------------------------------- |
+| `engine` (11 PRs) |       42 node files |  1342 | 3.1 % | walker ≥ vitest on every row it did not force      |
+| `skin` (4 PRs)    | 27 node + dom files |  1781 | 1.5 % | equal on 2 of 4, walker +2 / +2 on the others      |
+| `full` (kept)     |                   — |     — |     — | the widest row, PR #5483, relates 339 (vitest 336) |
 
 vitest forced the whole suite on 3 of 11 `engine` rows because `package.json`
 is in its `forceRerunTriggers`; the walker relates 67–82 files there. The

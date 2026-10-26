@@ -677,6 +677,37 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(plan.rationale).toContain("dom tests the diff reaches");
     });
 
+    it("a mix with a non-module tooling path runs node-tooling whole, beside the reached node-engine and dom", () => {
+        const plan = classifyLane(
+            ["src/app.tsx", "convex/game.ts", ".claude/settings.json"],
+            undefined,
+            () => ({
+                "node-engine": ["convex/__tests__/game.test.ts"],
+                "node-tooling": ["scripts/__tests__/x.test.ts"],
+                dom: ["src/__tests__/app.test.tsx"],
+            })
+        );
+        expect(plan.lane).toBe("engine");
+        expect(plan.run).toContainEqual({
+            id: "node-tooling",
+            command: "bunx vitest run --project node-tooling",
+        });
+        expect(plan.run).toContainEqual({
+            id: "vitest(related)",
+            command:
+                "bunx vitest run --project node-engine --project dom 'convex/__tests__/game.test.ts' 'src/__tests__/app.test.tsx'",
+        });
+    });
+
+    it("a mix keeps every check the skin lane runs, tsc[all] standing for tsc[app,scripts]", () => {
+        const files = ["src/components/board/Card.tsx", "convex/game.ts"];
+        const skinIds = ids(classifyLane([files[0]]).run).map((id) =>
+            id === "tsc[app,scripts]" ? "tsc[all]" : id
+        );
+        const mixIds = ids(classifyLane(files).run);
+        for (const id of skinIds) expect(mixIds, id).toContain(id);
+    });
+
     it("package.json ⇒ full, even alongside a src-only diff", () => {
         expect(classifyLane(["package.json"]).lane).toBe("full");
         expect(classifyLane(["src/app.tsx", "package.json"]).lane).toBe("full");

@@ -339,7 +339,9 @@ budget (`package.json` dependencies, a lockfile, `vite.config.*`) is one of
 those paths, so it still runs `check:bundle` and `check:convex-bundle` inside
 `check:pr:app`; a scripts-only `package.json` is `engine` and moves no budget.
 The `check:ui` receipt is untouched: `land` owes it by the `src/**` paths
-whatever the lane (§7, issue #5459).
+whatever the lane (§7, issue #5459). A card definition in the mix is proven
+by the walk, as beside any engine path, not by the `cards` lane's fixed
+partitions.
 
 **Measured** (MEASURED_TABLE)
 

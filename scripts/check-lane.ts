@@ -324,7 +324,7 @@ const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
  * its ledger, set JSON, pick ratings — and the guards that READ it
  * (`check:index`, `check:oracle`, `cr:lint`) run in the engine lane, so an
  * edit there is proven exactly where a `convex/**` edit is. A `data/**` path
- * next to `src/**` is still a mixed diff and still `full`.
+ * next to `src/**` is the mixed case, `engine` too (see `laneFor`).
  */
 const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
 const DATA_PATTERNS: RegExp[] = [/^data\//];
@@ -464,8 +464,9 @@ export function laneFor(classes: PathClass[]): Lane {
     // THE MIXED CASE IS SCOPED TOO (issue #6989). A diff spanning `src/**`
     // and `convex|scripts|data/**` used to be `full` — `check:pr` verbatim,
     // whole-repo prettier, whole-tree `cr:lint` and both bundle builds, the
-    // health run under another name (16 of 40 queue lanes, 2026-10-24 → 25,
-    // `check:pr:app` alone 153–3460 s). It is the `engine` lane — whole
+    // health run under another name (measured in ADR 0154 §14). A `cards`
+    // path in the mix goes with it: the walk, not the `cards` partitions,
+    // proves it, as beside any engine path. It is the `engine` lane — whole
     // type-check, every guard reading `data/**` — with the `dom` tests the
     // walk reaches added; what no import edge reaches is health's (ADR 0154
     // §2). Affirmative over every code path: `full` is the terminal below.
@@ -834,7 +835,7 @@ export function classifyLane(
     const toolingWhole = files.some(
         (p) => TOOLING_PATHS.test(p) && !MODULE_PATH.test(p)
     );
-    // A mixed diff (issue #6989) owes the `dom` tests its `src/**` half
+    // A mixed diff (issue #6989) owes the `dom` tests the whole diff
     // reaches; an engine-only diff's reached `dom` tests stay health's.
     const mixed = files.some((p) => classOf(p) === "skin");
     const reach = related(files);
