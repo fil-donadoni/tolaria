@@ -61900,6 +61900,14 @@
         "source": "compiled"
     },
     {
+        "name": "Skycoach Conductor",
+        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
+        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
+        "firstSet": "sos",
+        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
+        "firstPrintSet": "sos"
+    },
+    {
         "name": "Skycoach Conductor // All Aboard",
         "scryfallId": "4ecbca71-9a1d-44c5-b709-d6f565941d5e",
         "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
