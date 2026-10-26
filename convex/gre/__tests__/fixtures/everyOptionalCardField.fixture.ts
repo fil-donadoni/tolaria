@@ -113,6 +113,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         capturedBindings: { exiled: ["inst-x"] },
         worldSeq: 12,
         staticSeq: 13,
+        zoneStaticSeq: 14,
         activationsThisTurn: { "ab-1": 1 },
         triggersThisTurn: { "tr-1": 1 },
         exileOnDeath: true,
