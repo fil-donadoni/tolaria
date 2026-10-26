@@ -140,6 +140,22 @@ export function withAcknowledgement(
 }
 
 /**
+ * The ledger text with `entries` acknowledged — the one writer of the file
+ * (`oracle:mark-regressions --acknowledge`, the RED ladder's revert, issue
+ * #6936). `text` is the current file, `null` when there is none; every other
+ * top-level field (the `note`) is kept.
+ */
+export function ledgerTextWith(
+    text: string | null,
+    entries: readonly RegressionAcknowledgement[]
+): string {
+    let ledger: RegressionLedger & { readonly note?: string } =
+        text === null ? emptyRegressionLedger() : parseRegressionLedger(text);
+    for (const entry of entries) ledger = withAcknowledgement(ledger, entry);
+    return renderRegressionLedger(ledger);
+}
+
+/**
  * An acknowledgement from `oracle:mark-regressions --acknowledge` flags:
  * `--acknowledge <card name> --reason <text>` plus exactly one of
  * `--tracked-by <issue number>` / `--intended`. Returns the refusal text

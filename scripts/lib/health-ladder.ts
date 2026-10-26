@@ -27,6 +27,10 @@
 import { LADDER_MARK } from "./health-bisect";
 import type { FixAttempt } from "./health-fix-attempts";
 import { RUNNER_ROLES } from "./github-runner";
+import type {
+    ReadyRegression,
+    RegressionAcknowledgement,
+} from "./oracle-state-regressions";
 import { revertRestoresLine } from "./ui-scope";
 
 /** Fixer attempts per RED episode (ADR 0156 Amendment I, rung 4). */
@@ -547,6 +551,37 @@ export function revertPrBody(input: {
         "",
         "None owed — a revert adds no card or gameplay feature.",
     ].join("\n");
+}
+
+/**
+ * The acknowledgements a revert owes `check:oracle` (issue #6936): every card
+ * the revert drops from `ready` — the cards the culprit graduated — leaves the
+ * pool on purpose, `trackedBy` the culprit's reopened issue, whose fresh pass
+ * re-ships them. A culprit that closed no issue leaves nothing to track the
+ * loss: the drop is the ladder's `intended` one.
+ */
+export function revertAcknowledgements(
+    losses: readonly ReadyRegression[],
+    input: { culprit: Culprit; culpritIssues: readonly number[] }
+): RegressionAcknowledgement[] {
+    const who =
+        input.culprit.pr !== null
+            ? `PR #${input.culprit.pr}`
+            : `\`${input.culprit.sha}\``;
+    const tracker = input.culpritIssues[0];
+    return losses.map((loss) => ({
+        oracleId: loss.oracleId,
+        name: loss.name,
+        ...(tracker !== undefined
+            ? {
+                  reason: `RED-ladder revert of ${who} drops it from ready; the fresh pass of issue #${tracker} re-ships it`,
+                  trackedBy: tracker,
+              }
+            : {
+                  reason: `RED-ladder revert of ${who} drops it from ready; the culprit closed no issue to re-ship it`,
+                  intended: true as const,
+              }),
+    }));
 }
 
 /** The comment the culprit's reopened issue gets. */

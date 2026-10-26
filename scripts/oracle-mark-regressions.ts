@@ -60,10 +60,7 @@ import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     REGRESSION_LEDGER_PATH,
     acknowledgementFromFlags,
-    emptyRegressionLedger,
-    parseRegressionLedger,
-    renderRegressionLedger,
-    withAcknowledgement,
+    ledgerTextWith,
 } from "./lib/oracle-state-regressions";
 import { SETS_DIR, collectSetFiles } from "./lib/divergence-markers";
 import { gapOf } from "./lib/grammar-gaps";
@@ -88,13 +85,7 @@ function acknowledge(argv: readonly string[]): number {
     const text = existsSync(REGRESSION_LEDGER_PATH)
         ? readFileSync(REGRESSION_LEDGER_PATH, "utf8")
         : null;
-    const ledger =
-        text === null ? emptyRegressionLedger() : parseRegressionLedger(text);
-    const doc = {
-        ...(text === null ? {} : JSON.parse(text)),
-        ...withAcknowledgement(ledger, entry),
-    };
-    writeFileSync(REGRESSION_LEDGER_PATH, renderRegressionLedger(doc));
+    writeFileSync(REGRESSION_LEDGER_PATH, ledgerTextWith(text, [entry]));
     console.log(
         `oracle:mark-regressions: acknowledged ${entry.name} in ${REGRESSION_LEDGER_PATH} (${entry.intended ? "intended" : `trackedBy #${entry.trackedBy}`})`
     );
