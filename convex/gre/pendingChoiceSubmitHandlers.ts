@@ -33,6 +33,7 @@ import {
 } from "./phases";
 import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
 import { findCardInAnyZone } from "./lookup";
+import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
 import { damageSourceChoicePool } from "./damageSourceChoice";
 import { applyMulliganBottomChoice } from "./mulligan";
@@ -695,6 +696,31 @@ export function submitDiscardHand(
 // Mid-resolution choice (CR 608.2): write picks into the stack item's
 // `collectedChoices` so the next invocation of the resolve step reads
 // them back via `requestChoice`.
+/** CR 400.11b — a `choose-outside-game-card` pick (the Wish cards). Outside
+ *  the game is not a zone (CR 400.11), so no zone branch of
+ *  `assertZonePickLegal` applies: each id must still be in the owner's
+ *  `outsideGamePool` AND on the raise's filtered `candidateIds` allow-list
+ *  (fail closed — an absent list admits nothing). Then the ordinary
+ *  mid-resolution commit. */
+export function submitOutsideGamePick(
+    state: GameState,
+    head: PendingChoice,
+    queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
+    const owner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
+    const pool = outsideGamePool(owner);
+    for (const id of args.cardInstanceIds) {
+        if (!pool.some((c) => c.id === id)) {
+            throw new Error("Card is not outside the game");
+        }
+        if (!head.candidateIds?.includes(id)) {
+            throw new Error("Card is not an eligible choice");
+        }
+    }
+    submitMidResolutionPick(state, head, queue, args);
+}
+
 export function submitMidResolutionPick(
     state: GameState,
     head: PendingChoice,

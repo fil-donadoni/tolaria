@@ -75,8 +75,9 @@ function cardDefinitionIds(
 }
 
 /** Every definition id `state` holds that `viewerId` may know: each card in
- *  a zone or on the stack, and each declared companion. At a Game's build that
- *  is exactly both maindecks plus both companions. */
+ *  a zone or on the stack, each declared companion, and the viewer's own
+ *  outside-the-game holder. At a Game's build that is exactly both maindecks,
+ *  both companions and the viewer's sideboard (minus its companion). */
 export function stateDefinitionIds(
     state: GameState,
     viewerId: string
@@ -99,6 +100,11 @@ export function stateDefinitionIds(
             for (const card of zone) add(card);
         }
         if (player.companion) add(player.companion.instance);
+        // CR 400.11a — a seat's own sideboard (the outside-the-game holder);
+        // never another seat's, which is hidden information.
+        if (player.id === viewerId) {
+            for (const card of player.outsideGame ?? []) add(card);
+        }
     }
     for (const item of state.stack) add(item);
     return [...ids];

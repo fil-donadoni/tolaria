@@ -5950,6 +5950,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             return [];
         },
     },
+    // CR 400.11b + CR 701.20a — "You may reveal a <filter> card you own from
+    // outside the game and put it into your hand." `filter` is matched against
+    // the hidden-card shape `getOutsideGameCards` reads from the registry, so
+    // it takes the default `isCardFilter` (no live-state / ability fields — an
+    // outside-the-game card has neither).
+    bringFromOutsideGame: {
+        required: { player: isPlayerRef, prompt: isNonEmptyString },
+        optional: { filter: isCardFilter },
+    },
     // CR 400.2 look (Urza's Bauble) — private "look at a card at random in
     // `player`'s hand". `looker` (optional) names the private looker; defaults
     // to the resolving controller (CR 113.7).

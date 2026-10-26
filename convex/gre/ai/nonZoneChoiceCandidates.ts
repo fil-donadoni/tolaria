@@ -105,6 +105,9 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     "choose-graveyard-card": "none",
     "choose-exile-card": "none",
     "choose-library-card": "none",
+    // CR 400.11 — no zone, but the chooser's view carries the pool
+    // (`outsideGamePeek`), which `readChoiceZone` reads like a zone.
+    "choose-outside-game-card": "none",
     "draw-look-keep": "none",
     "order-top": "none",
     "look-distribute": "none",
