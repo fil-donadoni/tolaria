@@ -48,16 +48,15 @@ export interface RefreshOptions {
  * `null` when the push's range is unknown (a first push): only the
  * conflicting ones then qualify. A PR without `merge:manual` is the Mergify queue's:
  * its draft already tests it on the moved base, and a push to it dequeues it,
- * so only `CONFLICTING` — a rebase only our merge drivers can do — takes it
- * (issue #5983). A PR Mergify holds in the queue (`queued`: its draft is
- * running or green) is taken on `CONFLICTING` only, whatever its other labels
- * (issue #6957). A `queue:held` PR is out of the queue, so a push costs it
- * nothing, and while the base is RED every base push takes it: a RED reds its
- * advisory lane, which tests the PR merged with the base, and that run is
- * pinned to the broken merge — only a new push re-runs the lane on the moved
- * base (issue #6256). Off RED the label is stale, not a reason: rebasing every
- * held PR on every push after a GREEN dequeued green drafts and livelocked the
- * queue (issue #6957).
+ * so only `CONFLICTING` — a rebase only our merge drivers can do — takes it.
+ * A PR Mergify holds in the queue (`queued`: its draft is running or green)
+ * is taken on `CONFLICTING` only, whatever its other labels. A `queue:held`
+ * PR is out of the queue, so a push costs it nothing, and while the base is
+ * RED every base push takes it: a RED reds its advisory lane, which tests the
+ * PR merged with the base, and that run is pinned to the broken merge — only
+ * a new push re-runs the lane on the moved base. Off RED the label is stale,
+ * not a reason: rebasing every held PR on every push after a GREEN dequeued
+ * green drafts and livelocked the queue (issue #6957).
  */
 export function selectRefreshCandidates(
     prs: readonly RefreshPr[],
