@@ -1086,7 +1086,7 @@ const MODULE_PATH = /\.([cm]?[jt]sx?)$/;
 const HEALTH_ONLY_SKIPS: SkippedCheck[] = [
     {
         id: "bot fast lane",
-        reason: "health's beyond the cost admission (ADR 0154 §3 as amended, issue #6943): the unreached bot files, and the reached ones named over budget or unmeasured above, run in health's test:bot",
+        reason: "health's beyond the cost admission (ADR 0154 §13, issue #6943): the unreached bot files, and the reached ones named over budget or unmeasured above, run in health's test:bot",
     },
     {
         id: "bundle",
@@ -1164,7 +1164,7 @@ export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
 }
 
 /**
- * A scoped code lane's bot tests (issue #6943, ADR 0154 §3 as amended): the
+ * A scoped code lane's bot tests (issue #6943, ADR 0154 §13): the
  * bot fast lane files the diff reaches through the import graph — the walk
  * and census admission the `full` lane's bot half uses — admitted by MEASURED
  * cost, never by suite: each under `laneBotBudget.perFileS`, cheapest first,

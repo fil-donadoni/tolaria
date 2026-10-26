@@ -7,7 +7,9 @@ PRD #5454. **Overturns ADR 0104** (lane content is never diff-derived).
 **Amends ADR 0136** §5 (partitions), §6 (cadence), §7 (cap) and the
 `HEALTH_ONLY_GUARDS` rule of issue #4963. **Amends ADR 0131** (when a PR owes
 a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. **Amended
-by issue #6149** (§ 11: the `full` lane's bot half is scoped by the walk). The rollout
+by issue #6149** (§ 11: the `full` lane's bot half is scoped by the walk) **and
+by issue #6943** (§ 13: every scoped code lane admits the reached bot files by
+measured cost). The rollout
 is PRD #5454's tickets, issues #5456–#5471; until a ticket lands, the script
 it names is the authority on what runs TODAY and this record on what a PR
 OWES.
@@ -104,6 +106,9 @@ The ≤ 10 s lane budget is unchanged. Above it, three more guards join
 byte-identity pins that red on base drift, 29 of 34 lane reds), `check:bundle`
 and `check:convex-bundle`. `check:convex-heap` leaves `HEALTH_SCRIPTS` for a
 `maintenance` script run by hand.
+
+**Amended by § 13 (issue #6943)**: the bot fast lane is tiered by the measured
+cost of each FILE, like every other guard — not by suite membership.
 
 ### 4. `full` is a placement, not a fallback
 
@@ -211,8 +216,9 @@ the walk never enters, an unrecognised path). Nothing reached is a skip line
 naming health. The walk costs ~1.5 s, and only a `full` diff that touches no
 Bot input pays it.
 
-§3 still holds for `engine` and `skin`: their bot half is health's, because
-the byte-identity pins red on base drift there. A `full` diff already owed the
+§3 held for `engine` and `skin` when this was written: their bot half was
+health's, because the byte-identity pins red on base drift there. § 13
+replaces that with admission by measured cost. A `full` diff already owed the
 bot lane; this amendment narrows what it owes to what it can break, which is
 §1's rule. What would change the answer: health REDs on bot tests the scoped
 half skipped, landing after landing — the fix is a `CENSUS_TESTS` row or a
@@ -253,6 +259,57 @@ self-hosted only by nature — the pack cache lives on the gating machines.
 What would change the answer: the same as `search-cost`'s, and a refit
 (`verdicts:promote` or by hand) still owes the whole bot suite, since other
 pins snapshot evaluation values this guard does not see (issue #6564).
+
+### 13. Every scoped code lane admits the reached bot files by measured cost — amendment of issue #6943
+
+§3 tiered the bot fast lane by SUITE: no `engine`, `skin` or `cards` lane ran
+a `bot-node` / `bot-dom` file the §2 walk reached, whatever it cost. The tier
+rule this record states everywhere else is COST (§1, issue #4963), and the
+mismatch kept landing on the base: PR #6849 changed `mechanicsRegistry.ts`,
+which `creatureKeywordBonus.bot.test.ts` imports; the walk reached it and
+`pickRatings.bot.test.ts`, two table censuses of milliseconds, the suite rule
+excluded both, and the base stood RED for 2 h+ with 30 PRs `queue:held`
+(2026-10-25). Each earlier RED of the class was closed by admitting ONE file
+(§12, the `ui-census` row of PR #6074); the next came from its neighbour.
+
+**The rule.** Every scoped code lane runs the bot files the diff reaches
+(`botRelatedTests`: §2's walk and `CENSUS_TESTS` admission, as §11's bot half)
+whose measured cost is at most `laneBotBudget.perFileS`, CHEAPEST FIRST, until
+the admitted sum would pass `laneBotBudget.totalS` (`tolaria.config.json`,
+config, not literals: 5 s and 10 s — the guard budget of issue #4963). A
+reached file over its budget, past the lane's, or with no measurement yet is
+NAMED in a skip line with its cost — never dropped silently. A hub edit
+(`mechanicsRegistry.ts`, `cards/types.ts`, `gre/state.ts`) reaching most of
+the suite has no `WHOLE_PROJECT_AT` switch: the budget decides, and the
+censuses, being the cheapest files, always make it in. The files a §12 cheap
+guard runs whole, and the `cards` lane's `bot[cards]` partition, are left to
+those steps.
+
+**The measurement.** Health's duration reporter (issue #5484) also writes,
+for every bot file, its wall — environment, prepare, collect, setup and tests
+summed, since a census's cost is its import. `bun run bot:costs` derives
+`data/bot-test-costs.json` from the newest `laneBotBudget.medianOfRuns` sealed
+health runs: per file, the median of its passed walls. Committed, so the lane
+reads it offline and the plan stays a pure function of the tree; refreshing
+it is a data PR. Seeded 2026-10-26 from one bot fast lane run on the MacBook
+(387 files, 179 s, load 8→29): median file 17 ms, 345 files ≤ 2 s, 24 files
+over 5 s (the blade, the sweeps, the ISMCTS searches) — health's, now by
+their measured cost, declared.
+
+**Measured** (MacBook, load 4–5, the lane's `vitest(bot)` step alone):
+PR #6849's diff 295 files admitted, 8.5 s wall; PR #6562's 291 files, 8.6 s;
+PR #5868's 53 files, 9.5 s. The per-file walls are amortised (the bot
+projects run `isolate: false`), so the step's wall is the import of the first
+file per worker plus the sum — inside the 10 s budget on all three. Replay:
+PR #6849's two censuses are planned; PR #5868's red file runs as §12's
+`blade-index`; PR #6562's `botReachLibraryPut.bot.test.ts` (2.3 s) is named
+past the lane budget with its cost.
+
+**What would change the answer**: a lane red on an admitted bot file that the
+base reds too (a byte pin drifting under the base, §3's original concern) —
+then the fix is that file's own cost tier (a `CHEAP_GUARDS` exclusion), never
+the suite back to health; or lane wall time this step visibly lengthens on the
+Huawei — then a smaller `totalS`, measured.
 
 ## Consequences
 

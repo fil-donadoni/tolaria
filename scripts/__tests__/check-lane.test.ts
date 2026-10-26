@@ -2817,7 +2817,7 @@ describe("check-lane — the CR ledger as documentation's companion (issue #3749
 });
 
 /**
- * Issue #6943 (ADR 0154 §3 as amended) — the lane's tier is MEASURED COST for
+ * Issue #6943 (ADR 0154 §13) — the lane's tier is MEASURED COST for
  * vitest files too: every scoped code lane runs the bot files the diff
  * reaches whose cost (`data/bot-test-costs.json`) is under
  * `laneBotBudget.perFileS`, cheapest first, up to `totalS`, and names the

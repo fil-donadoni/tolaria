@@ -1,6 +1,6 @@
 /**
  * The bot test files' MEASURED cost, and the lane's admission by it (issue
- * #6943, ADR 0154 §3 as amended).
+ * #6943, ADR 0154 §13).
  *
  * WHY. The lane's guard tier is cost (issue #4963): a check that costs seconds
  * runs at `land`, a dear one is health's. For vitest files the tier used to be
