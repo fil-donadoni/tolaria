@@ -32,6 +32,11 @@ import {
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
+import {
+    discoverScanGuards,
+    parseScanGuard,
+    type ScanGuard,
+} from "../lib/scan-guards";
 import { derivedProblems, TREE_ROLE_ENV, treeRole } from "../lib/derived-state";
 import { ORIGIN_BASE } from "../lib/branches";
 import {
@@ -853,19 +858,29 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         costs: () => ({ "convex/gre/__tests__/census.bot.test.ts": 20 }),
         budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
     };
+    /** One scan guard over `src/**` (issue #7012) — same reason. */
+    const guardFixture = (): ScanGuard[] => [
+        {
+            file: "src/lib/__tests__/x.guard.test.ts",
+            scans: ["src/**"],
+            costS: 1,
+        },
+    ];
     const skin = classifyLane(
         ["src/components/board/Card.tsx"],
         undefined,
         fixture,
         undefined,
-        botFixture
+        botFixture,
+        guardFixture
     );
     const engine = classifyLane(
         ["convex/gre/engine.ts"],
         undefined,
         fixture,
         undefined,
-        botFixture
+        botFixture,
+        guardFixture
     );
     const cards = classifyLane(
         ["convex/cards/sets/lea/red.cards.ts", "data/card-index.json"],
@@ -894,6 +909,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[app,scripts]",
             "cr:lint",
             "vitest(related)",
+            // The src/** scan guard, admitted by its globs (issue #7012).
+            "guards(diff)",
             // The reached bot census, admitted by cost (issue #6943).
             "vitest(bot)",
             "check:issue-log-comments",
@@ -1138,6 +1155,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:issue-log-comments",
         ]);
         expect(ids(engine.skip)).toEqual([
+            // convex/** is none of the scan guard's globs (issue #7012).
+            "guards(diff)",
             "dom",
             "bot fast lane",
             "bundle",
@@ -3071,5 +3090,113 @@ describe("scoped lanes admit the reached bot files by measured cost (issue #6943
         const cmd = botStep(p)?.command ?? "";
         expect(cmd).toContain(CENSUS);
         expect(cmd).toContain(RATINGS);
+    });
+});
+
+describe("scoped lanes admit the repo-wide scan guards by diff (issue #7012)", () => {
+    const none = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+    const VH = "src/lib/__tests__/no-bare-100vh.guard.test.ts";
+    const guards = (): ScanGuard[] => [
+        { file: VH, scans: ["src/**", "index.html"], costS: 7 },
+        {
+            file: "src/components/__tests__/scrim.guard.test.ts",
+            scans: ["src/components/**", "src/index.css"],
+            costS: 2,
+        },
+    ];
+    const plan = (files: string[], related = none, g = guards) =>
+        classifyLane(files, undefined, related, undefined, undefined, g);
+
+    it("a src/** diff runs the guards whose globs it matches as ONE guards(diff) step, seconds named", () => {
+        const p = plan(["src/lib/controller-bar-metrics.ts"]);
+        expect(p.lane).toBe("skin");
+        expect(p.run).toContainEqual({
+            id: "guards(diff)",
+            command: `bunx vitest run --project node-engine --project node-tooling --project dom '${VH}'`,
+        });
+        expect(p.guards).toEqual([{ file: VH, costS: 7 }]);
+        expect(renderPlan(p, "abc")).toContain(`guards: ${VH} (7 s)`);
+        expect(JSON.parse(renderJson(p, "abc")).guards).toEqual([
+            { file: VH, costS: 7 },
+        ]);
+    });
+
+    it("a convex/**-only diff does not run them, and says why", () => {
+        const p = plan(["convex/gre/sba.ts"]);
+        expect(p.lane).toBe("engine");
+        expect(ids(p.run)).not.toContain("guards(diff)");
+        expect(p.guards).toBeUndefined();
+        expect(ids(p.skip)).toContain("guards(diff)");
+    });
+
+    it("a mixed engine + src diff admits them in the engine lane", () => {
+        const p = plan(["convex/gre/sba.ts", "src/index.css"]);
+        expect(p.lane).toBe("engine");
+        expect(p.guards?.map((g) => g.file)).toEqual([
+            VH,
+            "src/components/__tests__/scrim.guard.test.ts",
+        ]);
+    });
+
+    it("a guard the import graph also reaches runs once, in guards(diff)", () => {
+        const p = plan(["src/lib/shellLayout.ts"], () => ({
+            ...none(),
+            dom: [VH, "src/lib/__tests__/shellLayout.test.ts"],
+        }));
+        const related = p.run.find((c) => c.id === "vitest(related)");
+        expect(related?.command).not.toContain(VH);
+        expect(related?.command).toContain("shellLayout.test.ts");
+    });
+
+    it("a guard over the lane budget with no HEALTH_ONLY_GUARDS row refuses the plan", () => {
+        const slow = () => [
+            {
+                file: "src/lib/__tests__/slow.guard.test.ts",
+                scans: ["src/**"],
+                costS: 11,
+            },
+        ];
+        expect(() => plan(["src/main.tsx"], none, slow)).toThrow(
+            /lane-cost 11 s, over the 10 s lane budget, and has no HEALTH_ONLY_GUARDS row/
+        );
+    });
+
+    it("an undeclared guard file refuses, naming both lines", () => {
+        expect(() =>
+            parseScanGuard("src/a.guard.test.ts", "// nothing")
+        ).toThrow(/lane-scans: <glob>.*lane-cost: <seconds> s/);
+        expect(
+            parseScanGuard(
+                "src/a.guard.test.ts",
+                "// lane-scans: src/** index.html\n// lane-cost: 2.5 s (how)\n"
+            )
+        ).toEqual({
+            file: "src/a.guard.test.ts",
+            scans: ["src/**", "index.html"],
+            costS: 2.5,
+        });
+    });
+
+    // Census over the LIVE tree: every *.guard.test file declares, and PR
+    // #6973's diff — the bare `100vh` that RED'd health — admits the guard.
+    it("on the live tree, PR #6973's diff lists no-bare-100vh.guard.test.ts", () => {
+        expect(
+            discoverScanGuards(resolve(__dirname, "../..")).map((g) => g.file)
+        ).toContain(VH);
+        const p = classifyLane(
+            [
+                "src/components/board/controller-pod.tsx",
+                "src/components/board/game-stack.tsx",
+                "src/hooks/useControllerPodHeight.ts",
+                "src/lib/controller-bar-metrics.ts",
+            ],
+            undefined,
+            none
+        );
+        expect(p.guards?.map((g) => g.file)).toContain(VH);
     });
 });

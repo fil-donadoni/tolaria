@@ -1,3 +1,5 @@
+// lane-scans: src/components/** src/index.css
+// lane-cost: 2 s (vitest Duration 2.06 s, load ~26, 2026-10-26)
 // #1891 — the ONE modal scrim treatment. Every full-screen modal scrim must
 // use the shared `modal-scrim` utility (`src/index.css`: scrim color + heavy
 // backdrop blur + an opaque-ish fallback where `backdrop-filter` is

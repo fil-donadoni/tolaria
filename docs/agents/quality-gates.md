@@ -827,6 +827,32 @@ Huawei — over the budget there by the owner's explicit exception (ADR 0154
 §12). `eval-weights-fit`: 9.8 s wall at load ~11 on the MacBook (2026-10-24;
 the fit 4.1 s, the whole file 12.4–16.2 s); Huawei not yet measured.
 
+**Repo-wide scan guards** (issue #7012): a `*.guard.test.ts(x)` file is a
+census that reads its corpus through `fs` — `no-bare-100vh.guard.test.ts`
+greps `src/**` and `index.html` — so no import edge reaches it and the scoped
+`vitest(related)` run never selects it. PR #6973 landed a bare `100vh` past
+it; health found the RED 34 minutes later. Each such file now declares, in two
+header lines the planner reads as text (`scripts/lib/scan-guards.ts`):
+
+```ts
+// lane-scans: src/** index.html
+// lane-cost: 7 s (how it was measured)
+```
+
+A `skin` or `engine` diff with a path matching one glob (or the guard file
+itself) admits the guard whole into ONE `guards(diff)` step
+(`bunx vitest run` over the node and `dom` projects), and the plan names each
+with its seconds (`guards:` line in `--plan`, `guards` in the JSON); a
+guard the import graph also reaches is dropped from `vitest(related)` so it
+runs once. Nothing matched → a `guards(diff)` skip line. The files are
+discovered by name (`git ls-files '*.guard.test.ts*'`), never a hand-kept
+list; an undeclared one refuses the plan. A declared cost over
+`LANE_COST_BUDGET_S` stays health's and must hold a `HEALTH_ONLY_GUARDS` row
+keyed by its path, or the plan refuses. The `full` lane needs no entry:
+`check:guards:app` runs the node and `dom` projects whole. Cost of today's
+three (`no-bare-100vh`, `modal-scrim`, `shell-height-claims`): 4.9 s wall
+together, warm, at load ~26 (2026-10-26).
+
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or
 listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured

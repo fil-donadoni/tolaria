@@ -1,3 +1,5 @@
+// lane-scans: src/**
+// lane-cost: 1 s (vitest Duration 1.04 s, load ~26, 2026-10-26)
 // Issue #2274 — repo-wide guards for the AppShell scroll contract.
 //
 // Two invariants, both of which used to be prose in `app-shell.tsx`'s comment
