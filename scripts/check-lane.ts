@@ -324,7 +324,7 @@ const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
  * its ledger, set JSON, pick ratings — and the guards that READ it
  * (`check:index`, `check:oracle`, `cr:lint`) run in the engine lane, so an
  * edit there is proven exactly where a `convex/**` edit is. A `data/**` path
- * next to `src/**` is still a mixed diff and still `full`.
+ * next to `src/**` is the mixed case, `engine` too (see `laneFor`).
  */
 const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
 const DATA_PATTERNS: RegExp[] = [/^data\//];
@@ -461,6 +461,22 @@ export function laneFor(classes: PathClass[]): Lane {
     )
         return "cards";
     if (!code.includes("skin")) return "engine";
+    // THE MIXED CASE IS SCOPED TOO (issue #6989). A diff spanning `src/**`
+    // and `convex|scripts|data/**` used to be `full` — `check:pr` verbatim,
+    // whole-repo prettier, whole-tree `cr:lint` and both bundle builds, the
+    // health run under another name (measured in ADR 0154 §14). A `cards`
+    // path in the mix goes with it: the walk, not the `cards` partitions,
+    // proves it, as beside any engine path. It is the `engine` lane — whole
+    // type-check, every guard reading `data/**` — with the `dom` tests the
+    // walk reaches added; what no import edge reaches is health's (ADR 0154
+    // §2). Affirmative over every code path: `full` is the terminal below.
+    if (
+        code.every(
+            (c) =>
+                c === "skin" || c === "engine" || c === "cards" || c === "data"
+        )
+    )
+        return "engine";
     return "full";
 }
 
@@ -580,8 +596,8 @@ export function classifyLane(
     overrides: ReadonlyMap<string, PathClass> = new Map(),
     /**
      * The bot fast lane files the diff reaches (issue #6149) and what they
-     * cost (issue #6943), injectable for the reason `related` is. Called in
-     * the `full` branch and every scoped code branch, never in `docs`.
+     * cost (issue #6943), injectable for the reason `related` is. Walked in
+     * every scoped code branch, never in `docs`; `full` asks only its total.
      */
     botReach: BotReachSource = defaultBotReach
 ): LanePlan {
@@ -596,12 +612,11 @@ export function classifyLane(
             lane,
             rationale: fullRationale(files),
             files,
-            // Verbatim delegation EXCEPT the bot half (issue #6149):
-            // `check:pr:app` is `check:pr` with `check:guards`' bot fast
-            // lane cut out (both pinned to `check:pr` by
-            // `check-guards-scope.test.ts`), so the rest cannot rot while the
-            // lanes get attention (#2738 § Explicitly unchanged). The bot
-            // half is `botHalf`'s: the files the diff reaches, or whole.
+            // Verbatim delegation: `check:pr:app` is `check:pr` with
+            // `check:guards`' bot fast lane cut out (both pinned to
+            // `check:pr` by `check-guards-scope.test.ts`), and `botHalf`
+            // puts that lane back whole (issue #6989), so the rest cannot rot
+            // while the lanes get attention (#2738 § Explicitly unchanged).
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
             // `blade-index` and `search-cost` may repeat a file the bot run
@@ -820,31 +835,37 @@ export function classifyLane(
     const toolingWhole = files.some(
         (p) => TOOLING_PATHS.test(p) && !MODULE_PATH.test(p)
     );
+    // A mixed diff (issue #6989) owes the `dom` tests the whole diff
+    // reaches; an engine-only diff's reached `dom` tests stay health's.
+    const mixed = files.some((p) => classOf(p) === "skin");
     const reach = related(files);
-    if (toolingWhole) {
+    const scoped: (keyof RelatedTests)[] = toolingWhole
+        ? ["node-engine"]
+        : ["node-engine", "node-tooling"];
+    if (toolingWhole)
         run.push({
             id: "node-tooling",
             command: "bunx vitest run --project node-tooling",
         });
-        pushRelated(reach, ["node-engine"], run, skip);
-    } else {
-        pushRelated(reach, ["node-engine", "node-tooling"], run, skip);
-    }
+    pushRelated(reach, mixed ? [...scoped, "dom"] : scoped, run, skip);
     const bot = admittedBotTests(files, botReach, () => false);
     run.push(...bot.run);
     skip.push(...bot.skip);
-    skip.push(
-        {
+    if (!mixed)
+        skip.push({
             id: "dom",
             reason: "no changed code under src/** — the whole type-check is the backstop (#2738); a src test the diff reaches is health's (ADR 0154 §2)",
-        },
-        ...HEALTH_ONLY_SKIPS
-    );
+        });
+    // `check:bundle` stays health's (issue #6989): what moves a budget — the
+    // dependency set, the lockfiles, `vite.config.*` — is `full` by
+    // `FULL_PATTERNS`, whose `check:pr:app` runs both bundle checks; a
+    // `package.json` that reaches this lane moved only its `scripts`.
+    skip.push(...HEALTH_ONLY_SKIPS);
     appendCheapGuards(files, run, skip);
     appendDocsGuards(files, run);
     return {
         lane,
-        rationale: engineRationale(files),
+        rationale: mixed ? mixedRationale(files) : engineRationale(files),
         files,
         run,
         skip,
@@ -1155,9 +1176,9 @@ export const BOT_FAST_LANE =
  *     vitest setup files whose closure no walk enters, anything unrecognised
  *     — no import edge names what such a path can move.
  *
- * Everything else in a `full` diff is a `src/**` + `convex/**` mix, each
- * path one the walk sees — the case the scoping exists for: 64 % of 328
- * non-docs commits reached under 10 % of the bot tests.
+ * The `src/**` + `convex/**` mix, the one shape with neither, is not `full`
+ * (issue #6989): it is the `engine` lane, which admits its reached bot files
+ * by cost (`admittedBotTests`), a Bot input included.
  */
 export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
     return matchesBotGlob(path) || isBotSourceFile(path) || cls === "full";
@@ -1259,11 +1280,12 @@ function admittedBotTests(
 }
 
 /**
- * The `full` lane's bot half (issue #6149): the bot fast lane over the files
- * the diff reaches through the import graph — the same walk, the same census
- * admission the `engine` and `skin` lanes use — or WHOLE when a path forces it
- * (`forcesWholeBotLane`) or the reach passes `WHOLE_PROJECT_AT`. Nothing
- * reached → a skip line, never an empty run.
+ * The `full` lane's bot half (issue #6149): the bot fast lane WHOLE. Issue
+ * #6149 scoped it by the import graph for the one shape no path forced — the
+ * `src/**` + `convex/**` mix — and issue #6989 moved that shape to `engine`,
+ * so every `full` diff left holds a path that forces the whole run
+ * (`forcesWholeBotLane`), or is empty (a wrong base ref: fail-closed). The
+ * `why` names that path, so `--plan` still says what forced it.
  */
 function botHalf(
     files: string[],
@@ -1275,49 +1297,17 @@ function botHalf(
     reach: NonNullable<LanePlan["botReach"]>;
 } {
     const total = source.total();
-    const whole = (why: string) => ({
+    const forcing = files.find((p) => forcesWholeBotLane(p, classOf(p)));
+    const why =
+        forcing === undefined
+            ? "whole: an empty diff, nothing to scope"
+            : matchesBotGlob(forcing) || isBotSourceFile(forcing)
+              ? `whole: ${forcing} is a Bot input`
+              : `whole: ${forcing} forces the full gate on its own, and no walk sees its reach`;
+    return {
         run: [{ id: BOT_STEP, command: BOT_FAST_LANE }],
         skip: [],
         reach: { run: total, total, why },
-    });
-    const forcing = files.find((p) => forcesWholeBotLane(p, classOf(p)));
-    if (forcing !== undefined)
-        return whole(
-            matchesBotGlob(forcing) || isBotSourceFile(forcing)
-                ? `whole: ${forcing} is a Bot input`
-                : `whole: ${forcing} forces the full gate on its own, and no walk sees its reach`
-        );
-    const reach = source.related(files);
-    const named = (["bot-node", "bot-dom"] as const).filter(
-        (p) => reach[p].length > 0
-    );
-    const reached = named.flatMap((p) => reach[p]);
-    if (reached.length > WHOLE_PROJECT_AT)
-        return whole(
-            `whole: ${reached.length} files reached, past WHOLE_PROJECT_AT`
-        );
-    const why = "scoped by the import graph (ADR 0154 §2)";
-    if (reached.length === 0)
-        return {
-            run: [],
-            skip: [
-                {
-                    id: BOT_STEP,
-                    reason: "no bot fast lane test reaches a changed path through the import graph and no path is a Bot input — an unreachable bot test is health's (ADR 0154 §2/§3)",
-                },
-            ],
-            reach: { run: 0, total, why },
-        };
-    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
-    return {
-        run: [
-            {
-                id: BOT_STEP,
-                command: `TOLARIA_BOT_FAST=1 bunx vitest run ${projectFlags} ${reached.map(shellQuote).join(" ")}`,
-            },
-        ],
-        skip: [],
-        reach: { run: reached.length, total, why },
     };
 }
 
@@ -1353,6 +1343,11 @@ function engineRationale(files: string[]): string {
     );
 }
 
+/** The mixed case (issue #6989): the `engine` lane plus the reached `dom`. */
+function mixedRationale(files: string[]): string {
+    return `${codeLaneRationale(files, "src/** and convex|scripts|data/**")} — engine lane plus the dom tests the diff reaches (issue #6989)`;
+}
+
 function cardsRationale(files: string[]): string {
     return codeLaneRationale(files, "convex/cards/sets/** or data/**");
 }
@@ -1380,14 +1375,12 @@ function fullRationale(files: string[]): string {
     if (files.length === 0) {
         return "empty diff — nothing to classify, so the full gate stands (a wrong base ref looks exactly like this)";
     }
-    const unrecognised = files.filter((p) => classifyPath(p) === "full");
-    if (unrecognised.length > 0) {
-        return `${files.length} file${files.length === 1 ? "" : "s"}, ${unrecognised.length} outside every lane rule (first: ${unrecognised[0]})`;
-    }
-    // Nothing unrecognised and not a pure or prose-plus-code lane: the only
-    // way left here is code on both sides. Prose in such a diff changes
-    // nothing — it is the src-vs-engine mix that costs the full gate.
-    return `${files.length} files spanning src/** and convex|scripts|data/** — the mixed case never gets a narrowed gate`;
+    // Since the mixed case left (issue #6989), a non-empty `full` diff holds
+    // a path `classifyPath` places in `full` itself. The wording is parsed:
+    // `parseLaneForcingPath` (`lib/telemetry-latency.ts`) reads the first path back.
+    const forcing = files.filter((p) => classifyPath(p) === "full");
+    const n = files.length;
+    return `${n} file${n === 1 ? "" : "s"}, ${forcing.length} outside every lane rule (first: ${forcing[0]})`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -23,17 +23,15 @@ it running is fine, a new capability belongs in the new stack.
 `check:guards`. Omitting `check:index` once broke **every card-shipping PR at
 the merge-train** — the failure is not local to the branch that skipped it.
 
-**The one exception is mechanical, never a hand's** (ADR 0154 §11, issue
-#6149): the `full` lane runs `check:pr:app` — `check:pr` with `check:guards`'
-bot fast lane cut out, pinned to `check:pr` text-for-text by
-`check-guards-scope.test.ts` — and then `vitest(bot)`, the bot fast lane over
-the files the diff reaches through the import graph. A diff touching
-`BOT_GLOBS` or a Bot hash input (`isBotSourceFile`), or holding a path that
-forces `full` on its own (lockfile, dependency set, test/type/build config,
-anything unrecognised), runs the bot fast lane whole. A bot test that reads
-its corpus through `fs` is a `CENSUS_TESTS` row and is admitted by that
-corpus, as the app suites' censuses are. `check:lane --plan` prints the reach
-(`bot:   24/352 bot fast lane files (scoped by the import graph …)`).
+**The `full` lane is `check:pr` verbatim** (ADR 0154 §14, issue #6989): it
+runs `check:pr:app` — `check:pr` with `check:guards`' bot fast lane cut out,
+pinned to `check:pr` text-for-text by `check-guards-scope.test.ts` — and then
+`vitest(bot)`, the bot fast lane WHOLE. Only a path that forces `full` on its
+own reaches it (lockfile, dependency set, test/type/build config, anything
+unrecognised), and no walk sees such a path's reach. ADR 0154 §11 (issue
+#6149) scoped that bot half for the `src/**` + `convex/**` mix; the mix is the
+`engine` lane now (below), so `check:lane --plan` prints the forcing path
+(`bot:   387/387 bot fast lane files (whole: bun.lock forces the full gate …)`).
 
 **The scoped code lanes tier bot files by measured cost** (ADR 0154 §13,
 issue #6943): `engine`, `skin` and `cards` run, as one `vitest(bot)` step, the
@@ -265,11 +263,14 @@ later, fixed forward) is exactly the risk they priced.
 `bun run check:lane` (PRD #2738: #2739 tsconfig cache → #2740 classifier landed
 inert → #2741 wiring/execution → #2743 batch homogeneity + this section) picks
 a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
-`engine` (`convex/**`, `scripts/**`, `data/**`; no `src/**` at all), `cards`
+`engine` (`convex/**`, `scripts/**`, `data/**`; beside `src/**` it is the
+mixed case, which adds the `dom` tests the walk reaches — issue #6989), `cards`
 (`convex/cards/sets/**` plus `data/**`, at least one card path; ADR 0136 §4),
 `docs` (prose only — markdown under `docs/**`, a root-level or nested
 `CLAUDE.md`/`AGENTS.md`, and `.claude/skills/**/*.md` + `.claude/rules/*.md`;
-§ `.claude/**` is split, below) or `full` (anything else, fail-closed) — and
+§ `.claude/**` is split, below) or `full` (a `FULL_PATTERNS` path — the
+dependency set, a lockfile, build/test/type/lint config — or anything
+unrecognised, fail-closed) — and
 runs exactly that lane's checks. Prose beside code does not change the lane: the code decides
 it and the plan ends with `node[docs]`, the `check:docs` test list (ADR 0136
 §3, below). It is the lane gate `land` pays once on the
@@ -408,8 +409,8 @@ both; 109 classify as `engine` after the change, against 34 before):
   to `check:pr`. What lives there is generated or vendored engine input, and
   the guards that read it — `check:index`, `check:oracle`, `cr:lint` — are all
   in the engine lane (`check:oracle` was added to it in the same change: its
-  offline tier is header hashes). A `data/` path beside `src/` is still a
-  mixed diff, still `full`.
+  offline tier is header hashes). A `data/` path beside `src/` is the mixed
+  case, `engine` plus its reached `dom` tests (issue #6989).
 - **Prose rides with the code.** "Prose mixes with nothing" forced `full` on
   any docs path in a non-pure diff. Now the code paths alone decide the lane
   and the plan's run list ENDS with `node[docs]` — `DOC_GATE_TESTS`, the same
@@ -2640,9 +2641,10 @@ one-time bootstrap gap, not a recurring one).
   land 4370    package.json
 ```
 
-**Why it is not a slice of the histogram.** `full` has two causes that cost the
-same and mean opposite things. A diff spanning `src/**` and `convex/**` is
-`full` BY DESIGN — ADR 0136 §3 deliberately refuses to narrow the mixed case.
+**Why it is not a slice of the histogram.** `full` had two causes that cost
+the same and mean opposite things. A diff spanning `src/**` and `convex/**` was
+`full` BY DESIGN — ADR 0136 §3 refused to narrow the mixed case, until issue
+#6989 made it `engine` (receipts before it still carry it).
 A diff stopped by a path outside every rule is `full` BY FALLBACK, and each one
 is a question: should that path have a lane? Nothing measured the second kind,
 which is how `.claude/**` went on charging `check:pr` for a one-line `SKILL.md`

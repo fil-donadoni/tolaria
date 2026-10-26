@@ -229,10 +229,10 @@ over two machines); the rest is batch health's.
 - **`check:lane` paid ONCE, by `land`, on the rebased tip** (skipped if tip
   and base already gated green). Lanes: `skin` (`src/**`) / `engine`
   (`convex/**`, `scripts/**`, `data/**`, `.claude/**` tooling, repo config,
-  scripts-only `package.json`) / `cards` / `docs` (prose, `check:docs`, incl.
-  `.claude/skills/**/*.md`, `.claude/rules/*.md`) / `full` (`src/**` +
-  `convex/**`, dependency changes, lockfile) = `check:pr` **verbatim**, **never
-  hand-picked**; only its bot half is scoped (ADR 0154 §11); prose beside code
+  scripts-only `package.json`; a `src/**` mix adds reached `dom`, ADR 0154
+  §14) / `cards` / `docs` (prose, `check:docs`, incl. `.claude/skills/**/*.md`,
+  `.claude/rules/*.md`) / `full` (dependencies, lockfile, config, unknown
+  path) = `check:pr` **verbatim**, **never hand-picked**; prose beside code
   adds `node[docs]`. **The lane runs the tests reachable from the diff through
   the import graph** + `tsc`, diff format / lint, `cr:lint`, drift and cheap
   guards; an unreachable test is health's (ADR 0154 overturns ADR 0104).
