@@ -14,6 +14,7 @@ import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
 import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
 import {
+    ABOVE_CONTROLLER_POD_EXPR,
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_CLEARANCE_EXPR,
 } from "~/lib/controller-bar-metrics";
@@ -21,6 +22,13 @@ import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 import ClearYieldsButton from "./clear-yields-button";
 import ManageYieldsButton from "./manage-yields-button";
+
+/** Desktop rows' scroll cap (issue #6970): the panel grows upward from the
+ *  pod's top, so its list may not exceed the room above it. `14.5rem` is
+ *  {@link ABOVE_CONTROLLER_POD_EXPR}'s fixed part (8rem + 0.5rem) plus the
+ *  header and padding. A literal so Tailwind sees it. */
+const DESKTOP_ROWS_MAX_H =
+    "max-h-[min(70vh,calc(100dvh-var(--controller-pod-h,0px)-14.5rem))]";
 
 /** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
  *  the viewer battlefield band itself uses for this edge
@@ -204,6 +212,7 @@ export default function GameStack({
         pendingTarget.playerId === playerId &&
         wantsSpellTarget(pendingTarget.targetType);
 
+    const desktop = !narrow && !landscape;
     const folded = !!collapsed && !canTargetSpell && !canChooseStackSource;
 
     // A row unmounted mid-hover fires no mouseleave; drop its arrow seed.
@@ -243,9 +252,9 @@ export default function GameStack({
             // `pointer-events-auto` is restored on the `Panel` below so the
             // drag handle and the clickable stack rows — both DOM
             // descendants of `Panel`, not of this div — stay interactive.
-            // Desktop (`!narrow`, `!landscape`) is untouched: its box is
-            // centered/vh-capped, not edge-pinned, so it never grows past its
-            // own content.
+            // Desktop (`!narrow`, `!landscape`) pins only its BOTTOM (above
+            // the controller pod, issue #6970), so its box never grows past
+            // its own content.
             //
             // `landscape` (issue #2589) reuses the desktop's vertical-center
             // shape (never edge-pinned, so no `pointer-events-none` trick is
@@ -259,7 +268,7 @@ export default function GameStack({
                     ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
                     : landscape
                       ? `${BESIDE_CONTROLLER_STRIP} top-1/2`
-                      : "top-1/2"
+                      : ""
             } ${elevated ? "z-stack" : "z-modal"}`}
             style={{
                 // `landscape` gets its `right` from the class above
@@ -278,9 +287,17 @@ export default function GameStack({
                         : landscape
                           ? undefined
                           : "0.5rem",
-                transform: narrow
-                    ? `translate(${offset.x}px, ${offset.y}px)`
-                    : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
+                // Desktop (issue #6970): anchored ABOVE the controller pod, not
+                // centred — the centred panel covered the pod's Pass CTA on a
+                // short viewport (1180x820). Growing upward from the pod's
+                // measured top it can never reach it.
+                ...(desktop && {
+                    bottom: `calc${ABOVE_CONTROLLER_POD_EXPR}`,
+                }),
+                transform:
+                    narrow || desktop
+                        ? `translate(${offset.x}px, ${offset.y}px)`
+                        : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
             {/* overflow-visible, NOT -hidden: a spell flying in from the hand
@@ -404,7 +421,11 @@ export default function GameStack({
                             </div>
                             <div
                                 className={`flex ${
-                                    narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
+                                    narrow
+                                        ? "min-h-0 flex-1"
+                                        : desktop
+                                          ? DESKTOP_ROWS_MAX_H
+                                          : "max-h-[70vh]"
                                 } flex-col gap-2 overflow-y-auto p-2`}
                             >
                                 {visible.map((item, i) => {

@@ -74,13 +74,14 @@ function renderStack(
 beforeEach(() => cleanup());
 
 describe("GameStack narrow/portrait variant (issue #1816)", () => {
-    it("desktop (no `narrow`) keeps the 384px vertically-centered panel unchanged", () => {
+    it("desktop (no `narrow`) keeps the 384px panel, anchored above the controller pod (issue #6970)", () => {
         const { container } = renderStack([makeStackItem("only")]);
         const outer = container.firstElementChild as HTMLElement;
         const panel = outer.querySelector('[data-slot="panel"]') as HTMLElement;
 
-        expect(outer.className).toContain("top-1/2");
-        expect(outer.style.transform).toContain("calc(-50% + 0px)");
+        expect(outer.className).not.toContain("top-1/2");
+        expect(outer.style.bottom).toContain("--controller-pod-h");
+        expect(outer.style.transform).toBe("translate(0px, 0px)");
         expect(panel.className).toContain("w-96");
         expect(panel.className).toContain("max-h-[80vh]");
         expect(panel.className).not.toContain("w-72");
