@@ -26,6 +26,7 @@ import {
     MAX_FIX_ATTEMPTS,
     parseCulprit,
     reopenComment,
+    revertAcknowledgements,
     revertBranch,
     revertPrBody,
     type EpisodeRed,
@@ -34,6 +35,13 @@ import {
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
 import { isAdoptableWorktree, issueOfBranch } from "../lib/issue-worktree";
+import type { CardRow } from "../lib/oracle-lockfile";
+import {
+    ledgerTextWith,
+    parseRegressionLedger,
+    readyRegressions,
+    unacknowledgedRegressions,
+} from "../lib/oracle-state-regressions";
 import { repairItems } from "../lib/queue-plan";
 import { closingIssueRefs } from "../lib/red-land-gate";
 import { hasNoWalkOwedLine, revertedCommitOf } from "../lib/ui-scope";
@@ -904,5 +912,64 @@ describe("ownRepairPrs — a stuck attempt withdraws only its own", () => {
 
     it("an interactive-only pivot withdraws nothing", () => {
         expect(ownRepairPrs(prs, [])).toEqual([]);
+    });
+});
+
+describe("revertAcknowledgements — a revert of a card-shipping PR passes check:oracle (issue #6936)", () => {
+    const row = (oracleId: string, name: string, state: CardRow["state"]) =>
+        ({ oracleId, name, state }) as CardRow;
+    // The base tip: the culprit graduated two Persist cards to `ready`.
+    const base = [
+        row("id-finks", "Kitchen Finks", "ready"),
+        row("id-safehold", "Safehold Elite", "ready"),
+        row("id-bolt", "Lightning Bolt", "ready"),
+    ];
+    // The revert puts them back where they were before the culprit.
+    const reverted = [
+        row("id-finks", "Kitchen Finks", "quarantine"),
+        row("id-safehold", "Safehold Elite", "unparsed"),
+        row("id-bolt", "Lightning Bolt", "ready"),
+    ];
+    const culprit = { sha: "7a26705010e9", pr: 6849 };
+    const baseLedger = `${JSON.stringify({ note: "kept", acknowledged: [] }, null, 4)}\n`;
+
+    it("acknowledges every ready loss, trackedBy the reopened issue, and check:oracle's diff is then clean", () => {
+        const losses = readyRegressions(base, reverted);
+        expect(losses).toHaveLength(2);
+        const text = ledgerTextWith(
+            baseLedger,
+            revertAcknowledgements(losses, { culprit, culpritIssues: [3992] })
+        );
+        const ledger = parseRegressionLedger(text);
+        expect(ledger.acknowledged.map((a) => [a.name, a.trackedBy])).toEqual([
+            ["Kitchen Finks", 3992],
+            ["Safehold Elite", 3992],
+        ]);
+        expect(unacknowledgedRegressions(losses, ledger)).toEqual([]);
+        expect(JSON.parse(text).note).toBe("kept");
+    });
+
+    it("a culprit that closed no issue: the drop is intended, never an untracked entry", () => {
+        const losses = readyRegressions(base, reverted);
+        const entries = revertAcknowledgements(losses, {
+            culprit,
+            culpritIssues: [],
+        });
+        expect(entries.every((e) => e.intended === true)).toBe(true);
+        expect(
+            unacknowledgedRegressions(
+                losses,
+                parseRegressionLedger(ledgerTextWith(baseLedger, entries))
+            )
+        ).toEqual([]);
+    });
+
+    it("a revert that drops no ready card acknowledges nothing", () => {
+        expect(
+            revertAcknowledgements(readyRegressions(base, base), {
+                culprit,
+                culpritIssues: [3992],
+            })
+        ).toEqual([]);
     });
 });
