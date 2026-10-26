@@ -489,7 +489,13 @@ describe("a scheduled RED waits for its fresh run: one store write per run (issu
     const plan = { kind: "tests" as const, step: "test", files: RED.tests! };
     let dir: string | undefined;
     afterEach(() => {
-        if (dir) rmSync(dir, { recursive: true, force: true });
+        if (dir)
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         dir = undefined;
     });
 
