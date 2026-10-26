@@ -59,7 +59,7 @@ import {
 import { primaryCheckout } from "./lib/primary-checkout";
 import { gcLine, worktreeGc } from "./worktree-gc";
 
-/** Wall for one child: a hung `convex` call must not hold the lane runner. */
+/** Wall for one child: a hung `convex` call must not hold the maint runner. */
 const STEP_WALL_MS = 10 * 60_000;
 
 /** Where the last notice sent for a red `sync` leg is remembered, relative

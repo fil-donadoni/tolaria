@@ -82,8 +82,13 @@
  *   - `queue-merge` — a queue rule whose merge conditions are anything but
  *     the queue lane alone (Amendment I: the entry gates were proven on the
  *     PR, and `pr-gate` posts both green on Mergify's draft).
- *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 2, or a
- *     queue rule with a `batch_size` other than 1 (ADR 0156 §3).
+ *   - `lane-role` — a self-hosted job outside `LANE_JOBS` whose `runs-on`
+ *     carries the `lane` role (or a whole-label expression that could
+ *     resolve to it): the `lane` runner serves the gates a merge or a verdict
+ *     waits on, and a maintenance job there holds the queue (ADR 0160).
+ *     Maintenance runs on `maint`.
+ *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 1, or a
+ *     queue rule with a `batch_size` other than 1 (ADR 0156 §3, ADR 0160).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the
  *     queue dequeued on `checks-failed`/`checks-timeout` from `ready-to-land`
  *     to `land-failed` with a comment carrying a link: the label is the
@@ -110,6 +115,7 @@
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
+import { RUNNER_ROLES, type RunnerRole } from "../lib/github-runner";
 import {
     FAILED_LABEL,
     HELD_LABEL,
@@ -153,6 +159,7 @@ export type RuleId =
     | "dispatcher-serialised"
     | "queue-superseded"
     | "host-pinned"
+    | "lane-role"
     | "pass-run-name"
     | "pass-setup-record"
     | "owner-merge-trigger"
@@ -206,6 +213,37 @@ export const HOST_PINNED_JOBS: ReadonlyMap<string, string> = new Map([
         "the Bot-play replay is 15 min on the MacBook and 75 on the Huawei; a late replay is an issue, never a RED or a hold (ADR 0159)",
     ],
 ]);
+
+/** The jobs that MAY run on a `lane` runner (rule `lane-role`, ADR 0160):
+ *  the gates a merge or a verdict waits on. `<workflow path>#<job id>` → what
+ *  waits on it. Everything else self-hosted is `maint` (or `pass`, `seed`). */
+export const LANE_JOBS: ReadonlyMap<string, string> = new Map([
+    [".github/workflows/queue-lane.yml#queue-lane", "every merge"],
+    [".github/workflows/health.yml#gate", "the base's GREEN/RED verdict"],
+    [".github/workflows/release.yml#release", "the release branch"],
+]);
+
+/** The runner role a gate holds (ADR 0160). */
+export const LANE_ROLE: RunnerRole = "lane";
+
+/** Whether `runs-on` may land on a `lane` runner. A runner carries ONE role
+ *  (`runnerLabels`) and `runs-on` matches a runner holding EVERY label, so a
+ *  literal other role (`pass`, `maint`, `seed`) rules the lane runner out;
+ *  otherwise the role named, a runner group or a whole-label expression the
+ *  guard cannot read may reach it (fail closed — `host:${{ matrix.host }}`
+ *  names a host, never a role). Pure. */
+export function mayHoldLane(runsOn: unknown): boolean {
+    const labels = isObj(runsOn) ? asArray(runsOn.labels) : asArray(runsOn);
+    const otherRole = RUNNER_ROLES.filter((r) => r !== LANE_ROLE);
+    if (labels.some((l) => otherRole.includes(l as RunnerRole))) return false;
+    if (isObj(runsOn) && runsOn.group !== undefined) return true;
+    return labels.some(
+        (l) =>
+            typeof l !== "string" ||
+            l === LANE_ROLE ||
+            /^\s*\$\{\{[\s\S]*\}\}\s*$/.test(l)
+    );
+}
 
 /** Jobs whose newer run makes the older one worthless, RUNNING included
  *  (rule `queue-superseded`, issue #6020): `<workflow path>#<job id>`. */
@@ -426,6 +464,15 @@ function checkJob(
         v(
             "host-pinned",
             `\`runs-on\` pins the job to \`${host}\` — that machine offline holds it for 24 h; use a matrix or an input, or no host (issue #5873)`
+        );
+    if (
+        selfHosted &&
+        mayHoldLane(job["runs-on"]) &&
+        !LANE_JOBS.has(`${file}#${id}`)
+    )
+        v(
+            "lane-role",
+            `\`runs-on\` reaches a \`${LANE_ROLE}\` runner — only the gates a merge or a verdict waits on run there; maintenance runs on \`maint\` (ADR 0160, issue #6653)`
         );
 
     const steps = asArray(job.steps);
@@ -686,8 +733,10 @@ function labelCondition(label: string, sign = ""): RegExp {
 
 /** The ONE merge condition: the queue's draft owes only the lane. */
 const QUEUE_MERGE = /^(check|status)-success\s*=\s*queue-lane$/;
-/** Two speculative checks, one per machine (ADR 0156 §3). */
-export const QUEUE_PARALLEL_CHECKS = 2;
+/** One check at a time on the one `lane` runner (ADR 0160, overturning ADR
+ *  0156 §3's two): a second draft contains the first, so a second runner 4–5×
+ *  slower set the queue's pace instead of doubling it. */
+export const QUEUE_PARALLEL_CHECKS = 1;
 /** The dequeue reasons that make a PR a repair pick: its check went red. */
 const DEQUEUE_REASONS = ["checks-failed", "checks-timeout"];
 /** A dequeue under a red `base-health` is a hold (issue #6110). */
@@ -827,7 +876,7 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
     if (mq.max_parallel_checks !== QUEUE_PARALLEL_CHECKS)
         v(
             "queue-shape",
-            `merge_queue.max_parallel_checks must be ${QUEUE_PARALLEL_CHECKS} (one per machine)`
+            `merge_queue.max_parallel_checks must be ${QUEUE_PARALLEL_CHECKS} (one per \`lane\` runner, ADR 0160)`
         );
     const prRules = isObj(doc) ? asArray(doc.pull_request_rules) : [];
     if (!prRules.some(relabelsDequeue))

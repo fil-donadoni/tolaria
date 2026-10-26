@@ -37,7 +37,7 @@ permissions:
 jobs:
     fixup:
         name: pr-fixup #${{ inputs.pr }}
-        runs-on: [self-hosted, lane]
+        runs-on: [self-hosted, maint]
         timeout-minutes: 60
         steps:
             - name: Job worktree

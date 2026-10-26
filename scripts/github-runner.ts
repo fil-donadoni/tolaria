@@ -1,7 +1,7 @@
 // Self-hosted GitHub Actions runners on this machine (ADR 0156 §7 and its
 // Amendment I, issue #5634) — `bun run runner <verb>`:
 //
-//   install [--dry-run] [--host <name>] [--pass N] [--lane N] [--seed N] [--no-convex] [--force-restart]
+//   install [--dry-run] [--host <name>] [--pass N] [--lane N] [--maint N] [--seed N] [--no-convex] [--force-restart]
 //   pause   [--dry-run]     stop this machine's runners, keep them registered
 //   resume  [--dry-run]     start them again
 //   status                  local service state + GitHub's online/busy view
@@ -408,6 +408,7 @@ function main(): void {
             const counts = {
                 pass: count(flags, "pass", d.pass),
                 lane: count(flags, "lane", d.lane),
+                maint: count(flags, "maint", d.maint),
                 seed: count(flags, "seed", d.seed),
             };
             const runners = runnerSpecs(host, counts, RUNNER_ROOT);

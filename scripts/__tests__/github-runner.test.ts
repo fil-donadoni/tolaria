@@ -51,7 +51,7 @@ const systemdTpl = readFileSync(
 function input(platform: "darwin" | "linux"): InstallInput {
     const runners = runnerSpecs(
         "mac",
-        { pass: 2, lane: 1, seed: platform === "darwin" ? 1 : 0 },
+        { pass: 2, lane: 1, maint: 0, seed: platform === "darwin" ? 1 : 0 },
         ROOT
     );
     return {
@@ -164,7 +164,7 @@ describe("runner declaration", () => {
     it("names runners <host>-<role>-<n> with the role and host:<name> labels", () => {
         const specs = runnerSpecs(
             "huawei",
-            { pass: 2, lane: 1, seed: 0 },
+            { pass: 2, lane: 1, maint: 0, seed: 0 },
             ROOT
         );
         expect(specs.map((s) => s.name)).toEqual([
@@ -179,6 +179,18 @@ describe("runner declaration", () => {
     it("declares the seed runner only on the MacBook by default", () => {
         expect(defaultCounts("darwin").seed).toBe(1);
         expect(defaultCounts("linux").seed).toBe(0);
+    });
+
+    it("declares the lane runner on the MacBook only and a maint runner on every machine (ADR 0160)", () => {
+        expect(defaultCounts("darwin")).toMatchObject({ lane: 1, maint: 1 });
+        expect(defaultCounts("linux")).toMatchObject({ lane: 0, maint: 1 });
+        const [maint] = runnerSpecs(
+            "huawei",
+            { pass: 0, lane: 0, maint: 1, seed: 0 },
+            ROOT
+        );
+        expect(maint.name).toBe("huawei-maint-1");
+        expect(maint.labels).toEqual(["maint", "host:huawei"]);
     });
 
     it("sanitizes a host name into a label-safe one", () => {
@@ -207,7 +219,10 @@ describe("runner declaration", () => {
     });
 
     it("round-trips machine.json and refuses a malformed one", () => {
-        const d = { host: "mac", counts: { pass: 3, lane: 1, seed: 1 } };
+        const d = {
+            host: "mac",
+            counts: { pass: 3, lane: 1, maint: 0, seed: 1 },
+        };
         expect(parseDeclaration(serializeDeclaration(d))).toEqual(d);
         expect(
             parseDeclaration(
@@ -215,12 +230,26 @@ describe("runner declaration", () => {
             )
         ).toBeNull();
         expect(parseDeclaration("not json")).toBeNull();
+        // A declaration from before the maint role declares none: the owner
+        // adds it by flag, an old machine.json never grows one silently.
+        expect(
+            parseDeclaration(
+                '{"host":"mac","counts":{"pass":3,"lane":1,"seed":1}}'
+            )
+        ).toEqual({
+            host: "mac",
+            counts: { pass: 3, lane: 1, maint: 0, seed: 1 },
+        });
     });
 });
 
 describe("runner units", () => {
     it("the MacBook runner runs run.sh under caffeinate, with node on PATH", () => {
-        const [r] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
+        const [r] = runnerSpecs(
+            "mac",
+            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            ROOT
+        );
         const out = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
         expect(out).toContain(
             "<string>com.tolaria.gh-runner.mac-pass-1</string>"
@@ -268,7 +297,11 @@ describe("runner units", () => {
     });
 
     it("launchd and systemd PATHs both start with the one shared head (issue #6217)", () => {
-        const [r] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
+        const [r] = runnerSpecs(
+            "mac",
+            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            ROOT
+        );
         const plist = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
         const head = ["/h/.local/bin", "/h/.bun/bin", "/h/.nvm/v24/bin"].join(
             ":"
@@ -280,11 +313,19 @@ describe("runner units", () => {
     });
 
     it("a pass-runner unit whose PATH resolves no claude is refused", () => {
-        const [pass] = runnerSpecs("mac", { pass: 1, lane: 0, seed: 0 }, ROOT);
+        const [pass] = runnerSpecs(
+            "mac",
+            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            ROOT
+        );
         expect(() => renderRunnerPlist(plistTpl, pass, subs, hasNode)).toThrow(
             /claude not resolvable/
         );
-        const [lane] = runnerSpecs("mac", { pass: 0, lane: 1, seed: 0 }, ROOT);
+        const [lane] = runnerSpecs(
+            "mac",
+            { pass: 0, lane: 1, maint: 0, seed: 0 },
+            ROOT
+        );
         expect(() =>
             renderRunnerPlist(plistTpl, lane, subs, hasNode)
         ).not.toThrow();

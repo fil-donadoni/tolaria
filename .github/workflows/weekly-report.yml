@@ -41,7 +41,7 @@ permissions:
 jobs:
     machine:
         name: telemetry reading (${{ matrix.host }})
-        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        runs-on: [self-hosted, maint, "host:${{ matrix.host }}"]
         timeout-minutes: 15
         strategy:
             fail-fast: false
@@ -75,7 +75,7 @@ jobs:
         name: weekly report
         needs: machine
         if: always()
-        runs-on: [self-hosted, lane]
+        runs-on: [self-hosted, maint]
         timeout-minutes: 60
         # Reads only: the search and GraphQL API, and the runs' artifacts.
         permissions:

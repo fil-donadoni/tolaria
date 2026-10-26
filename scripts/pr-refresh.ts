@@ -4,7 +4,7 @@
  * #5638, PRD #5620). GitHub and Mergify do not run our merge drivers, and 37 %
  * of PRs touch a driven file, so a queued PR conflicts on a generated artefact
  * the moment the base moves. On every push to the base, `pr-refresh.yml` runs
- * this on a `lane` runner:
+ * this on a `maint` runner (ADR 0160):
  *
  *   for each `ready-to-land` PR GitHub reports `CONFLICTING`, a `merge:manual`
  *   one whose files the push just touched, or (only while the base lineage is

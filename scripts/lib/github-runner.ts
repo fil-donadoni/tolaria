@@ -22,8 +22,18 @@ import {
     type LaunchdSubstitutions,
 } from "./launchd-render";
 
-export type RunnerRole = "pass" | "lane" | "seed";
-export const RUNNER_ROLES: readonly RunnerRole[] = ["pass", "lane", "seed"];
+/** `lane` serves the gates a merge or a verdict waits on — the queue's lane,
+ *  the batch health, the release — and nothing else; `maint` runs every
+ *  other duty (housekeeping, the Bot-play replay, `pr-refresh`, nightly,
+ *  sweeps), so maintenance never holds a runner the queue needs (ADR 0160,
+ *  issue #6653). */
+export type RunnerRole = "pass" | "lane" | "maint" | "seed";
+export const RUNNER_ROLES: readonly RunnerRole[] = [
+    "pass",
+    "lane",
+    "maint",
+    "seed",
+];
 
 export type RunnerPlatform = "darwin" | "linux";
 
@@ -37,11 +47,13 @@ export interface RunnerSpec {
 /** How many runners of each role this machine declares. */
 export type RoleCounts = Record<RunnerRole, number>;
 
-/** The defaults: two Claude passes and one lane check per machine; the seed
- *  runner only where the owner's Convex deployment lives — the MacBook
- *  (ADR 0156 §7). */
+/** The defaults: two Claude passes and one maintenance runner per machine;
+ *  the lane runner and the seed runner only on the MacBook — the fast host
+ *  sets the queue's pace (ADR 0160), and the owner's Convex deployment lives
+ *  there (ADR 0156 §7). */
 export function defaultCounts(platform: RunnerPlatform): RoleCounts {
-    return { pass: 2, lane: 1, seed: platform === "darwin" ? 1 : 0 };
+    const mac = platform === "darwin" ? 1 : 0;
+    return { pass: 2, lane: mac, maint: 1, seed: mac };
 }
 
 /** A runner/label-safe host name: lower case, `[a-z0-9-]`, no domain. */
@@ -351,6 +363,10 @@ export function parseDeclaration(
     if (text === null) return null;
     try {
         const d = JSON.parse(text) as Partial<MachineDeclaration>;
+        // A declaration written before the `maint` role (ADR 0160) declares
+        // none: the owner adds it with `install --maint 1`, never silently.
+        if (d.counts !== undefined && d.counts.maint === undefined)
+            d.counts = { ...d.counts, maint: 0 };
         const ok =
             typeof d.host === "string" &&
             d.counts !== undefined &&
