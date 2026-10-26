@@ -34,8 +34,7 @@ export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
 
 /**
  * A vitest command that names a project and no file filter runs the whole
- * project (`WHOLE_PROJECT_AT` in check-lane.ts, or the `node-tooling`
- * admission) — not seconds.
+ * project (the `node-tooling` admission in check-lane.ts) — not seconds.
  */
 const WHOLE_PROJECT_VITEST = /^bunx vitest run( --project \S+)+\s*$/;
 
@@ -105,12 +104,37 @@ export interface PreQueuePlan {
     skip: PreQueueSkip[];
 }
 
-/** Why a planned check is not seconds-cost, or null when it is. */
-export function notSecondsCost(check: PlannedCheck): string | null {
+/**
+ * Reached test files past which the lane's scoped run is not seconds-cost
+ * (issue #6992): the lane runs a hub edit's reach file by file now, never the
+ * bare project `WHOLE_PROJECT_VITEST` used to drop, so the reach's SIZE says
+ * what the bare command said — minutes, the runner's to pay.
+ */
+export const PRE_QUEUE_RELATED_MAX = 400;
+
+/** The lane's scoped node/dom run, one id or one per chunk (`pushRelated`). */
+const RELATED_ID = /^vitest\(related\)( \d+\/\d+)?$/;
+
+/** Quoted filters in a planned vitest command. */
+function filterCount(command: string): number {
+    return command.match(/'(?:[^']|'\\'')*'/g)?.length ?? 0;
+}
+
+/**
+ * Why a planned check is not seconds-cost, or null when it is. `relatedFiles`
+ * is the plan's whole scoped reach, summed over its `vitest(related)` runs.
+ */
+export function notSecondsCost(
+    check: PlannedCheck,
+    relatedFiles = 0
+): string | null {
     const named = EXCLUDED_FROM_PRE_QUEUE[check.id];
     if (named !== undefined) return named;
     if (WHOLE_PROJECT_VITEST.test(check.command)) {
         return "a whole vitest project, not scoped to the diff — the runner's to pay";
+    }
+    if (RELATED_ID.test(check.id) && relatedFiles > PRE_QUEUE_RELATED_MAX) {
+        return `the diff reaches ${relatedFiles} test files (> ${PRE_QUEUE_RELATED_MAX}) — minutes, the runner's to pay`;
     }
     return null;
 }
@@ -130,8 +154,11 @@ export function preQueueSteps(
     const run: PlannedCheck[] = [];
     const skip: PreQueueSkip[] = [];
     if (plan.lane === "full") run.push(...fullLaneSecondsSteps([...present]));
+    const relatedFiles = plan.run
+        .filter((c) => RELATED_ID.test(c.id))
+        .reduce((n, c) => n + filterCount(c.command), 0);
     for (const check of plan.run) {
-        const why = notSecondsCost(check);
+        const why = notSecondsCost(check, relatedFiles);
         if (why === null) run.push(check);
         else skip.push({ id: check.id, reason: why });
     }
