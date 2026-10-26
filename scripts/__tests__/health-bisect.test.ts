@@ -15,11 +15,13 @@ import {
     flakyIssueTitle,
     flakySubjects,
     freshRunPlan,
+    ladderRed,
     lastGreenOf,
     notReproduced,
     prOfSubject,
     runnerClass,
     settleFreshPass,
+    settleHeldRed,
     vitestCommands,
     type FreshPassEffects,
     type ProbeOutcome,
@@ -31,6 +33,12 @@ import {
     withEvidenceLine,
 } from "../lib/health-evidence";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
+import {
+    clearDeferredRed,
+    defersRed,
+    readDeferredRed,
+    writeDeferredRed,
+} from "../lib/health-verdict-job";
 import {
     decodeStatus,
     encodeDescription,
@@ -473,5 +481,122 @@ describe("a RED is climbed once", () => {
     it("knows a probe worktree and the pid that made it", () => {
         expect(bisectWorktreePid("/code/mtg/tolaria-bisect-4242-3")).toBe(4242);
         expect(bisectWorktreePid("/code/mtg/tolaria-issue-4242")).toBeNull();
+    });
+});
+
+describe("a scheduled RED waits for its fresh run: one store write per run (issue #6986)", () => {
+    const machine = machineName({});
+    const plan = { kind: "tests" as const, step: "test", files: RED.tests! };
+    let dir: string | undefined;
+    afterEach(() => {
+        if (dir)
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        dir = undefined;
+    });
+
+    /** health-main's RED, then the ladder over a store that records writes. */
+    function climb(freshRun: "green" | "red") {
+        dir = mkdtempSync(join(tmpdir(), "held-red-"));
+        const writes: Verdict[] = [];
+        const write = (v: Verdict) => {
+            writes.push(v);
+            return { written: true as const };
+        };
+        // health-main --scheduled: the RED goes to disk, not the store.
+        expect(defersRed("scheduled")).toBe(true);
+        writeDeferredRed(dir, { ...RED, status: "red", machine });
+        // The ladder: nothing on the store for the sha, so the held RED.
+        const { verdict, held } = ladderRed(
+            null,
+            readDeferredRed(dir) as Verdict | null,
+            RED.sha
+        );
+        expect(held).toBe(true);
+        const code =
+            freshRun === "green"
+                ? settleFreshPass(
+                      {
+                          red: verdict,
+                          sha: RED.sha,
+                          plan,
+                          freshMachine: machine,
+                          at: "2026-10-25T17:57:44Z",
+                          dryRun: false,
+                      },
+                      {
+                          note: () => {},
+                          writeGreen: write,
+                          fileFlake: () => {},
+                          publish: () => {},
+                      }
+                  )
+                : 1;
+        const d = dir;
+        settleHeldRed(
+            { held, verdict, code, dryRun: false },
+            {
+                note: () => {},
+                writeRed: write,
+                clear: () => clearDeferredRed(d),
+            }
+        );
+        return { writes, code, left: readDeferredRed(d) };
+    }
+
+    it("first run red, fresh run green: ONE write, the GREEN — no RED ever reaches the store", () => {
+        const { writes, code, left } = climb("green");
+        expect(code).toBe(0);
+        expect(writes.map((v) => v.status)).toEqual(["green"]);
+        expect(left).toBeNull();
+    });
+
+    it("reproduced: ONE write, the held RED", () => {
+        const { writes, code, left } = climb("red");
+        expect(code).toBe(1);
+        expect(writes).toHaveLength(1);
+        expect(writes[0]).toMatchObject({
+            sha: RED.sha,
+            status: "red",
+            machine,
+        });
+        expect(left).toBeNull();
+    });
+
+    it("an early run's RED is never held: its ladder reads the store", () => {
+        expect(defersRed("early")).toBe(false);
+        expect(defersRed("default")).toBe(false);
+    });
+
+    it("a held RED never shadows the store's verdict, nor climbs another sha", () => {
+        const green: Verdict = { sha: RED.sha, status: "green" };
+        expect(ladderRed(green, RED, RED.sha)).toEqual({
+            verdict: green,
+            held: false,
+        });
+        expect(ladderRed(null, RED, "b".repeat(40))).toEqual({
+            verdict: null,
+            held: false,
+        });
+    });
+
+    it("a write that throws keeps the held RED on disk for the next health run", () => {
+        let cleared = 0;
+        const code = settleHeldRed(
+            { held: true, verdict: RED, code: 1, dryRun: false },
+            {
+                note: () => {},
+                writeRed: () => {
+                    throw new Error("502");
+                },
+                clear: () => cleared++,
+            }
+        );
+        expect(code).toBe(1);
+        expect(cleared).toBe(0);
     });
 });

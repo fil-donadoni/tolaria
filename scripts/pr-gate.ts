@@ -22,7 +22,9 @@
  * `@mergifyio requeue` once per hold, and loses the label once it is
  * `queued` again or the requeue did not take within its grace
  * (`heldPrAction`, issues #6110, #6957); an unlabelled PR whose `base-health` turns green after being held
- * gets the requeue alone. An unreadable verdict store posts
+ * gets the requeue alone. A queue PR about to get `base-health` `failure`
+ * is labelled `queue:held` first (`holdsBeforeRed`, issue #6986), so a RED
+ * that clears before Mergify judges the dequeue is still a hold. An unreadable verdict store posts
  * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
@@ -43,6 +45,7 @@ import {
     baseHealthStatus,
     gatePrOf,
     heldPrAction,
+    holdsBeforeRed,
     MERGIFY_QUEUED_LABEL,
     needsRequeue,
     REQUEUE_COMMENT,
@@ -198,19 +201,30 @@ function main(): number {
     for (const raw of prs) {
         // Each status on its own: `base-health` needs no file list, and a
         // failed read of one must never leave the other's old green standing.
+        // `trusted-author` first: `holdsBeforeRed` reads it.
         const decide: Array<() => GateStatus> = [
+            () =>
+                trustedAuthorStatus(
+                    gatePrOf(raw, prFiles(run, repo, raw.number)),
+                    trusted
+                ),
             () =>
                 baseHealthStatus({
                     lineage,
                     pr: gatePrOf(raw, []),
                     repairIssues,
                 }),
-            () =>
-                trustedAuthorStatus(
-                    gatePrOf(raw, prFiles(run, repo, raw.number)),
-                    trusted
-                ),
         ];
+        const labels = (raw.labels ?? []).map((l) => l.name);
+        const edit = (args: string[]): void => {
+            if (dryRun) return;
+            try {
+                gh(run, args);
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            }
+        };
         const posted = new Map<string, GateState>();
         let prior: GateState | undefined;
         for (const status of decide) {
@@ -219,6 +233,30 @@ function main(): number {
                 show(raw.number, raw.head.sha, s);
                 if (s.context === BASE_HEALTH_CONTEXT)
                     prior = priorBaseHealth(run, repo, raw.head.sha);
+                // The hold is labelled before the failure that dequeues the
+                // PR (issue #6986): a label that failed still lets the
+                // failure post, since holding the queue comes first.
+                if (
+                    s.context === BASE_HEALTH_CONTEXT &&
+                    holdsBeforeRed({
+                        labels,
+                        baseHealth: s.state,
+                        trustedAuthor: posted.get(TRUSTED_AUTHOR_CONTEXT),
+                    })
+                ) {
+                    console.log(
+                        `PR #${raw.number}: base-health failure — labelling ${HELD_LABEL} first`
+                    );
+                    edit([
+                        "pr",
+                        "edit",
+                        String(raw.number),
+                        "--repo",
+                        repo,
+                        "--add-label",
+                        HELD_LABEL,
+                    ]);
+                }
                 if (!dryRun) post(run, repo, raw.head.sha, s, targetUrl);
                 posted.set(s.context, s.state);
             } catch (e) {
@@ -231,16 +269,6 @@ function main(): number {
         // transition only for a PR the RED held without labelling it.
         const next = posted.get(BASE_HEALTH_CONTEXT);
         const trustedState = posted.get(TRUSTED_AUTHOR_CONTEXT);
-        const labels = (raw.labels ?? []).map((l) => l.name);
-        const edit = (args: string[]): void => {
-            if (dryRun) return;
-            try {
-                gh(run, args);
-            } catch (e) {
-                failed++;
-                console.error(`PR #${raw.number}: ${(e as Error).message}`);
-            }
-        };
         const requeue = () =>
             edit([
                 "pr",

@@ -194,11 +194,16 @@ import {
 } from "./lib/test-headroom";
 import { corpusExcluded, refuseCorpusExclusion } from "./lib/corpus-exclusion";
 import {
+    clearDeferredRed,
+    DEFERRED_RED_FILE,
+    defersRed,
     earlyRunRefusal,
     healthRunMode,
     inJobWorktree,
+    readDeferredRed,
     storesVerdict,
     unattendedSkip,
+    writeDeferredRed,
     type HealthRunMode,
 } from "./lib/health-verdict-job";
 
@@ -568,12 +573,25 @@ function publishVerdict(
         );
         return;
     }
+    const stamped = {
+        ...verdict,
+        machine: machineName(),
+        at: new Date().toISOString(),
+    };
+    if (verdict.status === "red" && defersRed(ctx.mode ?? "default")) {
+        // One store write per run (issue #6986): the ladder, next in the
+        // job, writes GREEN when its fresh run does not reproduce this RED,
+        // else this RED.
+        writeDeferredRed(ctx.dir, { ...stamped, status: "red" });
+        console.log(
+            `health-main: scheduled run — the RED waits for the ladder's fresh run (${DEFERRED_RED_FILE}), the store takes one verdict`
+        );
+        return;
+    }
     try {
-        const out = verdictStore(ctx.root, { branch: ctx.branch }).write({
-            ...verdict,
-            machine: machineName(),
-            at: new Date().toISOString(),
-        });
+        const out = verdictStore(ctx.root, { branch: ctx.branch }).write(
+            stamped
+        );
         if (!out.written)
             console.error(
                 `health-main: verdict store kept its record — ${out.reason}`
@@ -581,6 +599,32 @@ function publishVerdict(
     } catch (err) {
         console.error(
             `health-main: the verdict store could not be written — ${String(err)}`
+        );
+    }
+}
+
+/**
+ * A held RED its ladder never settled (the ladder step killed, a job
+ * cancelled) goes to the store before this run replaces `last.json`, the
+ * record the ladder finds it by (issue #6986): a RED is never lost to a
+ * dead job, only delayed. Not over a verdict the store already holds for
+ * that sha. Never fatal.
+ */
+function flushDeferredRed(root: string, dir: string, branch: string): void {
+    const red = readDeferredRed(dir);
+    if (red === null) return;
+    try {
+        const store = verdictStore(root, { branch });
+        if (store.read(red.sha) === null) {
+            store.write(red as unknown as Verdict);
+            console.error(
+                `health-main: the held RED @ ${red.sha.slice(0, 8)} was never settled by its ladder — written to the store now`
+            );
+        }
+        clearDeferredRed(dir);
+    } catch (err) {
+        console.error(
+            `health-main: the held RED could not be written — ${String(err)}`
         );
     }
 }
@@ -1055,6 +1099,9 @@ async function main(): Promise<void> {
     git(["fetch", "origin", branch, "-q"], root);
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
+    // Before any skip: a run that gates nothing must still not sit on a
+    // previous job's unsettled RED (issue #6986).
+    flushDeferredRed(root, dir, branch);
     const last = readLast(dir);
     const stored = readStoredVerdict(root, tip);
     const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);

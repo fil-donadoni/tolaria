@@ -19,7 +19,8 @@
  * Node builtins only: `health-main.ts` imports this before `node_modules`
  * may exist.
  */
-import { resolve } from "node:path";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { HealthStatus } from "./health-verdict";
 
 export type HealthRunMode = "default" | "scheduled" | "early";
@@ -57,6 +58,51 @@ export function storesVerdict(
     status: HealthStatus | "amber"
 ): boolean {
     return mode !== "early" || status === "red";
+}
+
+/**
+ * Whether a RED of `mode` waits for its fresh run before it reaches the
+ * store (issue #6986). A scheduled run's RED goes up the ladder in the same
+ * job (`health.yml`: `health:bisect ladder`, `if: always()`), so the store
+ * takes ONE verdict per run, the ladder's: GREEN when the fresh run did not
+ * reproduce it, else the held RED. Writing the RED first dequeued the whole
+ * queue for the 13 minutes the fresh run took. An early run's RED is
+ * written at once: its ladder runs on another machine, from the store.
+ */
+export function defersRed(mode: HealthRunMode): boolean {
+    return mode === "scheduled";
+}
+
+/** The held RED, beside `last.json` in the health directory. */
+export const DEFERRED_RED_FILE = "red-deferred.json";
+
+/** The held RED's shape: what the store would have taken. */
+export interface DeferredRed {
+    sha: string;
+    status: "red";
+    [field: string]: unknown;
+}
+
+export function writeDeferredRed(dir: string, red: DeferredRed): void {
+    writeFileSync(join(dir, DEFERRED_RED_FILE), JSON.stringify(red, null, 2));
+}
+
+/** The held RED, or null: none, unreadable, or not a RED. */
+export function readDeferredRed(dir: string): DeferredRed | null {
+    try {
+        const v = JSON.parse(
+            readFileSync(join(dir, DEFERRED_RED_FILE), "utf8")
+        ) as Partial<DeferredRed>;
+        return typeof v.sha === "string" && v.status === "red"
+            ? (v as DeferredRed)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+export function clearDeferredRed(dir: string): void {
+    rmSync(join(dir, DEFERRED_RED_FILE), { force: true });
 }
 
 /**
