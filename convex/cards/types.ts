@@ -7631,6 +7631,14 @@ export interface SpellContext {
         counters: Record<string, number>;
     }>;
 
+    /** CR 120.1 / 608.2h — the instance ids of the permanents the resolving
+     *  ability's source has dealt damage to this game (its
+     *  `damagedPermanentsThisGame` history). Read live while the source is on
+     *  the battlefield; once it has left, from the ability's own snapshot of
+     *  it (last known information — the history is cleared as the source
+     *  leaves). Empty when the source has damaged nothing. */
+    getPermanentsDamagedBySource: () => string[];
+
     /** CR 400.7 / 607 (issue #1947) — pick ONE card at random from the same
      *  linked pile {@link getCardsExiledWith} enumerates, drawn from the
      *  game's seeded PRNG so replays reproduce the same pick (mirrors
@@ -15275,6 +15283,16 @@ export type EffectForEachSelector =
            *  composes with either. A no-op when the source is not itself a
            *  member of the selected set. */
           excludeSource?: boolean;
+          /** CR 120.1 / 400.7 — "each planeswalker it has dealt damage to
+           *  this game" (The Fallen): when `true`, keeps only the members the
+           *  resolving ability's SOURCE has dealt damage to as the object it
+           *  now is, read off the source's `damagedPermanentsThisGame`
+           *  history (`recordSourceDamagedPermanent`, gre/state.ts). Applied
+           *  AFTER `filter`/`controller`, so the type line still says which
+           *  of those permanents count ("planeswalker" = `filter: { type:
+           *  "Planeswalker" }`). A member that left and came back is a new
+           *  object the source never damaged (CR 400.7). */
+          damagedBySourceThisGame?: boolean;
       }
     | {
           /** A bulk graveyard-set sweep (issue #1056, CR 404) — iterate ALL
