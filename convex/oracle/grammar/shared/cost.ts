@@ -33,7 +33,6 @@ import type {
     PermanentFilter,
 } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
-import { SELF_MARKER } from "../../normalize";
 import {
     fail,
     listOf,
@@ -49,6 +48,7 @@ import { readNumberWord } from "./quantity";
 import {
     COLOR_WORDS,
     descriptorRule,
+    isSelfPhrase,
     permanentFilterFromDescriptor,
 } from "./targetFilter";
 
@@ -151,36 +151,7 @@ export interface ActivationCostIR {
     readonly atoms: readonly CostAtomIR[];
 }
 
-/**
- * Nouns Oracle text uses for "the object this ability is printed on".
- *
- * Modern templating writes "this creature" / "this artifact"; older wordings
- * (and the gold fixtures reconstructed from them) name the card, which
- * `normalize.ts` has already replaced with `{self}`. Both are the same referent
- * and both are accepted; a noun outside the table is refused rather than
- * assumed to be self, because "this creature" and "that creature" differ by one
- * word and by the whole meaning.
- */
-const SELF_NOUNS: ReadonlySet<string> = new Set([
-    "creature",
-    "artifact",
-    "enchantment",
-    "land",
-    "planeswalker",
-    "permanent",
-    "card",
-    "token",
-    "Aura",
-    "Equipment",
-    "Vehicle",
-]);
-
-/** True when the span names the source object (CR 700.7). */
-export function isSelfPhrase(span: string): boolean {
-    if (span === SELF_MARKER) return true;
-    if (!span.startsWith("this ")) return false;
-    return SELF_NOUNS.has(span.slice("this ".length));
-}
+export { isSelfPhrase } from "./targetFilter";
 
 const PAY_LIFE = /^Pay (\d+) life$/;
 const DISCARD_X = /^Discard X cards$/;
@@ -323,7 +294,9 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                 return fail("sacrifice cost has no count word", span);
             const descriptor = descriptorRule.run(counted.rest, ctx);
             if (!descriptor.ok) return descriptor;
-            const filter = permanentFilterFromDescriptor(descriptor.value);
+            const filter = permanentFilterFromDescriptor(descriptor.value, {
+                excludeSource: true,
+            });
             if (!filter.ok) return filter;
             return ok({
                 kind: "sacrifice-other" as const,
@@ -408,7 +381,9 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                     'a return cost names its permanent with "you control"',
                     span
                 );
-            const filter = permanentFilterFromDescriptor(scoped);
+            const filter = permanentFilterFromDescriptor(scoped, {
+                excludeSource: true,
+            });
             if (!filter.ok) return filter;
             return ok({ kind: "return-other" as const, filter: filter.value });
         }
