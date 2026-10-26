@@ -13,7 +13,7 @@ import { controlsSubtype, defineCard } from "../../types";
 // on the battlefield grants haste to nothing but itself (its own keyword).
 // "You" is the graveyard's owner (CR 109.5), which `graveyardStaticSources`
 // presents as the source's controller, so the grant follows Anger into
-// whichever graveyard it is in. The Mountain clause is a CR 611.2c source
+// whichever graveyard it is in. The Mountain clause is a CR 611.3a source
 // gate, re-read at every recompute, so losing the last Mountain ends it.
 //
 // hand-tail: "As long as this card is in your graveyard and you control a Mountain, creatures you control have haste." (#2602)

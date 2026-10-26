@@ -10950,7 +10950,7 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     source
 ) => target.id === source.id;
 
-/** CR 611.2c — the "as long as you control a <subtype>" source gate (Tek's
+/** CR 611.3a — the "as long as you control a <subtype>" source gate (Tek's
  *  five land-type clauses, Anger's "you control a Mountain"). "You" is the
  *  source view's `controllerId`: a battlefield permanent's controller, or a
  *  graveyard card's owner (CR 109.5, `graveyardStaticSources`). Any permanent

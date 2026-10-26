@@ -4,7 +4,7 @@
 // (CR 113.6b, `SourceZoneScope`). Covered here through the real recompute
 // (`checkStateBasedActions` → `recomputeContinuousEffects`) and the wire
 // projection: the grant's owner scoping (CR 109.5), its Mountain gate
-// (CR 611.2c), its end when Anger leaves the graveyard, its silence while
+// (CR 611.3a), its end when Anger leaves the graveyard, its silence while
 // Anger is on the battlefield, and the graveyard object's own CR 613.7d
 // timestamp against an ability-loss effect.
 import { describe, it, expect } from "vitest";
@@ -100,7 +100,7 @@ describe("Anger (graveyard-functioning static ability, CR 113.6b)", () => {
         expect(hasHaste(state, "p1-bears")).toBe(false);
     });
 
-    it("grants nothing without a Mountain (CR 611.2c gate)", () => {
+    it("grants nothing without a Mountain (CR 611.3a gate)", () => {
         const state = angerInGraveyard({ mountainFor: ["p2"] });
         expect(hasHaste(state, "p1-bears")).toBe(false);
     });
