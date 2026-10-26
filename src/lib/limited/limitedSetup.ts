@@ -23,7 +23,13 @@ import {
     isValidRoundDeadlineMinutes,
     type LimitedGamesFormat,
 } from "@convex/limited/gamesFormat";
+import {
+    DEFAULT_DIFFICULTY,
+    DIFFICULTIES,
+    type Difficulty,
+} from "@convex/gre/difficulty";
 import type { PackSourceInfo } from "~/hooks/useLimitedEvent";
+import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 
 /** A Pack Source catalogue key (`PackSourceEntry.key`). */
 export type PackSourceKey = string;
@@ -35,6 +41,8 @@ export interface LimitedSetup {
     packSource: PackSourceKey;
     seats: number;
     gamesFormat: 1 | 3;
+    /** Bot difficulty of every vs-AI Match of the event (issue #6916). */
+    botDifficulty: Difficulty;
     /** Draft only — hidden (and never sent) under Sealed. */
     pickTimer: boolean;
     /** Sealed only. */
@@ -78,6 +86,8 @@ export interface CreateLimitedEventPayload {
     timerEnabled?: boolean;
     /** Always sent: the creator's choice is explicit. */
     gamesFormat: LimitedGamesFormat;
+    /** Always sent (issue #6916). */
+    botDifficulty: Difficulty;
     /** Omitted when the creator leaves the deadline off. */
     roundDeadlineMinutes?: number;
     /** Always sent, like `gamesFormat`. */
@@ -93,6 +103,7 @@ export const DEFAULT_LIMITED_SETUP: LimitedSetup = {
     packSource: CUBE_SOURCE_KEY,
     seats: MAX_SEATS,
     gamesFormat: 3,
+    botDifficulty: DEFAULT_DIFFICULTY,
     pickTimer: true,
     boostersPerSeat: DEFAULT_SEALED_BOOSTER_COUNT,
     roundDeadlineMinutes: null,
@@ -283,6 +294,7 @@ export function limitedSetupSteps(
     const table = [
         `${setup.seats} seats`,
         `Bo${setup.gamesFormat}`,
+        DIFFICULTY_LABEL[setup.botDifficulty],
         ...(pickTimerVisible(setup) && setup.pickTimer ? ["timer"] : []),
     ];
     return [
@@ -332,6 +344,11 @@ export function parseSetup(raw: string | null): LimitedSetup {
             value.gamesFormat === 1 || value.gamesFormat === 3
                 ? value.gamesFormat
                 : d.gamesFormat,
+        botDifficulty:
+            typeof value.botDifficulty === "string" &&
+            (DIFFICULTIES as readonly string[]).includes(value.botDifficulty)
+                ? (value.botDifficulty as Difficulty)
+                : d.botDifficulty,
         pickTimer:
             typeof value.pickTimer === "boolean"
                 ? value.pickTimer
@@ -390,6 +407,7 @@ export function createPayload(
         sealedBoosterCount: setup.boostersPerSeat,
         timerEnabled: pickTimerVisible(setup) && setup.pickTimer,
         gamesFormat: gamesFormatForBestOf(setup.gamesFormat),
+        botDifficulty: setup.botDifficulty,
         roundDeadlineMinutes: setup.roundDeadlineMinutes ?? undefined,
         openDecklists: setup.openDecklists,
     };

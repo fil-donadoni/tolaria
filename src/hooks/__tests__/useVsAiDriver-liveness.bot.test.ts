@@ -112,6 +112,7 @@ vi.mock("@convex/_generated/api", () => {
                     "getSeatDeck",
                     "getSeatDeckKnowledge",
                     "getDefinitionManifest",
+                    "getMatchBotDifficulty",
                 ].map((n) => [n, n])
             ),
         },
@@ -140,6 +141,8 @@ vi.mock("convex/react", async () => {
             ref === "getDefinitionManifest"
         )
             return undefined;
+        // Issue #6916: a lobby Match carries no difficulty of its own.
+        if (ref === "getMatchBotDifficulty") return null;
         if (ref === "getGameTick") {
             if (currentState === undefined) return undefined;
             const s = currentState as {
