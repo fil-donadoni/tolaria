@@ -7779,6 +7779,74 @@ function checkRefUse(
     }
 }
 
+/** Counts the `{ ref }` occurrences of `$name` (bare or property) in a value. */
+function countBindingRefs(value: unknown, name: string): number {
+    if (Array.isArray(value))
+        return value.reduce<number>((n, v) => n + countBindingRefs(v, name), 0);
+    if (typeof value !== "object" || value === null) return 0;
+    let n = 0;
+    for (const [k, v] of Object.entries(value)) {
+        if (
+            k === "ref" &&
+            typeof v === "string" &&
+            (v === name || v.startsWith(name + "."))
+        ) {
+            n += 1;
+        } else {
+            n += countBindingRefs(v, name);
+        }
+    }
+    return n;
+}
+
+/** CR 400.7e — a `delayedTrigger` capture of a `graveyard-card` `$event` field
+ *  re-binds, at fire time, a card in a graveyard. Only `moveZone`'s return path
+ *  (`from: "graveyard"` or `to: "battlefield"`) reads such a binding; any other
+ *  Op would skip silently (CR 608.2b fail-open), so each body read of it must be
+ *  exactly that `moveZone` target. */
+function checkGraveyardCardCaptureReads(
+    entry: Record<string, unknown>,
+    at: string,
+    errors: string[],
+    eventScope: EventScope
+): void {
+    const capture = entry.capture;
+    const body = entry.effects;
+    if (
+        !capture ||
+        typeof capture !== "object" ||
+        !Array.isArray(body) ||
+        eventScope.eventTypes === undefined
+    ) {
+        return;
+    }
+    for (const [name, src] of Object.entries(capture)) {
+        const ref = (src as { ref?: unknown } | null)?.ref;
+        if (typeof ref !== "string" || !ref.startsWith("$event.")) continue;
+        const resolved = eventFieldRowAcross(
+            eventScope.eventTypes,
+            ref.slice(ref.indexOf(".") + 1)
+        );
+        if (!resolved.ok || resolved.row.family !== "graveyard-card") continue;
+        body.forEach((op, i) => {
+            const refs = countBindingRefs(op, name);
+            if (refs === 0) return;
+            const o = op as Record<string, unknown>;
+            const target = o.target as { ref?: unknown } | undefined;
+            const ok =
+                o.op === "moveZone" &&
+                refs === 1 &&
+                target?.ref === name &&
+                (o.from === "graveyard" || o.to === "battlefield");
+            if (!ok) {
+                errors.push(
+                    `${at}: effects[${i}] reads "${name}", a captured graveyard card ("${ref}", CR 400.7e) — only a moveZone target with from: "graveyard" or to: "battlefield" can act on it; any other Op would skip silently`
+                );
+            }
+        });
+    }
+}
+
 /** Checks one `delayedTrigger` capture source (ADR 0048) against the bindings
  *  declared BEFORE the Op (captures resolve at scheduling time, in the outer
  *  scope). A bare ref must name a snapshot or player binding (single-value —
@@ -7830,7 +7898,10 @@ function checkCaptureSource(
     // checked here; the fire-time re-binding family is decided by
     // `captureBindingKind`. The `"object"` and `"player"` families are both
     // fine as a capture SOURCE — both store a single id string that
-    // `runDelayedTriggerBody` can re-seed at fire time. `"stack-object"` is
+    // `runDelayedTriggerBody` can re-seed at fire time. So is
+    // `"graveyard-card"` (CR 400.7e): the id survives the zone change, and the
+    // fire-time re-seed falls back to the graveyard, binding the card for
+    // `moveZone`'s `from: "graveyard"` return path. `"stack-object"` is
     // NOT (issue #3206): its id names a STACK ITEM, and the fire-time
     // re-binding looks the captured id up on the battlefield, then the
     // graveyard, then exile. A spell still on the stack is found nowhere and
@@ -7855,12 +7926,6 @@ function checkCaptureSource(
             return;
         }
         const row = resolved.row;
-        if (row.family === "graveyard-card") {
-            errors.push(
-                `${at}: capture "${name}" "$event" ref "${ref}" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`
-            );
-            return;
-        }
         if (row.family === "number") {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is a number field — a capture re-binds an object or a player at fire time, and no delayed body reads a captured magnitude yet`
@@ -8218,6 +8283,9 @@ function checkOpListRefs(
                         entry.op === "reflexiveTrigger"
                     );
                 }
+            }
+            if (entry.op === "delayedTrigger") {
+                checkGraveyardCardCaptureReads(entry, at, errors, eventScope);
             }
             collectRefUses(entry.targetPlayer, "player", uses);
             // The leave-watch instance (issue #731) resolves at SCHEDULING time
