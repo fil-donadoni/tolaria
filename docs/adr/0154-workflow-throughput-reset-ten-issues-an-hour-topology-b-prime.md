@@ -9,7 +9,8 @@ PRD #5454. **Overturns ADR 0104** (lane content is never diff-derived).
 a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. **Amended
 by issue #6149** (§ 11: the `full` lane's bot half is scoped by the walk) **and
 by issue #6943** (§ 13: every scoped code lane admits the reached bot files by
-measured cost). The rollout
+measured cost) **and by issue #6989** (§ 14: the `full` lane is retired for the
+`src/**` + `convex/**` mix, which is `engine` plus its reached `dom` tests). The rollout
 is PRD #5454's tickets, issues #5456–#5471; until a ticket lands, the script
 it names is the authority on what runs TODAY and this record on what a PR
 OWES.
@@ -314,6 +315,65 @@ base reds too (a byte pin drifting under the base, §3's original concern) —
 then the fix is that file's own cost tier (a `CHEAP_GUARDS` exclusion), never
 the suite back to health; or lane wall time this step visibly lengthens on the
 Huawei — then a smaller `totalS`, measured.
+
+### 14. The mixed diff is scoped; `full` is `check:pr` verbatim — amendment of issue #6989
+
+ADR 0136 §3 kept a diff spanning `src/**` and `convex|scripts|data/**` in
+`full`: `check:pr` verbatim, i.e. whole-repo `format:check` (55 s cold),
+whole-tree `cr:lint`, both bundle builds and every app vitest project. Over
+the 50 green queue lanes whose `lane.json` was still downloadable on
+2026-10-26 (2026-10-25 → 26) that was 17 lanes, all of them the mixed case,
+`check:pr:app` alone 639–2206 s — health under another name, run
+again by health minutes later.
+
+**The rule.** The mix is the `engine` lane (`laneFor`): the whole type-check,
+every guard reading `data/**`, `check:convex-bundle`, `cr:lint`, the cheap
+guards, the bot files admitted by cost (§13), and ONE `vitest(related)` run
+over the `node-engine`, `node-tooling` AND `dom` tests the §2 walk reaches. An
+engine diff with no `src/**` path still leaves its reached `dom` tests to
+health. What no import edge reaches is health's (§2). `full` is left to the
+paths that force it on their own — `FULL_PATTERNS` (the dependency set, a
+lockfile, build/test/type/lint configuration) and anything unrecognised — and
+is `check:pr` verbatim again: §11's scoped bot half had only the mix to scope,
+so its bot step runs the bot fast lane whole. A diff that can move a bundle
+budget (`package.json` dependencies, a lockfile, `vite.config.*`) is one of
+those paths, so it still runs `check:bundle` and `check:convex-bundle` inside
+`check:pr:app`; a scripts-only `package.json` is `engine` and moves no budget.
+The `check:ui` receipt is untouched: `land` owes it by the `src/**` paths
+whatever the lane (§7, issue #5459). A card definition in the mix is proven
+by the walk, as beside any engine path, not by the `cards` lane's fixed
+partitions.
+
+**Measured.** Before: the queue lane's own `lane.json` (artifact
+`queue-lane-json`, 2026-10-25). After: the new plan run on the MacBook
+(2026-10-26, load 14–24, higher than the runner's), on the PR's own file set
+over today's tree — #6874 as the revert of its merge reapplied, #6876 and
+#6827 as a one-line touch of each of their files (their reverts conflict).
+
+| PR    | files | before (`full`) | of which `check:pr:app` | after (`engine`) | `vitest(related)` |
+| ----- | ----: | --------------: | ----------------------: | ---------------: | ----------------: |
+| #6827 |     8 |           749 s |                   690 s |            119 s |              69 s |
+| #6876 |     8 |           685 s |                   639 s |            226 s |             195 s |
+| #6874 |    14 |           834 s |                   656 s |           694 s¹ |             549 s |
+
+¹ #6874 edits `convex/gre/state.ts` and `cards/types.ts`, hubs past
+`WHOLE_PROJECT_AT`: `vitest(related)` runs `node-engine` and `dom` whole —
+issue #6992's shape, not this lane's. The run ended on a red
+`check:issue-log-comments` (this PR's own comment, fixed before landing), one
+~5 s step short of the plan.
+
+The other 14 `full` lanes of the window (all of them the mix) paid
+`check:pr:app` 659–2206 s.
+
+**Order.** It landed after health stopped waiting on the derived-state replay
+(issue #6990, ADR 0159) and after §13 (issue #6943), so the window between a
+landing and health finding what the lane no longer runs is one batch, and the
+RED ladder's revert-first (ADR 0158 §3) closes it.
+
+**What would change the answer**: health REDs, landing after landing, on a
+test a mixed diff's walk did not reach — the fix is the walk (a
+`CENSUS_TESTS` row, an edge `lib/test-reach.ts` misses), never `full` back on
+the mix.
 
 ## Consequences
 
