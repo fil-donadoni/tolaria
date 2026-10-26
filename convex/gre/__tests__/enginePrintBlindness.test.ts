@@ -114,6 +114,12 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         reason: "forwards a copy Op's `except.imagePrintId` into the `CopyEffectOptions` `copy.ts` applies.",
     },
     {
+        file: "prepare.ts",
+        count: 3,
+        role: "copy",
+        reason: "the CR 722.3c exiled copy of a prepare spell shows the prepared permanent's own print — one card, one printing.",
+    },
+    {
         file: "triggers.ts",
         count: 1,
         role: "token creation",

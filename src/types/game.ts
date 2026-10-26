@@ -189,6 +189,10 @@ export interface CardInstance {
     toughness?: number;
     staticAbilities?: string[];
     isSummoningSick?: boolean;
+    /** CR 722.3a — the PREPARED designation (`CardInstanceState.prepared`):
+     *  its controller holds a castable copy of the permanent's prepare spell
+     *  in exile. Public; drives `PreparedBadge`. */
+    prepared?: boolean;
     isAttacking?: boolean;
     isBlocking?: boolean;
     /** Set once this creature has been declared as an attacker this turn

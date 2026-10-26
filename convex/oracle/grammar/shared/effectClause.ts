@@ -1181,6 +1181,15 @@ export type EffectSentenceIR =
            */
           readonly kind: "exile";
           readonly subject: SubjectIR;
+          /**
+           * CR 400.7 + CR 608.2h — the flicker: "…, then return it / that
+           * card to the battlefield under its owner's control", read with the
+           * exile as ONE sentence. The card in exile is a new object, so "it"
+           * is the object the exile moved — a binding, never a second read
+           * of the target slot. "Under your control", a counter rider and
+           * the delayed return (`delayed-return`) are neighbours, refused.
+           */
+          readonly returnsToBattlefield?: true;
       }
     | {
           /**
@@ -4731,6 +4740,12 @@ const DELAYED_DRAW_NEXT_UPKEEP =
  */
 const DELAYED_RETURN =
     /^Return (it|that card|this (?:land|artifact|creature|permanent|enchantment)) to (?:its owner(?:'|’)s hand at the beginning of the next (end|cleanup) step|the battlefield under its owner(?:'|’)s control at the beginning of the next (end) step)$/;
+/**
+ * CR 400.7 + CR 608.2h — the flicker, whole: "Exile <target>, then return it /
+ * that card to the battlefield under its owner's control".
+ */
+const EXILE_THEN_RETURN =
+    /^Exile (.+), then return (?:it|that card) to the battlefield under its owner(?:'|’)s control$/;
 /** CR 603.7a — "Exile it at the beginning of the next end step" / "Sacrifice it …". */
 const DELAYED_REMOVAL_NEXT_END_STEP =
     /^(Exile|Sacrifice) it at the beginning of the next end step$/;
@@ -8110,7 +8125,11 @@ function effectSentence(
                 player,
             } satisfies EffectSentenceIR);
         }
-        const subject = subjectRule.run(span.slice("Exile ".length), ctx);
+        const flicker = span.match(EXILE_THEN_RETURN);
+        const subject = subjectRule.run(
+            flicker !== null ? flicker[1]! : span.slice("Exile ".length),
+            ctx
+        );
         if (!subject.ok) return subject;
         // CR 701.13a — only an announced BATTLEFIELD permanent is the `exile`
         // Op's: a card in a graveyard, the card a head put there ("that
@@ -8123,6 +8142,9 @@ function effectSentence(
             return ok({
                 kind: "exile" as const,
                 subject: subject.value,
+                ...(flicker !== null
+                    ? { returnsToBattlefield: true as const }
+                    : {}),
             } satisfies EffectSentenceIR);
         return fail(
             "exiling anything but an announced battlefield permanent is the moveZone frame's",

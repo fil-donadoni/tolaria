@@ -382,10 +382,11 @@ describe("equivalence with the eager hydration it replaces", () => {
         for (const [id] of HAND_INDEX.entries)
             for (const [key, twin] of lookups.twinNames[id] ?? [])
                 add(key, twin);
-        for (const row of eager) {
-            add(row.name.toLowerCase(), row.id);
+        // A compiled printed name takes a key from a compiled twin (a prepare
+        // spell named like a real card): every printed name, then the twins.
+        for (const row of eager) add(row.name.toLowerCase(), row.id);
+        for (const row of eager)
             for (const [key, twin] of twinNameEntriesOf(row)) add(key, twin);
-        }
         for (const [key, id] of expected)
             expect(catalogueIdByName(key), key).toBe(id);
 

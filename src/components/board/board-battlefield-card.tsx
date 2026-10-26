@@ -26,6 +26,7 @@ import CounterBadges from "./counter-badges";
 import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import ManualNoteBadge from "./manual-note-badge";
+import PreparedBadge from "./prepared-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
 import TokenBadge from "./token-badge";
 import AttachedCardsCluster from "./attached-cards-cluster";
@@ -447,6 +448,7 @@ export default function BoardBattlefieldCard({
                     <CounterBadges card={card} />
                     <ClassLevelBadge card={card} />
                     {!phased && <SummoningSicknessBadge card={card} />}
+                    {!phased && <PreparedBadge card={card} />}
                     <NotedManaBadge card={card} />
                     <TokenBadge card={card} />
                     <ManualNoteBadge card={card} />

@@ -92,6 +92,11 @@ function eagerCatalogue() {
         }
         const key = card.name.toLowerCase();
         if (!nameRegistry.has(key)) nameRegistry.set(key, card);
+    }
+    // A compiled PRINTED name outranks a compiled twin's, wherever the two
+    // rows sit (`addCompiledName`): a prepare spell may share its name with a
+    // real card ("Rampant Growth"), and a deck naming it means the card.
+    for (const card of compiledRows) {
         for (const [twinKey, twin] of eagerTwinNameEntries(card)) {
             if (!nameRegistry.has(twinKey)) nameRegistry.set(twinKey, twin);
         }

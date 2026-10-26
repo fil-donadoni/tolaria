@@ -59,6 +59,7 @@ import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
 import { playLandFaceDefinition, type PlayLandFace } from "./modalLandPlay";
 import { stampModalBackFaceForPlay } from "./transform";
+import { applyEntersPrepared } from "./prepare";
 
 /** CR 712.12 — the entry replacement the CHOSEN FACE declares ("as this land
  *  enters, you may pay 3 life…"), or `undefined` when that face declares none.
@@ -789,6 +790,8 @@ function settleEnteredLand(
     // marks this as a PLAYED land (vs. one put onto the battlefield by an
     // effect) so "whenever you play a land" triggers (Fastbond, City of
     // Traitors) fire here but NOT on a fetch/tutor/reanimation entry.
+    // CR 722.3a — "enters prepared", at every entry site.
+    applyEntersPrepared(state, card);
     emitPermanentEntered(state, card, { wasPlayed: true });
     processPendingActionTriggers(state);
 
@@ -1170,6 +1173,8 @@ export function finalizeLandEntry(
     }
     const forcedTapped = shouldEnterTapped(state, card);
     card.isTapped = forcedTapped || !accept;
+    // CR 722.3a — "enters prepared", at every entry site.
+    applyEntersPrepared(state, card);
     emitPermanentEntered(state, card);
     processPendingActionTriggers(state);
     checkStateBasedActions(state);
