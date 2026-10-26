@@ -1087,6 +1087,27 @@ HITL excluded):
    nothing pushed.
 3. **Fresh picks**, in the picker's order, one per remaining slot.
 
+**Admission by queue depth** (issue #6988). The pipeline can produce faster
+than the queue merges: on 2026-10-24 → 10-25, 127 passes met 70 merges
+(2.9/h), every queued PR was rebased again and again before it entered, and
+one fault dequeued the PRs stacked behind it. So the merge queue's depth is
+an input, counted from the run's one `gh pr list` (a PR labelled both
+`land-failed` and `ready-to-land` counts as failed):
+
+| Count (`tolaria.config.json`)                     | At or past it                                              | Derivation                                                                                                        |
+| ------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| open `ready-to-land` ≥ `afkDispatch.queueMax` (6) | no fresh pick; resumes and `land-failed` repairs still run | two hours of merges at the measured 2.9/h                                                                         |
+| open `land-failed` ≥ `afkDispatch.failedMax` (4)  | repairs only — no resume, no fresh pick                    | past it the queue is broken, not slow (18:55Z on 2026-10-25: 24, 16 with nothing wrong; issue #6957, issue #6986) |
+
+It is not a hold: repairs shrink the queue, so they keep their slots. The
+run logs `hold: queue 9 ≥ 6 — no new pick` with the issues it held, exits 0
+and notifies nobody — the normal regulator, not an incident; the next run
+that reads a smaller count dispatches again. `--dry-run` prints both counts
+beside the free slots. A queue that stops draining (stuck `ready-to-land`
+PRs, `land-failed` ones no pass can repair) therefore stalls the dispatcher
+in silence: the aged-repair email fires under a hold only, so read the
+counts in the job summary.
+
 A claim is never touched while an `afk-pass` run for it is queued or
 running, while its PR waits in the queue (open, not `land-failed`), or when
 no `afk-pass` run for it was created after the claim was taken (its newest

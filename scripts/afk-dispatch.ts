@@ -17,7 +17,10 @@
 //      prints) are released;
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
-//      `afk-pass.yml` with their issue and model tier.
+//      `afk-pass.yml` with their issue and model tier — as far as the merge
+//      queue's depth admits them (no fresh pick past
+//      `afkDispatch.queueMax` `ready-to-land` PRs, repairs only past
+//      `afkDispatch.failedMax` `land-failed` ones; logged, exits 0).
 //
 // `--dry-run` reads everything and prints the plan; it claims, releases and
 // dispatches nothing. Nothing here prints Claude output or an issue body:
@@ -42,6 +45,7 @@ import {
     shChecked,
     withClaimTimes,
     type ClaimedIssue,
+    type OpenPrRow,
 } from "./loop-doctor";
 import {
     repairItems,
@@ -82,6 +86,8 @@ import {
     parseTrustedAuthors,
     passSlots,
     planDispatch,
+    queueAdmission,
+    queueDepth,
     usageLimitResetAt,
     WORKFLOW_RUN_FIELDS,
     parseWorkflowRuns,
@@ -237,10 +243,12 @@ function runners(slug: string): RunnerRow[] {
 function judgeClaims(
     slug: string,
     claimed: readonly ClaimedIssue[],
-    passRuns: readonly WorkflowRun[]
+    passRuns: readonly WorkflowRun[],
+    /** The run's one `gh pr list`, when it already made it. */
+    openPrRows?: OpenPrRow[]
 ): JudgedClaim[] {
     if (claimed.length === 0) return [];
-    const rows = fetchOpenPrRows(shChecked);
+    const rows = openPrRows ?? fetchOpenPrRows(shChecked);
     const prs = openPrMap(rows);
     const verdicts = classifyClaims(
         withClaimTimes([...claimed], shChecked, slug),
@@ -596,6 +604,24 @@ async function main(): Promise<void> {
         return;
     }
 
+    // The queue's depth (issue #6988), from the one `gh pr list` the claim
+    // verdicts read too — read only once a slot is free. Unreadable → the run
+    // fails: the claims need it.
+    let dispatchConfig = parseAfkDispatchConfig(null);
+    try {
+        dispatchConfig = parseAfkDispatchConfig(
+            JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+        );
+    } catch (err) {
+        say(
+            `config unreadable (${(err as Error).message.split("\n")[0]}) — default queue limits`
+        );
+    }
+    const prRows = fetchOpenPrRows(shChecked);
+    const depth = queueDepth(prRows);
+    const admission = queueAdmission(depth, dispatchConfig);
+    const depthLine = `queue: ready-to-land ${depth.ready} (max ${dispatchConfig.queueMax}), land-failed ${depth.failed} (max ${dispatchConfig.failedMax})`;
+
     // ── pick ──
     const issues = readReadyQueue();
     const trust = {
@@ -627,7 +653,7 @@ async function main(): Promise<void> {
             issues.map((i) => i.number),
             trusted
         ),
-        claims: judgeClaims(slug, claimed, passRuns),
+        claims: judgeClaims(slug, claimed, passRuns, prRows),
     });
     // An unreadable repair list costs the repairs this run, never the batch.
     let repairs: RepairItem[] = [];
@@ -645,7 +671,8 @@ async function main(): Promise<void> {
             const last = lastPassRun(passRuns, issue);
             return last ? hostOfRun(slug, last.id) : null;
         },
-        repairs
+        repairs,
+        admission
     );
     const resumed = new Set(picked.resume.map((r) => r.number));
     const repairing = new Set(
@@ -655,6 +682,12 @@ async function main(): Promise<void> {
     const lines = [
         // Counts and issue numbers only: host names stay off a public log.
         `free pass slots: ${slots.free.length}`,
+        depthLine,
+        ...(admission.kind === "open"
+            ? []
+            : [
+                  `hold: ${admission.message}; held: ${plan.held.map((n) => `#${n}`).join(", ") || "none"}`,
+              ]),
         `release: ${plan.release.map((n) => `#${n}`).join(", ") || "none"}`,
         `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${repairing.has(d.issue) ? ` repair PR #${d.pr}` : d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,

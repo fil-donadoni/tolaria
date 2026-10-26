@@ -35,7 +35,7 @@ import { claimFate, type JudgedClaim, type PickResult } from "./picker";
 import type { PassRunState } from "../loop-doctor";
 import type { HealthMarker, RepairItem } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
-import { FAILED_LABEL } from "./land-labels";
+import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Conventions shared with `afk-pass.yml` (issue #5650)
@@ -424,20 +424,100 @@ export interface AfkDispatchConfig {
     /** Hours a repair pick (an open PR labelled `land-failed`) may wait under
      *  a hold before the run fails once, for the email. */
     repairAgeHours: number;
+    /** Open `ready-to-land` PRs at or past which no NEW pick is dispatched
+     *  (issue #6988, `queueAdmission`). */
+    queueMax: number;
+    /** Open `land-failed` PRs at or past which only repairs are dispatched
+     *  (issue #6988, `queueAdmission`). */
+    failedMax: number;
 }
 
 export const DEFAULT_REPAIR_AGE_HOURS = 4;
+/** Two hours of merges at the measured 2.9/h (2026-10-24 → 10-25, issue
+ *  #6988). */
+export const DEFAULT_QUEUE_MAX = 6;
+export const DEFAULT_FAILED_MAX = 4;
+
+const positive = (v: unknown, fallback: number): number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fallback;
 
 export function parseAfkDispatchConfig(raw: unknown): AfkDispatchConfig {
     const block = (raw as { afkDispatch?: Record<string, unknown> } | null)
         ?.afkDispatch;
-    const h = block?.repairAgeHours;
     return {
-        repairAgeHours:
-            typeof h === "number" && Number.isFinite(h) && h > 0
-                ? h
-                : DEFAULT_REPAIR_AGE_HOURS,
+        repairAgeHours: positive(
+            block?.repairAgeHours,
+            DEFAULT_REPAIR_AGE_HOURS
+        ),
+        queueMax: positive(block?.queueMax, DEFAULT_QUEUE_MAX),
+        failedMax: positive(block?.failedMax, DEFAULT_FAILED_MAX),
     };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Admission by queue depth (issue #6988)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The merge queue's depth, from the dispatcher's one `gh pr list`. */
+export interface QueueDepth {
+    /** Open PRs labelled `ready-to-land` (queued, held or waiting) and not
+     *  `land-failed`. */
+    ready: number;
+    /** Open PRs labelled `land-failed` — the failure is the newer fact when a
+     *  stale `ready-to-land` stands beside it (`landQueueByBranch`'s rule). */
+    failed: number;
+}
+
+export function queueDepth(
+    rows: readonly { labels?: { name?: unknown }[] }[]
+): QueueDepth {
+    let ready = 0;
+    let failed = 0;
+    for (const p of rows) {
+        const names = (p.labels ?? []).map((l) => l.name);
+        if (names.includes(FAILED_LABEL)) failed++;
+        else if (names.includes(READY_LABEL)) ready++;
+    }
+    return { ready, failed };
+}
+
+/**
+ * What the queue's depth admits this run. The pipeline produced faster than
+ * it merged (2026-10-24 → 10-25: 127 passes, 70 merges), and every PR queued
+ * behind the merges was rebased again and again; the depth is the feedback.
+ *
+ *   * `failed` — `land-failed` PRs number `failedMax` or more: repairs only,
+ *     no resume, no fresh pick;
+ *   * `queue` — `ready-to-land` PRs number `queueMax` or more: no fresh pick;
+ *     a resume (a dead pass's claim, work already started) and a repair (it
+ *     shrinks the queue) still run;
+ *   * `open` — picks as before.
+ *
+ * Not a `Hold`: a hold stops repairs too, and this is the normal regulator,
+ * not an incident — it notifies nobody and lifts on the first run that reads
+ * a smaller count.
+ */
+export type Admission =
+    | { kind: "open" }
+    | { kind: "queue" | "failed"; message: string };
+
+export const OPEN_ADMISSION: Admission = { kind: "open" };
+
+export function queueAdmission(
+    depth: QueueDepth,
+    config: Pick<AfkDispatchConfig, "queueMax" | "failedMax">
+): Admission {
+    if (depth.failed >= config.failedMax)
+        return {
+            kind: "failed",
+            message: `land-failed ${depth.failed} ≥ ${config.failedMax} — repairs only`,
+        };
+    if (depth.ready >= config.queueMax)
+        return {
+            kind: "queue",
+            message: `queue ${depth.ready} ≥ ${config.queueMax} — no new pick`,
+        };
+    return OPEN_ADMISSION;
 }
 
 /** An open `land-failed` PR and when it was labelled so. */
@@ -696,6 +776,9 @@ export interface DispatchPlan {
     release: number[];
     /** Resume picks left for a later run (their host's runners are busy). */
     waiting: number[];
+    /** Resumes and fresh picks the queue's depth did not admit
+     *  (`queueAdmission`); a later run reads the depth again. */
+    held: number[];
 }
 
 /**
@@ -706,7 +789,8 @@ export interface DispatchPlan {
  * (issue #6795), oldest PR first, on any host: a repaired PR's pass ENDED,
  * so its claim reads `pr-open` and the picker never offers it again — nothing
  * but this slot repairs it. Then the picker's batch, one slot each. Never more
- * dispatches than free slots.
+ * dispatches than free slots. The queue's depth (`queueAdmission`) drops the
+ * batch, and under `failed` the resumes too, into `held`.
  */
 export function planDispatch(
     picked: PickResult,
@@ -714,7 +798,8 @@ export function planDispatch(
     hostOf: (issue: number) => string | null,
     /** `repairItems`' picks: the caller has already left out an issue a live
      *  pass holds, a closed one and an HITL one. */
-    repairs: readonly RepairItem[] = []
+    repairs: readonly RepairItem[] = [],
+    admission: Admission = OPEN_ADMISSION
 ): DispatchPlan {
     const free = [...slots.free];
     const take = (host: string | null): boolean => {
@@ -725,7 +810,12 @@ export function planDispatch(
     };
     const dispatch: Dispatch[] = [];
     const waiting: number[] = [];
+    const held: number[] = [];
     for (const r of picked.resume) {
+        if (admission.kind === "failed") {
+            held.push(r.number);
+            continue;
+        }
         const last = hostOf(r.number);
         const host = last !== null && slots.online.includes(last) ? last : null;
         if (take(host))
@@ -739,8 +829,11 @@ export function planDispatch(
         else waiting.push(r.number);
     }
     // One pass per issue: a resume wins, and two `land-failed` PRs naming one
-    // issue repair it once.
-    const seen = new Set(picked.resume.map((r) => r.number));
+    // issue repair it once. A resume the depth held is no pass: its
+    // `land-failed` PR is still repaired here.
+    const seen = new Set(
+        picked.resume.map((r) => r.number).filter((n) => !held.includes(n))
+    );
     for (const r of repairs) {
         if (seen.has(r.number)) continue;
         if (!take(null)) break;
@@ -754,6 +847,10 @@ export function planDispatch(
         });
     }
     for (const p of picked.plan.batch) {
+        if (admission.kind !== "open") {
+            held.push(p.number);
+            continue;
+        }
         if (!take(null)) break;
         dispatch.push({
             issue: p.number,
@@ -763,7 +860,13 @@ export function planDispatch(
             pr: null,
         });
     }
-    return { dispatch, release: [...picked.release], waiting };
+    const dispatched = new Set(dispatch.map((d) => d.issue));
+    return {
+        dispatch,
+        release: [...picked.release],
+        waiting,
+        held: held.filter((n) => !dispatched.has(n)),
+    };
 }
 
 /** `TRUSTED_AUTHORS` — logins separated by commas, spaces or new lines. */
