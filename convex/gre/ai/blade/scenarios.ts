@@ -14860,7 +14860,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Charging Troll" }],
         },
-        note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileShieldMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on seeds 1 and 2 of five — the `pass` tie the issue describes.",
+        note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on seeds 1 and 2 of five — the `pass` tie the issue describes.",
     },
     {
         label: "regeneration shield: holds Regenerate against the Aura's own tap trigger",
