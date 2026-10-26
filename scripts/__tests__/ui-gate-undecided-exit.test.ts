@@ -7,11 +7,16 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { UI_SCOPE_UNDECIDED_EXIT } from "../lib/ui-scope";
 
+// An `.svg`: no surface's closure places it (UNDECIDED), and no source walk of
+// `src/` lists it. A `.tsx` here raced vite-card-sets-dev-bundle.test.ts's
+// importer walk (list, then read after the `finally`) into ENOENT (issue #6654).
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const UNPLACED = path.join(
     REPO_ROOT,
-    "src/components/zz-unplaced-issue-6144.tsx"
+    "src/components/zz-unplaced-issue-6144.svg"
 );
+
+const SVG_BODY = '<svg xmlns="http://www.w3.org/2000/svg"/>\n';
 
 function checkUi(...args: string[]) {
     return spawnSync(
@@ -23,13 +28,13 @@ function checkUi(...args: string[]) {
 
 describe("check:ui — undecided scope exits without a walk (issue #6144)", () => {
     it("prints UNDECIDED, the impact, and exits UI_SCOPE_UNDECIDED_EXIT", () => {
-        fs.writeFileSync(UNPLACED, "export const Unplaced = () => null;\n");
+        fs.writeFileSync(UNPLACED, SVG_BODY);
         try {
             const r = checkUi();
             const out = `${r.stdout}${r.stderr}`;
             expect(r.status).toBe(UI_SCOPE_UNDECIDED_EXIT);
             expect(out).toContain("UNDECIDED");
-            expect(out).toContain("zz-unplaced-issue-6144.tsx");
+            expect(out).toContain("zz-unplaced-issue-6144.svg");
             expect(out).toContain("no browser started");
             expect(out).toMatch(/\d+ cells, ~\d+ min/);
         } finally {
@@ -38,7 +43,7 @@ describe("check:ui — undecided scope exits without a walk (issue #6144)", () =
     });
 
     it("--scope-only on the same diff still exits 0", () => {
-        fs.writeFileSync(UNPLACED, "export const Unplaced = () => null;\n");
+        fs.writeFileSync(UNPLACED, SVG_BODY);
         try {
             const r = checkUi("--scope-only");
             expect(r.status).toBe(0);
