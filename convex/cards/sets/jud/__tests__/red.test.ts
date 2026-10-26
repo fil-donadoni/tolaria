@@ -172,6 +172,39 @@ describe("Anger (graveyard-functioning static ability, CR 113.6b)", () => {
         expect(hasHaste(state, "p1-bears")).toBe(true);
     });
 
+    it("a stolen Anger that dies grants haste to its OWNER's creatures (CR 109.5)", () => {
+        // Owned by p1, controlled by p2 on the battlefield: it dies into p1's
+        // graveyard, where it has no controller and "you" is its owner.
+        const stolen = makeInstance(anger().id, {
+            id: "anger",
+            controllerId: "p2",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        permanent(grizzlyBears().id, "p1-bears", "p1"),
+                        permanent(mountain().id, "p1-mountain", "p1"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        stolen,
+                        permanent(grizzlyBears().id, "p2-bears", "p2"),
+                        permanent(mountain().id, "p2-mountain", "p2"),
+                    ],
+                }),
+            ],
+        });
+        beginApplyingStaticEffects(state, stolen);
+        removePermanentTo(state, "anger", "graveyard", "destroy");
+        checkStateBasedActions(state);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("anger");
+        expect(hasHaste(state, "p1-bears")).toBe(true);
+        expect(hasHaste(state, "p2-bears")).toBe(false);
+    });
+
     it("the granted haste survives the public-state projection", () => {
         const state = angerInGraveyard();
         for (const viewer of ["p1", "p2"]) {
