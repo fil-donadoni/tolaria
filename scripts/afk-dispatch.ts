@@ -597,8 +597,16 @@ async function main(): Promise<void> {
         return;
     }
 
+    const slots = passSlots(runners(slug), selfRunner, passRuns);
+    if (slots.free.length === 0) {
+        say("nothing to do: no free pass runner");
+        summary(["nothing to do: no free `pass` runner", "", budgetLine]);
+        return;
+    }
+
     // The queue's depth (issue #6988), from the one `gh pr list` the claim
-    // verdicts read too. Unreadable → the run fails: the claims need it.
+    // verdicts read too — read only once a slot is free. Unreadable → the run
+    // fails: the claims need it.
     let dispatchConfig = parseAfkDispatchConfig(null);
     try {
         dispatchConfig = parseAfkDispatchConfig(
@@ -613,19 +621,6 @@ async function main(): Promise<void> {
     const depth = queueDepth(prRows);
     const admission = queueAdmission(depth, dispatchConfig);
     const depthLine = `queue: ready-to-land ${depth.ready} (max ${dispatchConfig.queueMax}), land-failed ${depth.failed} (max ${dispatchConfig.failedMax})`;
-
-    const slots = passSlots(runners(slug), selfRunner, passRuns);
-    if (slots.free.length === 0) {
-        say("nothing to do: no free pass runner");
-        say(depthLine);
-        summary([
-            "nothing to do: no free `pass` runner",
-            "",
-            depthLine,
-            budgetLine,
-        ]);
-        return;
-    }
 
     // ── pick ──
     const issues = readReadyQueue();

@@ -1072,6 +1072,10 @@ describe("admission by queue depth (issue #6988)", () => {
         expect(p.held).toEqual([1, 2]);
     });
 
+    it("both limits crossed: failedMax wins, repairs only", () => {
+        expect(plan(6, 4).dispatch.map((d) => d.issue)).toEqual([40]);
+    });
+
     it("5 ready-to-land and 3 land-failed: picks as today", () => {
         const p = plan(5, 3);
         expect(p.dispatch.map((d) => d.issue)).toEqual([7, 40, 1, 2]);

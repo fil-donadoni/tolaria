@@ -1103,7 +1103,10 @@ It is not a hold: repairs shrink the queue, so they keep their slots. The
 run logs `hold: queue 9 ≥ 6 — no new pick` with the issues it held, exits 0
 and notifies nobody — the normal regulator, not an incident; the next run
 that reads a smaller count dispatches again. `--dry-run` prints both counts
-beside the free slots.
+beside the free slots. A queue that stops draining (stuck `ready-to-land`
+PRs, `land-failed` ones no pass can repair) therefore stalls the dispatcher
+in silence: the aged-repair email fires under a hold only, so read the
+counts in the job summary.
 
 A claim is never touched while an `afk-pass` run for it is queued or
 running, while its PR waits in the queue (open, not `land-failed`), or when
