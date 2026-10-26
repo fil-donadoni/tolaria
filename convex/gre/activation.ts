@@ -74,7 +74,7 @@ import {
 import { nextOwedPayment, tapOtherContribution } from "./owedPayment";
 import { resolveDivideTotal } from "./pendingTargetOrigin";
 import { effectivePermanentView } from "./permanentView";
-import { drainAutoPasses, isSorceryTiming } from "./phases";
+import { drainAutoPasses, isSorceryTimingFor } from "./phases";
 import { findRetraceCastable } from "./retrace";
 import {
     effectiveRequirementForSource,
@@ -1835,6 +1835,10 @@ export function resolveActivatedAbility(
 export function assertActivationTimingLegal(
     state: GameState,
     card: CardInstanceState,
+    /** The player ACTIVATING — not `card.controllerId`: a graveyard source
+     *  keeps its last battlefield controller, but only its owner
+     *  may activate it (CR 113.6m). */
+    activatorId: string,
     ability: {
         id: string;
         controllerTurnOnly?: boolean;
@@ -1880,10 +1884,11 @@ export function assertActivationTimingLegal(
     }
     // CR 602.3b / 307.5 template — "activate only as a sorcery" follows the
     // same timing window a sorcery's own casting does (main phase, empty
-    // stack, activator holds priority). Reuses the engine's canonical
-    // `isSorceryTiming` helper — the same one `assertLoyaltyActivationLegal`
-    // layers an active-player requirement on top of for loyalty abilities.
-    if (ability.sorcerySpeedOnly && !isSorceryTiming(state)) {
+    // stack, activator holds priority). Asked about the activating
+    // player via the caster-aware `isSorceryTimingFor`, the same
+    // authority `assertLoyaltyActivationLegal` uses, so the window never
+    // depends on a caller-side priority check.
+    if (ability.sorcerySpeedOnly && !isSorceryTimingFor(state, activatorId)) {
         throw new Error("Activate only as a sorcery");
     }
 }
@@ -2288,7 +2293,7 @@ export function activateAbilityOnState(
     // `expectedInput.kind === "target"` and every subsequent `passPriority`
     // bounced off `assertExpectedInput` (ADR 0047). Any new activation gate
     // belongs in this prelude, not in one of the two branches.
-    assertActivationTimingLegal(state, card, ability);
+    assertActivationTimingLegal(state, card, args.playerId, ability);
     assertLoyaltyActivationLegal(state, card, ability);
 
     // CR 602.2b: if the ability has targets, choose them before paying

@@ -18,7 +18,7 @@ import { PERMANENT_TYPES } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { GameState, PlayerState } from "./state";
 import { getManaSubstitutions, spendablePoolWithRiders } from "./state";
-import { isSorceryTiming } from "./phases";
+import { isSorceryTimingFor } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { manaGateBattlefields, manaValue } from "./constants";
 import { LAND_SUBTYPE_MANA } from "./manaColors";
@@ -199,7 +199,7 @@ export function canSummonCompanion(
 ): boolean {
     if (!player.companion || player.companion.used) return false;
     if (state.priorityPlayerId !== player.id) return false;
-    if (!isSorceryTiming(state)) return false;
+    if (!isSorceryTimingFor(state, player.id)) return false;
     if (
         state.pendingCast ||
         state.pendingActivation ||

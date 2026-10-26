@@ -335,10 +335,20 @@ describe("Stormchaser's Talent — the CR 716.2a activation gate", () => {
                 (a) => a.classLevelBar === level
             )!;
         expect(() =>
-            assertActivationTimingLegal(state, talent, bar(2))
+            assertActivationTimingLegal(
+                state,
+                talent,
+                talent.controllerId,
+                bar(2)
+            )
         ).not.toThrow();
         expect(() =>
-            assertActivationTimingLegal(state, talent, bar(3))
+            assertActivationTimingLegal(
+                state,
+                talent,
+                talent.controllerId,
+                bar(3)
+            )
         ).toThrow(/level 2/);
     });
 
@@ -349,10 +359,20 @@ describe("Stormchaser's Talent — the CR 716.2a activation gate", () => {
                 (a) => a.classLevelBar === level
             )!;
         expect(() =>
-            assertActivationTimingLegal(state, talent, bar(2))
+            assertActivationTimingLegal(
+                state,
+                talent,
+                talent.controllerId,
+                bar(2)
+            )
         ).toThrow(/level 1/);
         expect(() =>
-            assertActivationTimingLegal(state, talent, bar(3))
+            assertActivationTimingLegal(
+                state,
+                talent,
+                talent.controllerId,
+                bar(3)
+            )
         ).not.toThrow();
     });
 
@@ -362,9 +382,9 @@ describe("Stormchaser's Talent — the CR 716.2a activation gate", () => {
         const bar = stormchasersTalent.activatedAbilities!.find(
             (a) => a.classLevelBar === 2
         )!;
-        expect(() => assertActivationTimingLegal(state, talent, bar)).toThrow(
-            /as a sorcery/
-        );
+        expect(() =>
+            assertActivationTimingLegal(state, talent, talent.controllerId, bar)
+        ).toThrow(/as a sorcery/);
     });
 });
 

@@ -211,23 +211,23 @@ describe("Vivi Ornitier (CR 605.1a / 605.3c / 602.5b — non-tap choice-based ma
 
         // Legal the first time.
         expect(() =>
-            assertActivationTimingLegal(state, vivi, ability)
+            assertActivationTimingLegal(state, vivi, vivi.controllerId, ability)
         ).not.toThrow();
 
         resolveNonTapManaChoice(state, state.players[0], vivi, ABILITY_ID, 0);
 
         // Once-per-turn — a second activation this turn is illegal.
-        expect(() => assertActivationTimingLegal(state, vivi, ability)).toThrow(
-            /once each turn/i
-        );
+        expect(() =>
+            assertActivationTimingLegal(state, vivi, vivi.controllerId, ability)
+        ).toThrow(/once each turn/i);
 
         // Controller-turn-only — illegal on the opponent's turn even with a
         // fresh activation count.
         vivi.activationsThisTurn = {};
         state.activePlayerId = "p2";
-        expect(() => assertActivationTimingLegal(state, vivi, ability)).toThrow(
-            /your turn/i
-        );
+        expect(() =>
+            assertActivationTimingLegal(state, vivi, vivi.controllerId, ability)
+        ).toThrow(/your turn/i);
     });
 
     it("wire format: counters (and so the effective-power-driven choice list) survive projectPublicState (CR 613.4)", () => {
