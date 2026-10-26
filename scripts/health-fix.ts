@@ -72,7 +72,7 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import { laddered } from "./lib/health-bisect";
+import { laddered, prOfSubject } from "./lib/health-bisect";
 import type { HealthStatus } from "./lib/health-verdict";
 import { OVER_CAP_ENV } from "./lib/machine-admission";
 import {
@@ -99,6 +99,7 @@ import {
     walkEpisode,
     type ForeignRepair,
     type LadderFacts,
+    type LineageCommit,
     type RevertPr,
 } from "./lib/health-ladder";
 import { closingIssueRefs } from "./lib/red-land-gate";
@@ -805,6 +806,58 @@ function readForeignRepairs(cwd: string): ForeignRepair[] {
     }));
 }
 
+/** The first-parent commits after `red` up to `tip`, newest first, or null
+ *  when `tip` does not descend from `red` (issue #6766). */
+function commitsSince(
+    cwd: string,
+    red: string,
+    tip: string
+): LineageCommit[] | null {
+    const ancestor = spawnSync(
+        "git",
+        ["merge-base", "--is-ancestor", red, tip],
+        { cwd }
+    );
+    if (ancestor.status === 1) return null;
+    if (ancestor.status !== 0)
+        throw new Error(`git merge-base --is-ancestor ${red} ${tip} failed`);
+    // NUL-separated records: a message may hold any other character.
+    const out = git(
+        ["log", "--first-parent", "-z", "--format=%H%n%B", `${red}..${tip}`],
+        cwd
+    );
+    return out
+        .split("\0")
+        .filter((r) => r.trim() !== "")
+        .map((r) => {
+            const [sha, ...body] = r.replace(/^\n+/, "").split("\n");
+            return {
+                sha,
+                pr: prOfSubject(body[0] ?? ""),
+                message: body.join("\n"),
+            };
+        });
+}
+
+/** The PRs that are declared repairs of the RED (issue #6766): every PR
+ *  closing a repair issue on the pivot, and every PR a ladder record names. */
+function declaredRepairPrs(
+    cwd: string,
+    episode: readonly { attempt: { pr?: number } | null }[]
+): number[] {
+    const { ladder, foreign } = pivotRepairOrigins(cwd);
+    const issues = [...ladder, ...foreign];
+    const prs = new Set(
+        episode.flatMap((r) =>
+            r.attempt?.pr !== undefined ? [r.attempt.pr] : []
+        )
+    );
+    if (issues.length > 0)
+        for (const p of listPrs(cwd, "all"))
+            if (p.closes.some((n) => issues.includes(n))) prs.add(p.number);
+    return [...prs];
+}
+
 /**
  * The facts `ladderRung` decides on, read off the pivot. Every read that
  * fails lands in `error`, which waits: an outage never files an escalation.
@@ -817,6 +870,8 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         secondRed: false,
         tip,
         laddered: false,
+        sinceRed: null,
+        repairPrs: [],
         episode: [],
         revertPr: null,
         foreignRepairs: [],
@@ -844,11 +899,16 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             evidence: (sha) => evidence.read(sha),
         });
         const revert = revertRecordOf(episode);
+        // Only a moved tip asks whether the RED still stands on it (issue
+        // #6766): the commits since, and the PRs that are declared repairs.
+        const moved = red !== tip;
         return {
             ...empty,
             red,
             secondRed: lineage.kind === "second-red",
             laddered: laddered(standingEvidence),
+            sinceRed: moved ? commitsSince(cwd, red, tip) : null,
+            repairPrs: moved ? declaredRepairPrs(cwd, episode) : [],
             episode,
             revertPr:
                 revert?.pr !== undefined ? revertPrState(cwd, revert.pr) : null,
