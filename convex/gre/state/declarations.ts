@@ -4106,6 +4106,11 @@ export type RevealNotification = {
      *  is legal. */
     kind: "look" | "reveal" | "fail-to-find";
     cards: { instanceId: string; cardId: string }[];
+    /** Raised outside a resolution and not yet persisted: the clear at the top
+     *  of `resolveTopOfStack` keeps it, so a later resolution in the same
+     *  mutation (auto-pass drain) cannot wipe it before a snapshot carries it.
+     *  `saveGameState` removes the flag, so the next mutation's clear drops it. */
+    retained?: boolean;
 };
 
 /** ADR 0053 (pile division, issue #5661) — the most recent `pick-pile`

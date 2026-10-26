@@ -57,6 +57,7 @@ import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
     bumpDamageDealtToPlayer,
     emitLifeLost,
+    enqueuePublicRevealNotice,
     gainLifeEmitting,
     getPlayer,
     moveCard,
@@ -104,7 +105,10 @@ function collectReplacements(
     /** The event currently being resolved, when known. Only consulted for
      *  the `"graveyard-bound"` self-referential lookup below — every other
      *  kind ignores it and keeps the pure battlefield scan. */
-    event?: ReplacementEvent
+    event?: ReplacementEvent,
+    /** The card instance the event names when it is no longer in any zone
+     *  array (a stack item already popped by its caller). */
+    departing?: CardInstanceState
 ): { source: CardInstanceState; effect: ReplacementEffect }[] {
     const active = state.players.find((p) => p.id === state.activePlayerId);
     const opponents = state.players.filter(
@@ -153,7 +157,8 @@ function collectReplacements(
         SELF_LOOKUP_EVENT_KINDS.has(kind) &&
         !battlefieldSourceIds.has(event.cardInstanceId)
     ) {
-        const self = findCardInstanceAnywhere(state, event.cardInstanceId);
+        const self =
+            findCardInstanceAnywhere(state, event.cardInstanceId) ?? departing;
         if (self) {
             const cardId = (self.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -416,12 +421,13 @@ function applyReplacementsLoop(
     state: GameState,
     kind: ReplacementEventKind,
     initial: ReplacementEvent,
-    locks: DamageLocks = NO_DAMAGE_LOCKS
+    locks: DamageLocks = NO_DAMAGE_LOCKS,
+    departing?: CardInstanceState
 ): ReplacementEvent | null {
     let event = initial;
     const used = new Set<string>();
     for (let i = 0; i < 64; i++) {
-        const candidates = collectReplacements(state, kind, event);
+        const candidates = collectReplacements(state, kind, event, departing);
         // Nothing on the board carries this kind at all — the overwhelmingly
         // common case at the two HOT chokepoints this loop now also serves
         // (every counter placed, every token created). Returning here skips
@@ -893,9 +899,16 @@ function applyTransientGraveyardRedirects(
  *  `applyDestroyReplacements`/`applyTransientDestroyShields`. */
 export function applyGraveyardBoundReplacements(
     state: GameState,
-    event: GraveyardBoundReplacementEvent
+    event: GraveyardBoundReplacementEvent,
+    departing?: CardInstanceState
 ): GraveyardBoundReplacementEvent {
-    const result = applyReplacementsLoop(state, "graveyard-bound", event);
+    const result = applyReplacementsLoop(
+        state,
+        "graveyard-bound",
+        event,
+        NO_DAMAGE_LOCKS,
+        departing
+    );
     const settled = (result as GraveyardBoundReplacementEvent | null) ?? event;
     return applyTransientGraveyardRedirects(state, settled);
 }
@@ -908,18 +921,44 @@ export function graveyardDestinationFor(
     state: GameState,
     cardInstanceId: string,
     ownerId: string,
-    fromZone: GraveyardBoundReplacementEvent["fromZone"]
+    fromZone: GraveyardBoundReplacementEvent["fromZone"],
+    /** The card when its caller already lifted it out of every zone array
+     *  (a spell popped off the stack before it is countered). */
+    departing?: CardInstanceState
 ): {
     destination: "graveyard" | "exile" | "library";
     tagCounters?: Record<string, number>;
 } {
-    const result = applyGraveyardBoundReplacements(state, {
-        kind: "graveyard-bound",
-        cardInstanceId,
-        ownerId,
-        fromZone,
-        destination: "graveyard",
-    });
+    const result = applyGraveyardBoundReplacements(
+        state,
+        {
+            kind: "graveyard-bound",
+            cardInstanceId,
+            ownerId,
+            fromZone,
+            destination: "graveyard",
+        },
+        departing
+    );
+
+    // CR 701.20a — a redirect whose text reveals the card announces it to
+    // every player, from whatever zone and whether or not a stack item is
+    // resolving (a hidden origin → hidden library would otherwise leak nothing).
+    if (result.revealed === true) {
+        const cardId = (
+            (findCardInstanceAnywhere(state, cardInstanceId) ?? departing)
+                ?.card as { id?: string } | undefined
+        )?.id;
+        if (cardId) {
+            enqueuePublicRevealNotice(state, {
+                idPrefix: `graveyard-redirect:${cardInstanceId}`,
+                source: cardId,
+                kind: "reveal",
+                cards: [{ instanceId: cardInstanceId, cardId }],
+                retained: true,
+            });
+        }
+    }
     return { destination: result.destination, tagCounters: result.tagCounters };
 }
 
