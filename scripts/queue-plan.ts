@@ -88,6 +88,7 @@ import {
 } from "./loop-doctor";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
+import { cappedRepairPrs } from "./lib/repair-cap";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -1029,8 +1030,9 @@ function main(): void {
     const working = new Set(
         classified.filter((c) => c.verdict.state === "live").map((c) => c.issue)
     );
+    const failedPrs = landFailedPrs();
     plan.repair = repairItems(
-        landFailedPrs(),
+        failedPrs,
         (n) => {
             try {
                 const d = port.issueDetail(n);
@@ -1040,7 +1042,10 @@ function main(): void {
             }
         },
         config,
-        working
+        working,
+        // Past the repair cap (issue #6649): the dispatcher escalates, the
+        // planner only stops offering the PR.
+        cappedRepairPrs("{owner}/{repo}", failedPrs)
     );
     const repaired = new Set(plan.repair.map((r) => r.number));
     plan.resume = resumeItems(

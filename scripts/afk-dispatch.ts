@@ -31,6 +31,7 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { gh } from "./lib/gh";
+import { cappedRepairPrs, escalateCappedRepairs } from "./lib/repair-cap";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { sanitizeHost } from "./lib/github-runner";
 import { releaseEditArgs, CLAIM_LABEL } from "./lib/claim-labels";
@@ -335,6 +336,10 @@ function repairDispatchables(
         ])
     ) as { number: number; headRefName: string }[];
     const failedAt = new Map(repairPicks(slug).map((p) => [p.pr, p.failedAt]));
+    // Repair cap (issue #6649): a PR whose repairs keep failing leaves the
+    // loop for its human, once.
+    const capped = cappedRepairPrs(slug, prs);
+    escalateCappedRepairs(slug, capped);
     return repairItems(
         prs,
         (issue) => {
@@ -359,7 +364,8 @@ function repairDispatchables(
             }
         },
         config,
-        livePassIssues(passRuns)
+        livePassIssues(passRuns),
+        capped
     ).filter(
         (r) => !repairAttempted(passRuns, r.number, failedAt.get(r.pr) ?? null)
     );

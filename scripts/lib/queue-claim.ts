@@ -27,6 +27,8 @@ import type { ClaimVerdictState } from "../loop-doctor";
 import {
     capCensus,
     capRefusal,
+    pathsOverlap,
+    type InFlightIssue,
     type Admission,
     type CapCensus,
     type MachineScope,
@@ -92,6 +94,46 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
         input.recoverable ?? [],
         input.stranded ?? [],
         input.scope
+    );
+}
+
+// ── Overlap with an in-flight PR (issue #6649) ──────────────────────────────
+//
+// The planner defers a NEW pick whose files an open PR occupies (issue #6195);
+// an explicit `/next-ticket N` and `queue:claim` bypassed that. The same
+// predicate, applied to the one issue being claimed: two PRs on the same files
+// meet as a rebase conflict at the queue.
+
+/** Escape: claim an issue whose files an open PR occupies; announced. */
+export const OVERLAP_OK_FLAG = "--overlap-ok";
+
+/**
+ * The in-flight issue whose files overlap `files`, or null. An issue never
+ * overlaps itself (a repair pick's own PR); unknown files (`null`, either
+ * side) occupy nothing — the planner's rule, a guess would freeze the queue.
+ */
+export function claimOverlap(input: {
+    issue: number;
+    files: readonly string[] | null;
+    inFlight: readonly InFlightIssue[];
+}): InFlightIssue | null {
+    const files = input.files;
+    if (files === null || files.length === 0) return null;
+    return (
+        input.inFlight.find(
+            (f) =>
+                f.number !== input.issue &&
+                f.files !== null &&
+                f.files.some((a) => files.some((c) => pathsOverlap(a, c)))
+        ) ?? null
+    );
+}
+
+export function overlapRefusal(issue: number, busy: number): string {
+    return (
+        `issue #${issue}'s target files overlap in-flight issue #${busy} (an open PR or a live claim) — ` +
+        `the two would meet as a rebase conflict at the queue. Pick another issue, or wait for #${busy} to land ` +
+        `(for this claim alone: ${OVERLAP_OK_FLAG}).`
     );
 }
 
