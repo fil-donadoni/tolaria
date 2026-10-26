@@ -144,7 +144,9 @@ machines, 5/h each — leaves a 3-minute budget per PR under the mutex (rebase
 What a lane runs now (issue #5464, `scripts/check-lane.ts` citing ADR 0154
 §2–3): the vitest tests **reachable from the diff through the import graph**
 for `engine` and `skin`, as ONE `vitest(related)` run naming only the projects
-that hold a related file, plus `tsc`, diff-scoped prettier/eslint, `cr:lint`,
+that hold a related file — exactly the reached files however many, split into
+`vitest(related) 1/N` runs only past the argument limit, never the bare
+project (ADR 0154 §15, issue #6992) — plus `tsc`, diff-scoped prettier/eslint, `cr:lint`,
 the cached drift guards (`check:index`, `check:stubs`, `check:oracle`),
 `check:convex-bundle` and the cheap guards (≤ 10 s, issue #4963). A test the
 diff cannot reach is health's job; the full suite stays in batch health as

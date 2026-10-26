@@ -10,7 +10,9 @@ a `check:ui` receipt). Leaves ADR 0116 (green-at-release) whole. **Amended
 by issue #6149** (§ 11: the `full` lane's bot half is scoped by the walk) **and
 by issue #6943** (§ 13: every scoped code lane admits the reached bot files by
 measured cost) **and by issue #6989** (§ 14: the `full` lane is retired for the
-`src/**` + `convex/**` mix, which is `engine` plus its reached `dom` tests). The rollout
+`src/**` + `convex/**` mix, which is `engine` plus its reached `dom` tests)
+**and by issue #6992** (§ 15: a scoped run never falls back to the bare
+project; past the argument limit its filters split into runs). The rollout
 is PRD #5454's tickets, issues #5456–#5471; until a ticket lands, the script
 it names is the authority on what runs TODAY and this record on what a PR
 OWES.
@@ -99,6 +101,9 @@ fail-closed admission: a path no rule places still forces `full`. ADR 0136 §5
 remain how projects are organised, not the limit of what a lane may skip. ADR
 0131's own exemption for `check:ui` becomes the general rule rather than the
 exception.
+
+**Amended by § 15 (issue #6992)**: the reached files are the run, however
+many — no count switches it to the whole project.
 
 ### 3. Health-only guards grow by cost — ADR 0136 / issue #4963 amended
 
@@ -374,6 +379,42 @@ RED ladder's revert-first (ADR 0158 §3) closes it.
 test a mixed diff's walk did not reach — the fix is the walk (a
 `CENSUS_TESTS` row, an edge `lib/test-reach.ts` misses), never `full` back on
 the mix.
+
+### 15. A scoped run is the reached files, never the bare project — amendment of issue #6992
+
+Until issue #6992, `pushRelated` (`scripts/check-lane.ts`) ran the named
+projects WHOLE past `WHOLE_PROJECT_AT` = 400 reached files. The constant
+guarded an argument length — the run is one `sh -c` string, and Linux caps
+one argument at 128 KiB (`MAX_ARG_STRLEN`) — not cost, yet past it every file
+of `node-engine` and `node-tooling` ran, reached or not. Over the 14 `engine`
+lanes of 2026-10-24 → 25, 10 ran whole (349–557 s) and 4 scoped (132–211 s).
+
+**The rule.** `vitest(related)` runs exactly the files the §2 walk reaches.
+The one limit is the command's length: past `FILTER_BYTES_PER_RUN` (64 KiB of
+quoted filters, half the argument cap) the files split into consecutive runs,
+`vitest(related) 1/N` … `N/N`, each naming only the projects its own files
+belong to. No reach, however large, plans a bare `--project` command; the
+`node-tooling` admission (a non-module tooling path, §2's one whole
+exception) is unchanged. `land:ready`'s pre-queue keeps what the bare
+command used to tell it: a reach past `PRE_QUEUE_RELATED_MAX` = 400 files is
+minutes, so every chunk is skipped there as the runner's to pay
+(`scripts/lib/pre-queue-steps.ts`). Tiering the reached node files by
+measured cost is §13's rule over §13's table, a later step.
+
+**Measured.** Before: the queue lane's `lane.json` (artifact
+`queue-lane-json`, 2026-10-25). After: the new plan's `vitest(related)` on
+the PR's file set over today's tree, through `gate.ts light` as the lane runs
+it, on the MacBook (2026-10-26, load 3–13).
+
+| PR                               | reached |                    before |         after |
+| -------------------------------- | ------: | ------------------------: | ------------: |
+| #6982 (`data/**` re-pin)         |     505 | 355 s (whole, 2 projects) | 244 s (1 run) |
+| #6868 (hub: `convex/gre`, cards) |   1,324 | 349 s (whole, 2 projects) | 293 s (1 run) |
+| #6899 (ordinary `convex/gre`)    |     329 |            211 s (scoped) | 222 s (1 run) |
+
+The hub's reach is the suite itself, so its gain is load, not scope; the
+ordinary diff's plan did not change (noise). The re-pin is the shape the
+issue named: 505 files instead of every file of two projects.
 
 ## Consequences
 
