@@ -1,23 +1,22 @@
-// The four Composition Rules of the compositional pilot (issue #6557,
+// The Composition Rules of the compositional pilot (issue #6557,
 // CR 608.2c), generalised from the idioms that bound each to one head:
 //
 //  1. the `, then` / `. Then` CHAIN between any two members the sentence
 //     grammar reads (was: after a token-creation head only);
-//  2. the LEADING DURATION applied to every member (was: spelled into a few
-//     whole-sentence shapes);
+//  2. the LEADING DURATION applied to every member — RETIRED (issue #6624):
+//     no corpus card consumed it, and opening a duration slot in the kinds
+//     that print one at their tail graduates none;
 //  3. the OBJECT PRONOUN bound to the last frame that produced a referent,
 //     refused with none (`verbFrames.test.ts` carries its fixtures);
 //  4. `If you do,` gating the member before it as a paid cost (CR 118.12; was:
 //     three head-bound kinds).
 //
 // Each connector has a real-card fixture where the corpus prints one and a
-// property test on its semantics — order, duration on every member, the
-// gate — run through the real compiler, never a hand-built IR.
+// property test on its semantics — order, the gate — run through the real compiler, never a hand-built IR.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
-import { sentenceRule } from "../grammar/shared/effectClause";
-import { oracleCard, parseContext } from "./oracle.fixture";
+import { oracleCard } from "./oracle.fixture";
 
 function compiledDefinition(card: ReturnType<typeof oracleCard>) {
     const outcome = compileCard(card);
@@ -121,69 +120,6 @@ describe("the `. Then` connector — a sentence-initial 'Then' opens a frame cha
                 )
             ).state
         ).toBe("unparsed");
-    });
-});
-
-describe("the leading duration — on every member (CR 611.2a)", () => {
-    const read = (text: string) => sentenceRule.run(text, parseContext());
-
-    it("equals the trailing spelling: 'Until end of turn, X becomes …' is 'X becomes … until end of turn'", () => {
-        const leading = compiledDefinition(
-            sorcery(
-                "Probe",
-                "{U}",
-                "Until end of turn, target creature becomes the color of your choice."
-            )
-        );
-        const trailing = compiledDefinition(
-            sorcery(
-                "Probe",
-                "{U}",
-                "Target creature becomes the color of your choice until end of turn."
-            )
-        );
-        expect(leading.effects).toEqual(trailing.effects);
-        expect(JSON.stringify(leading.effects)).toContain('"end-of-turn"');
-    });
-
-    it("lands on EVERY member of a chain, not the first alone", () => {
-        const result = read(
-            "Until end of turn, target creature becomes the color of your choice, then target creature becomes the color of your choice"
-        );
-        expect(result.ok).toBe(true);
-        if (!result.ok || result.value.role !== "then-chain") return;
-        expect(result.value.effects).toHaveLength(2);
-        for (const effect of result.value.effects) {
-            expect(effect.kind).toBe("set-color-choice");
-            if (effect.kind === "set-color-choice")
-                expect(effect.duration).toEqual({ kind: "end-of-turn" });
-        }
-    });
-
-    it("refuses a member with no duration slot, and one already carrying its own", () => {
-        for (const text of [
-            "Until end of turn, draw a card",
-            "Until end of turn, target creature becomes the color of your choice until end of turn",
-            "Until end of turn, search your library for a card, put that card into your hand, then shuffle",
-        ]) {
-            const result = read(text);
-            expect(result.ok, text).toBe(false);
-        }
-    });
-
-    it("an exact shape that spells its own leading duration stays the table's — one reader, no ambiguity: Abeyance", () => {
-        const text =
-            "Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities.\nDraw a card.";
-        expect(
-            compileCard(
-                oracleCard({
-                    name: "Abeyance",
-                    manaCost: "{1}{W}",
-                    typeLine: "Instant",
-                    oracleText: text,
-                })
-            ).state
-        ).toBe("ready");
     });
 });
 
