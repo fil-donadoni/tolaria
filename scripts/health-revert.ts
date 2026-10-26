@@ -12,7 +12,7 @@
  * when it cannot be, nothing is made (exit 4, no re-dispatch); the revert is
  * made in a throwaway worktree beside the primary checkout — a later commit
  * the culprit's revert conflicts with is reverted together with it, in the
- * same PR (`lib/health-revert-set.ts`, issue #6766); a set past
+ * same PR (`lib/health-revert-set.ts`); a set past
  * `MAX_REVERT_SET` records the rung `stuck` with a `cap:` note naming every
  * commit (exit 3, the next ladder run stops on it); a conflict no later
  * commit explains records the rung `stuck` and exits 3, which the next
