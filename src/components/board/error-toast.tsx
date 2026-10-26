@@ -76,8 +76,9 @@ export default function ErrorToast({
                         shared `Button` (destructive/ghost) instead of two
                         hand-rolled `<button>` recipes, keeping the >=24x24
                         WCAG 2.5.8 hit-area floor via an explicit
-                        `min-h-6 min-w-6` override on Button's own compact
-                        `xs` rung. */}
+                        `max(var(--touch-min), 1.5rem)` override on Button's
+                        own compact `xs` rung: 24px on fine, 44px on coarse
+                        (issue #2792). */}
                     <p className="text-display min-w-0 flex-1 line-clamp-2 px-1 text-xs sm:px-2 sm:text-sm">
                         {error.title}
                     </p>
@@ -86,7 +87,7 @@ export default function ErrorToast({
                         variant="destructive"
                         size="xs"
                         onClick={handleCopy}
-                        className="min-h-6 min-w-6 rounded-sm"
+                        className="min-h-[max(var(--touch-min),1.5rem)] min-w-[max(var(--touch-min),1.5rem)] rounded-sm"
                     >
                         {copied ? "Copied!" : "Copy"}
                     </Button>
@@ -96,7 +97,7 @@ export default function ErrorToast({
                         size="xs"
                         onClick={onDismiss}
                         aria-label="Dismiss error"
-                        className="min-h-6 min-w-6 px-1 text-sm leading-none"
+                        className="min-h-[max(var(--touch-min),1.5rem)] min-w-[max(var(--touch-min),1.5rem)] px-1 text-sm leading-none"
                     >
                         ×
                     </Button>
