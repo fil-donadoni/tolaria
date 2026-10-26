@@ -164,6 +164,16 @@
         "source": "compiled"
     },
     {
+        "name": "Abbot of Keral Keep",
+        "scryfallId": "cb7a2770-9a20-4f52-aac4-24502f50e374",
+        "oracleId": "09be0f69-9c7f-491f-964d-bfbbc2d4251f",
+        "firstSet": "ori",
+        "firstPrintId": "cb7a2770-9a20-4f52-aac4-24502f50e374",
+        "firstPrintSet": "ori",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Abeyance",
         "scryfallId": "125a355d-bfcf-4125-aa6c-35e7dea6f63e",
         "oracleId": "6300de53-6e71-4f0e-87e1-b0acd25c59a8",
@@ -628,6 +638,16 @@
         "firstSet": "leg",
         "firstPrintId": "06673800-22a7-4ee3-92fa-7c7cd4865d30",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Aerial Caravan",
+        "scryfallId": "adac91af-5165-4779-99f7-e75c83fa5d5d",
+        "oracleId": "d13aff7c-f0ee-44e2-ae1c-62cd86ad46a6",
+        "firstSet": "mmq",
+        "firstPrintId": "adac91af-5165-4779-99f7-e75c83fa5d5d",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Aerial Predation",
@@ -1283,6 +1303,16 @@
         "firstPrintId": "bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b",
         "firstPrintSet": "arn",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Alania's Pathmaker",
+        "scryfallId": "d3871fe6-e26e-4ab4-bd81-7e3c7b8135c1",
+        "oracleId": "ce36a450-68a6-4519-a9f0-0e3b772054eb",
+        "firstSet": "blb",
+        "firstPrintId": "d3871fe6-e26e-4ab4-bd81-7e3c7b8135c1",
+        "firstPrintSet": "blb",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -6428,6 +6458,16 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Blazing Crescendo",
+        "scryfallId": "d6bfc16a-2871-40a4-b279-636b80491a06",
+        "oracleId": "6344c96a-efa5-4125-8219-d333228391cf",
+        "firstSet": "one",
+        "firstPrintId": "d6bfc16a-2871-40a4-b279-636b80491a06",
+        "firstPrintSet": "one",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blazing Firesinger // Seething Song",
         "scryfallId": "3ba971e7-0b7a-4750-896f-7cf063e66b2a",
         "oracleId": "1bf505a7-292e-4642-83b6-8ff41ebe5d51",
@@ -11078,6 +11118,16 @@
         "source": "compiled"
     },
     {
+        "name": "Chase Stein, Runaway",
+        "scryfallId": "e4dab13d-98c3-4f78-b9be-cf29826fcd59",
+        "oracleId": "161ff063-b784-43c7-b608-f78be3daa5b2",
+        "firstSet": "msc",
+        "firstPrintId": "e4dab13d-98c3-4f78-b9be-cf29826fcd59",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Chasm Drake",
         "scryfallId": "5e7e246d-92f8-4e6e-89fc-991b888fc1e8",
         "oracleId": "e0f44bb8-f07b-416c-b767-87b9fe6461aa",
@@ -13694,6 +13744,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crimson Operative",
+        "scryfallId": "6f10a7db-1343-43e7-9fd6-21147d51149c",
+        "oracleId": "d8863742-6c1c-415a-ad27-7def6d119c6a",
+        "firstSet": "msc",
+        "firstPrintId": "6f10a7db-1343-43e7-9fd6-21147d51149c",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crippling Blight",
         "scryfallId": "6a96a5d6-6527-4018-923e-7e850fda106a",
         "oracleId": "e365699a-bd77-473f-86b0-4e1ba0371cdc",
@@ -14861,6 +14921,16 @@
         "firstPrintId": "3da58e0d-5877-43c4-b129-993e154b6087",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dark-Dweller Oracle",
+        "scryfallId": "69a57bfc-1de2-4b3a-84bc-19ec41087f0d",
+        "oracleId": "17917b7a-2b2b-4a96-a21e-10cd91375660",
+        "firstSet": "m19",
+        "firstPrintId": "69a57bfc-1de2-4b3a-84bc-19ec41087f0d",
+        "firstPrintSet": "m19",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -30164,6 +30234,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gundabad Opportunist",
+        "scryfallId": "bc4a60b8-a5bb-4dbf-8d48-95caf757eac3",
+        "oracleId": "61773534-8da8-48fa-b51a-73c0a9a751c4",
+        "firstSet": "hob",
+        "firstPrintId": "bc4a60b8-a5bb-4dbf-8d48-95caf757eac3",
+        "firstPrintSet": "hob",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gurmag Angler",
         "scryfallId": "cedd44eb-f381-46e1-bcb0-88416b4ce33d",
         "oracleId": "315772f2-abd2-4681-b8c8-1db4b0ccbbcd",
@@ -41891,6 +41971,16 @@
         "firstPrintId": "ebacbf23-4b69-481c-aaf7-5de7b4a6db6f",
         "firstPrintSet": "wth",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Meria, Scholar of Antiquity",
+        "scryfallId": "3eedd979-783d-4721-92de-965b77c20576",
+        "oracleId": "24aaadda-ef1c-44eb-9b01-4847bf454cd5",
+        "firstSet": "dmu",
+        "firstPrintId": "3eedd979-783d-4721-92de-965b77c20576",
+        "firstPrintSet": "dmu",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -60818,6 +60908,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silicate Surveyor",
+        "scryfallId": "6359ab5d-4151-4a0c-af13-d59c1b381bb0",
+        "oracleId": "1b248ef5-ec57-481d-b47a-357d3867054f",
+        "firstSet": "trk",
+        "firstPrintId": "6359ab5d-4151-4a0c-af13-d59c1b381bb0",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Silkwing Scout",
         "scryfallId": "04f165aa-2986-47d1-912d-d50490a15c0b",
         "oracleId": "4c76db22-1992-448d-be4a-a9095420b8cc",
@@ -66389,6 +66489,16 @@
         "firstPrintId": "a5baeff5-40e9-47b6-85a8-3a6548565b5f",
         "firstPrintSet": "csp",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Stromkirk Occultist",
+        "scryfallId": "1fa6a443-b23b-48ae-97bb-8fd4deec52c4",
+        "oracleId": "3bdd140b-1406-4d07-8f35-78f2ba92de64",
+        "firstSet": "emn",
+        "firstPrintId": "1fa6a443-b23b-48ae-97bb-8fd4deec52c4",
+        "firstPrintSet": "emn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -76712,6 +76822,16 @@
         "firstSet": "war",
         "firstPrintId": "aa5341b9-06e4-4360-a75d-f405d468276e",
         "firstPrintSet": "war",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Warehouse Thief",
+        "scryfallId": "5e7a5951-4f71-47a0-ad80-f236f61d3f22",
+        "oracleId": "ddf34a38-29d5-4bf3-9b08-e7c9579a4200",
+        "firstSet": "clb",
+        "firstPrintId": "5e7a5951-4f71-47a0-ad80-f236f61d3f22",
+        "firstPrintSet": "clb",
         "rarity": "common",
         "source": "compiled"
     },

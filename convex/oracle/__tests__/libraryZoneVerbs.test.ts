@@ -9,9 +9,8 @@
 //  2. REFUSALS — the neighbours these rules do not read stay `unparsed`
 //     (fail-closed, ADR 0105 § 2).
 //
-// `exileTopOfLibrary` is not here: no corpus card whose every line compiles
-// prints a bare "Exile the top N cards of your library", so there is no whole
-// card to pin a golden to (issue #4525's PR names the follow-up).
+// `exileTopOfLibrary` is not here: it is the moveZone Verb Frame's
+// `library-top` object class, pinned in `exileTopOfLibrary.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";

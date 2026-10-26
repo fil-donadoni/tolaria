@@ -63,11 +63,6 @@
             "issue": 4534
         },
         {
-            "key": "(op) › exileTopOfLibrary",
-            "op": "exileTopOfLibrary",
-            "issue": 5171
-        },
-        {
             "key": "(op) › extraCombat",
             "op": "extraCombat",
             "issue": 4535
@@ -76,11 +71,6 @@
             "key": "(op) › extraTurn",
             "op": "extraTurn",
             "issue": 4535
-        },
-        {
-            "key": "(op) › grantCastFromExile",
-            "op": "grantCastFromExile",
-            "issue": 4532
         },
         {
             "key": "(op) › grantCastFromGraveyard",
