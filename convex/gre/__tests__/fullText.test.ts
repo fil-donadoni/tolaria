@@ -991,7 +991,7 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
         });
     });
 
-    it("a presented body answer survives a cast entry's resume (CR 614.12c)", () => {
+    it("a presented body answer survives a cast entry's resume (CR 614.1c)", () => {
         withEntryFixtures(() => {
             const state = graveyardOf([inGraveyard(BODY_PICKER, "picker")]);
             const spell = pushSpell(state, SHAPESHIFTER, "p1");
