@@ -20,6 +20,8 @@ import {
     passRunIssue,
     passSlots,
     planDispatch,
+    queueAdmission,
+    queueDepth,
     usageLimitResetAt,
     type FailureStreak,
     type Hold,
@@ -349,7 +351,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
 });
 
 describe("afk-dispatch aged repair picks (issue #5957)", () => {
-    const CONFIG = { repairAgeHours: 4 };
+    const CONFIG = parseAfkDispatchConfig({});
     const HOLD: Hold = {
         kind: "no-pass-workflow",
         message: "afk-pass.yml is absent",
@@ -449,14 +451,16 @@ describe("afk-dispatch aged repair picks (issue #5957)", () => {
     it("the threshold is config, with a default for a missing block", () => {
         expect(
             parseAfkDispatchConfig({ afkDispatch: { repairAgeHours: 9 } })
-        ).toEqual({ repairAgeHours: 9 });
-        expect(parseAfkDispatchConfig({})).toEqual({ repairAgeHours: 4 });
+        ).toMatchObject({ repairAgeHours: 9 });
+        expect(parseAfkDispatchConfig({})).toMatchObject({
+            repairAgeHours: 4,
+        });
         expect(
             agedRepairNotice(
                 HOLD,
                 [repair(10, 20)],
                 [],
-                { repairAgeHours: 24 },
+                { ...CONFIG, repairAgeHours: 24 },
                 NOW
             ).notify
         ).toBe(false);
@@ -979,5 +983,116 @@ describe("orphan claims under a hold (issue #6194)", () => {
         expect(
             holdReleases({ kind: "disabled", message: "m" }, orphanFacts)
         ).toEqual([]);
+    });
+});
+
+describe("admission by queue depth (issue #6988)", () => {
+    const LIMITS = { queueMax: 6, failedMax: 4 };
+    const labels: Record<number, string[]> = {
+        1: ["ready-for-agent"],
+        2: ["ready-for-agent"],
+        7: ["ready-for-agent", "in-progress"],
+    };
+    // A dead pass's pushed claim (#7) and two fresh picks (#1, #2).
+    const picked = pick({
+        issues: queue(labels),
+        config: CONFIG,
+        port: port(labels),
+        trust: TRUST,
+        provenance: OWNED([1, 2, 7]),
+        claims: facts(
+            [7],
+            [passRun(1, 7, { conclusion: "failure" })],
+            ["feat/issue-7"],
+            []
+        ),
+    });
+    const SLOTS = { free: ["mbp", "hw", "hw", "hw"], online: ["mbp", "hw"] };
+    const REPAIR = {
+        number: 40,
+        pr: 400,
+        branch: "fix/issue-40",
+        model: "sonnet",
+    };
+    const rows = (ready: number, failed: number) => [
+        ...Array.from({ length: ready }, (_, i) => ({
+            headRefName: `feat/issue-${100 + i}`,
+            labels: [{ name: "ready-to-land" }, { name: "queue:held" }],
+        })),
+        ...Array.from({ length: failed }, (_, i) => ({
+            headRefName: `feat/issue-${200 + i}`,
+            // A stale ready-to-land beside land-failed counts as failed.
+            labels: [{ name: "ready-to-land" }, { name: "land-failed" }],
+        })),
+        { headRefName: "feat/issue-300", labels: [] },
+    ];
+    const plan = (ready: number, failed: number) =>
+        planDispatch(
+            picked,
+            SLOTS,
+            () => null,
+            [REPAIR],
+            queueAdmission(queueDepth(rows(ready, failed)), LIMITS)
+        );
+
+    it("counts ready-to-land and land-failed PRs from the pr list", () => {
+        expect(queueDepth(rows(6, 3))).toEqual({ ready: 6, failed: 3 });
+    });
+
+    it("6 ready-to-land at queueMax 6: no new pick; the resume and the repair still run", () => {
+        const p = plan(6, 0);
+        expect(p.dispatch.map((d) => d.issue)).toEqual([7, 40]);
+        expect(p.held).toEqual([1, 2]);
+        expect(queueAdmission({ ready: 6, failed: 0 }, LIMITS)).toEqual({
+            kind: "queue",
+            message: "queue 6 ≥ 6 — no new pick",
+        });
+    });
+
+    it("4 land-failed at failedMax 4: repairs only", () => {
+        const p = plan(0, 4);
+        expect(p.dispatch.map((d) => d.issue)).toEqual([40]);
+        expect(p.held).toEqual([7, 1, 2]);
+        expect(queueAdmission({ ready: 0, failed: 4 }, LIMITS).kind).toBe(
+            "failed"
+        );
+    });
+
+    it("a resume held under failedMax is still repaired when its PR is land-failed", () => {
+        const p = planDispatch(
+            picked,
+            SLOTS,
+            () => null,
+            [{ ...REPAIR, number: 7, pr: 70 }],
+            queueAdmission({ ready: 0, failed: 4 }, LIMITS)
+        );
+        expect(p.dispatch).toEqual([
+            { issue: 7, model: "sonnet", resume: true, host: null, pr: 70 },
+        ]);
+        expect(p.held).toEqual([1, 2]);
+    });
+
+    it("both limits crossed: failedMax wins, repairs only", () => {
+        expect(plan(6, 4).dispatch.map((d) => d.issue)).toEqual([40]);
+    });
+
+    it("5 ready-to-land and 3 land-failed: picks as today", () => {
+        const p = plan(5, 3);
+        expect(p.dispatch.map((d) => d.issue)).toEqual([7, 40, 1, 2]);
+        expect(p.held).toEqual([]);
+        expect(p).toEqual(planDispatch(picked, SLOTS, () => null, [REPAIR]));
+    });
+
+    it("the limits are config, with the measured defaults", () => {
+        expect(parseAfkDispatchConfig({})).toMatchObject(LIMITS);
+        expect(
+            parseAfkDispatchConfig({
+                afkDispatch: { queueMax: 9, failedMax: 2 },
+            })
+        ).toMatchObject({ queueMax: 9, failedMax: 2 });
+        const repo = JSON.parse(
+            readFileSync(join(__dirname, "../../tolaria.config.json"), "utf8")
+        );
+        expect(parseAfkDispatchConfig(repo)).toMatchObject(LIMITS);
     });
 });
