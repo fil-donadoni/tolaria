@@ -251,7 +251,7 @@ import { castProhibitionReason } from "./cards/castRestrictions";
 import {
     announcedTargetCount,
     applyRaisedTargetFinalization,
-    finalizeDivideAmounts,
+    divideAmountsForCommit,
     pendingTargetCountMaxReached,
     resolveDivideTotal,
 } from "./gre/pendingTargetOrigin";
@@ -4766,10 +4766,7 @@ export function finalizeTargetSelection(
     // selection. Fill in a deterministic ≥1-each default when the caster did
     // not assign explicit amounts (auto-resolve when there's no real choice —
     // e.g. one target gets the whole total). Computed against `pt.divideTotal`.
-    const divideAmounts =
-        pt.divideTotal !== undefined && targets.length > 0
-            ? finalizeDivideAmounts(pt, targets)
-            : undefined;
+    const divideAmounts = divideAmountsForCommit(pt, targets);
     state.pendingTarget = undefined;
 
     const player = getPlayer(state, playerId);
