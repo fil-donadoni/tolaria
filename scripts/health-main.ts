@@ -103,16 +103,20 @@
  * THE DERIVED STATE (ADR 0157 § Option 1b, "Health"). After the
  * worktree's bootstrap and before any gate, a batch run asks `derive:sync
  * --settled` whether the tip's lockfile header hashes and `data/catalogue/*`
- * are what the tree generates AND its Bot-play verdicts are current (ADR
- * 0158 § 2b, issue #6687: no `ready` row without a verdict for the
- * definition the tip compiles, the header's Bot hash the tree's) — a compile
- * on the pinned corpus, seconds. A stale tip younger
- * than `DERIVED_GRACE_MS` (one housekeeping period) is `pending`: nothing
- * gated, `last.json` says so, no verdict stored, exit 0 — `derive:sync`'s
- * commit brings the tip health gates next. Stale past the grace is RED at
- * step `derive:sync` (`derivedTipVerdict`, `lib/health-step.ts`). `release`
- * does not ask: it runs the full gate on the exact tip as ever, and
- * `check:oracle` reds a stale header there (ADR 0157, "`release` is
+ * are what the tree generates — a compile on the pinned corpus, seconds. A
+ * stale tip younger than `DERIVED_GRACE_MS` (one housekeeping period) is
+ * `pending`: nothing gated, `last.json` says so, no verdict stored, exit 0 —
+ * `derive:sync`'s commit brings the tip health gates next. Stale past the
+ * grace is RED at step `derive:sync` (`derivedTipVerdict`,
+ * `lib/health-step.ts`). The tip's Bot-play verdicts (ADR 0158 § 2b: a
+ * `ready` row without a verdict for the definition the tip compiles, the
+ * header's Bot hash not the tree's) are NOT a freshness (ADR 0159, issue
+ * #6990): a maintenance job late with them is a `derived: stale since …`
+ * line on the GREEN record (`last.json`'s `derivedLate`) and, past the
+ * grace, an issue `--settled` files — never `pending`, never RED. Health
+ * judges the tree; the lockfile's Bot state says whether a job caught up.
+ * `release` does not ask: it runs the full gate on the exact tip as ever,
+ * and `check:oracle` reds a stale header there (ADR 0157, "`release` is
  * unchanged").
  *
  * `last.json`'s `status` gains `pending` for it.
@@ -249,6 +253,10 @@ interface LastRun {
     phaseStartedAt?: string;
     /** The branch the tip was read from. */
     branch?: string;
+    /** `green` only (ADR 0159): a maintenance job is late with the tip's
+     *  Bot state — `derive:sync --settled`'s late line, the reason and
+     *  since when. Reported, never a verdict. */
+    derivedLate?: string;
 }
 
 function git(args: string[], cwd: string): string {
@@ -507,6 +515,9 @@ interface RunCtx {
     /** A job run (`lib/health-verdict-job.ts`, issue #5645): `early` writes
      *  only its RED to the store. Absent: `default`. */
     mode?: HealthRunMode;
+    /** The tip's Bot state is a maintenance job's to catch up on (ADR
+     *  0159): rides onto the GREEN record and its line. */
+    derivedLate?: string;
 }
 
 /** The retry half of a record (issues #5461, #5484, #5939). */
@@ -802,17 +813,23 @@ function finishPending(ctx: RunCtx, reason: string): never {
 /**
  * `derive:sync --settled` on the bootstrapped worktree, judged against the
  * tip's committer time (`derivedTipVerdict`). Not `--fresh`, the
- * deployment's predicate: a stale Bot verdict holds no deployment, but the
- * writer that owes it is health's to watch (ADR 0158 § 2b). A run of the predicate that
+ * deployment's predicate: `--settled` also prints the late line when a
+ * maintenance job owes the tip's Bot state (ADR 0159), which rides onto the
+ * GREEN record. A run of the predicate that
  * fails for any reason reads as stale with that reason: an unjudged tip is
  * not a fresh one.
  */
 function judgeDerivedTip(
     wt: string,
     tip: string,
-    root: string
+    root: string,
+    mode: HealthRunMode
 ): ReturnType<typeof derivedTipVerdict> {
-    const r = spawnSync("bun", ["run", "derive:sync", "--settled"], {
+    // A hosted `early` run holds no `issues:` permission (ADR 0159): it
+    // reports the late line and never tries to file or close.
+    const args = ["run", "derive:sync", "--settled"];
+    if (mode === "early") args.push("--no-file");
+    const r = spawnSync("bun", args, {
         cwd: wt,
         encoding: "utf8",
         timeout: 10 * 60_000,
@@ -835,6 +852,7 @@ function judgeDerivedTip(
         Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
     return derivedTipVerdict({
         stale: answer.kind === "stale" ? answer.why : null,
+        late: answer.kind === "fresh" ? (answer.late ?? null) : null,
         committedAtMs,
         nowMs: Date.now(),
     });
@@ -857,6 +875,7 @@ function finishGreen(
         offline: "green",
         browser,
         ...retry,
+        ...(ctx.derivedLate ? { derivedLate: ctx.derivedLate } : {}),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
@@ -874,6 +893,10 @@ function finishGreen(
     console.log(
         `health-main: GREEN @ ${ctx.tip.slice(0, 8)}${note ? ` (${note} — ${retry?.retryCause === "timeout" ? "a near-miss" : "a flake"}, see ${ctx.logPath})` : ""}`
     );
+    // A late Bot state is reported, never judged (ADR 0159): the job that
+    // owes it files its issue past the grace (`derive:sync --settled`).
+    if (ctx.derivedLate)
+        console.log(`health-main: derived: ${ctx.derivedLate}`);
 }
 
 /**
@@ -1298,7 +1321,14 @@ async function main(): Promise<void> {
             // predicate and before any gate (ADR 0157, issue #6248); never
             // under `release`, which proves the exact tip whole.
             if (step.name === WORKTREE_BOOTSTRAP && !release) {
-                const judged = judgeDerivedTip(wt, tip, root);
+                const judged = judgeDerivedTip(
+                    wt,
+                    tip,
+                    root,
+                    ctx.mode ?? "default"
+                );
+                if (judged.kind === "fresh" && judged.late)
+                    ctx.derivedLate = judged.late;
                 if (judged.kind === "pending") {
                     pending = judged.reason;
                     break;

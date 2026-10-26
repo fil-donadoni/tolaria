@@ -33,6 +33,10 @@
 # starts at once instead of waiting ~20 min behind it, and the merge
 # dispatches health.yml's full `gate` on the new tip — this run never writes a
 # GREEN, and without the dispatch only the two-hourly cron would clear the RED.
+# `classify` dispatches the same `gate` when the base has landed one batch
+# (`LANDINGS_PER_BATCH`, ADR 0154) since its newest verdict with no run in
+# flight (ADR 0159 § 4, issue #6990): GREEN by event, the `50 */2` cron the
+# fallback.
 name: health-early
 
 on:
@@ -54,6 +58,7 @@ jobs:
             actions: write
         outputs:
             repair: ${{ steps.repair.outputs.repair }}
+            due: ${{ steps.due.outputs.due }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -67,10 +72,19 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   SHA: ${{ github.sha }}
               run: bun run health:repair-merged --sha "$SHA"
+            # Total too: a failed read answers "not due" (the cron's turn).
+            - name: Has the base landed a batch with no verdict?
+              id: due
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ github.sha }}
+              run: bun run health:batch-due --sha "$SHA"
             # A merged repair needs the full gate on its tip at once (no
-            # `land` merge step under Mergify fires it).
-            - name: Repair merged → the full health gate on the new tip
-              if: ${{ steps.repair.outputs.repair == 'true' }}
+            # `land` merge step under Mergify fires it); so does a batch
+            # landed with no verdict (ADR 0159 § 4).
+            - name: Repair merged or batch due → the full health gate on the new tip
+              if: ${{ steps.repair.outputs.repair == 'true' || steps.due.outputs.due == 'true' }}
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}

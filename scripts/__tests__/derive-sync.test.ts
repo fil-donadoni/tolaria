@@ -44,21 +44,29 @@ import {
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
     CARD_INDEX_PATH,
+    DERIVED_LATE_LABELS,
+    DERIVED_LATE_TITLE_PREFIX,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     DERIVE_SYNC_PATHS,
     LOCKFILE_PATH,
+    PUSH_RETRY_BACKOFF_MS,
     botRegressionTitle,
     botReplayOutcome,
     botReplayPlan,
     derivePlan,
     derivedFreshness,
+    derivedLateLine,
+    derivedLateTitle,
     derivedStaleLine,
     pushDerivedCommit,
     pushOutcome,
     renderBotRegressionIssue,
+    renderDerivedLateIssue,
     runDriftSweep,
+    transientPushFailure,
     verdictCurrency,
+    type Currency,
     type DriftSweepIo,
     type GitRun,
     type ReplayRow,
@@ -533,30 +541,30 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
     });
 });
 
-describe("--settled — health waits on stale Bot verdicts within the grace, reds past it (ADR 0158 § 2b, issue #6687)", () => {
+describe("--settled — a late Bot state is reported on a GREEN verdict, never pending nor RED (ADR 0159, issue #6990)", () => {
     const t0 = 1_700_000_000_000;
-    /** `--settled`'s answer on a tree as health reads it: the printed line
-     *  through `derivePredicateAnswer`, then the grace. */
-    const judged = (verdict: ReturnType<typeof verdictCurrency>, age: number) =>
-        derivedTipVerdict({
-            stale: (() => {
-                const a = derivePredicateAnswer(
-                    verdict.fresh
-                        ? { status: 0, signal: null, output: "" }
-                        : {
-                              status: 1,
-                              signal: null,
-                              output: derivedStaleLine(verdict.why),
-                          }
-                );
-                if (a.kind === "broken") throw new Error(a.why);
-                return a.kind === "stale" ? a.why : null;
-            })(),
+    const SINCE = new Date(t0).toISOString();
+    /** `--settled`'s answer on a tree as health reads it: the printed lines
+     *  through `derivePredicateAnswer`, then `derivedTipVerdict` at `age`. */
+    const judged = (verdict: Currency, age: number) => {
+        const a = derivePredicateAnswer({
+            status: 0,
+            signal: null,
+            output: verdict.current
+                ? "derive:sync: this tree is derived-fresh and its Bot verdicts are current\n"
+                : `${derivedLateLine(verdict.why, SINCE)}\nderive:sync: late by 5 min, within the 60-minute grace — not filed\n`,
+        });
+        if (a.kind !== "fresh") throw new Error(a.kind);
+        return derivedTipVerdict({
+            stale: null,
+            late: a.late ?? null,
             committedAtMs: t0,
             nowMs: t0 + age,
         });
+    };
+    const AGES = [5 * 60_000, DERIVED_GRACE_MS, 24 * 3_600_000];
 
-    it("a tip with stale rows is pending within the grace and RED with cause derive:sync past it", () => {
+    it("stale rows are the drift sweep's lateness: fresh at ANY age, the line on the record — no pending, no RED (today: RED past the grace)", () => {
         const tip = mergedTip();
         const verdict = verdictCurrency({
             stale: staleOf(tip.lock, tip.corpus).map((c) => c.name),
@@ -564,52 +572,150 @@ describe("--settled — health waits on stale Bot verdicts within the grace, red
             treeBotHash: BOT,
             openRegression: null,
         });
-        expect(verdict.fresh).toBe(false);
-        const pending = judged(verdict, 5 * 60_000);
-        expect(pending.kind).toBe("pending");
-        if (pending.kind !== "pending") return;
-        expect(pending.reason).toContain("3 `ready` row(s)");
-        expect(pending.reason).toContain("Drift Bear 1");
-        const red = judged(verdict, DERIVED_GRACE_MS);
-        expect(red.kind).toBe("red");
-        if (red.kind !== "red") return;
-        expect(red.reason).toContain("derive:sync");
+        expect(verdict.current).toBe(false);
+        if (verdict.current) return;
+        expect(verdict.kind).toBe("drift");
+        expect(verdict.why).toContain("3 `ready` row(s)");
+        expect(verdict.why).toContain("Drift Bear 1");
+        for (const age of AGES) {
+            const v = judged(verdict, age);
+            expect(v.kind).toBe("fresh");
+            if (v.kind !== "fresh") return;
+            expect(v.late).toBe(`stale since ${SINCE}: ${verdict.why}`);
+        }
     });
 
-    it("a header Bot hash that is not the tree's is stale — unless this Bot's regression issue is open", () => {
+    it("a header Bot hash that is not the tree's is the replay's lateness — fresh at any age; current when this Bot's regression issue is open", () => {
         const moved = {
             stale: [],
             headerBotHash: "sha256:old-bot",
             treeBotHash: BOT,
         };
-        const stale = verdictCurrency({ ...moved, openRegression: null });
-        expect(stale.fresh).toBe(false);
-        if (stale.fresh) return;
-        expect(stale.why).toContain("--replay-bot");
-        expect(judged(stale, 5 * 60_000).kind).toBe("pending");
+        const late = verdictCurrency({ ...moved, openRegression: null });
+        expect(late.current).toBe(false);
+        if (late.current) return;
+        expect(late.kind).toBe("bot-hash");
+        expect(late.why).toContain("--replay-bot");
+        for (const age of AGES) {
+            const v = judged(late, age);
+            expect(v.kind).toBe("fresh");
+            if (v.kind !== "fresh") return;
+            expect(v.late).toContain("stale since");
+            expect(v.late).toContain("--replay-bot");
+        }
         expect(verdictCurrency({ ...moved, openRegression: 4242 })).toEqual({
-            fresh: true,
+            current: true,
         });
     });
 
-    it("current rows under the tree's Bot are settled — gated as ever", () => {
-        expect(
-            verdictCurrency({
-                stale: [],
-                headerBotHash: BOT,
-                treeBotHash: BOT,
-                openRegression: null,
-            })
-        ).toEqual({ fresh: true });
+    it("current rows under the tree's Bot are current — a plain fresh verdict, no line", () => {
+        const current = verdictCurrency({
+            stale: [],
+            headerBotHash: BOT,
+            treeBotHash: BOT,
+            openRegression: null,
+        });
+        expect(current).toEqual({ current: true });
+        expect(judged(current, DERIVED_GRACE_MS)).toEqual({ kind: "fresh" });
         const many = verdictCurrency({
             stale: Array.from({ length: 8 }, (_, i) => `Card ${i}`),
             headerBotHash: BOT,
             treeBotHash: BOT,
             openRegression: null,
         });
-        expect(many.fresh).toBe(false);
-        if (many.fresh) return;
+        expect(many.current).toBe(false);
+        if (many.current) return;
         expect(many.why).toContain("Card 4, … 3 more");
+    });
+
+    it("a derived-STALE tree — the header's compiler hash, the catalogue bytes — is still pending within the grace and RED past it: the tree disagrees with itself", () => {
+        const stale = derivedStaleLine(
+            "data/catalogue/source-hash.json is not what the tree generates"
+        );
+        const a = derivePredicateAnswer({
+            status: 1,
+            signal: null,
+            output: stale,
+        });
+        expect(a.kind).toBe("stale");
+        if (a.kind !== "stale") return;
+        expect(
+            derivedTipVerdict({
+                stale: a.why,
+                committedAtMs: t0,
+                nowMs: t0 + 5 * 60_000,
+            }).kind
+        ).toBe("pending");
+        const red = derivedTipVerdict({
+            stale: a.why,
+            committedAtMs: t0,
+            nowMs: t0 + DERIVED_GRACE_MS,
+        });
+        expect(red.kind).toBe("red");
+        if (red.kind !== "red") return;
+        expect(red.reason).toContain("source-hash.json");
+    });
+
+    it("the late issue: one title per Bot hash for the replay (idempotent across runs), one standing title for the drift sweep; the body names the range, the runs, a push failure, the stamp", () => {
+        expect(derivedLateTitle("bot-hash", BOT)).toBe(
+            derivedLateTitle("bot-hash", BOT)
+        );
+        expect(derivedLateTitle("bot-hash", BOT)).toContain("Bot bot-of-the-t");
+        expect(derivedLateTitle("bot-hash", "sha256:other")).not.toBe(
+            derivedLateTitle("bot-hash", BOT)
+        );
+        expect(derivedLateTitle("drift", BOT)).toBe(
+            derivedLateTitle("drift", "sha256:other")
+        );
+        // Not `bug`: `bug` + `area:workflow` is board P0 by rule (issue #6902).
+        expect(DERIVED_LATE_LABELS).toEqual(["enhancement", "area:workflow"]);
+        expect(
+            derivedLateTitle("drift", BOT).startsWith(DERIVED_LATE_TITLE_PREFIX)
+        ).toBe(true);
+        expect(
+            derivedLateTitle("bot-hash", BOT).startsWith(
+                DERIVED_LATE_TITLE_PREFIX
+            )
+        ).toBe(true);
+        const body = renderDerivedLateIssue({
+            sha: "abcdef0123456789",
+            kind: "bot-hash",
+            why: "the lockfile header's Bot hash sha256:old-bot is not the tree's",
+            sinceIso: SINCE,
+            lateMinutes: 183,
+            headerBotHash: "sha256:old-bot",
+            treeBotHash: BOT,
+            range: "1111111111..HEAD",
+            commits: ["2222222 search: deeper horizon"],
+            runs: ["2026-10-25T11:30:00Z push failure: https://x/runs/1"],
+            pushFailure: "no answer within 120s (4 attempts)",
+        });
+        expect(body).toContain("## Agent Brief");
+        expect(body).toContain("late by 183 min (stale since " + SINCE);
+        expect(body).toContain("`bot-replay`");
+        expect(body).toContain("`1111111111..HEAD`");
+        expect(body).toContain("- 2222222 search: deeper horizon");
+        expect(body).toContain("https://x/runs/1");
+        expect(body).toContain("no answer within 120s (4 attempts)");
+        expect(body).toContain("bot-replay-lockfile");
+        expect(body).toContain("## Band");
+        expect(body).toContain("nothing is blocked");
+        const drift = renderDerivedLateIssue({
+            sha: "abcdef0123456789",
+            kind: "drift",
+            why: "3 `ready` row(s) carry no Bot verdict",
+            sinceIso: SINCE,
+            lateMinutes: 61,
+            headerBotHash: BOT,
+            treeBotHash: BOT,
+            range: "HEAD",
+            commits: [],
+            runs: [],
+        });
+        expect(drift).toContain("`housekeeping`'s drift sweep");
+        expect(drift).toContain("no Bot-source commit found");
+        expect(drift).toContain("could not list the runs");
+        expect(drift).not.toContain("could not push");
     });
 });
 
@@ -974,6 +1080,154 @@ describe("pushDerivedCommit — landed / coalesced / failed against a bare remot
         const r = pushDerivedCommit(refusing, input(sha, head));
         expect(r.outcome).toBe("failed");
         expect(r.why).toBe("fatal: unable to access");
+        expect(r.attempts).toBe(1);
         expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(head);
+    });
+
+    // ADR 0159 § 3 (issue #6990): on 2026-10-25 two 75-min sweeps were
+    // discarded on one 120 s push timeout each.
+    it("retries a transient refusal with backoff and lands: a push that times out twice then succeeds is one commit on the base, no discarded sweep", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const real = runner(clone);
+        let pushes = 0;
+        const flaky: GitRun = (args, opts) => {
+            if (args[0] !== "push") return real(args, opts);
+            pushes += 1;
+            return pushes <= 2
+                ? { status: null, stdout: "", stderr: "", timedOut: true }
+                : real(args, opts);
+        };
+        const slept: number[] = [];
+        const notes: string[] = [];
+        const r = pushDerivedCommit(flaky, {
+            ...input(sha, head),
+            retry: {
+                backoffMs: [1, 2, 3],
+                sleep: (ms) => slept.push(ms),
+                note: (line) => notes.push(line),
+            },
+        });
+        expect(r.outcome).toBe("landed");
+        expect(r.attempts).toBe(3);
+        expect(slept).toEqual([1, 2]);
+        expect(notes).toHaveLength(2);
+        expect(notes[0]).toMatch(
+            /no answer within 10s.*retrying in 0s \(1\/3\)/
+        );
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(sha);
+    });
+
+    it("gives the sweep up only once the backoff is spent — failed, the attempts counted; a refusal that is not transient is never retried", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const real = runner(clone);
+        let pushes = 0;
+        const down: GitRun = (args, opts) => {
+            if (args[0] !== "push") return real(args, opts);
+            pushes += 1;
+            return {
+                status: 128,
+                stdout: "",
+                stderr: "fatal: unable to access 'https://github.com/o/r/': Could not resolve host: github.com\n",
+            };
+        };
+        const slept: number[] = [];
+        const r = pushDerivedCommit(down, {
+            ...input(sha, head),
+            retry: {
+                backoffMs: PUSH_RETRY_BACKOFF_MS,
+                sleep: (ms) => slept.push(ms),
+            },
+        });
+        expect(r.outcome).toBe("failed");
+        expect(pushes).toBe(PUSH_RETRY_BACKOFF_MS.length + 1);
+        expect(r.attempts).toBe(pushes);
+        expect(slept).toEqual([...PUSH_RETRY_BACKOFF_MS]);
+        expect(r.why).toMatch(/Could not resolve host.*\(4 attempts\)/);
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(head);
+
+        pushes = 0;
+        const hook: GitRun = (args, opts) => {
+            if (args[0] !== "push") return real(args, opts);
+            pushes += 1;
+            return {
+                status: 1,
+                stdout: "",
+                stderr: "remote: declined\n ! [remote rejected] x -> staging (pre-receive hook declined)\n",
+            };
+        };
+        const r2 = pushDerivedCommit(hook, {
+            ...input(sha, head),
+            retry: {
+                backoffMs: PUSH_RETRY_BACKOFF_MS,
+                sleep: () => {
+                    throw new Error("slept on a refusal");
+                },
+            },
+        });
+        expect(r2.outcome).toBe("failed");
+        expect(pushes).toBe(1);
+        expect(r2.why).toBe(
+            "! [remote rejected] x -> staging (pre-receive hook declined)"
+        );
+        // Without `retry` (the derive commit before ADR 0159), one attempt.
+        pushes = 0;
+        expect(pushDerivedCommit(down, input(sha, head)).attempts).toBe(1);
+        expect(pushes).toBe(1);
+    });
+
+    it("transientPushFailure: a timeout or the network, never a refusal", () => {
+        const answer = (stderr: string, timedOut?: boolean) => ({
+            status: 1,
+            stdout: "",
+            stderr,
+            timedOut,
+        });
+        expect(transientPushFailure(answer("", true))).toBe(true);
+        expect(
+            transientPushFailure(answer("error: RPC failed; HTTP 502 curl 22"))
+        ).toBe(true);
+        expect(
+            transientPushFailure(
+                answer("fatal: the remote end hung up unexpectedly")
+            )
+        ).toBe(true);
+        expect(
+            transientPushFailure(
+                answer("ssh: connect to host: Connection timed out")
+            )
+        ).toBe(true);
+        expect(
+            transientPushFailure(
+                answer(" ! [rejected] x -> staging (stale info)")
+            )
+        ).toBe(false);
+        expect(
+            transientPushFailure(answer("remote: Permission to o/r denied"))
+        ).toBe(false);
+        // Credentials and size refusals repeat: never retried.
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': The requested URL returned error: 403"
+                )
+            )
+        ).toBe(false);
+        expect(
+            transientPushFailure(answer("error: RPC failed; HTTP 413 curl 22"))
+        ).toBe(false);
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': The requested URL returned error: 502"
+                )
+            )
+        ).toBe(true);
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': Failed to connect to github.com port 443"
+                )
+            )
+        ).toBe(true);
     });
 });

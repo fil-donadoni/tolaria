@@ -13,7 +13,10 @@
 #
 # `job: ladder` is the same ladder for a RED someone else found:
 # health-early.yml (a GitHub-hosted run after a batch of merges) dispatches
-# it with the RED's sha. Every job re-dispatches `pr-gate` when it is done, so
+# it with the RED's sha. `job: gate` is also dispatched by event (ADR 0159
+# § 4): health-early's `classify` sends it when a declared repair merges and
+# when the base has landed a batch (`LANDINGS_PER_BATCH`) with no verdict —
+# the two-hourly schedule is the fallback, not the clock that decides GREEN. Every job re-dispatches `pr-gate` when it is done, so
 # the queue's `base-health` follows the verdict. A RED left standing fails the
 # job: GitHub's failed-run email is the owner's notice.
 #
@@ -46,6 +49,14 @@ jobs:
         name: health (base tip)
         if: ${{ github.event_name == 'schedule' || inputs.job == 'gate' }}
         runs-on: [self-hosted, lane]
+        # One gate at a time across machines (ADR 0159 § 4): the gate is
+        # dispatched by event too — a repair merged, a batch of landings
+        # with no verdict (health-early's `classify`) — and two in flight
+        # would prove one tip twice; a pending run dropped loses nothing,
+        # the next run re-reads the tip.
+        concurrency:
+            group: health-gate
+            cancel-in-progress: false
         timeout-minutes: 300
         steps:
             - name: Job worktree

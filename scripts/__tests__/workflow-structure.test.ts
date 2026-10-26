@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
     checkStructure,
     formatViolation,
+    HOST_PINNED_JOBS,
     isSelfHosted,
     JOB_SETUP_FILE,
     SUPERSEDED_GROUP,
@@ -673,6 +674,31 @@ describe("workflow structure guard", () => {
             "runs-on:\n      group: ours\n      labels: [lane, host:huawei]"
         );
         expect(rules(fixture({ self: grouped }))).toEqual(["host-pinned"]);
+    });
+
+    it("waives host-pinned for a HOST_PINNED_JOBS job only — the replay pins the fast host (ADR 0159, issue #6990)", () => {
+        expect([...HOST_PINNED_JOBS.keys()]).toEqual([
+            ".github/workflows/post-merge.yml#bot-replay",
+        ]);
+        const pinned = edit(
+            SELF_HOSTED,
+            "runs-on: [self-hosted, lane]",
+            "runs-on: [self-hosted, lane, host:macbook]\n    concurrency:\n      group: post-merge-bot-replay\n      cancel-in-progress: false"
+        );
+        // The same job text under the waived path and id: no violation…
+        const replay = edit(pinned, "jobs:\n  lane:", "jobs:\n  bot-replay:");
+        const input = fixture({ self: replay });
+        const asPostMerge: StructureInput = {
+            ...input,
+            workflows: input.workflows.map((w) =>
+                w.path === ".github/workflows/self.yml"
+                    ? { ...w, path: ".github/workflows/post-merge.yml" }
+                    : w
+            ),
+        };
+        expect(rules(asPostMerge)).toEqual([]);
+        // …and under any other id or path the pin is still refused.
+        expect(rules(fixture({ self: replay }))).toContain("host-pinned");
     });
 
     it("refuses actions/checkout on a self-hosted job", () => {
