@@ -1045,15 +1045,24 @@ export function issuesWorkedByPrs(
             `gaps:sync: ${rows.length} open PRs fill the page of ${limit} — cannot tell which Gap Clusters have an open PR`
         );
     const issues = new Set<number>();
-    for (const row of rows) {
-        const branch = /issue-(\d+)$/.exec(row.headRefName);
-        if (branch !== null) issues.add(Number(branch[1]));
-        for (const m of row.body.matchAll(
-            /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi
-        ))
-            issues.add(Number(m[1]));
-    }
+    for (const row of rows) for (const n of issuesOfPr(row)) issues.add(n);
     return issues;
+}
+
+/** The issues ONE pull request works on — its branch (`…issue-N`) or a
+ *  closing keyword in its body. */
+export function issuesOfPr(row: {
+    readonly headRefName: string;
+    readonly body: string;
+}): number[] {
+    const issues = new Set<number>();
+    const branch = /issue-(\d+)$/.exec(row.headRefName);
+    if (branch !== null) issues.add(Number(branch[1]));
+    for (const m of row.body.matchAll(
+        /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi
+    ))
+        issues.add(Number(m[1]));
+    return [...issues];
 }
 
 /**
