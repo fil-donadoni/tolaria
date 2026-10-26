@@ -5,6 +5,7 @@ import { isAgent } from "std-env";
 import { join } from "node:path";
 import {
     collectDurations,
+    collectFileWalls,
     DurationReporter,
     durationReporterOption,
     type DurationModule,
@@ -17,6 +18,7 @@ import {
     headroomView,
     parseDurationFile,
     readDurations,
+    readFileWalls,
     readHeadroomRun,
     worstPerTest,
     type TestDuration,
@@ -143,6 +145,98 @@ describe("the reporter seam — collectDurations", () => {
                     durationMs: 24_000,
                     timeoutMs: 30_000,
                     state: "failed",
+                },
+            ]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    /** `fakeModule` plus the module-level diagnostic vitest gives a
+     *  `TestModule` (issue #6943). */
+    const withWall = (
+        m: DurationModule,
+        phases: number[],
+        state = "passed"
+    ): DurationModule => ({
+        ...m,
+        state: () => state,
+        diagnostic: () => ({
+            environmentSetupDuration: phases[0],
+            prepareDuration: phases[1],
+            collectDuration: phases[2],
+            setupDuration: phases[3],
+            duration: phases[4],
+        }),
+    });
+
+    it("records each bot file's wall — every phase, whatever its share of a budget (issue #6943)", () => {
+        const out = collectFileWalls(
+            [
+                // A census: 3 ms of assertions, 1.9 s of import.
+                withWall(
+                    fakeModule(
+                        "/repo/convex/c.bot.test.ts",
+                        "bot-node",
+                        60_000,
+                        [{ name: "t", duration: 3 }]
+                    ),
+                    [10, 20, 1_900, 5, 3.4]
+                ),
+                withWall(
+                    fakeModule(
+                        "/repo/src/d.bot.test.tsx",
+                        "bot-dom",
+                        60_000,
+                        []
+                    ),
+                    [100, 0, 50, 0, 0],
+                    "failed"
+                ),
+                // Not a bot project: the lane never admits it by cost.
+                withWall(
+                    fakeModule(
+                        "/repo/convex/e.test.ts",
+                        "node-engine",
+                        30_000,
+                        []
+                    ),
+                    [1, 1, 1, 1, 1]
+                ),
+            ],
+            "/repo"
+        );
+        expect(out).toEqual([
+            {
+                file: "convex/c.bot.test.ts",
+                project: "bot-node",
+                wallMs: 1_938,
+                state: "passed",
+            },
+            {
+                file: "src/d.bot.test.tsx",
+                project: "bot-dom",
+                wallMs: 150,
+                state: "failed",
+            },
+        ]);
+    });
+
+    it("onTestRunEnd writes the file walls the cost table reads back", () => {
+        const dir = mkdtempSync(join(tmpdir(), "headroom-reporter-"));
+        try {
+            new DurationReporter(dir, "/repo").onTestRunEnd([
+                withWall(
+                    fakeModule("/repo/x.bot.test.ts", "bot-node", 60_000, []),
+                    [0, 0, 700, 0, 12]
+                ),
+            ] as never);
+            expect(readFileWalls(dir)).toEqual([
+                {
+                    file: "x.bot.test.ts",
+                    project: "bot-node",
+                    wallMs: 712,
+                    state: "passed",
                 },
             ]);
         } finally {
