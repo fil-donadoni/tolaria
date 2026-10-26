@@ -22,6 +22,7 @@ import type {
     CostReductionAmount,
     DelayedTriggerTiming,
     EffectCardFilter,
+    CombatRole,
     EffectOp,
     EmblemInstance,
     EnchantRestriction,
@@ -3709,7 +3710,7 @@ export type PendingTarget = {
     /** If set, restricts to permanents in the named combat role(s) (CR 508.1 /
      *  509.1, "target attacking/blocking creature"). Propagated from
      *  TargetRequirement.combatRoleFilter. */
-    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+    combatRoleFilter?: CombatRole | CombatRole[];
     /** If set, restricts to creatures blocking or blocked by this instance
      *  (CR 509.1g, Cromat). Propagated from TargetRequirement.combatPartnerOf,
      *  itself bound from `combatPartnerOfSource` to the ability's source. */
