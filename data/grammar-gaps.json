@@ -128,11 +128,6 @@
             "issue": 5180
         },
         {
-            "key": "(op) › revealTopAndRoute",
-            "op": "revealTopAndRoute",
-            "issue": 5691
-        },
-        {
             "key": "(op) › setLevel",
             "op": "setLevel",
             "issue": 4534
