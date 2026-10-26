@@ -72,14 +72,15 @@ function stateWithPick(overrides: Partial<PendingChoice> = {}): GameState {
 
 describe("choose-damage-target without allControllers (issue #6941)", () => {
     it("live Bot view submits one of the opponent's permanents", () => {
-        const state = stateWithPick();
+        // Permanents only: a player candidate would mask an empty pool.
+        const state = stateWithPick({ candidatePlayerIds: [] });
         const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
         expect(view.owedInput?.kind).toBe("choice");
         const action = escalationLadder("choice", view)[0].action;
         expect(action.kind).toBe("resolution-choice");
         if (action.kind !== "resolution-choice") throw new Error("kind");
         expect(action.cardInstanceIds).toHaveLength(1);
-        expect(["opp-1", "opp-2", "p1"]).toContain(action.cardInstanceIds[0]);
+        expect(["opp-1", "opp-2"]).toContain(action.cardInstanceIds[0]);
     });
 
     it("self-play lister agrees with the live pool (permanents)", () => {
