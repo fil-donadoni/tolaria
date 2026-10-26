@@ -1630,11 +1630,15 @@ export function repairItems(
     /** Issues whose claim reads `live`: a repair already under way (a pass
      *  re-claimed it) is not offered again — the other machine's pass would
      *  only collide on `queue:claim`. */
-    working: ReadonlySet<number> = new Set()
+    working: ReadonlySet<number> = new Set(),
+    /** PRs past the repair cap (issue #6649, `cappedRepairPrs`): handed to a
+     *  human, never offered again. */
+    capped: { has(pr: number): boolean } = new Set()
 ): RepairItem[] {
     return [...prs]
         .sort((a, b) => a.number - b.number)
         .flatMap((pr) => {
+            if (capped.has(pr.number)) return [];
             const m = /^(?:feat|fix)\/issue-(\d+)$/.exec(pr.headRefName);
             if (!m) return [];
             const number = Number(m[1]);
