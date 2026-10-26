@@ -85,8 +85,8 @@
  *   - `lane-role` — a self-hosted job outside `LANE_JOBS` whose `runs-on`
  *     carries the `lane` role (or a whole-label expression that could
  *     resolve to it): the `lane` runner serves the gates a merge or a verdict
- *     waits on, and a maintenance job there holds the queue (ADR 0160,
- *     issue #6653). Maintenance runs on `maint`.
+ *     waits on, and a maintenance job there holds the queue (ADR 0160).
+ *     Maintenance runs on `maint`.
  *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 1, or a
  *     queue rule with a `batch_size` other than 1 (ADR 0156 §3, ADR 0160).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the

@@ -2,7 +2,7 @@
 /**
  * `bun run housekeeping` — the GitHub-bound post-merge steps `land` used to
  * run inside the mutex (ADR 0154 §5, issue #5457), as an hourly job of
- * `post-merge.yml` on ANY `maint` runner (issues #5873, #6653).
+ * `post-merge.yml` on ANY lane runner (issue #5873).
  *
  * Nobody in a session waits for them, and a GitHub 502 inside `land` cost the
  * session a landing that looked failed on a PR that had merged. Here a 502

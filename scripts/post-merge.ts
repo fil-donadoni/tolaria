@@ -33,7 +33,7 @@
  * (`.claude/telemetry/post-merge/notice.json` beside the log remembers the
  * last one; a green leg clears it). What this leg cannot heal is the owner's
  * — nothing else on the machine depends on it: `housekeeping` and `nightly`
- * run on any `maint` runner (ADR 0160) and never touch the primary.
+ * run on any lane runner and never touch the primary.
  *
  * The decisions are `lib/post-merge.ts`; this file is the I/O.
  */
