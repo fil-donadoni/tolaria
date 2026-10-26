@@ -137,7 +137,9 @@ export function graveyardStaticSources(
 ): PermanentView[] {
     const sources: PermanentView[] = [];
     for (const player of state.players) {
-        for (const card of player.graveyard) {
+        // A synthetic one-card board (`recomposeLayers2to5ForInstance`) may
+        // carry no graveyard at all.
+        for (const card of player.graveyard ?? []) {
             const cardId = (card.card as { id?: string } | undefined)?.id;
             if (!cardId || card.id === undefined) continue;
             if (card.zoneStaticSeq === undefined) continue;
@@ -495,7 +497,7 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     }
     return {
         battlefieldSizes: state.players.map((p) => p.battlefield.length),
-        graveyardSizes: state.players.map((p) => p.graveyard.length),
+        graveyardSizes: state.players.map((p) => p.graveyard?.length ?? 0),
         emblemCount: state.emblems?.length ?? 0,
         candidates,
     };
@@ -516,7 +518,9 @@ function planCoversBoard(
     if (sizes.length !== state.players.length) return false;
     for (let i = 0; i < sizes.length; i++) {
         if (sizes[i] !== state.players[i].battlefield.length) return false;
-        if (plan.graveyardSizes[i] !== state.players[i].graveyard.length) {
+        if (
+            plan.graveyardSizes[i] !== (state.players[i].graveyard?.length ?? 0)
+        ) {
             return false;
         }
     }

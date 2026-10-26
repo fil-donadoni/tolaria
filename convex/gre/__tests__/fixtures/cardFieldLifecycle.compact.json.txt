@@ -231,6 +231,7 @@
           },
           "worldSeq": 12,
           "staticSeq": 13,
+          "zoneStaticSeq": 14,
           "activationsThisTurn": {
             "ab-1": 1
           },
@@ -632,6 +633,7 @@
       },
       "worldSeq": 12,
       "staticSeq": 13,
+      "zoneStaticSeq": 14,
       "activationsThisTurn": {
         "ab-1": 1
       },
