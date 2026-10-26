@@ -15496,4 +15496,85 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6523 — the root decision is the live `choose-outside-game-card` pick (CR 400.11b), reached by really casting and resolving Burning Wish. Declining leaves the bot a card down for the two mana it already spent.",
     },
+    {
+        // FUTILE KICKER (issue #6904) — a discriminating pair. Thornscape
+        // Battlemage's {W} Kicker is read only by "destroy target artifact";
+        // with no artifact on the board that trigger is removed from the stack
+        // (CR 603.3d), so paying {W} is the unkicked cast one land poorer. The
+        // pair differs only in the opposing Sol Ring.
+        label: "futile Kicker: casts Thornscape Battlemage without the {W} Kicker when no artifact stands",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an artifact for the {W} Kicker trigger to destroy",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Thornscape Battlemage", owner: "me", zone: "hand" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.["kicker-w"] ?? 0) === 0,
+            describe:
+                "casts Thornscape Battlemage without paying the {W} Kicker",
+        },
+        note: "Issue #6904 — Bot-only prune `withoutFutileKickerVariants` (`gre/ai/futileKicker.ts`), the sibling of the evoke prune (issue #4900). Pair with the next entry.",
+    },
+    {
+        label: "futile Kicker: casts Thornscape Battlemage {W}-kicked to destroy an opposing artifact",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an artifact for the {W} Kicker trigger to destroy",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Thornscape Battlemage", owner: "me", zone: "hand" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Sol Ring", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.["kicker-w"] ?? 0) > 0,
+            describe: "casts Thornscape Battlemage paying the {W} Kicker",
+        },
+        note: "Issue #6904 — the other half of the pair: with an artifact the {W}-kicked variants are offered again, and the Bot takes the Sol Ring.",
+    },
 ];
