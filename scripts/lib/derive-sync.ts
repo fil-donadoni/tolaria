@@ -191,8 +191,9 @@ export interface DriftSweepResult {
  * either way. A play or an index that fails (a wall, machine admission's
  * exit 77, Scryfall) falls back to the carry: the header and catalogue
  * commit must still land — a stale verdict never holds the deployment (ADR
- * 0158 § 2b) — and the misses stay stale, which health waits on through
- * `--settled` and reds past the grace. `lost` is read over the misses only:
+ * 0158 § 2b) — and the misses stay stale, which health reports as late
+ * through `--settled` (an issue past the grace, never a RED: ADR 0159).
+ * `lost` is read over the misses only:
  * a card that left `ready` for a compiler or registry reason is not the
  * sweep's.
  */
@@ -201,7 +202,7 @@ export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     const carried = (why: string | null): DriftSweepResult => {
         if (why !== null)
             io.warn(
-                `${why} — carrying the verdicts instead: the header and catalogue still land, the ${misses.size} miss(es) stay stale for the next run (health waits on them, ADR 0158 § 2b)`
+                `${why} — carrying the verdicts instead: the header and catalogue still land, the ${misses.size} miss(es) stay stale for the next run (health reports them late, never waits, ADR 0159)`
             );
         return { ok: io.carry(), indexed: false };
     };
@@ -240,28 +241,49 @@ export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     return carried("`oracle:index` failed for the newly `ready` card(s)");
 }
 
+/** Which maintenance job a late tip waits on: the drift sweep
+ *  (`housekeeping`'s `derive:sync`, a stale `ready` row) or the Bot-play
+ *  replay (`bot-replay`, the header's Bot hash). */
+export type LateKind = "drift" | "bot-hash";
+
 /**
- * Health's question beside {@link derivedFreshness} (ADR 0158 § 2b): are the
- * tip's Bot-play verdicts CURRENT? Stale when a `ready` row carries no
- * verdict for the definition the tip compiles (`stale`, card names: the
- * drift sweep's to play) or when the header's Bot hash is not the tree's
- * (`--replay-bot`'s to replay) — unless this Bot's regression issue is open:
- * the replay already ran and refused to commit, and waiting on it is waiting
- * on a Bot fix, not on the writer. The deployment never asks this
- * (`derive:sync --fresh`): a stale verdict breaks no game.
+ * Whether the tip's Bot-play verdicts are CURRENT, or a maintenance job is
+ * LATE with them. Never a freshness: a late verdict is reported on the
+ * verdict and, past the grace, filed as an issue — it holds no GREEN and
+ * makes no RED (ADR 0159, issue #6990). The tests, the guards and the blade
+ * judge the tree; the lockfile's Bot state says whether a job caught up.
+ */
+export type Currency =
+    | { readonly current: true }
+    | {
+          readonly current: false;
+          readonly kind: LateKind;
+          readonly why: string;
+      };
+
+/**
+ * Health's question beside {@link derivedFreshness} (ADR 0158 § 2b, ADR
+ * 0159): are the tip's Bot-play verdicts CURRENT? Late when a `ready` row
+ * carries no verdict for the definition the tip compiles (`stale`, card
+ * names: the drift sweep's to play) or when the header's Bot hash is not the
+ * tree's (`--replay-bot`'s to replay) — unless this Bot's regression issue
+ * is open: the replay already ran and refused to commit, and waiting on it
+ * is waiting on a Bot fix, not on the writer. The deployment never asks this
+ * (`derive:sync --fresh`): a stale Bot verdict breaks no game.
  */
 export function verdictCurrency(input: {
     readonly stale: readonly string[];
     readonly headerBotHash: string;
     readonly treeBotHash: string;
     readonly openRegression: number | null;
-}): Freshness {
+}): Currency {
     if (input.stale.length > 0) {
         const shown = input.stale.slice(0, 5).join(", ");
         const more =
             input.stale.length > 5 ? `, … ${input.stale.length - 5} more` : "";
         return {
-            fresh: false,
+            current: false,
+            kind: "drift",
             why: `${input.stale.length} \`ready\` row(s) carry no Bot verdict for the definition the tip compiles (${shown}${more}) — derive:sync's drift sweep plays them`,
         };
     }
@@ -270,16 +292,105 @@ export function verdictCurrency(input: {
         input.openRegression === null
     )
         return {
-            fresh: false,
+            current: false,
+            kind: "bot-hash",
             why: `the lockfile header's Bot hash ${input.headerBotHash.slice(0, 19)} is not the tree's ${input.treeBotHash.slice(0, 19)} — derive:sync --replay-bot replays the catalogue`,
         };
-    return { fresh: true };
+    return { current: true };
 }
 
 /** The line `--fresh` / `--settled` print on a stale tree — the one
  *  `derivePredicateAnswer` (`lib/health-step.ts`) reads the reason from. */
 export function derivedStaleLine(why: string): string {
     return `derive:sync: this tree is derived-stale — ${why}`;
+}
+
+/** The mark `--settled`'s late line carries — what `derivePredicateAnswer`
+ *  finds it by on a fresh (exit 0) answer. */
+export const DERIVED_LATE_MARK = "derived state is late";
+
+/** The line `--settled` prints, exit 0, when a maintenance job is late with
+ *  the tip's Bot state (ADR 0159): since when, then the reason. Health
+ *  carries everything after the dash onto its GREEN record. */
+export function derivedLateLine(why: string, sinceIso: string): string {
+    return `derive:sync: this tree's ${DERIVED_LATE_MARK} — stale since ${sinceIso}: ${why}`;
+}
+
+/** The labels the late issue is stamped with at filing
+ *  (`docs/agents/triage-labels.md` § Every new issue is stamped). */
+export const DERIVED_LATE_LABELS: readonly string[] = ["bug", "area:workflow"];
+
+/** The late issue's title — one per Bot hash for a late replay (the fix is
+ *  that replay's commit, which moves the header), one standing title for a
+ *  late drift sweep: the open one is found by it, and the same lateness is
+ *  never filed twice. */
+export function derivedLateTitle(kind: LateKind, treeBotHash: string): string {
+    return kind === "bot-hash"
+        ? `Derived state late: the Bot-play replay has not caught up with Bot ${treeBotHash.replace(/^sha256:/, "").slice(0, 12)}`
+        : "Derived state late: the drift sweep has not played the tip's Bot-verdict misses";
+}
+
+/**
+ * The late issue's body (ADR 0159): what is late and since when, the commit
+ * range that moved the Bot hash (`commits` are its Bot-source commits, `%h
+ * %s` each, newest first), the latest `post-merge` runs (the replay's job
+ * lives there), a push failure when the replay itself reported one, and the
+ * filing stamp's `## Band` (standalone — no umbrella lends it one).
+ */
+export function renderDerivedLateIssue(input: {
+    readonly sha: string;
+    readonly kind: LateKind;
+    readonly why: string;
+    readonly sinceIso: string;
+    readonly lateMinutes: number;
+    readonly headerBotHash: string;
+    readonly treeBotHash: string;
+    readonly range: string;
+    readonly commits: readonly string[];
+    readonly runs: readonly string[];
+    readonly pushFailure?: string;
+}): string {
+    const job =
+        input.kind === "bot-hash"
+            ? "`bot-replay` (`derive:sync --replay-bot`, `post-merge.yml`)"
+            : "`housekeeping`'s drift sweep (`derive:sync`, `post-merge.yml`)";
+    const commits =
+        input.commits.length === 0
+            ? "- (no Bot-source commit found in the range — the hash moved with the range itself)"
+            : input.commits.map((c) => `- ${c}`).join("\n");
+    const runs =
+        input.runs.length === 0
+            ? "- (could not list the runs — `gh run list --workflow post-merge.yml`)"
+            : input.runs.map((r) => `- ${r}`).join("\n");
+    return [
+        "## Agent Brief",
+        "",
+        "**Category:** bug",
+        `**Summary:** on \`${input.sha.slice(0, 10)}\` the derived Bot state is late by ${input.lateMinutes} min (stale since ${input.sinceIso}): ${input.why}. ${job} owes it and has not caught up within the grace. Health stays GREEN on the tree's own terms (ADR 0159, issue #6990) — nothing is blocked; the lockfile the sessions read is behind until the job lands.`,
+        "",
+        ...(input.pushFailure === undefined
+            ? []
+            : [
+                  `**The replay ran and could not push:** ${input.pushFailure}. Its swept lockfile is the run's artifact (\`bot-replay-lockfile\`).`,
+                  "",
+              ]),
+        `**Lockfile header Bot hash:** \`${input.headerBotHash}\`; **tree:** \`${input.treeBotHash}\`.`,
+        "",
+        `**Commit range that moved the Bot hash:** \`${input.range}\`, Bot-source commits:`,
+        "",
+        commits,
+        "",
+        "**Latest `post-merge` runs:**",
+        "",
+        runs,
+        "",
+        "**Desired behavior:** the job's next run lands its commit on the base (`gh workflow run post-merge.yml --ref staging -f job=bot-replay` re-dispatches the replay by hand; `-f job=housekeeping` the drift sweep). Once the header's Bot hash is the tree's and no `ready` row lacks a verdict, `derive:sync --settled` prints no late line and this issue closes. A run that keeps failing names the cause in its log — fix the runner, the push or the sweep, never the predicate.",
+        "",
+        "## Band",
+        "",
+        "P2 — nothing is blocked (ADR 0159): the tree is gated on its own terms; the Bot pool the sessions read stays on the previous state until the job catches up.",
+        "",
+    ].join("\n");
 }
 
 // ── The Bot-play replay on the base (issue #6463) ─────────────────────────
@@ -531,11 +642,17 @@ export function pushDerivedCommit(
         readonly baseBranch: string;
         readonly originBase: string;
         readonly netTimeoutMs: number;
+        /** Retry a TRANSIENT failure (a timeout, the network) this many
+         *  times, sleeping `backoffMs[attempt]` before each (ADR 0159, issue
+         *  #6990). Absent: one attempt, as before. */
+        readonly retry?: PushRetry;
     }
 ): {
     readonly outcome: "landed" | "coalesced" | "failed" | "off-base";
     readonly why: string;
     readonly remoteTip: string;
+    /** How many pushes were sent. */
+    readonly attempts: number;
 } {
     // A lease that matches skips git's fast-forward check, so a `sha` not
     // built on `head` would be a FORCE push: refused here, never sent.
@@ -546,44 +663,97 @@ export function pushDerivedCommit(
             outcome: "failed",
             why: `${input.sha.slice(0, 10)} is not built on ${input.head.slice(0, 10)} — not pushed`,
             remoteTip: input.head,
+            attempts: 0,
         };
-    const push = git(
-        [
-            "push",
-            "-q",
-            `--force-with-lease=refs/heads/${input.baseBranch}:${input.head}`,
-            "origin",
-            `${input.sha}:refs/heads/${input.baseBranch}`,
-        ],
-        { timeout: input.netTimeoutMs }
-    );
-    const why = refusalLine(
-        push.stderr,
-        push.timedOut ? input.netTimeoutMs / 1000 : undefined
-    );
-    if (push.status === 0)
-        return { outcome: "landed", why, remoteTip: input.sha };
-    const fetched = git(["fetch", "-q", "origin", input.baseBranch], {
-        timeout: input.netTimeoutMs,
-    });
-    const remoteTip =
-        fetched.status === 0
-            ? git(["rev-parse", input.originBase]).stdout.trim()
-            : input.head;
-    if (remoteTip === input.sha) return { outcome: "landed", why, remoteTip };
-    const headAheadOfBase =
-        remoteTip !== input.head &&
-        git(["merge-base", "--is-ancestor", remoteTip, input.head]).status ===
-            0;
-    return {
-        outcome: pushOutcome({
+    const backoff = input.retry?.backoffMs ?? [];
+    for (let attempt = 1; ; attempt++) {
+        const push = git(
+            [
+                "push",
+                "-q",
+                `--force-with-lease=refs/heads/${input.baseBranch}:${input.head}`,
+                "origin",
+                `${input.sha}:refs/heads/${input.baseBranch}`,
+            ],
+            { timeout: input.netTimeoutMs }
+        );
+        const why = refusalLine(
+            push.stderr,
+            push.timedOut ? input.netTimeoutMs / 1000 : undefined
+        );
+        if (push.status === 0)
+            return {
+                outcome: "landed",
+                why,
+                remoteTip: input.sha,
+                attempts: attempt,
+            };
+        const fetched = git(["fetch", "-q", "origin", input.baseBranch], {
+            timeout: input.netTimeoutMs,
+        });
+        const remoteTip =
+            fetched.status === 0
+                ? git(["rev-parse", input.originBase]).stdout.trim()
+                : input.head;
+        if (remoteTip === input.sha)
+            return { outcome: "landed", why, remoteTip, attempts: attempt };
+        const headAheadOfBase =
+            remoteTip !== input.head &&
+            git(["merge-base", "--is-ancestor", remoteTip, input.head])
+                .status === 0;
+        const outcome = pushOutcome({
             pushed: false,
             remoteMoved: remoteTip !== input.head,
             headAheadOfBase,
-        }),
-        why,
-        remoteTip,
-    };
+        });
+        // Only a transient refusal with the base unmoved is worth a retry: a
+        // moved base is coalesced (the caller re-bases), a hook's or a
+        // lease's refusal repeats, a push the base has outrun is off-base.
+        const wait = backoff[attempt - 1];
+        if (
+            outcome !== "failed" ||
+            wait === undefined ||
+            !transientPushFailure(push)
+        )
+            return {
+                outcome,
+                why: attempt > 1 ? `${why} (${attempt} attempts)` : why,
+                remoteTip,
+                attempts: attempt,
+            };
+        input.retry?.note?.(
+            `push failed transiently (${why}) — retrying in ${Math.round(wait / 1000)}s (${attempt}/${backoff.length})`
+        );
+        input.retry?.sleep(wait);
+    }
+}
+
+/** How a push retries a transient failure: the sleeps before each retry
+ *  (their count is the retry count), the sleeper, a line per retry. */
+export interface PushRetry {
+    readonly backoffMs: readonly number[];
+    readonly sleep: (ms: number) => void;
+    readonly note?: (line: string) => void;
+}
+
+/** The backoff before each retry of a push that failed transiently (ADR
+ *  0159, issue #6990): three retries, ~2.5 min in all — well inside the
+ *  job's wall, long enough for a network blip to pass; on 2026-10-25 two
+ *  75-min sweeps were discarded on one 120 s push timeout each. */
+export const PUSH_RETRY_BACKOFF_MS: readonly number[] = [
+    15_000, 45_000, 90_000,
+];
+
+/** git's and curl's lines for a failure that may pass on a retry — the
+ *  network, the remote's availability — never a refusal (a hook, a lease,
+ *  credentials), which repeats. */
+const TRANSIENT_PUSH =
+    /could not resolve host|connection (timed out|reset|refused)|early eof|rpc failed|http 5\d\d|remote end hung up|unable to access|operation timed out|ssl_error|gnutls|the remote end hung up|transfer closed|couldn't connect/i;
+
+/** Whether a failed push's answer is transient: a timeout, or stderr naming
+ *  the network. Pure. */
+export function transientPushFailure(push: GitAnswer): boolean {
+    return push.timedOut === true || TRANSIENT_PUSH.test(push.stderr);
 }
 
 /** A catalogue file on the tip beside what the tree generates for it. */

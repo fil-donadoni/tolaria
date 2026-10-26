@@ -46,12 +46,17 @@
  * one. `--dry-run` regenerates (the drift sweep included) and prints the
  * plan, commits nothing.
  *
- * `--settled` is health's question (ADR 0158 § 2b): `--fresh`, AND every
- * Bot verdict current — no stale row (the drift sweep's), the header's Bot
- * hash the tree's (the replay's) unless this Bot's regression issue is open.
- * A compile on the pinned corpus, seconds; the same exit and stale line, so
- * health waits on it within the grace and reds past it. The deployment keeps
- * asking `--fresh`: a stale verdict never holds it.
+ * `--settled` is health's question (ADR 0158 § 2b, ADR 0159): `--fresh` —
+ * the same exit and stale line, so health waits on it within the grace and
+ * reds past it — AND whether a maintenance job is LATE with the Bot state:
+ * a stale row (the drift sweep's), the header's Bot hash not the tree's
+ * (the replay's) unless this Bot's regression issue is open. Lateness is
+ * exit 0 with a `derived state is late` line health carries onto its GREEN
+ * record, and past `DERIVED_GRACE_MS` an issue filed once (`area:workflow`,
+ * by title) — never a RED, never `pending` (issue #6990: three hours of a
+ * blocked queue were a 75-min replay's push timeout). A compile on the
+ * pinned corpus, seconds. The deployment keeps asking `--fresh`: a stale
+ * verdict never holds it.
  *
  * Until the PR stops carrying derived paths (ADR 0157's last ticket), PRs
  * still carry fresh derived state, so the
@@ -85,7 +90,9 @@
 import { spawnSync } from "node:child_process";
 import {
     appendFileSync,
+    copyFileSync,
     existsSync,
+    mkdirSync,
     readFileSync,
     writeFileSync,
 } from "node:fs";
@@ -100,27 +107,35 @@ import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
+    DERIVED_LATE_LABELS,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     DERIVE_SYNC_PATHS,
     LOCKFILE_PATH,
+    PUSH_RETRY_BACKOFF_MS,
     botRegressionTitle,
     botReplayOutcome,
     botReplayPlan,
     derivePlan,
     derivedFreshness,
+    derivedLateLine,
+    derivedLateTitle,
     derivedStaleLine,
     pushDerivedCommit,
     renderBotRegressionIssue,
+    renderDerivedLateIssue,
     runDriftSweep,
     verdictCurrency,
     type CatalogueEntry,
+    type Currency,
     type DerivedEntry,
     type DriftSweepResult,
     type Freshness,
+    type LateKind,
     type LostCard,
 } from "./lib/derive-sync";
 import { gh } from "./lib/gh";
+import { DERIVED_GRACE_MS } from "./lib/health-step";
 import { botHash, botSourceFiles } from "./lib/oracle-bot-reach";
 import {
     compilerHash,
@@ -258,12 +273,11 @@ export function freshness(): Freshness {
     return derivedFreshness({ hashDrift, catalogue: catalogueEntries() });
 }
 
-/** Health's predicate (ADR 0158 § 2b): derived-fresh AND every Bot verdict
- *  current. Null when the corpus cannot be had — an unjudged tree, which the
- *  caller turns into no verdict, never into fresh. */
-export function settledness(): Freshness | null {
-    const fresh = freshness();
-    if (!fresh.fresh) return fresh;
+/** Health's second question (ADR 0158 § 2b, ADR 0159): are the tip's Bot
+ *  verdicts current, or is a maintenance job late with them? Null when the
+ *  corpus cannot be had — an unjudged tree, which the caller turns into no
+ *  verdict, never into current. */
+export function currency(): Currency | null {
     if (!ensureCorpus()) return null;
     const lock = readLockfile();
     const treeBotHash = botHash(ROOT);
@@ -274,8 +288,70 @@ export function settledness(): Freshness | null {
         openRegression:
             lock.header.botHash === treeBotHash
                 ? null
-                : openRegressionIssue(botRegressionTitle(treeBotHash)),
+                : openIssueByTitle(
+                      botRegressionTitle(treeBotHash),
+                      BOT_REGRESSION_LABELS[1]!
+                  ),
     });
+}
+
+/** HEAD's committer time, ms since the epoch. */
+function headCommittedAtMs(): number {
+    return (
+        Number(git(["log", "-1", "--format=%ct", "HEAD"]).stdout.trim()) * 1000
+    );
+}
+
+/** Since when the tip's Bot state has been late (ADR 0159): a late drift
+ *  sweep counts from the tip's commit (the misses appeared at its landing);
+ *  a late replay from the commit that moved the Bot hash off the header's —
+ *  a tip's age resets at every landing, the Bot hash's does not. */
+function lateSinceMs(kind: LateKind, headerBotHash: string): number {
+    if (kind === "bot-hash") {
+        const moved = botHashMove(headerBotHash).movedAtMs;
+        if (moved !== null) return moved;
+    }
+    return headCommittedAtMs();
+}
+
+/** `--settled` (ADR 0159): fresh or stale as `--fresh` (exit 1 on stale),
+ *  then the Bot state — current (exit 0), or LATE: the late line on stdout,
+ *  exit 0, and past the grace the late issue filed once (`--no-file` keeps a
+ *  by-hand run from filing). Exit 2 when no corpus can be had. */
+function settled(noFile: boolean): number {
+    const f = freshness();
+    if (!f.fresh) {
+        console.error(derivedStaleLine(f.why));
+        return 1;
+    }
+    const c = currency();
+    if (c === null) {
+        complain("--settled gave no verdict: no corpus cache for the pin");
+        return 2;
+    }
+    if (c.current) {
+        say("this tree is derived-fresh and its Bot verdicts are current");
+        return 0;
+    }
+    const lock = readLockfile();
+    const since = lateSinceMs(c.kind, lock.header.botHash);
+    const lateMs = Date.now() - since;
+    say(derivedLateLine(c.why, new Date(since).toISOString()));
+    if (lateMs < DERIVED_GRACE_MS)
+        say(
+            `late by ${Math.round(lateMs / 60_000)} min, within the ${Math.round(DERIVED_GRACE_MS / 60_000)}-minute grace — not filed`
+        );
+    else if (noFile) say("past the grace — --no-file, not filed");
+    else
+        fileDerivedLate({
+            sha: git(["rev-parse", "HEAD"]).stdout.trim(),
+            kind: c.kind,
+            why: c.why,
+            sinceMs: since,
+            headerBotHash: lock.header.botHash,
+            treeBotHash: botHash(ROOT),
+        });
+    return 0;
 }
 
 /** A corpus cache matching THIS tree's pin (gitignored; issue #6381): kept,
@@ -467,10 +543,11 @@ function write(dryRun: boolean): number {
 }
 
 /** ONE commit with exactly `paths`, built on `head` on a scratch index and
- *  pushed once — the mechanics ADR 0157 gave the derive commit, shared with
- *  the replay commit so there is one pusher. The exit code, and the push's
+ *  pushed — the mechanics ADR 0157 gave the derive commit, shared with the
+ *  replay commit so there is one pusher; a transient refusal is retried
+ *  with backoff (ADR 0159, issue #6990). The exit code, and the push's
  *  outcome (`error` when nothing was pushed) for a caller that retries a
- *  coalesced push. */
+ *  coalesced push, with its reason. */
 function commitAndPush(
     head: string,
     paths: readonly string[],
@@ -478,13 +555,14 @@ function commitAndPush(
 ): {
     code: number;
     outcome: "landed" | "coalesced" | "failed" | "off-base" | "error";
+    why: string;
 } {
     const files: { path: string; blob: string }[] = [];
     for (const path of paths) {
         const blob = git(["hash-object", "-w", join(ROOT, path)]);
         if (blob.status !== 0) {
             complain(`could not store ${path}: ${blob.stderr.trim()}`);
-            return { code: 1, outcome: "error" };
+            return { code: 1, outcome: "error", why: blob.stderr.trim() };
         }
         files.push({ path, blob: blob.stdout.trim() });
     }
@@ -496,7 +574,7 @@ function commitAndPush(
     );
     if ("error" in built) {
         complain(`could not build the commit on ${head}: ${built.error}`);
-        return { code: 1, outcome: "error" };
+        return { code: 1, outcome: "error", why: built.error };
     }
     const pushed = pushDerivedCommit((args, opts) => git(args, opts), {
         sha: built.sha,
@@ -504,29 +582,34 @@ function commitAndPush(
         baseBranch: BASE_BRANCH,
         originBase: ORIGIN_BASE,
         netTimeoutMs: GIT_NET_TIMEOUT_MS,
+        retry: {
+            backoffMs: PUSH_RETRY_BACKOFF_MS,
+            sleep: (ms) => Bun.sleepSync(ms),
+            note: say,
+        },
     });
     const { outcome, why } = pushed;
     switch (outcome) {
         case "landed":
             say(
-                `${built.sha.slice(0, 10)} pushed to ${BASE_BRANCH} (${paths.length} file(s))`
+                `${built.sha.slice(0, 10)} pushed to ${BASE_BRANCH} (${paths.length} file(s)${pushed.attempts > 1 ? `, ${pushed.attempts} attempts` : ""})`
             );
-            return { code: 0, outcome };
+            return { code: 0, outcome, why };
         case "coalesced":
             say(
                 `push refused (${why}) and ${BASE_BRANCH} moved to ${pushed.remoteTip.slice(0, 10)} meanwhile — not retried here: the newer tip's own run regenerates (ADR 0157)`
             );
-            return { code: 0, outcome };
+            return { code: 0, outcome, why };
         case "failed":
             complain(
                 `push refused (${why}) with ${BASE_BRANCH} still at ${head.slice(0, 10)} — the next housekeeping run retries`
             );
-            return { code: 1, outcome };
+            return { code: 1, outcome, why };
         case "off-base":
             complain(
                 `push refused: ${head.slice(0, 10)} is AHEAD of ${BASE_BRANCH} (${pushed.remoteTip.slice(0, 10)}) — a branch's HEAD, not the base tip; pushing would land the branch outside the queue (issue #6765). Nothing pushed.`
             );
-            return { code: 1, outcome };
+            return { code: 1, outcome, why };
     }
 }
 
@@ -564,10 +647,10 @@ function acknowledgedRegressions(): ReadonlySet<string> {
     );
 }
 
-/** The open regression issue for THIS tree's Bot, by its title, or null.
- *  A `gh` failure is a null too: filing twice is the smaller harm beside
- *  never sweeping again. */
-function openRegressionIssue(title: string): number | null {
+/** The open issue titled exactly `title` under `label` (the regression
+ *  issue for THIS tree's Bot, the late issue), or null. A `gh` failure is a
+ *  null too: filing twice is the smaller harm beside never sweeping again. */
+function openIssueByTitle(title: string, label: string): number | null {
     try {
         const rows = JSON.parse(
             gh([
@@ -576,7 +659,7 @@ function openRegressionIssue(title: string): number | null {
                 "--state",
                 "open",
                 "--label",
-                BOT_REGRESSION_LABELS[1]!,
+                label,
                 "--search",
                 `in:title "${title}"`,
                 "--limit",
@@ -587,19 +670,22 @@ function openRegressionIssue(title: string): number | null {
         ) as { number: number; title: string }[];
         return rows.find((r) => r.title === title)?.number ?? null;
     } catch (error) {
-        complain(`could not list the open regression issues: ${String(error)}`);
+        complain(`could not list the open issues: ${String(error)}`);
         return null;
     }
 }
 
 /** The commit range that moved the Bot hash off the header's — from the
- *  commit that wrote the header's hash to HEAD — and the Bot-source commits
- *  in it, `%h %s` each, newest first. The hash is in HEAD's header, so the
- *  NEWEST commit changing its occurrence count is the one that wrote it (an
- *  older one is a revert-and-reland's first life). */
+ *  commit that wrote the header's hash to HEAD — the Bot-source commits in
+ *  it, `%h %s` each, newest first, and the committer time of the OLDEST
+ *  of them (when the state became late, ADR 0159; null without one). The
+ *  hash is in HEAD's header, so the NEWEST commit changing its occurrence
+ *  count is the one that wrote it (an older one is a revert-and-reland's
+ *  first life). */
 function botHashMove(headerBotHash: string): {
     range: string;
     commits: string[];
+    movedAtMs: number | null;
 } {
     const since = git([
         "log",
@@ -614,20 +700,119 @@ function botHashMove(headerBotHash: string): {
         .filter((l) => l !== "")
         .at(0);
     const range = since === undefined ? "HEAD" : `${since.slice(0, 10)}..HEAD`;
-    const commits =
+    const rows =
         since === undefined
             ? []
             : git([
                   "log",
-                  "--format=%h %s",
+                  "--format=%h\t%ct\t%s",
                   `${since}..HEAD`,
                   "--",
                   ...botSourceFiles(ROOT),
               ])
                   .stdout.trim()
                   .split("\n")
-                  .filter((l) => l !== "");
-    return { range, commits };
+                  .filter((l) => l !== "")
+                  .map((l) => l.split("\t"));
+    const commits = rows.map(([h, , subject]) => `${h} ${subject ?? ""}`);
+    const oldest = rows.at(-1)?.[1];
+    const movedAtMs =
+        oldest === undefined || !/^\d+$/.test(oldest)
+            ? null
+            : Number(oldest) * 1000;
+    return { range, commits, movedAtMs };
+}
+
+/** The latest `post-merge` runs, one line each (`gh run list`), for the
+ *  late issue — the replay's and the drift sweep's jobs live there. Empty
+ *  when `gh` cannot list them. */
+function latestPostMergeRuns(): string[] {
+    try {
+        const rows = JSON.parse(
+            gh([
+                "run",
+                "list",
+                "--workflow",
+                "post-merge.yml",
+                "--limit",
+                "5",
+                "--json",
+                "url,status,conclusion,createdAt,event",
+            ])
+        ) as {
+            url: string;
+            status: string;
+            conclusion: string | null;
+            createdAt: string;
+            event: string;
+        }[];
+        return rows.map(
+            (r) =>
+                `${r.createdAt} ${r.event} ${r.conclusion ?? r.status}: ${r.url}`
+        );
+    } catch (error) {
+        complain(`could not list the post-merge runs: ${String(error)}`);
+        return [];
+    }
+}
+
+/** File the late issue (ADR 0159, issue #6990) unless one stands open under
+ *  its title; the number either way, null when `gh` refused. */
+function fileDerivedLate(input: {
+    sha: string;
+    kind: LateKind;
+    why: string;
+    sinceMs: number;
+    headerBotHash: string;
+    treeBotHash: string;
+    pushFailure?: string;
+}): number | null {
+    const title = derivedLateTitle(input.kind, input.treeBotHash);
+    const open = openIssueByTitle(title, DERIVED_LATE_LABELS[1]!);
+    if (open !== null) {
+        say(`late past the grace — issue #${open} is open, not filed again`);
+        return open;
+    }
+    const { range, commits } = botHashMove(input.headerBotHash);
+    const body = renderDerivedLateIssue({
+        sha: input.sha,
+        kind: input.kind,
+        why: input.why,
+        sinceIso: new Date(input.sinceMs).toISOString(),
+        lateMinutes: Math.round((Date.now() - input.sinceMs) / 60_000),
+        headerBotHash: input.headerBotHash,
+        treeBotHash: input.treeBotHash,
+        range,
+        commits,
+        runs: latestPostMergeRuns(),
+        ...(input.pushFailure === undefined
+            ? {}
+            : { pushFailure: input.pushFailure }),
+    });
+    const args = ["issue", "create", "--title", title, "--body", body];
+    for (const label of DERIVED_LATE_LABELS) args.push("--label", label);
+    try {
+        const url = gh(args).trim();
+        say(`late past the grace — filed ${url}`);
+        const n = /\/(\d+)\s*$/.exec(url)?.[1];
+        return n === undefined ? null : Number(n);
+    } catch (error) {
+        complain(`could not file the late issue: ${String(error)}`);
+        return null;
+    }
+}
+
+/** The swept lockfile a failed push would discard, kept under
+ *  `$RUNNER_TEMP` for the job's artifact step (ADR 0159); the path, or null
+ *  outside a job. */
+function keepSweepArtifact(): string | null {
+    const tmp = process.env.RUNNER_TEMP;
+    if (!tmp) return null;
+    const dir = join(tmp, "bot-replay");
+    mkdirSync(dir, { recursive: true });
+    const out = join(dir, "oracle-compiled.json");
+    copyFileSync(join(ROOT, LOCKFILE_PATH), out);
+    return out;
 }
 
 function fileRegression(input: {
@@ -778,7 +963,9 @@ function replayBot(dryRun: boolean): number {
         headerBotHash,
         treeBotHash,
         openRegression:
-            headerBotHash === treeBotHash ? null : openRegressionIssue(title),
+            headerBotHash === treeBotHash
+                ? null
+                : openIssueByTitle(title, BOT_REGRESSION_LABELS[1]!),
     });
     if (plan.kind === "current") {
         say(
@@ -896,6 +1083,27 @@ function replayBot(dryRun: boolean): number {
             plan2.paths,
             BOT_REPLAY_COMMIT_SUBJECT
         );
+        if (pushed.outcome === "failed") {
+            // The sweep is not lost with the push (ADR 0159): its lockfile
+            // is the run's artifact, and the lateness is an issue now — the
+            // next run sweeps again, as health never waits on it.
+            const kept = keepSweepArtifact();
+            say(
+                kept === null
+                    ? "the swept lockfile stays on disk — not in a job, no artifact"
+                    : `the swept lockfile is kept for the run's artifact: ${kept}`
+            );
+            fileDerivedLate({
+                sha: head,
+                kind: "bot-hash",
+                why: `the replay swept ${head.slice(0, 10)} and its push failed`,
+                sinceMs: lateSinceMs("bot-hash", headerBotHash),
+                headerBotHash,
+                treeBotHash,
+                pushFailure: pushed.why,
+            });
+            return pushed.code;
+        }
         if (pushed.outcome !== "coalesced") return pushed.code;
         say(
             `re-applying the sweep over the moved tip (${moves + 1}/${MAX_TIP_MOVES})`
@@ -918,19 +1126,8 @@ if (import.meta.main) {
         console.error(derivedStaleLine(f.why));
         process.exit(1);
     }
-    if (argv.includes("--settled")) {
-        const f = settledness();
-        if (f === null) {
-            complain("--settled gave no verdict: no corpus cache for the pin");
-            process.exit(2);
-        }
-        if (f.fresh) {
-            say("this tree is derived-fresh and its Bot verdicts are current");
-            process.exit(0);
-        }
-        console.error(derivedStaleLine(f.why));
-        process.exit(1);
-    }
+    if (argv.includes("--settled"))
+        process.exit(settled(argv.includes("--no-file")));
     if (argv.includes("--replay-bot")) {
         process.exit(replayBot(argv.includes("--dry-run")));
     }

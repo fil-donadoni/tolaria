@@ -17,6 +17,7 @@ import {
     derivedTipVerdict,
 } from "../lib/health-step";
 import { gateSkipReason } from "../lib/health-gate-skip";
+import { DERIVED_LATE_MARK, derivedLateLine } from "../lib/derive-sync";
 
 /**
  * The health gate's step runner (issue #3487). `bun run release` used to sit
@@ -405,6 +406,66 @@ describe("derivedTipVerdict — a derived-stale tip is pending within derive:syn
                 graceMs: 5,
             }).kind
         ).toBe("red");
+    });
+});
+
+describe("a LATE Bot state rides onto a fresh verdict — never a wait, never a RED (ADR 0159, issue #6990)", () => {
+    const t0 = 1_700_000_000_000;
+
+    it("exit 0 with `--settled`'s late line is fresh, `late` the tail after the dash; without the line, plain fresh", () => {
+        const line = derivedLateLine(
+            "the lockfile header's Bot hash sha256:old is not the tree's",
+            "2026-10-25T11:27:00.000Z"
+        );
+        expect(line).toContain(DERIVED_LATE_MARK);
+        expect(
+            derivePredicateAnswer({
+                status: 0,
+                signal: null,
+                output: `$ bun scripts/derive-sync.ts --settled\n${line}\nderive:sync: late by 188 min — issue #7001 is open, not filed again\n`,
+            })
+        ).toEqual({
+            kind: "fresh",
+            late: "stale since 2026-10-25T11:27:00.000Z: the lockfile header's Bot hash sha256:old is not the tree's",
+        });
+        expect(
+            derivePredicateAnswer({
+                status: 0,
+                signal: null,
+                output: "derive:sync: this tree is derived-fresh and its Bot verdicts are current\n",
+            })
+        ).toEqual({ kind: "fresh" });
+        // A stale (exit 1) answer never reads the late line.
+        expect(
+            derivePredicateAnswer({
+                status: 1,
+                signal: null,
+                output: `${line}\nderive:sync: this tree is derived-stale — lockfile header: compilerHash drift\n`,
+            })
+        ).toEqual({
+            kind: "stale",
+            why: "lockfile header: compilerHash drift",
+        });
+    });
+
+    it("derivedTipVerdict carries `late` through at any age — fresh, never pending, never red", () => {
+        for (const age of [0, 5 * 60_000, DERIVED_GRACE_MS, 48 * 3_600_000])
+            expect(
+                derivedTipVerdict({
+                    stale: null,
+                    late: "stale since t: why",
+                    committedAtMs: t0,
+                    nowMs: t0 + age,
+                })
+            ).toEqual({ kind: "fresh", late: "stale since t: why" });
+        expect(
+            derivedTipVerdict({
+                stale: null,
+                late: null,
+                committedAtMs: t0,
+                nowMs: t0 + DERIVED_GRACE_MS,
+            })
+        ).toEqual({ kind: "fresh" });
     });
 });
 

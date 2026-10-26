@@ -55,7 +55,8 @@
  *     a literal `host:<name>` label: that machine offline or
  *     broken holds the job for 24 h, then fails it. A per-machine duty is a
  *     matrix over the hosts (`host:${{ matrix.host }}`) or an input; a shared
- *     duty names no host at all.
+ *     duty names no host at all. `HOST_PINNED_JOBS` are the exceptions: a
+ *     job whose lateness nothing waits on (ADR 0159) may pin the fast host.
  *   - `self-hosted-clone` — `actions/checkout` on a self-hosted job: a job on
  *     the owner's machines works in a worktree of the primary checkout.
  *   - `job-worktree` — a self-hosted job whose first step does not create the
@@ -185,9 +186,25 @@ export const SERIALISED_DISPATCHERS: ReadonlySet<string> = new Set([
 export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
     ".github/workflows/post-merge.yml#housekeeping",
     ".github/workflows/post-merge.yml#nightly",
+    // The batch gate is dispatched by event as well as by the clock (ADR
+    // 0159 § 4): two dispatches in flight would gate one tip twice on two
+    // runners; a dropped pending run re-reads the tip next time.
+    ".github/workflows/health.yml#gate",
     // Two replays at once would sweep the same Bot twice and race one push
     // (issue #6463); a dropped pending run re-reads the two hashes next time.
     ".github/workflows/post-merge.yml#bot-replay",
+]);
+
+/** Jobs that MAY pin one host by a literal `host:<name>` label (rule
+ *  `host-pinned` waived), each with why: a job whose lateness blocks nothing
+ *  — its result is reported, never waited on — loses only wall-clock when
+ *  its host is offline, and the fast host does its work in a fraction of the
+ *  time (ADR 0159, issue #6990). `<workflow path>#<job id>` → the reason. */
+export const HOST_PINNED_JOBS: ReadonlyMap<string, string> = new Map([
+    [
+        ".github/workflows/post-merge.yml#bot-replay",
+        "the Bot-play replay is 15 min on the MacBook and 75 on the Huawei; a late replay is an issue, never a RED or a hold (ADR 0159)",
+    ],
 ]);
 
 /** Jobs whose newer run makes the older one worthless, RUNNING included
@@ -405,7 +422,7 @@ function checkJob(
                 : "a shared post-merge duty must declare `concurrency: { group, cancel-in-progress: false }` — two machines at once would move one watermark twice (issue #5873)"
         );
     const host = selfHosted ? pinnedHost(job["runs-on"]) : null;
-    if (host !== null)
+    if (host !== null && !HOST_PINNED_JOBS.has(`${file}#${id}`))
         v(
             "host-pinned",
             `\`runs-on\` pins the job to \`${host}\` — that machine offline holds it for 24 h; use a matrix or an input, or no host (issue #5873)`

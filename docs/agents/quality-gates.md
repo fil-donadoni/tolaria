@@ -1057,6 +1057,27 @@ in-flight PRs land; a second RED on the same lineage stops the loop and
 notifies the owner. (The stale-verdict fallback, a local health run when the
 Huawei's runner went silent, was deleted with the runner, issue #5655.)
 
+**Health judges the tree, not the replay (ADR 0159, issue #6990).** Before
+any gate, a batch run asks `derive:sync --settled` two questions and treats
+them differently. The derived files (the lockfile header's compiler, registry
+and pool hashes, `data/catalogue/*`) against what the tree generates: stale
+is `pending` for one housekeeping period and RED at step `derive:sync` past
+it (ADR 0157) — the tree disagrees with itself. The Bot-play state (a
+`ready` row with no verdict for the definition the tip compiles, the
+header's Bot hash not the tree's): LATE, never stale — `--settled` exits 0
+with a `derived state is late — stale since <t>: <why>` line that rides onto
+the GREEN record (`last.json`'s `derivedLate`, `health-main: derived: …`),
+and past the same grace it files an `area:workflow` issue once (by title,
+naming the Bot-hash commit range and the latest `post-merge` runs). On
+2026-10-25 the old `pending`/RED on a stale Bot hash held the queue three
+hours behind a 75-min replay whose push timed out twice. The replay now runs
+on the fast host (`post-merge.yml#bot-replay`, `HOST_PINNED_JOBS`), its push
+retries a transient refusal with backoff (`PUSH_RETRY_BACKOFF_MS`), a sweep
+whose push still fails is the run's `bot-replay-lockfile` artifact, and
+`health-early`'s `classify` dispatches the batch gate when 20 landings
+separate the tip from the newest verdict (`health:batch-due`) — the cron is
+the fallback.
+
 The store is ONLY the commit status `context=health` (issue #5655 deleted the
 local-file backend, the `health.verdictStore` key, the verdict-store env override and
 the local `RED` / `AMBER` marker files; `last.json` stays as `health-main`'s own

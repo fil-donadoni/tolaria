@@ -22,6 +22,7 @@
  */
 import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
+import { DERIVED_LATE_MARK } from "./derive-sync";
 import { isBrowserStep } from "./health-verdict";
 import { readMachineSample, type MachineSample } from "./machine-admission";
 
@@ -245,18 +246,24 @@ export const PR_RECEIPT_GUARDS: Readonly<
  * in `post-merge.yml`'s `housekeeping` on every push and hourly at `:17`
  * (its backstop for a coalesced push), so a tip still stale an hour after
  * its commit has outlived the backstop: the writer is broken, and that is a
- * RED with cause `derive:sync`, not a wait.
+ * RED with cause `derive:sync`, not a wait. The same grace is what a LATE
+ * Bot state gets before `derive:sync --settled` files its issue (ADR 0159):
+ * there it decides a filing, never a verdict.
  */
 export const DERIVED_GRACE_MS = 60 * 60 * 1000;
 
 export type DerivePredicateAnswer =
-    | { kind: "fresh" }
+    /** Fresh, and gated; `late` when a maintenance job owes the tip's Bot
+     *  state (ADR 0159) — reported on the verdict, never held or redded. */
+    | { kind: "fresh"; late?: string }
     | { kind: "stale"; why: string }
     /** No verdict: a crash, a signal, a missing script — never a wait. */
     | { kind: "broken"; why: string };
 
 /**
- * What `bun run derive:sync --settled` (or `--fresh`) answered, pure. Exit 0 is fresh; exit 1
+ * What `bun run derive:sync --settled` (or `--fresh`) answered, pure. Exit 0 is fresh
+ * (`late` when its own `derived state is late` line is there — the tail
+ * after the dash); exit 1
  * WITH its own `derived-stale` line is stale, the reason after the dash;
  * anything else — a crash on import, a timeout's signal, `bun run` finding
  * no script — is `broken`: a predicate that gave no verdict must not read as
@@ -267,12 +274,17 @@ export function derivePredicateAnswer(input: {
     signal: string | null;
     output: string;
 }): DerivePredicateAnswer {
-    if (input.status === 0) return { kind: "fresh" };
     // Its own line, not `bun run`'s trailing `error: script … exited with code 1`.
     const lines = input.output
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l !== "" && !/^(error: script |\$ )/.test(l));
+    if (input.status === 0) {
+        const late = lines.find((l) => l.includes(DERIVED_LATE_MARK));
+        return late === undefined
+            ? { kind: "fresh" }
+            : { kind: "fresh", late: late.replace(/^.*? — /, "") };
+    }
     const own = lines.find((l) => l.includes("derived-stale"));
     if (input.status === 1 && own !== undefined)
         return {
@@ -286,7 +298,8 @@ export function derivePredicateAnswer(input: {
 }
 
 export type DerivedTipVerdict =
-    | { kind: "fresh" }
+    /** Gated; `late` rides onto the GREEN record (ADR 0159). */
+    | { kind: "fresh"; late?: string }
     /** Stale within the grace: nothing gated, re-judged next run. */
     | { kind: "pending"; reason: string }
     /** Stale past the grace: RED at `derive:sync`. */
@@ -302,12 +315,18 @@ export type DerivedTipVerdict =
 export function derivedTipVerdict(input: {
     /** `derive:sync --settled`'s answer on the tip: null = fresh, else why not. */
     stale: string | null;
+    /** A fresh tip whose Bot state a maintenance job is late with (ADR
+     *  0159): carried through, decides nothing. */
+    late?: string | null;
     /** The tip's committer time, ms since the epoch. */
     committedAtMs: number;
     nowMs: number;
     graceMs?: number;
 }): DerivedTipVerdict {
-    if (input.stale === null) return { kind: "fresh" };
+    if (input.stale === null)
+        return input.late
+            ? { kind: "fresh", late: input.late }
+            : { kind: "fresh" };
     const grace = input.graceMs ?? DERIVED_GRACE_MS;
     const age = input.nowMs - input.committedAtMs;
     const minutes = Math.max(0, Math.round(age / 60_000));

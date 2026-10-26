@@ -10,7 +10,11 @@ c. ok"). Extends ADR 0157 (the base writes derived whole-file state) to the
 Bot-reach verdicts; amends ADR 0156 § "A RED base is repaired by a bounded
 ladder" rungs 4–5 and CLAUDE.md § Quality gates "fix-forward FIRST". Tickets:
 issue #6686 (§ 1), issue #6687 and issue #6688 (§ 2), issue #6689 and issue
-#6690 (§ 3); issue #6653 retouched (§ 4).
+#6690 (§ 3); issue #6653 retouched (§ 4). **Amended by ADR 0159** (issue
+#6990): § 2b's "Health judges a stale-verdict tip `pending` … and `RED` …
+past it" is reversed — a late Bot state is reported on the GREEN verdict
+and filed as an issue past the grace, never held or redded; the replay
+runs on the fast host and its push retries.
 
 ## Context
 

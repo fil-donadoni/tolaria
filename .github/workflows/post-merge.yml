@@ -23,6 +23,9 @@
 # No job requires one host (issue #5873): `housekeeping` and `nightly` keep
 # their state in `refs/tolaria/state` and work in a worktree of their own, so
 # a runner that is offline or broken costs nothing but its own `sync` leg.
+# `bot-replay` is the one exception (ADR 0159, issue #6990): pinned to the
+# fast host, because nothing waits on it — a late replay is an issue, never
+# a RED or a hold — and the sweep is 15 min there against 75 on the Huawei.
 #
 # `branches:` names the base by literal because a workflow cannot read
 # tolaria.config.json: renaming the base (ADR 0116) means editing this line
@@ -172,11 +175,17 @@ jobs:
     bot-replay:
         name: Bot-play replay on the base (one per Bot change)
         if: ${{ github.event_name == 'push' || github.event.schedule == '40 3 * * *' || inputs.job == 'bot-replay' }}
-        # Any lane runner (issue #5873 — a pinned host offline holds the job
-        # 24 h), like `nightly`'s Bot refresh, which is the same shape of work.
+        # The FAST host (ADR 0159 § 2, issue #6990; `HOST_PINNED_JOBS` waives
+        # the `host-pinned` rule for this job): the sweep of ~6,600 `ready`
+        # cards is 15 min on the MacBook and 75 on the Huawei's i7-8550U, and
+        # a pinned host offline holds nothing but the replay itself — health
+        # never waits on it (a late replay is a line on the GREEN verdict and
+        # an issue past the grace, never a RED or `pending`). The worker
+        # count stays the heavy tier's (`TOLARIA_SWEEP_WORKERS` unset: 4 on
+        # the MacBook, RAM-bound, ADR 0158 § 4) until a `bun run machine
+        # measure` on the sweep proves headroom.
         # Cost (issue #6463): the sweep holds the heavy mutex (`gate.ts job`)
-        # for 20–40 min on ONE core (the Bot plays one card at a time) — on
-        # the MacBook that is the mutex `land` takes, so a landing waits
+        # — on the MacBook that is the mutex `land` takes, so a landing waits
         # behind it, as it does behind any heavy run there; a pass runner
         # feels nothing, since a session's bare compile no longer queues for a
         # handful of misses. Seconds, no mutex, when the header's hash is the
@@ -188,8 +197,10 @@ jobs:
         # moves to the base's fetched tip first; the worktree here is only the
         # tree it starts in. The wall is the worst path: sweep (120) + a
         # moved tip's bare compile (120) + oracle:index (30) + bootstraps and
-        # packs.
-        runs-on: [self-hosted, lane]
+        # packs. The push retries a transient refusal three times with
+        # backoff (ADR 0159 § 3); a push that still fails leaves the swept
+        # lockfile as the run's artifact (below) and files the late issue.
+        runs-on: [self-hosted, lane, host:macbook]
         concurrency:
             group: post-merge-bot-replay
             cancel-in-progress: false
@@ -204,6 +215,17 @@ jobs:
             - uses: ./.github/actions/job-setup
             - name: derive:sync --replay-bot
               run: bun run derive:sync --replay-bot
+            # The sweep a failed push would otherwise discard (ADR 0159 § 3):
+            # the script copies it under $RUNNER_TEMP only on that path, so
+            # a green run uploads nothing.
+            - name: Keep the swept lockfile of a failed push
+              if: ${{ failure() }}
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: bot-replay-lockfile
+                  path: ${{ runner.temp }}/bot-replay/oracle-compiled.json
+                  if-no-files-found: ignore
+                  retention-days: 7
             - name: Remove the job worktree
               if: always()
               shell: bash
