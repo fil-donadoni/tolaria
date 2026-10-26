@@ -9,6 +9,7 @@ import {
     READY_LABEL,
     MANUAL_LABEL,
 } from "./land-labels";
+import { MERGIFY_QUEUED_LABEL } from "./pr-gate";
 
 /** One PR as `gh pr list --label ready-to-land --json …` reads it. */
 export interface RefreshPr {
@@ -32,6 +33,13 @@ export interface RefreshCandidate {
     overlap: string[];
 }
 
+export interface RefreshOptions {
+    /** The base lineage blocks (`lineageBlocks`: RED or second RED). */
+    red: boolean;
+    /** Told about a PR a reason would have taken but a guard left alone. */
+    onSkip?: (pr: RefreshPr, why: string) => void;
+}
+
 /**
  * The PRs to refresh: `ready-to-land`, not `land-failed`, from this
  * repository, and either GitHub reports `CONFLICTING` (it does not run our
@@ -41,14 +49,20 @@ export interface RefreshCandidate {
  * conflicting ones then qualify. A PR without `merge:manual` is the Mergify queue's:
  * its draft already tests it on the moved base, and a push to it dequeues it,
  * so only `CONFLICTING` — a rebase only our merge drivers can do — takes it
- * (issue #5983). A `queue:held` PR is out of the queue, so a push costs it
- * nothing, and every base push takes it: a RED reds its advisory lane, which
- * tests the PR merged with the base, and that run is pinned to the broken
- * merge — only a new push re-runs the lane on the moved base (issue #6256).
+ * (issue #5983). A PR Mergify holds in the queue (`queued`: its draft is
+ * running or green) is taken on `CONFLICTING` only, whatever its other labels
+ * (issue #6957). A `queue:held` PR is out of the queue, so a push costs it
+ * nothing, and while the base is RED every base push takes it: a RED reds its
+ * advisory lane, which tests the PR merged with the base, and that run is
+ * pinned to the broken merge — only a new push re-runs the lane on the moved
+ * base (issue #6256). Off RED the label is stale, not a reason: rebasing every
+ * held PR on every push after a GREEN dequeued green drafts and livelocked the
+ * queue (issue #6957).
  */
 export function selectRefreshCandidates(
     prs: readonly RefreshPr[],
-    baseTouched: ReadonlySet<string> | null
+    baseTouched: ReadonlySet<string> | null,
+    opts: RefreshOptions
 ): RefreshCandidate[] {
     const out: RefreshCandidate[] = [];
     for (const pr of prs) {
@@ -60,10 +74,21 @@ export function selectRefreshCandidates(
             : [];
         if (pr.mergeable === "CONFLICTING") {
             out.push({ pr, reason: "conflicting", overlap });
-        } else if (overlap.length > 0 && pr.labels.includes(MANUAL_LABEL)) {
-            out.push({ pr, reason: "base-touched", overlap });
-        } else if (pr.labels.includes(HELD_LABEL)) {
-            out.push({ pr, reason: "held", overlap });
+            continue;
+        }
+        const reason: RefreshReason | null =
+            overlap.length > 0 && pr.labels.includes(MANUAL_LABEL)
+                ? "base-touched"
+                : pr.labels.includes(HELD_LABEL)
+                  ? "held"
+                  : null;
+        if (reason === null) continue;
+        if (pr.labels.includes(MERGIFY_QUEUED_LABEL)) {
+            opts.onSkip?.(pr, `${reason}: in the merge queue, skipped`);
+        } else if (reason === "held" && !opts.red) {
+            opts.onSkip?.(pr, "held label stale, skipped");
+        } else {
+            out.push({ pr, reason, overlap });
         }
     }
     return out.sort((a, b) => a.pr.number - b.pr.number);

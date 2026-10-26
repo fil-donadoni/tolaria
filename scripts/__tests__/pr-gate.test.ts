@@ -5,12 +5,14 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Lineage } from "../lib/health-verdict-store";
+import { requeuePostedSinceDequeue } from "../lib/land-requeue";
 import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
     clipDescription,
     gatePrOf,
     healthAdmission,
+    heldPrAction,
     isMergifyQueuePr,
     needsRequeue,
     parseTrustedAuthors,
@@ -402,5 +404,116 @@ describe("needsRequeue — the GREEN that releases a held PR (issue #6110)", () 
         expect(needsRequeue(labels("ready-to-land", "queued"))).toBe(false);
         expect(needsRequeue(labels("enhancement"))).toBe(false);
         expect(needsRequeue({ ...held, trustedAuthor: "failure" })).toBe(false);
+    });
+});
+
+describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
+    const held = {
+        labels: ["ready-to-land", "queue:held"],
+        lineage: { kind: "green" as const },
+        baseHealth: "success" as const,
+        trustedAuthor: "success" as const,
+        requeuedSinceDequeue: () => false,
+    };
+
+    it("requeues a held PR whose base-health was already green — no transition needed — and keeps the label", () => {
+        expect(heldPrAction(held)).toBe("requeue");
+        expect(heldPrAction({ ...held, lineage: { kind: "amber" } })).toBe(
+            "requeue"
+        );
+    });
+
+    it("removes the label once the PR is queued again", () => {
+        expect(
+            heldPrAction({
+                ...held,
+                labels: [...held.labels, "queued"],
+            })
+        ).toBe("release");
+    });
+
+    it("removes the label when a requeue was already posted since the dequeue, or the PR cannot enter", () => {
+        expect(
+            heldPrAction({ ...held, requeuedSinceDequeue: () => true })
+        ).toBe("release");
+        expect(heldPrAction({ ...held, trustedAuthor: "failure" })).toBe(
+            "release"
+        );
+        expect(
+            heldPrAction({ ...held, labels: [...held.labels, "land-failed"] })
+        ).toBe("release");
+    });
+
+    it("does nothing while the lineage blocks or cannot be read, nor on a PR not held", () => {
+        expect(heldPrAction({ ...held, lineage: { kind: "red" } })).toBe(
+            "none"
+        );
+        expect(heldPrAction({ ...held, lineage: { kind: "second-red" } })).toBe(
+            "none"
+        );
+        expect(
+            heldPrAction({
+                ...held,
+                lineage: { kind: "none", error: "502" },
+            })
+        ).toBe("none");
+        expect(heldPrAction({ ...held, baseHealth: "pending" })).toBe("none");
+        expect(heldPrAction({ ...held, labels: ["ready-to-land"] })).toBe(
+            "none"
+        );
+    });
+
+    it("reads the comments only when the answer decides", () => {
+        let reads = 0;
+        const counted = {
+            ...held,
+            requeuedSinceDequeue: () => {
+                reads++;
+                return false;
+            },
+        };
+        heldPrAction({ ...counted, lineage: { kind: "red" } });
+        heldPrAction({ ...counted, labels: [...held.labels, "queued"] });
+        expect(reads).toBe(0);
+    });
+});
+
+describe("requeuePostedSinceDequeue — one requeue per dequeue (issue #6957)", () => {
+    const c = (login: string, body: string, createdAt: string) => ({
+        author: { login },
+        body,
+        createdAt,
+    });
+    const dequeue = c(
+        "mergify[bot]",
+        "**merge queue: dequeued (`checks-failed`)**",
+        "2026-10-25T14:48:00Z"
+    );
+
+    it("counts a requeue posted after the last dequeue", () => {
+        expect(
+            requeuePostedSinceDequeue([
+                dequeue,
+                c(
+                    "github-actions[bot]",
+                    "@mergifyio requeue",
+                    "2026-10-25T15:00:00Z"
+                ),
+            ])
+        ).toBe(true);
+    });
+
+    it("ignores one older than the last dequeue", () => {
+        expect(
+            requeuePostedSinceDequeue([
+                c(
+                    "github-actions[bot]",
+                    "@mergifyio requeue",
+                    "2026-10-25T14:00:00Z"
+                ),
+                dequeue,
+            ])
+        ).toBe(false);
+        expect(requeuePostedSinceDequeue([dequeue])).toBe(false);
     });
 });

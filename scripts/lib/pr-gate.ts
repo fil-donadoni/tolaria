@@ -21,11 +21,12 @@
  * `needsRequeue` is the GREEN that puts it back.
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
-import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./land-labels";
 import {
     DESCRIPTION_MAX,
     lineageBlocks,
     type Lineage,
+    type LineageKind,
 } from "./health-verdict-store";
 
 export const TRUSTED_AUTHOR_CONTEXT = "trusted-author";
@@ -133,6 +134,45 @@ export function needsRequeue(input: {
         !labels.includes(FAILED_LABEL) &&
         !labels.includes(MERGIFY_QUEUED_LABEL)
     );
+}
+
+/**
+ * What a re-gate does with a `queue:held` PR once the base is off RED (issue
+ * #6957). Keyed on the label, never on a `base-health` transition: a PR whose
+ * status was already green when the RED cleared never transitions, and its
+ * stale label made `pr-refresh` rebase it on every base push.
+ *
+ * Two steps, because Mergify's dequeue reason is sticky (issue #6163): with
+ * the label gone and the reason still `checks-failed`, `.mergify.yml`'s "a PR
+ * the queue rejects is a repair pick" labels the PR `land-failed`. So:
+ *  - `requeue` — the PR would enter the queue and no `@mergifyio requeue`
+ *    was posted since its last dequeue: post one, KEEP the label;
+ *  - `release` — the PR is `queued` again (the hold is over), or a requeue
+ *    was already posted and did not take, or the PR cannot enter the queue:
+ *    remove the label and let the repair-pick rules judge it;
+ *  - `none` — not held, the lineage still blocks or cannot be read, or this
+ *    PR's own `base-health` is not green.
+ */
+export type HeldAction = "none" | "requeue" | "release";
+
+export function heldPrAction(input: {
+    labels: readonly string[];
+    lineage: { kind: LineageKind; error?: string };
+    baseHealth: GateState | undefined;
+    trustedAuthor: GateState | undefined;
+    /** Read only when the answer matters: it costs a comments call. */
+    requeuedSinceDequeue: () => boolean;
+}): HeldAction {
+    const { labels } = input;
+    if (!labels.includes(HELD_LABEL)) return "none";
+    if (input.lineage.error || lineageBlocks(input.lineage.kind)) return "none";
+    if (input.baseHealth !== "success") return "none";
+    if (labels.includes(MERGIFY_QUEUED_LABEL)) return "release";
+    const enters =
+        input.trustedAuthor === "success" &&
+        labels.includes(READY_LABEL) &&
+        !labels.includes(FAILED_LABEL);
+    return enters && !input.requeuedSinceDequeue() ? "requeue" : "release";
 }
 
 /** `TRUSTED_AUTHORS` as the repository variable holds it: logins separated

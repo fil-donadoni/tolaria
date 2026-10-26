@@ -8,7 +8,7 @@
  * GREEN-side requeue, issue #6110). Pure; `land-ready.ts` is the I/O.
  */
 import { FAILED_LABEL, READY_LABEL } from "./land-runner";
-import { MERGIFY_QUEUED_LABEL } from "./pr-gate";
+import { MERGIFY_QUEUED_LABEL, REQUEUE_COMMENT } from "./pr-gate";
 
 export interface PrComment {
     author: { login: string };
@@ -30,6 +30,23 @@ export function lastDequeueAt(comments: readonly PrComment[]): string | null {
         .map((c) => c.createdAt)
         .sort();
     return stamps.at(-1) ?? null;
+}
+
+/**
+ * Whether a `@mergifyio requeue` (`REQUEUE_COMMENT`) was posted on the PR
+ * since Mergify last dequeued it — by anyone; any, when it was never
+ * dequeued. `pr-gate` posts one per dequeue, never one per sweep (issue
+ * #6957).
+ */
+export function requeuePostedSinceDequeue(
+    comments: readonly PrComment[]
+): boolean {
+    const dequeued = lastDequeueAt(comments);
+    return comments.some(
+        (c) =>
+            c.body.trim() === REQUEUE_COMMENT &&
+            (dequeued === null || c.createdAt >= dequeued)
+    );
 }
 
 /**

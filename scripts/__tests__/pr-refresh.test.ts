@@ -22,6 +22,9 @@ import {
 import { CORPUS_CACHE_REL } from "../lib/generated-artifacts";
 import { refreshPr, seedCorpus } from "../pr-refresh";
 
+const GREEN = { red: false };
+const RED = { red: true };
+
 const pr = (over: Partial<RefreshPr>): RefreshPr => ({
     number: 1,
     headRefName: "feat/issue-1",
@@ -37,7 +40,8 @@ describe("selectRefreshCandidates", () => {
     it("takes a CONFLICTING queued PR whatever the push touched", () => {
         const got = selectRefreshCandidates(
             [pr({ mergeable: "CONFLICTING" })],
-            new Set()
+            new Set(),
+            GREEN
         );
         expect(got.map((c) => [c.pr.number, c.reason])).toEqual([
             [1, "conflicting"],
@@ -52,7 +56,8 @@ describe("selectRefreshCandidates", () => {
                     labels: ["ready-to-land", "merge:manual"],
                 }),
             ],
-            new Set(["b.ts", "c.ts"])
+            new Set(["b.ts", "c.ts"]),
+            GREEN
         );
         expect(got).toHaveLength(1);
         expect(got[0].reason).toBe("base-touched");
@@ -67,7 +72,8 @@ describe("selectRefreshCandidates", () => {
                 pr({ number: 2, mergeable: "CONFLICTING" }),
                 pr({ number: 3, labels: manual }),
             ],
-            new Set(["a.ts"])
+            new Set(["a.ts"]),
+            GREEN
         );
         expect(got.map((c) => [c.pr.number, c.reason])).toEqual([
             [2, "conflicting"],
@@ -75,27 +81,63 @@ describe("selectRefreshCandidates", () => {
         ]);
     });
 
-    it("takes a queue:held PR on any base push, the range unknown included (issue #6256)", () => {
+    it("under a RED, takes a queue:held PR on any base push, the range unknown included (issue #6256)", () => {
         const held = ["ready-to-land", "queue:held"];
         for (const touched of [new Set(["z.ts"]), null])
             expect(
                 selectRefreshCandidates(
                     [pr({ number: 4, labels: held })],
-                    touched
+                    touched,
+                    RED
                 ).map((c) => [c.pr.number, c.reason])
             ).toEqual([[4, "held"]]);
     });
 
-    it("leaves a clean, untouched PR alone", () => {
-        expect(selectRefreshCandidates([pr({})], new Set(["z.ts"]))).toEqual(
-            []
+    it("off RED, a queue:held label is stale: no held PR is pushed, each skip is told (issue #6957)", () => {
+        const held = ["ready-to-land", "queue:held"];
+        const skips: Array<[number, string]> = [];
+        const got = selectRefreshCandidates(
+            [1, 2, 3].map((number) => pr({ number, labels: held })),
+            new Set(["a.ts"]),
+            { red: false, onSkip: (p, why) => skips.push([p.number, why]) }
         );
+        expect(got).toEqual([]);
+        expect(skips).toEqual([
+            [1, "held label stale, skipped"],
+            [2, "held label stale, skipped"],
+            [3, "held label stale, skipped"],
+        ]);
+    });
+
+    it("never pushes a PR Mergify holds queued unless it conflicts — the push would dequeue its draft (issue #6957)", () => {
+        const queued = ["ready-to-land", "queued"];
+        const skips: number[] = [];
+        const got = selectRefreshCandidates(
+            [
+                pr({ number: 1, labels: [...queued, "queue:held"] }),
+                pr({ number: 2, labels: [...queued, "merge:manual"] }),
+                pr({ number: 3, labels: queued, mergeable: "CONFLICTING" }),
+            ],
+            new Set(["a.ts"]),
+            { red: true, onSkip: (p) => skips.push(p.number) }
+        );
+        expect(got.map((c) => [c.pr.number, c.reason])).toEqual([
+            [3, "conflicting"],
+        ]);
+        expect(skips).toEqual([1, 2]);
+    });
+
+    it("leaves a clean, untouched PR alone", () => {
+        expect(
+            selectRefreshCandidates([pr({})], new Set(["z.ts"]), RED)
+        ).toEqual([]);
     });
 
     it("with an unknown push range, only CONFLICTING qualifies", () => {
         const got = selectRefreshCandidates(
             [pr({ number: 1 }), pr({ number: 2, mergeable: "CONFLICTING" })],
-            null
+            null,
+            GREEN
         );
         expect(got.map((c) => c.pr.number)).toEqual([2]);
     });
@@ -112,7 +154,8 @@ describe("selectRefreshCandidates", () => {
                         labels: ["ready-to-land", "land-failed"],
                     }),
                 ],
-                new Set()
+                new Set(),
+                RED
             )
         ).toEqual([]);
     });
