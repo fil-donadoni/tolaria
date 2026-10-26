@@ -1351,10 +1351,17 @@ function readsEventPlayer(node: unknown): boolean {
 /** A `forEach` selector that ranges over every player alike: the players
  *  themselves, or permanents with no `controller` narrowing. */
 function isSymmetricSelector(select: unknown): boolean {
-    const sel = select as { set?: unknown; controller?: unknown };
+    const sel = select as {
+        set?: unknown;
+        controller?: unknown;
+        damagedBySourceThisGame?: unknown;
+    };
     return (
         sel.set === "players" ||
-        (sel.set === "permanents" && sel.controller === undefined)
+        (sel.set === "permanents" &&
+            sel.controller === undefined &&
+            // CR 120.1 — the source's damage history is one-sided.
+            sel.damagedBySourceThisGame !== true)
     );
 }
 

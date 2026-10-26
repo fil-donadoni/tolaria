@@ -7778,9 +7778,15 @@ function selectForEachMembers(
     // the frozen member set. Mirrors `TargetRequirement.excludeSource`'s
     // resolution (`raiseTriggerTargetSelection`, gre/rules.ts), just applied
     // to a non-targeted mass-sweep selector instead of an announced target.
-    return select.excludeSource
+    const members = select.excludeSource
         ? ids.filter((id) => id !== ctx.sourceInstanceId)
         : ids;
+    // CR 120.1 — "each planeswalker it has dealt damage to this game": only
+    // the members on the source's damage history (CR 400.7 keeps a returned
+    // permanent off it, `forgetDamageToEnteringObject`).
+    if (!select.damagedBySourceThisGame) return members;
+    const damaged = new Set(ctx.getPermanentsDamagedBySource());
+    return members.filter((id) => damaged.has(id));
 }
 
 /** Executes one `forEach` construct (ADR 0045, issue #807) against the shared

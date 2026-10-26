@@ -65,6 +65,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         dealtDeathtouchDamage: true,
         regenerationShields: 1,
         damagedBySources: ["src-5"],
+        damagedPermanentsThisGame: ["pw-1"],
         attachedTo: "host-1",
         grantedEnchantRestriction: { types: ["Creature"] },
         controlChanges: [

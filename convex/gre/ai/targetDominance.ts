@@ -64,7 +64,10 @@ type TriggerOutcome = {
  *  its layer-derived P/T with the until-end-of-turn effects in (review of
  *  issue #6334). A common survivor two answers left in different states
  *  makes them incomparable, so an answer that only damages, shrinks or taps
- *  a creature is never pruned for an answer that kills another one. */
+ *  a creature is never pruned for an answer that kills another one.
+ *  The source's own damage history (CR 120.1, `damagedPermanentsThisGame`)
+ *  is left out: it records which target was chosen, so it differs between
+ *  any two damage answers and would make every one of them incomparable. */
 function controlledPermanents(
     state: GameState,
     playerId: string
@@ -76,7 +79,9 @@ function controlledPermanents(
             const pt = isCreature(card)
                 ? getEffectivePT(state, card, { includeTemporary: true })
                 : undefined;
-            out.set(card.id, JSON.stringify({ card, pt }));
+            const observed = { ...card };
+            delete observed.damagedPermanentsThisGame;
+            out.set(card.id, JSON.stringify({ card: observed, pt }));
         }
     }
     return out;
