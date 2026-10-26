@@ -76,14 +76,16 @@ export const TEST_ALIASES: readonly ImportAlias[] = [
 ];
 
 /** The vitest projects a related test can belong to (bot, perf and ladder
- *  tests are none of them: ADR 0154 §3 sends the bot suite to health). */
+ *  tests are none of them: the bot files have their own index, `botTests`,
+ *  and the lanes admit them by measured cost — ADR 0154 §13). */
 export type RelatedProject = "node-engine" | "node-tooling" | "dom";
 
 /** Related test files per vitest project, repo-relative, posix, sorted. */
 export type RelatedTests = Record<RelatedProject, string[]>;
 
 /** The bot fast lane's projects — the `full` lane's bot half walks them
- *  (issue #6149); no scoped lane runs them (ADR 0154 §3). */
+ *  (issue #6149); every scoped code lane admits the reached files by measured
+ *  cost (issue #6943, ADR 0154 §13). */
 export type BotProject = "bot-node" | "bot-dom";
 
 /** Related bot test files per bot project, repo-relative, posix, sorted. */

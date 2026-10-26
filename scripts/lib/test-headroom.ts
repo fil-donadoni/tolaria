@@ -51,9 +51,30 @@ export interface TestDuration {
     state: string;
 }
 
+/**
+ * One bot test FILE's wall in one vitest invocation (issue #6943): what
+ * `lib/bot-test-costs.ts` derives the lane's per-file cost table from. Every
+ * bot file is recorded, whatever its share of a budget — the cheap ones are
+ * the ones the lane admits.
+ */
+export interface FileWall {
+    /** The file, relative to the root, posix. */
+    file: string;
+    project: string;
+    /** Environment setup + prepare + collect + setup + tests and hooks. */
+    wallMs: number;
+    /** vitest's module state: `passed`, `failed`, … */
+    state: string;
+}
+
+/** The projects whose files `FileWall` rows are written for. */
+export const FILE_WALL_PROJECT = /^bot-/;
+
 export interface DurationFile {
     version: 1;
     records: TestDuration[];
+    /** Absent in a file written before issue #6943. */
+    files?: FileWall[];
 }
 
 export interface HeadroomRun {
@@ -98,6 +119,47 @@ export function parseDurationFile(text: string): TestDuration[] {
     }
     const records = (parsed as Partial<DurationFile> | null)?.records;
     return Array.isArray(records) ? records.filter(isRecord) : [];
+}
+
+function isFileWall(r: unknown): r is FileWall {
+    if (typeof r !== "object" || r === null) return false;
+    const o = r as Record<string, unknown>;
+    return (
+        typeof o.file === "string" &&
+        typeof o.project === "string" &&
+        typeof o.wallMs === "number" &&
+        Number.isFinite(o.wallMs) &&
+        o.wallMs >= 0 &&
+        typeof o.state === "string"
+    );
+}
+
+/** The file walls of one reporter file (issue #6943); malformed → dropped. */
+export function parseFileWalls(text: string): FileWall[] {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(text);
+    } catch {
+        return [];
+    }
+    const files = (parsed as Partial<DurationFile> | null)?.files;
+    return Array.isArray(files) ? files.filter(isFileWall) : [];
+}
+
+/** Every reporter file's walls in `dir`, unmerged: a file a retry re-ran
+ *  appears once per invocation, and the reader decides. */
+export function readFileWalls(dir: string): FileWall[] {
+    if (!existsSync(dir)) return [];
+    const all: FileWall[] = [];
+    for (const f of readdirSync(dir)) {
+        if (!f.endsWith(".json") || f === RUN_FILE) continue;
+        try {
+            all.push(...parseFileWalls(readFileSync(join(dir, f), "utf8")));
+        } catch {
+            // unreadable — advisory, skip it
+        }
+    }
+    return all;
 }
 
 /**

@@ -158,6 +158,7 @@
         "wt:docs": "bun scripts/docs-lane.ts new",
         "wt:gc": "bun scripts/worktree-gc.ts",
         "wt:new": "bun scripts/wt-new.ts",
+        "bot:costs": "bun scripts/bot-test-costs.ts",
         "bot:refit": "bun scripts/bot-refit.ts",
         "verdicts:sync": "bun scripts/verdicts-sync.ts",
         "verdicts:validate": "bun scripts/verdicts-validate.ts",
