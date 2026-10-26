@@ -15452,4 +15452,48 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "CR 106.7 / 614: the planner and the castability census read the mana a tap would add (`getManaTapOptionsDetailed` under `replaceLandManaType`). Issue #3744.",
     },
+    {
+        // CR 400.11b (issue #6523) — the Wish pick. The pick is optional
+        // ("you may", `count.min` 0), and a minimal-legal answer to an
+        // optional pick is the empty one: before the
+        // `choose-outside-game-card` generator and resolver, the bot paid
+        // for Burning Wish and fetched nothing. The sideboard also holds a
+        // creature the filter refuses, so the only legal card is the sorcery.
+        label: "wish: brings the sorcery in from outside the game rather than declining",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Burning Wish", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            outsideGame: [{ name: "Mind Twist" }, { name: "Craw Wurm" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Burning Wish", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Mind Twist" }],
+        },
+        note: "Issue #6523 — the root decision is the live `choose-outside-game-card` pick (CR 400.11b), reached by really casting and resolving Burning Wish. Declining leaves the bot a card down for the two mana it already spent.",
+    },
 ];

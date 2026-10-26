@@ -196,6 +196,8 @@ const STORED: Required<ScenarioSpec> = {
         },
     ],
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
+    // CR 400.11a — a seat's cards outside the game (the Wish pool).
+    outsideGame: [{ name: "Lightning Bolt", owner: "me" }],
 };
 
 /** What the form itself would assemble after the admin edits a card — only the

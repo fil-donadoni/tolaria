@@ -2078,6 +2078,27 @@ export type PlayerState = {
         instance: CardInstanceState;
         used: boolean;
     };
+    /** The cards this player owns OUTSIDE the game (CR 400.11: "An object is
+     *  outside the game if it isn't in any of the game's zones. Outside the
+     *  game is not a zone."; CR 400.11a: "Cards in a player's sideboard are
+     *  outside the game"). Built at game init (`buildPlayerState`, game.ts)
+     *  from the Match deck's sideboard snapshot, MINUS the card the
+     *  `companion` slot above holds (one physical card, one holder) — rebuilt
+     *  per Game, so a Bo3's post-sideboard partition is what each Game sees.
+     *
+     *  NOT a zone: no zone enumerator (`ZONE_TO_FIELD`, `findCardInAnyZone`,
+     *  SBAs, triggers) reads it, and CR 400.11c keeps every spell and ability
+     *  off these cards except one that brings them into the game — the
+     *  `bringFromOutsideGame` Op, whose pool is `outsideGamePool`
+     *  (`gre/outsideGame.ts`). Each entry is a real allocated instance (so a
+     *  brought-in card moves into `hand` with its id intact) whose `zone` is a
+     *  nominal `"exile"` tag, as the companion slot's is.
+     *
+     *  HIDDEN information: the projection sends it to its OWNER alone (a
+     *  player knows their own sideboard), and a pending pick's candidates to
+     *  that pick's chooser (`outsideGamePeek`, `gameProjections.ts`). Absent
+     *  = empty. */
+    outsideGame?: CardInstanceState[];
 };
 
 /** The zone a cast originates from (CR 601.3). Normally the hand; exile for
