@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getMatchBotDifficulty } from "../gameReads";
 import { createLimitedEvent } from "../limitedEvents";
+import { DEFAULT_DIFFICULTY } from "../gre/difficulty";
 import { resolveEventBotDifficulty } from "../limited/botDifficulty";
 import {
     makeInMemoryDb,
@@ -56,6 +57,7 @@ describe("createLimitedEvent — Bot difficulty (issue #6916)", () => {
 
     it("resolves an event row written before the field to medium", () => {
         expect(resolveEventBotDifficulty({})).toBe("medium");
+        expect(resolveEventBotDifficulty({})).toBe(DEFAULT_DIFFICULTY);
         expect(resolveEventBotDifficulty({ botDifficulty: "expert" })).toBe(
             "expert"
         );

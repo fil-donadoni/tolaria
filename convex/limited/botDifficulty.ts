@@ -8,7 +8,12 @@
 // one place.
 
 import { v } from "convex/values";
-import { DEFAULT_DIFFICULTY, type Difficulty } from "../gre/difficulty";
+import type { Difficulty } from "../gre/difficulty";
+
+/** The lobby default, spelled out here rather than imported: this module is
+ *  reached by `convex/gameReads.ts`, which must not reach the engine (issue
+ *  #4855). `limitedEventBotDifficulty.test.ts` pins it to `DEFAULT_DIFFICULTY`. */
+const DEFAULT_EVENT_BOT_DIFFICULTY: Difficulty = "medium";
 
 /** Wire/storage shape of a `Difficulty`. Four literals, written out because
  *  `v.union` needs a tuple; `Infer` pins it to `Difficulty` at the call sites
@@ -27,5 +32,5 @@ export const difficultyValidator = v.union(
 export function resolveEventBotDifficulty(event: {
     botDifficulty?: Difficulty;
 }): Difficulty {
-    return event.botDifficulty ?? DEFAULT_DIFFICULTY;
+    return event.botDifficulty ?? DEFAULT_EVENT_BOT_DIFFICULTY;
 }
