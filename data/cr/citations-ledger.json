@@ -40903,6 +40903,8 @@
         {"id":"701.23b","line":"// CR 701.23b — \"fail to find\" carries no material of its own.","sites":1,"status":"baseline"},
         {"id":"701.23b","line":"// CR 701.23b — \"fail to find\" pruned where finding is a strict gain (issue","sites":1,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
         {"id":"701.23b","line":"// CR 701.23b — \"search\" never compels a find.","sites":1,"status":"baseline"},
+        {"id":"701.23b","line":"// CR 701.23b — \"that many cards\" states no quality,","sites":1,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
+        {"id":"701.23b","line":"// CR 701.23b — \"that many cards\" states no quality: the search is mandatory.","sites":1,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
         {"id":"701.23b","line":"// CR 701.23b — a stated quality makes the find optional, which only","sites":1,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
         {"id":"701.23b","line":"// CR 701.23b — a stated quality never compels the find.","sites":8,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
         {"id":"701.23b","line":"// CR 701.23b — every category is a \"you may\", so the floor is 0.","sites":1,"status":"confirmed","ruleHash":"26f4429a4a5f8488"},
