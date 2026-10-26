@@ -2,14 +2,13 @@
  * The `## Target files` of a Grammar Gap issue — the grammar module its rule
  * lands in, derived from the gap's key (issue #6921).
  *
- * `gaps:sync` files one issue per gap KEY, and two keys one Grammar Rule closes
- * (issue #6379 "You draw a card and lose N life", issue #6395 "You draw X
- * cards and lose X life") used to be two issues sharing nothing the planner
- * reads: both ran at once, the first landing made the second redundant, and
- * the second PR died rebasing onto the shared rule file. Declaring that file
- * as the issue's `Target files` lets the in-flight overlap rule (issue #6195)
- * and the reservation (issue #6897) serialise them; the second's gap is gone
- * once the first lands, and the next `gaps:sync` retires it.
+ * `gaps:sync` files one issue per gap KEY, so two keys one Grammar Rule closes
+ * ("You draw a card and lose N life", "You draw X cards and lose X life") are
+ * two issues. Without a shared declared file the planner runs them at once,
+ * the first landing makes the second redundant, and the second PR dies
+ * rebasing onto the rule file. Declaring that file lets `queue:plan`'s
+ * in-flight overlap and reservation serialise them; once the first lands, the
+ * next `gaps:sync` retires the second if its gap is gone.
  *
  * A key is `slot › path… › shape` (`gapOf`): the INNERMOST name — the last
  * sub-grammar on the path, else the slot — is the one the compiler blamed, so
