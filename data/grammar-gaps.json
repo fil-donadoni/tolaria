@@ -551,6 +551,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › exile+moveZone",
+            "issue": 7032
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Creature › dealDamage",
             "issue": 6977
         },
@@ -3778,6 +3783,11 @@
             "kind": "migration",
             "key": "keyword-line + spell",
             "issue": 4036
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + spell + static",
+            "issue": 7034
         },
         {
             "kind": "migration",
