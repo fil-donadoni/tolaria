@@ -7654,6 +7654,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bolt Hound",
+        "scryfallId": "9f8cf3f9-4e3b-4af2-b5ef-a97eb1d2b674",
+        "oracleId": "60555f06-dc85-4a34-ae3c-fc1cdb923be7",
+        "firstSet": "m21",
+        "firstPrintId": "9f8cf3f9-4e3b-4af2-b5ef-a97eb1d2b674",
+        "firstPrintSet": "m21",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bolt of Keranos",
         "scryfallId": "4df70b14-5d67-4a92-aaba-72480c621d10",
         "oracleId": "e07f50fb-98b2-40b7-9610-b8e9438be394",
@@ -13036,6 +13046,16 @@
         "firstSet": "lea",
         "firstPrintId": "30935e4a-013e-4c46-ad05-304df8e5dfa4",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Copperhorn Scout",
+        "scryfallId": "4ee7f99e-7324-4d16-b163-8f1b2edb7b89",
+        "oracleId": "3d2ea1a3-72af-48bc-a8f1-98facc2eebd0",
+        "firstSet": "som",
+        "firstPrintId": "4ee7f99e-7324-4d16-b163-8f1b2edb7b89",
+        "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Copperline Gorge",
@@ -18552,6 +18572,16 @@
         "source": "compiled"
     },
     {
+        "name": "Drogskol Shieldmate",
+        "scryfallId": "156b4bca-4145-472b-bf80-13edb0bef561",
+        "oracleId": "470028cf-0b99-4dd1-bb9d-aba91c52ee28",
+        "firstSet": "emn",
+        "firstPrintId": "156b4bca-4145-472b-bf80-13edb0bef561",
+        "firstPrintSet": "emn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dromad Purebred",
         "scryfallId": "0106caf1-2201-4661-96a5-56af02963fa6",
         "oracleId": "c7adac8f-8187-49a0-80b2-3281d42f1b92",
@@ -21664,6 +21694,16 @@
         "firstSet": "ala",
         "firstPrintId": "48185059-fff9-47b0-9774-ad37dee345ed",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Exhilarating Elocution",
+        "scryfallId": "8468417d-7ef5-43e0-9190-e88f3eed9e82",
+        "oracleId": "58acd10d-d81e-49ae-9e08-cff4c6f0c6a1",
+        "firstSet": "stx",
+        "firstPrintId": "8468417d-7ef5-43e0-9190-e88f3eed9e82",
+        "firstPrintSet": "stx",
         "rarity": "common",
         "source": "compiled"
     },
@@ -62946,6 +62986,16 @@
         "firstPrintSet": "mh2"
     },
     {
+        "name": "Soltari Champion",
+        "scryfallId": "a112edf3-c976-426c-a407-e86255586e41",
+        "oracleId": "765017e5-b43d-4c77-a9a9-0fcf0c0cd098",
+        "firstSet": "sth",
+        "firstPrintId": "a112edf3-c976-426c-a407-e86255586e41",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Soltari Crusader",
         "scryfallId": "6cd07471-b216-465c-9946-1eac689db32e",
         "oracleId": "39e01990-9928-440c-a5c3-82aea29e2cd0",
@@ -67776,6 +67826,16 @@
         "firstSet": "leg",
         "firstPrintId": "f3020304-7a39-411e-b055-3ade72b4bff8",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Syr Alin, the Lion's Claw",
+        "scryfallId": "4cddb2d2-d813-4b83-a592-380ba4edf54f",
+        "oracleId": "5d9a4905-4a26-410e-936c-56de849e9ca3",
+        "firstSet": "eld",
+        "firstPrintId": "4cddb2d2-d813-4b83-a592-380ba4edf54f",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Tablet of Epityr",
@@ -76576,6 +76636,16 @@
         "source": "compiled"
     },
     {
+        "name": "War Screecher",
+        "scryfallId": "d2ff7868-eeb9-4292-a2f4-cac18f9ba270",
+        "oracleId": "4617739e-4e3e-4d06-b074-8f836261a870",
+        "firstSet": "war",
+        "firstPrintId": "d2ff7868-eeb9-4292-a2f4-cac18f9ba270",
+        "firstPrintSet": "war",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "War Squeak",
         "scryfallId": "105964a7-88b7-4340-aa66-e908189a3638",
         "oracleId": "54702a84-3125-41a7-a875-fe2ec870836d",
@@ -77230,6 +77300,16 @@
         "firstSet": "spm",
         "firstPrintId": "1ab7c1e6-54af-4002-8a81-23a1ccafa3ff",
         "firstPrintSet": "spm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Weed-Pruner Poplar",
+        "scryfallId": "d44d2eb4-e5a3-4401-86cb-311374a2de04",
+        "oracleId": "40e8ade9-9cec-4983-ab11-d9e6278fb29f",
+        "firstSet": "mor",
+        "firstPrintId": "d44d2eb4-e5a3-4401-86cb-311374a2de04",
+        "firstPrintSet": "mor",
         "rarity": "common",
         "source": "compiled"
     },

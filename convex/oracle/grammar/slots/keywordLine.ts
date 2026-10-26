@@ -304,6 +304,12 @@ function dashKicker(body: string, ctx: unknown): RuleResult<KickerIR> {
                 legs.life = atom.amount;
                 break;
             case "sacrifice-other":
+                // `excludeSource` is resolved on activation costs only.
+                if (atom.filter.excludeSource === true)
+                    return fail(
+                        "a kicker sacrifice excluding the source has no encoding",
+                        body
+                    );
                 legs.sacrifice = { filter: atom.filter, count: atom.count };
                 break;
             default:

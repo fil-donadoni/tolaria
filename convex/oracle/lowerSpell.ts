@@ -226,6 +226,14 @@ export function lowerAdditionalCosts(
                         ok: false,
                         reason: "an additional cost sacrificing more than one permanent has no encoding (CR 701.21a)",
                     };
+                // "another"/"other" (`excludeSource`) is baked only on the
+                // activation-cost pick path; the cast-cost pick never resolves
+                // it, so the cost would be unpayable.
+                if (atom.filter.excludeSource === true)
+                    return {
+                        ok: false,
+                        reason: "an additional cost excluding the source has no encoding on the cast path",
+                    };
                 costs.sacrificeFilter = atom.filter;
                 break;
             case "pay-life":
