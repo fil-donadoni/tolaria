@@ -1786,18 +1786,25 @@ describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
         const pr = (number: number, labels: string[] = []) => ({
             number,
             labels: labels.map((name) => ({ name })),
-            headRefName: `fix/issue-9008-${number}`,
+            headRefName: "fix/issue-9008",
             author: { login: "fil-donadoni" },
         });
         const { tracker, closed, closedPrs } = closer(
             { 9008: "OPEN" },
             {},
-            { 9008: [pr(7001, ["land-failed"]), pr(7002, ["ready-to-land"])] }
+            {
+                9008: [
+                    pr(7001, ["land-failed"]),
+                    pr(7002, ["ready-to-land"]),
+                    { ...pr(7003), headRefName: "fix/issue-9999" },
+                ],
+            }
         );
         closeClaims([gone], tracker, "abc123");
         expect(closedPrs.map((p) => p.number)).toEqual([7001]);
         expect(closedPrs[0]!.comment).toContain("abc123");
         expect(closed[0]!.comment).toContain("PR #7002");
+        expect(closed[0]!.comment).toContain("PR #7003");
         expect(closed[0]!.comment).not.toContain("PR #7001");
     });
 

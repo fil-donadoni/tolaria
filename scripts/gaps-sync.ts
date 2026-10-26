@@ -1355,11 +1355,19 @@ export function closeClaims(
         );
     for (const d of closing) {
         // The PR of a retired gap has no owner once the claim goes with the
-        // issue (issue #6920): close it unless the queue holds it.
-        const prs = planOrphanPrs(closer.openPrsOf(d.issue));
-        closer.close(d.issue, closureComment(d.closures, tip, prs.keep));
-        for (const pr of prs.close)
-            closer.closePr(pr, orphanPrComment(d.issue, tip));
+        // issue (issue #6920): close it unless the queue holds it. PRs go
+        // first: a closed issue is skipped next run, so a PR whose close
+        // failed would stay orphaned; it is named in the comment instead.
+        const prs = planOrphanPrs(d.issue, closer.openPrsOf(d.issue));
+        const kept = [...prs.keep];
+        for (const pr of prs.close) {
+            try {
+                closer.closePr(pr, orphanPrComment(d.issue, tip));
+            } catch {
+                kept.push(pr);
+            }
+        }
+        closer.close(d.issue, closureComment(d.closures, tip, kept));
     }
     return decided;
 }

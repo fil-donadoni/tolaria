@@ -23,14 +23,22 @@ export interface OrphanPrPlan {
 }
 
 /** Pure decision: which of an issue's open PRs close with it. */
-export function planOrphanPrs(prs: readonly OrphanPrCandidate[]): OrphanPrPlan {
+export function planOrphanPrs(
+    issue: number,
+    prs: readonly OrphanPrCandidate[]
+): OrphanPrPlan {
     const close: number[] = [];
     const keep: number[] = [];
-    for (const pr of prs)
-        (queueState({ ...pr, title: "", files: [] }) === null
+    for (const pr of prs) {
+        // Only a PR whose BRANCH is this issue's is closed: a closing keyword
+        // in a body also matches "Closes #A, closes #B" or a negation, and
+        // those PRs may be live work for another issue.
+        const owned = new RegExp(`issue-${issue}$`).test(pr.headRefName);
+        (owned && queueState({ ...pr, title: "", files: [] }) === null
             ? close
             : keep
         ).push(pr.number);
+    }
     return { close, keep };
 }
 
