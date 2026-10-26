@@ -13,6 +13,7 @@ import {
     gatePrOf,
     healthAdmission,
     heldPrAction,
+    holdsBeforeRed,
     isMergifyQueuePr,
     needsRequeue,
     parseTrustedAuthors,
@@ -405,6 +406,107 @@ describe("needsRequeue — the GREEN that releases a held PR (issue #6110)", () 
         expect(needsRequeue(labels("ready-to-land", "queued"))).toBe(false);
         expect(needsRequeue(labels("enhancement"))).toBe(false);
         expect(needsRequeue({ ...held, trustedAuthor: "failure" })).toBe(false);
+    });
+});
+
+describe("holdsBeforeRed — the hold is labelled before the failure that dequeues (issue #6986)", () => {
+    it("labels a queue PR held on a base-health failure, and only then", () => {
+        const ready = ["ready-to-land", "queued"];
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(true);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "success",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "pending",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: [...ready, "queue:held"],
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: ["ready-to-land", "land-failed"],
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+        // Out of the queue on `trusted-author`: never dequeued, never held;
+        // unread, it holds.
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: "failure",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: undefined,
+            })
+        ).toBe(true);
+        expect(
+            holdsBeforeRed({
+                labels: [],
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+    });
+
+    it("a RED that clears before Mergify's rules run leaves every queue PR ready-to-land and requeued", () => {
+        // 2026-10-25: RED at 17:44, GREEN at 17:57, `base-health` green
+        // again before Mergify judged the dequeues. The label was on every
+        // PR before the failure, so the repair-pick rule
+        // (`-label=queue:held`) cannot match; the GREEN's re-gate requeues
+        // the dequeued ones and releases the ones Mergify kept queued.
+        const now = Date.parse("2026-10-25T18:00:20Z");
+        const queue = [["ready-to-land", "queued"], ["ready-to-land"]].map(
+            (labels) =>
+                holdsBeforeRed({
+                    labels,
+                    baseHealth: "failure",
+                    trustedAuthor: "success",
+                })
+                    ? [...labels, "queue:held"]
+                    : labels
+        );
+        expect(queue.every((l) => l.includes("queue:held"))).toBe(true);
+        const dequeued = queue.map((l) => l.filter((x) => x !== "queued"));
+        const offRed = (labels: string[]) =>
+            heldPrAction({
+                labels,
+                lineage: { kind: "green" },
+                baseHealth: "success",
+                trustedAuthor: "success",
+                lastRequeueAt: () => null,
+                now,
+            });
+        expect(dequeued.map(offRed)).toEqual(["requeue", "requeue"]);
+        expect(offRed(queue[0]!)).toBe("release");
+        expect(
+            dequeued.every(
+                (l) => l.includes("ready-to-land") && !l.includes("land-failed")
+            )
+        ).toBe(true);
     });
 });
 

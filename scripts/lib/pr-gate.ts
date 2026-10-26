@@ -137,6 +137,37 @@ export function needsRequeue(input: {
 }
 
 /**
+ * Whether a re-gate labels a PR `queue:held` BEFORE it posts `base-health`
+ * `failure` on it (issue #6986). `.mergify.yml`'s hold exemption read the
+ * status when the rule ran, not when the dequeue happened: a RED that
+ * cleared in the meantime left `base-health` green on a PR Mergify had
+ * dequeued for it, and the repair-pick rule labelled the whole queue
+ * `land-failed`. The label is the stateful exemption: it is on the PR before
+ * the failure that dequeues it, and `heldPrAction` releases it off RED
+ * (requeue first when the PR was dequeued, at once when it is still
+ * `queued`). Only a PR the queue holds (`ready-to-land`, no `land-failed`)
+ * not already labelled, and not one `trusted-author` keeps out of the
+ * queue (an owner-merged PR is never dequeued, and its label would stick:
+ * `heldPrAction` waits on `trusted-author`). An unread `trusted-author`
+ * holds.
+ */
+export function holdsBeforeRed(input: {
+    labels: readonly string[];
+    baseHealth: GateState;
+    trustedAuthor: GateState | undefined;
+}): boolean {
+    const { labels } = input;
+    return (
+        input.baseHealth === "failure" &&
+        (input.trustedAuthor === undefined ||
+            input.trustedAuthor === "success") &&
+        labels.includes(READY_LABEL) &&
+        !labels.includes(FAILED_LABEL) &&
+        !labels.includes(HELD_LABEL)
+    );
+}
+
+/**
  * How long a posted `@mergifyio requeue` is given to take before the hold is
  * released anyway: a re-gate fired by another event minutes later must not
  * read Mergify's latency as a refusal.

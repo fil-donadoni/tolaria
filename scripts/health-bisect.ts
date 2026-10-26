@@ -34,9 +34,11 @@ import {
     bisectWorktreePid,
     freshRunPlan,
     LADDER_MARK,
+    ladderRed,
     laddered,
     lastGreenOf,
     settleFreshPass,
+    settleHeldRed,
     remainingGates,
     vitestCommands,
     type FreshRun,
@@ -59,6 +61,7 @@ import {
     verdictStore,
     type Verdict,
 } from "./lib/health-verdict-store";
+import { clearDeferredRed, readDeferredRed } from "./lib/health-verdict-job";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 type Plan = Exclude<FreshRun, { kind: "none" }>;
@@ -410,9 +413,9 @@ function lastRunSha(root: string): { sha: string; status: string } | null {
 
 function ladder(ctx: Ctx): number {
     const store = verdictStore(ctx.root);
-    let verdict: Verdict | null;
+    let stored: Verdict | null;
     try {
-        verdict = store.read(ctx.sha);
+        stored = store.read(ctx.sha);
     } catch (e) {
         note(
             ctx,
@@ -420,13 +423,35 @@ function ladder(ctx: Ctx): number {
         );
         return 1;
     }
+    const dir = join(ctx.root, HEALTH_DIR_REL);
+    const { verdict, held } = ladderRed(
+        stored,
+        readDeferredRed(dir) as Verdict | null,
+        ctx.sha
+    );
+    if (held)
+        note(
+            ctx,
+            `${ctx.sha.slice(0, 8)}: the scheduled run's RED is held off the store until this fresh run (issue #6986)`
+        );
+    // A held RED reaches the store only once it stands.
+    const settle = (code: number): number =>
+        settleHeldRed(
+            { held, verdict, code, dryRun: ctx.dryRun },
+            {
+                note: (line) => note(ctx, line),
+                writeRed: (v) => store.write(v),
+                clear: () => clearDeferredRed(dir),
+            }
+        );
     const evidence = readEvidence(ctx.root, ctx.sha);
     if (verdict?.status === "red" && laddered(evidence)) {
         note(
             ctx,
             `${ctx.sha.slice(0, 8)}: the ladder already confirmed this RED — reported once`
         );
-        return 0;
+        // A held one confirmed by a ladder whose write failed: write it now.
+        return held ? settle(1) : 0;
     }
     const plan = freshRunPlan(
         verdict,
@@ -437,7 +462,7 @@ function ladder(ctx: Ctx): number {
         note(ctx, `${ctx.sha.slice(0, 8)}: ${plan.reason}`);
         // Only a GREEN on the store means nothing stands: a missing verdict
         // (a store write that failed) or an INFRA is not one.
-        return verdict?.status === "green" ? 0 : 1;
+        return settle(verdict?.status === "green" ? 0 : 1);
     }
     note(
         ctx,
@@ -446,26 +471,30 @@ function ladder(ctx: Ctx): number {
     const { outcome, elsewhere } = freshRun(ctx, plan);
     if (outcome === "infra") {
         note(ctx, "the fresh run could not run — the RED stands, unconfirmed");
-        return 1;
+        return settle(1);
     }
     if (outcome === "green")
-        return settleFreshPass(
-            {
-                red: verdict,
-                sha: ctx.sha,
-                plan,
-                freshMachine: machineName(),
-                at: new Date().toISOString(),
-                log: runUrl(),
-                dryRun: ctx.dryRun,
-            },
-            {
-                note: (line) => note(ctx, line),
-                writeGreen: (v) => store.write(v),
-                fileFlake: () => fileFlake(ctx, plan, verdict?.log),
-                publish: (line) => publishCulprit(ctx, line),
-            }
+        return settle(
+            settleFreshPass(
+                {
+                    red: verdict,
+                    sha: ctx.sha,
+                    plan,
+                    freshMachine: machineName(),
+                    at: new Date().toISOString(),
+                    log: runUrl(),
+                    dryRun: ctx.dryRun,
+                },
+                {
+                    note: (line) => note(ctx, line),
+                    writeGreen: (v) => store.write(v),
+                    fileFlake: () => fileFlake(ctx, plan, verdict?.log),
+                    publish: (line) => publishCulprit(ctx, line),
+                }
+            )
         );
+    // Reproduced: the RED is written before the bisect, which can take long.
+    settle(1);
     let line: string;
     if (elsewhere !== undefined) {
         note(
@@ -522,7 +551,11 @@ function main(): number {
             );
             return 1;
         }
-        if (lineageBlocks(lineage.kind) && lineage.verdict)
+        // This job's held RED first (issue #6986): no other RED is on the
+        // store for it, and an older one standing would leave it unwritten.
+        const held = readDeferredRed(join(root, HEALTH_DIR_REL));
+        if (last?.status === "red" && held?.sha === last.sha) sha = held.sha;
+        else if (lineageBlocks(lineage.kind) && lineage.verdict)
             sha = lineage.verdict.sha;
         else if (last?.status === "red") sha = last.sha;
         else {
