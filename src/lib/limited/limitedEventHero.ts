@@ -5,6 +5,7 @@
 // action the viewer's role calls for in that phase. The components render what
 // this module says; they never branch on `status` themselves.
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
+import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import {
     limitedEventStatusHint,
     type LimitedEventStatusHint,
@@ -173,14 +174,15 @@ export function limitedEventHero(
 
 // --- Header chips -----------------------------------------------------------
 
-/** The header's chips, in order: type · Pack Source, Games Format, seats and
- *  (Draft only) the pick timer. `sourceName` is the Pack Source's display name
+/** The header's chips, in order: type · Pack Source, Games Format, seats, the
+ *  Bot difficulty (issue #6916: the strength every Bot Match of the event is
+ *  played at, read-only after start) and (Draft only) the pick timer. `sourceName` is the Pack Source's display name
  *  (PRD #5383, issue #5385); an event the catalogue cannot name shows the type
  *  alone. */
 export function limitedEventChips(
     event: Pick<
         LimitedEventView,
-        "type" | "seatCount" | "gamesFormat" | "timerEnabled"
+        "type" | "seatCount" | "gamesFormat" | "botDifficulty" | "timerEnabled"
     >,
     sourceName: string | undefined
 ): string[] {
@@ -189,6 +191,7 @@ export function limitedEventChips(
         sourceName === undefined ? type : `${type} · ${sourceName}`,
         event.gamesFormat === "bo1" ? "Best of 1" : "Best of 3",
         `${event.seatCount} seats`,
+        `Bots: ${DIFFICULTY_LABEL[event.botDifficulty]}`,
     ];
     if (event.type === "draft") {
         chips.push(event.timerEnabled ? "Pick timer on" : "No pick timer");

@@ -4,14 +4,8 @@
 // knob (see `convex/gre/difficulty.ts`).
 
 import { DIFFICULTIES, type Difficulty } from "@convex/gre/difficulty";
+import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import { cn } from "~/lib/utils";
-
-const LABELS: Record<Difficulty, string> = {
-    easy: "Easy",
-    medium: "Medium",
-    hard: "Hard",
-    expert: "Expert",
-};
 
 /** One plain-language line per level, shown for the currently selected value
  *  so the player is never surprised by what the bot knows (issue #2790,
@@ -64,7 +58,7 @@ export default function DifficultySelector({
                                     : "bg-surface-elevated/30 text-text hover:bg-surface-elevated/50"
                             )}
                         >
-                            {LABELS[d]}
+                            {DIFFICULTY_LABEL[d]}
                         </button>
                     );
                 })}

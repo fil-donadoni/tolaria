@@ -1,5 +1,6 @@
 // Step 3 — Table (PRD #5383): seats, Games Format, pick timer (Draft only),
-// boosters per seat (Sealed only), round deadline and Open Decklists.
+// boosters per seat (Sealed only), Bot difficulty, round deadline and Open
+// Decklists.
 import { MAX_SEATS, MIN_SEATS } from "@convex/limited/eventLogic";
 import {
     DEFAULT_ROUND_DEADLINE_MINUTES,
@@ -13,6 +14,7 @@ import {
     seatLimit,
     type LimitedSetup,
 } from "~/lib/limited/limitedSetup";
+import DifficultySelector from "~/components/lobby/difficulty-selector";
 import SegmentedControl from "~/components/ui/segmented-control";
 import LimitedSetupNumberField from "./limited-setup-number-field";
 import LimitedSetupToggle from "./limited-setup-toggle";
@@ -54,6 +56,17 @@ export default function LimitedSetupTableStep({
                     }
                 />
             )}
+
+            <div className="flex flex-col gap-1">
+                <DifficultySelector
+                    value={setup.botDifficulty}
+                    onChange={(botDifficulty) => onChange({ botDifficulty })}
+                />
+                <span className="text-xs text-text-muted">
+                    Every match against a Bot in this event — round pairings and
+                    Play vs the Table — plays at this difficulty.
+                </span>
+            </div>
 
             <div className="flex flex-col gap-1">
                 <span className={FIELD_LABEL}>Games Format</span>

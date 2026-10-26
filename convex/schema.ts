@@ -16,6 +16,7 @@ import {
 // `convex/values` only (its `CardPins` import is type-only), so importing it
 // here adds no runtime weight to the schema.
 import { poolArrangementEntryValidator } from "./limited/eventTypes";
+import { difficultyValidator } from "./limited/botDifficulty";
 // The persisted Column Layout of a deck row (ADR 0075 §4, issue #1626). Same
 // arrangement, same reason: declared once in the leaf module
 // `convex/deckLayoutStorage.ts` (types + `convex/values` only — the Column
@@ -409,6 +410,12 @@ export default defineSchema({
          *  `limitedChallenge` instead) and for every non-event Match. Present
          *  so a FINISHED Match can find the pairing to record its result
          *  against without scanning the event's rounds. */
+        /** Bot difficulty this vs-AI Match was started with (issue #6916) —
+         *  stamped from the Limited Event's setup for a round pairing vs a Bot
+         *  seat and for "Play vs the Table". The vs-AI driver reads it instead
+         *  of browser-local storage; absent (lobby Matches, legacy rows) ⇒ the
+         *  driver falls back to the lobby's stored choice. */
+        botDifficulty: v.optional(difficultyValidator),
         limitedPairing: v.optional(
             v.object({
                 round: v.number(),
@@ -707,6 +714,11 @@ export default defineSchema({
         // it through `resolveGamesFormat` (`convex/limited/gamesFormat.ts`),
         // which defaults to "bo3", so nothing downstream ever sees `undefined`.
         gamesFormat: v.optional(v.union(v.literal("bo1"), v.literal("bo3"))),
+        // Bot difficulty of every vs-AI Match the event starts (issue #6916),
+        // chosen at setup. OPTIONAL for backward compatibility: readers resolve
+        // it through `resolveEventBotDifficulty` (`convex/limited/
+        // botDifficulty.ts`), which defaults to "medium".
+        botDifficulty: v.optional(difficultyValidator),
         // Pre-rename key of `gamesFormat` (issue #5337). Never written any
         // more; kept so events created earlier keep validating and keep their
         // value — `resolveEventGamesFormat` reads `gamesFormat ?? matchFormat`.

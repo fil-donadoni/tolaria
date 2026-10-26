@@ -238,6 +238,17 @@ export function useVsAiDriver(
         botId ? { gameId } : "skip"
     );
     const tick = tickQuery.data;
+    // The difficulty the Match was STARTED with (issue #6916): a Limited
+    // Event's vs-AI Match plays at the event's difficulty, whatever this
+    // browser last picked in the lobby. `null` = the Match carries none (lobby
+    // Match, legacy row) → the stored lobby choice, read at the search site.
+    // `undefined` = still loading: the search WAITS for it, otherwise an
+    // event Match's first move could be searched at the wrong strength.
+    const matchDifficultyQuery = useResilientQuery(
+        api.gameReads.getMatchBotDifficulty,
+        botId ? { gameId } : "skip"
+    );
+    const matchDifficulty = matchDifficultyQuery.data;
     const botOwesInput = !!(
         botId &&
         (tick === null ||
@@ -363,10 +374,12 @@ export function useVsAiDriver(
     }, [botManifest]);
     const retryTick = tickQuery.retry;
     const retryBotState = botStateQuery.retry;
+    const retryMatchDifficulty = matchDifficultyQuery.retry;
     const retryDriverSubscriptions = useCallback(() => {
         retryTick();
         retryBotState();
-    }, [retryTick, retryBotState]);
+        retryMatchDifficulty();
+    }, [retryTick, retryBotState, retryMatchDifficulty]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:
@@ -988,6 +1001,10 @@ export function useVsAiDriver(
             return;
         }
 
+        // Match difficulty still loading (issue #6916): hold the search until
+        // it resolves — the effect re-runs when it does.
+        if (matchDifficulty === undefined) return;
+
         const timer = window.setTimeout(() => {
             if (inFlight.current) return;
             setThinking(true);
@@ -1000,7 +1017,7 @@ export function useVsAiDriver(
             // and the opponent-knowledge mode. Reading it here rather than
             // during render is what keeps the two in step — see the
             // `deckKnowledge` memo above.
-            const difficulty = getStoredDifficulty();
+            const difficulty = matchDifficulty ?? getStoredDifficulty();
             const budget = budgetFor(difficulty);
             const knowledge = knowsOpponent(difficulty)
                 ? deckKnowledge?.informed
@@ -1116,7 +1133,15 @@ export function useVsAiDriver(
         // `mutations` is rebuilt each render but its callables are stable; depend
         // on the state version (tick + the state it gates) and bot id only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, tick, botState, deckKnowledge, settleNonce]);
+    }, [
+        gameId,
+        botId,
+        tick,
+        botState,
+        deckKnowledge,
+        matchDifficulty,
+        settleNonce,
+    ]);
 
     // ── The watchdog ────────────────────────────────────────────────────────
     //
@@ -1298,7 +1323,10 @@ export function useVsAiDriver(
         // Either query giving up is the same outcome for the player: the bot
         // stops moving. The tick is reported first because it is the one that
         // gates everything else.
-        subscriptionError: tickQuery.error ?? botStateQuery.error,
+        subscriptionError:
+            tickQuery.error ??
+            botStateQuery.error ??
+            matchDifficultyQuery.error,
         retrySubscription: retryDriverSubscriptions,
     };
 }

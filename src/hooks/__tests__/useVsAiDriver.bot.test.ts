@@ -26,6 +26,7 @@ import {
     computeOwedPlayerIds,
 } from "@convex/gre/expectedInput";
 import { storeDifficulty } from "~/lib/session";
+import type { Difficulty } from "@convex/gre";
 
 const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id;
@@ -58,6 +59,11 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
+// What `getMatchBotDifficulty` answers (issue #6916): `null` = a lobby Match
+// (no difficulty bound), `undefined` = still loading.
+let matchDifficulty: Difficulty | null | undefined = null;
+// Every difficulty the driver resolved a search budget for.
+const budgetCalls: unknown[] = [];
 // issue #3266 review — the tick query gives up. A driver that swallows this
 // stops moving with nothing on screen saying why, which reads as a hung game.
 let tickError: Error | null = null;
@@ -183,6 +189,7 @@ vi.mock("@convex/_generated/api", () => ({
             getSeatDeck: "getSeatDeck",
             getSeatDeckKnowledge: "getSeatDeckKnowledge",
             getDefinitionManifest: "getDefinitionManifest",
+            getMatchBotDifficulty: "getMatchBotDifficulty",
         },
     },
 }));
@@ -214,6 +221,7 @@ vi.mock("convex/react", async () => {
         if (ref === "getDefinitionManifest") {
             return manifests[(args as { playerId: string }).playerId];
         }
+        if (ref === "getMatchBotDifficulty") return matchDifficulty;
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
             if (tickError) return tickError;
@@ -328,6 +336,19 @@ vi.mock("~/lib/ai/state-adapter", async (importOriginal) => {
     };
 });
 
+// `budgetFor` is the real one — only WRAPPED, so the difficulty the driver
+// resolved its search budget from is observable (issue #6916).
+vi.mock("@convex/gre", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@convex/gre")>();
+    return {
+        ...actual,
+        budgetFor: (...args: Parameters<typeof actual.budgetFor>) => {
+            budgetCalls.push(args[0]);
+            return actual.budgetFor(...args);
+        },
+    };
+});
+
 // Imported after the mocks so the hook picks up the mocked transport.
 const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
 // The client-only AI rings the driver writes (issue #2470). Not mocked — the
@@ -412,6 +433,8 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
+        matchDifficulty = null;
+        budgetCalls.length = 0;
         tickError = null;
         seatDecks = {};
         seatKnowledge = {};
@@ -660,6 +683,66 @@ describe("useVsAiDriver (issue #110)", () => {
             { playerId: BOT, cardIds: [MOUNTAIN] },
             { playerId: HUMAN, cardIds: [BEARS] },
         ]);
+    });
+
+    // ── A Limited Event's vs-AI Match plays at the EVENT's difficulty (issue
+    //    #6916) ────────────────────────────────────────────────────────────
+    it("an event Match's difficulty wins over the lobby's stored one (budget and knowledge mode)", async () => {
+        storeDifficulty("easy");
+        matchDifficulty = "expert";
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetCalls.length).toBeGreaterThan(0);
+        expect(budgetCalls.every((d) => d === "expert")).toBe(true);
+        const searched = searchAdapterCalls();
+        expect(searched.length).toBeGreaterThan(0);
+        expect(searched[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+            { playerId: HUMAN, cardIds: [BEARS] },
+        ]);
+    });
+
+    it("an event Match at hard stays blind even when the lobby's stored difficulty is expert", async () => {
+        storeDifficulty("expert");
+        matchDifficulty = "hard";
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetCalls.length).toBeGreaterThan(0);
+        expect(budgetCalls.every((d) => d === "hard")).toBe(true);
+        expect(searchAdapterCalls()[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+        ]);
+    });
+
+    it("a lobby Match (no bound difficulty) still uses the lobby's stored difficulty", async () => {
+        storeDifficulty("expert");
+        matchDifficulty = null;
+        seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
+        seatKnowledge[HUMAN] = knows(HUMAN, [BEARS]);
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetCalls.length).toBeGreaterThan(0);
+        expect(budgetCalls.every((d) => d === "expert")).toBe(true);
+    });
+
+    it("holds the search while the Match's difficulty is still loading", async () => {
+        matchDifficulty = undefined;
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetCalls).toEqual([]);
+        expect(searchAdapterCalls()).toEqual([]);
     });
 
     it("passes on the bot seat when the bot holds priority with no other move", async () => {
