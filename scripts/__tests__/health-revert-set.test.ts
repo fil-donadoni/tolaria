@@ -150,6 +150,22 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
         expect(landingRestoresParent(culprit, changed, repo)).toBe(false);
     });
 
+    it("a hot file pulls in only the dependent, never every later commit touching it", () => {
+        const lines = (two: string, nine: string) =>
+            ["1", two, "3", "4", "5", "6", "7", "8", nine, "10", ""].join("\n");
+        commit("ten lines", { "a.txt": lines("2", "9") });
+        const culprit = commit("feat: two (#100)", {
+            "a.txt": lines("two", "9"),
+        });
+        commit("dep: two! (#101)", { "a.txt": lines("two!", "9") });
+        commit("far edit (#102)", { "a.txt": lines("two!", "nine") });
+        commit("far edit again (#103)", { "a.txt": lines("two!", "NINE") });
+        const p = plan(culprit, 3);
+        expect(p.kind).toBe("applies");
+        expect(p.set.map((c) => c.pr)).toEqual([101, 100]);
+        expect(read("a.txt")).toBe(lines("2", "NINE"));
+    });
+
     it("a set past the cap is not made: the plan names every commit it needs", () => {
         const culprit = commit("feat: two (#100)", { "a.txt": "1\ntwo\n3\n" });
         commit("dep 1 (#101)", { "a.txt": "1\ntwo1\n3\n" });
