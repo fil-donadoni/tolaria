@@ -9690,9 +9690,7 @@ function stageReanimatedOnBattlefield(
     // never touches the battlefield — none of the ETB machinery below runs.
     //
     // CR 614.12 — the chokepoint reads the full text this permanent will
-    // present once it is on the battlefield. Withdrawn again straight after:
-    // the CR 400.7 reset below rebuilds the object, and the entry re-presents
-    // on the far side of it.
+    // present once it is on the battlefield.
     presentFullTextOnEntry(state, card, controllerId);
     const enterDestination = enterBattlefieldDestinationFor(
         state,
@@ -9707,8 +9705,8 @@ function stageReanimatedOnBattlefield(
         false,
         { asEntersResolved: entryOpts?.asEntersResolved }
     );
-    withdrawFullText(state, card);
     if (enterDestination === "exile") {
+        withdrawFullText(state, card);
         resetBattlefieldTransientState(card, state);
         // CR 614 — same as the land block above: nothing entered, so nothing
         // may carry the pending line into exile (PR #3023 review, B1).
@@ -9800,8 +9798,8 @@ function stageReanimatedOnBattlefield(
     // ignores this stackless choice — `resolutionSuspendedOnChoice` — and the
     // active player's next priority window resolves it).
     //
-    // CR 614.12 — the entry reads below (`entersWith`, `entersTapped`) see the
-    // full text the permanent presents on the battlefield.
+    // CR 614.12 — the full text presented above survives the CR 400.7 reset;
+    // its retained-text rows went with the old object's grants.
     presentFullTextOnEntry(state, card, controllerId);
     const putCardId = (card.card as { id?: string }).id;
     const putDef = putCardId ? tryGetDefinition(putCardId) : undefined;
@@ -10233,11 +10231,6 @@ export function stageAsEntersEntry(
     // choice with a linked exile.
     clearExileLinksToEnteringSource(state, card.id);
     const presented = presentedDefId(card);
-    // CR 614.12 — the owed choices above were read off the full text the
-    // object would present; the parked object itself carries none, so an
-    // entry that is aborted or never resumes leaves no presented identity in
-    // any zone. Its entry tail presents it again (`presentFullTextOnEntry`).
-    withdrawFullText(state, card);
     const entry: StagedEntry = {
         card,
         controllerId,
@@ -11104,6 +11097,9 @@ function abortStagedEntryTo(
     entry: StagedEntry,
     destination: "graveyard"
 ): void {
+    // CR 614.12 — a parked object keeps the full text it would enter with
+    // (`presentFullTextOnEntry`); abandoned, it leaves as its own card.
+    withdrawFullText(state, entry.card);
     if (entry.origin === "token") return;
     if (entry.origin === "spell") {
         sendStackItemToGraveyard(state, entry.card as StackItem);
@@ -19951,9 +19947,6 @@ function finishTokenEntry(
 ): void {
     const owner = getPlayer(state, controllerId);
     {
-        // CR 614.12 — a parked entry withdrew its full text
-        // (`stageAsEntersEntry`); it is presented again before the tapped read.
-        presentFullTextOnEntry(state, token, controllerId);
         // CR 614.1c + 110.5b — Kismet-style replacement taps an
         // opponent-controlled artifact/creature/land token as it enters. OR'd
         // with the CR 508.4 authored "enters tapped" flag (issue #1195,

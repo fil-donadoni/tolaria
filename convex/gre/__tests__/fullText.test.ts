@@ -42,6 +42,7 @@ import { projectPublicState } from "../../gameProjections";
 import { getEffectiveColors } from "../../cards/effectiveColors";
 import { getDefinition, withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 import {
     makeInstance,
     makePlayer,
@@ -747,10 +748,66 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
         ],
     };
 
+    /** A 0/0 that owes a `body` choice ("As this enters, choose 2/2 or 4/4"):
+     *  its answer writes the body onto the parked object. */
+    const BODY_PICKER = "test-full-text-body-picker";
+    const bodyPickerDef: CardDefinition = {
+        id: BODY_PICKER,
+        name: "Full Text Test Body Picker",
+        rarity: "common",
+        oracleText:
+            "As this creature enters, it becomes your choice of 2/2 or 4/4.",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Shapeshifter"],
+        power: 0,
+        toughness: 0,
+        entersWith: {
+            asEnters: [
+                {
+                    kind: "body",
+                    options: [
+                        { id: "2-2", label: "2/2", power: 2, toughness: 2 },
+                        { id: "4-4", label: "4/4", power: 4, toughness: 4 },
+                    ],
+                },
+            ],
+        },
+    };
+    /** Mox Diamond's shape: "If this would enter, you may discard a land card
+     *  instead. If you do, put it onto the battlefield. If you don't, put it
+     *  into its owner's graveyard." */
+    const DISCARD_OR_BIN = "test-full-text-discard-or-bin";
+    const discardOrBinDef: CardDefinition = {
+        id: DISCARD_OR_BIN,
+        name: "Full Text Test Discard Or Bin",
+        rarity: "common",
+        oracleText:
+            "If this creature would enter, you may discard a land card instead. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard.",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Elf"],
+        power: 1,
+        toughness: 1,
+        entersWith: {
+            asEnters: [
+                {
+                    kind: "discard",
+                    filter: { type: "Land" },
+                    ifDeclined: "graveyard",
+                },
+            ],
+        },
+    };
+
     function withEntryFixtures<T>(fn: () => T): T {
         return withShapeshifter(() =>
             withTemporaryDefinition(tappedPayerDef, () =>
-                withTemporaryDefinition(exilerDef, fn)
+                withTemporaryDefinition(exilerDef, () =>
+                    withTemporaryDefinition(bodyPickerDef, () =>
+                        withTemporaryDefinition(discardOrBinDef, fn)
+                    )
+                )
             )
         );
     }
@@ -860,7 +917,7 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
         });
     });
 
-    it("a Clone on top offers the as-enters copy choice; the parked object presents nothing", () => {
+    it("a Clone on top offers the as-enters copy choice; copying replaces the full text", () => {
         withEntryFixtures(() => {
             const state = graveyardOf(
                 [inGraveyard(CLONE, "clone")],
@@ -872,8 +929,7 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
             expect(state.pendingChoices?.[0]?.candidateIds).toEqual(["bears"]);
             const parked = state.stagedEntries?.[0]?.card;
             expect(parked?.id).toBe(spell.id);
-            expect(parked?.fullTextAnchor).toBeUndefined();
-            expect(presentedDefId(parked!)).toBe(SHAPESHIFTER);
+            expect(presentedDefId(parked!)).toBe(CLONE);
 
             answerHead(state, ["bears"]);
 
@@ -905,15 +961,86 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
         withEntryFixtures(() => {
             const state = graveyardOf([inGraveyard(TAPPED_PAYER, "payer")]);
             const id = tokenCopyOfShifter(state)!;
-            expect(
-                state.stagedEntries?.[0]?.card.fullTextAnchor
-            ).toBeUndefined();
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("payLife");
 
             answerHead(state, ["2"]);
 
             const token = onBattlefield(state, id);
             expect(presentedDefId(token)).toBe(TAPPED_PAYER);
             expect(token.isTapped).toBe(true);
+        });
+    });
+
+    it("a presented as-enters mode is offered with the presented card's modes", () => {
+        withEntryFixtures(() => {
+            const voice = voiceOfAll();
+            const state = graveyardOf([inGraveyard(voice.id, "voice")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            const head = state.pendingChoices?.[0];
+            expect(head?.asEntersKind).toBe("mode");
+            expect(head?.options?.map((o) => o.id)).toEqual(
+                voice.modes!.map((m) => m.id)
+            );
+
+            answerHead(state, [voice.modes![0].id]);
+
+            const shifter = onBattlefield(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(voice.id);
+            expect(shifter.chosenModeId).toBe(voice.modes![0].id);
+        });
+    });
+
+    it("a presented body answer survives a cast entry's resume (CR 614.12c)", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(BODY_PICKER, "picker")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("body");
+
+            answerHead(state, ["4-4"]);
+
+            expect(presentedDefId(onBattlefield(state, spell.id))).toBe(
+                BODY_PICKER
+            );
+            expect(pt(state, spell.id)).toEqual([4, 4]);
+        });
+    });
+
+    it("a parked reanimated entry keeps its full text and its retained text", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([
+                inGraveyard(TAPPED_PAYER, "payer"),
+                inGraveyard(SHAPESHIFTER, "shifter"),
+            ]);
+            reanimateShifter(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("payLife");
+
+            answerHead(state, ["2"]);
+
+            const shifter = onBattlefield(state, "shifter");
+            expect(presentedDefId(shifter)).toBe(TAPPED_PAYER);
+            expect(shifter.isTapped).toBe(true);
+            expect(abilityIds(shifter)).toEqual([DISCARD]);
+        });
+    });
+
+    it("an aborted as-enters entry goes to the graveyard as its own card", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(DISCARD_OR_BIN, "binner")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            if (state.pendingChoices?.[0]?.asEntersKind === "discard") {
+                answerHead(state, []);
+            }
+            expect(state.stagedEntries).toBeUndefined();
+            const binned = getPlayer(state, "p1").graveyard.find(
+                (c) => c.id === spell.id
+            );
+            expect(binned).toBeDefined();
+            expect(binned!.fullTextAnchor).toBeUndefined();
+            expect(presentedDefId(binned!)).toBe(SHAPESHIFTER);
+            expect(binned!.grantedActivatedAbilities).toBeUndefined();
         });
     });
 

@@ -282,28 +282,38 @@ function present(
 /** CR 614.12 — "check the characteristics of the permanent as it would exist
  *  on the battlefield, taking into account … continuous effects from the
  *  permanent's own static abilities that would apply to it once it's on the
- *  battlefield". Presents the full text an ENTERING object will have under
- *  `controllerId`, so the CR 614 entry chokepoint (`enterBattlefieldDestinationFor`)
- *  and the entry tail's `entersWith` / `entersTapped` reads see the presented
- *  card. The graveyard is read as it stands with the object already out of
- *  its origin zone — a Shapeshifter reanimated off the top shows the card
- *  under it.
+ *  battlefield". Brings an ENTERING object's full text in line with the board
+ *  under `controllerId`, so the CR 614 entry chokepoint
+ *  (`enterBattlefieldDestinationFor`), the as-enters prompts it raises and
+ *  the entry tail's `entersWith` / `entersTapped` reads all see the presented
+ *  card. The graveyard is read with the object already out of its origin
+ *  zone — a Shapeshifter reanimated off the top shows the card under it.
  *
- *  The anchor must never leave with the object: every caller withdraws it
- *  (`withdrawFullText`) on a verdict that does not put the object onto the
- *  battlefield, and a parked as-enters entry never carries it
- *  (`stageAsEntersEntry`) — its tail re-presents on resume. Mints no
- *  timestamp: the entry tail's `beginApplyingStaticEffects` does
- *  (CR 613.7a), and its sync then finds the presentation already in place.
- *  Idempotent; returns whether the object presents a full text. */
+ *  The presentation rides a parked as-enters entry, so its answers are
+ *  written onto the presented object and survive the resume. It must never
+ *  leave with the object: an exile verdict and an aborted staged entry
+ *  withdraw it (`withdrawFullText`). Already showing, only the retained-text
+ *  rows are written again — the CR 400.7 entry reset drops them with every
+ *  other grant while the identity stays. Mints no timestamp: the entry tail's
+ *  `beginApplyingStaticEffects` does (CR 613.7a). Returns whether the object
+ *  presents a full text. */
 export function presentFullTextOnEntry(
     state: GameState,
     card: CardInstanceState,
     controllerId: string
 ): boolean {
     const shown = presentation(state, card, controllerId);
-    if (!shown) return false;
-    return isShowing(card, shown) || present(state, card, shown);
+    if (!shown) {
+        withdrawFullText(state, card);
+        return false;
+    }
+    if (!isShowing(card, shown)) return present(state, card, shown);
+    setRetainedTextRows(
+        card,
+        copiableDefId(card),
+        shown.effect.retainedActivatedAbilityIds ?? []
+    );
+    return true;
 }
 
 /** CR 612.6 / 611.3a — brings every battlefield permanent's full-text effect
