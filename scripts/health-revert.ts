@@ -14,7 +14,7 @@
  * later PR depends on the culprit) records the rung `stuck` and exits 3,
  * which the next ladder run hands to the fixer (ADR 0158 § 3); every card the
  * revert drops from `ready` is acknowledged in the revert commit, `trackedBy`
- * the culprit's reopened issue, so `check:oracle` admits it (issue #6936);
+ * the culprit's reopened issue, so `check:oracle` admits the shrink;
  * then a repair issue is
  * filed and recorded on the pivot (`health-fix`, what `base-health` admits a
  * repair by), the branch (`fix/issue-<repair issue>`, issue #6071) pushed, the PR opened and labelled `ready-to-land`,
