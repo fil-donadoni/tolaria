@@ -343,6 +343,7 @@ export default function CardPreview({
     const scheduleHoverClose = useCallback(() => {
         window.clearTimeout(graceRef.current);
         graceRef.current = window.setTimeout(() => {
+            graceRef.current = undefined;
             hoverOpenRef.current = false;
             setShowHoverDock(false);
             releasePreview(closeRef.current);
@@ -350,7 +351,53 @@ export default function CardPreview({
     }, []);
     const cancelHoverClose = useCallback(() => {
         window.clearTimeout(graceRef.current);
+        graceRef.current = undefined;
     }, []);
+
+    // Close watchdog (issue #4818). The close grace hangs on two native leave
+    // events (card, dock) that can be lost: the card's leave is swallowed when
+    // its relatedTarget is the dock but the dock's enter never lands (dock
+    // mounted under a still pointer), and the dock's leave never fires when
+    // the pointer exits through the window edge or the dock re-mounts under it.
+    // While the dock is up, any mouse movement outside the card and the dock —
+    // or the pointer leaving the document — schedules the close, whatever the
+    // event order; movement inside either keeps it open.
+    useEffect(() => {
+        if (!showHoverDock) return;
+        const container = containerRef.current;
+        if (!container) return;
+        const cardEl =
+            container.closest<HTMLElement>("[data-card-tilt-root]") ??
+            container;
+        const onMove = (e: PointerEvent) => {
+            if (e.pointerType !== "mouse") return;
+            const target = e.target;
+            const inside =
+                target instanceof Node &&
+                (cardEl.contains(target) ||
+                    (target instanceof Element &&
+                        target.closest(
+                            "[data-card-preview-dock], [data-card-preview-anchored]"
+                        ) !== null));
+            if (inside) {
+                cancelHoverClose();
+            } else if (graceRef.current === undefined) {
+                scheduleHoverClose();
+            }
+        };
+        const onDocLeave = (e: MouseEvent) => {
+            if (e.relatedTarget === null) scheduleHoverClose();
+        };
+        document.addEventListener("pointermove", onMove, true);
+        document.documentElement.addEventListener("mouseleave", onDocLeave);
+        return () => {
+            document.removeEventListener("pointermove", onMove, true);
+            document.documentElement.removeEventListener(
+                "mouseleave",
+                onDocLeave
+            );
+        };
+    }, [showHoverDock, scheduleHoverClose, cancelHoverClose]);
 
     // Desktop hover-intent (board only — the dock lives in the right column).
     // Dwell 250ms → open the dock through the singleton (closing any other
@@ -365,7 +412,7 @@ export default function CardPreview({
         const onEnter = (e: PointerEvent) => {
             if (e.pointerType !== "mouse" || sawTouchRef.current) return;
             window.clearTimeout(dwellRef.current);
-            window.clearTimeout(graceRef.current);
+            cancelHoverClose();
             dwellRef.current = window.setTimeout(() => {
                 // A pinned anchored preview supersedes hover — stay out.
                 if (anchoredOpenRef.current) return;
@@ -405,9 +452,9 @@ export default function CardPreview({
             cardEl.removeEventListener("pointerenter", onEnter);
             cardEl.removeEventListener("pointerleave", onLeave);
             window.clearTimeout(dwellRef.current);
-            window.clearTimeout(graceRef.current);
+            cancelHoverClose();
         };
-    }, [onBoard, scheduleHoverClose]);
+    }, [onBoard, scheduleHoverClose, cancelHoverClose]);
 
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();

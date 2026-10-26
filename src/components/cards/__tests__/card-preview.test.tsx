@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { getCardByName } from "@convex/cards";
-import CardPreview, { HOVER_DWELL_MS } from "../card-preview";
+import CardPreview, { HOVER_DWELL_MS, HOVER_GRACE_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
 import { GameContext } from "~/hooks/useGameContext";
 import { makeManualGameContext } from "~/lib/manual-game-context";
@@ -353,6 +353,82 @@ describe("CardPreview — Arena click model (#332)", () => {
         });
         gracePast();
         expect(dock()).toBeNull();
+    });
+
+    describe("lost leave events never strand the dock (issue #4818)", () => {
+        function openDock() {
+            const { container } = renderOnBoard();
+            const root = container.firstElementChild as HTMLElement;
+            hoverEnter(root);
+            dwellPast();
+            const panel = document.querySelector(
+                "[data-card-preview-dock] .card-preview-dock"
+            ) as HTMLElement;
+            expect(panel).toBeTruthy();
+            return { root, panel };
+        }
+        function moveTo(el: Element) {
+            act(() => {
+                fireEvent.pointerMove(el, { pointerType: "mouse" });
+            });
+        }
+
+        it("card leave into the dock whose enter never lands, then the pointer moves away", () => {
+            const { root, panel } = openDock();
+            act(() => {
+                fireEvent.pointerLeave(root, {
+                    pointerType: "mouse",
+                    relatedTarget: panel,
+                });
+            });
+            gracePast();
+            expect(dock()).toBeTruthy();
+            moveTo(document.body);
+            gracePast();
+            expect(dock()).toBeNull();
+        });
+
+        it("dock enter then the dock's leave is lost: movement outside closes it", () => {
+            const { root, panel } = openDock();
+            hoverLeave(root);
+            act(() => {
+                fireEvent.pointerEnter(panel, { pointerType: "mouse" });
+            });
+            gracePast();
+            expect(dock()).toBeTruthy();
+            moveTo(document.body);
+            gracePast();
+            expect(dock()).toBeNull();
+        });
+
+        it("re-entering the card mid-grace does not leave a stale pending close that mutes the watchdog", () => {
+            const { root } = openDock();
+            hoverLeave(root);
+            hoverEnter(root);
+            // Leave events are lost from here on: only movement outside.
+            moveTo(document.body);
+            act(() => {
+                vi.advanceTimersByTime(HOVER_GRACE_MS);
+            });
+            expect(dock()).toBeNull();
+        });
+
+        it("the pointer leaving the window closes it", () => {
+            const { panel } = openDock();
+            act(() => {
+                fireEvent.pointerEnter(panel, { pointerType: "mouse" });
+                fireEvent.mouseLeave(document.documentElement);
+            });
+            gracePast();
+            expect(dock()).toBeNull();
+        });
+
+        it("movement inside the dock keeps it open", () => {
+            const { panel } = openDock();
+            moveTo(panel);
+            gracePast();
+            expect(dock()).toBeTruthy();
+        });
     });
 
     it("a click inside the pinned preview does not dismiss it (QA)", () => {
