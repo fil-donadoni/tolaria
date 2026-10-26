@@ -8381,6 +8381,7 @@
         {"id":"120.1","line":"* CR 120.1 + CR 202.3 + CR 608.2h — \"That artifact deals damage equal to its","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
         {"id":"120.1","line":"* CR 120.1 + CR 608.2h — \"that <noun>\" as a damage SOURCE: the object the","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
         {"id":"120.1","line":"* CR 120.1 + CR 608.2h — the sentence named its damage SOURCE as","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
+        {"id":"120.1","line":"* The source's own damage history (CR 120.1, `damagedPermanentsThisGame`)","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
         {"id":"120.1","line":"* given targets (CR 120.1, 603.3). Remainder (if any) is discarded.","sites":1,"status":"baseline"},
         {"id":"120.1","line":"* has dealt damage to, CR 120.1), `{ set:","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
         {"id":"120.1","line":"* permanent `recipientId` (CR 120.1), on the source's game-long","sites":1,"status":"confirmed","ruleHash":"d1119346253514fd"},
