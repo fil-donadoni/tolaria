@@ -8775,8 +8775,8 @@ export const tapForActivationPayment = mutation({
         if (!manaStillOwed) {
             throw new Error("This activation owes no mana");
         }
-        // CR 601.2h — a permanent still needed as a sacrifice victim is not
-        // available to the mana leg; the client gate is mirrored here.
+        // Not a CR rule: the client routes a click on a still-needed sacrifice
+        // victim to the pick, so the server mirrors that gate (issue #3076).
         const sacReq = pa.sacrificeSelection
             ? nextUnmetRequirement(pa.sacrificeSelection)
             : undefined;

@@ -826,7 +826,7 @@ export function useBattlefieldInteraction(player: Player) {
             isSelectingBlockers ||
             isBlockerTarget ||
             isAssigningDamage ||
-            // Payment Park pickers (CR 601.2h / 602.2): a click on a legal
+            // Payment Park pickers: a click on a legal
             // candidate is the pick, even when the candidate has a mana
             // ability (Treasure, Lotus Petal). `canInteract` already narrows
             // these states to the candidates, so a non-candidate mana source

@@ -1,7 +1,8 @@
 // Integration test (issue #3076): `tapForActivationPayment` must refuse a mana
 // tap the parked announcement does not owe — CR 605.3a allows a mana ability
 // during an activation only to pay a mana payment it requires — and must refuse
-// a permanent still needed as an outstanding sacrifice victim (CR 601.2h).
+// a permanent still needed as an outstanding sacrifice victim (the client gate
+// mirrored, not a CR rule).
 // Drives the REAL registered mutation `_handler` via the stub `MutationCtx`.
 
 import { describe, it, expect } from "vitest";
@@ -69,7 +70,7 @@ function parkedState(manaCost: ManaCost): GameState {
     return state;
 }
 
-describe("tapForActivationPayment — parked sacrifice (CR 605.3a / 601.2h, issue #3076)", () => {
+describe("tapForActivationPayment — parked sacrifice (CR 605.3a, issue #3076)", () => {
     it("refuses a tap when the announcement owes no mana", async () => {
         const stub = makeMutationCtx("p1", [gameStateSeed(parkedState({}))]);
         await expect(tap(stub.ctx, "mountain")).rejects.toThrow(/owes no mana/);

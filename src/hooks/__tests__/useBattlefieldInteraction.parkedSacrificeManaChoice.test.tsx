@@ -1,4 +1,4 @@
-// Payment Park click precedence (CR 601.2h / 605.3a): while a sacrifice pick is
+// Payment Park click precedence (CR 605.3a): while a sacrifice pick is
 // parked, a click on a legal candidate that ALSO has a mana ability must submit
 // `selectSacrifice`, never open the mana-choice picker. Drives the REAL
 // `useBattlefieldInteraction` reducer through `handleClickWithEvent`.
