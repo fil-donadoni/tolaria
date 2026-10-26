@@ -118,6 +118,7 @@ import {
     closeAbsorbedSingles,
     clusterIssues,
     isAdoptedFiling,
+    issuesOfPr,
     issuesWorkedByPrs,
     matchCluster,
     syncAdoptedBlocks,
@@ -162,6 +163,12 @@ import {
     type KindInputs,
 } from "./lib/gap-kinds";
 import { LOCKFILE_PATH } from "./check-gaps";
+import {
+    keptPrsLine,
+    type OrphanPrCandidate,
+    orphanPrComment,
+    planOrphanPrs,
+} from "./lib/orphan-prs";
 import { botHash, FINDINGS_PATH, parseFindings } from "./lib/oracle-bot-reach";
 import {
     mergeAllBotVerdicts,
@@ -452,6 +459,37 @@ export class GhGapTracker implements GapTracker {
 
     close(number: number, comment: string): void {
         gh(["issue", "close", String(number), "--comment", comment]);
+    }
+
+    private openPrRows: (OrphanPrCandidate & { body: string })[] | null = null;
+
+    /** One list call per run, read on first need. A full page throws: a
+     *  truncated list would read a live PR as absent (fail-open). */
+    openPrsOf(issue: number): readonly OrphanPrCandidate[] {
+        const limit = 500;
+        if (this.openPrRows === null) {
+            this.openPrRows = JSON.parse(
+                gh([
+                    "pr",
+                    "list",
+                    "--state",
+                    "open",
+                    "--limit",
+                    String(limit),
+                    "--json",
+                    "number,headRefName,body,labels,author,isCrossRepository",
+                ])
+            ) as (OrphanPrCandidate & { body: string })[];
+            if (this.openPrRows.length >= limit)
+                throw new Error(
+                    `gaps:sync: ${this.openPrRows.length} open PRs fill the page of ${limit} — cannot tell which belong to a closed gap`
+                );
+        }
+        return this.openPrRows.filter((pr) => issuesOfPr(pr).includes(issue));
+    }
+
+    closePr(number: number, comment: string): void {
+        gh(["pr", "close", String(number), "--comment", comment]);
     }
 
     /** One GraphQL call for every number — the close list re-reads the same
@@ -1232,13 +1270,16 @@ function closureWhy(closure: ClaimClosure): string {
  *  was measured at. */
 export function closureComment(
     closures: readonly ClaimClosure[],
-    tip: string
+    tip: string,
+    keptPrs: readonly number[] = []
 ): string {
+    const kept = keptPrsLine(keptPrs);
     return [
         `Closed by \`gaps:sync\` at ${tip} (issue #4516):`,
         "",
         ...closures.map((c) => `- ${closureWhy(c)}.`),
         "",
+        ...(kept === null ? [] : [kept, ""]),
         "The claim row in `data/grammar-gaps.json` stays; if the gap comes back, re-open this issue.",
     ].join("\n");
 }
@@ -1255,6 +1296,9 @@ export interface ClaimCloser {
     /** Every number asked → its issue, or `null` when it does not exist. */
     readIssues(numbers: readonly number[]): Map<number, ClosableIssue | null>;
     close(number: number, comment: string): void;
+    /** The open PRs working an issue (issue #6920). */
+    openPrsOf(issue: number): readonly OrphanPrCandidate[];
+    closePr(number: number, comment: string): void;
 }
 
 /**
@@ -1309,8 +1353,22 @@ export function closeClaims(
         return decided.map((d) =>
             d.action === "closed" ? { ...d, action: "over-cap" as const } : d
         );
-    for (const d of closing)
-        closer.close(d.issue, closureComment(d.closures, tip));
+    for (const d of closing) {
+        // The PR of a retired gap has no owner once the claim goes with the
+        // issue (issue #6920): close it unless the queue holds it. PRs go
+        // first: a closed issue is skipped next run, so a PR whose close
+        // failed would stay orphaned; it is named in the comment instead.
+        const prs = planOrphanPrs(d.issue, closer.openPrsOf(d.issue));
+        const kept = [...prs.keep];
+        for (const pr of prs.close) {
+            try {
+                closer.closePr(pr, orphanPrComment(d.issue, tip));
+            } catch {
+                kept.push(pr);
+            }
+        }
+        closer.close(d.issue, closureComment(d.closures, tip, kept));
+    }
     return decided;
 }
 

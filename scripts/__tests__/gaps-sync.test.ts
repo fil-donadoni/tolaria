@@ -10,6 +10,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import type { OrphanPrCandidate } from "../lib/orphan-prs";
 import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
 import { parseTargetFiles } from "../lib/queue-plan";
 import { afterAll, describe, expect, it, vi } from "vitest";
@@ -1719,9 +1720,11 @@ describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
      *  otherwise. */
     function closer(
         states: Record<number, "OPEN" | "CLOSED">,
-        titles: Record<number, string> = {}
+        titles: Record<number, string> = {},
+        prs: Record<number, OrphanPrCandidate[]> = {}
     ) {
         const closed: { issue: number; comment: string }[] = [];
+        const closedPrs: { number: number; comment: string }[] = [];
         const tracker: ClaimCloser = {
             readIssues: (numbers) =>
                 new Map(
@@ -1740,8 +1743,12 @@ describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
             close: (issue, comment) => {
                 closed.push({ issue, comment });
             },
+            openPrsOf: (issue) => prs[issue] ?? [],
+            closePr: (number, comment) => {
+                closedPrs.push({ number, comment });
+            },
         };
-        return { tracker, closed };
+        return { tracker, closed, closedPrs };
     }
     const gone = {
         kind: "mechanic" as const,
@@ -1773,6 +1780,32 @@ describe("closeClaims — the thin shell over the plan (issue #4516)", () => {
                 "abc123"
             )
         ).toContain("`hand-tail:` marker naming this issue");
+    });
+
+    it("closes the retired gap's open PR, names a queued one (issue #6920)", () => {
+        const pr = (number: number, labels: string[] = []) => ({
+            number,
+            labels: labels.map((name) => ({ name })),
+            headRefName: "fix/issue-9008",
+            author: { login: "fil-donadoni" },
+        });
+        const { tracker, closed, closedPrs } = closer(
+            { 9008: "OPEN" },
+            {},
+            {
+                9008: [
+                    pr(7001, ["land-failed"]),
+                    pr(7002, ["ready-to-land"]),
+                    { ...pr(7003), headRefName: "fix/issue-9999" },
+                ],
+            }
+        );
+        closeClaims([gone], tracker, "abc123");
+        expect(closedPrs.map((p) => p.number)).toEqual([7001]);
+        expect(closedPrs[0]!.comment).toContain("abc123");
+        expect(closed[0]!.comment).toContain("PR #7002");
+        expect(closed[0]!.comment).toContain("PR #7003");
+        expect(closed[0]!.comment).not.toContain("PR #7001");
     });
 
     it("skips an already-closed or missing issue without error", () => {
