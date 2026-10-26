@@ -90,6 +90,8 @@ export interface LoweredStatic {
     /** CR 702.16n — "This effect doesn't remove this Aura." */
     readonly exemptFromProtectionDetach?: true;
     readonly entersTapped?: true;
+    /** CR 722.3a — "This creature enters prepared." */
+    readonly entersPrepared?: true;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
     /**
@@ -454,6 +456,8 @@ export function lowerStaticClause(
                         : {}),
                 },
             };
+        case "enters-prepared":
+            return { ok: true, lowered: { entersPrepared: true } };
         case "ability-loss-pt-set":
             // CR 613.1f + 613.4b — one clause, two layers, one scope.
             return {

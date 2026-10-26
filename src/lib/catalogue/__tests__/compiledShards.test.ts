@@ -150,17 +150,17 @@ describe("arrival order does not change the catalogue", () => {
             ROWS.flatMap((r) => chooseableNamesOf(r))
         );
 
-        // The server's name lookup: first write wins, rows in id order, each
-        // row's printed name before its twin names — after every hand-written
-        // key, which no compiled name displaces.
+        // The server's name lookup: rows in id order, first write wins among
+        // printed names and among twins, a printed name before ANY twin (a
+        // prepare spell named like a real card names the real card) — after
+        // every hand-written key, which no compiled name displaces.
         const expected = new Map<string, string>();
-        for (const row of ROWS) {
-            const add = (key: string, id: string) => {
-                if (!expected.has(key)) expected.set(key, id);
-            };
-            add(row.name.toLowerCase(), row.id);
+        const add = (key: string, id: string) => {
+            if (!expected.has(key)) expected.set(key, id);
+        };
+        for (const row of ROWS) add(row.name.toLowerCase(), row.id);
+        for (const row of ROWS)
             for (const [key, twin] of twinNameEntriesOf(row)) add(key, twin);
-        }
         let checked = 0;
         for (const [key, id] of expected) {
             const holder = catalogueIdByName(key);

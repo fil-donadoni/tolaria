@@ -206,6 +206,9 @@ export type StaticClauseIR =
           readonly kind: "enters-tapped";
           readonly counters?: { readonly type: string; readonly count: number };
       }
+    /** CR 722.3a — "<self> enters prepared": the designation, given as the
+     *  permanent enters (the `enters-tapped` shape). */
+    | { readonly kind: "enters-prepared" }
     /**
      * CR 614.1c / 614.12a / 205.3m — "As this creature enters, choose a
      * creature type": a choice made BEFORE the permanent enters, over the
@@ -1198,6 +1201,20 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
             counters: { type: match[3]!, count },
         });
     }
+);
+
+/**
+ * CR 722.3a — "<self> enters prepared": "some spells and abilities … state
+ * that a permanent enters prepared". Self only — a subject naming other
+ * permanents is a different clause, refused.
+ */
+const entersPrepared: Rule<StaticClauseIR> = pattern(
+    "enters prepared",
+    /^(.+) enters prepared$/,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({ kind: "enters-prepared" as const })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
 const ENTERS_WITH = /^(.+) enters with (\S+) (\S+) counters? on it$/;
@@ -2354,6 +2371,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
+        entersPrepared,
         entersWithCounters,
         asEntersChooseCreatureType,
         asEntersChooseNonlandCardName,

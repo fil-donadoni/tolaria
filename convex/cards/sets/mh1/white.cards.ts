@@ -56,7 +56,7 @@ export const giverOfRunes = defineCard(() => ({
 // (no `delayedTrigger` wrapper — unlike Liberate/Flickerwisp, which delay the
 // return to the next end step, Ephemerate's oracle text has no such delay):
 // `exile` the announced target with a `bind`, then an immediate `moveZone`
-// resolves the bound ref back via `resolveObjectRef`'s exile-zone fallback,
+// `from: "exile"` resolves the bound ref back out of exile,
 // returning the card under its OWNER's control by default (no explicit
 // `controller` — matches "under its owner's control"). Cast again from exile
 // at the caster's next upkeep (Rebound), the fresh copy picks a NEW target.
@@ -72,7 +72,12 @@ export const ephemerate = defineCard(() => ({
     targetRequirement: { type: "Creature", count: 1, controller: "you" },
     effects: [
         { op: "exile", target: { target: 0 }, bind: "$c" },
-        { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
+        {
+            op: "moveZone",
+            target: { ref: "$c" },
+            from: "exile",
+            to: "battlefield",
+        },
     ],
 }));
 

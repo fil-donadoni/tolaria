@@ -71,6 +71,43 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 400.7 + CR 608.2h — the flicker: "Exile target <X>, then return it to
+    // the battlefield under its owner's control" (`exile` + `returnsToBattlefield`). The
+    // exile binds the object it moved and the return reads that binding from
+    // exile, never the target slot: a `moveZone` of a bound ref from exile,
+    // which the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d5b9d250-92f5-40d8-b962-4ae4adb466c8",
+            name: "Flicker of Fate",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Exile target creature or enchantment, then return it to the battlefield under its owner's control.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Flicker of Fate",
+            types: ["Instant"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Exile target creature or enchantment, then return it to the battlefield under its owner's control.",
+            effects: [
+                { op: "exile", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "moveZone",
+                    target: { ref: "$that1" },
+                    from: "exile",
+                    to: "battlefield",
+                },
+            ],
+            targetRequirement: {
+                type: ["Creature", "Enchantment"],
+                count: 1,
+            },
+        },
+    },
     // CR 500.1 + CR 603.2b — "At the beginning of the end step, return this
     // creature to its owner's hand": the unqualified phrase names EACH end step
     // (CR 500.1). Exhibits `moveZone` of `$source`, a zone change the canned

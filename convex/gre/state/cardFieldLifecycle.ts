@@ -233,6 +233,10 @@ export const CARD_FIELD_LIFECYCLE = {
     transformedAtDelayedSeq:    { codec: "defined", reset: ZONE },
     transformCount:             { codec: "defined", reset: ZONE },
     castFromExileNotAsAdventure: { codec: "flag",   reset: ["custom:turn"] },
+    prepared:                   { codec: "flag",    reset: ZONE },
+    // Consumed at the cast (`onPreparedCopyCast`); the stack ladder is the
+    // backstop for a copy that never reached it.
+    preparedCopyOf:             { codec: "scalar",  reset: STACK },
     castFromExileWithoutPayingManaCost: { codec: "flag", reset: ["custom:turn"] },
     castableFromExileIncludesLand: { codec: "flag", reset: ["custom:turn"] },
     castFromExileManaSubstitution: { codec: "scalar", reset: ["custom:turn"] },

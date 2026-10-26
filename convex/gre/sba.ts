@@ -32,6 +32,7 @@ import {
     isSourceTappedLive,
 } from "./layers";
 import { checkAscendCityBlessing } from "./cityBlessing";
+import { checkPreparedCopySBA } from "./prepare";
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
@@ -916,6 +917,10 @@ export function checkStateBasedActions(state: GameState): void {
         // are damage-driven destroys through the same replacement pipeline.
         acted = checkLethalDamageSBA(state) || acted;
         acted = checkTokenExistenceSBA(state) || acted;
+        // CR 704.5e + 722.3c — a copy of a card off the stack and the
+        // battlefield ceases to exist, save a prepare spell's exiled copy
+        // while its permanent is on the battlefield and prepared.
+        acted = checkPreparedCopySBA(state) || acted;
         // CR 714.4 — a Saga past its final chapter with no chapter ability of
         // its own still on the stack is sacrificed. Placed after the
         // death/removal checks and before the world/legend rules: it is an
