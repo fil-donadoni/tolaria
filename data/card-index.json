@@ -75858,6 +75858,14 @@
         "source": "compiled"
     },
     {
+        "name": "Volrath's Shapeshifter",
+        "scryfallId": "ec89ee13-34ef-41c8-8fe4-0a6b21df2032",
+        "oracleId": "16e9a4ee-0398-4e76-bc7e-dd2d52056aaf",
+        "firstSet": "sth",
+        "firstPrintId": "ec89ee13-34ef-41c8-8fe4-0a6b21df2032",
+        "firstPrintSet": "sth"
+    },
+    {
         "name": "Volrath's Stronghold",
         "scryfallId": "43bf015b-152e-4d67-b773-e75fb2487a32",
         "oracleId": "73b8cf90-3c71-4f8b-a29f-61894b7f27c9",
