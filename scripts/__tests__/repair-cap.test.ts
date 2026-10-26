@@ -90,7 +90,7 @@ describe("queue:claim — overlap with an in-flight PR (issue #6649)", () => {
 
     it("lets through disjoint files, unknown files, and the issue's own PR", () => {
         expect(
-            claimOverlap({ issue: 9, files: ["docs/x.md"], inFlight })
+            claimOverlap({ issue: 9, files: ["scripts/other.ts"], inFlight })
         ).toBeNull();
         expect(claimOverlap({ issue: 9, files: null, inFlight })).toBeNull();
         expect(
