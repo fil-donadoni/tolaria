@@ -3062,6 +3062,106 @@ describe("selectRootMove — the empty block declaration is always a contender (
     });
 });
 
+describe("selectRootMove — a block whose exchange dominates a contender's is a contender (CR 509.1, issue #6914)", () => {
+    const COLOSSUS = getCardByName("Bloodfire Colossus").id; // 6/6
+    const BALOTH = getCardByName("Rumbling Baloth").id; // 4/4
+    const RAIDERS = getCardByName("Mons's Goblin Raiders").id; // 1/1
+
+    const LONE_BIG: Move = {
+        kind: "declare-blockers",
+        assignments: [{ blockerId: "big", attackerId: "atk" }],
+    };
+    const SMALL_CHUMP: Move = {
+        kind: "declare-blockers",
+        assignments: [{ blockerId: "small", attackerId: "atk" }],
+    };
+    /** 4 + 2 power kills the 6/6, and its 6 damage kills both blockers. */
+    const BIG_AND_MID: Move = {
+        kind: "declare-blockers",
+        assignments: [
+            { blockerId: "big", attackerId: "atk" },
+            { blockerId: "mid", attackerId: "atk" },
+        ],
+    };
+
+    /** A 6/6 attacking a defender at 2 life with a 4/4, a 2/2 and a 1/1: any
+     *  block survives, declining does not. */
+    function board(): GameState {
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature(COLOSSUS, "p1", "atk")],
+                }),
+                makePlayer("p2", {
+                    life: 2,
+                    battlefield: [
+                        creature(BALOTH, "p2", "big"),
+                        creature(BEARS, "p2", "mid"),
+                        creature(RAIDERS, "p2", "small"),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    /** The shape the time-capped search left behind: the lone 4/4 out-rewards
+     *  its rival by 0.056, past `outcomeEps` (0.05), on a handful of visits. */
+    function rootOf(rival: Move): Node {
+        const edges: [Move, number, number][] = [
+            [LONE_BIG, 0.5, 11],
+            [rival, 0.444, 9],
+        ];
+        const children = new Map<string, Edge>();
+        edges.forEach(([move, meanReward, visits], i) => {
+            children.set(`blk:${i}`, {
+                move,
+                key: `blk:${i}`,
+                mover: "p2",
+                node: { children: new Map() },
+                visits,
+                totalReward: meanReward * visits,
+                totalMargin: 0,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    it("FIRE: chumps with the 1/1 rather than throwing the 4/4 alone, though reward puts the 4/4 past outcomeEps", () => {
+        // Both kill nothing and stop all 6; the 1/1 loses less. Its exchange
+        // dominates, so it is admitted and `blockDeltaOf` picks it.
+        const chosen = selectRootMove(
+            rootOf(SMALL_CHUMP),
+            [LONE_BIG, SMALL_CHUMP],
+            board(),
+            "p2"
+        );
+        expect(chosen).toEqual(SMALL_CHUMP);
+    });
+
+    it("NO-FIRE: a rival out of the band that does NOT dominate stays out — the SAME readings, only the rival moved", () => {
+        // The double block kills the 6/6 and `blockDeltaOf` rates it above the
+        // lone 4/4 — but it also loses the 2/2, so it does not dominate, and
+        // a rival outside the reward band that dominates nothing stays out.
+        const chosen = selectRootMove(
+            rootOf(BIG_AND_MID),
+            [LONE_BIG, BIG_AND_MID],
+            board(),
+            "p2"
+        );
+        expect(chosen).toEqual(LONE_BIG);
+    });
+});
+
 describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
     /** An attack decision for p1, with the given boards. */
     function attackWith(
