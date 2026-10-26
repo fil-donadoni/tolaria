@@ -412,30 +412,64 @@ describe("needsRequeue — the GREEN that releases a held PR (issue #6110)", () 
 describe("holdsBeforeRed — the hold is labelled before the failure that dequeues (issue #6986)", () => {
     it("labels a queue PR held on a base-health failure, and only then", () => {
         const ready = ["ready-to-land", "queued"];
-        expect(holdsBeforeRed({ labels: ready, baseHealth: "failure" })).toBe(
-            true
-        );
-        expect(holdsBeforeRed({ labels: ready, baseHealth: "success" })).toBe(
-            false
-        );
-        expect(holdsBeforeRed({ labels: ready, baseHealth: "pending" })).toBe(
-            false
-        );
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(true);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "success",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "pending",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
         expect(
             holdsBeforeRed({
                 labels: [...ready, "queue:held"],
                 baseHealth: "failure",
+                trustedAuthor: "success",
             })
         ).toBe(false);
         expect(
             holdsBeforeRed({
                 labels: ["ready-to-land", "land-failed"],
                 baseHealth: "failure",
+                trustedAuthor: "success",
             })
         ).toBe(false);
-        expect(holdsBeforeRed({ labels: [], baseHealth: "failure" })).toBe(
-            false
-        );
+        // Out of the queue on `trusted-author`: never dequeued, never held;
+        // unread, it holds.
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: "failure",
+            })
+        ).toBe(false);
+        expect(
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: "failure",
+                trustedAuthor: undefined,
+            })
+        ).toBe(true);
+        expect(
+            holdsBeforeRed({
+                labels: [],
+                baseHealth: "failure",
+                trustedAuthor: "success",
+            })
+        ).toBe(false);
     });
 
     it("a RED that clears before Mergify's rules run leaves every queue PR ready-to-land and requeued", () => {
@@ -447,7 +481,11 @@ describe("holdsBeforeRed — the hold is labelled before the failure that dequeu
         const now = Date.parse("2026-10-25T18:00:20Z");
         const queue = [["ready-to-land", "queued"], ["ready-to-land"]].map(
             (labels) =>
-                holdsBeforeRed({ labels, baseHealth: "failure" })
+                holdsBeforeRed({
+                    labels,
+                    baseHealth: "failure",
+                    trustedAuthor: "success",
+                })
                     ? [...labels, "queue:held"]
                     : labels
         );

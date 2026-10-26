@@ -58,8 +58,8 @@ export interface HeldRedEffects {
 /**
  * The held RED once the ladder has its exit code (`code`, 0 = no RED
  * stands): written to the store when it stands, dropped either way — the
- * GREEN that cleared it is the run's one write. A write that throws leaves
- * it on disk for the next health run (`flushDeferredRed`). Not held, or a
+ * GREEN that cleared it is the run's one write. A write that throws or is
+ * refused leaves it on disk for the next health run (`flushDeferredRed`). Not held, or a
  * dry run: nothing. Returns `code`.
  */
 export function settleHeldRed(
@@ -76,11 +76,12 @@ export function settleHeldRed(
     if (code !== 0 && verdict !== null) {
         try {
             const out = fx.writeRed(verdict);
-            fx.note(
-                out.written
-                    ? "the held RED stands — written to the store"
-                    : `the held RED not written — ${out.reason}`
-            );
+            if (!out.written) {
+                // Kept on disk: the next health run's flush re-judges it.
+                fx.note(`the held RED not written — ${out.reason}`);
+                return code;
+            }
+            fx.note("the held RED stands — written to the store");
         } catch (e) {
             fx.note(
                 `the held RED could not be written — ${(e as Error).message}`

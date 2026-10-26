@@ -1101,6 +1101,9 @@ async function main(): Promise<void> {
     git(["fetch", "origin", branch, "-q"], root);
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
+    // Before any skip: a run that gates nothing must still not sit on a
+    // previous job's unsettled RED (issue #6986).
+    flushDeferredRed(root, dir, branch);
     const last = readLast(dir);
     const stored = readStoredVerdict(root, tip);
     const { offline, browser } = splitHealthGates(HEALTH_SCRIPTS);
@@ -1165,7 +1168,6 @@ async function main(): Promise<void> {
         mode,
     };
 
-    flushDeferredRed(root, dir, branch);
     writeLast(dir, {
         sha: tip,
         status: "running",

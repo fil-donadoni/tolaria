@@ -146,15 +146,21 @@ export function needsRequeue(input: {
  * the failure that dequeues it, and `heldPrAction` releases it off RED
  * (requeue first when the PR was dequeued, at once when it is still
  * `queued`). Only a PR the queue holds (`ready-to-land`, no `land-failed`)
- * not already labelled.
+ * not already labelled, and not one `trusted-author` keeps out of the
+ * queue (an owner-merged PR is never dequeued, and its label would stick:
+ * `heldPrAction` waits on `trusted-author`). An unread `trusted-author`
+ * holds.
  */
 export function holdsBeforeRed(input: {
     labels: readonly string[];
     baseHealth: GateState;
+    trustedAuthor: GateState | undefined;
 }): boolean {
     const { labels } = input;
     return (
         input.baseHealth === "failure" &&
+        (input.trustedAuthor === undefined ||
+            input.trustedAuthor === "success") &&
         labels.includes(READY_LABEL) &&
         !labels.includes(FAILED_LABEL) &&
         !labels.includes(HELD_LABEL)

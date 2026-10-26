@@ -201,18 +201,19 @@ function main(): number {
     for (const raw of prs) {
         // Each status on its own: `base-health` needs no file list, and a
         // failed read of one must never leave the other's old green standing.
+        // `trusted-author` first: `holdsBeforeRed` reads it.
         const decide: Array<() => GateStatus> = [
+            () =>
+                trustedAuthorStatus(
+                    gatePrOf(raw, prFiles(run, repo, raw.number)),
+                    trusted
+                ),
             () =>
                 baseHealthStatus({
                     lineage,
                     pr: gatePrOf(raw, []),
                     repairIssues,
                 }),
-            () =>
-                trustedAuthorStatus(
-                    gatePrOf(raw, prFiles(run, repo, raw.number)),
-                    trusted
-                ),
         ];
         const labels = (raw.labels ?? []).map((l) => l.name);
         const edit = (args: string[]): void => {
@@ -237,7 +238,11 @@ function main(): number {
                 // failure post, since holding the queue comes first.
                 if (
                     s.context === BASE_HEALTH_CONTEXT &&
-                    holdsBeforeRed({ labels, baseHealth: s.state })
+                    holdsBeforeRed({
+                        labels,
+                        baseHealth: s.state,
+                        trustedAuthor: posted.get(TRUSTED_AUTHOR_CONTEXT),
+                    })
                 ) {
                     console.log(
                         `PR #${raw.number}: base-health failure — labelling ${HELD_LABEL} first`

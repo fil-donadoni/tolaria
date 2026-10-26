@@ -450,7 +450,8 @@ function ladder(ctx: Ctx): number {
             ctx,
             `${ctx.sha.slice(0, 8)}: the ladder already confirmed this RED — reported once`
         );
-        return 0;
+        // A held one confirmed by a ladder whose write failed: write it now.
+        return held ? settle(1) : 0;
     }
     const plan = freshRunPlan(
         verdict,
