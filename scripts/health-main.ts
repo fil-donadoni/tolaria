@@ -79,9 +79,7 @@
  * a RED for. `--early` is `health-early.yml`'s run on a GitHub-hosted runner
  * after a batch of merges: the same offline gate minus the committed-corpus
  * tests, so only its RED reaches the store. A RED of either goes through the
- * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect. A
- * scheduled run's RED is held off the store for that ladder (`defersRed`,
- * issue #6986): one store write per run, the fresh run's verdict.
+ * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
  *
  * The MACHINE is asked before the gates start (issue #4966,
  * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
