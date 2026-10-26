@@ -1,4 +1,5 @@
 import type { PendingChoiceKind } from "@convex/gre/types";
+import { choiceSpansAllBattlefields } from "@convex/gre/zonePickEligibility";
 import type { PendingChoice, PendingTarget } from "~/types/game";
 import type { MayPayCost } from "@convex/cards/types";
 import { normalizeMayPayCost, wantsSpellTarget } from "~/lib/card-utils";
@@ -169,13 +170,16 @@ export function pendingChoiceRoutesToBattlefield(
 /** Does this choice's pool span EVERY player's battlefield, rather than one
  *  owner's? An `allControllers` pick (CR 707 — Clone / Copy Artifact "any
  *  creature on the battlefield") and the CR 609.7a source pool
- *  (`battlefield-or-stack`, issue #5601) do; the per-card `candidateIds` /
+ *  (`battlefield-or-stack`, issue #5601) do, and so does a `choose-damage-target`
+ *  "any target" pick (issue #6941, the shared `choiceSpansAllBattlefields`);
+ *  the per-card `candidateIds` /
  *  `filter` gate still decides which permanents are clickable. */
 export function pendingChoiceSpansAllBattlefields(
     choice: PendingChoice
 ): boolean {
     return (
-        choice.allControllers === true || choice.zone === "battlefield-or-stack"
+        choiceSpansAllBattlefields(choice) ||
+        choice.zone === "battlefield-or-stack"
     );
 }
 

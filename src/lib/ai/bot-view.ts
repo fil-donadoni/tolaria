@@ -52,6 +52,7 @@ import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
+import { choiceSpansAllBattlefields } from "@convex/gre/zonePickEligibility";
 import { nextOwedPayment } from "@convex/gre/owedPayment";
 import {
     completeSacrificeSelection,
@@ -405,7 +406,7 @@ function readChoiceZone(
                 );
             break;
         case "battlefield":
-            cards = head.allControllers
+            cards = choiceSpansAllBattlefields(head)
                 ? state.players.flatMap((p) => p.battlefield)
                 : owner.battlefield;
             // CR-style permanent filter (types / subtypes / excludeInstanceIds /
