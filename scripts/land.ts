@@ -135,7 +135,7 @@ import {
     hasNoWalkOwedLine,
     hasScopeUndecidedLine,
     isNonDomPath,
-    revertedCommitOf,
+    revertedCommitsOf,
     type UiScope,
     type WalkOwed,
 } from "./lib/ui-scope.ts";
@@ -194,7 +194,7 @@ export function skinReceiptInvalidForDiff(
     scopeOf: (changed: string[], root: string) => UiScope = landingDiffScope,
     owedOf: (changed: string[], root: string) => WalkOwed = landingWalkOwed,
     restoresOf: (
-        culprit: string,
+        reverted: readonly string[],
         changed: string[],
         root: string
     ) => boolean = landingRestoresParent
@@ -227,8 +227,8 @@ export function skinReceiptInvalidForDiff(
     // The RED ladder's revert (issue #6071, ADR 0156 Amendment II): no walk
     // is owed when every DOM-reachable path is back to the reverted commit's
     // parent — checked here, never taken on the body's word.
-    const reverted = revertedCommitOf(prBody);
-    if (reverted !== null && restoresOf(reverted, paths, root)) return false;
+    const reverted = revertedCommitsOf(prBody);
+    if (reverted.length > 0 && restoresOf(reverted, paths, root)) return false;
     // Owed: only a receipt satisfies. An owed verdict that cannot be derived
     // stays owed — fail closed.
     let owed: WalkOwed;

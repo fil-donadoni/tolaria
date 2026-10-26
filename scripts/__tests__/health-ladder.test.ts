@@ -18,7 +18,10 @@ import {
     revertRecordOf,
     TRANSIENT_NOTE,
     walkEpisode,
+    escalationBody,
     escalationTitle,
+    CAP_NOTE,
+    MAX_REVERT_SET,
     FOREIGN_REPAIR_MAX_MS,
     hostOfRunnerName,
     ownRepairPrs,
@@ -58,6 +61,7 @@ const OLD_RED = "b".repeat(40);
 const NOW = Date.parse("2026-10-17T12:00:00Z");
 const RECENT = new Date(NOW - 60_000).toISOString();
 const CULPRIT = { sha: "c".repeat(12), pr: 5700 };
+const TIP = "d".repeat(40);
 
 function facts(over: Partial<LadderFacts> = {}): LadderFacts {
     return {
@@ -65,6 +69,8 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         secondRed: false,
         tip: RED,
         laddered: true,
+        sinceRed: null,
+        repairPrs: [],
         episode: [{ sha: RED, attempt: null, culprit: CULPRIT }],
         revertPr: null,
         foreignRepairs: [],
@@ -117,7 +123,24 @@ describe("ladderRung — what is not the ladder's yet", () => {
     });
 
     it("waits while the base tip has no verdict (a repair just merged)", () => {
-        expect(ladderRung(facts({ tip: "d".repeat(40) })).kind).toBe("wait");
+        expect(
+            ladderRung(
+                facts({
+                    tip: TIP,
+                    sinceRed: [{ sha: TIP, pr: 5800, message: "fix (#5800)" }],
+                    repairPrs: [5800],
+                })
+            )
+        ).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("PR #5800 is a declared repair"),
+        });
+    });
+
+    it("waits while the base tip does not descend from the RED", () => {
+        expect(ladderRung(facts({ tip: TIP, sinceRed: null })).kind).toBe(
+            "wait"
+        );
     });
 
     it("waits for the flake check and the bisect before any fixer", () => {
@@ -125,6 +148,122 @@ describe("ladderRung — what is not the ladder's yet", () => {
             kind: "wait",
             why: expect.stringMatching(/flake check/),
         });
+    });
+});
+
+describe("ladderRung — a bisected RED is the lineage verdict of later tips (issue #6766)", () => {
+    // 2026-10-24: RED @ f315813d, culprit PR #6562 bisected; the tip moved by
+    // PR #6657 and a derive commit only. The ladder waited ~50 min for a
+    // health run on the new tip, and the revert then no longer applied.
+    const replay = (over: Partial<LadderFacts> = {}) =>
+        facts({
+            tip: TIP,
+            episode: [
+                {
+                    sha: RED,
+                    attempt: null,
+                    culprit: { sha: "e7e3aa389e99", pr: 6562 },
+                },
+            ],
+            sinceRed: [
+                {
+                    sha: TIP,
+                    pr: null,
+                    message: "bot-replay — replay the Bot-play sweep",
+                },
+                {
+                    sha: "f".repeat(40),
+                    pr: 6657,
+                    message:
+                        "Ice/Legends dropped clauses (issue #1835) (#6657)",
+                },
+            ],
+            ...over,
+        });
+
+    it("a tip one PR past a bisected RED gets the revert rung at once, not a wait", () => {
+        expect(ladderRung(replay())).toMatchObject({
+            kind: "revert",
+            culprit: { sha: "e7e3aa389e99", pr: 6562 },
+            attempt: 1,
+        });
+    });
+
+    it("an unbisected RED still waits for the tip's own verdict", () => {
+        expect(ladderRung(replay({ laddered: false })).kind).toBe("wait");
+        expect(
+            ladderRung(
+                replay({
+                    episode: [{ sha: RED, attempt: null, culprit: null }],
+                })
+            )
+        ).toMatchObject({ kind: "wait", why: /not bisected/ });
+    });
+
+    it("a commit after the RED naming the culprit (a revert of it) waits", () => {
+        const sinceRed = [
+            {
+                sha: TIP,
+                pr: 7014,
+                message: 'Revert "fix(ui): stack panel (#6562)" (#7014)',
+            },
+        ];
+        expect(ladderRung(replay({ sinceRed }))).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("reverts the culprit"),
+        });
+        const gitRevert = [
+            {
+                sha: TIP,
+                pr: null,
+                message:
+                    'Revert "x"\n\nThis reverts commit e7e3aa389e99ffffffffffffffffffffffffffff.',
+            },
+        ];
+        expect(ladderRung(replay({ sinceRed: gitRevert })).kind).toBe("wait");
+    });
+
+    it("a later commit merely mentioning the culprit's PR does not hold the revert", () => {
+        const sinceRed = [
+            {
+                sha: TIP,
+                pr: 6657,
+                message: "follow-up to #6562 (#6657)\n\nBuilds on #6562.",
+            },
+        ];
+        expect(ladderRung(replay({ sinceRed })).kind).toBe("revert");
+    });
+
+    it("a revert PR the ladder recorded, merged, waits for health on its tip", () => {
+        const episode: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: {
+                    sha: RED,
+                    rung: "revert",
+                    outcome: "attempting",
+                    pr: 7014,
+                    at: RECENT,
+                },
+                culprit: { sha: "e7e3aa389e99", pr: 6562 },
+            },
+        ];
+        expect(
+            ladderRung(
+                replay({
+                    episode,
+                    repairPrs: [7014],
+                    sinceRed: [
+                        { sha: TIP, pr: 7014, message: "Revert (#7014)" },
+                    ],
+                    revertPr: {
+                        number: 7014,
+                        state: "merged",
+                        landFailed: false,
+                    },
+                })
+            ).kind
+        ).toBe("wait");
     });
 });
 
@@ -397,6 +536,35 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
 });
 
 describe("ladderRung — rung 6, stop", () => {
+    it("a revert set past the cap stops, naming every commit in it (issue #6766)", () => {
+        const names = "PR #5900, PR #5850, `abcdef012345`, PR #5700";
+        const rung = ladderRung(
+            facts({
+                episode: withAttempt({
+                    rung: "revert",
+                    outcome: "stuck",
+                    note: `${CAP_NOTE}${names}`,
+                }),
+            })
+        );
+        expect(rung).toMatchObject({
+            kind: "stop",
+            why: expect.stringContaining(`more than ${MAX_REVERT_SET}`),
+        });
+        const body = escalationBody({
+            red: RED,
+            why: rung.why,
+            evidence: null,
+        });
+        for (const ref of [
+            "PR #5900",
+            "PR #5850",
+            "`abcdef012345`",
+            "PR #5700",
+        ])
+            expect(body).toContain(ref);
+    });
+
     const reverting = withAttempt({
         rung: "revert",
         outcome: "attempting",
@@ -875,8 +1043,12 @@ describe("ladderRung — a repair declared outside the ladder (issue #6554)", ()
         expect(
             ladderRung(
                 facts({
-                    tip: "d".repeat(40),
+                    tip: TIP,
                     foreignRepairs: repair({ state: "merged" }),
+                    sinceRed: [
+                        { sha: TIP, pr: 6546, message: "repair (#6546)" },
+                    ],
+                    repairPrs: [6546],
                 })
             ).kind
         ).toBe("wait");
