@@ -71,6 +71,11 @@
  *    their own hand or graveyard as the effect resolves;
  *  - an OWN PERMANENT ("a Forest you control"): the controller picks one of
  *    their permanents (CR 400.3 — it returns to its OWNER's hand).
+ *  - the TOP OF A LIBRARY ("the top card of your library", "the top three
+ *    cards of target player's library"), exiled only: the `exileTopOfLibrary`
+ *    Op (CR 701.13a). A ONE-card exile may carry the sentence behind it, "You
+ *    may play that card this turn" (`impulsePlay.ts`), folded in as the
+ *    chain's `play`.
  *
  * A frame CHAIN is the members of one sentence in printed order, joined by
  * ", " or ", then " (CR 608.2c — instructions are followed in the order
@@ -108,6 +113,7 @@
  */
 
 import { readNumberWord } from "./quantity";
+import type { ImpulsePlayIR } from "./impulsePlay";
 import type {
     CardType,
     EffectCardFilter,
@@ -124,6 +130,7 @@ import {
 } from "../../rule";
 import { isSelfPhrase } from "./cost";
 import {
+    readAmount,
     subjectRule,
     type AmountIR,
     type EffectSentenceIR,
@@ -205,7 +212,18 @@ export type MoveObjectIR =
           readonly count: number | { readonly min: 0; readonly max: number };
       }
     /** CR 400.3 — "a Forest you control": one of the controller's permanents. */
-    | { readonly kind: "own-permanent"; readonly filter: EffectCardFilter };
+    | { readonly kind: "own-permanent"; readonly filter: EffectCardFilter }
+    /**
+     * CR 701.13a — "the top card of your library", "the top three
+     * cards of target player's library": the first cards of an ordered
+     * library, a deterministic pick. Exiled only (the `exileTopOfLibrary` Op
+     * is the move that names them); `owner` is the library's player.
+     */
+    | {
+          readonly kind: "library-top";
+          readonly count: AmountIR;
+          readonly owner: PlayerRefIR;
+      };
 
 export type FrameIR =
     | {
@@ -311,6 +329,12 @@ export interface FrameChainIR {
     readonly frames: readonly FrameIR[];
     /** Opened by a sentence-initial "Then" (the ". Then" connector). */
     readonly continuation?: true;
+    /**
+     * CR 601.2 + CR 305.1 — "You may play that card this turn.": the
+     * sentence behind a ONE-card exile of a library's top, folded in by
+     * `assembleSentences` because "that card" means nothing alone.
+     */
+    readonly play?: ImpulsePlayIR;
     /**
      * CR 118.12 — the "If you do, <effect>." sentence behind the chain, folded
      * in by `assembleSentences` (the `If you do` Composition Rule): the
@@ -436,6 +460,9 @@ const GRAVEYARD_END =
     /^the (top|bottom) (?:(\w+) )?card of (your|target player(?:'|’)s) graveyard$/;
 /** CR 401.2 — an end of an ordered library: a move no Op spells, refused by name. */
 const LIBRARY_TOP_CARDS = /^the top (?:\S+ )?cards? of (?:your|.+?) library$/;
+/** The library ends the `library-top` class reads, exactly. */
+const LIBRARY_TOP_EXACT =
+    /^the top (?:(card)|(\S+) cards) of (your|target player's|target opponent's) library$/;
 /** CR 400.7 — "<quantity> <descriptor> from <zone>". */
 const FROM_ZONE = /^(.+) from (your hand|your graveyard|a graveyard|.+)$/;
 /** CR 400.3 — "<a|an> <descriptor> you control". */
@@ -632,9 +659,25 @@ function readMoveObject(
             owner: end[3] === "your" ? "you" : "target-player",
         });
     }
+    const libraryTop = span.match(LIBRARY_TOP_EXACT);
+    if (libraryTop !== null) {
+        const word = libraryTop[1] === undefined ? libraryTop[2]! : "one";
+        // The frame text is lower-cased: the printed "X" arrives as "x".
+        const count = readAmount(word === "x" ? "X" : word);
+        if (count === null) return fail(`"${word}" is not a count`, span);
+        // "your" is "you"'s possessive; the others drop their "'s".
+        const owner = playerRefRule.run(
+            libraryTop[3] === "your"
+                ? "you"
+                : libraryTop[3]!.replace(/'s$/, ""),
+            ctx
+        );
+        if (!owner.ok) return owner;
+        return ok({ kind: "library-top", count, owner: owner.value });
+    }
     if (LIBRARY_TOP_CARDS.test(span))
         return fail(
-            "the top cards of a library are moved by no Op the moveZone frame lowers to",
+            "only the top of your library, or of an announced player's, is a move the moveZone frame reads",
             span
         );
     const own = span.match(OWN_PERMANENT);
@@ -761,6 +804,12 @@ function admits(
     )
         return "a plural owners' hands is the destination of a sweep or of a group of targets, not of one object (CR 400.3)";
     switch (object.kind) {
+        case "library-top":
+            // CR 701.13a — only exiling the top of a library has an Op
+            // (`exileTopOfLibrary`); putting it elsewhere is another verb.
+            return verb === "exile" && to.zone === "exile"
+                ? null
+                : "the top of a library is only exiled by this frame";
         case "pronoun":
             if (to.zone === "exile" || to.zone === "battlefield") return null;
             if (to.owner !== "you")
