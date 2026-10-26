@@ -325,25 +325,32 @@ async function main(): Promise<void> {
     }
     // Overlap with an open PR (issue #6649): the planner's in-flight rule,
     // applied to the one issue an explicit pick names. Unreadable = no verdict.
-    const prs = openPrFiles();
-    const busy = claimOverlap({
-        issue,
-        files: parseTargetFiles(
-            (
-                JSON.parse(
-                    gh(["issue", "view", String(issue), "--json", "body"])
-                ) as { body: string }
-            ).body
-        ),
-        inFlight: inFlightSet(
-            Object.keys(prs.byIssue).map((n) => ({
-                issue: Number(n),
-                pr: prs.byIssue[Number(n)],
-            })),
-            prs.files,
-            () => ""
-        ),
-    });
+    let busy: ReturnType<typeof claimOverlap> = null;
+    try {
+        const prs = openPrFiles();
+        busy = claimOverlap({
+            issue,
+            files: parseTargetFiles(
+                (
+                    JSON.parse(
+                        gh(["issue", "view", String(issue), "--json", "body"])
+                    ) as { body: string }
+                ).body
+            ),
+            inFlight: inFlightSet(
+                Object.keys(prs.byIssue).map((n) => ({
+                    issue: Number(n),
+                    pr: prs.byIssue[Number(n)],
+                })),
+                prs.files,
+                () => ""
+            ),
+        });
+    } catch (err) {
+        console.error(
+            `queue:claim: overlap check skipped (${(err as Error).message.split("\n")[0]})`
+        );
+    }
     if (busy !== null) {
         if (!args.includes(OVERLAP_OK_FLAG)) {
             console.error(

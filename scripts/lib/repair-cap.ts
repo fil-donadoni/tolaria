@@ -88,18 +88,18 @@ export function failureCount(slug: string, pr: number): number | null {
 }
 
 /**
- * The PRs (by number) past the cap. An unreadable count caps nothing: a
+ * The PRs past the cap, PR number → failure count. An unreadable count caps nothing: a
  * missed cap is caught next run, a wrongly capped PR is lost work.
  */
 export function cappedRepairPrs(
     slug: string,
     prs: readonly { number: number }[],
     countOf: (slug: string, pr: number) => number | null = failureCount
-): Set<number> {
-    const capped = new Set<number>();
+): Map<number, number> {
+    const capped = new Map<number, number>();
     for (const pr of prs) {
         const n = countOf(slug, pr.number);
-        if (n !== null && repairCapReached(n)) capped.add(pr.number);
+        if (n !== null && repairCapReached(n)) capped.set(pr.number, n);
     }
     return capped;
 }
@@ -109,11 +109,10 @@ export function cappedRepairPrs(
  * a PR already carrying the label is skipped. Returns the PRs escalated now.
  */
 export function escalateCappedRepairs(
-    slug: string,
-    capped: ReadonlySet<number>
+    capped: ReadonlyMap<number, number>
 ): number[] {
     const done: number[] = [];
-    for (const pr of capped) {
+    for (const [pr, failures] of capped) {
         try {
             const view = JSON.parse(
                 gh(["pr", "view", String(pr), "--json", "labels,comments"])
@@ -123,12 +122,21 @@ export function escalateCappedRepairs(
             };
             if (view.labels.some((l) => l.name === HUMAN_LABEL)) continue;
             const bodies = view.comments.map((c) => c.body);
-            const comment = escalationComment({
-                failures: failureCount(slug, pr) ?? 0,
-                classes: failureClasses(bodies),
-            });
+            // Comment first, guarded by its marker: a human removing the label
+            // to retry must not draw a second comment, and a failed label edit
+            // must not leave a labelled PR without its explanation.
+            if (!bodies.some((b) => b.includes(ESCALATION_MARKER)))
+                gh([
+                    "pr",
+                    "comment",
+                    String(pr),
+                    "--body",
+                    escalationComment({
+                        failures,
+                        classes: failureClasses(bodies),
+                    }),
+                ]);
             gh(["pr", "edit", String(pr), "--add-label", HUMAN_LABEL]);
-            gh(["pr", "comment", String(pr), "--body", comment]);
             done.push(pr);
         } catch (err) {
             console.error(

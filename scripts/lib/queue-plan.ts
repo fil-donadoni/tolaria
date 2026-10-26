@@ -1633,7 +1633,7 @@ export function repairItems(
     working: ReadonlySet<number> = new Set(),
     /** PRs past the repair cap (issue #6649, `cappedRepairPrs`): handed to a
      *  human, never offered again. */
-    capped: ReadonlySet<number> = new Set()
+    capped: { has(pr: number): boolean } = new Set()
 ): RepairItem[] {
     return [...prs]
         .sort((a, b) => a.number - b.number)

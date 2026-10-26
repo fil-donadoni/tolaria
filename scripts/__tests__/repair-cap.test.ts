@@ -52,7 +52,7 @@ describe("repair cap — rounds (issue #6649)", () => {
                 [{ number: 1 }, { number: 2 }, { number: 3 }],
                 (_s, pr) => counts[pr]
             ),
-        ]).toEqual([2]);
+        ]).toEqual([[2, 4]]);
     });
 
     it("repairItems stops offering a capped PR", () => {

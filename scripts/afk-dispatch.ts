@@ -339,7 +339,7 @@ function repairDispatchables(
     // Repair cap (issue #6649): a PR whose repairs keep failing leaves the
     // loop for its human, once.
     const capped = cappedRepairPrs(slug, prs);
-    escalateCappedRepairs(slug, capped);
+    escalateCappedRepairs(capped);
     return repairItems(
         prs,
         (issue) => {
