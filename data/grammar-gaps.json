@@ -4041,6 +4041,11 @@
         },
         {
             "kind": "scenario",
+            "key": "validate-effect-script › Young Necromancer ability \"young-necromancer-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 7049
+        },
+        {
+            "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
         }
