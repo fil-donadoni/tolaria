@@ -10,11 +10,6 @@
 // on the battlefield without its choice while the opponent holds priority
 // (Multiversal Passage asked for 2 life before its land type, issue #2672).
 // This guard keeps the next card from being authored back onto that shape.
-//
-// Escape hatch: a row in AS_ENTERS_TRIGGER_ALLOWLIST whose value is
-// `tracked-by: #NNN` (Guard B's disposition shape, `divergenceMarkers.test.ts`)
-// — an open issue that migrates the card. A row whose card no longer offends
-// reds too, so a migrated card cannot leave a stale exemption behind.
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "..";
 import type { CardDefinition } from "../types";
@@ -23,11 +18,6 @@ import type { CardDefinition } from "../types";
  *  …", "As this Aura enters, name …" — one sentence, never across a full
  *  stop. */
 const AS_ENTERS_CHOICE = /\bAs [^.\n]*?\benters\b[^.\n]*?,\s*(choose|name)\b/i;
-
-/** Cards still authored on the trigger shape, each with its migration issue. */
-const AS_ENTERS_TRIGGER_ALLOWLIST: Readonly<Record<string, string>> = {
-    "Alloy Golem": "tracked-by: #6483",
-};
 
 /** The triggered abilities that restate the card's "As … enters" sentence —
  *  the clause authored as a trigger. */
@@ -44,26 +34,8 @@ describe("an as-enters choice is an entersWith.asEnters replacement, never a tri
         for (const def of getAllCards()) {
             const triggers = asEntersTriggers(def);
             if (triggers.length === 0) continue;
-            if (AS_ENTERS_TRIGGER_ALLOWLIST[def.name] !== undefined) continue;
             offenders.push(`${def.name} (${def.id}): ${triggers.join(", ")}`);
         }
         expect(offenders).toEqual([]);
-    });
-
-    it("every allowlist row names an issue and still names an offending card", () => {
-        const offending = new Set(
-            getAllCards()
-                .filter((def) => asEntersTriggers(def).length > 0)
-                .map((def) => def.name)
-        );
-        for (const [name, disposition] of Object.entries(
-            AS_ENTERS_TRIGGER_ALLOWLIST
-        )) {
-            expect(disposition, name).toMatch(/^tracked-by: #\d+$/);
-            expect(
-                offending.has(name),
-                `${name} is no longer an offender — drop its row`
-            ).toBe(true);
-        }
     });
 });
