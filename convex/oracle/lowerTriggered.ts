@@ -351,7 +351,10 @@ function lowerCondition(
             };
         }
         case "self-in-graveyard":
-            // Lowered as the ability's zone by the caller, never as a predicate.
+            // CR 404.2 — the bare zone is lowered by the caller, never as a
+            // predicate; the pile-order clause is the predicate beside it.
+            if (condition.creatureCardAbove === true)
+                return { kind: "graveyard-creature-above" };
             return "a graveyard-zone condition is not a board predicate";
         case "basic-land-types": {
             // CR 305.6 — "among lands THAT PLAYER controls": the head must
@@ -396,7 +399,9 @@ export function lowerTriggeredAbility(input: {
         input.effects.some(returnsSelfFromGraveyard);
     // Only the "if this card is in your graveyard" condition IS the zone; any
     // other intervening-if still lowers to a predicate.
-    const zoneCondition = input.condition?.kind === "self-in-graveyard";
+    const zoneCondition =
+        input.condition?.kind === "self-in-graveyard" &&
+        input.condition.creatureCardAbove !== true;
     // CR 113.6b — an "enters" head on ANOTHER permanent (scope not `self`) also
     // has a graveyard-zone factory: `enteredTrigger` takes the zone, and the
     // graveyard scan fires it when a different permanent enters.

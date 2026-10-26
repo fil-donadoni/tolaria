@@ -61,6 +61,7 @@ import {
 } from "./abilities/triggers/leftTrigger";
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
+import { creatureCardDirectlyAboveInGraveyard } from "./graveyardOrder";
 import { holdsExileBundle } from "./abilities/exileBundle";
 import { stateTrigger } from "./abilities/triggers/stateTrigger";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
@@ -179,7 +180,15 @@ export type CompiledTriggerCondition =
      * source's CURRENT card types (`self.types`, the live view), checked as
      * the trigger would trigger and again as it resolves.
      */
-    | { readonly kind: "self-has-type"; readonly type: CardType };
+    | { readonly kind: "self-has-type"; readonly type: CardType }
+    /**
+     * CR 404.2 + CR 603.4 — "if this card is in your graveyard with a
+     * creature card directly above it": the card on top of the source in its
+     * owner's pile is a creature card. Read off the state view, so an absent
+     * view fails closed. Functions from the graveyard (`zone`), which the
+     * lowering sets beside it.
+     */
+    | { readonly kind: "graveyard-creature-above" };
 
 /**
  * The predicate of a condition decided from the SOURCE permanent alone — a
@@ -359,6 +368,8 @@ function conditionHolds(
     if (condition.kind === "self-has-type")
         return self.types.includes(condition.type);
     if (state === undefined) return false;
+    if (condition.kind === "graveyard-creature-above")
+        return creatureCardDirectlyAboveInGraveyard(state, self);
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
     if (condition.kind === "basic-land-types") {
