@@ -1822,12 +1822,22 @@ export function hasLintStagedStash(stashList: string): boolean {
 // against hand-built path lists, never through a subprocess.
 // ─────────────────────────────────────────────────────────────────────────
 
+// `git diff HEAD` after `--regenerate-derived` spans the single-line
+// catalogue JSONs (multi-MB); Bun's default cap (~1.5 MB) kills the child
+// with ENOBUFS and an empty stderr (issue #7074).
+const GIT_MAX_BUFFER = 1024 * 1024 * 1024;
+
 function git(args: string[], cwd: string): string {
-    const r = spawnSync("git", args, { encoding: "utf8", cwd });
+    const r = spawnSync("git", args, {
+        encoding: "utf8",
+        cwd,
+        maxBuffer: GIT_MAX_BUFFER,
+    });
     if (r.status !== 0) {
-        throw new Error(
-            `git ${args.join(" ")} failed: ${(r.stderr || "").trim()}`
-        );
+        const why =
+            (r.stderr || "").trim() ||
+            [r.error?.message, r.signal].filter(Boolean).join(" ");
+        throw new Error(`git ${args.join(" ")} failed: ${why}`);
     }
     return r.stdout;
 }
