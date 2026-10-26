@@ -205,17 +205,19 @@ describe("limitedEventChips", () => {
         type: "draft",
         seatCount: 8,
         gamesFormat: "bo3",
+        botDifficulty: "medium",
         timerEnabled: true,
     } as Pick<
         LimitedEventView,
-        "type" | "seatCount" | "gamesFormat" | "timerEnabled"
+        "type" | "seatCount" | "gamesFormat" | "botDifficulty" | "timerEnabled"
     >;
 
-    it("lists type · Pack Source, Games Format, seats and the timer", () => {
+    it("lists type · Pack Source, Games Format, seats, Bot difficulty and the timer", () => {
         expect(limitedEventChips(base, "Vintage Cube")).toEqual([
             "Draft · Vintage Cube",
             "Best of 3",
             "8 seats",
+            "Bots: Medium",
             "Pick timer on",
         ]);
     });
@@ -226,7 +228,7 @@ describe("limitedEventChips", () => {
                 { ...base, type: "sealed", gamesFormat: "bo1" },
                 undefined
             )
-        ).toEqual(["Sealed", "Best of 1", "8 seats"]);
+        ).toEqual(["Sealed", "Best of 1", "8 seats", "Bots: Medium"]);
     });
 });
 

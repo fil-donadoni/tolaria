@@ -70,6 +70,7 @@ describe("defaults (PRD #5383 stories 17-19)", () => {
             sealedBoosterCount: 6,
             timerEnabled: true,
             gamesFormat: "bo3",
+            botDifficulty: "medium",
             roundDeadlineMinutes: undefined,
             openDecklists: false,
         });
@@ -293,7 +294,11 @@ describe("showcase helpers", () => {
         expect(limitedSetupSteps(DEFAULT_LIMITED_SETUP, SOURCES)).toEqual([
             { key: "type", title: "Type", answer: "Draft" },
             { key: "packSource", title: "Pack Source", answer: "Vintage Cube" },
-            { key: "table", title: "Table", answer: "8 seats · Bo3 · timer" },
+            {
+                key: "table",
+                title: "Table",
+                answer: "8 seats · Bo3 · Medium · timer",
+            },
         ]);
     });
 });

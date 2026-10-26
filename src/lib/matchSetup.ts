@@ -18,6 +18,7 @@ import {
     DIFFICULTIES,
     type Difficulty,
 } from "@convex/gre/difficulty";
+import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import {
     deckPayload,
     filterDecksAdmittedBy,
@@ -191,13 +192,6 @@ const OPPONENT_LABEL: Record<Opponent, string> = {
     solo: "Solo (both seats)",
     host: "Host a table",
     join: "Join a table",
-};
-
-const DIFFICULTY_LABEL: Record<Difficulty, string> = {
-    easy: "Easy",
-    medium: "Medium",
-    hard: "Hard",
-    expert: "Expert",
 };
 
 export const modeLabel = (m: GameMode): string => MODE_LABEL[m];
