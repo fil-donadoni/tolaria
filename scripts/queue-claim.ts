@@ -53,10 +53,14 @@ import {
     machineScope,
     releasedClaims,
 } from "./lib/queue-plan";
-import { DEFAULTS, issuesWithOpenPr } from "./queue-plan";
+import { DEFAULTS, issuesWithOpenPr, openPrFiles } from "./queue-plan";
+import { inFlightSet, parseTargetFiles } from "./lib/queue-plan";
 import {
+    OVERLAP_OK_FLAG,
     buildClaimRow,
     claimDecision,
+    claimOverlap,
+    overlapRefusal,
     claimLockVerdict,
     claimSets,
     latestPlanFor,
@@ -300,7 +304,9 @@ function appendJournalRow(root: string, issue: number, session: string): void {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 function usage(): never {
-    console.error("usage: bun run queue:claim <issue#> [--no-cap]");
+    console.error(
+        "usage: bun run queue:claim <issue#> [--no-cap] [--overlap-ok]"
+    );
     process.exit(2);
 }
 
@@ -316,6 +322,45 @@ async function main(): Promise<void> {
     if (job !== null) {
         console.error(job.message);
         process.exit(job.ok ? 0 : 1);
+    }
+    // Overlap with an open PR (issue #6649): the planner's in-flight rule,
+    // applied to the one issue an explicit pick names. Unreadable = no verdict.
+    let busy: ReturnType<typeof claimOverlap> = null;
+    try {
+        const prs = openPrFiles();
+        busy = claimOverlap({
+            issue,
+            files: parseTargetFiles(
+                (
+                    JSON.parse(
+                        gh(["issue", "view", String(issue), "--json", "body"])
+                    ) as { body: string }
+                ).body
+            ),
+            inFlight: inFlightSet(
+                Object.keys(prs.byIssue).map((n) => ({
+                    issue: Number(n),
+                    pr: prs.byIssue[Number(n)],
+                })),
+                prs.files,
+                () => ""
+            ),
+        });
+    } catch (err) {
+        console.error(
+            `queue:claim: overlap check skipped (${(err as Error).message.split("\n")[0]})`
+        );
+    }
+    if (busy !== null) {
+        if (!args.includes(OVERLAP_OK_FLAG)) {
+            console.error(
+                `✗ queue:claim: ${overlapRefusal(issue, busy.number)}`
+            );
+            process.exit(1);
+        }
+        console.error(
+            `queue:claim: overlap with in-flight #${busy.number} OVERRIDDEN (${OVERLAP_OK_FLAG})`
+        );
     }
     const root = projectRoot();
     const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
