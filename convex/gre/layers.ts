@@ -140,9 +140,11 @@ export function graveyardStaticSources(
         // A synthetic one-card board (`recomposeLayers2to5ForInstance`) may
         // carry no graveyard at all.
         for (const card of player.graveyard ?? []) {
+            // Cheapest test first: this walk runs on every P/T read made
+            // outside a `Layer7Pass`, and almost no graveyard card is stamped.
+            if (card.zoneStaticSeq === undefined) continue;
             const cardId = (card.card as { id?: string } | undefined)?.id;
             if (!cardId || card.id === undefined) continue;
-            if (card.zoneStaticSeq === undefined) continue;
             if (!declaresGraveyardStaticEffect(cardId)) continue;
             const ownerId = card.ownerId ?? player.id;
             sources.push({

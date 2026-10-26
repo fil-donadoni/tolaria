@@ -231,6 +231,23 @@ describe("Anger — the graveyard object's own timestamp (CR 613.7d)", () => {
         expect(hasHaste(state, "p1-bears")).toBe(false);
     });
 
+    it("arriving before Humility within one resolution keeps the earlier stamp", () => {
+        // No recompute runs between the two arrivals: Anger reaches the
+        // graveyard, then Humility enters. Anger entered its zone first, so
+        // its stamp must be the earlier one and Humility strips the grant.
+        const state = angerInGraveyard({ mountainFor: ["p1"] });
+        moveCard(state.players[0], "anger", "graveyard", "hand");
+        moveCard(state.players[0], "anger", "hand", "graveyard");
+        const humilityPermanent = permanent(humility().id, "humility", "p2");
+        state.players[1].battlefield.push(humilityPermanent);
+        beginApplyingStaticEffects(state, humilityPermanent);
+        checkStateBasedActions(state);
+        expect(find(state, "anger").zoneStaticSeq).toBeLessThan(
+            humilityPermanent.staticSeq!
+        );
+        expect(hasHaste(state, "p1-bears")).toBe(false);
+    });
+
     it("a card that leaves and returns is a new object with a new timestamp", () => {
         // Anger is stamped, Humility arrives later and strips its grant; Anger
         // then goes to hand and back. The returning card is a new object

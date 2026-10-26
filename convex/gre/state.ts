@@ -4702,6 +4702,18 @@ export function pushContinuousEffect(
  *  reintroducing the exact ordering bug this function exists to prevent one
  *  layer down (CR 613 layer 4 instead of layer 6). */
 export function allocStaticTimestamp(state: GameState): number {
+    // CR 613.7d — a graveyard card that arrived since the last recompute is
+    // stamped FIRST: it entered its zone before whatever is being stamped now,
+    // so its timestamp must be the earlier one (an Incarnation put into a
+    // graveyard before a Humility enters in the same resolution).
+    stampGraveyardStaticSources(state);
+    return nextStaticTimestamp(state);
+}
+
+/** The next free CR 613.7 timestamp: one past every stamp on the board. The
+ *  read half of `allocStaticTimestamp`, split out so the graveyard stamping it
+ *  runs first can mint through it without recursing. */
+function nextStaticTimestamp(state: GameState): number {
     let max = 0;
     const bump = (seq: number | undefined) => {
         if (seq !== undefined && seq > max) max = seq;
@@ -5062,14 +5074,19 @@ export function recomputeContinuousEffects(state: GameState): void {
  *  zone, and the layer walks skip a source without one
  *  (`graveyardStaticSources`, `gre/layers.ts`).
  *
- *  Minted at the recompute rather than at every path that puts a card into a
- *  graveyard (dying, discarding, milling, a spell resolving, a cost) because
- *  this is the one point all of them reach before anything reads the board:
- *  the SBA loop runs it first (`gre/sba.ts`). Cards arriving together are
- *  stamped in turn order of their owners, then graveyard order (CR 613.7m
- *  orders a simultaneous arrival APNAP). Idempotent: a stamped card keeps its
+ *  Minted lazily rather than at every path that puts a card into a graveyard
+ *  (dying, discarding, milling, a spell resolving, a cost), at the two points
+ *  all of them reach before the order can matter: the recompute, which the SBA
+ *  loop runs first (`gre/sba.ts`), and every other mint
+ *  (`allocStaticTimestamp`), so a card that arrived earlier is never stamped
+ *  after something that arrived later. Cards arriving together are stamped in
+ *  turn order of their owners (CR 613.7m, APNAP), then in graveyard order.
+ *  Deviation: CR 613.7m lets each player choose the relative order of their
+ *  own simultaneous arrivals; graveyard order stands in for that choice, which
+ *  no shipped card can observe (it matters only between two graveyard sources
+ *  of one owner whose effects interact). Idempotent: a stamped card keeps its
  *  stamp until it leaves (`noteGraveyardDeparture` clears it). */
-function stampGraveyardStaticSources(state: GameState): void {
+export function stampGraveyardStaticSources(state: GameState): void {
     const active = state.players.findIndex(
         (p) => p.id === state.activePlayerId
     );
@@ -5080,7 +5097,7 @@ function stampGraveyardStaticSources(state: GameState): void {
             if (card.zoneStaticSeq !== undefined) continue;
             const cardId = (card.card as { id?: string }).id;
             if (!cardId || !declaresGraveyardStaticEffect(cardId)) continue;
-            card.zoneStaticSeq = allocStaticTimestamp(state);
+            card.zoneStaticSeq = nextStaticTimestamp(state);
         }
     }
 }

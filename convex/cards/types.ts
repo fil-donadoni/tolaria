@@ -8536,10 +8536,6 @@ export interface PermanentView {
     manaCostOverride?: ManaCost;
 }
 
-/** Minimal read-only view of the battlefield used by characteristic-defining
- *  abilities (CR 604.3) whose value depends on board state — e.g. Nightmare's
- *  "P/T equal to Swamps you control". Intentionally a subset of the engine's
- *  full GameState so layer computation stays pure. */
 /** One graveyard card as a {@link StaticEffectStateView} sees it. `types` feeds
  *  graveyard-counting CDAs (CR 604.3, Lhurgoyf). The optional rest is what a
  *  CR 113.6b graveyard-functioning static ability's source walk reads
@@ -8558,6 +8554,10 @@ export interface GraveyardCardView {
     readonly zoneStaticSeq?: number;
 }
 
+/** Minimal read-only view of the battlefield used by characteristic-defining
+ *  abilities (CR 604.3) whose value depends on board state — e.g. Nightmare's
+ *  "P/T equal to Swamps you control". Intentionally a subset of the engine's
+ *  full GameState so layer computation stays pure. */
 export interface StaticEffectStateView {
     players: ReadonlyArray<{
         /** Opaque player handle (`controllerId`/`ownerId`, CR 102.1) — exposed
