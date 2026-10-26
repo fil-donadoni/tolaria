@@ -309,7 +309,12 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                 phase: "DECLARE_ATTACKERS",
             });
             expect(() =>
-                assertActivationTimingLegal(combatState, dauthi, ability)
+                assertActivationTimingLegal(
+                    combatState,
+                    dauthi,
+                    dauthi.controllerId,
+                    ability
+                )
             ).toThrow(/sorcery/i);
 
             const mainState: GameState = makeState({
@@ -320,7 +325,12 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                 phase: "PRECOMBAT_MAIN",
             });
             expect(() =>
-                assertActivationTimingLegal(mainState, dauthi, ability)
+                assertActivationTimingLegal(
+                    mainState,
+                    dauthi,
+                    dauthi.controllerId,
+                    ability
+                )
             ).not.toThrow();
         });
 

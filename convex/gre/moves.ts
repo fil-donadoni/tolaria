@@ -191,7 +191,7 @@ import {
     declaredAttackRestrictionViolation,
     getMinimumBlockers,
 } from "./combat";
-import { isSorceryTiming } from "./phases";
+import { isSorceryTimingFor } from "./phases";
 import { loyaltyActivationViolation } from "./loyalty";
 import { effectivePermanentView } from "./permanentView";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -4793,7 +4793,7 @@ function enumerateAbilityMoves(
         // TARGETED ability rejected mid-chain leaves the bot's `activateAbility
         // → selectTarget` sequence half-applied. Mirrors the server's own
         // `assertActivationTimingLegal`.
-        if (ability.sorcerySpeedOnly && !isSorceryTiming(state)) {
+        if (ability.sorcerySpeedOnly && !isSorceryTimingFor(state, player.id)) {
             continue;
         }
         // Tap cost: source must be untapped and not summoning-locked.
