@@ -15537,7 +15537,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "casts Thornscape Battlemage without paying the {W} Kicker",
         },
-        note: "Issue #6904 — Bot-only prune `withoutFutileKickerVariants` (`gre/ai/futileKicker.ts`), the sibling of the evoke prune (issue #4900). Pair with the next entry.",
+        note: "Issue #6904 — Bot-only prune `withoutFutileKickerVariants` (`gre/ai/futileKicker.ts`), the sibling of the evoke prune (issue #4900). Pair with the next entry. MEASURED HONESTLY: at this budget the existing root mechanisms already pick the unkicked cast, so this entry is green with or without the prune — it pins the outcome, the discriminating proof is `futileKicker.bot.test.ts` (red with the filter disabled).",
     },
     {
         label: "futile Kicker: casts Thornscape Battlemage {W}-kicked to destroy an opposing artifact",
