@@ -33,20 +33,23 @@ export function lastDequeueAt(comments: readonly PrComment[]): string | null {
 }
 
 /**
- * Whether a `@mergifyio requeue` (`REQUEUE_COMMENT`) was posted on the PR
- * since Mergify last dequeued it — by anyone; any, when it was never
- * dequeued. `pr-gate` posts one per dequeue, never one per sweep (issue
- * #6957).
+ * When the newest `@mergifyio requeue` (`REQUEUE_COMMENT`, by anyone) was
+ * posted at or after `since` — the time the PR was last labelled
+ * `queue:held` — or null; null too when `since` is unknown. `pr-gate` posts
+ * one per hold, never one per sweep (issue #6957).
  */
-export function requeuePostedSinceDequeue(
-    comments: readonly PrComment[]
-): boolean {
-    const dequeued = lastDequeueAt(comments);
-    return comments.some(
-        (c) =>
-            c.body.trim() === REQUEUE_COMMENT &&
-            (dequeued === null || c.createdAt >= dequeued)
-    );
+export function lastRequeueSince(
+    comments: readonly PrComment[],
+    since: string | null
+): string | null {
+    if (since === null) return null;
+    const stamps = comments
+        .filter(
+            (c) => c.body.trim() === REQUEUE_COMMENT && c.createdAt >= since
+        )
+        .map((c) => c.createdAt)
+        .sort();
+    return stamps.at(-1) ?? null;
 }
 
 /**

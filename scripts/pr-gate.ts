@@ -19,16 +19,16 @@
  * `--dry-run` prints the statuses and posts nothing. Each status is decided
  * and posted on its own: one that cannot be read or written is reported and
  * skipped, and the run exits 1. Off RED, a PR labelled `queue:held` gets
- * `@mergifyio requeue` once per dequeue, and loses the label once it is
- * `queued` again or the requeue did not take (`heldPrAction`, issues #6110,
- * #6957); an unlabelled PR whose `base-health` turns green after being held
+ * `@mergifyio requeue` once per hold, and loses the label once it is
+ * `queued` again or the requeue did not take within its grace
+ * (`heldPrAction`, issues #6110, #6957); an unlabelled PR whose `base-health` turns green after being held
  * gets the requeue alone. An unreadable verdict store posts
  * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { HELD_LABEL } from "./lib/land-labels";
-import { requeuePostedSinceDequeue, type PrComment } from "./lib/land-requeue";
+import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
 import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     githubVerdictStore,
@@ -89,6 +89,16 @@ function prComments(run: GhRunner, repo: string, pr: number): PrComment[] {
         `repos/${repo}/issues/${pr}/comments?per_page=100`,
         ".[] | {author: {login: .user.login}, body, createdAt: .created_at} | tojson"
     );
+}
+
+/** When the PR was last labelled `queue:held`, or null. */
+function heldSince(run: GhRunner, repo: string, pr: number): string | null {
+    const stamps = ghLines<string>(
+        run,
+        `repos/${repo}/issues/${pr}/events?per_page=100`,
+        `.[] | select(.event == "labeled" and .label.name == "${HELD_LABEL}") | .created_at | tojson`
+    );
+    return stamps.sort().at(-1) ?? null;
 }
 
 function argValue(flag: string): string | undefined {
@@ -248,10 +258,12 @@ function main(): number {
                 lineage,
                 baseHealth: next,
                 trustedAuthor: trustedState,
-                requeuedSinceDequeue: () =>
-                    requeuePostedSinceDequeue(
-                        prComments(run, repo, raw.number)
+                lastRequeueAt: () =>
+                    lastRequeueSince(
+                        prComments(run, repo, raw.number),
+                        heldSince(run, repo, raw.number)
                     ),
+                now: Date.now(),
             });
         } catch (e) {
             failed++;

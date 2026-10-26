@@ -1506,9 +1506,11 @@ AMBER that follows re-gates the same PRs, and `pr-gate` releases each
 `queue:held` PR in two steps, keyed on the label, never on a `base-health`
 transition (issue #6957: a PR already green when the RED cleared never
 transitions, and its stale label kept it held): first `@mergifyio requeue`,
-once per dequeue, with the label kept (it is `ready-to-land`, not
+once per hold, with the label kept (it is `ready-to-land`, not
 `land-failed`, `trusted-author` green, no `queued` label); then, once it is
-`queued` again or that requeue did not take, the label comes off. Removing it
+`queued` again or that requeue did not take within 10 minutes
+(`REQUEUE_GRACE_MS`), the label comes off. A PR whose `trusted-author` is not
+green keeps the label: an entry gate is not the PR's red. Removing it
 first would let the sticky dequeue reason fire the repair-pick rule. A PR the
 RED held without the label gets the requeue alone on its red → green edge.
 `.mergify.yml`'s `commands_restrictions` admits `github-actions[bot]` for
