@@ -4924,7 +4924,8 @@ export interface SpellContext {
      *  Used by Word of Command ("The player plays that card if able") to play
      *  the chosen land under the controlled opponent's control, counting toward
      *  the opponent's land drop. Returns true if the land was played, false if
-     *  not able (not in hand, not a Land, or the land drop is spent).
+     *  not able (not in hand, not a Land, not the player's turn (CR 305.3), or the
+     *  land drop is spent).
      *
      *  ZONE-BROAD (CR 305.9, issue #1961) — `opts.sourceZone` names the zone the
      *  land is played FROM, defaulting to `"hand"` (Word of Command's shape,
@@ -4932,11 +4933,9 @@ export interface SpellContext {
      *  `castChosenSpell`'s own zone generalization: a play-during-resolution
      *  permission (Hideaway's "you may play the exiled card") reaches a land
      *  sitting in exile, and it must enter through the SAME canonical land-play
-     *  transition so the CR 305.2a land drop is recorded identically. This
-     *  primitive is deliberately timing-AGNOSTIC — CR 305.3 ("a player can't
-     *  play a land if it isn't their turn") is enforced by the CALLER's legality
-     *  lookup ({@link getChosenLandPlayable}), because Word of Command's own
-     *  resolution plays a land under the NON-active player's control. */
+     *  transition so the CR 305.2a land drop is recorded identically. CR 305.3
+     *  ("a player can't play a land if it isn't their turn") is enforced HERE:
+     *  a play instructed to a non-active player is ignored (returns false). */
     playLandForPlayer: (
         playerId: string,
         cardInstanceId: string,
