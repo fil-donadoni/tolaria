@@ -345,9 +345,9 @@ describe("becomes a basic land type — the neighbours it refuses", () => {
                 })
             )
         ).toEqual([
-            // The leading duration is read (the Composition Rule, issue
-            // #6557); what the member list cannot read is the ADD form.
-            "effect clause > effect clause: Target land you control becomes the basic land type of your choice in addition to its other types",
+            // No reader takes a fronted duration over a member list (its
+            // Composition Rule retired, issue #6624): the sentence refuses whole.
+            "effect clause: Until end of turn, target land you control becomes the basic land type of your choice in addition to its other types",
         ]);
     });
 

@@ -425,9 +425,9 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
                 })
             )
         ).toEqual([
-            // The leading duration is read (the Composition Rule, issue
-            // #6557); the linked grant behind "and" is what refuses the member.
-            "effect clause > effect clause: {self} becomes the color of your choice and",
+            // No reader takes a fronted duration over a member list (its
+            // Composition Rule retired, issue #6624): the sentence refuses whole.
+            "effect clause: Until end of turn, {self} becomes the color of your choice and",
             "effect clause: Draw a card for each color among permanents you control",
         ]);
     });
