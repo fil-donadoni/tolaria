@@ -98,6 +98,12 @@ import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
 import { TREE_ROLE_ENV } from "./lib/derived-state";
 import { isBotSourceFile } from "./lib/bot-source-files";
+import { HEALTH_ONLY_GUARDS, LANE_COST_BUDGET_S } from "./lib/health-step";
+import {
+    discoverScanGuards,
+    scanGuardAdmits,
+    type ScanGuard,
+} from "./lib/scan-guards";
 import {
     admitByCost,
     COSTS_PATH,
@@ -148,6 +154,11 @@ const defaultBotReach: BotReachSource = {
     costs: () => readBotTestCosts(REPO_ROOT),
     budget: () => readBotBudget(REPO_ROOT),
 };
+
+/** The `*.guard.test` files and their declarations (issue #7012). */
+let memoisedScanGuards: ScanGuard[] | null = null;
+const defaultScanGuards = () =>
+    (memoisedScanGuards ??= discoverScanGuards(REPO_ROOT));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -512,6 +523,11 @@ export interface LanePlan {
      * #6149) and every scoped code lane's cost admission (issue #6943).
      */
     botReach?: { run: number; total: number; why: string };
+    /**
+     * The repo-wide scan guards the plan runs as `guards(diff)`, each with
+     * its declared cost (issue #7012) — `--plan` prints them.
+     */
+    guards?: { file: string; costS: number }[];
 }
 
 /** What a lane asks of the bot walk: the `full` lane's bot half (issue
@@ -599,7 +615,13 @@ export function classifyLane(
      * cost (issue #6943), injectable for the reason `related` is. Walked in
      * every scoped code branch, never in `docs`; `full` asks only its total.
      */
-    botReach: BotReachSource = defaultBotReach
+    botReach: BotReachSource = defaultBotReach,
+    /**
+     * The `*.guard.test` files with their `lane-scans` / `lane-cost`
+     * declarations (issue #7012), injectable for the reason `related` is.
+     * Read only by the scoped code lanes.
+     */
+    scanGuards: () => readonly ScanGuard[] = defaultScanGuards
 ): LanePlan {
     const files = [...changedPaths];
     const merged = new Map([...ledgerCompanionOverrides(files), ...overrides]);
@@ -619,6 +641,8 @@ export function classifyLane(
             // while the lanes get attention (#2738 § Explicitly unchanged).
             // The cheap census guards ride AFTER it, unconditionally: the
             // fallback lane cannot say which paths moved them (issue #4963).
+            // The `*.guard.test` scan guards need no entry:
+            // `check:guards:app` runs the node and dom projects whole.
             // `blade-index` and `search-cost` may repeat a file the bot run
             // already ran — 2–4 s, cheaper than a second rule for one lane.
             run: [
@@ -706,12 +730,14 @@ export function classifyLane(
         // planned. A test file NO project selects is in no project here
         // either, so it is never planned: that class is
         // `src-test-env-split.test.ts`'s, and it runs in health.
+        const guards = admittedScanGuards(files, scanGuards(), skip);
         pushRelated(
-            related(files),
+            withoutFiles(related(files), guards),
             ["node-engine", "node-tooling", "dom"],
             run,
             skip
         );
+        appendScanGuards(guards, run);
         const bot = admittedBotTests(files, botReach, () => false);
         run.push(...bot.run);
         skip.push(...bot.skip);
@@ -743,6 +769,7 @@ export function classifyLane(
             run,
             skip,
             botReach: bot.reach,
+            ...guardsField(guards),
         };
     }
 
@@ -847,7 +874,14 @@ export function classifyLane(
             id: "node-tooling",
             command: "bunx vitest run --project node-tooling",
         });
-    pushRelated(reach, mixed ? [...scoped, "dom"] : scoped, run, skip);
+    const guards = admittedScanGuards(files, scanGuards(), skip);
+    pushRelated(
+        withoutFiles(reach, guards),
+        mixed ? [...scoped, "dom"] : scoped,
+        run,
+        skip
+    );
+    appendScanGuards(guards, run);
     const bot = admittedBotTests(files, botReach, () => false);
     run.push(...bot.run);
     skip.push(...bot.skip);
@@ -870,6 +904,7 @@ export function classifyLane(
         run,
         skip,
         botReach: bot.reach,
+        ...guardsField(guards),
     };
 }
 
@@ -1079,6 +1114,78 @@ function appendCheapGuards(
             run.push({ id: guard.id, command: cheapGuardCommand(guard) });
         else skip.push({ id: guard.id, reason: guard.lacks });
     }
+}
+
+/**
+ * The repo-wide scan guards a diff admits (issue #7012): each
+ * `*.guard.test` file whose declared `lane-scans` globs match a changed path,
+ * within `LANE_COST_BUDGET_S`. ADMISSION, NOT SCOPING, like `CHEAP_GUARDS`:
+ * the guard reads its corpus through `fs`, so the import graph cannot see
+ * that a `src/**` edit moves it (a bare `100vh` landed that way). Not admitted:
+ * a skip line per reason; one over budget must hold a `HEALTH_ONLY_GUARDS`
+ * row keyed by its path, or the plan refuses — the tier rule's one table.
+ */
+function admittedScanGuards(
+    files: string[],
+    guards: readonly ScanGuard[],
+    skip: SkippedCheck[]
+): ScanGuard[] {
+    const admitted: ScanGuard[] = [];
+    const overBudget: ScanGuard[] = [];
+    for (const guard of guards) {
+        if (!scanGuardAdmits(guard, files)) continue;
+        if (guard.costS <= LANE_COST_BUDGET_S) admitted.push(guard);
+        else if (guard.file in HEALTH_ONLY_GUARDS) overBudget.push(guard);
+        else
+            throw new Error(
+                `${guard.file} declares lane-cost ${guard.costS} s, over the ${LANE_COST_BUDGET_S} s lane budget, and has no HEALTH_ONLY_GUARDS row (scripts/lib/health-step.ts)`
+            );
+    }
+    if (admitted.length === 0)
+        skip.push({
+            id: SCAN_GUARDS_STEP,
+            reason: "no changed path matches a *.guard.test file's lane-scans globs — no repo-wide scan guard's corpus moved",
+        });
+    if (overBudget.length > 0)
+        skip.push({
+            id: `${SCAN_GUARDS_STEP}:over-budget`,
+            reason: `health's — each costs more than ${LANE_COST_BUDGET_S} s (HEALTH_ONLY_GUARDS): ${overBudget.map((g) => `${g.file} (${g.costS} s)`).join(", ")}`,
+        });
+    return admitted;
+}
+
+const SCAN_GUARDS_STEP = "guards(diff)";
+
+/** The admitted scan guards as ONE vitest run over the app projects. */
+function appendScanGuards(
+    guards: readonly ScanGuard[],
+    run: PlannedCheck[]
+): void {
+    if (guards.length === 0) return;
+    run.push({
+        id: SCAN_GUARDS_STEP,
+        command: `bunx vitest run ${NODE_PARTITIONS} --project dom ${guards.map((g) => shellQuote(g.file)).join(" ")}`,
+    });
+}
+
+/** The reached tests minus the scan guards `guards(diff)` already runs. */
+function withoutFiles(
+    reach: RelatedTests,
+    guards: readonly ScanGuard[]
+): RelatedTests {
+    const drop = new Set(guards.map((g) => g.file));
+    return Object.fromEntries(
+        Object.entries(reach).map(([p, fs]) => [
+            p,
+            fs.filter((f) => !drop.has(f)),
+        ])
+    ) as RelatedTests;
+}
+
+function guardsField(guards: readonly ScanGuard[]): Pick<LanePlan, "guards"> {
+    return guards.length === 0
+        ? {}
+        : { guards: guards.map((g) => ({ file: g.file, costS: g.costS })) };
 }
 
 /** Where the drift-guard census lives: hooks, skills, the gate scripts. */
@@ -1433,6 +1540,10 @@ export function renderPlan(plan: LanePlan, head: string): string {
         const { run, total, why } = plan.botReach;
         lines.push(`bot:   ${run}/${total} bot fast lane files (${why})`);
     }
+    if (plan.guards)
+        lines.push(
+            `guards: ${plan.guards.map((g) => `${g.file} (${g.costS} s)`).join(", ")}`
+        );
     if (plan.skip.length > 0) {
         const width = Math.max(...plan.skip.map((s) => s.id.length));
         plan.skip.forEach((s, i) => {

@@ -1,3 +1,5 @@
+// lane-scans: src/** index.html
+// lane-cost: 7 s (vitest Duration 6.95 s cold, 2.7 s for all three guards warm, load ~26, 2026-10-26)
 // Repo-wide regression guard (issue #2594) — in the spirit of
 // `shellLayout.ts`'s own `VIEWPORT_HEIGHT_CLASSES` census
 // (src/lib/shellLayout.ts:344-355): a mechanically-checkable invariant lives

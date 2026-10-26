@@ -26,7 +26,7 @@ const SPECIAL = new Set(".+?^${}()|[]\\".split("") as readonly string[]);
  * library. Anchored on both ends: a glob matches a full repo-relative path,
  * never a substring of one.
  */
-function globToRegExp(glob: string): RegExp {
+export function globToRegExp(glob: string): RegExp {
     let pattern = "";
     for (let i = 0; i < glob.length; i++) {
         const c = glob[i];
