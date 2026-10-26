@@ -402,6 +402,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "written by a full Bot sweep (`bot:reach`), never inside a rebase",
     },
     {
+        pattern: "data/bot-test-costs.json",
+        kind: "not-offline",
+        why: "`bot:costs` reads health's per-file walls on the gating machine; moves only in a deliberate refresh PR (issue #6943)",
+    },
+    {
         pattern: "data/grammar-gaps.json",
         kind: "not-offline",
         why: "`gaps:sync` records the GitHub issues it files there",

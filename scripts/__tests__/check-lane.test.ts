@@ -803,16 +803,37 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         "node-tooling": ["scripts/__tests__/y.test.ts"],
         dom: ["src/components/board/Card.test.tsx"],
     });
+    /** One reached bot census, under budget (issue #6943) — same reason. */
+    const botFixture: BotReachSource = {
+        total: () => 352,
+        related: () => ({
+            "bot-node": ["convex/gre/__tests__/census.bot.test.ts"],
+            "bot-dom": [],
+        }),
+        costs: () => ({ "convex/gre/__tests__/census.bot.test.ts": 20 }),
+        budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
+    };
     const skin = classifyLane(
         ["src/components/board/Card.tsx"],
         undefined,
-        fixture
+        fixture,
+        undefined,
+        botFixture
     );
-    const engine = classifyLane(["convex/gre/engine.ts"], undefined, fixture);
-    const cards = classifyLane([
-        "convex/cards/sets/lea/red.cards.ts",
-        "data/card-index.json",
-    ]);
+    const engine = classifyLane(
+        ["convex/gre/engine.ts"],
+        undefined,
+        fixture,
+        undefined,
+        botFixture
+    );
+    const cards = classifyLane(
+        ["convex/cards/sets/lea/red.cards.ts", "data/card-index.json"],
+        undefined,
+        undefined,
+        undefined,
+        botFixture
+    );
     const docs = classifyLane(["docs/adr/0111-extra-phases.md"]);
     const full = classifyLane(["package.json"]);
 
@@ -833,6 +854,8 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[app,scripts]",
             "cr:lint",
             "vitest(related)",
+            // The reached bot census, admitted by cost (issue #6943).
+            "vitest(bot)",
             "check:issue-log-comments",
         ]);
         expect(ids(skin.skip)).toEqual([
@@ -947,25 +970,24 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             expect(cmd.command).not.toContain("dom");
         });
 
-        it("no scoped lane runs a bot project; each names the health-only skips", () => {
-            // A cheap guard runs ONE bot-node file by admission (issue #5940,
-            // issue #6545), never the project.
-            const cheap = new Set(CHEAP_GUARDS.map((g) => g.id));
+        it("no scoped lane runs a bot project WHOLE; each names the health-only skips", () => {
+            // A cheap guard runs ONE bot-node file by admission; the cost
+            // admission (issue #6943) names files — never the bare project,
+            // even for a Bot input the live walk reaches widely.
             for (const files of [
                 ["src/lib/ai/brain-client.ts"],
                 ["convex/gre/ai/search.ts"],
                 ["convex/cards/sets/lea/red.cards.ts"],
             ]) {
                 const plan = classifyLane(files, undefined, fixture);
-                expect(
-                    plan.run.filter(
-                        (c) =>
-                            /bot-(dom|node)/.test(c.command) &&
-                            c.id !== "bot[cards]" &&
-                            !cheap.has(c.id)
-                    ),
-                    files[0]
-                ).toEqual([]);
+                for (const c of plan.run.filter(
+                    (c) =>
+                        /bot-(dom|node)/.test(c.command) &&
+                        c.id !== "bot[cards]"
+                ))
+                    expect(c.command, `${files[0]} ${c.id}`).toMatch(
+                        /\.bot\.test\.tsx?'?( |$)/
+                    );
                 expect(ids(plan.skip), files[0]).toEqual(
                     expect.arrayContaining(["bot fast lane", "bundle"])
                 );
@@ -1023,6 +1045,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:convex-bundle",
             "cr:lint",
             "vitest(related)",
+            "vitest(bot)",
             // convex/** feeds the registry and the Bot hash every census
             // reads (issue #4963).
             "check:gaps",
@@ -1062,6 +1085,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "cr:lint",
             "node[cards]",
             "bot[cards]",
+            "vitest(bot)",
             // A card diff moves every census input (issue #4963) — after
             // check:oracle, so lockfile drift is the error seen first.
             "check:gaps",
@@ -2585,6 +2609,8 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
                 asked.push(paths);
                 return { "bot-node": [], "bot-dom": [], ...r };
             },
+            costs: () => ({}),
+            budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
         };
         return { source, asked };
     };
@@ -2703,24 +2729,36 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
         );
     });
 
-    it("no other lane asks the bot walk", () => {
+    it("the docs lane never asks the bot walk; every scoped code lane asks it once (issue #6943)", () => {
+        const noNode = () => ({
+            "node-engine": [],
+            "node-tooling": [],
+            dom: [],
+        });
+        const docs = botOnly({});
+        const d = classifyLane(
+            ["docs/adr/0111.md"],
+            undefined,
+            noNode,
+            undefined,
+            docs.source
+        );
+        expect(d.lane).toBe("docs");
+        expect(docs.asked).toEqual([]);
+        expect(d.botReach).toBeUndefined();
         for (const files of [
             ["src/components/board/Card.tsx"],
             ["convex/gre/combat.ts"],
             ["convex/cards/sets/lea/red.cards.ts"],
-            ["docs/adr/0111.md"],
         ]) {
             const { source, asked } = botOnly({});
-            const p = classifyLane(
-                files,
-                undefined,
-                () => ({ "node-engine": [], "node-tooling": [], dom: [] }),
-                undefined,
-                source
-            );
+            const p = classifyLane(files, undefined, noNode, undefined, source);
             expect(p.lane, files[0]).not.toBe("full");
-            expect(asked, files[0]).toEqual([]);
-            expect(p.botReach, files[0]).toBeUndefined();
+            expect(asked, files[0]).toEqual([files]);
+            expect(p.botReach, files[0]).toMatchObject({
+                run: 0,
+                total: TOTAL,
+            });
         }
     });
 });
@@ -2774,5 +2812,162 @@ describe("check-lane — the CR ledger as documentation's companion (issue #3749
             classifyLane(["docs/a.md", LEDGER, "scripts/x.ts"], undefined, none)
                 .lane
         ).not.toBe("docs");
+    });
+});
+
+/**
+ * Issue #6943 (ADR 0154 §13) — the lane's tier is MEASURED COST for
+ * vitest files too: every scoped code lane runs the bot files the diff
+ * reaches whose cost (`data/bot-test-costs.json`) is under
+ * `laneBotBudget.perFileS`, cheapest first, up to `totalS`, and names the
+ * rest with their cost. PR #6849's base RED was two millisecond censuses the
+ * walk reached and the suite rule excluded.
+ */
+describe("scoped lanes admit the reached bot files by measured cost (issue #6943)", () => {
+    const BUDGET = { perFileMs: 5_000, totalMs: 10_000 };
+    const noNode = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+    const source = (
+        reached: Partial<BotRelatedTests>,
+        costs: Record<string, number>
+    ): BotReachSource => ({
+        total: () => 352,
+        related: () => ({ "bot-node": [], "bot-dom": [], ...reached }),
+        costs: () => costs,
+        budget: () => BUDGET,
+    });
+    const plan = (files: string[], s: BotReachSource) =>
+        classifyLane(files, undefined, noNode, undefined, s);
+    const botStep = (p: LanePlan) => p.run.find((c) => c.id === BOT_STEP);
+    const skipOf = (p: LanePlan, id: string) =>
+        p.skip.find((s) => s.id === id)?.reason;
+    const CENSUS = "convex/gre/__tests__/creatureKeywordBonus.bot.test.ts";
+    const RATINGS = "convex/limited/__tests__/pickRatings.bot.test.ts";
+    const BLADE = "convex/gre/ai/blade/__tests__/blade.bot.test.ts";
+
+    it("an engine diff runs the reached censuses, naming only their project", () => {
+        const p = plan(
+            ["convex/cards/types.ts"],
+            source(
+                { "bot-node": [RATINGS, CENSUS] },
+                { [CENSUS]: 16, [RATINGS]: 15 }
+            )
+        );
+        expect(p.lane).toBe("engine");
+        expect(botStep(p)).toEqual({
+            id: BOT_STEP,
+            command: `TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node '${CENSUS}' '${RATINGS}'`,
+        });
+        expect(p.botReach).toMatchObject({ run: 2, total: 352 });
+    });
+
+    it("a reached file over the per-file budget is a skip line with its measured cost", () => {
+        const p = plan(
+            ["convex/game.ts"],
+            source(
+                { "bot-node": [CENSUS, BLADE] },
+                { [CENSUS]: 16, [BLADE]: 45_000 }
+            )
+        );
+        expect(botStep(p)!.command).not.toContain(BLADE);
+        expect(skipOf(p, `${BOT_STEP}:over-file-budget`)).toContain(
+            `${BLADE} (45.0 s)`
+        );
+    });
+
+    it("a reached file with no measurement is a skip line saying so", () => {
+        const p = plan(
+            ["convex/game.ts"],
+            source({ "bot-dom": ["src/lib/ai/__tests__/new.bot.test.ts"] }, {})
+        );
+        expect(botStep(p)).toBeUndefined();
+        expect(skipOf(p, `${BOT_STEP}:unmeasured`)).toMatch(
+            /no row in data\/bot-test-costs\.json.*src\/lib\/ai\/__tests__\/new\.bot\.test\.ts/
+        );
+        expect(skipOf(p, BOT_STEP)).toMatch(/none admitted/);
+    });
+
+    it("a hub reach never runs a project whole: cheapest first, the rest named past the lane budget", () => {
+        const many = Array.from(
+            { length: WHOLE_PROJECT_AT + 50 },
+            (_, i) =>
+                `convex/gre/__tests__/t${String(i).padStart(3, "0")}.bot.test.ts`
+        );
+        const costs: Record<string, number> = {};
+        many.forEach((f, i) => (costs[f] = i < 5 ? 10 : 3_000));
+        const p = plan(
+            ["convex/gre/state.ts"],
+            source({ "bot-node": many }, costs)
+        );
+        const cmd = botStep(p)!.command;
+        expect(cmd).not.toBe(BOT_FAST_LANE);
+        // 5 × 10 ms + 3 × 3 s = 9.05 s ≤ 10 s; the fourth 3 s file passes it.
+        expect(p.botReach).toMatchObject({ run: 8 });
+        for (const f of many.slice(0, 5)) expect(cmd).toContain(f);
+        expect(skipOf(p, `${BOT_STEP}:over-lane-budget`)).toContain(
+            `${many[8]} (3.0 s)`
+        );
+    });
+
+    it("a file a planned cheap guard runs whole is not run twice", () => {
+        const p = plan(
+            ["convex/gre/search.ts"],
+            source(
+                { "bot-node": [CENSUS, SEARCH_COST_TEST] },
+                { [CENSUS]: 16, [SEARCH_COST_TEST]: 1_176 }
+            )
+        );
+        expect(ids(p.run)).toContain("search-cost");
+        expect(botStep(p)!.command).not.toContain(SEARCH_COST_TEST);
+    });
+
+    it("a cheap guard the diff does not admit leaves its file to the cost admission", () => {
+        // `src/**` is no `search-cost` input: the guard is not planned.
+        const p = plan(
+            ["src/lib/ai/brain-client.ts"],
+            source(
+                { "bot-node": [SEARCH_COST_TEST] },
+                { [SEARCH_COST_TEST]: 1_176 }
+            )
+        );
+        expect(ids(p.run)).not.toContain("search-cost");
+        expect(botStep(p)!.command).toContain(SEARCH_COST_TEST);
+    });
+
+    it("the cards lane leaves bot[cards]'s partition to it", () => {
+        const sets = "convex/cards/__tests__/aiEffectsGuard.bot.test.ts";
+        const p = classifyLane(
+            ["convex/cards/sets/lea/red.cards.ts"],
+            undefined,
+            undefined,
+            undefined,
+            source({ "bot-node": [sets, CENSUS] }, { [sets]: 30, [CENSUS]: 16 })
+        );
+        expect(p.lane).toBe("cards");
+        expect(botStep(p)!.command).toBe(
+            `TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node '${CENSUS}'`
+        );
+    });
+
+    it("PR #6849's diff, on the live walk and the committed cost table, plans both censuses that reddened the base", () => {
+        // 182eaefa4^..182eaefa4 — base RED 7a26705010e9 (2026-10-25).
+        const p = classifyLane([
+            "convex/cards/abilities/__tests__/keywordTriggers.test.ts",
+            "convex/cards/abilities/keywordTriggers.ts",
+            "convex/cards/mechanicsRegistry.ts",
+            "convex/cards/types.ts",
+            "convex/gre/state.ts",
+            "convex/gre/triggerEventVocabulary.ts",
+            "data/card-index.json",
+            "data/cr/citations-ledger.json",
+            "data/oracle-compiled.json",
+        ]);
+        expect(p.lane).toBe("engine");
+        const cmd = botStep(p)?.command ?? "";
+        expect(cmd).toContain(CENSUS);
+        expect(cmd).toContain(RATINGS);
     });
 });
