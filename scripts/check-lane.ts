@@ -97,6 +97,13 @@ import { failingFiles } from "./lib/health-evidence";
 import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
 import { TREE_ROLE_ENV } from "./lib/derived-state";
+import {
+    LANE_FORCE_ENV,
+    LANE_VERDICT_DIR,
+    laneVerdictKey,
+    readLaneVerdict,
+    writeLaneVerdict,
+} from "./lib/lane-verdict";
 import { isBotSourceFile } from "./lib/bot-source-files";
 import { HEALTH_ONLY_GUARDS, LANE_COST_BUDGET_S } from "./lib/health-step";
 import {
@@ -2238,6 +2245,30 @@ function main(): void {
         process.exit(0);
     }
 
+    // One lane per merged tree (issue #6650): a tree already proved green for
+    // this very plan is not re-laned; the first run is named instead.
+    const verdictDir = join(
+        resolve(cwd, git(["rev-parse", "--git-common-dir"], cwd).trim()),
+        LANE_VERDICT_DIR
+    );
+    const tree = git(["rev-parse", "HEAD^{tree}"], cwd).trim();
+    const verdictKey = laneVerdictKey(
+        tree,
+        process.env[TREE_ROLE_ENV] ?? "",
+        plan.run.map((c) => c.command)
+    );
+    const prior =
+        process.env[LANE_FORCE_ENV] === "1"
+            ? null
+            : readLaneVerdict(verdictDir, verdictKey);
+    if (prior !== null) {
+        // stderr: `--json` callers parse stdout as the lane's JSON receipt.
+        console.error(
+            `check:lane: tree ${prior.tree.slice(0, 10)} already lane-green (proved at ${prior.provedAt.slice(0, 10)}, ${prior.at}) — ${prior.steps} step(s) not re-run; ${LANE_FORCE_ENV}=1 forces`
+        );
+        process.exit(0);
+    }
+
     // The sidecar JSON receipt (issue #5955): `land` prints the human form
     // into the landing log, and the land-runner reads this file to classify
     // a red — the same outcomes `--json` would print, `failedFiles` included.
@@ -2258,6 +2289,16 @@ function main(): void {
         jsonOut ? (blob) => writeFileSync(jsonOut, blob) : undefined
     );
 
+    if (result.ok) {
+        writeLaneVerdict(verdictDir, {
+            tree,
+            key: verdictKey,
+            lane: plan.lane,
+            provedAt: head,
+            at: new Date().toISOString(),
+            steps: plan.run.length,
+        });
+    }
     process.exit(result.ok ? 0 : 1);
 }
 

@@ -1,0 +1,72 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import {
+    laneVerdictKey,
+    readLaneVerdict,
+    reverifyScope,
+    writeLaneVerdict,
+} from "../lib/lane-verdict";
+
+const dir = mkdtempSync(join(tmpdir(), "lane-verdict-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+describe("lane verdict per merged tree (issue #6650)", () => {
+    const key = laneVerdictKey("t1", "draft", [
+        "bunx tsc",
+        "bunx vitest run a",
+    ]);
+
+    it("a green tree is found again by the same (tree, plan)", () => {
+        expect(readLaneVerdict(dir, key)).toBeNull();
+        writeLaneVerdict(dir, {
+            tree: "t1",
+            key,
+            lane: "engine",
+            provedAt: "abc",
+            at: "now",
+            steps: 2,
+        });
+        expect(readLaneVerdict(dir, key)?.provedAt).toBe("abc");
+    });
+
+    it("another tree, role or plan never reuses it", () => {
+        const cmds = ["bunx tsc", "bunx vitest run a"];
+        expect(laneVerdictKey("t2", "draft", cmds)).not.toBe(key);
+        expect(laneVerdictKey("t1", "pr", cmds)).not.toBe(key);
+        expect(laneVerdictKey("t1", "draft", [...cmds, "more"])).not.toBe(key);
+    });
+});
+
+describe("reverifyScope", () => {
+    const reach: Record<string, string[]> = {
+        "src/branch.ts": ["a.test.ts"],
+        "base/unrelated.ts": ["z.test.ts"],
+        "base/shared.ts": ["a.test.ts", "z.test.ts"],
+        "conflict.ts": ["c.test.ts"],
+    };
+    const related = (ps: readonly string[]) =>
+        ps.flatMap((p) => reach[p] ?? []);
+
+    it("a base delta outside the branch's reach runs nothing", () => {
+        const s = reverifyScope({
+            baseDelta: ["base/unrelated.ts"],
+            conflictFiles: [],
+            related,
+            branchFiles: ["src/branch.ts"],
+        });
+        expect(s).toEqual({ run: [], carried: 1 });
+    });
+
+    it("runs the intersection plus conflict-file tests", () => {
+        const s = reverifyScope({
+            baseDelta: ["base/shared.ts"],
+            conflictFiles: ["conflict.ts"],
+            related,
+            branchFiles: ["src/branch.ts"],
+        });
+        expect(s.run).toEqual(["a.test.ts", "c.test.ts"]);
+        expect(s.carried).toBe(1);
+    });
+});

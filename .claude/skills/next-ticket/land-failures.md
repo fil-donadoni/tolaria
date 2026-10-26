@@ -47,8 +47,14 @@ base moved under the verify. After the verification and BEFORE `git push`:
 - Exit 0 (base unmoved): push.
 - Exit 3 (moved, nothing shared): `bun run base:drift --rebase` (a dirty
   tree exits 2: commit first), re-run the touched tests, then
-  `git push --force-with-lease`. Re-verifying only what the base changed is
-  a separate issue.
+  `git push --force-with-lease`. Re-verify only what the base changed
+  (issue #6650): `bun run reverify:scope [--conflicts=a,b]` reads
+  `base:drift`'s receipt (the pre-rebase base sha), prints the tests the base
+  delta reaches that this branch's diff also reaches, plus the conflict
+  files' tests, and says the rest is carried by the receipt. Run that command,
+  not the original pass's whole verification set. `check:lane` itself skips a
+  merged tree already recorded green for the same plan
+  (`TOLARIA_LANE_FORCE=1` forces).
 - Exit 4 (moved, an overlap or a coupled artefact): start the repair round
   again on the rebased tree — never push a tree known stale.
 
