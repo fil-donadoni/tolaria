@@ -52,6 +52,16 @@ export function applyRequirementToPendingTarget(
         (pt as Record<string, unknown>)[key] = undefined;
     }
     pt.zone = undefined;
+    // CR 601.2d — the budget belongs to the group that declared it: park the
+    // finished group's split (and its target count) before the active-group
+    // fields clear, for `finalizeDivideAmounts` to slice on.
+    if (pt.divideTotal !== undefined && !pt.dividedGroup) {
+        pt.dividedGroup = {
+            total: pt.divideTotal,
+            ...(pt.divideAmounts ? { amounts: pt.divideAmounts } : {}),
+            count: pt.priorSelected?.length ?? 0,
+        };
+    }
     pt.divideTotal = undefined;
     pt.divideAmounts = undefined;
     // CR 601.2c (issue #4193) — the per-Target roles belong to the group that
