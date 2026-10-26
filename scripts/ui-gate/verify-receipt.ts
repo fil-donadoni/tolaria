@@ -115,17 +115,21 @@ export function landingWalkOwed(
 
 /**
  * Does the tree at `root` (its HEAD) restore every DOM-reachable path of
- * `changed` to `culprit`'s parent (issue #6071)? `culprit` must be in HEAD's
- * history — a revert of a commit that never landed proves nothing — and each
- * path's blob at HEAD must equal its blob at `culprit^`, absent on both sides
- * counting as equal; a path the culprit did not touch loses it. Anything
- * that cannot be read answers `false`: the exemption is lost, never granted.
+ * `changed` to the parent of the reverted commits (issue #6071)? Each must be
+ * in HEAD's history — a revert of a commit that never landed proves nothing —
+ * and each path's blob at HEAD must equal its blob at the parent of the
+ * OLDEST reverted commit touching it (a revert set, issue #6766: the culprit
+ * and the later commits reverted with it), absent on both sides counting as
+ * equal; a path none of them touched loses it. Anything that cannot be read
+ * answers `false`: the exemption is lost, never granted.
  */
 export function landingRestoresParent(
-    culprit: string,
+    reverted: string | readonly string[],
     changed: readonly string[],
     root: string
 ): boolean {
+    const commits = typeof reverted === "string" ? [reverted] : reverted;
+    if (commits.length === 0) return false;
     const git = (args: string[]): string | null => {
         try {
             return execFileSync("git", args, {
@@ -137,28 +141,37 @@ export function landingRestoresParent(
             return null;
         }
     };
-    if (git(["merge-base", "--is-ancestor", culprit, "HEAD"]) === null)
-        return false;
-    if (git(["rev-parse", "--verify", `${culprit}^`]) === null) return false;
-    // Only the culprit's own paths: a PR that restores some other file to an
-    // old state is not this revert.
-    const touched = git([
-        "diff-tree",
-        "--no-commit-id",
-        "--name-only",
-        "-r",
-        `${culprit}^`,
-        culprit,
-    ]);
-    if (touched === null) return false;
-    const own = new Set(touched.split("\n").filter(Boolean));
+    const own = new Map<string, Set<string>>();
+    for (const c of commits) {
+        if (git(["merge-base", "--is-ancestor", c, "HEAD"]) === null)
+            return false;
+        if (git(["rev-parse", "--verify", `${c}^`]) === null) return false;
+        // Only the reverted commits' own paths: a PR that restores some
+        // other file to an old state is not this revert.
+        const touched = git([
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            `${c}^`,
+            c,
+        ]);
+        if (touched === null) return false;
+        own.set(c, new Set(touched.split("\n").filter(Boolean)));
+    }
+    const isAncestor = (a: string, b: string) =>
+        git(["merge-base", "--is-ancestor", a, b]) !== null;
     // `ls-tree` prints nothing for an absent path and fails on a git error:
     // absent on both sides is equal, an error on both sides is not.
     const blob = (rev: string, p: string) => git(["ls-tree", rev, "--", p]);
     return domReachablePaths(changed).every((p) => {
-        if (!own.has(p)) return false;
+        const touching = commits.filter((c) => own.get(c)?.has(p));
+        const oldest = touching.find((c) =>
+            touching.every((o) => o === c || isAncestor(c, o))
+        );
+        if (oldest === undefined) return false;
         const head = blob("HEAD", p);
-        const parent = blob(`${culprit}^`, p);
+        const parent = blob(`${oldest}^`, p);
         return head !== null && parent !== null && head === parent;
     });
 }

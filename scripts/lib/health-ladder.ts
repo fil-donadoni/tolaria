@@ -10,15 +10,23 @@
  *
  *   4. **Revert** — the bisect named a culprit: a revert PR of its commit,
  *      queued as a repair; the culprit's issue reopens with the evidence
- *      for a fresh pass that lands the culprit again WITH the fix.
+ *      for a fresh pass that lands the culprit again WITH the fix. A culprit
+ *      later commits depend on is reverted together with the ones its revert
+ *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766).
  *   5. **Fix forward** — only what a revert cannot handle: the revert does
  *      not apply (a later PR depends on the culprit), or the bisect named
  *      no single culprit. The headless fixer (`health:fix --headless`), at
  *      most `MAX_FIX_ATTEMPTS` attempts per RED episode, each bounded by
  *      `FIX_ATTEMPT_TIMEOUT_MS`.
- *   6. **Stop** — a revert that cannot land, a RED that outlives its
- *      revert, fixer attempts used up: one `ready-for-human` issue, one
+ *   6. **Stop** — a revert that cannot land, a revert set past its cap, a
+ *      RED that outlives its revert, fixer attempts used up: one
+ *      `ready-for-human` issue, one
  *      failed run (the email), the queue held by the RED itself.
+ *
+ * A bisected RED is a LINEAGE verdict (issue #6766): it stands on every later
+ * tip that still contains its culprit, until a GREEN or a declared repair, so
+ * the ladder acts on it at once instead of waiting for health to gate a tip
+ * whose only novelty is commits landed after the RED.
  *
  * Every decision is a pure function of facts read from the pivot (verdicts,
  * evidence, fix-attempt records), the base tip and the revert PR's state;
@@ -46,6 +54,12 @@ export const ATTEMPT_STALE_MS = FIX_ATTEMPT_TIMEOUT_MS + 30 * 60 * 1000;
 export const MAX_REVERT_TRIES = 3;
 /** The prefix of a revert record's note for such a failure: retried. */
 export const TRANSIENT_NOTE = "transient: ";
+/** The commits one revert PR may carry — the culprit and the later commits
+ *  its revert conflicts with (issue #6766): past it the ladder stops. */
+export const MAX_REVERT_SET = 3;
+/** The prefix of a revert record's note when the set the revert needs is
+ *  past `MAX_REVERT_SET`; the rest of the note names every commit in it. */
+export const CAP_NOTE = "cap: ";
 /** A repair recorded `landed` that has not moved the tip after this long
  *  (its PR dequeued, or the verdict wrong) counts as a used attempt. */
 export const LANDED_WAIT_MS = 8 * 60 * 60 * 1000;
@@ -72,6 +86,11 @@ export interface Culprit {
     sha: string;
     /** The PR a squash subject names, or null for a direct commit. */
     pr: number | null;
+}
+
+/** A commit a revert PR reverts, with the full sha `land` checks it by. */
+export interface RevertedCommit extends Culprit {
+    full: string;
 }
 
 const CULPRIT_LINE = new RegExp(
@@ -113,6 +132,15 @@ export interface ForeignRepair {
     pr: (RevertPr & { createdAt: number | null }) | null;
 }
 
+/** One first-parent commit between the standing RED and the base tip. */
+export interface LineageCommit {
+    sha: string;
+    /** The PR its squash subject names, or null for a direct commit. */
+    pr: number | null;
+    /** The full commit message: a revert of the culprit names it there. */
+    message: string;
+}
+
 export type Rung =
     /** No RED stands: nothing to do. */
     | { kind: "none"; why: string }
@@ -134,6 +162,13 @@ export interface LadderFacts {
     tip: string;
     /** The standing RED's evidence carries the ladder's mark. */
     laddered: boolean;
+    /** The first-parent commits after the standing RED up to the tip,
+     *  newest first; null when the tip does not descend from the RED or they
+     *  were not read (issue #6766). Read only when the tip moved. */
+    sinceRed: readonly LineageCommit[] | null;
+    /** Every PR that closes a repair issue the pivot holds for the RED, or
+     *  that a ladder record names: a declared repair, whatever its state. */
+    repairPrs: readonly number[];
     /** The REDs since the last GREEN, NEWEST first; [0] is the standing one. */
     episode: readonly EpisodeRed[];
     /** The PR of the episode's revert record, when it names one. */
@@ -195,6 +230,51 @@ export function ownRepairPrs(
         .map((pr) => pr.number);
 }
 
+/** The commit a set entry names in a text: its PR, or its short sha. */
+export function commitRef(c: { sha: string; pr: number | null }): string {
+    return c.pr !== null ? `PR #${c.pr}` : `\`${c.sha.slice(0, 12)}\``;
+}
+
+/** Is `message` a revert of the culprit — a `This reverts commit <sha>`
+ *  line, or a `Revert` subject naming its sha or PR? A mere mention (a
+ *  dependent's "follow-up to #N") is not. A false positive only waits. */
+function revertsCulprit(message: string, culprit: Culprit): boolean {
+    if (message.includes(`This reverts commit ${culprit.sha}`)) return true;
+    const subject = message.split("\n", 1)[0];
+    if (!/^Revert\b/.test(subject)) return false;
+    return (
+        subject.includes(culprit.sha) ||
+        (culprit.pr !== null &&
+            new RegExp(`#${culprit.pr}(?!\\d)`).test(subject))
+    );
+}
+
+/**
+ * Why a RED that is not the tip's own verdict does NOT stand on the tip
+ * (issue #6766), or null when it does: its culprit is bisected, the tip
+ * descends from it, and nothing after it is a declared repair or a revert
+ * of the culprit — the tip still contains the culprit, so the RED is its
+ * lineage verdict and the ladder acts without a health run on it.
+ */
+export function lineageHold(facts: LadderFacts): string | null {
+    const culprit = facts.episode[0]?.culprit ?? null;
+    if (!facts.laddered || culprit === null)
+        return "the RED's culprit is not bisected";
+    if (facts.sinceRed === null)
+        return `the tip does not descend from ${short(facts.red ?? "")}`;
+    const repair = facts.sinceRed.find(
+        (c) => c.pr !== null && facts.repairPrs.includes(c.pr)
+    );
+    if (repair !== undefined)
+        return `${commitRef(repair)} is a declared repair of the RED`;
+    const revert = facts.sinceRed.find((c) =>
+        revertsCulprit(c.message, culprit)
+    );
+    if (revert !== undefined)
+        return `${commitRef(revert)} reverts the culprit ${commitRef(culprit)}`;
+    return null;
+}
+
 /** Revert the culprit, or stop: no culprit to revert, or the revert was
  *  already tried and did not apply (`revertSpent`). */
 function revertOrStop(
@@ -221,7 +301,9 @@ function revertOrStop(
  *
  *  - an unreadable fact waits — an outage must never file an escalation;
  *  - an escalated RED holds before anything else is read into it;
- *  - a tip health has not gated (a repair just merged) waits for its verdict;
+ *  - a tip health has not gated waits for its verdict — unless the RED is
+ *    its lineage verdict (`lineageHold`, issue #6766): a bisected culprit
+ *    the tip still contains, no declared repair since;
  *  - a RED whose flake check and bisect have not run waits for them;
  *  - the revert, once tried, decides alone: in the queue → wait; landed and
  *    still RED, or unable to land → stop; a revert that does not apply
@@ -252,11 +334,15 @@ export function ladderRung(facts: LadderFacts): Rung {
             kind: "hold",
             why: `the ladder already stopped on this RED episode`,
         };
-    if (red !== facts.tip)
-        return {
-            kind: "wait",
-            why: `the base tip ${short(facts.tip)} has no verdict yet — health gates it`,
-        };
+    // An unladdered RED falls through to its own wait below.
+    if (red !== facts.tip && facts.laddered) {
+        const held = lineageHold(facts);
+        if (held !== null)
+            return {
+                kind: "wait",
+                why: `the base tip ${short(facts.tip)} has no verdict yet — health gates it (${held})`,
+            };
+    }
     if (!facts.laddered)
         return {
             kind: "wait",
@@ -290,6 +376,11 @@ export function ladderRung(facts: LadderFacts): Rung {
             return {
                 kind: "stop",
                 why: `the revert could not be made — ${revert.note}`,
+            };
+        if (revert.outcome === "stuck" && revert.note?.startsWith(CAP_NOTE))
+            return {
+                kind: "stop",
+                why: `the revert of the culprit needs more than ${MAX_REVERT_SET} commits reverted together: ${revert.note.slice(CAP_NOTE.length)}`,
             };
         if (revert.outcome === "stuck") revertSpent = true;
         else {
@@ -492,11 +583,23 @@ export function revertIssueTitle(culprit: Culprit, subject: string): string {
     return `Revert ${culprit.pr !== null ? `PR #${culprit.pr}` : culprit.sha}: ${subject}`;
 }
 
+/** The sentence naming the later commits reverted with the culprit (issue
+ *  #6766), or none when the culprit's revert applied alone. */
+function dependentsLine(dependents: readonly Culprit[] | undefined): string[] {
+    if (!dependents || dependents.length === 0) return [];
+    return [
+        "",
+        `Reverted with it, newest first — later commits the culprit's revert conflicts with: ${dependents.map(commitRef).join(", ")}.`,
+    ];
+}
+
 export function revertIssueBody(input: {
     red: string;
     culprit: Culprit;
     why: string;
     evidence: string | null;
+    /** Later commits reverted together with the culprit (issue #6766). */
+    dependents?: readonly Culprit[];
 }): string {
     const who =
         input.culprit.pr !== null
@@ -506,6 +609,7 @@ export function revertIssueBody(input: {
         "## What to build",
         "",
         `Revert ${who}, the culprit the bisect named for the RED at \`${input.red}\`: ${input.why}. The RED ladder's first rung once a culprit is named (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
+        ...dependentsLine(input.dependents),
         "",
         "## Acceptance criteria",
         "",
@@ -528,7 +632,10 @@ export function revertPrBody(input: {
     culprit: Culprit;
     /** The reverted commit's full sha: what `land` checks the tree against. */
     revertedSha: string;
+    /** Every issue the reverted commits closed, reopened for a fresh pass. */
     culpritIssues: readonly number[];
+    /** Later commits reverted together with the culprit (issue #6766). */
+    dependents?: readonly RevertedCommit[];
 }): string {
     const who =
         input.culprit.pr !== null
@@ -536,6 +643,7 @@ export function revertPrBody(input: {
             : `\`${input.culprit.sha}\``;
     return [
         `Reverts ${who}, the commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
+        ...dependentsLine(input.dependents),
         "",
         `Closes #${input.issue}`,
         "",
@@ -545,7 +653,12 @@ export function revertPrBody(input: {
         "",
         // Verified by `land`, never a bare claim (issue #6071): the base has
         // moved since the last GREEN, and batch health never walks.
-        revertRestoresLine(input.revertedSha),
+        // One line per reverted commit: `land` checks each path against the
+        // parent of the oldest one touching it (issue #6766).
+        ...[
+            ...(input.dependents ?? []).map((d) => d.full),
+            input.revertedSha,
+        ].map(revertRestoresLine),
         "",
         "## Preset scenario",
         "",
@@ -562,12 +675,15 @@ export function revertPrBody(input: {
  */
 export function revertAcknowledgements(
     losses: readonly ReadyRegression[],
-    input: { culprit: Culprit; culpritIssues: readonly number[] }
+    input: {
+        culprit: Culprit;
+        culpritIssues: readonly number[];
+        dependents?: readonly Culprit[];
+    }
 ): RegressionAcknowledgement[] {
-    const who =
-        input.culprit.pr !== null
-            ? `PR #${input.culprit.pr}`
-            : `\`${input.culprit.sha}\``;
+    const who = [input.culprit, ...(input.dependents ?? [])]
+        .map(commitRef)
+        .join(" + ");
     const tracker = input.culpritIssues[0];
     return losses.map((loss) => ({
         oracleId: loss.oracleId,
@@ -584,15 +700,45 @@ export function revertAcknowledgements(
     }));
 }
 
+/**
+ * The issues a revert reopens for a fresh pass (issue #6766): every issue a
+ * reverted PR closed, the culprit's first — the first one tracks the cards
+ * the revert drops from `ready` — each once, a dependent's naming the
+ * dependent that closed it.
+ */
+export function issuesToReopen(
+    culprit: Culprit,
+    dependents: readonly Culprit[],
+    closedBy: (pr: number | null) => readonly number[]
+): { n: number; dependent?: Culprit }[] {
+    return [
+        ...closedBy(culprit.pr).map((n) => ({ n })),
+        ...dependents.flatMap((d) =>
+            closedBy(d.pr).map((n) => ({
+                n,
+                dependent: { sha: d.sha, pr: d.pr },
+            }))
+        ),
+    ].filter((r, i, all) => all.findIndex((o) => o.n === r.n) === i);
+}
+
 /** The comment the culprit's reopened issue gets. */
 export function reopenComment(input: {
     red: string;
     culprit: Culprit;
     revertPr: number;
     evidence: string | null;
+    /** The reverted commit that closed THIS issue, when it is a dependent
+     *  reverted with the culprit rather than the culprit (issue #6766). */
+    dependent?: Culprit;
 }): string {
+    const culprit = commitRef(input.culprit);
+    const what =
+        input.dependent !== undefined
+            ? `${commitRef(input.dependent)} depends on ${culprit}, which turned the base RED at \`${input.red.slice(0, 12)}\`; PR #${input.revertPr} reverts both. A fresh pass lands this issue again once the culprit's own issue has re-landed it, against the evidence below (ADR 0158 § 3).`
+            : `${culprit} turned the base RED at \`${input.red.slice(0, 12)}\`, and PR #${input.revertPr} reverts it. A fresh pass lands this issue again WITH the fix, against the evidence below (ADR 0158 § 3).`;
     return [
-        `Reopened by the RED ladder: ${input.culprit.pr !== null ? `PR #${input.culprit.pr}` : `\`${input.culprit.sha}\``} turned the base RED at \`${input.red.slice(0, 12)}\`, and PR #${input.revertPr} reverts it. A fresh pass lands this issue again WITH the fix, against the evidence below (ADR 0158 § 3).`,
+        `Reopened by the RED ladder: ${what}`,
         "",
         input.evidence ?? "_no evidence published_",
     ].join("\n");

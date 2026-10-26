@@ -903,14 +903,22 @@ pivot: the standing RED (`lineageBlocks`), its evidence, the
 runs `bun run health:fix ladder` on a [`pass`](#g-pass) runner of the
 machine `health` named (`host` input; empty = any `pass` runner).
 
-| Rung     | When                                                                                                 | Does                                                                                                               |
-| -------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `none`   | no RED stands                                                                                        | nothing                                                                                                            |
-| `wait`   | a fact is unreadable; the tip has no verdict yet; no flake check/bisect yet; an attempt is in flight | nothing — a later dispatch decides                                                                                 |
-| `fix`    | fewer than **2** fixer attempts used in the episode                                                  | `/health-fix <sha> --headless`, killed after **3 h**; its PR is the RED's declared repair                          |
-| `revert` | both attempts stuck, or a second RED after a repair landed (or after an AMBER), and a culprit named  | `scripts/health-revert.ts`: a revert PR of the culprit's commit, queued as the repair; the culprit's issue reopens |
-| `stop`   | the revert does not apply or cannot land, the RED outlives the merged revert, or no culprit is named | one `ready-for-human` issue `RED ladder stopped @ <sha8>`, the run fails                                           |
-| `hold`   | that issue is open, or the stop's marker stands                                                      | nothing, quietly                                                                                                   |
+| Rung     | When                                                                                                                                         | Does                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `none`   | no RED stands                                                                                                                                | nothing                                                                                                            |
+| `wait`   | a fact is unreadable; the tip has no verdict yet, and the RED is not its lineage verdict; no flake check/bisect yet; an attempt is in flight | nothing — a later dispatch decides                                                                                 |
+| `fix`    | fewer than **2** fixer attempts used in the episode                                                                                          | `/health-fix <sha> --headless`, killed after **3 h**; its PR is the RED's declared repair                          |
+| `revert` | both attempts stuck, or a second RED after a repair landed (or after an AMBER), and a culprit named                                          | `scripts/health-revert.ts`: a revert PR of the culprit's commit, queued as the repair; the culprit's issue reopens |
+| `stop`   | the revert cannot land or needs more than **3** commits reverted together, the RED outlives the merged revert, or no culprit is named        | one `ready-for-human` issue `RED ladder stopped @ <sha8>`, the run fails                                           |
+| `hold`   | that issue is open, or the stop's marker stands                                                                                              | nothing, quietly                                                                                                   |
+
+**Lineage verdict** (issue #6766). A RED whose bisect named a culprit
+stands on every later tip that still contains it: the tip descends from
+the RED, and no commit since is a declared repair (a PR closing one of the
+RED's repair issues, or one a ladder record names) or names the culprit (a
+revert of it). The ladder then acts on the RED at once, without waiting for
+health to gate a tip whose only novelty is commits landed after the RED;
+anything else waits for the tip's own verdict.
 
 **Bounds.** Two fixer attempts per RED episode, three hours each (the
 job's `timeout-minutes` is 210); an `attempting` record older than 3 h 30
@@ -948,11 +956,18 @@ when the revert conflicts or no culprit is named) reads the culprit off the
 RED's `- **culprit:**` evidence line. In order: the `revert` rung is
 recorded `attempting`; `git revert` of the culprit off
 the base tip, in a throwaway detached worktree — a conflict (a later PR depends on
-the culprit) records it `stuck` and exits 3, and the next run hands the RED to the fixer (a second RED after it stops); a
+the culprit) pulls in the oldest later commit touching a conflicting path,
+one at a time until every revert applies, and the set is reverted together,
+newest first, in one PR (`scripts/lib/health-revert-set.ts`, issue #6766;
+one `check:ui: revert of <sha>` line per reverted commit, each DOM path
+checked against the parent of the oldest one touching it); a set past **3** commits
+records it `stuck` with a `cap:` note naming every commit, and the next run
+stops on it; a conflict no later commit explains records it `stuck` and
+exits 3, and the next run hands the RED to the fixer (a second RED after it stops); a
 repair issue is filed and recorded on the pivot; the branch `fix/issue-<repair issue>` is pushed (a
 `land-failed` revert is then a repair pick, issue #6071), the PR opened
 (`Closes #<repair issue>`, `## Preset scenario` none owed, the
-`check:ui: revert of <sha> restores its parent on every DOM path` line) and labelled `ready-to-land`; the culprit PR's
+`check:ui: revert of <sha> restores its parent on every DOM path` line) and labelled `ready-to-land`; every reverted PR's
 closing issues reopen with the evidence and `ready-for-agent` (the claim's
 `in-progress`/`pr-open` removed), natively **blocked by** the repair issue
 the revert PR closes — a revert that never lands never sends the culprit's

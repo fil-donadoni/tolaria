@@ -5,20 +5,24 @@
  * on a branch off the base tip, and the revert goes through the queue as the
  * standing RED's declared repair.
  *
- *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--why <text>] [--dry-run]
+ *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--base <sha>] [--why <text>] [--dry-run]
  *
  * In order: the attempt is recorded on the pivot (`health-fix-attempt`,
  * rung `revert`) before anything else, so a second ladder run waits — and
  * when it cannot be, nothing is made (exit 4, no re-dispatch); the revert is
- * made in a throwaway worktree beside the primary checkout — a conflict (a
- * later PR depends on the culprit) records the rung `stuck` and exits 3,
- * which the next ladder run hands to the fixer (ADR 0158 § 3); every card the
+ * made in a throwaway worktree beside the primary checkout — a later commit
+ * the culprit's revert conflicts with is reverted together with it, in the
+ * same PR (`lib/health-revert-set.ts`); a set past
+ * `MAX_REVERT_SET` records the rung `stuck` with a `cap:` note naming every
+ * commit (exit 3, the next ladder run stops on it); a conflict no later
+ * commit explains records the rung `stuck` and exits 3, which the next
+ * ladder run hands to the fixer (ADR 0158 § 3); every card the
  * revert drops from `ready` is acknowledged in the revert commit, `trackedBy`
  * the culprit's reopened issue, so `check:oracle` admits the shrink;
  * then a repair issue is
  * filed and recorded on the pivot (`health-fix`, what `base-health` admits a
  * repair by), the branch (`fix/issue-<repair issue>`, issue #6071) pushed, the PR opened and labelled `ready-to-land`,
- * and the culprit PR's closing issues reopened with the evidence and
+ * and every reverted PR's closing issues reopened with the evidence and
  * `ready-for-agent` for a fresh pass, natively blocked by the repair issue
  * until the revert lands. Any other failure is a failed TRY (`transient:`,
  * exit 1): the ladder retries up to `MAX_REVERT_TRIES`, reusing the issue
@@ -39,6 +43,9 @@ import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { prOfSubject } from "./lib/health-bisect";
 import { fixAttemptStore, type FixAttempt } from "./lib/health-fix-attempts";
 import {
+    CAP_NOTE,
+    commitRef,
+    issuesToReopen,
     REVERT_UNRECORDED,
     TRANSIENT_NOTE,
     reopenComment,
@@ -50,6 +57,7 @@ import {
     type Culprit,
 } from "./lib/health-ladder";
 import { recordPivotRepairIssue } from "./lib/health-pivot";
+import { planRevertSet } from "./lib/health-revert-set";
 import { evidenceStore, machineName } from "./lib/health-verdict-store";
 import { READY_LABEL } from "./lib/land-labels";
 import { parseLockfile } from "./lib/oracle-lockfile";
@@ -100,7 +108,7 @@ function main(): number {
     const dryRun = process.argv.includes("--dry-run");
     if (red === undefined || !SHA.test(red) || culpritArg === undefined) {
         console.error(
-            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--attempt <n>] [--why <text>] [--dry-run]"
+            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--base <sha>] [--attempt <n>] [--why <text>] [--dry-run]"
         );
         return 2;
     }
@@ -156,20 +164,37 @@ function main(): number {
         // once the revert applies; it is pushed from HEAD, never checked out
         // here, so no local branch can be held by a killed run's worktree.
         run("git", ["worktree", "prune"], root);
-        must("git", ["worktree", "add", "--detach", wt, ORIGIN_BASE], root);
+        // `--base`: the tip the ladder read its facts on (issue #6766) — a
+        // commit landed since was never checked for a declared repair.
+        must(
+            "git",
+            ["worktree", "add", "--detach", wt, arg("--base") ?? ORIGIN_BASE],
+            root
+        );
         made = true;
         const cardsAt = () =>
             parseLockfile(readFileSync(join(wt, LOCKFILE), "utf8")).cards;
         const baseCards = cardsAt();
-        const reverted = run("git", ["revert", "--no-edit", full], wt);
-        if (!reverted.ok) {
-            run("git", ["revert", "--abort"], wt);
+        const base = must("git", ["rev-parse", "HEAD"], wt);
+        const plan = planRevertSet({ wt, culprit: full, base });
+        if (plan.kind === "cap") {
+            const names = plan.set.map(commitRef).join(", ");
+            say(
+                `the revert of ${culprit.sha} needs ${plan.set.length} commits reverted together: ${names}`
+            );
+            record("stuck", { note: `${CAP_NOTE}${names}` });
+            return 3;
+        }
+        if (plan.kind === "conflict") {
             const note = `the revert of ${culprit.sha} does not apply on ${BASE_BRANCH} — a later commit depends on it`;
-            say(note);
+            say(`${note} (${plan.paths.join(", ") || "no path named"})`);
             record("stuck", { note });
             return 3;
         }
-        say(`reverted ${culprit.sha} (${subject})`);
+        // Newest first, the culprit last: the later commits reverted with it.
+        const dependents = plan.set.slice(0, -1);
+        for (const c of plan.set)
+            say(`reverted ${commitRef(c)} \`${c.sha}\` (${c.subject})`);
         // The cards the culprit graduated leave `ready` with the revert:
         // `check:oracle` refuses that shrink unacknowledged (issue #6936).
         const losses = readyRegressions(baseCards, cardsAt());
@@ -199,7 +224,13 @@ function main(): number {
                         "--title",
                         title,
                         "--body",
-                        revertIssueBody({ red, culprit, why, evidence }),
+                        revertIssueBody({
+                            red,
+                            culprit,
+                            why,
+                            evidence,
+                            dependents,
+                        }),
                         "--label",
                         "bug",
                         "--label",
@@ -218,15 +249,15 @@ function main(): number {
             );
         say(recorded);
 
-        const culpritIssues =
-            culprit.pr === null
+        const closedBy = (pr: number | null): number[] =>
+            pr === null
                 ? []
                 : must(
                       "gh",
                       [
                           "pr",
                           "view",
-                          String(culprit.pr),
+                          String(pr),
                           "--json",
                           "closingIssuesReferences",
                           "--jq",
@@ -237,6 +268,8 @@ function main(): number {
                       .split("\n")
                       .filter(Boolean)
                       .map(Number);
+        const reopening = issuesToReopen(culprit, dependents, closedBy);
+        const culpritIssues = reopening.map((r) => r.n);
 
         if (losses.length > 0) {
             const ledger = join(wt, REGRESSION_LEDGER_PATH);
@@ -244,7 +277,11 @@ function main(): number {
                 ledger,
                 ledgerTextWith(
                     readFileSync(ledger, "utf8"),
-                    revertAcknowledgements(losses, { culprit, culpritIssues })
+                    revertAcknowledgements(losses, {
+                        culprit,
+                        culpritIssues,
+                        dependents,
+                    })
                 )
             );
             must("git", ["add", REGRESSION_LEDGER_PATH], wt);
@@ -297,6 +334,7 @@ function main(): number {
                               culprit,
                               revertedSha: full,
                               culpritIssues,
+                              dependents,
                           }),
                       ],
                       wt
@@ -312,13 +350,26 @@ function main(): number {
         record("attempting", { pr, note: `revert ${culprit.sha}` });
         say(`PR #${pr} queued as the repair of ${red.slice(0, 8)}`);
 
-        for (const n of culpritIssues)
-            reopenForAFreshPass(root, n, issue, {
-                red,
-                culprit,
-                revertPr: pr,
-                evidence,
-            }).forEach(say);
+        for (const { n, dependent } of reopening)
+            reopenForAFreshPass(
+                root,
+                n,
+                dependent === undefined
+                    ? [issue]
+                    : [
+                          issue,
+                          ...reopening
+                              .filter((r) => r.dependent === undefined)
+                              .map((r) => r.n),
+                      ],
+                {
+                    red,
+                    culprit,
+                    revertPr: pr,
+                    evidence,
+                    dependent,
+                }
+            ).forEach(say);
         return 0;
     } catch (e) {
         // Not the revert itself: an API error, a refused push — retried
@@ -381,12 +432,14 @@ function openIssueTitled(root: string, title: string): number | null {
  * The culprit's issue back in the queue, for a fresh pass — but natively
  * BLOCKED BY the revert's repair issue, which the revert PR closes when it
  * lands: a revert that never lands leaves it blocked, never re-implemented
- * on top of itself. Returns one line per act, failures named.
+ * on top of itself. A dependent's issue is blocked by the culprit's issues
+ * too (issue #6766): it re-lands on top of the culprit, never before it.
+ * Returns one line per act, failures named.
  */
 function reopenForAFreshPass(
     root: string,
     n: number,
-    repairIssue: number,
+    blockers: readonly number[],
     comment: Parameters<typeof reopenComment>[0]
 ): string[] {
     const out: string[] = [];
@@ -399,19 +452,21 @@ function reopenForAFreshPass(
         );
         return r;
     };
-    const id = run(
-        "gh",
-        ["api", `repos/{owner}/{repo}/issues/${repairIssue}`, "--jq", ".id"],
-        root
-    );
-    act(`blocked by issue #${repairIssue}`, [
-        "api",
-        "-X",
-        "POST",
-        `repos/{owner}/{repo}/issues/${n}/dependencies/blocked_by`,
-        "-F",
-        `issue_id=${id.out}`,
-    ]);
+    for (const blocker of blockers) {
+        const id = run(
+            "gh",
+            ["api", `repos/{owner}/{repo}/issues/${blocker}`, "--jq", ".id"],
+            root
+        );
+        act(`blocked by issue #${blocker}`, [
+            "api",
+            "-X",
+            "POST",
+            `repos/{owner}/{repo}/issues/${n}/dependencies/blocked_by`,
+            "-F",
+            `issue_id=${id.out}`,
+        ]);
+    }
     act("reopened", [
         "issue",
         "reopen",

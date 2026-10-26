@@ -657,6 +657,13 @@ export function revertRestoresLine(culpritSha: string): string {
 }
 const REVERT_RESTORES_LINE =
     /^check:ui: revert of ([0-9a-f]{40}) restores its parent on every DOM path[ \t]*$/m;
+/** Every full sha a `revertRestoresLine` names — one per reverted commit of
+ *  a revert set (issue #6766) — in body order. */
+export function revertedCommitsOf(prBody: string): string[] {
+    return [
+        ...prBody.matchAll(new RegExp(REVERT_RESTORES_LINE.source, "gm")),
+    ].map((m) => m[1]);
+}
 /** The full sha a `revertRestoresLine` names, or `null` when there is none. */
 export function revertedCommitOf(prBody: string): string | null {
     return REVERT_RESTORES_LINE.exec(prBody)?.[1] ?? null;
