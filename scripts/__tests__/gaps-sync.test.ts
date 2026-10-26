@@ -11,6 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { buildBotFindingsPayload } from "../lib/bot-findings-seed";
+import { parseTargetFiles } from "../lib/queue-plan";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
     cardBandIndex,
@@ -1313,6 +1314,10 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
         expect(body).toContain("Fragment refused: `a widespread line`");
         expect(body).toContain("Enforced-Target cards held (1): Wide One");
         expect(body).not.toContain("Wide Two");
+        // The rule's module, read back by the planner (issue #6921).
+        expect(parseTargetFiles(body)).toEqual([
+            "convex/oracle/grammar/router.ts",
+        ]);
     });
 
     it("files nothing while no Target is enforced", () => {
