@@ -18,7 +18,7 @@
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
 //      `afk-pass.yml` with their issue and model tier — as far as the merge
-//      queue's depth admits them (issue #6988: no fresh pick past
+//      queue's depth admits them (no fresh pick past
 //      `afkDispatch.queueMax` `ready-to-land` PRs, repairs only past
 //      `afkDispatch.failedMax` `land-failed` ones; logged, exits 0).
 //
