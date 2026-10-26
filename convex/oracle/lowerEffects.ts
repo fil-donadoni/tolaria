@@ -5058,9 +5058,32 @@ function lowerFrameChain(
                 break;
             }
             case "moveZone": {
-                const moved = lowerMoveFrame(frame, found, walk, site);
+                // CR 601.2 + CR 305.1 — the exile of the top of a library
+                // that "you may play that card" reads back binds its card.
+                const exiledBind =
+                    sentence.play !== undefined &&
+                    frame.object.kind === "library-top"
+                        ? walk.nextBind("exiled")
+                        : undefined;
+                const moved = lowerMoveFrame(
+                    frame,
+                    found,
+                    walk,
+                    site,
+                    exiledBind
+                );
                 if (!moved.ok) return moved;
                 ops.push(...moved.value);
+                if (exiledBind !== undefined && sentence.play !== undefined)
+                    ops.push({
+                        op: "grantCastFromExile",
+                        card: { ref: exiledBind },
+                        player: "controller",
+                        window: sentence.play.window,
+                        // CR 305.1 — "play", not "cast": a land among the
+                        // exiled cards is playable too.
+                        includesLand: true,
+                    });
                 break;
             }
             case "shuffle":
@@ -5224,7 +5247,8 @@ function lowerMoveFrame(
     frame: Extract<FrameIR, { frame: "moveZone" }>,
     found: string | null,
     walk: SentenceWalk,
-    site: SiteOptions
+    site: SiteOptions,
+    exiledBind?: string
 ): Lowered<EffectOp[]> {
     const slots = walk.targets;
     const { object, to, tapped } = frame;
@@ -5290,6 +5314,25 @@ function lowerMoveFrame(
             if (moved.ok && moved.value.length === 1)
                 recordActedOn(walk, subject, moved.value[0]!);
             return moved;
+        }
+        case "library-top": {
+            // CR 701.13a + CR 406.3 — the top cards of the player's library
+            // go to exile. `bindAll` only when the sentence behind reads the
+            // exiled card back ("you may play that card").
+            const owner = playerRef(object.owner, slots, site);
+            if (!owner.ok) return owner;
+            const count = lowerAmount(object.count, site);
+            if (!count.ok) return count;
+            return lowered([
+                {
+                    op: "exileTopOfLibrary",
+                    player: owner.value,
+                    count: count.value,
+                    ...(exiledBind === undefined
+                        ? {}
+                        : { bindAll: exiledBind }),
+                },
+            ]);
         }
         case "graveyard-end": {
             // CR 404.2 — the positional selector `moveZone` ships; an

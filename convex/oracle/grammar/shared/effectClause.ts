@@ -108,6 +108,7 @@ import {
     readAmongPickSentence,
     type AmongPickSentenceIR,
 } from "./fromAmong";
+import { readImpulsePlaySentence, type ImpulsePlayIR } from "./impulsePlay";
 
 export const EFFECT_CLAUSE = "effect clause";
 
@@ -2432,6 +2433,12 @@ export type SentenceIR =
      * antecedent by `assembleSentences`; alone it points at nothing.
      */
     | { readonly role: "among-pick"; readonly pick: AmongPickSentenceIR }
+    /**
+     * CR 601.2 + CR 305.1 — "You may play that card this turn.": the tail of a
+     * one-card exile of a library's top (`impulsePlay.ts`). Folded onto its
+     * antecedent by `assembleSentences`; alone it points at nothing.
+     */
+    | { readonly role: "impulse-play"; readonly play: ImpulsePlayIR }
     /** CR 401.4 — "Put the rest <where>.", the last of the three. */
     | { readonly role: "library-rest"; readonly rest: LibraryRestIR }
     /** CR 205.2a — the per-card-type pick of a revealed window (see
@@ -3534,6 +3541,44 @@ export function assembleSentences(
                 ok: false,
                 reason: '"the revealed cards" follows no reveal of a library window',
             };
+
+        if (sentence.role === "impulse-play") {
+            // CR 608.2c — "that card" is the card the exile before it moved;
+            // after anything else it names no card this grammar can bind.
+            const previous = effects[effects.length - 1];
+            const last =
+                previous !== undefined && previous.kind === undefined
+                    ? previous.frames[previous.frames.length - 1]
+                    : undefined;
+            if (
+                previous === undefined ||
+                previous.kind !== undefined ||
+                previous.play !== undefined ||
+                last?.frame !== "moveZone" ||
+                last.object.kind !== "library-top" ||
+                // "that card" names ONE exile: a chain of two exiles of a
+                // library's top leaves it ambiguous which card is meant.
+                previous.frames.filter(
+                    (frame) =>
+                        frame.frame === "moveZone" &&
+                        frame.object.kind === "library-top"
+                ).length !== 1
+            )
+                return {
+                    ok: false,
+                    reason: '"you may play that card" follows no exile of the top of a library',
+                };
+            // "that card" is singular: an exile of several cards, or of an
+            // unprinted number, names no ONE card to grant.
+            const count = last.object.count;
+            if (count.kind !== "fixed" || count.value !== 1)
+                return {
+                    ok: false,
+                    reason: '"that card" follows an exile of other than one card',
+                };
+            effects[effects.length - 1] = { ...previous, play: sentence.play };
+            continue;
+        }
         if (sentence.role === "library-rest")
             return {
                 ok: false,
@@ -5789,6 +5834,15 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         const library = libraryHalf(span, ctx);
         if (library !== null) return library;
+
+        const impulse = readImpulsePlaySentence(span);
+        if (impulse !== null) {
+            if (!impulse.ok) return impulse;
+            return ok({
+                role: "impulse-play" as const,
+                play: impulse.value,
+            } satisfies SentenceIR);
+        }
 
         const recoloured = readPumpThenColor(span, (half) =>
             sentenceRule.run(half, ctx)
