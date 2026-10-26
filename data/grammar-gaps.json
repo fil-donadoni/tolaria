@@ -128,11 +128,6 @@
             "issue": 5180
         },
         {
-            "key": "(op) › reflexiveTrigger",
-            "op": "reflexiveTrigger",
-            "issue": 4531
-        },
-        {
             "key": "(op) › revealTopAndRoute",
             "op": "revealTopAndRoute",
             "issue": 5691
