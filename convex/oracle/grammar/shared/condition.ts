@@ -92,8 +92,15 @@ export type TriggerConditionIR =
      * CR 113.6b — "if this card is in your graveyard": the ability
      * functions only from the graveyard. Not a board predicate: lowering reads
      * it as the ability's ZONE, so the trigger is scanned there at all.
+     *
+     * `creatureCardAbove` — "…with a creature card directly above it"
+     * (CR 404.2, the pile keeps its order): the zone PLUS a board-state
+     * predicate on the pile, which lowering carries as a condition.
      */
-    | { readonly kind: "self-in-graveyard" }
+    | {
+          readonly kind: "self-in-graveyard";
+          readonly creatureCardAbove?: true;
+      }
     /**
      * CR 305.6 — "if there are four or more basic land types among lands
      * that player controls" (Mask of Intolerance, issue #4127). "that
@@ -179,7 +186,12 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
         const inGraveyard = clause.match(SELF_IN_GRAVEYARD);
         if (inGraveyard !== null)
             return isSelfPhrase(inGraveyard[1]!)
-                ? ok({ kind: "self-in-graveyard" as const })
+                ? ok({
+                      kind: "self-in-graveyard" as const,
+                      ...(inGraveyard[2] !== undefined
+                          ? { creatureCardAbove: true as const }
+                          : {}),
+                  })
                 : fail(`"${inGraveyard[1]}" is not the source itself`, span);
         const selfType = clause.match(SELF_HAS_TYPE);
         if (selfType !== null)
@@ -250,7 +262,8 @@ export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
 );
 
 /** CR 113.6b — the source named in the graveyard its controller owns. */
-const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
+const SELF_IN_GRAVEYARD =
+    /^(.+) is in your graveyard( with a creature card directly above it)?$/;
 
 /**
  * CR 603.4 — the source named by its current type. "an enchantment" is the

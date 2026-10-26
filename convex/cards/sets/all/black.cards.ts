@@ -21,8 +21,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //     118.1), then a single `dealDamage` to the announced any-target
 //     (CR 120.1); the source of the damage is this creature (last-known
 //     information if it sacrificed itself, CR 608.2h).
-//
-// compiler-gap: "At the beginning of the end step, if this card is in your graveyard with a creature card directly above it, you may return this card to your hand." (#5223)
 export const krovikanHorror = defineCard(() => ({
     id: "e1f3cb1c-6bde-4b55-b5bc-5b64b56930f2", // ALL 53
     rarity: "rare",
