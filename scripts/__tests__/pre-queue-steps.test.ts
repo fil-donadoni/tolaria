@@ -105,6 +105,16 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         expect(guard?.command).toContain("scripts/__tests__/docs-lane.test.ts");
     });
 
+    it("a NEW data/ file pulls the generated-artifact classification guard (issue #6654)", () => {
+        const added = ["data/brand-new.json"];
+        const plan = classifyLane(added, added, related({}));
+        const { run } = preQueueSteps(plan, added, added);
+        const guard = run.find((c) => c.id === "vitest(new-file guards)");
+        expect(guard?.command).toContain(
+            "scripts/__tests__/generated-artifact-merge.test.ts"
+        );
+    });
+
     it("a MODIFIED test file does not pull the new-file guards", () => {
         const files = ["scripts/__tests__/old.test.ts"];
         const plan = classifyLane(files, files, related({}));
