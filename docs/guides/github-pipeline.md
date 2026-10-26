@@ -409,7 +409,10 @@ repository (never a fork) and refreshes each one that GitHub reports
 #5983): a push to it dequeues it ("manually updated"), and the queue's draft
 already tests it on the moved base, where a generated artefact a clean merge
 left stale reds `queue-lane`'s drift guards and [`pr-fixup`](#pr-fixup)
-regenerates it. Per PR:
+regenerates it. A PR Mergify holds `queued` (its draft running or green) is
+never pushed unless `CONFLICTING`, and a `queue:held` PR is refreshed on every
+push only while the base lineage is RED ([a hold](#a-red-dequeue-is-a-hold),
+issue #6957). Per PR:
 
 1. rebase its head onto the base in a throwaway worktree of the
    [primary checkout](#g-primary-checkout), with **the same step `land` runs**
@@ -1497,13 +1500,20 @@ Mergify may dequeue them with `checks-failed`. The repair-pick rule carries
 `-check-failure=base-health` and `-label=queue:held`, so it does not fire; a
 second rule (`a dequeue under a RED is a hold`) puts `queue:held` on the PR,
 because the dequeue reason outlives the RED and the first condition alone would
-match again once the GREEN lands. `pr-gate` removes `queue:held` when it
-requeues. The PR keeps
+match again once the GREEN lands. The PR keeps
 `ready-to-land`, has no `land-failed`, and no pass is spent on it. The GREEN or
-AMBER that follows re-gates the same PRs, and `pr-gate` comments
-`@mergifyio requeue` on each whose `base-health` turns green after being red or
-pending (and that is `ready-to-land`, not `land-failed`, `trusted-author` green,
-no `queued` label), so nothing needs a human or a pass. A `queue-lane` red
+AMBER that follows re-gates the same PRs, and `pr-gate` releases each
+`queue:held` PR in two steps, keyed on the label, never on a `base-health`
+transition (issue #6957: a PR already green when the RED cleared never
+transitions, and its stale label kept it held): first `@mergifyio requeue`,
+once per dequeue, with the label kept (it is `ready-to-land`, not
+`land-failed`, `trusted-author` green, no `queued` label); then, once it is
+`queued` again or that requeue did not take, the label comes off. Removing it
+first would let the sticky dequeue reason fire the repair-pick rule. A PR the
+RED held without the label gets the requeue alone on its red → green edge.
+`.mergify.yml`'s `commands_restrictions` admits `github-actions[bot]` for
+`requeue`: under the default `sender-permission>=write` Mergify refused the
+job token's comment. Nothing needs a human or a pass. A `queue-lane` red
 leaves `base-health` green: it stays a repair pick. The structure guard's
 `queue-dequeue` row pins the exemption.
 
@@ -1512,18 +1522,22 @@ merged with the base, so the base's red is in it (issue #6256). The
 land-refusal rule carries the same two exemptions, and a third rule
 (`a red advisory lane under a RED is a hold`) puts `queue:held` on the PR. A
 re-run of that lane would not help: it is pinned to the merge commit built on
-the broken base. So [`pr-refresh`](#pr-refresh) rebases every `queue:held` PR
-on each push to the base (reason `held`). The PR is out of the queue, so the
-push dequeues nothing, and the lane runs again on the moved base. The repair's
+the broken base. So, while the RED stands, [`pr-refresh`](#pr-refresh) rebases
+every `queue:held` PR on each push to the base (reason `held`). The PR is out
+of the queue, so the push dequeues nothing, and the lane runs again on the
+moved base. Off RED the label is stale and `pr-refresh` skips it (`held label
+stale, skipped`): rebasing ~30 held PRs on every push after a GREEN dequeued
+the green drafts of the queued ones and livelocked the queue (issue #6957). A
+PR Mergify holds `queued` is never pushed unless `CONFLICTING`. The repair's
 push does this before the GREEN; the GREEN's requeue then finds the lane green
 or pending. If the lane goes red once the hold is lifted, the red is the PR's
 own, and the refusal rule labels it `land-failed`.
 The structure guard's `queue-refusal-hold` row pins both rules: no rule may
 add `land-failed` without the hold exemption.
 
-Not verified live yet: that Mergify honours `@mergifyio requeue` from the
-`github-actions` token, and that a requeue clears the dequeue reason. If a
-held PR is not requeued at GREEN, comment it by hand.
+Not verified live yet: that the `commands_restrictions` entry makes Mergify
+honour `@mergifyio requeue` from the `github-actions` token. If a held PR is not
+requeued at GREEN, comment it by hand.
 
 Race: if Mergify dequeues before the RED's re-gate has posted `base-health`
 red on the PR's head, the repair-pick rule can still fire once. Mergify does
