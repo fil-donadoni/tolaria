@@ -688,20 +688,6 @@ export const moldDemon = defineCard(() => ({
 // ─────────────────────────────────────────────────────────────────────────────
 // C7 deferred (tracked-by: #2785) — need a primitive not yet built; each lands when its primitive
 // ships:
-//   • Elder Spawn — "At the beginning of your upkeep, sacrifice an Island. If
-//     you don't, sacrifice this and it deals 6 damage to you." The cost is a
-//     sacrifice (expressible), but the else-branch chains a sacrifice AND a
-//     self-damage like Cosmic Horror — shippable, but it also has an islandwalk
-//     /"can't attack unless defending player controls an Island" clause owned by
-//     a different cluster; deferred whole to avoid a partial card.
-//   • Forethought Amulet — "If a source would deal 4 or more damage to you,
-//     prevent all but 1" is a damage-prevention REPLACEMENT, not a pay-or-else
-//     trigger (mis-bucketed in the free-tranche note); owned by the prevention
-//     batch.
-//   • Primordial Ooze — "+1/+1 counter each upkeep, then pay {X} where X is its
-//     power or it doesn't attack/can't be blocked and deals damage to you" needs
-//     a power-scaled {X} pay-or-else with an attack-restriction else-branch (C5
-//     named-counter + variable-cost cluster).
 //   • Pit Scorpion — poison counters, not a pay-or-sacrifice card. No longer
 //     blocked (poison and the damage-dealt trigger both ship) — tracked-by:
 //     #2230.
