@@ -1116,15 +1116,18 @@ const HEALTH_ONLY_SKIPS: SkippedCheck[] = [
 ];
 
 /**
- * The scoped vitest run (ADR 0154 §2): ONE command over the projects that
- * hold a related test, the files as filters. Only projects with a related
- * file are named, so the filters can never match nothing in a named project
- * (vitest exits 1 on "no test files found"). Nothing related → a skip line,
- * never an empty run. Past `WHOLE_PROJECT_AT` related files the named
- * projects run WHOLE, without filters: a hub edit (`gre/types.ts` relates
- * 1116 of 1273 `node-engine` files) would otherwise put ~60 KB of filters in
- * one `sh -c` argument — half Linux's 128 KiB `MAX_ARG_STRLEN` — to select
- * what the bare project selects anyway.
+ * The scoped vitest run (ADR 0154 §2): the projects that hold a related test,
+ * the files as filters. Only projects with a related file are named, so the
+ * filters can never match nothing in a named project (vitest exits 1 on "no
+ * test files found"). Nothing related → a skip line, never an empty run.
+ *
+ * A reach runs exactly the reached files, however many (issue #6992). The
+ * one limit is the command's LENGTH: it is one `sh -c` argument, and Linux
+ * caps a single argument at 128 KiB (`MAX_ARG_STRLEN`). Past
+ * `FILTER_BYTES_PER_RUN` the files split into consecutive runs, each naming
+ * only the projects its own files belong to — never the bare project, which
+ * ran every file in it reached or not (a `data/**` re-pin reaching 449
+ * `node-engine` files ran all 1,273 plus `node-tooling`, PR #6982).
  */
 function pushRelated(
     reach: RelatedTests,
@@ -1132,8 +1135,9 @@ function pushRelated(
     run: PlannedCheck[],
     skip: SkippedCheck[]
 ): void {
-    const named = projects.filter((p) => reach[p].length > 0);
-    const files = named.flatMap((p) => reach[p]);
+    const files = projects.flatMap((p) =>
+        reach[p].map((file) => ({ project: p, file }))
+    );
     if (files.length === 0) {
         skip.push({
             id: "vitest(related)",
@@ -1141,18 +1145,50 @@ function pushRelated(
         });
         return;
     }
-    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
-    run.push({
-        id: "vitest(related)",
-        command:
-            files.length > WHOLE_PROJECT_AT
-                ? `bunx vitest run ${projectFlags}`
-                : `bunx vitest run ${projectFlags} ${files.map(shellQuote).join(" ")}`,
+    const chunks = chunkByBytes(files, FILTER_BYTES_PER_RUN);
+    chunks.forEach((chunk, i) => {
+        const named = projects.filter((p) =>
+            chunk.some((f) => f.project === p)
+        );
+        const projectFlags = named.map((p) => `--project ${p}`).join(" ");
+        run.push({
+            id:
+                chunks.length === 1
+                    ? "vitest(related)"
+                    : `vitest(related) ${i + 1}/${chunks.length}`,
+            command: `bunx vitest run ${projectFlags} ${chunk.map((f) => shellQuote(f.file)).join(" ")}`,
+        });
     });
 }
 
-/** Related files past which the named projects run whole (see above). */
-export const WHOLE_PROJECT_AT = 400;
+/**
+ * Consecutive runs of `files` whose quoted filters stay within `bytes` each;
+ * a single filter longer than `bytes` is a run of its own.
+ */
+function chunkByBytes<T extends { file: string }>(
+    files: T[],
+    bytes: number
+): T[][] {
+    const chunks: T[][] = [];
+    let current: T[] = [];
+    let size = 0;
+    for (const f of files) {
+        const len = Buffer.byteLength(shellQuote(f.file)) + 1;
+        if (current.length > 0 && size + len > bytes) {
+            chunks.push(current);
+            current = [];
+            size = 0;
+        }
+        current.push(f);
+        size += len;
+    }
+    if (current.length > 0) chunks.push(current);
+    return chunks;
+}
+
+/** Filter bytes per vitest run: half Linux's 128 KiB `MAX_ARG_STRLEN`, the
+ *  rest headroom for the command around them (see `pushRelated`). */
+export const FILTER_BYTES_PER_RUN = 64 * 1024;
 
 /** The `full` lane's bot step id, scoped or whole. */
 export const BOT_STEP = "vitest(bot)";
@@ -1190,7 +1226,7 @@ export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
  * and census admission the `full` lane's bot half uses — admitted by MEASURED
  * cost, never by suite: each under `laneBotBudget.perFileS`, cheapest first,
  * until the admitted sum would pass `totalS` (`admitByCost`). A hub edit
- * reaching most of the suite has no `WHOLE_PROJECT_AT` switch here: the
+ * reaching most of the suite never runs a project whole here either: the
  * budget decides, so the censuses — the cheapest files — always make it in.
  *
  * Nothing is dropped silently: a reached file over its budget, past the

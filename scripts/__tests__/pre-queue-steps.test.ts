@@ -16,6 +16,7 @@ import type { Lineage } from "../lib/health-verdict-store";
 import { SKIN_RECEIPT_REFUSAL } from "../land";
 import {
     EXCLUDED_FROM_PRE_QUEUE,
+    PRE_QUEUE_RELATED_MAX,
     isCheapStep,
     preQueueSteps,
 } from "../lib/pre-queue-steps";
@@ -45,17 +46,44 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         expect(run.map((c) => c.id)).toContain("cr:lint");
     });
 
-    it("drops a vitest run that resolves to a whole project, with a reason", () => {
+    it("drops a scoped run past PRE_QUEUE_RELATED_MAX reached files, every chunk, with a reason", () => {
         const files = ["convex/gre/types.ts"];
-        const reach = Array.from({ length: 401 }, (_, i) => `t${i}.test.ts`);
-        const plan = classifyLane(
-            files,
-            files,
-            related({ "node-engine": reach })
+        const at = (n: number) =>
+            preQueueSteps(
+                classifyLane(
+                    files,
+                    files,
+                    related({
+                        "node-engine": Array.from(
+                            { length: n },
+                            (_, i) =>
+                                `convex/gre/__tests__/a-long-enough-name-to-chunk-${i}.test.ts`
+                        ),
+                    })
+                ),
+                [],
+                files
+            );
+        const over = at(1_500);
+        const overSkips = over.skip.filter((s) =>
+            s.id.startsWith("vitest(related)")
         );
-        const { run, skip } = preQueueSteps(plan, [], files);
-        expect(run.map((c) => c.id)).not.toContain("vitest(related)");
-        expect(skip.map((s) => s.id)).toContain("vitest(related)");
+        expect(overSkips.length).toBeGreaterThan(1);
+        for (const s of overSkips) expect(s.reason).toMatch(/1500 test files/);
+        expect(
+            over.run.filter((c) => c.id.startsWith("vitest(related)"))
+        ).toEqual([]);
+        const within = at(PRE_QUEUE_RELATED_MAX);
+        expect(within.run.map((c) => c.id)).toContain("vitest(related)");
+    });
+
+    it("drops a vitest run that resolves to a whole project, with a reason", () => {
+        const files = ["scripts/lib/a.ts", "tolaria.config.json"];
+        const plan = classifyLane(files, files, related({}));
+        const { skip } = preQueueSteps(plan, [], files);
+        expect(skip.find((s) => s.id === "node-tooling")?.reason).toMatch(
+            /whole vitest project/
+        );
     });
 
     it("drops check:pr from a full-lane diff but keeps its cheap guards", () => {

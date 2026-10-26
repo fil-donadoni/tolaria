@@ -21,7 +21,7 @@ import {
     SEARCH_COST_TEST,
     EVAL_WEIGHTS_FIT_TEST,
     EVAL_WEIGHTS_FIT_FILTER,
-    WHOLE_PROJECT_AT,
+    FILTER_BYTES_PER_RUN,
     BOT_FAST_LANE,
     BOT_STEP,
     type BotReachSource,
@@ -973,28 +973,68 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             }
         });
 
-        it("past WHOLE_PROJECT_AT related files, the named projects run whole — no filter argv", () => {
-            const many = Array.from(
-                { length: WHOLE_PROJECT_AT + 1 },
-                (_, i) => `convex/t${i}.test.ts`
+        it("a 1,000-file reach runs exactly the reached files — never a bare project (issue #6992)", () => {
+            const engine = Array.from(
+                { length: 1_000 },
+                (_, i) =>
+                    `convex/gre/__tests__/a-test-name-long-enough-that-a-thousand-filters-pass-the-byte-limit-${String(i).padStart(4, "0")}.test.ts`
             );
+            const tooling = ["scripts/__tests__/x.test.ts"];
             const plan = classifyLane(
                 ["convex/gre/types.ts"],
                 undefined,
-                only({ "node-engine": many })
+                only({ "node-engine": engine, "node-tooling": tooling })
             );
-            expect(plan.run).toContainEqual({
-                id: "vitest(related)",
-                command: "bunx vitest run --project node-engine",
-            });
-            const atLimit = classifyLane(
+            const runs = plan.run.filter((c) =>
+                c.id.startsWith("vitest(related)")
+            );
+            expect(runs.length).toBeGreaterThan(1);
+            const filters: string[] = [];
+            for (const c of runs) {
+                expect(c.command).not.toMatch(
+                    /^bunx vitest run( --project \S+)+\s*$/
+                );
+                expect(Buffer.byteLength(c.command), c.id).toBeLessThanOrEqual(
+                    FILTER_BYTES_PER_RUN + 200
+                );
+                const m = c.command.match(
+                    /^bunx vitest run((?: --project \S+)+) (.+)$/
+                )!;
+                const named = [...m[1].matchAll(/--project (\S+)/g)].map(
+                    (x) => x[1]
+                );
+                const own = [...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+                // Each run names exactly the projects of its own filters.
+                expect(named, c.id).toEqual(
+                    [
+                        own.some((f) => engine.includes(f)) && "node-engine",
+                        own.some((f) => tooling.includes(f)) && "node-tooling",
+                    ].filter(Boolean)
+                );
+                filters.push(...own);
+            }
+            expect(filters).toEqual([...engine, ...tooling]);
+            expect(runs.map((c) => c.id)).toEqual(
+                runs.map((_, i) => `vitest(related) ${i + 1}/${runs.length}`)
+            );
+        });
+
+        it("a reach within FILTER_BYTES_PER_RUN is ONE run, under the bare id", () => {
+            const plan = classifyLane(
                 ["convex/gre/types.ts"],
                 undefined,
-                only({ "node-engine": many.slice(1) })
+                only({
+                    "node-engine": Array.from(
+                        { length: 450 },
+                        (_, i) => `convex/t${i}.test.ts`
+                    ),
+                })
             );
-            expect(
-                atLimit.run.find((c) => c.id === "vitest(related)")!.command
-            ).toContain("'convex/t1.test.ts'");
+            const runs = plan.run.filter((c) =>
+                c.id.startsWith("vitest(related)")
+            );
+            expect(runs.map((c) => c.id)).toEqual(["vitest(related)"]);
+            expect(runs[0].command).toContain("'convex/t449.test.ts'");
         });
 
         it("the engine lane never asks for dom tests, even when one is related", () => {
@@ -2954,7 +2994,7 @@ describe("scoped lanes admit the reached bot files by measured cost (issue #6943
 
     it("a hub reach never runs a project whole: cheapest first, the rest named past the lane budget", () => {
         const many = Array.from(
-            { length: WHOLE_PROJECT_AT + 50 },
+            { length: 450 },
             (_, i) =>
                 `convex/gre/__tests__/t${String(i).padStart(3, "0")}.bot.test.ts`
         );
