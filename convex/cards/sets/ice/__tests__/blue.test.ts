@@ -1593,6 +1593,26 @@ describe("Shyft (upkeep colour override, CR 305.7 layer 5 / 603.6a)", () => {
         )!;
         expect(slim.colorOverride).toEqual(["R"]);
     });
+
+    it("accepting → choosing red and blue makes Shyft both colors (CR 105.2 multicolor, GRE + wire)", () => {
+        const { state, shyftInst } = setup();
+        resolveTrigger(state, shyftInst, "shyft-upkeep-color", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["UR"]);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shyft"
+        )!;
+        expect(live.colorOverride).toEqual(["U", "R"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "shyft"
+        )!;
+        expect(slim.colorOverride).toEqual(["U", "R"]);
+    });
 });
 
 describe("Zuran Enchanter ({2}{B},{T}: target player discards, CR 605 / 701.8)", () => {

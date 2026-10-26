@@ -973,6 +973,45 @@ describe("Infernal Denizen (sac-two-Swamps-or-steal, {T} gain control, CR 603.6a
         );
         expect(stolen?.controllerId).toBe("p2");
     });
+
+    it("the opponent may decline: picking nothing leaves control unchanged", () => {
+        const denizen = makeInstance(infernalDenizen.id, {
+            id: "denizen",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myCreature = vanilla("mine", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [denizen, myCreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(
+            state,
+            denizen,
+            "infernal-denizen-upkeep",
+            BLACK_UPKEEP("p1")
+        );
+        answerMayPay(state, false);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mine")
+                ?.controllerId
+        ).toBe("p1");
+    });
 });
 
 describe("Soul Kiss (Aura +2/+2, hard cap 3/turn, CR 611.2a / 602.5)", () => {

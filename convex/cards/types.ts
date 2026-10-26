@@ -669,6 +669,10 @@ export interface EnchantRestriction {
  *  Resolved by `resolveTargetRequirementCount` (`gre/state.ts`). */
 export type TargetCountQuantity = EffectCount;
 
+/** A live combat role a target filter can name (CR 508.1 attacking, CR 509.1
+ *  blocking, CR 509.1h blocked). */
+export type CombatRole = "attacking" | "blocking" | "blocked";
+
 export interface TargetRequirement {
     /** Card type(s) to target, "player", "any", "spell" (stack target),
      *  "spell-or-permanent" (any spell on stack OR any permanent on battlefield,
@@ -817,8 +821,10 @@ export interface TargetRequirement {
      *  requires `isBlocking === true`. Used by Righteousness ("target
      *  blocking creature"). An array matches ANY listed role (OR semantics) —
      *  "target attacking or blocking creature" (D'Avenant Archer). Ignored for
-     *  player / spell / graveyard targets. */
-    combatRoleFilter?: "attacking" | "blocking" | ("attacking" | "blocking")[];
+     *  player / spell / graveyard targets. "blocked" requires an attacking
+     *  creature that has been blocked (CR 509.1h — it stays blocked after its
+     *  blockers leave; General Jarkeld's "blocked attacking creatures"). */
+    combatRoleFilter?: CombatRole | CombatRole[];
     /** Restricts legal permanent targets to the COMBAT PARTNERS of one
      *  object: creatures blocking it or blocked by it (CR 509.1g — a blocker
      *  is blocking the attackers chosen for it). The value is that object's
@@ -6255,6 +6261,14 @@ export interface SpellContext {
      *  delayed triggers. Returns false for players and for permanents no
      *  longer on the battlefield. */
     hasAttackedThisTurn: (target: TargetSelection) => boolean;
+    /** True if the target permanent was able to attack: it passes the same
+     *  attack-legality check as an attack declaration (CR 508.1a-c — defender,
+     *  summoning sickness without haste, "can't attack" flags and statics,
+     *  global attack restrictions). Season of the Witch's "except for
+     *  creatures that couldn't attack". The creature's CURRENT tapped status
+     *  counts as in the declaration, so filter on `tapped: false` first.
+     *  False for players / permanents off the battlefield. */
+    couldHaveAttacked: (target: TargetSelection) => boolean;
     /** True if the target permanent is summoning-sick (CR 302.6 — entered under
      *  its controller's control after their most recent turn began). Used to
      *  identify creatures that "couldn't attack" this turn (Season of the

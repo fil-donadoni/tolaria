@@ -1977,6 +1977,18 @@ describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", ()
         expect(state.stack).toHaveLength(0);
     });
 
+    it("sets meleeCombat when it resolves at beginning of combat, before any combat exists (CR 601.3)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            phase: "BEGINNING_OF_COMBAT",
+        });
+        expect(state.combat).toBeFalsy();
+        pushSpell(state, melee.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.meleeCombat).toBe(true);
+    });
+
     it("untaps and removes from combat every attacker left unblocked", () => {
         // Two attackers: 'blocked' becomes blocked, 'free' stays unblocked.
         const blocked = vanilla("blocked", 2, 2, {

@@ -1011,12 +1011,9 @@ export const fylgja = defineCard(() => ({
 // live block graph, which the DSL vocabulary does not model. This is the
 // accepted combat-primitive escape hatch, not a papered-over Op gap.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): `combatRoleFilter` has no
-// "blocked" refinement, so the target requirement admits any attacking creature
-// (controlled by EITHER player — the oracle has no controller clause); the
-// primitive's own CR 509.1 gate no-ops on an unblocked attacker, so targeting
-// one is legal-but-inert. Tightening the filter to "blocked attackers only"
-// would need a new combat target-filter value — deferred.
+// Targets: `combatRoleFilter: "blocked"` (CR 509.1h) admits only blocked
+// attackers (controlled by EITHER player — the oracle has no controller
+// clause), so an unblocked attacker is an illegal choice.
 export const generalJarkeld = defineCard(() => ({
     id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
     name: "General Jarkeld",
@@ -1044,11 +1041,11 @@ export const generalJarkeld = defineCard(() => ({
             // THEIR OWN blocked attackers. A `controller: "opponent"` filter
             // would zero out the legal targets in exactly that (legal) line —
             // so it is intentionally absent. The "blocked" refinement is
-            // enforced by the primitive's own CR 509.1 gate (see note).
+            // enforced by `combatRoleFilter: "blocked"` (CR 509.1h).
             targetRequirement: {
                 type: "Creature",
                 count: 2,
-                combatRoleFilter: "attacking",
+                combatRoleFilter: "blocked",
             },
             resolve: (ctx: SpellContext) => {
                 const [x, y] = ctx.targets;

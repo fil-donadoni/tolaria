@@ -320,6 +320,7 @@ import {
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import {
+    validateAttackerEligibility,
     validateBlockerEligibility,
     joinCombatAttacking,
     markDeclaredBlockers,
@@ -15907,6 +15908,24 @@ export function buildSpellContext(
             return found?.card.hasAttackedThisTurn === true;
         },
 
+        couldHaveAttacked(target: TargetSelection): boolean {
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return false;
+            // CR 508.1a-c — the same attack-legality authority the declaration
+            // uses (defender, summoning sickness, can't-attack flags and
+            // statics, global restrictions). The tapped check is the
+            // creature's status NOW, so callers filter on `tapped: false`.
+            const defenderBattlefield = state.players
+                .filter((p) => p.id !== found.card.controllerId)
+                .flatMap((p) => p.battlefield);
+            return validateAttackerEligibility(
+                found.card,
+                defenderBattlefield,
+                state
+            ).eligible;
+        },
+
         isSummoningSick(target: TargetSelection): boolean {
             if (target.type !== "permanent") return false;
             const found = findOnBattlefield(state, target.id);
@@ -16807,7 +16826,6 @@ export function buildSpellContext(
             // is consumed by the block-selection mutations (which route to the
             // active player) and the blocker-confirmation rider; cleared at end
             // of combat alongside the other combat-scoped state.
-            if (!state.combat) return;
             state.meleeCombat = true;
         },
         copyStackItem(targetStackItemId, modifications): string | null {
