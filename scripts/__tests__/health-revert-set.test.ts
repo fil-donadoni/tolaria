@@ -55,7 +55,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    rmSync(repo, { recursive: true, force: true });
+    rmSync(repo, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 function plan(culprit: string, cap?: number) {
