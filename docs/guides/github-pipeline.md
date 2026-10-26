@@ -45,12 +45,13 @@ new feature outside PRD #5620 (`docs/agents/quality-gates.md`).
 A machine declares how many [runners](#g-runner) of each
 [role label](#g-label) it offers. Defaults:
 
-| [Label](#g-label) | MacBook | Huawei | What it runs                                                                  |
-| ----------------- | ------- | ------ | ----------------------------------------------------------------------------- |
-| [`pass`](#g-pass) | 2       | 2      | one Claude Code session (`/next-ticket`) per job                              |
-| [`lane`](#g-lane) | 1       | 1      | queue checks, health, release                                                 |
-| [`seed`](#g-seed) | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's |
-| `host:<name>`     | all     | all    | pins a job to one machine when it must                                        |
+| [Label](#g-label)   | MacBook | Huawei | What it runs                                                                     |
+| ------------------- | ------- | ------ | -------------------------------------------------------------------------------- |
+| [`pass`](#g-pass)   | 2       | 2      | one Claude Code session (`/next-ticket`) per job                                 |
+| [`lane`](#g-lane)   | 1       | 0      | the gates a merge or a verdict waits on: queue checks, health, release           |
+| [`maint`](#g-maint) | 1       | 1      | every other duty: post-merge, the Bot-play replay, `pr-refresh`, fixups, reports |
+| [`seed`](#g-seed)   | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's    |
+| `host:<name>`       | all     | all    | pins a job to one machine when it must                                           |
 
 GitHub adds `self-hosted`, the OS and the architecture to every runner by
 itself. Each [runner](#g-runner) is named `<host>-<role>-<n>` (e.g.
@@ -80,7 +81,7 @@ bun run runner install --host macbook             # do it
 bun run runner status                             # local services + GitHub's view
 ```
 
-On the Huawei, `--host huawei`. Flags: `--pass N`, `--lane N`, `--seed N`,
+On the Huawei, `--host huawei`. Flags: `--pass N`, `--lane N`, `--maint N`, `--seed N`,
 `--no-convex` (MacBook: skip the [Convex agent](#g-convex-agent)). The first
 run remembers host and counts in the [machine declaration](#g-declaration);
 a later bare `bun run runner install` declares the same runners.
@@ -276,8 +277,9 @@ why no outsider-triggerable job may reach a self-hosted runner at all.
 
 By [runner labels](#g-label), never by a `concurrency` group: a group keeps
 ONE pending job and cancels the older pending one, which would silently drop
-a queue check or a health run. One [`lane`](#g-lane) runner per machine
-already runs one heavy job at a time. A hosted-only workflow may use a group
+a queue check or a health run. One [`lane`](#g-lane) runner (the MacBook's,
+ADR 0160) runs one gate at a time, one [`maint`](#g-maint) runner per
+machine one duty at a time. A hosted-only workflow may use a group
 with `cancel-in-progress` to drop a superseded run (`pr-check` does). The
 self-hosted exceptions are the jobs that MUST run one at a time across
 machines and lose nothing when a pending run is dropped: the
@@ -401,7 +403,7 @@ migration accepts.
 `.github/workflows/pr-refresh.yml`: GitHub and Mergify do not run our merge
 drivers, and 37 % of PRs touch a driven file, so a queued PR conflicts on a
 generated artefact the moment the base moves. On every push to the base, a
-[`lane`](#g-lane) runner runs `bun run pr-refresh -- --before <old tip> --after <new tip>`
+[`maint`](#g-maint) runner runs `bun run pr-refresh -- --before <old tip> --after <new tip>`
 (`scripts/pr-refresh.ts`). It lists the open `ready-to-land` PRs of this
 repository (never a fork) and refreshes each one that GitHub reports
 `CONFLICTING`, or whose files the push touched (`git diff --name-only
@@ -577,12 +579,12 @@ decision sees the same `outcomes` the queue's lane does.
 
 | Job            | When                    | Runner                                                 | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | -------------- | ----------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix              | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `sweep`        | hourly at `:17`         | `[self-hosted, lane, host:<m>]`, a matrix              | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `sync`         | every push to the base  | `[self-hosted, maint, host:<m>]`, amatrix              | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `sweep`        | hourly at `:17`         | `[self-hosted, maint, host:<m>]`, amatrix              | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `seed`         | after `sync`, on a push | `[self-hosted, seed]`                                  | `bun run post-merge seed`: fast-forward to the pushed tip, or — stale — to `derive:sync`'s commit on top of it (waited for), then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**`                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane]`, one run at a time               | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `nightly`      | 03:40 UTC               | `[self-hosted, lane]`, one run at a time               | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `bot-replay`   | a push; 03:40 UTC       | `[self-hosted, lane, host:macbook]`, one run at a time | `bun run derive:sync --replay-bot` (issue #6463): lockfile header Bot hash vs tree's — equal, seconds and no push; else ONE whole Bot-play sweep on the tip, pushed as one commit when no card left `ready` (the push retries a transient refusal three times with backoff, a still-failing sweep is the run's `bot-replay-lockfile` artifact and a late issue, ADR 0159 § 3), filed as a `bug` (`area:game-bot`) when one did. Pinned to the fast host (ADR 0159 § 2, `HOST_PINNED_JOBS`): 15 min there against 75 on the Huawei, and nothing waits on it. The sweep holds the heavy mutex; a landing on the same machine waits behind it like behind any heavy run |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, maint]`, one run at time                | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `nightly`      | 03:40 UTC               | `[self-hosted, maint]`, one run at time                | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bot-replay`   | a push; 03:40 UTC       | `[self-hosted, maint, host:macbook], one run at a time | `bun run derive:sync --replay-bot` (issue #6463): lockfile header Bot hash vs tree's — equal, seconds and no push; else ONE whole Bot-play sweep on the tip, pushed as one commit when no card left `ready` (the push retries a transient refusal three times with backoff, a still-failing sweep is the run's `bot-replay-lockfile` artifact and a late issue, ADR 0159 § 3), filed as a `bug` (`area:game-bot`) when one did. Pinned to the fast host (ADR 0159 § 2, `HOST_PINNED_JOBS`): 15 min there against 75 on the Huawei, and nothing waits on it. The sweep holds the heavy mutex; a landing on the same machine waits behind it like behind any heavy run |
 
 The `host` matrix of `sync` lists the machines by their `host:<name>` label
 (`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
@@ -592,7 +594,7 @@ the pushed commits' subjects (a squash merge ends in ` (#N)`), the worktree
 from each PR's head branch by the rule `wt:new` created it with.
 
 **No job requires one host (issue #5873).** `housekeeping` and `nightly` run
-on whichever `lane` runner is free: their state — the housekeeping watermark
+on whichever [`maint`](#g-maint) runner is free: their state — the housekeeping watermark
 and retry list, the nightly's last measured tip and audit time — is
 [shared state](#g-shared-state), one git ref per key on origin
 (`refs/tolaria/state/<key>`, `scripts/lib/shared-state.ts`) read at the start
@@ -755,7 +757,7 @@ Orders that hold:
   the base is live only after the next release. `workflow_dispatch` takes a
   `job` input (`housekeeping` or `nightly`).
 - **Serialised by the runner, and by a group where the duty is shared.** One
-  `lane` runner per machine is an invariant here: a second lane runner would
+  `maint` runner per machine is an invariant here: a second one would
   let a machine's `sync` legs race on its primary checkout. `housekeeping` and
   `nightly` carry a job-level `concurrency: { group, cancel-in-progress: false }`
   because they run on any machine; a pending run the group drops loses
@@ -807,7 +809,7 @@ pending run of the newest tip (allowed because the workflow is hosted-only —
 [§ Serialising heavy work](#serialising-heavy-work)).
 
 **The [RED ladder](#g-red-ladder)** (`scripts/health-bisect.ts`, decisions
-in `scripts/lib/health-bisect.ts`) runs on a `lane` runner:
+in `scripts/lib/health-bisect.ts`) runs on a `pass` runner (issue #6553):
 
 A scheduled run's RED is **held** off the store until this rung settles
 it (`defersRed`, `red-deferred.json` beside `last.json`, issue #6986): the
@@ -1030,7 +1032,7 @@ Orders that hold:
 ### lane-timing
 
 `.github/workflows/lane-timing.yml`: the same `check:lane` on one machine's
-[`lane`](#g-lane) runner. Time a PR's lane there by pushing its head to a
+[`maint`](#g-maint) runner (ADR 0160: a timing run never holds the queue's). Time a PR's lane there by pushing its head to a
 `lane-timing/` branch, or dispatch it from the Actions tab (input `host`):
 
 ```bash
@@ -1367,7 +1369,7 @@ come from `scripts/lib/workflow-trends.ts`, a pure library the
 
 Two jobs:
 
-1. **`machine`**, on the [`lane`](#g-lane) runner of EVERY machine (a `host`
+1. **`machine`**, on the [`maint`](#g-maint) runner of EVERY machine (a `host`
    matrix): `bun run weekly-report machine` runs `telemetry:budget --json`
    and `telemetry:latency --json` over their default window (the last seven
    days) and uploads them as `weekly-machine-<host>`. GitHub sees runs, not
@@ -1375,7 +1377,7 @@ Two jobs:
    finds nothing (an empty window, no store) leaves its field empty and its
    first stderr line as the reason. A machine offline holds its job until
    GitHub drops it (24 h).
-2. **`report`**, on any `lane` runner, after both (`if: always()`): reads
+2. **`report`**, on any `maint` runner, after both (`if: always()`): reads
    GitHub and the readings, appends the summary to the job summary and
    uploads the trends as JSON (`weekly-trends`, 90 days). Locally:
    `bun run weekly-report --days 7` prints the same markdown (`--json
@@ -1426,7 +1428,7 @@ newest 100 items, enough for any PR so far.
 re-pin. Nothing else moves the pin — the default `oracle:corpus` reproduces
 it — so before this job every set released since the last hand re-pin was
 missing from the lockfile, the compiled pool, the card index and the Full
-Catalogue (issue #6367). One job, `bun run corpus:repin`, on any `lane`
+Catalogue (issue #6367). One job, `bun run corpus:repin`, on any `maint`
 runner, Sunday 22:00 UTC; dispatch with `dry_run` to see the plan.
 
 1. The job worktree is cut at the default (release) branch; the script
@@ -1520,7 +1522,7 @@ never enters the queue: the owner merges it by hand.
 | Auto-queue                 | `merge_protections_settings.auto_merge_conditions`: `label=ready-to-land` — no `@mergifyio queue` comment needed                                                                                                                                                                                                                                             |
 | Entry (`queue_conditions`) | `ready-to-land`, no `land-failed`, no red `check:lane (advisory)` ([`pr-check`](#pr-check)), [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) green, no file under `.github/`, no `.mergify.yml`                                                                                                                                    |
 | Merge (`merge_conditions`) | [`queue-lane`](#queue-lane) green on the queue's draft — and nothing else: the entry gates were proven on the PR                                                                                                                                                                                                                                             |
-| Parallel checks            | `merge_queue.max_parallel_checks: 2` — two speculative drafts, one per machine's [`lane`](#g-lane) runner                                                                                                                                                                                                                                                    |
+| Parallel checks            | `merge_queue.max_parallel_checks: 1` — one draft at a time on the one [`lane`](#g-lane) runner (ADR 0160)                                                                                                                                                                                                                                                    |
 | Out-of-queue push          | `merge_queue.reset_on_external_merge: never` (ADR 0157, issue #6245) — a commit pushed to the base outside the queue (`gaps:sync`, `derive:sync`) no longer resets the queued drafts; Mergify's default `always` cancelled a draft 18 s after one                                                                                                            |
 | Priority                   | `priority_rules` (issue #6938): FIFO by default; `high` for the RED ladder's revert (`title~=^Revert PR #`) and for a PR the owner labels `queue:priority`. A high PR may interrupt a running draft's check, which re-runs behind it                                                                                                                         |
 | Batch                      | `batch_size: 1` — no batches (at a 15 % red rate a batch holds a bad PR more often than it saves a run)                                                                                                                                                                                                                                                      |
@@ -1757,6 +1759,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                                                                                                   |
 | `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` / `bot-replay` or `health.yml`'s `gate` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, move one watermark twice, or gate one tip twice         |
 | `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host; `HOST_PINNED_JOBS` waives it for a job nothing waits on (`bot-replay`, ADR 0159)                                  |
+| `lane-role`                    | a self-hosted job outside `LANE_JOBS` (`queue-lane`, `health`'s `gate`, `release`) whose `runs-on` may reach a [`lane`](#g-lane) runner: names the role, a runner group or a whole-label expression, and no literal other role (ADR 0160, issue #6653) — maintenance runs on [`maint`](#g-maint)                                                               |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                                                                                      |
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                                                                                        |
 | `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                                                                                                                                                            |
@@ -1764,7 +1767,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                                                                                                                                                 |
 | `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `-label=land-failed`, `-check-failure=check:lane (advisory)`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml`; still require a marker label (`label=merge:manual`); or the job posting `check:lane (advisory)` runs on the queue's drafts |
 | `queue-merge`                  | a queue rule's `merge_conditions` are anything but `check-success=queue-lane` alone                                                                                                                                                                                                                                                                            |
-| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 2, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                                                                                            |
+| `queue-shape`                  | `merge_queue.max_parallel_checks` is not 1, or a queue rule's `batch_size` is not 1                                                                                                                                                                                                                                                                            |
 | `queue-dequeue`                | no `pull_request_rules` entry turns a `checks-failed`/`checks-timeout` dequeue into `land-failed` (removing `ready-to-land`) with a comment carrying a link, or lacks the top-level `-check-failure=base-health` ([a hold](#a-red-dequeue-is-a-hold))                                                                                                          |
 | `owner-merge-trigger`          | `owner-merge.yml` fires on anything but `pull_request_target` `labeled`, its job lacks `if: github.event.label.name == 'ready-to-land'`, or checks out nothing ([`owner-merge`](#owner-merge))                                                                                                                                                                 |
 
@@ -1885,8 +1888,8 @@ counts episodes, not attempts, and leaves out holds.
 
 ### The machines
 
-Each machine runs one [`lane`](#g-lane) and two [`pass`](#g-pass) runners; the
-MacBook also runs [`seed`](#g-seed); the land-runner is retired (issue #5643).
+Each machine runs one [`maint`](#g-maint) and two [`pass`](#g-pass) runners; the
+MacBook also runs the one [`lane`](#g-lane) and [`seed`](#g-seed) (ADR 0160); the land-runner is retired (issue #5643).
 A health run therefore shares its machine with up to two passes. ADR 0156
 accepted a fixed runner count in place of RAM-aware admission; the answer to a
 load-induced timeout is to classify it [INFRA](#g-infra) (excused once, then
@@ -1952,8 +1955,18 @@ session per job. Their count is the machine's concurrency cap.
 
 ### <a id="g-lane"></a>`lane`
 
-The [label](#g-label) of a [runner](#g-runner) for verification work: queue
-checks, batch health, release.
+The [label](#g-label) of a [runner](#g-runner) for the gates a merge or a
+verdict waits on: queue checks, batch health, release — `LANE_JOBS` of the
+[structure guard](#g-structure-guard), rule `lane-role`. One, on the MacBook
+(ADR 0160): the Huawei's, 4–5× slower, set the queue's pace.
+
+### <a id="g-maint"></a>`maint`
+
+The [label](#g-label) of a [runner](#g-runner) for every other self-hosted
+duty — post-merge's `sync`, `sweep`, `housekeeping`, `nightly` and the
+Bot-play replay, `pr-refresh`, `pr-fixup`, the weekly report, the corpus
+re-pin, `lane-timing` — so maintenance never holds the runner the queue needs
+(ADR 0160, issue #6653). One per machine.
 
 ### <a id="g-seed"></a>`seed`
 

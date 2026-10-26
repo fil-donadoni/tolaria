@@ -24,7 +24,7 @@
  *
  * Its record — the tip last measured, when the audits last ran — is SHARED
  * state (issue #5873: the `nightly` key of `refs/tolaria/state`,
- * `lib/shared-state.ts`), because the job runs on whichever lane runner is
+ * `lib/shared-state.ts`), because the job runs on whichever `maint` runner is
  * free: a night on the MacBook must know what the Huawei measured. A
  * `nightly.json` beside `last.json` from before that is read once, as the
  * first shared record, when the ref holds none.

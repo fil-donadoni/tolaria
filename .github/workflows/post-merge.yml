@@ -2,7 +2,7 @@
 # 0156 Amendment I, issue #5644): on every machine, fast-forward the primary
 # checkout, remove the merged PR's worktree and ingest the telemetry; on the
 # `seed` machine, seed the PR's preset scenario (and every preset list when a
-# card set changed); on ANY one lane runner, `housekeeping` (gaps:sync with its
+# card set changed); on ANY one `maint` runner, `housekeeping` (gaps:sync with its
 # direct push, derive:sync — the base regenerates its lockfile header hashes and
 # data/catalogue/* on the tip and pushes once, ADR 0157 / issue #6247, after
 # playing the tip's Bot-verdict misses, ADR 0158 § 2b / issue #6687 — grammar
@@ -57,7 +57,7 @@ jobs:
     sync:
         name: fast-forward, worktree cleanup, telemetry (${{ matrix.host }})
         if: ${{ github.event_name == 'push' }}
-        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        runs-on: [self-hosted, maint, "host:${{ matrix.host }}"]
         timeout-minutes: 30
         strategy:
             fail-fast: false
@@ -84,7 +84,7 @@ jobs:
     sweep:
         name: orphan issue-worktree sweep (${{ matrix.host }})
         if: ${{ github.event.schedule == '17 * * * *' || inputs.job == 'sweep' }}
-        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        runs-on: [self-hosted, maint, "host:${{ matrix.host }}"]
         timeout-minutes: 15
         strategy:
             fail-fast: false
@@ -109,7 +109,7 @@ jobs:
     seed:
         name: seed the preset scenario
         # No `needs: sync`: that waits for EVERY matrix leg, so a nightly holding
-        # the Huawei's lane runner would delay the MacBook's seed for hours. The
+        # the Huawei's maint runner would delay the MacBook's seed for hours. The
         # script fast-forwards the seed machine's checkout itself (the seed
         # resolves card names against its disk, issue #3253) and refuses to
         # seed a stale tree.
@@ -139,11 +139,11 @@ jobs:
     housekeeping:
         name: housekeeping
         if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || inputs.job == 'housekeeping' }}
-        # Any lane runner (issue #5873): its state is shared and its work
+        # Any `maint` runner (issue #5873, ADR 0160): its state is shared and its work
         # happens in a throwaway worktree, so no host is required. One run at
         # a time across machines; a RUNNING run is never cancelled, a pending
         # one dropped loses nothing (the next run re-reads every fact).
-        runs-on: [self-hosted, lane]
+        runs-on: [self-hosted, maint]
         concurrency:
             group: post-merge-housekeeping
             cancel-in-progress: false
@@ -200,7 +200,7 @@ jobs:
         # packs. The push retries a transient refusal three times with
         # backoff (ADR 0159 § 3); a push that still fails leaves the swept
         # lockfile as the run's artifact (below) and files the late issue.
-        runs-on: [self-hosted, lane, host:macbook]
+        runs-on: [self-hosted, maint, host:macbook]
         concurrency:
             group: post-merge-bot-replay
             cancel-in-progress: false
@@ -235,8 +235,8 @@ jobs:
     nightly:
         name: health:nightly
         if: ${{ github.event.schedule == '40 3 * * *' || inputs.job == 'nightly' }}
-        # Any lane runner (issue #5873); its record is shared state too.
-        runs-on: [self-hosted, lane]
+        # Any `maint` runner (issue #5873, ADR 0160); its record is shared state too.
+        runs-on: [self-hosted, maint]
         concurrency:
             group: post-merge-nightly
             cancel-in-progress: false

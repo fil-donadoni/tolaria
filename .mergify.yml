@@ -12,8 +12,10 @@
 # queue.
 
 merge_queue:
-    # Two speculative checks, one per machine (ADR 0156 §3: 16.0 PR/h).
-    max_parallel_checks: 2
+    # One check at a time on the one `lane` runner (ADR 0160, overturning
+    # ADR 0156 §3's two): the second draft contains the first, so a second,
+    # 4–5× slower runner set the queue's pace instead of doubling it.
+    max_parallel_checks: 1
     # A commit pushed to the base outside the queue (`gaps:sync` today,
     # `derive:sync` of ADR 0157 Option 1b) must not reset the queued drafts:
     # Mergify's default `always` cancelled a draft 18 s after one (issue

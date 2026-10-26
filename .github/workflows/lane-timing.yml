@@ -1,5 +1,6 @@
 # lane-timing — the same `check:lane` as pr-check, on one of the owner's
-# `lane` runners, to compare a GitHub-hosted lane with a local one (ADR 0156
+# `maint` runners (ADR 0160: a timing run never holds the queue's `lane`
+# runner), to compare a GitHub-hosted lane with a local one (ADR 0156
 # §10, phase 0's measurement, issue #5636). Triggered only by events an
 # outsider cannot fire: a dispatch, or a push of a `lane-timing/<anything>`
 # branch (push the PR's head there to time its lane:
@@ -14,7 +15,7 @@ on:
     workflow_dispatch:
         inputs:
             host:
-                description: Machine whose lane runner times the lane
+                description: Machine whose maint runner times the lane
                 type: choice
                 options: [macbook, huawei]
                 default: macbook
@@ -26,8 +27,8 @@ permissions:
 
 jobs:
     lane:
-        name: check:lane (${{ inputs.host || 'macbook' }} lane runner)
-        runs-on: [self-hosted, lane, "host:${{ inputs.host || 'macbook' }}"]
+        name: check:lane (${{ inputs.host || 'macbook' }} maint runner)
+        runs-on: [self-hosted, maint, "host:${{ inputs.host || 'macbook' }}"]
         timeout-minutes: 60
         steps:
             - name: Job worktree

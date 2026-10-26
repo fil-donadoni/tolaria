@@ -5,6 +5,7 @@ import {
     checkStructure,
     formatViolation,
     HOST_PINNED_JOBS,
+    LANE_JOBS,
     isSelfHosted,
     JOB_SETUP_FILE,
     SUPERSEDED_GROUP,
@@ -93,7 +94,7 @@ on:
     types: [labeled]
 jobs:
   lane:
-    runs-on: [self-hosted, lane]
+    runs-on: [self-hosted, maint]
     timeout-minutes: 30
     steps:
       - name: Job worktree
@@ -138,7 +139,7 @@ const JOB_SETUP = readFileSync(join(REPO, JOB_SETUP_FILE), "utf8");
 
 const MERGIFY = `
 merge_queue:
-  max_parallel_checks: 2
+  max_parallel_checks: 1
 queue_rules:
   - name: default
     queue_conditions:
@@ -651,27 +652,27 @@ describe("workflow structure guard", () => {
     it("refuses a self-hosted job pinned to one host by a literal label; a matrix or input expression is not a pin (issue #5873)", () => {
         const pinned = edit(
             SELF_HOSTED,
-            "runs-on: [self-hosted, lane]",
-            "runs-on: [self-hosted, lane, host:huawei]"
+            "runs-on: [self-hosted, maint]",
+            "runs-on: [self-hosted, maint, host:huawei]"
         );
         expect(rules(fixture({ self: pinned }))).toEqual(["host-pinned"]);
         const matrix = edit(
             SELF_HOSTED,
-            "runs-on: [self-hosted, lane]",
-            'runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]'
+            "runs-on: [self-hosted, maint]",
+            'runs-on: [self-hosted, maint, "host:${{ matrix.host }}"]'
         );
         expect(rules(fixture({ self: matrix }))).toEqual([]);
         const input = edit(
             SELF_HOSTED,
-            "runs-on: [self-hosted, lane]",
-            "runs-on: [self-hosted, lane, \"host:${{ inputs.host || 'macbook' }}\"]"
+            "runs-on: [self-hosted, maint]",
+            "runs-on: [self-hosted, maint, \"host:${{ inputs.host || 'macbook' }}\"]"
         );
         expect(rules(fixture({ self: input }))).toEqual([]);
         // The `{ group, labels }` form pins just the same.
         const grouped = edit(
             SELF_HOSTED,
-            "runs-on: [self-hosted, lane]",
-            "runs-on:\n      group: ours\n      labels: [lane, host:huawei]"
+            "runs-on: [self-hosted, maint]",
+            "runs-on:\n      group: ours\n      labels: [maint, host:huawei]"
         );
         expect(rules(fixture({ self: grouped }))).toEqual(["host-pinned"]);
     });
@@ -682,8 +683,8 @@ describe("workflow structure guard", () => {
         ]);
         const pinned = edit(
             SELF_HOSTED,
-            "runs-on: [self-hosted, lane]",
-            "runs-on: [self-hosted, lane, host:macbook]\n    concurrency:\n      group: post-merge-bot-replay\n      cancel-in-progress: false"
+            "runs-on: [self-hosted, maint]",
+            "runs-on: [self-hosted, maint, host:macbook]\n    concurrency:\n      group: post-merge-bot-replay\n      cancel-in-progress: false"
         );
         // The same job text under the waived path and id: no violation…
         const replay = edit(pinned, "jobs:\n  lane:", "jobs:\n  bot-replay:");
@@ -699,6 +700,53 @@ describe("workflow structure guard", () => {
         expect(rules(asPostMerge)).toEqual([]);
         // …and under any other id or path the pin is still refused.
         expect(rules(fixture({ self: replay }))).toContain("host-pinned");
+    });
+
+    it("keeps the lane runner for the gates: lane-role refuses any other job reaching it (ADR 0160, issue #6653)", () => {
+        expect([...LANE_JOBS.keys()]).toEqual([
+            ".github/workflows/queue-lane.yml#queue-lane",
+            ".github/workflows/health.yml#gate",
+            ".github/workflows/release.yml#release",
+        ]);
+        const onLane = (runsOn: string) =>
+            edit(SELF_HOSTED, "runs-on: [self-hosted, maint]", runsOn);
+        // A maintenance job on the lane role, by name, by a runner group or
+        // by an expression the guard cannot read (fail closed).
+        for (const runsOn of [
+            "runs-on: [self-hosted, lane]",
+            'runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]',
+            "runs-on:\n      group: ours\n      labels: [X64]",
+            'runs-on: [self-hosted, "${{ inputs.role }}"]',
+        ])
+            expect(rules(fixture({ self: onLane(runsOn) })), runsOn).toEqual([
+                "lane-role",
+            ]);
+        // A literal other role rules the lane runner out: a runner carries
+        // one role, and `runs-on` needs every label.
+        for (const runsOn of [
+            'runs-on: [self-hosted, pass, "${{ inputs.role }}"]',
+            'runs-on: [self-hosted, maint, "host:${{ matrix.host }}"]',
+            "runs-on:\n      group: ours\n      labels: [seed]",
+        ])
+            expect(rules(fixture({ self: onLane(runsOn) })), runsOn).toEqual(
+                []
+            );
+        // The same lane job under a LANE_JOBS path and id is admitted.
+        const gate = edit(
+            onLane("runs-on: [self-hosted, lane]"),
+            "jobs:\n  lane:",
+            "jobs:\n  release:"
+        );
+        const input = fixture({ self: gate });
+        const asRelease: StructureInput = {
+            ...input,
+            workflows: input.workflows.map((w) =>
+                w.path === ".github/workflows/self.yml"
+                    ? { ...w, path: ".github/workflows/release.yml" }
+                    : w
+            ),
+        };
+        expect(rules(asRelease)).toEqual([]);
     });
 
     it("refuses actions/checkout on a self-hosted job", () => {
@@ -894,10 +942,10 @@ describe("workflow structure guard", () => {
         }
     });
 
-    it("requires two parallel checks and no batches (issue #5642)", () => {
+    it("requires one check at a time and no batches (issue #5642, ADR 0160)", () => {
         for (const [from, to] of [
-            ["max_parallel_checks: 2", "max_parallel_checks: 3"],
-            ["merge_queue:\n  max_parallel_checks: 2\n", ""],
+            ["max_parallel_checks: 1", "max_parallel_checks: 2"],
+            ["merge_queue:\n  max_parallel_checks: 1\n", ""],
             ["batch_size: 1", "batch_size: 2"],
         ] as const) {
             const mergify = edit(MERGIFY, from, to);

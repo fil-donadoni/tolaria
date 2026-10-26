@@ -33,7 +33,7 @@
  * (`.claude/telemetry/post-merge/notice.json` beside the log remembers the
  * last one; a green leg clears it). What this leg cannot heal is the owner's
  * — nothing else on the machine depends on it: `housekeeping` and `nightly`
- * run on any lane runner and never touch the primary.
+ * run on any `maint` runner (ADR 0160) and never touch the primary.
  *
  * The decisions are `lib/post-merge.ts`; this file is the I/O.
  */
@@ -59,7 +59,7 @@ import {
 import { primaryCheckout } from "./lib/primary-checkout";
 import { gcLine, worktreeGc } from "./worktree-gc";
 
-/** Wall for one child: a hung `convex` call must not hold the lane runner. */
+/** Wall for one child: a hung `convex` call must not hold the maint runner. */
 const STEP_WALL_MS = 10 * 60_000;
 
 /** Where the last notice sent for a red `sync` leg is remembered, relative

@@ -40,7 +40,7 @@ export function cockpitArtifactCache(env: NodeJS.ProcessEnv = process.env) {
     return join(cockpitDir(env), "artifacts");
 }
 
-const ROLE_LABELS = new Set(["pass", "lane", "seed"]);
+const ROLE_LABELS = new Set(["pass", "lane", "maint", "seed"]);
 
 /** GitHub's runner list as the page shows it: by host, then name. */
 export function runnerViews(rows: readonly RunnerRow[]): RunnerView[] {
