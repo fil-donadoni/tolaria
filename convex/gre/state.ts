@@ -10263,11 +10263,18 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             // CR 303.4f — recomputed HERE rather than carried on the
             // declaration: the legal-host set is read as the choice is offered,
             // against the fully-staged simultaneous batch (CR 400.7).
-            const candidateIds = findAllLegalAuraHosts(
-                state,
-                card,
-                card.id
-            ).map((h) => h.id);
+            // CR 303.4 — an "Enchant player" Aura's player hosts are split off
+            // into `candidatePlayerIds` where the `AuraHostCandidate` union is
+            // still intact, so the client and the Bot never guess whether an
+            // opaque id names a player or a permanent. `candidateIds` stays
+            // the permanent-host allow-list.
+            const hosts = findAllLegalAuraHosts(state, card, card.id);
+            const candidateIds = hosts
+                .filter((h) => h.kind === "permanent")
+                .map((h) => h.id);
+            const candidatePlayerIds = hosts
+                .filter((h) => h.kind === "player")
+                .map((h) => h.id);
             pending = {
                 ...base,
                 kind: "choose-aura-host",
@@ -10277,6 +10284,9 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
                 allControllers: true,
                 auraInstanceId: card.id,
                 candidateIds,
+                ...(candidatePlayerIds.length > 0
+                    ? { candidatePlayerIds }
+                    : {}),
                 count: 1,
                 prompt: `Choose what ${subject} enchants.`,
             };
@@ -11363,15 +11373,11 @@ export function findStagedEntry(
 /** CR 303.4f — hold `aura` off every zone (the caller has already removed it
  *  from its origin) and enqueue the controller's "choose what to enchant" pick.
  *  Freezes priority on the chooser; the Aura enters via `finalizeAsEnters` when
- *  the choice is answered. `candidateIds` are the legal hosts computed by the
- *  caller (`findAllLegalAuraHosts`) — a mix of permanent ids and, for an
- *  "Enchant player" Aura (issue #1119), player ids. Only called with ≥2
+ *  the choice is answered. The legal hosts are computed by the caller
+ *  (`findAllLegalAuraHosts`): permanent ids go to `candidateIds` and, for an
+ *  "Enchant player" Aura, player ids to `candidatePlayerIds`. Only called with ≥2
  *  candidates — a 0/1-host Aura is resolved inline without a prompt (CR
- *  303.4g / ADR 0003). DIVERGENCE (tracked-by: #1233): the client's
- *  `choose-aura-host` prompt renderer currently only highlights battlefield
- *  permanents matching `candidateIds` — a player candidate has no on-board
- *  affordance yet. No card in the catalogue ships an untargeted "Enchant
- *  player" Aura today, so this branch is latent, not exercised. */
+ *  303.4g / ADR 0003). */
 function enqueueAuraHostChoice(
     state: GameState,
     aura: CardInstanceState,

@@ -724,8 +724,15 @@ export function applyPendingChoiceSubmit(
         // staged permanent's choice is offered against a set computed at prompt
         // time (legal Aura hosts, copiable permanents, payable life amounts),
         // and `name-card` is free text with no allow-list at all.
+        // A kind whose candidates are permanent-OR-player (`choose-aura-host`,
+        // CR 303.4) lists the players in `candidatePlayerIds`; an id is legal
+        // when it is in either list.
         for (const id of args.cardInstanceIds) {
-            if (head.candidateIds && !head.candidateIds.includes(id)) {
+            if (
+                (head.candidateIds || head.candidatePlayerIds) &&
+                !(head.candidateIds?.includes(id) ?? false) &&
+                !(head.candidatePlayerIds?.includes(id) ?? false)
+            ) {
                 throw new Error("Card is not an eligible choice");
             }
             if (head.options && !head.options.some((o) => o.id === id)) {
