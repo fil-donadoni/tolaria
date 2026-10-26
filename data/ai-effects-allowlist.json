@@ -1584,13 +1584,6 @@
     },
     {
         "class": "ability",
-        "cardId": "717c5dda-8e38-4c76-b241-685198402284",
-        "name": "Krovikan Vampire",
-        "abilityId": "krovikan-vampire-mark",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "b2b72dcd-9ea1-4729-baae-ecd262fdff67",
         "name": "Kudzu",
         "abilityId": "kudzu-tapped",
@@ -2214,13 +2207,6 @@
     },
     {
         "class": "ability",
-        "cardId": "ab675291-3189-43f3-b11b-0724eca8b941",
-        "name": "Seraph",
-        "abilityId": "seraph-mark",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "0458b733-d689-4cb5-8970-3b675c67fc4d",
         "name": "Serendib Djinn",
         "abilityId": "serendib-djinn-upkeep",
@@ -2751,14 +2737,6 @@
     },
     {
         "class": "delayed-trigger",
-        "cardId": "717c5dda-8e38-4c76-b241-685198402284",
-        "name": "Krovikan Vampire",
-        "delayedTriggerId": "krovikan-vampire-reanimate",
-        "issue": 1436,
-        "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
-    },
-    {
-        "class": "delayed-trigger",
         "cardId": "e691adef-3027-4e6a-889f-9f4e2df36a7c",
         "name": "Mana Drain",
         "delayedTriggerId": "mana-drain-add",
@@ -2826,14 +2804,6 @@
         "cardId": "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
         "name": "Sacred Boon",
         "delayedTriggerId": "sacred-boon-counters",
-        "issue": 1436,
-        "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
-    },
-    {
-        "class": "delayed-trigger",
-        "cardId": "ab675291-3189-43f3-b11b-0724eca8b941",
-        "name": "Seraph",
-        "delayedTriggerId": "seraph-reanimate",
         "issue": 1436,
         "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
     },

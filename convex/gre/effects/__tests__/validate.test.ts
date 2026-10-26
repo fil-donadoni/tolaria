@@ -7805,7 +7805,7 @@ describe("validateEffectScript — graveyard-card $event family (CR 400.7e, issu
         expect(errors.some((e) => /graveyard-card field/.test(e))).toBe(true);
     });
 
-    it("rejects $event.card as a delayedTrigger CAPTURE source", () => {
+    it("accepts $event.card as a delayedTrigger CAPTURE source read by a from-graveyard moveZone (CR 400.7e)", () => {
         const errors = validateAbilityEffectScript(
             abilityHost([
                 {
@@ -7814,15 +7814,48 @@ describe("validateEffectScript — graveyard-card $event family (CR 400.7e, issu
                     oracleText: "…",
                     capture: { $c: { ref: "$event.card" } },
                     effects: [
-                        { op: "moveZone", target: { ref: "$c" }, to: "hand" },
+                        {
+                            op: "moveZone",
+                            target: { ref: "$c" },
+                            from: "graveyard",
+                            to: "battlefield",
+                        },
                     ],
                 },
             ]),
             "Test (id)",
             "CREATURE_DIED"
         );
-        expect(errors.some((e) => /graveyard-card field/.test(e))).toBe(true);
+        expect(errors).toEqual([]);
     });
+
+    it.each([
+        [
+            "moveZone with no from/to battlefield",
+            { op: "moveZone", target: { ref: "$c" }, to: "hand" },
+        ],
+        ["destroy", { op: "destroy", target: { ref: "$c" } }],
+    ])(
+        "rejects a delayedTrigger body that reads the captured graveyard card through %s (CR 400.7e)",
+        (_label, bodyOp) => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "…",
+                        capture: { $c: { ref: "$event.card" } },
+                        effects: [bodyOp],
+                    },
+                ] as EffectOp[]),
+                "Test (id)",
+                "CREATURE_DIED"
+            );
+            expect(errors.some((e) => /captured graveyard card/.test(e))).toBe(
+                true
+            );
+        }
+    );
 });
 
 // --- count narrowed by a picks binding (issue #3807) -----------------------
