@@ -4367,8 +4367,9 @@ export function mayPayRequiredDiscards(cost: MayPayCost | undefined): number {
     return cost.hand.requirements.reduce((a, r) => a + r.count, 0);
 }
 
-/** The verb a `may-pay` hand leg applies to the picked cards: "exile"
- *  (CR 701.13, pitch-style leg) or "discard" (CR 701.9, the default). */
+/** The verb a `may-pay` hand leg applies to the picked cards. Exile
+ *  (CR 701.13) is the pitch-style leg.
+ *  Discard (CR 701.9) is the default. */
 export function mayPayHandVerb(
     cost: MayPayCost | undefined
 ): "exile" | "discard" {
