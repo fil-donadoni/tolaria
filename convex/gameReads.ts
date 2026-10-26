@@ -10,6 +10,7 @@ import {
 } from "./deckStore";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
+import { difficultyValidator } from "./limited/botDifficulty";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
     getLatestManualState,
@@ -45,6 +46,23 @@ export const getGameTick = query({
             .query("gameTicks")
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .first();
+    },
+});
+
+/** The Bot difficulty the Game's Match was started with (issue #6916): a
+ *  Limited Event's vs-AI Match (round pairing vs a Bot seat, "Play vs the
+ *  Table") is stamped with the event's difficulty at start. The vs-AI driver
+ *  reads it instead of browser-local storage; `null` = the Match carries none
+ *  (lobby Match, legacy row, unknown game) and the driver falls back to the
+ *  lobby's stored choice. Two point lookups, resolved once per game. */
+export const getMatchBotDifficulty = query({
+    args: { gameId: v.id("games") },
+    returns: v.union(difficultyValidator, v.null()),
+    handler: async (ctx, args) => {
+        const game = await ctx.db.get(args.gameId);
+        if (!game?.matchId) return null;
+        const match = await ctx.db.get(game.matchId);
+        return match?.botDifficulty ?? null;
     },
 });
 

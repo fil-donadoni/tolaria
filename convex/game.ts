@@ -164,6 +164,8 @@ import {
     unbindPairingMatch,
 } from "./limited/pairingMatch";
 import type { LimitedRound } from "./limited/eventTypes";
+import { resolveEventBotDifficulty } from "./limited/botDifficulty";
+import type { Difficulty } from "./gre/difficulty";
 import type { AdvanceRoundResult } from "./limited/rounds";
 import { areRoundsRunning } from "./limited/eventStatus";
 import {
@@ -3336,6 +3338,9 @@ export const startPairingMatch = mutation({
                 ),
                 solo: true,
                 vsAi: true,
+                // Bound at start (issue #6916): the vs-AI driver plays this
+                // Match at the event's difficulty, not the browser's.
+                botDifficulty: resolveEventBotDifficulty(event),
                 limitedEventId: args.eventId,
                 limitedPairing,
                 createdAt: now,
@@ -3465,10 +3470,15 @@ export const createSoloGame = mutation({
         // An event binding is only legitimate when seat 1's deck IS that
         // event's deck — the ownership of that seat is re-checked below by
         // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.
+        let botDifficulty: Difficulty | undefined;
         if (args.limitedEventId) {
             assertSameEventDeck(args.deck.limitedEventId, args.limitedEventId);
             const limitedEvent = await ctx.db.get(args.limitedEventId);
             if (!limitedEvent) throw new Error("Limited Event not found.");
+            // "Play vs the Table" plays at the event's difficulty (issue
+            // #6916); a lobby Match carries none and keeps the local choice.
+            if (args.vsAi === true)
+                botDifficulty = resolveEventBotDifficulty(limitedEvent);
             // A PHASE question, never a status literal (ADR 0076 decision 1):
             // an event-bound "Play vs the Table" playtest is withdrawn while
             // the event's Swiss rounds are running (PRD #1628 story 36, issue
@@ -3549,6 +3559,7 @@ export const createSoloGame = mutation({
             playDrawChooserId: tossWinnerId,
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
+            botDifficulty,
             limitedEventId: args.limitedEventId,
             createdAt: now,
             updatedAt: now,

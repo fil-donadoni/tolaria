@@ -24,7 +24,9 @@ import {
     areRoundsRunning,
     isEventConcluded,
 } from "./eventStatus";
+import { resolveEventBotDifficulty } from "./botDifficulty";
 import { resolveEventGamesFormat } from "./gamesFormat";
+import type { Difficulty } from "../gre/difficulty";
 import { findSeatPairing, isRoundComplete } from "./rounds";
 import {
     classifyPairingResult,
@@ -62,6 +64,9 @@ export interface LimitedEventRow {
      *  `gamesFormat` is the one the projection makes DEFINITE on the wire —
      *  see `LimitedEventView.gamesFormat`. */
     gamesFormat?: LimitedGamesFormat;
+    /** Bot difficulty of the event's vs-AI Matches (issue #6916) — absent on
+     *  legacy rows, resolved to "medium" by `resolveEventBotDifficulty`. */
+    botDifficulty?: Difficulty;
     /** Pre-rename key (issue #5337): read-only, see `resolveEventGamesFormat`. */
     matchFormat?: LimitedGamesFormat;
     roundDeadlineMinutes?: number;
@@ -300,6 +305,9 @@ export interface LimitedEventView {
      *  client (and the event page's format line) never has to know that events
      *  predating the play phase stored nothing, nor re-implement the default. */
     gamesFormat: LimitedGamesFormat;
+    /** The difficulty every vs-AI Match of this event plays at (issue #6916) —
+     *  DEFINITE on the wire, resolved through `resolveEventBotDifficulty`. */
+    botDifficulty: Difficulty;
     /** Configured round deadline in minutes (PRD #1628 stories 3-4). Absent =
      *  no deadline. Public, not viewer-scoped: every seat needs to know whether
      *  the table is on a clock before it starts drafting. */
@@ -524,6 +532,7 @@ export function projectLimitedEvent(
         // place the "absent means bo3" tolerance lives — so the wire shape is
         // definite; `rounds` normalises to `[]` for the same reason.
         gamesFormat: resolveEventGamesFormat(event),
+        botDifficulty: resolveEventBotDifficulty(event),
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         currentRound: event.currentRound,
         rounds: event.rounds ?? [],

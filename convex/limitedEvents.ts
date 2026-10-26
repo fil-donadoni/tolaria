@@ -150,6 +150,10 @@ import {
     MIN_ROUND_DEADLINE_MINUTES,
 } from "./limited/gamesFormat";
 import {
+    difficultyValidator,
+    resolveEventBotDifficulty,
+} from "./limited/botDifficulty";
+import {
     projectViewerChallenges,
     type ChallengeGame,
     type ViewerChallenges,
@@ -420,6 +424,9 @@ export const limitedEventViewValidator = v.object({
     // wire even though the stored field is optional — `projectLimitedEvent`
     // resolves the default, so the client always receives a concrete Bo1/Bo3.
     gamesFormat: gamesFormatValidator,
+    // Bot difficulty of the event's vs-AI Matches (issue #6916) — DEFINITE on
+    // the wire (a legacy row resolves to "medium" in `projectLimitedEvent`).
+    botDifficulty: difficultyValidator,
     roundDeadlineMinutes: v.optional(v.number()),
     currentRound: v.optional(v.number()),
     // Always an array (`[]` before the play phase) — pairings and results are
@@ -1699,6 +1706,9 @@ export const createLimitedEvent = mutation({
         // issue #1640). Omitted === the Bo3 default, so an existing client
         // that doesn't send it still creates a real-Limited-shaped event.
         gamesFormat: v.optional(gamesFormatValidator),
+        // Bot difficulty of the event's vs-AI Matches (issue #6916). Omitted
+        // === "medium", the lobby default.
+        botDifficulty: v.optional(difficultyValidator),
         // Optional round deadline in MINUTES (PRD #1628 stories 3-4). Omitted
         // === no deadline; a relaxed table is never cut short by a timer.
         roundDeadlineMinutes: v.optional(v.number()),
@@ -1796,6 +1806,7 @@ export const createLimitedEvent = mutation({
             // before the play phase, not as a licence for new rows to be
             // ambiguous about what the creator chose.
             gamesFormat: resolveGamesFormat(args.gamesFormat),
+            botDifficulty: resolveEventBotDifficulty(args),
             roundDeadlineMinutes: args.roundDeadlineMinutes,
             // Persisted concrete, like `gamesFormat`: absence is reserved for
             // legacy rows, which the projection reads as off.
